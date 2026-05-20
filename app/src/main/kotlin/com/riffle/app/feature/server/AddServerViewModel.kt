@@ -10,6 +10,8 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,7 +26,9 @@ class AddServerViewModel @Inject constructor(
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
-    var navigateBack by mutableStateOf(false)
+
+    private val _navigateBack = Channel<Unit>(Channel.CONFLATED)
+    val navigateBack = _navigateBack.receiveAsFlow()
 
     fun onConnect() {
         error = null
@@ -54,7 +58,7 @@ class AddServerViewModel @Inject constructor(
         viewModelScope.launch {
             isLoading = true
             when (val result = repository.addServer(serverUrl, username, password, insecureAllowed)) {
-                is AddServerResult.Success -> navigateBack = true
+                is AddServerResult.Success -> _navigateBack.send(Unit)
                 is AddServerResult.WrongCredentials -> error = result.message
                 is AddServerResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
                 is AddServerResult.InsecureConnection -> insecureWarning = result.type

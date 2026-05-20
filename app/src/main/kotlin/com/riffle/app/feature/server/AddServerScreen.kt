@@ -36,8 +36,8 @@ fun AddServerScreen(
     onNavigateBack: () -> Unit,
     viewModel: AddServerViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(viewModel.navigateBack) {
-        if (viewModel.navigateBack) onNavigateBack()
+    LaunchedEffect(Unit) {
+        viewModel.navigateBack.collect { onNavigateBack() }
     }
 
     viewModel.insecureWarning?.let { type ->
