@@ -62,8 +62,7 @@ class ServerRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setActive(serverId: String) {
-        dao.clearActiveFlag()
-        dao.setActive(serverId)
+        dao.setActiveAtomic(serverId)
     }
 
     override suspend fun remove(serverId: String) {
