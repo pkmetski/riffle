@@ -1,0 +1,89 @@
+.DEFAULT_GOAL := help
+FONTS_DIR := app/src/main/assets/fonts
+WRAPPER_JAR := gradle/wrapper/gradle-wrapper.jar
+GRADLE_VERSION := 8.9
+
+.PHONY: help
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+.PHONY: bootstrap
+bootstrap: deps wrapper fonts ## Full first-time setup (installs deps, wrapper, fonts)
+
+.PHONY: deps
+deps: ## Install missing system dependencies (Java, Gradle via Homebrew on macOS)
+	@command -v java >/dev/null 2>&1 || { \
+		echo "Java not found. Installing temurin via Homebrew..."; \
+		brew install --cask temurin@17; \
+	}
+	@echo "Java: $$(java -version 2>&1 | head -1)"
+
+.PHONY: wrapper
+wrapper: ## Download Gradle wrapper jar
+	@mkdir -p gradle/wrapper
+	@if [ ! -f "$(WRAPPER_JAR)" ]; then \
+		echo "Downloading Gradle wrapper jar (v$(GRADLE_VERSION))..."; \
+		curl -fsSL -o $(WRAPPER_JAR) \
+			"https://raw.githubusercontent.com/gradle/gradle/v$(GRADLE_VERSION).0/gradle/wrapper/gradle-wrapper.jar"; \
+		echo "Downloaded $(WRAPPER_JAR)"; \
+	else \
+		echo "$(WRAPPER_JAR) already present"; \
+	fi
+
+.PHONY: fonts
+fonts: ## Download bundled fonts (Literata, Merriweather, OpenDyslexic — SIL OFL)
+	@mkdir -p $(FONTS_DIR)
+	@echo "Downloading fonts..."
+	@# Literata (Google Fonts GitHub)
+	@if [ ! -f "$(FONTS_DIR)/Literata-Regular.ttf" ]; then \
+		curl -fsSL -o /tmp/literata.zip \
+			"https://fonts.google.com/download?family=Literata" && \
+		unzip -o /tmp/literata.zip "*/static/*.ttf" -d /tmp/literata_extracted && \
+		cp /tmp/literata_extracted/**/*.ttf $(FONTS_DIR)/ 2>/dev/null || \
+		find /tmp/literata_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
+		rm -rf /tmp/literata.zip /tmp/literata_extracted; \
+		echo "Literata downloaded"; \
+	fi
+	@# Merriweather (Google Fonts GitHub)
+	@if [ ! -f "$(FONTS_DIR)/Merriweather-Regular.ttf" ]; then \
+		curl -fsSL -o /tmp/merriweather.zip \
+			"https://fonts.google.com/download?family=Merriweather" && \
+		unzip -o /tmp/merriweather.zip "*.ttf" -d /tmp/merriweather_extracted && \
+		find /tmp/merriweather_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
+		rm -rf /tmp/merriweather.zip /tmp/merriweather_extracted; \
+		echo "Merriweather downloaded"; \
+	fi
+	@# OpenDyslexic (GitHub releases)
+	@if [ ! -f "$(FONTS_DIR)/OpenDyslexic-Regular.otf" ]; then \
+		curl -fsSL -o /tmp/opendyslexic.zip \
+			"https://github.com/antijingoist/opendyslexic/releases/latest/download/OpenDyslexic-Fonts.zip" && \
+		unzip -o /tmp/opendyslexic.zip "*.otf" "*.ttf" -d /tmp/od_extracted && \
+		find /tmp/od_extracted -name "*.otf" -exec cp {} $(FONTS_DIR)/ \; && \
+		find /tmp/od_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
+		rm -rf /tmp/opendyslexic.zip /tmp/od_extracted; \
+		echo "OpenDyslexic downloaded"; \
+	fi
+
+.PHONY: build
+build: wrapper ## Build the project
+	./gradlew build
+
+.PHONY: test
+test: wrapper ## Run all unit tests
+	./gradlew test
+
+.PHONY: lint
+lint: wrapper ## Run lint checks
+	./gradlew lint
+
+.PHONY: check
+check: wrapper ## Run build + lint + tests
+	./gradlew build lint test
+
+.PHONY: clean
+clean: ## Clean build outputs
+	./gradlew clean
+
+.PHONY: install
+install: wrapper fonts ## Build debug APK and install on connected device
+	./gradlew :app:installDebug
