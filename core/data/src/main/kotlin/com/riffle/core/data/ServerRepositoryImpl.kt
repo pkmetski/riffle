@@ -72,11 +72,15 @@ class ServerRepositoryImpl @Inject constructor(
             url.substringAfter("://").substringBefore("/")
         }
 
-    private fun ServerEntity.toDomain(): Server = Server(
-        id = id,
-        url = ServerUrl.parse(url)!!,
-        displayName = displayName,
-        isActive = isActive,
-        insecureConnectionAllowed = insecureConnectionAllowed,
-    )
+    private fun ServerEntity.toDomain(): Server {
+        val parsedUrl = ServerUrl.parse(url)
+            ?: ServerUrl.parse("https://invalid.example.com")!!
+        return Server(
+            id = id,
+            url = parsedUrl,
+            displayName = displayName,
+            isActive = isActive,
+            insecureConnectionAllowed = insecureConnectionAllowed,
+        )
+    }
 }
