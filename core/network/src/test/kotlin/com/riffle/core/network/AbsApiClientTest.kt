@@ -36,7 +36,7 @@ class AbsApiClientTest {
                 .setBody("""{"user":{"id":"user-123","username":"admin","token":"tok-abc"}}""")
                 .addHeader("Content-Type", "application/json")
         )
-        val result = client.login(server.url("/").toString().trimEnd('/'), "admin", "secret")
+        val result = client.login(server.url("/").toString().trimEnd('/'), "admin", "secret", false)
         assertTrue(result is NetworkLoginResult.Success)
         val success = result as NetworkLoginResult.Success
         assertEquals("user-123", success.userId)
@@ -51,7 +51,7 @@ class AbsApiClientTest {
                 .setBody("""{"user":{"id":"u","username":"admin","token":"t"}}""")
                 .addHeader("Content-Type", "application/json")
         )
-        client.login(server.url("/").toString().trimEnd('/'), "admin", "s3cret")
+        client.login(server.url("/").toString().trimEnd('/'), "admin", "s3cret", false)
         val request = server.takeRequest()
         val body = request.body.readUtf8()
         assertTrue(body.contains("\"username\":\"admin\""))
@@ -62,14 +62,14 @@ class AbsApiClientTest {
     @Test
     fun `login 401 returns WrongCredentials`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
-        val result = client.login(server.url("/").toString().trimEnd('/'), "admin", "wrong")
+        val result = client.login(server.url("/").toString().trimEnd('/'), "admin", "wrong", false)
         assertTrue(result is NetworkLoginResult.WrongCredentials)
     }
 
     @Test
     fun `login unreachable host returns NetworkError`() = runTest {
         server.shutdown()
-        val result = client.login("http://127.0.0.1:1", "admin", "pass")
+        val result = client.login("http://127.0.0.1:1", "admin", "pass", false)
         assertTrue(result is NetworkLoginResult.NetworkError)
     }
 }
