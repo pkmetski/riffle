@@ -6,6 +6,11 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// Exclude legacy Android Support Library to prevent duplicate-class conflicts with AndroidX.
+configurations.all {
+    exclude(group = "com.android.support")
+}
+
 android {
     namespace = "com.riffle.app"
     compileSdk = 35

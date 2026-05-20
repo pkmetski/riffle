@@ -1,5 +1,6 @@
 package com.riffle.core.domain
 
+@ConsistentCopyVisibility
 data class ServerUrl private constructor(val value: String) {
 
     companion object {
