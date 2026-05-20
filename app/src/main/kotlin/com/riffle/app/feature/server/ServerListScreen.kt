@@ -35,6 +35,7 @@ import com.riffle.core.domain.Server
 @Composable
 fun ServerListScreen(
     onAddServer: () -> Unit,
+    onBrowseLibrary: () -> Unit = {},
     viewModel: ServerListViewModel = hiltViewModel(),
 ) {
     val servers by viewModel.servers.collectAsState()
@@ -63,6 +64,7 @@ fun ServerListScreen(
                         server = server,
                         onSetActive = { viewModel.setActive(server) },
                         onRemove = { viewModel.remove(server) },
+                        onBrowse = onBrowseLibrary,
                     )
                 }
             }
@@ -75,6 +77,7 @@ private fun ServerItem(
     server: Server,
     onSetActive: () -> Unit,
     onRemove: () -> Unit,
+    onBrowse: () -> Unit = {},
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -96,6 +99,9 @@ private fun ServerItem(
             }
             if (!server.isActive) {
                 TextButton(onClick = onSetActive) { Text("Use") }
+            }
+            if (server.isActive) {
+                TextButton(onClick = onBrowse) { Text("Browse") }
             }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Default.Delete, contentDescription = "Remove server")
