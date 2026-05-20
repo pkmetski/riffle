@@ -8,7 +8,10 @@
 A user-configured Audiobookshelf server instance (URL + credentials). Multiple Servers can be added; the user switches between them manually. All local data (Cache, Downloads, Annotations) is scoped to a Server.
 
 ### Library
-A top-level collection on the connected ABS server. Riffle only surfaces Libraries whose `mediaType` is `book` — podcast, audiobook-only, and other non-ebook libraries are hidden from the user entirely.
+A top-level collection on the connected ABS server. Riffle surfaces all Libraries whose `mediaType` is `book` (podcast libraries are excluded). Because ABS does not expose a reliable library-level signal to distinguish ebook libraries from audiobook libraries, all book Libraries are shown. A Library may be Unsupported.
+
+### Unsupported Library
+A Library whose items have been fetched at least once and every one of them is an Unsupported Library Item. Displayed in the Library list as dimmed and not tappable. Re-evaluated on each refresh — becomes supported again if ebook items appear. A Library with zero fetched items is not considered Unsupported.
 
 ### Series
 A named, ordered grouping of Library Items within a Library. Defined on the ABS server (e.g. "The Stormlight Archive").
@@ -17,7 +20,10 @@ A named, ordered grouping of Library Items within a Library. Defined on the ABS 
 A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential.
 
 ### Library Item
-A book entry within a Library. Includes metadata (title, author, cover) and a reference to the EPUB file hosted on the server. May belong to a Series, a Collection, or neither.
+An entry within a Library on the ABS server. Includes metadata (title, author, cover). May or may not have an associated ebook file. May belong to a Series, a Collection, or neither. A Library Item with no ebook file is an Unsupported Library Item.
+
+### Unsupported Library Item
+A Library Item that has no ebook file on the server (e.g. an audiobook). Displayed in the item list as dimmed and not tappable. Riffle cannot open it.
 
 ### Cache
 A local copy of a Library Item's EPUB file that the app creates automatically when the user opens a book. Stored in a clearable system cache directory. Available for offline reading as long as it has not been evicted.
