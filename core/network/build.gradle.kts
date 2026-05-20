@@ -4,7 +4,7 @@ plugins {
 
 dependencies {
     implementation(project(":core:domain"))
-    implementation(libs.okhttp)
+    api(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.core)
