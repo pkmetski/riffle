@@ -6,15 +6,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
-import com.riffle.core.domain.Series
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -22,22 +19,17 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class LibraryItemsViewModel @Inject constructor(
+class SeriesDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val libraryRepository: LibraryRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
-    val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
+    val seriesId: String = savedStateHandle.get<String>("seriesId") ?: ""
+    private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
-    val series: StateFlow<List<Series>> = libraryRepository.observeSeries(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val collections: StateFlow<List<Collection>> = libraryRepository.observeCollections(libraryId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val ungroupedItems: StateFlow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
+    val items: StateFlow<List<LibraryItem>> = libraryRepository.observeSeriesItems(seriesId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var isOffline: Boolean by mutableStateOf(false)
@@ -52,17 +44,13 @@ class LibraryItemsViewModel @Inject constructor(
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
-            refresh()
+            isOffline = libraryRepository.refreshSeries(libraryId) is LibraryRefreshResult.NetworkError
         }
     }
 
     fun refresh() {
         viewModelScope.launch {
-            val itemsDeferred = async { libraryRepository.refreshLibraryItems(libraryId) }
-            val seriesDeferred = async { libraryRepository.refreshSeries(libraryId) }
-            val collectionsDeferred = async { libraryRepository.refreshCollections(libraryId) }
-            val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
-            isOffline = results.any { it is LibraryRefreshResult.NetworkError }
+            isOffline = libraryRepository.refreshSeries(libraryId) is LibraryRefreshResult.NetworkError
         }
     }
 }

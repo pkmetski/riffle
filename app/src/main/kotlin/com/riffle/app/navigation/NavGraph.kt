@@ -6,8 +6,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibraryListScreen
+import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.server.AddServerScreen
 import com.riffle.app.feature.server.ServerListScreen
 import java.net.URLDecoder
@@ -17,6 +19,8 @@ private const val SERVER_LIST = "server_list"
 private const val ADD_SERVER = "add_server"
 private const val LIBRARY_LIST = "library_list"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
+private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
+private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 
 @Composable
 fun RiffleNavGraph() {
@@ -46,12 +50,55 @@ fun RiffleNavGraph() {
                 navArgument("libraryName") { type = NavType.StringType },
             )
         ) { backStackEntry ->
+            val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
             val libraryName = URLDecoder.decode(
                 backStackEntry.arguments?.getString("libraryName") ?: "",
                 "UTF-8"
             )
             LibraryItemsScreen(
                 libraryName = libraryName,
+                onSeriesSelected = { series ->
+                    val encodedName = URLEncoder.encode(series.name, "UTF-8")
+                    navController.navigate("series_detail/$libraryId/${series.id}/$encodedName")
+                },
+                onCollectionSelected = { collection ->
+                    val encodedName = URLEncoder.encode(collection.name, "UTF-8")
+                    navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
+                },
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = SERIES_DETAIL,
+            arguments = listOf(
+                navArgument("libraryId") { type = NavType.StringType },
+                navArgument("seriesId") { type = NavType.StringType },
+                navArgument("seriesName") { type = NavType.StringType },
+            )
+        ) { backStackEntry ->
+            val seriesName = URLDecoder.decode(
+                backStackEntry.arguments?.getString("seriesName") ?: "",
+                "UTF-8"
+            )
+            SeriesDetailScreen(
+                seriesName = seriesName,
+                onNavigateBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = COLLECTION_DETAIL,
+            arguments = listOf(
+                navArgument("libraryId") { type = NavType.StringType },
+                navArgument("collectionId") { type = NavType.StringType },
+                navArgument("collectionName") { type = NavType.StringType },
+            )
+        ) { backStackEntry ->
+            val collectionName = URLDecoder.decode(
+                backStackEntry.arguments?.getString("collectionName") ?: "",
+                "UTF-8"
+            )
+            CollectionDetailScreen(
+                collectionName = collectionName,
                 onNavigateBack = { navController.popBackStack() },
             )
         }

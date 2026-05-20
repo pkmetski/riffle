@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,16 +40,22 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.Series
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryItemsScreen(
     libraryName: String,
+    onSeriesSelected: (Series) -> Unit,
+    onCollectionSelected: (Collection) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
-    val items by viewModel.items.collectAsState()
+    val series by viewModel.series.collectAsState()
+    val collections by viewModel.collections.collectAsState()
+    val ungroupedItems by viewModel.ungroupedItems.collectAsState()
 
     Scaffold(
         topBar = {
@@ -71,7 +78,8 @@ fun LibraryItemsScreen(
             if (viewModel.isOffline) {
                 OfflineBanner()
             }
-            if (items.isEmpty()) {
+            val isEmpty = series.isEmpty() && collections.isEmpty() && ungroupedItems.isEmpty()
+            if (isEmpty) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No items in this library")
                 }
@@ -81,8 +89,29 @@ fun LibraryItemsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    items(items, key = { it.id }) { item ->
-                        LibraryItemCard(item = item, token = viewModel.authToken)
+                    if (series.isNotEmpty()) {
+                        item {
+                            SectionHeader("Series")
+                        }
+                        items(series, key = { "series_${it.id}" }) { s ->
+                            SeriesCard(series = s, token = viewModel.authToken, onClick = { onSeriesSelected(s) })
+                        }
+                    }
+                    if (collections.isNotEmpty()) {
+                        item {
+                            SectionHeader("Collections")
+                        }
+                        items(collections, key = { "col_${it.id}" }) { col ->
+                            CollectionCard(collection = col, onClick = { onCollectionSelected(col) })
+                        }
+                    }
+                    if (ungroupedItems.isNotEmpty()) {
+                        item {
+                            SectionHeader("Books")
+                        }
+                        items(ungroupedItems, key = { "item_${it.id}" }) { item ->
+                            LibraryItemCard(item = item, token = viewModel.authToken)
+                        }
                     }
                 }
             }
@@ -91,7 +120,69 @@ fun LibraryItemsScreen(
 }
 
 @Composable
-private fun LibraryItemCard(item: LibraryItem, token: String) {
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun SeriesCard(series: Series, token: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(series.coverUrl)
+                    .addHeader("Authorization", "Bearer $token")
+                    .crossfade(true)
+                    .build(),
+                contentDescription = series.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(width = 64.dp, height = 96.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(text = series.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = "${series.bookCount} book${if (series.bookCount != 1) "s" else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectionCard(collection: Collection, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(text = collection.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text(
+                text = "${collection.bookCount} book${if (collection.bookCount != 1) "s" else ""}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun LibraryItemCard(item: LibraryItem, token: String) {
     val alpha = if (!item.isSupported) 0.38f else 1f
     Card(modifier = Modifier.fillMaxWidth().alpha(alpha)) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {

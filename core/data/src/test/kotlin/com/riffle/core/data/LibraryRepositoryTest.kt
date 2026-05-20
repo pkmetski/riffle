@@ -1,9 +1,15 @@
 package com.riffle.core.data
 
+import com.riffle.core.database.CollectionDao
+import com.riffle.core.database.CollectionEntity
+import com.riffle.core.database.CollectionItemEntity
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.SeriesDao
+import com.riffle.core.database.SeriesEntity
+import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.AddServerResult
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryRefreshResult
@@ -12,10 +18,15 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.NetworkCollection
+import com.riffle.core.network.NetworkCollectionResult
 import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryItem
 import com.riffle.core.network.NetworkLibraryItemsResult
+import com.riffle.core.network.NetworkSeries
+import com.riffle.core.network.NetworkSeriesItem
+import com.riffle.core.network.NetworkSeriesResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -81,6 +92,9 @@ class LibraryRepositoryTest {
         override fun observeByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> =
             roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
+        override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> =
+            roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {
             upserted.addAll(items)
             items.groupBy { it.libraryId }.forEach { (libraryId, entities) ->
@@ -93,16 +107,90 @@ class LibraryRepositoryTest {
         }
     }
 
+    private class FakeSeriesDao : SeriesDao {
+        val upsertedSeries = mutableListOf<SeriesEntity>()
+        val upsertedItems = mutableListOf<SeriesItemEntity>()
+        private val seriesData = mutableMapOf<String, MutableStateFlow<List<SeriesEntity>>>()
+        private val itemData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
+
+        override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> =
+            seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+
+        override fun observeItemsBySeriesId(seriesId: String): Flow<List<LibraryItemEntity>> =
+            itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
+
+        override suspend fun upsertAll(series: List<SeriesEntity>) {
+            upsertedSeries.addAll(series)
+            series.groupBy { it.libraryId }.forEach { (libraryId, list) ->
+                seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }.value = list
+            }
+        }
+
+        override suspend fun upsertAllItems(items: List<SeriesItemEntity>) {
+            upsertedItems.addAll(items)
+        }
+
+        override suspend fun deleteByLibraryId(libraryId: String) {
+            seriesData[libraryId]?.value = emptyList()
+        }
+
+        override suspend fun deleteItemsByLibraryId(libraryId: String) {}
+
+        fun seedItems(seriesId: String, items: List<LibraryItemEntity>) {
+            itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }.value = items
+        }
+    }
+
+    private class FakeCollectionDao : CollectionDao {
+        val upsertedCollections = mutableListOf<CollectionEntity>()
+        val upsertedItems = mutableListOf<CollectionItemEntity>()
+        private val collectionData = mutableMapOf<String, MutableStateFlow<List<CollectionEntity>>>()
+        private val itemData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
+
+        override fun observeByLibraryId(libraryId: String): Flow<List<CollectionEntity>> =
+            collectionData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+
+        override fun observeItemsByCollectionId(collectionId: String): Flow<List<LibraryItemEntity>> =
+            itemData.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
+
+        override suspend fun upsertAll(collections: List<CollectionEntity>) {
+            upsertedCollections.addAll(collections)
+            collections.groupBy { it.libraryId }.forEach { (libraryId, list) ->
+                collectionData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }.value = list
+            }
+        }
+
+        override suspend fun upsertAllItems(items: List<CollectionItemEntity>) {
+            upsertedItems.addAll(items)
+        }
+
+        override suspend fun deleteByLibraryId(libraryId: String) {
+            collectionData[libraryId]?.value = emptyList()
+        }
+
+        override suspend fun deleteItemsByLibraryId(libraryId: String) {}
+
+        fun seedItems(collectionId: String, items: List<LibraryItemEntity>) {
+            itemData.getOrPut(collectionId) { MutableStateFlow(emptyList()) }.value = items
+        }
+    }
+
     private fun makeRepo(
         libraryDao: FakeLibraryDao = FakeLibraryDao(),
         libraryItemDao: FakeLibraryItemDao = FakeLibraryItemDao(),
+        seriesDao: FakeSeriesDao = FakeSeriesDao(),
+        collectionDao: FakeCollectionDao = FakeCollectionDao(),
         api: AbsLibraryApi = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibrariesResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         },
-    ) = LibraryRepositoryImpl(api, libraryDao, libraryItemDao, fakeServerRepository, fakeTokenStorage)
+    ) = LibraryRepositoryImpl(api, libraryDao, libraryItemDao, seriesDao, collectionDao, fakeServerRepository, fakeTokenStorage)
 
     private fun activeServer(id: String = "s1") = Server(
         id = id,
@@ -128,6 +216,10 @@ class LibraryRepositoryTest {
                 ))
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryDao = dao, api = api).refreshLibraries()
         assertEquals(2, dao.upserted.size)
@@ -144,6 +236,10 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.Success(listOf(NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false)))
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryDao = dao, api = api).refreshLibraries()
         assertEquals("s1", dao.upserted[0].serverId)
@@ -158,6 +254,10 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.NetworkError(IOException("timeout"))
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         }
         val result = makeRepo(api = api).refreshLibraries()
         assertTrue(result is LibraryRefreshResult.NetworkError)
@@ -203,6 +303,10 @@ class LibraryRepositoryTest {
                 NetworkLibraryItemsResult.Success(listOf(
                     NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, isSupported = true)
                 ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
         assertEquals(1, dao.upserted.size)
@@ -224,6 +328,10 @@ class LibraryRepositoryTest {
                     NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f, isSupported = true),
                     NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f, isSupported = true),
                 ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
         assertEquals(2, dao.upserted.size)
@@ -238,6 +346,10 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.NetworkError(IOException("timeout"))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
         }
         val result = makeRepo(api = api).refreshLibraryItems("lib-1")
         assertTrue(result is LibraryRefreshResult.NetworkError)
@@ -253,5 +365,151 @@ class LibraryRepositoryTest {
         assertEquals(1, result.size)
         assertEquals("item-1", result[0].id)
         assertFalse(result[0].isCached)
+    }
+
+    // ── refreshSeries ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `refreshSeries fetches from API and caches series to Room`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeSeriesDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(listOf(
+                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
+                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0.5f, true),
+                        NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, true),
+                    )),
+                ))
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(seriesDao = dao, api = api).refreshSeries("lib-1")
+        assertEquals(1, dao.upsertedSeries.size)
+        assertEquals("ser-1", dao.upsertedSeries[0].id)
+        assertEquals(2, dao.upsertedSeries[0].bookCount)
+        assertEquals(2, dao.upsertedItems.size)
+        assertEquals(1f, dao.upsertedItems[0].sequenceOrder, 0.001f)
+        assertEquals(2f, dao.upsertedItems[1].sequenceOrder, 0.001f)
+    }
+
+    @Test
+    fun `refreshSeries returns NetworkError when network fails`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.NetworkError(IOException("timeout"))
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        val result = makeRepo(api = api).refreshSeries("lib-1")
+        assertTrue(result is LibraryRefreshResult.NetworkError)
+    }
+
+    // ── observeSeries ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `observeSeries emits from Room scoped to libraryId`() = runTest {
+        val dao = FakeSeriesDao()
+        dao.upsertAll(listOf(SeriesEntity("ser-1", "lib-1", "Stormlight", null, 2)))
+        val result = makeRepo(seriesDao = dao).observeSeries("lib-1").first()
+        assertEquals(1, result.size)
+        assertEquals("ser-1", result[0].id)
+        assertEquals("Stormlight", result[0].name)
+    }
+
+    // ── refreshCollections ────────────────────────────────────────────────────
+
+    @Test
+    fun `refreshCollections fetches from API and caches collections to Room`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeCollectionDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(listOf(
+                    NetworkCollection("col-1", "lib-1", "Favorites", listOf(
+                        NetworkLibraryItem("item-1", "lib-1", "Book A", "Author", 0.3f, true),
+                        NetworkLibraryItem("item-2", "lib-1", "Book B", "Author", 0f, true),
+                    )),
+                ))
+        }
+        makeRepo(collectionDao = dao, api = api).refreshCollections("lib-1")
+        assertEquals(1, dao.upsertedCollections.size)
+        assertEquals("col-1", dao.upsertedCollections[0].id)
+        assertEquals(2, dao.upsertedCollections[0].bookCount)
+        assertEquals(2, dao.upsertedItems.size)
+    }
+
+    @Test
+    fun `refreshCollections returns NetworkError when network fails`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.NetworkError(IOException("timeout"))
+        }
+        val result = makeRepo(api = api).refreshCollections("lib-1")
+        assertTrue(result is LibraryRefreshResult.NetworkError)
+    }
+
+    // ── observeCollections ────────────────────────────────────────────────────
+
+    @Test
+    fun `observeCollections emits from Room scoped to libraryId`() = runTest {
+        val dao = FakeCollectionDao()
+        dao.upsertAll(listOf(CollectionEntity("col-1", "lib-1", "Favorites", 3)))
+        val result = makeRepo(collectionDao = dao).observeCollections("lib-1").first()
+        assertEquals(1, result.size)
+        assertEquals("col-1", result[0].id)
+        assertEquals("Favorites", result[0].name)
+    }
+
+    // ── observeSeriesItems ────────────────────────────────────────────────────
+
+    @Test
+    fun `observeSeriesItems emits items from Room in series order`() = runTest {
+        val dao = FakeSeriesDao()
+        val item1 = LibraryItemEntity("item-1", "lib-1", "WoK", "Sanderson", null, 0.5f, false, true)
+        val item2 = LibraryItemEntity("item-2", "lib-1", "WoR", "Sanderson", null, 0f, false, true)
+        dao.seedItems("ser-1", listOf(item1, item2))
+        val result = makeRepo(seriesDao = dao).observeSeriesItems("ser-1").first()
+        assertEquals(2, result.size)
+        assertEquals("item-1", result[0].id)
+        assertEquals("item-2", result[1].id)
+    }
+
+    // ── observeCollectionItems ────────────────────────────────────────────────
+
+    @Test
+    fun `observeCollectionItems emits items from Room`() = runTest {
+        val dao = FakeCollectionDao()
+        val item1 = LibraryItemEntity("item-1", "lib-1", "Book A", "Author", null, 0f, false, true)
+        dao.seedItems("col-1", listOf(item1))
+        val result = makeRepo(collectionDao = dao).observeCollectionItems("col-1").first()
+        assertEquals(1, result.size)
+        assertEquals("item-1", result[0].id)
     }
 }

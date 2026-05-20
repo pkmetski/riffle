@@ -1,9 +1,11 @@
 package com.riffle.app.feature.library
 
+import com.riffle.core.domain.Collection
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.Series
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -40,8 +42,15 @@ class LibraryListViewModelTest {
     ): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
+        override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
+        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun refreshLibraries() = refreshResult
         override suspend fun refreshLibraryItems(libraryId: String) = refreshResult
+        override suspend fun refreshSeries(libraryId: String) = refreshResult
+        override suspend fun refreshCollections(libraryId: String) = refreshResult
     }
 
     @Test
@@ -75,11 +84,18 @@ class LibraryListViewModelTest {
         val repo = object : LibraryRepository {
             override fun observeLibraries(): Flow<List<Library>> = librariesFlow
             override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
+            override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
+            override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+            override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
             override suspend fun refreshLibraries(): LibraryRefreshResult {
                 return if (callCount++ == 0) LibraryRefreshResult.NetworkError(IOException())
                 else LibraryRefreshResult.Success
             }
             override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
+            override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
+            override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
         }
         val vm = LibraryListViewModel(repo)
         testDispatcher.scheduler.advanceUntilIdle()
