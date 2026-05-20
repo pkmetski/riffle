@@ -6,8 +6,10 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+    implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }
