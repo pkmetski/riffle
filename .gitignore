@@ -1,0 +1,26 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Gradle wrapper jar (downloaded via `make bootstrap`)
+gradle/wrapper/gradle-wrapper.jar
+
+# Generated files
+**/build/
+**/.gradle/
+
+# Keystore files
+*.jks
+*.keystore
+
+# Font binaries (downloaded via `make fonts`)
+# Committed intentionally — remove this line if fonts are committed to repo
+# app/src/main/assets/fonts/*.ttf
+# app/src/main/assets/fonts/*.otf
