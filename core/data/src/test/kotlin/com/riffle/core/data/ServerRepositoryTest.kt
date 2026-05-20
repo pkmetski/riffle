@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.ServerDao
 import com.riffle.core.database.ServerEntity
 import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
@@ -10,6 +11,9 @@ import com.riffle.core.network.NetworkLoginResult
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,14 +26,22 @@ class ServerRepositoryTest {
         override suspend fun deleteToken(serverId: String) { tokens.remove(serverId) }
     }
 
-    private fun fakeDao(active: ServerEntity? = null): ServerDao = object : ServerDao {
-        val store = mutableListOf<ServerEntity>()
-        init { active?.let { store.add(it) } }
+    private fun fakeDao(vararg initial: ServerEntity): ServerDao = object : ServerDao {
+        val store = mutableListOf(*initial)
         override fun observeAll() = flowOf(store.toList())
         override suspend fun getActive() = store.firstOrNull { it.isActive }
-        override suspend fun upsert(server: ServerEntity) { store.add(server) }
+        override suspend fun upsert(server: ServerEntity) {
+            store.removeAll { it.id == server.id }
+            store.add(server)
+        }
         override suspend fun clearActiveFlag() { store.replaceAll { it.copy(isActive = false) } }
         override suspend fun setActive(id: String) { store.replaceAll { if (it.id == id) it.copy(isActive = true) else it } }
+        override suspend fun setActiveAtomic(id: String) { clearActiveFlag(); setActive(id) }
+        override suspend fun upsertAsFirstIfNoActive(server: ServerEntity): ServerEntity {
+            val toInsert = server.copy(isActive = getActive() == null)
+            upsert(toInsert)
+            return toInsert
+        }
         override suspend fun deleteById(id: String) { store.removeAll { it.id == id } }
     }
 
@@ -55,12 +67,13 @@ class ServerRepositoryTest {
     @Test
     fun `remove deletes server entity and token`() = runTest {
         val entity = ServerEntity("srv-1", "https://abs.example.com", "abs.example.com", true, false)
-        val dao = fakeDao(active = entity)
+        val dao = fakeDao(entity)
         fakeTokenStorage.tokens["srv-1"] = "tok"
         val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi)
         repo.remove("srv-1")
-        assertTrue(fakeTokenStorage.tokens.isEmpty())
+        assertTrue("token not deleted", fakeTokenStorage.tokens.isEmpty())
+        assertNull("entity not deleted from store", dao.getActive())
     }
 
     @Test
@@ -71,7 +84,37 @@ class ServerRepositoryTest {
         val url = ServerUrl.parse("https://abs.example.com")!!
         val result = repo.addServer(url, "admin", "pass")
         assertTrue(result is AddServerResult.Success)
-        val server = (result as AddServerResult.Success).server
-        assertTrue(server.isActive)
+        assertTrue("first server should be active", (result as AddServerResult.Success).server.isActive)
+    }
+
+    @Test
+    fun `second added server is not active`() = runTest {
+        val dao = fakeDao()
+        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid-1", "tok") }
+        val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi)
+        repo.addServer(ServerUrl.parse("https://first.example.com")!!, "admin", "pass")
+        val result = repo.addServer(ServerUrl.parse("https://second.example.com")!!, "admin", "pass")
+        assertTrue(result is AddServerResult.Success)
+        assertFalse("second server must not be active", (result as AddServerResult.Success).server.isActive)
+    }
+
+    @Test
+    fun `addServer returns InsecureConnection when network signals self-signed`() = runTest {
+        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
+        val repo = ServerRepositoryImpl(fakeDao(), fakeTokenStorage, fakeApi)
+        val url = ServerUrl.parse("https://abs.example.com")!!
+        val result = repo.addServer(url, "admin", "pass", insecureAllowed = false)
+        assertTrue(result is AddServerResult.InsecureConnection)
+    }
+
+    @Test
+    fun `setActive changes active server`() = runTest {
+        val e1 = ServerEntity("s1", "https://one.example.com", "one.example.com", true, false)
+        val e2 = ServerEntity("s2", "https://two.example.com", "two.example.com", false, false)
+        val dao = fakeDao(e1, e2)
+        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi)
+        repo.setActive("s2")
+        assertEquals("s2", dao.getActive()?.id)
     }
 }
