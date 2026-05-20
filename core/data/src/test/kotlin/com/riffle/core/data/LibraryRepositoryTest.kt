@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -116,8 +117,8 @@ class LibraryRepositoryTest {
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibrariesResult.Success(listOf(
-                    NetworkLibrary("lib-1", "Books", "book"),
-                    NetworkLibrary("lib-2", "Podcasts", "podcast"),
+                    NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false),
+                    NetworkLibrary("lib-2", "Podcasts", "podcast", audiobooksOnly = false),
                 ))
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
@@ -128,13 +129,32 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `refreshLibraries filters audiobook-only libraries`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(listOf(
+                    NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false),
+                    NetworkLibrary("lib-2", "Audiobooks", "book", audiobooksOnly = true),
+                ))
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+        }
+        makeRepo(libraryDao = dao, api = api).refreshLibraries()
+        assertEquals(1, dao.upserted.size)
+        assertEquals("lib-1", dao.upserted[0].id)
+    }
+
+    @Test
     fun `refreshLibraries caches to Room with correct serverId`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryDao()
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibrariesResult.Success(listOf(NetworkLibrary("lib-1", "Books", "book")))
+                NetworkLibrariesResult.Success(listOf(NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false)))
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
         }
@@ -204,6 +224,25 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `refreshLibraryItems deduplicates items with same title`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f),
+                    NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f),
+                    NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f),
+                ))
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(2, dao.upserted.size)
+    }
+
+    @Test
     fun `refreshLibraryItems returns NetworkError when network fails`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
@@ -226,6 +265,6 @@ class LibraryRepositoryTest {
         val result = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()
         assertEquals(1, result.size)
         assertEquals("item-1", result[0].id)
-        assertTrue(result[0].isCached)
+        assertFalse(result[0].isCached)
     }
 }

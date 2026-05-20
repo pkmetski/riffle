@@ -45,6 +45,20 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getLibraries parses audiobooksOnly from settings`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"libraries":[{"id":"lib-1","name":"Books","mediaType":"book","settings":{"audiobooksOnly":false}},{"id":"lib-2","name":"Audiobooks","mediaType":"book","settings":{"audiobooksOnly":true}}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getLibraries(server.url("/").toString().trimEnd('/'), "token", false)
+        val success = result as NetworkLibrariesResult.Success
+        assertEquals(false, success.libraries[0].audiobooksOnly)
+        assertEquals(true, success.libraries[1].audiobooksOnly)
+    }
+
+    @Test
     fun `getLibraries sends Authorization Bearer header and calls correct path`() = runTest {
         server.enqueue(
             MockResponse()

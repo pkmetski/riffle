@@ -46,7 +46,7 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getLibraries(server.url.value, token, server.insecureConnectionAllowed)) {
             is NetworkLibrariesResult.Success -> {
                 val entities = result.libraries
-                    .filter { it.mediaType == "book" }
+                    .filter { it.mediaType == "book" && !it.audiobooksOnly }
                     .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
                 libraryDao.upsertAll(entities)
                 LibraryRefreshResult.Success
@@ -60,17 +60,19 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkLibraryItemsResult.Success -> {
-                val entities = result.items.map { item ->
-                    LibraryItemEntity(
-                        id = item.id,
-                        libraryId = item.libraryId,
-                        title = item.title,
-                        author = item.author,
-                        coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                        readingProgress = item.readingProgress,
-                        isDownloaded = false,
-                    )
-                }
+                val entities = result.items
+                    .distinctBy { it.title.trim().lowercase() }
+                    .map { item ->
+                        LibraryItemEntity(
+                            id = item.id,
+                            libraryId = item.libraryId,
+                            title = item.title,
+                            author = item.author,
+                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
+                            readingProgress = item.readingProgress,
+                            isDownloaded = false,
+                        )
+                    }
                 libraryItemDao.upsertAll(entities)
                 LibraryRefreshResult.Success
             }
@@ -87,7 +89,7 @@ class LibraryRepositoryImpl @Inject constructor(
         author = author,
         coverUrl = coverUrl,
         readingProgress = readingProgress,
-        isCached = true,
+        isCached = false,
         isDownloaded = isDownloaded,
     )
 }

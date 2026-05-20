@@ -82,7 +82,12 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             )
             val parsed = json.decodeFromString<AbsLibrariesResponse>(raw)
             NetworkLibrariesResult.Success(parsed.libraries.map { dto ->
-                NetworkLibrary(id = dto.id, name = dto.name, mediaType = dto.mediaType)
+                NetworkLibrary(
+                    id = dto.id,
+                    name = dto.name,
+                    mediaType = dto.mediaType,
+                    audiobooksOnly = dto.settings.audiobooksOnly,
+                )
             })
         } catch (e: IOException) {
             NetworkLibrariesResult.NetworkError(e)
