@@ -62,7 +62,7 @@ abstract class DataModule {
         @Singleton
         fun provideDatabase(@ApplicationContext context: Context): RiffleDatabase =
             Room.databaseBuilder(context, RiffleDatabase::class.java, "riffle.db")
-                .addMigrations(RiffleDatabase.MIGRATION_1_2)
+                .addMigrations(RiffleDatabase.MIGRATION_1_2, RiffleDatabase.MIGRATION_2_3)
                 .build()
 
         @Provides

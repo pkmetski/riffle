@@ -17,4 +17,7 @@ interface LibraryDao {
 
     @Query("DELETE FROM libraries WHERE serverId = :serverId")
     suspend fun deleteByServerId(serverId: String)
+
+    @Query("UPDATE libraries SET isUnsupported = :isUnsupported WHERE id = :libraryId")
+    suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean)
 }

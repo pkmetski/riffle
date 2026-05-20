@@ -67,6 +67,11 @@ class LibraryRepositoryTest {
         override suspend fun deleteByServerId(serverId: String) {
             roomData[serverId]?.value = emptyList()
         }
+
+        override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {
+            val current = roomData[libraryId]?.value ?: return
+            roomData[libraryId]?.value = current.map { it.copy(isUnsupported = isUnsupported) }
+        }
     }
 
     private class FakeLibraryItemDao : LibraryItemDao {
@@ -196,7 +201,7 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f)
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, isSupported = true)
                 ))
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
@@ -215,9 +220,9 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f),
-                    NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f),
-                    NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f),
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f, isSupported = true),
+                    NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f, isSupported = true),
+                    NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f, isSupported = true),
                 ))
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
@@ -243,7 +248,7 @@ class LibraryRepositoryTest {
     @Test
     fun `observeLibraryItems emits from Room`() = runTest {
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.5f, false)))
+        dao.upsertAll(listOf(LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.5f, false, isSupported = true)))
         val result = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()
         assertEquals(1, result.size)
         assertEquals("item-1", result[0].id)

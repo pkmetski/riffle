@@ -47,7 +47,7 @@ class LibraryListViewModelTest {
     @Test
     fun `libraries state reflects repository flow`() = runTest {
         val vm = LibraryListViewModel(fakeRepo())
-        val lib = Library("lib-1", "Books", "book")
+        val lib = Library("lib-1", "Books", "book", isUnsupported = false)
         // A subscriber is required to activate stateIn(WhileSubscribed) collection
         backgroundScope.launch { vm.libraries.collect {} }
         librariesFlow.value = listOf(lib)

@@ -9,4 +9,5 @@ data class LibraryItem(
     val readingProgress: Float,
     val isCached: Boolean,
     val isDownloaded: Boolean,
+    val isSupported: Boolean,
 )

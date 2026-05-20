@@ -62,6 +62,7 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkLibraryItemsResult.Success -> {
                 val entities = result.items
+                    .sortedByDescending { it.isSupported }
                     .distinctBy { it.title.trim().lowercase() }
                     .map { item ->
                         LibraryItemEntity(
@@ -72,17 +73,20 @@ class LibraryRepositoryImpl @Inject constructor(
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
                             readingProgress = item.readingProgress,
                             isDownloaded = false,
+                            isSupported = item.isSupported,
                         )
                     }
                 libraryItemDao.deleteByLibraryId(libraryId)
                 libraryItemDao.upsertAll(entities)
+                val isUnsupported = entities.isNotEmpty() && entities.none { it.isSupported }
+                libraryDao.setUnsupported(libraryId, isUnsupported)
                 LibraryRefreshResult.Success
             }
             is NetworkLibraryItemsResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
         }
     }
 
-    private fun LibraryEntity.toDomain() = Library(id = id, name = name, mediaType = mediaType)
+    private fun LibraryEntity.toDomain() = Library(id = id, name = name, mediaType = mediaType, isUnsupported = isUnsupported)
 
     private fun LibraryItemEntity.toDomain() = LibraryItem(
         id = id,
@@ -93,5 +97,6 @@ class LibraryRepositoryImpl @Inject constructor(
         readingProgress = readingProgress,
         isCached = false,
         isDownloaded = isDownloaded,
+        isSupported = isSupported,
     )
 }

@@ -112,7 +112,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 IOException("Empty response body")
             )
             val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
-            NetworkLibraryItemsResult.Success(parsed.results.filter { it.media.ebookFile != null }.map { dto ->
+            NetworkLibraryItemsResult.Success(parsed.results.map { dto ->
                 val progress = dto.userMediaProgress?.ebookProgress
                     ?: dto.userMediaProgress?.progress
                     ?: 0f
@@ -122,6 +122,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     title = dto.media.metadata.title,
                     author = dto.media.metadata.authorName,
                     readingProgress = progress,
+                    isSupported = dto.media.ebookFile != null,
                 )
             })
         } catch (e: IOException) {

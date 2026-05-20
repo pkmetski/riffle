@@ -6,6 +6,7 @@ data class NetworkLibraryItem(
     val title: String,
     val author: String,
     val readingProgress: Float,
+    val isSupported: Boolean,
 )
 
 sealed class NetworkLibraryItemsResult {

@@ -12,4 +12,5 @@ data class LibraryItemEntity(
     val coverUrl: String?,
     val readingProgress: Float,
     val isDownloaded: Boolean,
+    val isSupported: Boolean = true,
 )

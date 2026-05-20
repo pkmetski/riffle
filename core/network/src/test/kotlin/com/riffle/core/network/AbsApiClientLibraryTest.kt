@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -80,7 +81,7 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
-    fun `getLibraryItems returns only ebook items`() = runTest {
+    fun `getLibraryItems marks ebook items as supported and audiobook items as unsupported`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
@@ -97,10 +98,10 @@ class AbsApiClientLibraryTest {
         )
         assertTrue(result is NetworkLibraryItemsResult.Success)
         val success = result as NetworkLibraryItemsResult.Success
-        assertEquals(1, success.items.size)
-        assertEquals("item-1", success.items[0].id)
-        assertEquals("My Ebook", success.items[0].title)
+        assertEquals(2, success.items.size)
+        assertTrue(success.items[0].isSupported)
         assertEquals(0.42f, success.items[0].readingProgress, 0.001f)
+        assertFalse(success.items[1].isSupported)
     }
 
     @Test

@@ -31,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,7 +92,8 @@ fun LibraryItemsScreen(
 
 @Composable
 private fun LibraryItemCard(item: LibraryItem, token: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val alpha = if (!item.isSupported) 0.38f else 1f
+    Card(modifier = Modifier.fillMaxWidth().alpha(alpha)) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
@@ -118,14 +120,22 @@ private fun LibraryItemCard(item: LibraryItem, token: String) {
                         modifier = Modifier.weight(1f),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (item.isCached) {
-                            Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                                Text("Cached", style = MaterialTheme.typography.labelSmall)
+                        if (!item.isSupported) {
+                            Text(
+                                text = "Not supported",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            if (item.isCached) {
+                                Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                                    Text("Cached", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
-                        }
-                        if (item.isDownloaded) {
-                            Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                                Text("Downloaded", style = MaterialTheme.typography.labelSmall)
+                            if (item.isDownloaded) {
+                                Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                                    Text("Downloaded", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
                         }
                     }

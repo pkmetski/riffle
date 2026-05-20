@@ -9,4 +9,5 @@ data class LibraryEntity(
     val name: String,
     val mediaType: String,
     val serverId: String,
+    val isUnsupported: Boolean = false,
 )
