@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.riffle.core.database"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
