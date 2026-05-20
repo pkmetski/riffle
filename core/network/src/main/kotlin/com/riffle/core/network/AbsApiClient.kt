@@ -72,7 +72,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi {
         }
         return newBuilder()
             .sslSocketFactory(sslContext.socketFactory, trustAll)
-            .hostnameVerifier { _, _ -> true }
             .build()
     }
 }
