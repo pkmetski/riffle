@@ -1,11 +1,12 @@
 package com.riffle.core.network
 
-import com.google.gson.Gson
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -26,7 +27,7 @@ sealed class NetworkLoginResult {
 
 class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi {
 
-    private val gson = Gson()
+    private val json = Json { ignoreUnknownKeys = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     override suspend fun login(
@@ -36,7 +37,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi {
         insecureAllowed: Boolean,
     ): NetworkLoginResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val body = gson.toJson(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
+        val body = json.encodeToString(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/login")
             .post(body)
@@ -48,7 +49,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi {
                     val raw = response.body?.string() ?: return@withContext NetworkLoginResult.NetworkError(
                         IOException("Empty response body")
                     )
-                    val parsed = gson.fromJson(raw, AbsLoginResponse::class.java)
+                    val parsed = json.decodeFromString<AbsLoginResponse>(raw)
                     NetworkLoginResult.Success(userId = parsed.user.id, token = parsed.user.token)
                 }
                 401 -> NetworkLoginResult.WrongCredentials("Invalid username or password")
