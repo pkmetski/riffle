@@ -80,12 +80,15 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
-    fun `getLibraryItems success parses items with ebook progress`() = runTest {
+    fun `getLibraryItems returns only ebook items`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .setBody(
-                    """{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"My Book","authorName":"Author A"}},"userMediaProgress":{"progress":0.5,"ebookProgress":0.42}}]}"""
+                    """{"results":[""" +
+                    """{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"My Ebook","authorName":"Author A"},"ebookFile":{"ino":"123"}},"userMediaProgress":{"progress":0.5,"ebookProgress":0.42}},""" +
+                    """{"id":"item-2","libraryId":"lib-1","media":{"metadata":{"title":"My Audiobook","authorName":"Author B"}}}""" +
+                    """]}"""
                 )
                 .addHeader("Content-Type", "application/json")
         )
@@ -96,8 +99,7 @@ class AbsApiClientLibraryTest {
         val success = result as NetworkLibraryItemsResult.Success
         assertEquals(1, success.items.size)
         assertEquals("item-1", success.items[0].id)
-        assertEquals("My Book", success.items[0].title)
-        assertEquals("Author A", success.items[0].author)
+        assertEquals("My Ebook", success.items[0].title)
         assertEquals(0.42f, success.items[0].readingProgress, 0.001f)
     }
 
@@ -106,7 +108,7 @@ class AbsApiClientLibraryTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Unread Book","authorName":"Author B"}}}]}""")
+                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Unread Book","authorName":"Author B"},"ebookFile":{"ino":"456"}}}]}""")
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraryItems(

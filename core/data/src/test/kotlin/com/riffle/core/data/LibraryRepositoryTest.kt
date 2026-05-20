@@ -118,33 +118,15 @@ class LibraryRepositoryTest {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibrariesResult.Success(listOf(
                     NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false),
-                    NetworkLibrary("lib-2", "Podcasts", "podcast", audiobooksOnly = false),
-                ))
-            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibraryItemsResult.Success(emptyList())
-        }
-        makeRepo(libraryDao = dao, api = api).refreshLibraries()
-        assertEquals(1, dao.upserted.size)
-        assertEquals("book", dao.upserted[0].mediaType)
-    }
-
-    @Test
-    fun `refreshLibraries filters audiobook-only libraries`() = runTest {
-        fakeServerRepository.activeServer = activeServer()
-        fakeTokenStorage.tokens["s1"] = "tok"
-        val dao = FakeLibraryDao()
-        val api = object : AbsLibraryApi {
-            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibrariesResult.Success(listOf(
-                    NetworkLibrary("lib-1", "Books", "book", audiobooksOnly = false),
                     NetworkLibrary("lib-2", "Audiobooks", "book", audiobooksOnly = true),
+                    NetworkLibrary("lib-3", "Podcasts", "podcast", audiobooksOnly = false),
                 ))
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(emptyList())
         }
         makeRepo(libraryDao = dao, api = api).refreshLibraries()
-        assertEquals(1, dao.upserted.size)
-        assertEquals("lib-1", dao.upserted[0].id)
+        assertEquals(2, dao.upserted.size)
+        assertTrue(dao.upserted.all { it.mediaType == "book" })
     }
 
     @Test

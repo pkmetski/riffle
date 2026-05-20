@@ -46,7 +46,7 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getLibraries(server.url.value, token, server.insecureConnectionAllowed)) {
             is NetworkLibrariesResult.Success -> {
                 val entities = result.libraries
-                    .filter { it.mediaType == "book" && !it.audiobooksOnly }
+                    .filter { it.mediaType == "book" }
                     .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
                 libraryDao.deleteByServerId(server.id)
                 libraryDao.upsertAll(entities)
