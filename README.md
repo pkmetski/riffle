@@ -6,18 +6,30 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 
 ## Features
 
-- Connect to one or more self-hosted Audiobookshelf servers
-- Browse ebook libraries (EPUB and PDF)
-- Read with the [Readium Kotlin SDK](https://readium.org/kotlin-toolkit/)
-- Bidirectional reading progress sync
-- EPUB formatting preferences (font, theme, spacing)
-- Highlights, notes, and bookmarks
-- Offline reading via automatic cache or explicit downloads
-- No Firebase, no proprietary SDKs — F-Droid compatible
+- [x] Project scaffold & CI pipeline ([#3](https://github.com/pkmetski/riffle/issues/3))
+- [x] Server login & management ([#4](https://github.com/pkmetski/riffle/issues/4))
+- [ ] Library browsing — flat Library Item list ([#5](https://github.com/pkmetski/riffle/issues/5))
+- [ ] Series & Collections hierarchy ([#6](https://github.com/pkmetski/riffle/issues/6))
+- [ ] EPUB reader — open & navigate ([#7](https://github.com/pkmetski/riffle/issues/7))
+- [ ] Autonomous Test Harness ([#8](https://github.com/pkmetski/riffle/issues/8))
+- [ ] PDF reader — open & navigate ([#9](https://github.com/pkmetski/riffle/issues/9))
+- [ ] Reading Session & outbound Progress Sync ([#10](https://github.com/pkmetski/riffle/issues/10))
+- [ ] Inbound Progress Sync & conflict resolution ([#11](https://github.com/pkmetski/riffle/issues/11))
+- [ ] Offline Mode & Downloads ([#12](https://github.com/pkmetski/riffle/issues/12))
+- [ ] EPUB Formatting Preferences ([#13](https://github.com/pkmetski/riffle/issues/13))
+- [ ] PDF Formatting Preferences ([#14](https://github.com/pkmetski/riffle/issues/14))
+- [ ] Table of Contents navigation ([#15](https://github.com/pkmetski/riffle/issues/15))
+- [ ] Chapter Navigation Rail ([#16](https://github.com/pkmetski/riffle/issues/16))
+- [ ] EPUB Highlights & Notes ([#17](https://github.com/pkmetski/riffle/issues/17))
+- [ ] Bookmarks (EPUB & PDF) ([#18](https://github.com/pkmetski/riffle/issues/18))
+- [ ] Annotations panel ([#19](https://github.com/pkmetski/riffle/issues/19))
+- [ ] Reading Statistics screen ([#20](https://github.com/pkmetski/riffle/issues/20))
+- [ ] Crash Reporter (ACRA) ([#21](https://github.com/pkmetski/riffle/issues/21))
+- [ ] Screen Wake Lock ([#22](https://github.com/pkmetski/riffle/issues/22))
 
 ## Requirements
 
-- Android 8.0 (API 26) or higher
+- Android 7.0 (API 24) or higher
 - A running [Audiobookshelf](https://www.audiobookshelf.org/) server
 
 ## Distribution
