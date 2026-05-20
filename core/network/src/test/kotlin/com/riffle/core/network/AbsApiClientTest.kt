@@ -56,7 +56,7 @@ class AbsApiClientTest {
         val body = request.body.readUtf8()
         assertTrue(body.contains("\"username\":\"admin\""))
         assertTrue(body.contains("\"password\":\"s3cret\""))
-        assertEquals("/api/login", request.path)
+        assertEquals("/login", request.path)
     }
 
     @Test
