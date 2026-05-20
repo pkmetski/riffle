@@ -122,7 +122,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     title = dto.media.metadata.title,
                     author = dto.media.metadata.authorName,
                     readingProgress = progress,
-                    isSupported = dto.media.ebookFile != null,
+                    isSupported = dto.media.ebookFormat != null,
                 )
             })
         } catch (e: IOException) {

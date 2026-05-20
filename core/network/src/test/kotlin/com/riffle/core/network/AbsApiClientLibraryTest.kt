@@ -87,7 +87,7 @@ class AbsApiClientLibraryTest {
                 .setResponseCode(200)
                 .setBody(
                     """{"results":[""" +
-                    """{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"My Ebook","authorName":"Author A"},"ebookFile":{"ino":"123"}},"userMediaProgress":{"progress":0.5,"ebookProgress":0.42}},""" +
+                    """{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"My Ebook","authorName":"Author A"},"ebookFormat":"epub"},"userMediaProgress":{"progress":0.5,"ebookProgress":0.42}},""" +
                     """{"id":"item-2","libraryId":"lib-1","media":{"metadata":{"title":"My Audiobook","authorName":"Author B"}}}""" +
                     """]}"""
                 )
@@ -109,7 +109,7 @@ class AbsApiClientLibraryTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Unread Book","authorName":"Author B"},"ebookFile":{"ino":"456"}}}]}""")
+                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Unread Book","authorName":"Author B"},"ebookFormat":"pdf"}}]}""")
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraryItems(
