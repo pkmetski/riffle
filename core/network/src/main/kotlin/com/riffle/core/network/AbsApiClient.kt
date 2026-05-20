@@ -33,7 +33,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi {
         baseUrl: String,
         username: String,
         password: String,
-        insecureAllowed: Boolean = false,
+        insecureAllowed: Boolean,
     ): NetworkLoginResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val body = gson.toJson(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
