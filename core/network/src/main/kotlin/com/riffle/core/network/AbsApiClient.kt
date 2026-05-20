@@ -41,7 +41,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val body = json.encodeToString(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
         val request = Request.Builder()
-            .url("$baseUrl/api/login")
+            .url("$baseUrl/login")
             .post(body)
             .build()
         try {
