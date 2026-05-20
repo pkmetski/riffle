@@ -1,0 +1,3 @@
+Fonts are downloaded at build time via `make fonts`.
+See Makefile for the download targets.
+Fonts included: Literata, Merriweather, OpenDyslexic (all SIL OFL licensed).
