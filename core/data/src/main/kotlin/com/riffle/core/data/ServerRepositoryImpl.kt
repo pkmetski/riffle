@@ -35,22 +35,17 @@ class ServerRepositoryImpl @Inject constructor(
         val networkResult = absApiClient.login(url.value, username, password, insecureAllowed)
         return when (networkResult) {
             is NetworkLoginResult.Success -> {
-                val isFirst = dao.getActive() == null
                 val id = UUID.randomUUID().toString()
-                val displayName = url.value
-                    .substringAfter("://")
-                    .substringBefore("/")
-                    .substringBefore(":")
                 val entity = ServerEntity(
                     id = id,
                     url = url.value,
-                    displayName = displayName,
-                    isActive = isFirst,
+                    displayName = displayNameFrom(url.value),
+                    isActive = false,                    // overridden inside transaction
                     insecureConnectionAllowed = insecureAllowed,
                 )
-                dao.upsert(entity)
+                val inserted = dao.upsertAsFirstIfNoActive(entity)
                 tokenStorage.saveToken(id, networkResult.token)
-                AddServerResult.Success(entity.toDomain())
+                AddServerResult.Success(inserted.toDomain())
             }
             is NetworkLoginResult.WrongCredentials ->
                 AddServerResult.WrongCredentials(networkResult.message)
@@ -69,6 +64,13 @@ class ServerRepositoryImpl @Inject constructor(
         dao.deleteById(serverId)
         tokenStorage.deleteToken(serverId)
     }
+
+    private fun displayNameFrom(url: String): String =
+        try {
+            java.net.URI(url).host ?: url.substringAfter("://").substringBefore("/")
+        } catch (_: Exception) {
+            url.substringAfter("://").substringBefore("/")
+        }
 
     private fun ServerEntity.toDomain(): Server = Server(
         id = id,

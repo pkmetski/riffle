@@ -31,6 +31,14 @@ interface ServerDao {
         setActive(id)
     }
 
+    @Transaction
+    suspend fun upsertAsFirstIfNoActive(server: ServerEntity): ServerEntity {
+        val hasActive = getActive() != null
+        val toInsert = server.copy(isActive = !hasActive)
+        upsert(toInsert)
+        return toInsert
+    }
+
     @Query("DELETE FROM servers WHERE id = :id")
     suspend fun deleteById(id: String)
 }
