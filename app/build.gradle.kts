@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         applicationId = "com.riffle.app"
-        minSdk = 26
+        minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
@@ -79,6 +79,9 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.hilt.navigation.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.readium.shared)
     implementation(libs.readium.streamer)
@@ -89,6 +92,7 @@ dependencies {
     implementation(libs.acra.toast)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(composeBom)

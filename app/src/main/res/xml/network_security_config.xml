@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext traffic (HTTP) is permitted globally because users connect to self-hosted
+  Audiobookshelf servers that may not have TLS configured. The app shows a one-time
+  warning before allowing an insecure connection. User-installed CA certificates are
+  intentionally excluded to reduce the MitM surface.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
