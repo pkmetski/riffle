@@ -2,7 +2,6 @@ package com.riffle.core.data.di
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.room.Room
 import com.riffle.core.data.CrashReportRepositoryImpl
@@ -175,8 +174,6 @@ abstract class DataModule {
         @FormattingPreferencesDataStore
         fun provideFormattingPreferencesDataStore(
             @ApplicationContext context: Context
-        ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
-            produceFile = { context.filesDir.resolve("formatting_preferences.preferences_pb") }
-        )
+        ): DataStore<Preferences> = context.formattingPreferencesDataStore
     }
 }

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
@@ -8,90 +9,92 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.readium.r2.navigator.preferences.Theme
 
+@RunWith(AndroidJUnit4::class)
 class FormattingPreferencesMapperTest {
 
     @Test
-    fun `fontSize maps to EpubPreferences fontSize as Double`() {
+    fun fontSizeMapsToEpubPreferencesFontSizeAsDouble() {
         val result = FormattingPreferences(fontSize = 1.5f).toEpubPreferences()
         assertEquals(1.5, result.fontSize!!, 0.001)
     }
 
     @Test
-    fun `Light theme maps to LIGHT`() {
+    fun lightThemeMapsToLIGHT() {
         val result = FormattingPreferences(theme = ReaderTheme.Light).toEpubPreferences()
         assertEquals(Theme.LIGHT, result.theme)
     }
 
     @Test
-    fun `Dark theme maps to DARK`() {
+    fun darkThemeMapsToDARK() {
         val result = FormattingPreferences(theme = ReaderTheme.Dark).toEpubPreferences()
         assertEquals(Theme.DARK, result.theme)
     }
 
     @Test
-    fun `Sepia theme maps to SEPIA`() {
+    fun sepiaThemeMapsToSEPIA() {
         val result = FormattingPreferences(theme = ReaderTheme.Sepia).toEpubPreferences()
         assertEquals(Theme.SEPIA, result.theme)
     }
 
     @Test
-    fun `Serif fontFamily maps to css serif`() {
+    fun serifFontFamilyMapsToCssSerif() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.Serif).toEpubPreferences()
         assertEquals("serif", result.fontFamily?.name)
     }
 
     @Test
-    fun `SansSerif fontFamily maps to css sans-serif`() {
+    fun sansSerifFontFamilyMapsToCssSansSerif() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.SansSerif).toEpubPreferences()
         assertEquals("sans-serif", result.fontFamily?.name)
     }
 
     @Test
-    fun `Monospace fontFamily maps to css monospace`() {
+    fun monospaceFontFamilyMapsToCssMonospace() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.Monospace).toEpubPreferences()
         assertEquals("monospace", result.fontFamily?.name)
     }
 
     @Test
-    fun `Literata fontFamily maps by name`() {
+    fun literataFontFamilyMapsByName() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.Literata).toEpubPreferences()
         assertEquals("Literata", result.fontFamily?.name)
     }
 
     @Test
-    fun `Merriweather fontFamily maps by name`() {
+    fun merriweatherFontFamilyMapsByName() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.Merriweather).toEpubPreferences()
         assertEquals("Merriweather", result.fontFamily?.name)
     }
 
     @Test
-    fun `OpenDyslexic fontFamily maps by name`() {
+    fun openDyslexicFontFamilyMapsByName() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.OpenDyslexic).toEpubPreferences()
         assertEquals("OpenDyslexic", result.fontFamily?.name)
     }
 
     @Test
-    fun `lineSpacing maps to lineHeight`() {
+    fun lineSpacingMapsToLineHeight() {
         val result = FormattingPreferences(lineSpacing = 1.8f).toEpubPreferences()
         assertEquals(1.8, result.lineHeight!!, 0.001)
     }
 
     @Test
-    fun `margins float maps directly to pageMargins`() {
+    fun marginsMapsDirectlyToPageMargins() {
         val result = FormattingPreferences(margins = 1.4f).toEpubPreferences()
         assertEquals(1.4, result.pageMargins!!, 0.001)
     }
 
     @Test
-    fun `Paginated orientation maps to scroll false`() {
+    fun paginatedOrientationMapsToScrollFalse() {
         val result = FormattingPreferences(orientation = ReaderOrientation.Paginated).toEpubPreferences()
         assertFalse(result.scroll!!)
     }
 
     @Test
-    fun `Scroll orientation maps to scroll true`() {
+    fun scrollOrientationMapsToScrollTrue() {
         val result = FormattingPreferences(orientation = ReaderOrientation.Scroll).toEpubPreferences()
         assertTrue(result.scroll!!)
     }

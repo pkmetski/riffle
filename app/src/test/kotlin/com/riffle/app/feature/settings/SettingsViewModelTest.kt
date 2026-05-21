@@ -2,16 +2,25 @@ package com.riffle.app.feature.settings
 
 import com.riffle.core.domain.CrashReport
 import com.riffle.core.domain.CrashReportRepository
+import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.FormattingPreferencesStore
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SettingsViewModelTest {
 
+    private val noOpFormattingStore = object : FormattingPreferencesStore {
+        override val preferences = flowOf(FormattingPreferences())
+        override suspend fun update(preferences: FormattingPreferences) {}
+    }
+
     private fun makeViewModel(report: CrashReport?) = SettingsViewModel(
-        object : CrashReportRepository {
+        crashReportRepository = object : CrashReportRepository {
             override fun getLastCrashReport() = report
-        }
+        },
+        formattingPreferencesStore = noOpFormattingStore,
     )
 
     // Cycle 6: exposes last crash timestamp when a report exists
