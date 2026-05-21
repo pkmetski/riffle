@@ -2,6 +2,7 @@ package com.riffle.core.network
 
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
@@ -104,7 +105,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
     ): NetworkLibraryItemsResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/items?minified=1")
+            .url("$baseUrl/api/libraries/$libraryId/items")
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
@@ -125,6 +126,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     author = dto.media.metadata.authorName,
                     readingProgress = progress,
                     isSupported = dto.media.ebookFormat != null,
+                    ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
                 )
             })
         } catch (e: IOException) {
@@ -140,7 +142,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
     ): NetworkSeriesResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/series?minified=1&limit=500")
+            .url("$baseUrl/api/libraries/$libraryId/series?limit=500")
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
@@ -167,6 +169,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             sequence = book.seriesSequence,
                             readingProgress = progress,
                             isSupported = book.media.ebookFormat != null,
+                            ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
                         )
                     },
                 )
@@ -210,12 +213,67 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             author = book.media.metadata.authorName,
                             readingProgress = progress,
                             isSupported = book.media.ebookFormat != null,
+                            ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
                         )
                     },
                 )
             })
         } catch (e: Exception) {
             NetworkCollectionResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getItemEbookFileIno(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkItemEbookInoResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/items/$itemId")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string() ?: return@withContext NetworkItemEbookInoResult.NetworkError(
+                IOException("Empty response body")
+            )
+            if (!response.isSuccessful) {
+                return@withContext NetworkItemEbookInoResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val parsed = json.decodeFromString<AbsItemResponse>(raw)
+            val ino = parsed.media.ebookFile?.ino?.takeIf { it.isNotEmpty() }
+                ?: return@withContext NetworkItemEbookInoResult.NetworkError(IOException("No ebookFile.ino in item $itemId"))
+            NetworkItemEbookInoResult.Success(ino)
+        } catch (e: IOException) {
+            NetworkItemEbookInoResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun downloadEpub(
+        baseUrl: String,
+        itemId: String,
+        fileIno: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkEpubDownloadResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/items/$itemId/ebook/$fileIno")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val bytes = response.body?.bytes() ?: return@withContext NetworkEpubDownloadResult.NetworkError(
+                IOException("Empty response body")
+            )
+            if (response.isSuccessful) NetworkEpubDownloadResult.Success(bytes)
+            else NetworkEpubDownloadResult.NetworkError(IOException("HTTP ${response.code}"))
+        } catch (e: IOException) {
+            NetworkEpubDownloadResult.NetworkError(e)
         }
     }
 

@@ -132,7 +132,7 @@ class AbsApiClientLibraryTest {
         )
         val request = server.takeRequest()
         assertEquals("Bearer tok-xyz", request.getHeader("Authorization"))
-        assertEquals("/api/libraries/lib-99/items?minified=1", request.path)
+        assertEquals("/api/libraries/lib-99/items", request.path)
     }
 
     @Test

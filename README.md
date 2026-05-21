@@ -10,7 +10,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 - [x] Server login & management ([#4](https://github.com/pkmetski/riffle/issues/4))
 - [x] Library browsing — flat Library Item list ([#5](https://github.com/pkmetski/riffle/issues/5))
 - [x] Series & Collections hierarchy ([#6](https://github.com/pkmetski/riffle/issues/6))
-- [ ] EPUB reader — open & navigate ([#7](https://github.com/pkmetski/riffle/issues/7))
+- [x] EPUB reader — open & navigate ([#7](https://github.com/pkmetski/riffle/issues/7))
 - [ ] Autonomous Test Harness ([#8](https://github.com/pkmetski/riffle/issues/8))
 - [ ] PDF reader — open & navigate ([#9](https://github.com/pkmetski/riffle/issues/9))
 - [ ] Reading Session & outbound Progress Sync ([#10](https://github.com/pkmetski/riffle/issues/10))

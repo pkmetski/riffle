@@ -13,4 +13,5 @@ data class LibraryItemEntity(
     val readingProgress: Float,
     val isDownloaded: Boolean,
     val isSupported: Boolean = true,
+    val ebookFileIno: String? = null,
 )
