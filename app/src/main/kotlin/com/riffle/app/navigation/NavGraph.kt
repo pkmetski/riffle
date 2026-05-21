@@ -13,11 +13,13 @@ import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.reader.EpubReaderScreen
 import com.riffle.app.feature.server.AddServerScreen
 import com.riffle.app.feature.server.ServerListScreen
+import com.riffle.app.feature.settings.SettingsScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 
 private const val SERVER_LIST = "server_list"
 private const val ADD_SERVER = "add_server"
+private const val SETTINGS = "settings"
 private const val LIBRARY_LIST = "library_list"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
@@ -32,10 +34,14 @@ fun RiffleNavGraph() {
             ServerListScreen(
                 onAddServer = { navController.navigate(ADD_SERVER) },
                 onBrowseLibrary = { navController.navigate(LIBRARY_LIST) },
+                onOpenSettings = { navController.navigate(SETTINGS) },
             )
         }
         composable(ADD_SERVER) {
             AddServerScreen(onNavigateBack = { navController.popBackStack() })
+        }
+        composable(SETTINGS) {
+            SettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
         composable(LIBRARY_LIST) {
             LibraryListScreen(

@@ -90,11 +90,12 @@ dependencies {
     implementation(libs.readium.navigator)
     implementation(libs.readium.adapter.pdfium)
 
-    implementation(libs.acra.http)
+    implementation(libs.acra.core)
     implementation(libs.acra.toast)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(composeBom)

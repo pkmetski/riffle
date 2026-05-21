@@ -24,7 +24,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 - [ ] Bookmarks (EPUB & PDF) ([#18](https://github.com/pkmetski/riffle/issues/18))
 - [ ] Annotations panel ([#19](https://github.com/pkmetski/riffle/issues/19))
 - [ ] Reading Statistics screen ([#20](https://github.com/pkmetski/riffle/issues/20))
-- [ ] Crash Reporter (ACRA) ([#21](https://github.com/pkmetski/riffle/issues/21))
+- [x] Crash Reporter (ACRA) ([#21](https://github.com/pkmetski/riffle/issues/21))
 - [ ] Screen Wake Lock ([#22](https://github.com/pkmetski/riffle/issues/22))
 
 ## Requirements
