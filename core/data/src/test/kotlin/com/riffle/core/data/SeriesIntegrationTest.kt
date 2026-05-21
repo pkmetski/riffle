@@ -98,6 +98,7 @@ class SeriesIntegrationTest {
     private class FakeLibraryItemDao : LibraryItemDao {
         override fun observeByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override suspend fun getById(itemId: String): LibraryItemEntity? = null
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun deleteByLibraryId(libraryId: String) {}
     }
@@ -201,7 +202,7 @@ class SeriesIntegrationTest {
         val request = mockServer.takeRequest()
         assertEquals("Bearer test-token", request.getHeader("Authorization"))
         assertEquals(
-            "/api/libraries/e77c113d-4383-488d-956f-89c18db431ac/series?minified=1&limit=500",
+            "/api/libraries/e77c113d-4383-488d-956f-89c18db431ac/series?limit=500",
             request.path
         )
     }

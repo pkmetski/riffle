@@ -86,7 +86,7 @@ class AbsApiClientSeriesCollectionTest {
         client.getSeries(server.url("/").toString().trimEnd('/'), "lib-99", "tok-xyz", false)
         val request = server.takeRequest()
         assertEquals("Bearer tok-xyz", request.getHeader("Authorization"))
-        assertEquals("/api/libraries/lib-99/series?minified=1&limit=500", request.path)
+        assertEquals("/api/libraries/lib-99/series?limit=500", request.path)
     }
 
     @Test

@@ -30,6 +30,9 @@ interface LibraryItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LibraryItemEntity>)
 
+    @Query("SELECT * FROM library_items WHERE id = :itemId LIMIT 1")
+    suspend fun getById(itemId: String): LibraryItemEntity?
+
     @Query("DELETE FROM library_items WHERE libraryId = :libraryId")
     suspend fun deleteByLibraryId(libraryId: String)
 }

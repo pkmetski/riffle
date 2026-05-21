@@ -102,6 +102,9 @@ class LibraryRepositoryTest {
             }
         }
 
+        override suspend fun getById(itemId: String): LibraryItemEntity? =
+            roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }
+
         override suspend fun deleteByLibraryId(libraryId: String) {
             roomData[libraryId]?.value = emptyList()
         }

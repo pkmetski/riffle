@@ -10,4 +10,5 @@ data class LibraryItem(
     val isCached: Boolean,
     val isDownloaded: Boolean,
     val isSupported: Boolean,
+    val ebookFileIno: String? = null,
 )

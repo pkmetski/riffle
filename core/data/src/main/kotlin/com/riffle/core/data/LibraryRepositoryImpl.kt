@@ -67,6 +67,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
         collectionDao.observeItemsByCollectionId(collectionId).map { list -> list.map { it.toDomain() } }
 
+    override suspend fun getItem(itemId: String): LibraryItem? =
+        libraryItemDao.getById(itemId)?.toDomain()
+
     override suspend fun refreshLibraries(): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
@@ -101,6 +104,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             readingProgress = item.readingProgress,
                             isDownloaded = false,
                             isSupported = item.isSupported,
+                            ebookFileIno = item.ebookFileIno,
                         )
                     }
                 libraryItemDao.deleteByLibraryId(libraryId)
@@ -138,6 +142,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             readingProgress = item.readingProgress,
                             isDownloaded = false,
                             isSupported = item.isSupported,
+                            ebookFileIno = item.ebookFileIno,
                         )
                     }
                 }.distinctBy { it.id }
@@ -185,6 +190,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             readingProgress = item.readingProgress,
                             isDownloaded = false,
                             isSupported = item.isSupported,
+                            ebookFileIno = item.ebookFileIno,
                         )
                     }
                 }.distinctBy { it.id }
@@ -216,6 +222,7 @@ class LibraryRepositoryImpl @Inject constructor(
         isCached = false,
         isDownloaded = isDownloaded,
         isSupported = isSupported,
+        ebookFileIno = ebookFileIno,
     )
 
     private fun SeriesEntity.toDomain() = Series(
