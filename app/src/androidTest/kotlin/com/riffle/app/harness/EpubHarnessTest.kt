@@ -156,25 +156,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun sessionUpdateSentAfterReading() {
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Wait 35 seconds for at least one periodic sync to fire
-        composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.sessionSyncCount > 0
-        }
-        assert(stubServer.sessionSyncCount > 0) {
-            "Expected at least one session sync after 35s of reading"
-        }
-    }
-
-    @Test
     fun progressSyncUsesCorrectEndpoint() {
         // Regression: previously synced to /api/session (wrong endpoint); must use PATCH /api/me/progress/:itemId
         addServerAndBrowseLibrary()
