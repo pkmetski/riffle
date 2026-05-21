@@ -13,4 +13,18 @@ interface AbsLibraryApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkLibraryItemsResult
+
+    suspend fun getSeries(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkSeriesResult
+
+    suspend fun getCollections(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkCollectionResult
 }

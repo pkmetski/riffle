@@ -22,6 +22,18 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.all { testTask ->
+            testTask.filter {
+                if (project.hasProperty("integrationTests")) {
+                    includeTestsMatching("*IntegrationTest")
+                } else {
+                    excludeTestsMatching("*IntegrationTest")
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -37,4 +49,5 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }
