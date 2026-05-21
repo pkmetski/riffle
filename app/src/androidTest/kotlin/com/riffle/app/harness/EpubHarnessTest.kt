@@ -1,9 +1,11 @@
 package com.riffle.app.harness
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -277,6 +279,45 @@ class EpubHarnessTest {
         // Assert the rail highlights Chapter 2 as the active chapter
         composeTestRule.waitUntilRailActiveSegment("Chapter 2", timeoutMillis = 10_000)
         composeTestRule.assertRailActiveSegment("Chapter 2")
+    }
+
+    @Test
+    fun tappingContentTogglesImmersiveMode() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        // Back button is visible before immersive mode
+        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+
+        // Tap the center of the reading area — fires InputListener.onTap, toggles immersive
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
+
+        // Wait for TopAppBar to animate out
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back")
+                .fetchSemanticsNodes().isEmpty()
+        }
+
+        // Tap center again to exit immersive mode
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
+
+        // Back button reappears
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+        composeTestRule.assertNoErrorState()
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
