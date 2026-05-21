@@ -205,10 +205,10 @@ class EpubReaderViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
-        railSegments,
+        tocEntries,
         currentLocatorHref,
-    ) { segments, href ->
-        if (href == null) 0 else findActiveSegmentIndex(segments, href)
+    ) { toc, href ->
+        if (href == null) 0 else findActiveSegmentIndex(buildRailSegments(toc, href), href)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
