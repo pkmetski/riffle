@@ -9,7 +9,7 @@ internal data class AbsSeriesResponse(val results: List<AbsSeriesDto>) {
     data class AbsSeriesDto(
         val id: String,
         val name: String,
-        val libraryId: String,
+        val libraryId: String = "",
         val books: List<AbsSeriesBookDto> = emptyList(),
     )
 

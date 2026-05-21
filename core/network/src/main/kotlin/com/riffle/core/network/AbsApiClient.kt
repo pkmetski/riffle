@@ -140,7 +140,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
     ): NetworkSeriesResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/series?minified=1")
+            .url("$baseUrl/api/libraries/$libraryId/series?minified=1&limit=500")
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
@@ -153,7 +153,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             NetworkSeriesResult.Success(parsed.results.map { dto ->
                 NetworkSeries(
                     id = dto.id,
-                    libraryId = dto.libraryId,
+                    libraryId = dto.libraryId.ifEmpty { libraryId },
                     name = dto.name,
                     items = dto.books.map { book ->
                         val progress = book.userMediaProgress?.ebookProgress
@@ -171,7 +171,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     },
                 )
             })
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             NetworkSeriesResult.NetworkError(e)
         }
     }
@@ -184,7 +184,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
     ): NetworkCollectionResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/collections")
+            .url("$baseUrl/api/libraries/$libraryId/collections?limit=500")
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
@@ -214,7 +214,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     },
                 )
             })
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             NetworkCollectionResult.NetworkError(e)
         }
     }
