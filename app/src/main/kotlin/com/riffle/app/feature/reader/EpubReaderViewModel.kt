@@ -197,12 +197,9 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val railSegments: StateFlow<List<RailSegment>> = combine(
-        tocEntries,
-        currentLocatorHref,
-    ) { toc, href ->
-        if (href == null) emptyList() else buildRailSegments(toc, href)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val railSegments: StateFlow<List<RailSegment>> = tocEntries
+        .map { buildRailSegments(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
@@ -211,9 +208,17 @@ class EpubReaderViewModel @Inject constructor(
         if (href == null) 0 else findActiveSegmentIndex(segments, href)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    // Cursor position within the rail (0..1). Since segments are subchapters of the same
-    // document, the within-chapter progression maps directly onto the rail width.
-    val railCursorPosition: StateFlow<Float> = currentLocatorProgression
+    // Cursor position within the rail (0..1). Derived from active segment + within-chapter
+    // progression so the cursor is always inside the highlighted (active) segment, regardless
+    // of whether chapter lengths match the equal-width segment layout.
+    val railCursorPosition: StateFlow<Float> = combine(
+        activeRailSegmentIndex,
+        railSegments,
+        currentLocatorProgression,
+    ) { activeIndex, segments, progression ->
+        if (segments.isEmpty()) 0f
+        else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()

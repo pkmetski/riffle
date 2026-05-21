@@ -274,9 +274,9 @@ class EpubHarnessTest {
         composeTestRule.waitUntilInChapter("chapter2", timeoutMillis = 15_000)
         composeTestRule.assertNoErrorState()
 
-        // Assert the rail highlights Section 2.3 as the active segment
-        composeTestRule.waitUntilRailActiveSegment("Section 2.3", timeoutMillis = 10_000)
-        composeTestRule.assertRailActiveSegment("Section 2.3")
+        // Assert the rail highlights Chapter 2 as the active chapter
+        composeTestRule.waitUntilRailActiveSegment("Chapter 2", timeoutMillis = 10_000)
+        composeTestRule.assertRailActiveSegment("Chapter 2")
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
