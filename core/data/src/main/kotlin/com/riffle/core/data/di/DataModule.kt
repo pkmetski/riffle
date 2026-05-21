@@ -8,6 +8,7 @@ import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
+import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
@@ -21,11 +22,13 @@ import com.riffle.core.domain.EpubCacheManager
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsSessionApi
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -71,11 +74,19 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindAbsSessionApi(impl: AbsApiClient): AbsSessionApi
+
+    @Binds
+    @Singleton
     abstract fun bindEpubRepository(impl: EpubRepositoryImpl): EpubRepository
 
     @Binds
     @Singleton
     abstract fun bindReadingPositionStore(impl: ReadingPositionStoreImpl): ReadingPositionStore
+
+    @Binds
+    @Singleton
+    abstract fun bindReadingSessionRepository(impl: ReadingSessionRepositoryImpl): ReadingSessionRepository
 
     companion object {
         @Provides

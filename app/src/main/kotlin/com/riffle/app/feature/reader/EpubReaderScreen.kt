@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
@@ -48,12 +52,41 @@ fun EpubReaderScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
 
+    // Close reading session when screen is disposed (navigation away)
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.onReaderClosed() }
+    }
+
+    // Pause/resume periodic sync with app lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> viewModel.onReaderClosed()
+                Lifecycle.Event.ON_START -> viewModel.onReaderResumed()
+                else -> {}
+            }
+        }
+        lifecycle.addObserver(observer)
+        // If already started (e.g. after config change), restart sync explicitly
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) viewModel.onReaderResumed()
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
+    // Screen wake lock
     DisposableEffect(Unit) {
         val window = (context as? FragmentActivity)?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Toast on sync error
+    LaunchedEffect(viewModel) {
+        viewModel.syncErrorEvents.collect {
+            Toast.makeText(context, "Could not sync reading progress", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -122,6 +155,10 @@ fun EpubReaderScreen(
     }
 }
 
+// Singleton so the EpubNavigatorFactory only creates one DataStore for formatting_preferences
+// per process — creating multiple instances triggers a DataStore "multiple active" crash.
+private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configuration() }
+
 @Composable
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
@@ -148,7 +185,7 @@ private fun EpubNavigatorView(
             if (fm.findFragmentById(containerView.id) == null) {
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
-                    configuration = EpubNavigatorFactory.Configuration(),
+                    configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = state.initialLocator,
                 )
