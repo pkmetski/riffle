@@ -19,6 +19,7 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPre
 import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
+import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
 import com.riffle.core.database.RiffleDatabase
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -116,6 +117,30 @@ class EpubHarnessTest {
         composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
 
         assertReaderReady()
+    }
+
+    @Test
+    fun opensTocAndNavigatesToChapter3() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        // Open the TOC panel
+        composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Tap the chapter 3 entry
+        composeTestRule.onNodeWithText("Chapter 3: The End").performClick()
+
+        // Panel closes immediately; wait for the navigator to actually reach chapter 3
+        composeTestRule.waitUntilInChapter("chapter3", timeoutMillis = 15_000)
+        composeTestRule.assertNoErrorState()
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

@@ -8,7 +8,6 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 
 /**
@@ -22,6 +21,7 @@ object ReaderSemanticMatchers {
     const val TAG_ERROR_STATE = "reader_error_state"
     const val TAG_READER_READY = "reader_ready"
     const val TAG_LOADING = "reader_loading"
+    const val TAG_TOC_PANEL = "toc_panel"
 
     /** Asserts the reader error UI is not visible. */
     fun ComposeTestRule.assertNoErrorState() {
@@ -57,4 +57,15 @@ object ReaderSemanticMatchers {
     fun ComposeTestRule.assertInChapter(hrefSubstring: String): SemanticsNodeInteraction =
         onNode(hasTestTag(TAG_READER_READY) and hasContentDescription(hrefSubstring, substring = true))
             .assertExists()
+
+    /**
+     * Polls until the reader's locator href contains [hrefSubstring], or throws after [timeoutMillis].
+     * Use this after triggering async navigation (e.g. TOC tap) where the locator updates with a delay.
+     */
+    fun ComposeTestRule.waitUntilInChapter(hrefSubstring: String, timeoutMillis: Long = 15_000) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(hasTestTag(TAG_READER_READY) and hasContentDescription(hrefSubstring, substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 }
