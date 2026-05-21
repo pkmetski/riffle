@@ -91,6 +91,27 @@ class TocIntegrationTest {
         assertEquals(section11.href, active!!.href)
     }
 
+    @Test
+    fun chapter2HasThreeSubsections() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+        val chapter2 = entries.find { it.href.contains("chapter2") }
+        assertNotNull("Expected a chapter 2 entry", chapter2)
+        assertEquals("Chapter 2 should have 3 subsections", 3, chapter2!!.children.size)
+    }
+
+    @Test
+    fun railSegmentsForChapter2SubsectionHref() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+
+        val segments = buildRailSegments(entries, "chapter2.xhtml#s3")
+        assertEquals(3, segments.size)
+
+        val activeIndex = findActiveSegmentIndex(segments, "chapter2.xhtml#s3")
+        assertEquals("Segment 3 (index 2) should be active for chapter2.xhtml#s3", 2, activeIndex)
+    }
+
     private suspend fun openTestEpub() = run {
         val context = InstrumentationRegistry.getInstrumentation().context
         val epubBytes = context.assets.open("test.epub").use { it.readBytes() }
