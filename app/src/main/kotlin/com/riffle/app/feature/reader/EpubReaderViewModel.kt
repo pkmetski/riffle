@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -153,6 +154,7 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
+        _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
@@ -182,6 +184,9 @@ class EpubReaderViewModel @Inject constructor(
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
     val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
 
+    private val _currentLocatorProgression = MutableStateFlow(0f)
+    val currentLocatorProgression: StateFlow<Float> = _currentLocatorProgression
+
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
 
@@ -192,6 +197,20 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val railSegments: StateFlow<List<RailSegment>> = combine(
+        tocEntries,
+        currentLocatorHref,
+    ) { toc, href ->
+        if (href == null) emptyList() else buildRailSegments(toc, href)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val activeRailSegmentIndex: StateFlow<Int> = combine(
+        railSegments,
+        currentLocatorHref,
+    ) { segments, href ->
+        if (href == null) 0 else findActiveSegmentIndex(segments, href)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()
 
@@ -200,6 +219,12 @@ class EpubReaderViewModel @Inject constructor(
         val link = pub.tableOfContents.findLinkByHref(entry.href) ?: return
         _navigationEvents.trySend(link)
         _tocVisible.value = false
+    }
+
+    fun navigateToSegment(segment: RailSegment) {
+        val pub = (state.value as? ReaderState.Ready)?.publication ?: return
+        val link = pub.tableOfContents.findLinkByHref(segment.href) ?: return
+        _navigationEvents.trySend(link)
     }
 
     private fun List<Link>.findLinkByHref(href: String): Link? {
