@@ -53,7 +53,14 @@ class EpubHarnessTest {
     }
 
     @After
-    fun tearDown() = stubServer.shutdown()
+    fun tearDown() {
+        stubServer.shutdown()
+        // Close the Activity explicitly so Fragment.onDestroy() fires before the next test
+        // launches a new Activity. The sleep gives Readium's DataStore coroutine scope time
+        // to cancel and deregister from the DataStore registry (async cancellation).
+        composeTestRule.activityRule.scenario.close()
+        Thread.sleep(400)
+    }
 
     @Test
     fun opensEpubAndShowsReaderWithoutError() {
@@ -203,8 +210,41 @@ class EpubHarnessTest {
         assert(body!!.contains("\"ebookLocation\":\"epubcfi(")) {
             "Expected ebookLocation to be an epub.js CFI (epubcfi(...)) but body was: $body"
         }
+        // CFI must include a content-document path after the indirection operator (!).
+        // e.g. epubcfi(/6/2!/4/2) — without it epub.js shows a black screen and can't navigate.
+        val cfiMatch = Regex("""epubcfi\(/6/\d+!/\d""").containsMatchIn(body)
+        assert(cfiMatch) {
+            "epubcfi must have a content-document path after ! (e.g. epubcfi(/6/2!/4/2)) but body was: $body"
+        }
         assert(!body.contains("\"href\"")) {
             "ebookLocation must not be a Readium Locator JSON object but body was: $body"
+        }
+    }
+
+    @Test
+    fun progressSyncSendsBookWideFraction() {
+        // Regression: previously sent per-chapter progression instead of total book progress.
+        // Opening to chapter 1 of the test EPUB, ebookProgress must be in [0, 0.5) — not a large
+        // per-chapter fraction that would imply we're near the end of the book.
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        composeTestRule.waitUntil(timeoutMillis = 40_000) {
+            stubServer.sessionSyncCount > 0
+        }
+
+        val body = stubServer.lastProgressBody
+        assert(body != null) { "No progress sync body captured" }
+        val progressMatch = Regex(""""ebookProgress":([\d.E+\-]+)""").find(body!!)
+        assert(progressMatch != null) { "ebookProgress field not found in body: $body" }
+        val progress = progressMatch!!.groupValues[1].toFloat()
+        assert(progress in 0f..0.5f) {
+            "ebookProgress should be a book-wide fraction near 0 when opening at chapter 1, but was $progress (body: $body)"
         }
     }
 

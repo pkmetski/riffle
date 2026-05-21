@@ -59,12 +59,18 @@ fun EpubReaderScreen(
         onDispose { viewModel.onReaderClosed() }
     }
 
-    // Close reading session when app is backgrounded
+    // Pause/resume periodic sync with app lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) viewModel.onReaderClosed()
+            when (event) {
+                Lifecycle.Event.ON_STOP -> viewModel.onReaderClosed()
+                Lifecycle.Event.ON_START -> viewModel.onReaderResumed()
+                else -> {}
+            }
         }
         lifecycle.addObserver(observer)
+        // If already started (e.g. after config change), restart sync explicitly
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) viewModel.onReaderResumed()
         onDispose { lifecycle.removeObserver(observer) }
     }
 
@@ -149,6 +155,10 @@ fun EpubReaderScreen(
     }
 }
 
+// Singleton so the EpubNavigatorFactory only creates one DataStore for formatting_preferences
+// per process — creating multiple instances triggers a DataStore "multiple active" crash.
+private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configuration() }
+
 @Composable
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
@@ -175,7 +185,7 @@ private fun EpubNavigatorView(
             if (fm.findFragmentById(containerView.id) == null) {
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
-                    configuration = EpubNavigatorFactory.Configuration(),
+                    configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = state.initialLocator,
                 )

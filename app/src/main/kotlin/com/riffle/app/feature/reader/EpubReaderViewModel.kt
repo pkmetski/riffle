@@ -11,6 +11,7 @@ import com.riffle.core.domain.ReadingSessionController
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -74,6 +75,8 @@ class EpubReaderViewModel @Inject constructor(
 
     private var lastLocator: Locator? = null
     private var publication: Publication? = null
+    private var syncJob: Job? = null
+    private var closeSyncDone = false
 
     init {
         viewModelScope.launch { openBook() }
@@ -107,7 +110,8 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private fun startPeriodicSync() {
-        viewModelScope.launch {
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
             while (true) {
                 delay(SYNC_INTERVAL_MS)
                 syncCurrentPosition()
@@ -128,7 +132,15 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    fun onReaderResumed() {
+        closeSyncDone = false
+        if (_state.value is ReaderState.Ready) startPeriodicSync()
+    }
+
     fun onReaderClosed() {
+        syncJob?.cancel()
+        if (closeSyncDone) return
+        closeSyncDone = true
         val locator = lastLocator ?: return
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
@@ -138,7 +150,7 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun Locator.toPayload() = SessionPayload(
         ebookLocation = buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
-        ebookProgress = locations.progression?.toFloat() ?: 0f,
+        ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
     )
 
     private val _currentLocatorHref = MutableStateFlow<String?>(null)

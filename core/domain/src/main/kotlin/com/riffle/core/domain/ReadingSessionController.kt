@@ -6,7 +6,7 @@ import kotlinx.coroutines.launch
 class ReadingSessionController(
     private val repository: ReadingSessionRepository,
     private val scope: CoroutineScope,
-    private val onSyncError: suspend () -> Unit = {},
+    private val onSyncError: () -> Unit = {},
 ) {
     fun sync(itemId: String, payload: SessionPayload) {
         scope.launch {
