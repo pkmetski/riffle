@@ -7,7 +7,7 @@ import java.io.File
 import javax.inject.Inject
 
 class CrashReportRepositoryImpl @Inject constructor(
-    @CrashReportFile private val reportFile: File,
+    @param:CrashReportFile private val reportFile: File,
 ) : CrashReportRepository {
 
     override fun getLastCrashReport(): CrashReport? {
