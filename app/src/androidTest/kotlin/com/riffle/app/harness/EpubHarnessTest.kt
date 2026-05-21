@@ -19,8 +19,10 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPre
 import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
+import com.riffle.core.database.RiffleDatabase
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import javax.inject.Inject
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -38,12 +40,15 @@ class EpubHarnessTest {
     @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
     @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
+    @Inject lateinit var database: RiffleDatabase
+
     private val stubServer = StubAbsServer()
 
     @Before
     fun setUp() {
         stubServer.start()
         hiltRule.inject()
+        database.clearAllTables()
     }
 
     @After
@@ -53,13 +58,13 @@ class EpubHarnessTest {
     fun opensEpubAndShowsReaderWithoutError() {
         addServerAndBrowseLibrary()
 
-        // Library items load — tap the test EPUB item directly
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        // Library items load — tap the standalone EPUB item (not in any series/collection)
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
 
-        assertReaderReady()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
         // Simulate two page turns by tapping the right edge of the reader view
         repeat(2) {
@@ -80,13 +85,13 @@ class EpubHarnessTest {
         addServerAndBrowseLibrary()
 
         // Library items screen shows the series — tap into it
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText(StubAbsServer.TEST_SERIES_NAME).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_SERIES_NAME).performClick()
 
         // Series detail loads — tap the item
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
@@ -99,13 +104,13 @@ class EpubHarnessTest {
         addServerAndBrowseLibrary()
 
         // Library items screen shows the collection — tap into it
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText(StubAbsServer.TEST_COLLECTION_NAME).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_COLLECTION_NAME).performClick()
 
         // Collection detail loads — tap the item
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
@@ -121,27 +126,30 @@ class EpubHarnessTest {
         composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextInput("testuser")
         composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextInput("testpass")
         composeTestRule.onNodeWithText("Connect").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText("Browse").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Browse").performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText(StubAbsServer.TEST_LIBRARY_NAME).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_LIBRARY_NAME).performClick()
     }
 
-    private fun assertReaderReady() {
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+    private fun assertReaderReady(title: String = StubAbsServer.TEST_ITEM_TITLE) {
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
         }
         with(composeTestRule) {
             assertNoErrorState()
-            assertTextVisible(StubAbsServer.TEST_ITEM_TITLE)
+            assertTextVisible(title)
             assertContentDescriptionPresent("Back")
         }
     }

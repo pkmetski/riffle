@@ -6,8 +6,8 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 
@@ -26,7 +26,15 @@ object ReaderSemanticMatchers {
     /** Asserts the reader error UI is not visible. */
     fun ComposeTestRule.assertNoErrorState() {
         val errorNodes = onAllNodesWithTag(TAG_ERROR_STATE).fetchSemanticsNodes()
-        assert(errorNodes.isEmpty()) { "Expected no reader error state, but error node was found" }
+        if (errorNodes.isNotEmpty()) {
+            val text = runCatching {
+                onNodeWithTag(TAG_ERROR_STATE)
+                    .fetchSemanticsNode()
+                    .config[androidx.compose.ui.semantics.SemanticsProperties.Text]
+                    .joinToString()
+            }.getOrElse { "<unreadable>" }
+            throw AssertionError("Expected no reader error state, but got: $text")
+        }
     }
 
     /** Asserts the reader is in ready state (navigator view mounted). */
