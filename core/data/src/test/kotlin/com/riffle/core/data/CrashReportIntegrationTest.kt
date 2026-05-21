@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -39,7 +40,7 @@ class CrashReportIntegrationTest {
         assertNotNull("repository must return a report", report)
         assertEquals(simulatedContent, report!!.content)
         assertEquals(timestampAfterWrite, report.timestampMillis)
-        assertNotNull("NullPointerException" in report.content)
-        assertNotNull("Pixel 7" in report.content)
+        assertTrue("NullPointerException" in report.content)
+        assertTrue("Pixel 7" in report.content)
     }
 }

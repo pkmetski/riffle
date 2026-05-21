@@ -1,8 +1,8 @@
 package com.riffle.app.feature.settings
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,6 +18,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,7 +46,7 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            androidx.compose.material3.TopAppBar(
+            TopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -78,12 +80,12 @@ fun SettingsScreen(
                     supportingContent = { Text(timestamp) },
                     trailingContent = {
                         Row {
-                            androidx.compose.material3.TextButton(onClick = {
+                            TextButton(onClick = {
                                 clipboard.setText(AnnotatedString(report.content))
                             }) {
                                 Text("Copy")
                             }
-                            androidx.compose.material3.TextButton(onClick = { expanded = !expanded }) {
+                            TextButton(onClick = { expanded = !expanded }) {
                                 Text(if (expanded) "Hide" else "Show")
                             }
                         }
@@ -101,6 +103,6 @@ fun SettingsScreen(
                 }
             }
             HorizontalDivider()
-}
+        }
     }
 }
