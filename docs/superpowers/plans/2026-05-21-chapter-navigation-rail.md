@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a thin persistent UI strip at the bottom of the EPUB reader that visualises the current chapter's subchapter segments and the reader's exact position within them.
+**Goal:** Add a thin persistent UI strip at the bottom of the EPUB reader that visualises all top-level chapters of the book as equal-width segments, with the current chapter highlighted and a position cursor drawn inside that segment showing how far through the chapter the reader is.
 
-**Architecture:** A pure-domain generator (`RailSegmentGenerator.kt`) derives `List<RailSegment>` and the active segment index from the existing `tocEntries` + `currentLocatorHref` flows already in `EpubReaderViewModel`. The ViewModel exposes these as `StateFlow`s. A Compose component (`ChapterNavigationRail.kt`) renders equal-width tappable segments with the active one highlighted and a position cursor drawn at `progression * railWidth`.
+**Architecture:** A pure-domain generator (`RailSegmentGenerator.kt`) derives `List<RailSegment>` from the top-level `tocEntries` already in `EpubReaderViewModel`, and finds the active segment index from `currentLocatorHref`. The cursor position `railCursorPosition` is derived from `activeRailSegmentIndex`, the number of segments, and `currentLocatorProgression` (within-chapter 0..1) so the cursor always sits inside the highlighted segment. A Compose component (`ChapterNavigationRail.kt`) renders equal-width tappable segments with the active one highlighted and the cursor as a vertical line drawn at `railCursorPosition * railWidth`.
 
 **Tech Stack:** Kotlin, Jetpack Compose, Readium Kotlin SDK (existing), JUnit 4 unit tests, Hilt instrumented integration tests, MockWebServer harness tests.
 
@@ -18,10 +18,10 @@
 | Create   | `app/src/main/kotlin/com/riffle/app/feature/reader/RailSegmentGenerator.kt`                            | `buildRailSegments` + `findActiveSegmentIndex` logic    |
 | Create   | `app/src/main/kotlin/com/riffle/app/feature/reader/ChapterNavigationRail.kt`                           | Compose UI component                                   |
 | Create   | `app/src/test/kotlin/com/riffle/app/feature/reader/RailSegmentGeneratorTest.kt`                        | Unit tests for generator logic                         |
-| Modify   | `app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt`                             | Add `railSegments`, `activeRailSegmentIndex`, `currentLocatorProgression` flows |
+| Modify   | `app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt`                             | Add `railSegments`, `activeRailSegmentIndex`, `currentLocatorProgression`, `railCursorPosition` flows |
 | Modify   | `app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt`                               | Overlay `ChapterNavigationRail` at bottom of reader    |
 | Modify   | `app/src/androidTest/assets/test.epub`                                                                 | Add three subchapters to Chapter 2                     |
-| Modify   | `app/src/androidTest/kotlin/com/riffle/app/feature/reader/TocIntegrationTest.kt`                       | Add rail integration tests for Chapter 2               |
+| Modify   | `app/src/androidTest/kotlin/com/riffle/app/feature/reader/TocIntegrationTest.kt`                       | Add rail integration tests                             |
 | Modify   | `app/src/androidTest/kotlin/com/riffle/app/harness/ReaderSemanticMatchers.kt`                         | Add `TAG_RAIL` and `assertRailActiveSegment`           |
 | Modify   | `app/src/androidTest/kotlin/com/riffle/app/harness/EpubHarnessTest.kt`                                | Add harness test for rail active segment                |
 
@@ -58,6 +58,8 @@ git commit -m "feat: add RailSegment data class"
 - Create: `app/src/main/kotlin/com/riffle/app/feature/reader/RailSegmentGenerator.kt`
 - Create: `app/src/test/kotlin/com/riffle/app/feature/reader/RailSegmentGeneratorTest.kt`
 
+The rail always shows **all top-level chapters** as segments. `buildRailSegments` maps every top-level TOC entry to a `RailSegment`. `findActiveSegmentIndex` resolves the current chapter from the locator href, falling back from an exact match to a base-href (pre-fragment) match.
+
 ### 2a — Write failing unit tests
 
 - [ ] **Step 1: Write the unit test file**
@@ -70,76 +72,63 @@ import org.junit.Test
 
 class RailSegmentGeneratorTest {
 
-    private val sec21 = TocEntry("Section 2.1: Rising Action", "chapter2.xhtml#s1")
-    private val sec22 = TocEntry("Section 2.2: Conflict",      "chapter2.xhtml#s2")
-    private val sec23 = TocEntry("Section 2.3: Turning Point", "chapter2.xhtml#s3")
-
-    private val chapter1 = TocEntry("Chapter 1", "chapter1.xhtml",
+    private val chapter1 = TocEntry("Chapter 1: The Beginning", "chapter1.xhtml",
         listOf(TocEntry("1.1", "chapter1.xhtml#s1"), TocEntry("1.2", "chapter1.xhtml#s2")))
-    private val chapter2 = TocEntry("Chapter 2", "chapter2.xhtml", listOf(sec21, sec22, sec23))
-    private val chapter3 = TocEntry("Chapter 3", "chapter3.xhtml")
+    private val chapter2 = TocEntry("Chapter 2: The Middle", "chapter2.xhtml",
+        listOf(TocEntry("2.1", "chapter2.xhtml#s1"), TocEntry("2.2", "chapter2.xhtml#s2"), TocEntry("2.3", "chapter2.xhtml#s3")))
+    private val chapter3 = TocEntry("Chapter 3: The End", "chapter3.xhtml")
     private val toc = listOf(chapter1, chapter2, chapter3)
 
     // ── buildRailSegments ──────────────────────────────────────────────────
 
     @Test
-    fun `segments for chapter with subchapters returns children`() {
-        val segments = buildRailSegments(toc, "chapter2.xhtml#s2")
-        assertEquals(listOf(
-            RailSegment("Section 2.1: Rising Action", "chapter2.xhtml#s1"),
-            RailSegment("Section 2.2: Conflict",      "chapter2.xhtml#s2"),
-            RailSegment("Section 2.3: Turning Point", "chapter2.xhtml#s3"),
-        ), segments)
-    }
-
-    @Test
-    fun `segments for chapter with no subchapters returns single segment`() {
-        val segments = buildRailSegments(toc, "chapter3.xhtml")
-        assertEquals(listOf(RailSegment("Chapter 3", "chapter3.xhtml")), segments)
-    }
-
-    @Test
-    fun `segments when href is chapter root (no fragment)`() {
-        val segments = buildRailSegments(toc, "chapter2.xhtml")
+    fun `returns one segment per top-level chapter`() {
+        val segments = buildRailSegments(toc)
         assertEquals(3, segments.size)
+        assertEquals(RailSegment("Chapter 1: The Beginning", "chapter1.xhtml"), segments[0])
+        assertEquals(RailSegment("Chapter 2: The Middle",    "chapter2.xhtml"), segments[1])
+        assertEquals(RailSegment("Chapter 3: The End",       "chapter3.xhtml"), segments[2])
     }
 
     @Test
-    fun `segments for unknown href returns empty`() {
-        val segments = buildRailSegments(toc, "unknown.xhtml")
-        assertEquals(emptyList<RailSegment>(), segments)
+    fun `returns empty list for empty TOC`() {
+        assertEquals(emptyList<RailSegment>(), buildRailSegments(emptyList()))
+    }
+
+    @Test
+    fun `ignores subchapters — segments are always top-level`() {
+        val segments = buildRailSegments(toc)
+        assertEquals(3, segments.size)
     }
 
     // ── findActiveSegmentIndex ─────────────────────────────────────────────
 
+    private val bookSegments = listOf(
+        RailSegment("Chapter 1: The Beginning", "chapter1.xhtml"),
+        RailSegment("Chapter 2: The Middle",    "chapter2.xhtml"),
+        RailSegment("Chapter 3: The End",       "chapter3.xhtml"),
+    )
+
     @Test
-    fun `active segment for exact href match`() {
-        val segments = listOf(
-            RailSegment("Section 2.1: Rising Action", "chapter2.xhtml#s1"),
-            RailSegment("Section 2.2: Conflict",      "chapter2.xhtml#s2"),
-            RailSegment("Section 2.3: Turning Point", "chapter2.xhtml#s3"),
-        )
-        assertEquals(2, findActiveSegmentIndex(segments, "chapter2.xhtml#s3"))
+    fun `exact href match selects correct chapter`() {
+        assertEquals(2, findActiveSegmentIndex(bookSegments, "chapter3.xhtml"))
     }
 
     @Test
-    fun `active segment defaults to 0 when no exact match`() {
-        val segments = listOf(
-            RailSegment("Section 2.1: Rising Action", "chapter2.xhtml#s1"),
-            RailSegment("Section 2.2: Conflict",      "chapter2.xhtml#s2"),
-        )
-        assertEquals(0, findActiveSegmentIndex(segments, "chapter2.xhtml"))
+    fun `fragment href falls back to base href match`() {
+        // currentHref has a fragment (subchapter anchor), but segment hrefs are bare chapter hrefs
+        assertEquals(1, findActiveSegmentIndex(bookSegments, "chapter2.xhtml#s3"))
+        assertEquals(0, findActiveSegmentIndex(bookSegments, "chapter1.xhtml#s1"))
     }
 
     @Test
-    fun `active segment for single segment list is always 0`() {
-        val segments = listOf(RailSegment("Chapter 3", "chapter3.xhtml"))
-        assertEquals(0, findActiveSegmentIndex(segments, "chapter3.xhtml"))
+    fun `returns 0 when href matches no segment`() {
+        assertEquals(0, findActiveSegmentIndex(bookSegments, "unknown.xhtml"))
     }
 
     @Test
-    fun `active segment for empty list returns 0`() {
-        assertEquals(0, findActiveSegmentIndex(emptyList(), "chapter3.xhtml"))
+    fun `returns 0 for empty segment list`() {
+        assertEquals(0, findActiveSegmentIndex(emptyList(), "chapter1.xhtml"))
     }
 }
 ```
@@ -148,7 +137,7 @@ class RailSegmentGeneratorTest {
 
 ```bash
 cd /Users/plamen.kmetski/conductor/workspaces/riffle/riyadh
-./gradlew :app:testDebugUnitTest --tests "com.riffle.app.feature.reader.RailSegmentGeneratorTest" 2>&1 | grep -E "error CS|FAILED|BUILD"
+./gradlew :app:testDebugUnitTest --tests "com.riffle.app.feature.reader.RailSegmentGeneratorTest" 2>&1 | grep -E "FAILED|BUILD"
 ```
 
 Expected: BUILD FAILED — unresolved references to `buildRailSegments`, `findActiveSegmentIndex`.
@@ -160,21 +149,16 @@ Expected: BUILD FAILED — unresolved references to `buildRailSegments`, `findAc
 ```kotlin
 package com.riffle.app.feature.reader
 
-fun buildRailSegments(tocEntries: List<TocEntry>, currentHref: String): List<RailSegment> {
-    val currentBase = currentHref.substringBefore('#')
-    val chapter = tocEntries.find { it.href.substringBefore('#') == currentBase }
-        ?: return emptyList()
-    return if (chapter.children.isEmpty()) {
-        listOf(RailSegment(chapter.title, chapter.href))
-    } else {
-        chapter.children.map { RailSegment(it.title, it.href) }
-    }
-}
+fun buildRailSegments(tocEntries: List<TocEntry>): List<RailSegment> =
+    tocEntries.map { RailSegment(it.title, it.href) }
 
 fun findActiveSegmentIndex(segments: List<RailSegment>, currentHref: String): Int {
     if (segments.isEmpty()) return 0
     val exact = segments.indexOfFirst { it.href == currentHref }
-    return if (exact >= 0) exact else 0
+    if (exact >= 0) return exact
+    val currentBase = currentHref.substringBefore('#')
+    val baseMatch = segments.indexOfFirst { it.href.substringBefore('#') == currentBase }
+    return if (baseMatch >= 0) baseMatch else 0
 }
 ```
 
@@ -201,7 +185,7 @@ git commit -m "feat: add RailSegmentGenerator with unit tests"
 **Files:**
 - Modify: `app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt`
 
-The ViewModel currently tracks `_currentLocatorHref`. We need to also track the reading progression (0..1 within the resource) and derive `railSegments` + `activeRailSegmentIndex`.
+The ViewModel currently tracks `_currentLocatorHref`. We need to also track the reading progression (0..1 within the resource) and derive `railSegments`, `activeRailSegmentIndex`, and `railCursorPosition`.
 
 - [ ] **Step 1: Add the new state fields and flows**
 
@@ -230,12 +214,9 @@ fun onPositionChanged(locator: Locator) {
 3. Add the derived rail flows below the existing `tocEntries` StateFlow:
 
 ```kotlin
-val railSegments: StateFlow<List<RailSegment>> = combine(
-    tocEntries,
-    currentLocatorHref,
-) { toc, href ->
-    if (href == null) emptyList() else buildRailSegments(toc, href)
-}.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+val railSegments: StateFlow<List<RailSegment>> = tocEntries
+    .map { buildRailSegments(it) }
+    .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
 val activeRailSegmentIndex: StateFlow<Int> = combine(
     railSegments,
@@ -243,6 +224,18 @@ val activeRailSegmentIndex: StateFlow<Int> = combine(
 ) { segments, href ->
     if (href == null) 0 else findActiveSegmentIndex(segments, href)
 }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+// Cursor position within the rail (0..1). Derived from active segment + within-chapter
+// progression so the cursor is always inside the highlighted (active) segment, regardless
+// of whether chapter lengths match the equal-width segment layout.
+val railCursorPosition: StateFlow<Float> = combine(
+    activeRailSegmentIndex,
+    railSegments,
+    currentLocatorProgression,
+) { activeIndex, segments, progression ->
+    if (segments.isEmpty()) 0f
+    else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
+}.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 ```
 
 4. Add the necessary import at the top of the file:
@@ -263,7 +256,7 @@ Expected: `BUILD SUCCESSFUL`
 
 ```bash
 git add app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt
-git commit -m "feat: expose railSegments, activeRailSegmentIndex, currentLocatorProgression from ViewModel"
+git commit -m "feat: expose railSegments, activeRailSegmentIndex, railCursorPosition from ViewModel"
 ```
 
 ---
@@ -274,35 +267,30 @@ git commit -m "feat: expose railSegments, activeRailSegmentIndex, currentLocator
 - Create: `app/src/main/kotlin/com/riffle/app/feature/reader/ChapterNavigationRail.kt`
 
 The rail is a `Box` of fixed height (6 dp). It draws:
-- Equal-width tappable segment slots side-by-side
-- Active segment filled with `MaterialTheme.colorScheme.primary`
-- Other segments filled with `MaterialTheme.colorScheme.surfaceVariant` with 60% opacity
-- A narrow (2 dp) vertical cursor line drawn at `cursorPosition * railWidth` from the left edge, using `MaterialTheme.colorScheme.onBackground`
-- Thin (1 dp) gaps between segments drawn in the background color
+- Equal-width segment slots side-by-side
+- Active segment filled with a highlighted colour; other segments with a dimmer background
+- Thin divider lines between segments
+- A narrow (2 dp) vertical cursor line drawn at `cursorPosition * railWidth` from the left edge
 - A `testTag("chapter_navigation_rail")` for test targeting
-- The active segment additionally carries `semantics { contentDescription = "Active rail segment: ${segment.title}" }`
+- A `semantics { contentDescription = "Active rail segment: ${activeSegment.title}" }` on the root `Box`
+- Tapping anywhere calculates the segment index from the tap x-offset and fires `onSegmentClick`
 
 - [ ] **Step 1: Create the composable**
 
 ```kotlin
 package com.riffle.app.feature.reader
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -318,45 +306,56 @@ fun ChapterNavigationRail(
 ) {
     if (segments.isEmpty()) return
 
-    val activeColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-    val cursorColor = MaterialTheme.colorScheme.onBackground
+    val barColor    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+    val activeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
+    val dividerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val cursorColor = MaterialTheme.colorScheme.primary
+
+    val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(6.dp)
             .testTag("chapter_navigation_rail")
-            .drawWithContent {
-                drawContent()
-                // Cursor: vertical line at cursorPosition across the full rail width
-                val x = cursorPosition.coerceIn(0f, 1f) * size.width
-                drawLine(
-                    color = cursorColor,
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = 2.dp.toPx(),
-                )
-            },
-    ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            segments.forEachIndexed { index, segment ->
-                val isActive = index == activeIndex
-                val segmentModifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = 0.5.dp)
-                    .background(if (isActive) activeColor else inactiveColor)
-                    .clickable { onSegmentClick(segment) }
-                    .then(
-                        if (isActive) Modifier.semantics {
-                            contentDescription = "Active rail segment: ${segment.title}"
-                        } else Modifier
-                    )
-                Box(modifier = segmentModifier)
+            .semantics { contentDescription = "Active rail segment: $activeTitle" }
+            .pointerInput(segments) {
+                detectTapGestures { offset ->
+                    val idx = (offset.x / size.width * segments.size)
+                        .toInt()
+                        .coerceIn(0, segments.size - 1)
+                    onSegmentClick(segments[idx])
+                }
             }
-        }
-    }
+            .drawWithCache {
+                val n = segments.size
+                val segW = size.width / n
+                onDrawBehind {
+                    drawRect(color = barColor)
+                    drawRect(
+                        color = activeColor,
+                        topLeft = Offset(activeIndex * segW, 0f),
+                        size = Size(segW, size.height),
+                    )
+                    for (i in 1 until n) {
+                        val x = segW * i
+                        drawLine(
+                            color = dividerColor,
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 1.dp.toPx(),
+                        )
+                    }
+                    val cx = cursorPosition.coerceIn(0f, 1f) * size.width
+                    drawLine(
+                        color = cursorColor,
+                        start = Offset(cx, 0f),
+                        end = Offset(cx, size.height),
+                        strokeWidth = 2.dp.toPx(),
+                    )
+                }
+            },
+    )
 }
 ```
 
@@ -382,11 +381,11 @@ git commit -m "feat: add ChapterNavigationRail Compose component"
 **Files:**
 - Modify: `app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt`
 
-The rail overlays the reader content at the bottom of the screen. It is outside the `when (state)` block so it is always rendered once the reader is visible. Because it only has content when `railSegments` is non-empty (handled inside the composable), this is safe.
+The rail overlays the reader content at the bottom of the screen inside the `is ReaderState.Ready` branch, guarded by `formattingPrefs.showChapterMap` (a user toggle, default `true`).
 
 - [ ] **Step 1: Collect the new state flows and render the rail**
 
-In `EpubReaderScreen`, inside the `is ReaderState.Ready` branch (after `EpubNavigatorView` and the `TocPanel`), add the rail. The full relevant section of the function should look like:
+In `EpubReaderScreen`, inside the `is ReaderState.Ready` branch (after `EpubNavigatorView` and the `TocPanel`), add the rail:
 
 ```kotlin
 is ReaderState.Ready -> {
@@ -394,38 +393,20 @@ is ReaderState.Ready -> {
     val tocEntries by viewModel.tocEntries.collectAsState()
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
-    val cursorPosition by viewModel.currentLocatorProgression.collectAsState()
-    EpubNavigatorView(
-        state = s,
-        formattingPrefs = formattingPrefs,
-        onPositionChanged = viewModel::onPositionChanged,
-        onNavigationEvents = viewModel.navigationEvents,
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("reader_ready")
-            .semantics {
-                contentDescription = buildString {
-                    append(locatorHref ?: "")
-                    append(" theme:")
-                    append(formattingPrefs.theme.name.lowercase())
-                }
-            },
-    )
+    val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    EpubNavigatorView(...)
     if (tocVisible) {
-        TocPanel(
-            entries = tocEntries,
-            activeHref = locatorHref,
-            onEntryClick = viewModel::navigateToEntry,
-            onDismiss = viewModel::closeToc,
+        TocPanel(...)
+    }
+    if (formattingPrefs.showChapterMap) {
+        ChapterNavigationRail(
+            segments = railSegments,
+            activeIndex = activeRailSegmentIndex,
+            cursorPosition = cursorPosition,
+            onSegmentClick = viewModel::navigateToSegment,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
-    ChapterNavigationRail(
-        segments = railSegments,
-        activeIndex = activeRailSegmentIndex,
-        cursorPosition = cursorPosition,
-        onSegmentClick = viewModel::navigateToSegment,
-        modifier = Modifier.align(Alignment.BottomCenter),
-    )
 }
 ```
 
@@ -464,7 +445,7 @@ git commit -m "feat: wire ChapterNavigationRail into EpubReaderScreen"
 **Files:**
 - Modify: `app/src/androidTest/assets/test.epub`
 
-The harness and integration tests require Chapter 2 to have three subchapters (s1, s2, s3) so that the rail can show three segments and the test can navigate to segment 3.
+The integration and harness tests require Chapter 2 to have three named subchapters (s1, s2, s3) so that TOC parsing can be exercised. The rail itself still shows one segment per **top-level chapter**, so navigating to any subchapter of Chapter 2 correctly highlights the Chapter 2 segment.
 
 - [ ] **Step 1: Extract the EPUB, update files, and repack**
 
@@ -475,45 +456,11 @@ mkdir epub_work && cd epub_work
 unzip ../test_orig.epub
 ```
 
-- [ ] **Step 2: Update `OEBPS/chapter2.xhtml`**
+- [ ] **Step 2: Update `OEBPS/chapter2.xhtml`** with three named `<h2 id="s1/s2/s3">` sections
 
-Replace the contents of `/tmp/epub_work/OEBPS/chapter2.xhtml` with:
+- [ ] **Step 3: Update `OEBPS/nav.xhtml`** to add Chapter 2 subsections as nested `<li>` entries
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>Chapter 2: The Middle</title></head>
-<body>
-  <h1>Chapter 2: The Middle</h1>
-  <h2 id="s1">Section 2.1: Rising Action</h2>
-  <p>The second chapter continues the story. Conflict emerges and characters develop. The plot thickens and the stakes rise as the narrative progresses forward.</p>
-  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-  <h2 id="s2">Section 2.2: Conflict</h2>
-  <p>The conflict deepens as opposing forces collide. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
-  <p>Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores.</p>
-  <h2 id="s3">Section 2.3: Turning Point</h2>
-  <p>The turning point arrives. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.</p>
-  <p>Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur. Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur.</p>
-</body>
-</html>
-```
-
-- [ ] **Step 3: Update `OEBPS/nav.xhtml` to add Chapter 2 subsections**
-
-Replace the `<li>` for Chapter 2 in `/tmp/epub_work/OEBPS/nav.xhtml`:
-
-```xml
-      <li><a href="chapter2.xhtml">Chapter 2: The Middle</a>
-        <ol>
-          <li><a href="chapter2.xhtml#s1">Section 2.1: Rising Action</a></li>
-          <li><a href="chapter2.xhtml#s2">Section 2.2: Conflict</a></li>
-          <li><a href="chapter2.xhtml#s3">Section 2.3: Turning Point</a></li>
-        </ol>
-      </li>
-```
-
-- [ ] **Step 4: Repack the EPUB (mimetype must be first, uncompressed)**
+- [ ] **Step 4: Repack and commit**
 
 ```bash
 cd /tmp/epub_work
@@ -522,8 +469,6 @@ zip -X /Users/plamen.kmetski/conductor/workspaces/riffle/riyadh/app/src/androidT
 zip -rg /Users/plamen.kmetski/conductor/workspaces/riffle/riyadh/app/src/androidTest/assets/test.epub META-INF OEBPS
 cd /tmp && rm -rf epub_work
 ```
-
-- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/plamen.kmetski/conductor/workspaces/riffle/riyadh
@@ -538,32 +483,34 @@ git commit -m "test: add subchapters to Chapter 2 in test EPUB for rail tests"
 **Files:**
 - Modify: `app/src/androidTest/kotlin/com/riffle/app/feature/reader/TocIntegrationTest.kt`
 
-Add two tests verifying that after the EPUB update:
-1. Chapter 2 has 3 subchapters in the parsed TOC
-2. `buildRailSegments` + `findActiveSegmentIndex` return the expected values for a known href
+Add two tests verifying that:
+1. `buildRailSegments` returns one segment per top-level chapter (3 total)
+2. `findActiveSegmentIndex` returns index 1 (Chapter 2) when the locator href is a subchapter fragment of chapter 2
 
 - [ ] **Step 1: Add the tests at the end of `TocIntegrationTest`**
 
 ```kotlin
 @Test
-fun chapter2HasThreeSubsections() = runTest {
+fun railSegmentsAreAllTopLevelChapters() = runTest {
     val pub = openTestEpub()
     val entries = pub.tableOfContents.toTocEntries()
-    val chapter2 = entries.find { it.href.contains("chapter2") }
-    assertNotNull("Expected a chapter 2 entry", chapter2)
-    assertEquals("Chapter 2 should have 3 subsections", 3, chapter2!!.children.size)
+
+    val segments = buildRailSegments(entries)
+    assertEquals("Rail should have one segment per top-level chapter", 3, segments.size)
+    assertTrue("Segment 0 href should contain 'chapter1'", segments[0].href.contains("chapter1"))
+    assertTrue("Segment 1 href should contain 'chapter2'", segments[1].href.contains("chapter2"))
+    assertTrue("Segment 2 href should contain 'chapter3'", segments[2].href.contains("chapter3"))
 }
 
 @Test
-fun railSegmentsForChapter2SubsectionHref() = runTest {
+fun activeSegmentIsChapter2WhenLocatorIsInChapter2() = runTest {
     val pub = openTestEpub()
     val entries = pub.tableOfContents.toTocEntries()
+    val segments = buildRailSegments(entries)
 
-    val segments = buildRailSegments(entries, "chapter2.xhtml#s3")
-    assertEquals(3, segments.size)
-
+    // A subchapter href (with fragment) should still resolve to the parent chapter segment
     val activeIndex = findActiveSegmentIndex(segments, "chapter2.xhtml#s3")
-    assertEquals("Segment 3 (index 2) should be active for chapter2.xhtml#s3", 2, activeIndex)
+    assertEquals("Chapter 2 (index 1) should be active for chapter2.xhtml#s3", 1, activeIndex)
 }
 ```
 
@@ -573,18 +520,16 @@ fun railSegmentsForChapter2SubsectionHref() = runTest {
 ./gradlew :app:assembleAndroidTest 2>&1 | grep -E "error:|BUILD"
 ```
 
-Expected: `BUILD SUCCESSFUL`
-
 - [ ] **Step 3: Commit**
 
 ```bash
 git add app/src/androidTest/kotlin/com/riffle/app/feature/reader/TocIntegrationTest.kt
-git commit -m "test: add rail integration tests for Chapter 2 subsections"
+git commit -m "test: add rail integration tests"
 ```
 
 ---
 
-## Task 8: Harness test — rail shows active segment after navigation
+## Task 8: Harness test — rail highlights active chapter after navigation
 
 **Files:**
 - Modify: `app/src/androidTest/kotlin/com/riffle/app/harness/ReaderSemanticMatchers.kt`
@@ -592,15 +537,11 @@ git commit -m "test: add rail integration tests for Chapter 2 subsections"
 
 ### 8a — Add rail semantic matcher
 
-- [ ] **Step 1: Add `TAG_RAIL` and `assertRailActiveSegment` to `ReaderSemanticMatchers`**
+- [ ] **Step 1: Add `TAG_RAIL`, `assertRailActiveSegment`, and `waitUntilRailActiveSegment` to `ReaderSemanticMatchers`**
 
 ```kotlin
 const val TAG_RAIL = "chapter_navigation_rail"
 
-/**
- * Asserts the navigation rail has an active segment with the given title substring.
- * The active segment exposes its title via contentDescription "Active rail segment: <title>".
- */
 fun ComposeTestRule.assertRailActiveSegment(titleSubstring: String) {
     val nodes = onAllNodes(
         hasContentDescription("Active rail segment: $titleSubstring", substring = true)
@@ -613,9 +554,6 @@ fun ComposeTestRule.assertRailActiveSegment(titleSubstring: String) {
     }
 }
 
-/**
- * Polls until the rail's active segment contains [titleSubstring], or throws after [timeoutMillis].
- */
 fun ComposeTestRule.waitUntilRailActiveSegment(
     titleSubstring: String,
     timeoutMillis: Long = 15_000,
@@ -628,21 +566,15 @@ fun ComposeTestRule.waitUntilRailActiveSegment(
 }
 ```
 
+> Note: `onAllNodes` is a member of the `SemanticsNodeInteractionsProvider` interface that `ComposeTestRule` implements. Do **not** add an import for it — call it directly as `this.onAllNodes(...)`.
+
 ### 8b — Add harness test
 
 - [ ] **Step 2: Add the test to `EpubHarnessTest`**
 
-Add the following import at the top of `EpubHarnessTest.kt` (alongside existing imports):
-
-```kotlin
-import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilRailActiveSegment
-```
-
-Add the test method:
-
 ```kotlin
 @Test
-fun railShowsSegment3AsActiveAfterNavigatingToChapter2Section3() {
+fun railHighlightsActiveChapterAfterNavigation() {
     addServerAndBrowseLibrary()
 
     composeTestRule.waitUntil(timeoutMillis = 15_000) {
@@ -651,20 +583,19 @@ fun railShowsSegment3AsActiveAfterNavigatingToChapter2Section3() {
     composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
     assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
-    // Navigate to Chapter 2 Section 3 via the TOC panel
+    // Navigate to Chapter 2 via the TOC panel
     composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
         composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
     }
     composeTestRule.onNodeWithText("Section 2.3: Turning Point").performClick()
 
-    // Wait until the navigator reaches chapter 2
     composeTestRule.waitUntilInChapter("chapter2", timeoutMillis = 15_000)
     composeTestRule.assertNoErrorState()
 
-    // Assert the rail highlights segment 3 (Section 2.3)
-    composeTestRule.waitUntilRailActiveSegment("Section 2.3", timeoutMillis = 10_000)
-    composeTestRule.assertRailActiveSegment("Section 2.3")
+    // Rail should highlight Chapter 2 as the active chapter
+    composeTestRule.waitUntilRailActiveSegment("Chapter 2", timeoutMillis = 10_000)
+    composeTestRule.assertRailActiveSegment("Chapter 2")
 }
 ```
 
@@ -674,14 +605,12 @@ fun railShowsSegment3AsActiveAfterNavigatingToChapter2Section3() {
 ./gradlew :app:assembleAndroidTest 2>&1 | grep -E "error:|BUILD"
 ```
 
-Expected: `BUILD SUCCESSFUL`
-
 - [ ] **Step 4: Commit**
 
 ```bash
 git add app/src/androidTest/kotlin/com/riffle/app/harness/ReaderSemanticMatchers.kt \
         app/src/androidTest/kotlin/com/riffle/app/harness/EpubHarnessTest.kt
-git commit -m "test: add harness test asserting rail active segment after TOC navigation"
+git commit -m "test: add harness test asserting rail highlights active chapter after navigation"
 ```
 
 ---
@@ -702,7 +631,7 @@ Expected: `BUILD SUCCESSFUL`, no `FAILED`.
 make harness-test 2>&1 | tail -30
 ```
 
-Expected: all tests pass including the new `railShowsSegment3AsActiveAfterNavigatingToChapter2Section3` test.
+Expected: all tests pass including the new `railHighlightsActiveChapterAfterNavigation` test.
 
 - [ ] **Step 3: Mark issue 16 acceptance criteria checked in the PR description**
 
@@ -714,24 +643,20 @@ Expected: all tests pass including the new `railShowsSegment3AsActiveAfterNaviga
 
 | Acceptance criterion | Covered by |
 |---|---|
-| Rail visible at bottom while reading | Task 5 — `ChapterNavigationRail` overlaid at `Alignment.BottomCenter`, always rendered in `ReaderState.Ready` |
-| Segments correspond to subchapters of current chapter | Task 2 `buildRailSegments`, Task 3 ViewModel flow |
-| Active segment visually highlighted, position cursor | Task 4 `ChapterNavigationRail` UI |
-| Advancing past subchapter boundary updates active segment | Task 3 — `activeRailSegmentIndex` is derived from `currentLocatorHref` which updates on every `onPositionChanged` call |
-| No subchapters → single full-width segment + cursor | Task 2 `buildRailSegments` returns single-item list; Task 4 renders it the same way |
-| Unit tests: segment generation from TOC subchapter data | Task 2 `RailSegmentGeneratorTest` |
-| Unit tests: active segment calculation from current CFI position | Task 2 `RailSegmentGeneratorTest` (uses href, not CFI, matching production code) |
-| Integration tests: load test EPUB TOC, generate rail segments, assert active index | Task 7 `TocIntegrationTest` additions |
-| Harness tests: open EPUB → chapter 2 subchapter 3 → rail shows segment 3 | Task 8 `EpubHarnessTest` |
+| Rail visible at bottom while reading | Task 5 — `ChapterNavigationRail` overlaid at `Alignment.BottomCenter` inside `ReaderState.Ready`, guarded by `showChapterMap` (default `true`) |
+| One segment per top-level chapter | Task 2 `buildRailSegments` maps all top-level TOC entries |
+| Active segment highlighted; cursor shows chapter progression | Task 4 `ChapterNavigationRail` UI — active rect + cursor line at `railCursorPosition * width` |
+| Navigation updates active segment | Task 3 — `activeRailSegmentIndex` derived from `currentLocatorHref` on every `onPositionChanged` call |
+| Tapping a segment navigates to that chapter | Task 5 `navigateToSegment` in ViewModel |
+| Toggle via Settings → Chapter Map | `showChapterMap` field in `FormattingPreferences` + switch in `FormattingPanel` |
+| Unit tests: segment generation | Task 2 `RailSegmentGeneratorTest` |
+| Unit tests: active segment calculation (including fragment fallback) | Task 2 `RailSegmentGeneratorTest` |
+| Integration tests: real EPUB TOC → segments + active index | Task 7 `TocIntegrationTest` additions |
+| Harness test: navigate to Chapter 2 → rail highlights Chapter 2 | Task 8 `EpubHarnessTest` |
 
-### No placeholder scan
+### Implementation notes
 
-All steps have concrete code. No "TBD" or "similar to above" patterns.
-
-### Type consistency
-
-- `RailSegment(title: String, href: String)` — used consistently in Task 1, 2, 3, 4, 5
-- `buildRailSegments(tocEntries: List<TocEntry>, currentHref: String): List<RailSegment>` — consistent across Tasks 2, 3, 7
-- `findActiveSegmentIndex(segments: List<RailSegment>, currentHref: String): Int` — consistent across Tasks 2, 3, 7
-- `navigateToSegment(segment: RailSegment)` in ViewModel — consistent with Task 5 usage
-- `viewModel.currentLocatorProgression` — consistent across Tasks 3, 5
+- `buildRailSegments` ignores subchapters — segments are always the flat top-level list.
+- `findActiveSegmentIndex` does an exact match first, then falls back to the base-href (pre-`#`) match so that subchapter fragment hrefs correctly resolve to their parent chapter segment.
+- `railCursorPosition = (activeIndex + progression) / segments.size` places the cursor inside the highlighted segment's equal-width slot. With `progression` being within-chapter (0..1), the cursor is always within the active segment regardless of actual chapter lengths.
+- `onAllNodes` in `ReaderSemanticMatchers` must **not** be imported — it is a member of `SemanticsNodeInteractionsProvider` (which `ComposeTestRule` implements) and is resolved as `this.onAllNodes(...)` inside the extension functions.
