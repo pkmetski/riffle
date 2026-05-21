@@ -46,12 +46,21 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     val state = remember(controller) { ImmersiveModeState(controller) }
 
     // Sync isImmersive with actual system bar visibility.
-    // When BEHAVIOR_DEFAULT is set, an edge-swipe permanently restores the bars.
-    // Compose's WindowInsets.systemBars reflects the change, so we reset isImmersive here.
+    // When BEHAVIOR_DEFAULT is set, an edge-swipe permanently restores the bars, and
+    // Compose's WindowInsets.systemBars reflects the change.
+    //
+    // We track prevTopInset to distinguish two cases:
+    //   - Bars animating OUT (topInset: 56→40→20→0): prevTopInset never reaches 0 first,
+    //     so we never reset isImmersive mid-animation.
+    //   - Bars restored by edge-swipe (topInset: 0→20→...): prevTopInset WAS 0,
+    //     so the first non-zero value triggers the reset.
     val density = LocalDensity.current
     val topInset = WindowInsets.systemBars.getTop(density)
+    val prevTopInset = remember { mutableStateOf(topInset) }
     LaunchedEffect(topInset) {
-        if (topInset > 0 && state.isImmersive) state.isImmersive = false
+        val wasHidden = prevTopInset.value == 0
+        prevTopInset.value = topInset
+        if (state.isImmersive && topInset > 0 && wasHidden) state.isImmersive = false
     }
 
     // Always restore system bars when the reader screen leaves the composition.
