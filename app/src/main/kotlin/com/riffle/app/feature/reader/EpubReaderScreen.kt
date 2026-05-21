@@ -21,6 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
@@ -65,17 +68,30 @@ fun EpubReaderScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val s = state) {
                 ReaderState.Loading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .testTag("reader_loading"),
+                    )
                 }
                 is ReaderState.Ready -> {
+                    val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     EpubNavigatorView(
                         state = s,
                         onPositionChanged = viewModel::onPositionChanged,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("reader_ready")
+                            .semantics { contentDescription = locatorHref ?: "" },
                     )
                 }
                 is ReaderState.Error -> {
-                    Text(s.message, modifier = Modifier.align(Alignment.Center))
+                    Text(
+                        s.message,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .testTag("reader_error_state"),
+                    )
                 }
             }
         }

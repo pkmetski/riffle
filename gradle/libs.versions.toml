@@ -48,6 +48,7 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 acra-core = { group = "ch.acra", name = "acra-core", version.ref = "acra" }
 acra-toast = { group = "ch.acra", name = "acra-toast", version.ref = "acra" }
