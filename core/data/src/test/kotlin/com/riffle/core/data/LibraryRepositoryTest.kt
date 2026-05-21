@@ -11,6 +11,7 @@ import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.Server
@@ -304,7 +305,7 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, isSupported = true)
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, ebookFormat = EbookFormat.Epub)
                 ))
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkSeriesResult.Success(emptyList())
@@ -327,9 +328,9 @@ class LibraryRepositoryTest {
                 NetworkLibrariesResult.Success(emptyList())
             override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkLibraryItemsResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f, isSupported = true),
-                    NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f, isSupported = true),
-                    NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f, isSupported = true),
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.5f, ebookFormat = EbookFormat.Epub),
+                    NetworkLibraryItem("item-2", "lib-1", "my book", "Author A", 0.5f, ebookFormat = EbookFormat.Epub),
+                    NetworkLibraryItem("item-3", "lib-1", "Other Book", "Author B", 0f, ebookFormat = EbookFormat.Epub),
                 ))
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkSeriesResult.Success(emptyList())
@@ -385,8 +386,8 @@ class LibraryRepositoryTest {
             override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkSeriesResult.Success(listOf(
                     NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
-                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0.5f, true),
-                        NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, true),
+                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0.5f, EbookFormat.Epub),
+                        NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, EbookFormat.Epub),
                     )),
                 ))
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
@@ -448,8 +449,8 @@ class LibraryRepositoryTest {
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkCollectionResult.Success(listOf(
                     NetworkCollection("col-1", "lib-1", "Favorites", listOf(
-                        NetworkLibraryItem("item-1", "lib-1", "Book A", "Author", 0.3f, true),
-                        NetworkLibraryItem("item-2", "lib-1", "Book B", "Author", 0f, true),
+                        NetworkLibraryItem("item-1", "lib-1", "Book A", "Author", 0.3f, EbookFormat.Epub),
+                        NetworkLibraryItem("item-2", "lib-1", "Book B", "Author", 0f, EbookFormat.Epub),
                     )),
                 ))
         }

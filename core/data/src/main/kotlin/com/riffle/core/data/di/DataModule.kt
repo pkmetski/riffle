@@ -3,7 +3,6 @@ package com.riffle.core.data.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.room.Room
 import com.riffle.core.data.CrashReportRepositoryImpl
 import com.riffle.core.data.EpubCacheManagerImpl
 import com.riffle.core.data.EpubRepositoryImpl
@@ -11,23 +10,19 @@ import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
+import com.riffle.core.data.PdfCacheManagerImpl
+import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
-import com.riffle.core.database.BookFormattingPreferencesDao
-import com.riffle.core.database.CollectionDao
-import com.riffle.core.database.LibraryDao
-import com.riffle.core.database.LibraryItemDao
-import com.riffle.core.database.ReadingPositionDao
-import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.database.SeriesDao
-import com.riffle.core.database.ServerDao
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.EpubCacheManager
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.PdfCacheManager
+import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
@@ -93,6 +88,10 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindPdfRepository(impl: PdfRepositoryImpl): PdfRepository
+
+    @Binds
+    @Singleton
     abstract fun bindReadingPositionStore(impl: ReadingPositionStoreImpl): ReadingPositionStore
 
     @Binds
@@ -119,55 +118,19 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideDatabase(@ApplicationContext context: Context): RiffleDatabase =
-            Room.databaseBuilder(context, RiffleDatabase::class.java, "riffle.db")
-                .addMigrations(
-                    RiffleDatabase.MIGRATION_1_2,
-                    RiffleDatabase.MIGRATION_2_3,
-                    RiffleDatabase.MIGRATION_3_4,
-                    RiffleDatabase.MIGRATION_4_5,
-                    RiffleDatabase.MIGRATION_5_6,
-                )
-                .build()
-
-        @Provides
-        @Singleton
         @CrashReportFile
         fun provideCrashReportFile(@ApplicationContext context: Context): File =
             File(context.filesDir, "crash_report.txt")
 
         @Provides
         @Singleton
-        fun provideServerDao(db: RiffleDatabase): ServerDao = db.serverDao()
-
-        @Provides
-        @Singleton
-        fun provideLibraryDao(db: RiffleDatabase): LibraryDao = db.libraryDao()
-
-        @Provides
-        @Singleton
-        fun provideLibraryItemDao(db: RiffleDatabase): LibraryItemDao = db.libraryItemDao()
-
-        @Provides
-        @Singleton
-        fun provideSeriesDao(db: RiffleDatabase): SeriesDao = db.seriesDao()
-
-        @Provides
-        @Singleton
-        fun provideCollectionDao(db: RiffleDatabase): CollectionDao = db.collectionDao()
-
-        @Provides
-        @Singleton
-        fun provideReadingPositionDao(db: RiffleDatabase): ReadingPositionDao = db.readingPositionDao()
-
-        @Provides
-        @Singleton
-        fun provideBookFormattingPreferencesDao(db: RiffleDatabase): BookFormattingPreferencesDao = db.bookFormattingPreferencesDao()
-
-        @Provides
-        @Singleton
         fun provideEpubCacheManager(@ApplicationContext context: Context): EpubCacheManager =
             EpubCacheManagerImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() })
+
+        @Provides
+        @Singleton
+        fun providePdfCacheManager(@ApplicationContext context: Context): PdfCacheManager =
+            PdfCacheManagerImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() })
 
         @Provides
         @Singleton

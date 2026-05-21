@@ -1,14 +1,18 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.EbookFormat
+
 data class NetworkLibraryItem(
     val id: String,
     val libraryId: String,
     val title: String,
     val author: String,
     val readingProgress: Float,
-    val isSupported: Boolean,
+    val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
-)
+) {
+    val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
+}
 
 sealed class NetworkItemEbookInoResult {
     data class Success(val ino: String) : NetworkItemEbookInoResult()
@@ -16,7 +20,7 @@ sealed class NetworkItemEbookInoResult {
 }
 
 sealed class NetworkEpubDownloadResult {
-    data class Success(val bytes: ByteArray) : NetworkEpubDownloadResult()
+    data class Success(val body: okhttp3.ResponseBody) : NetworkEpubDownloadResult()
     data class NetworkError(val cause: Throwable) : NetworkEpubDownloadResult()
 }
 

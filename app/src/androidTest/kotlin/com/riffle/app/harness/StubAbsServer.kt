@@ -10,10 +10,11 @@ import okhttp3.mockwebserver.RecordedRequest
  * Wraps MockWebServer to serve canned ABS API responses for instrumented tests.
  * All constants are stable identifiers that tests can reference without magic strings.
  *
- * Two items exist:
+ * Three items exist:
  *  - TEST_ITEM (item-test-1): belongs to TEST_SERIES and TEST_COLLECTION — used for grouped navigation tests.
  *  - TEST_STANDALONE_ITEM (item-test-2): not in any series or collection — appears in the ungrouped "Books"
- *    section of the library items screen and is used for the direct-open test.
+ *    section of the library items screen and is used for the direct-open EPUB test.
+ *  - TEST_PDF_ITEM (item-test-3): a PDF item used for the PDF reader harness test.
  */
 class StubAbsServer {
 
@@ -33,6 +34,9 @@ class StubAbsServer {
         const val TEST_STANDALONE_ITEM_ID = "item-test-2"
         const val TEST_STANDALONE_ITEM_TITLE = "Test EPUB Standalone"
         const val TEST_STANDALONE_FILE_INO = "ino-test-2"
+        const val TEST_PDF_ITEM_ID = "item-test-3"
+        const val TEST_PDF_ITEM_TITLE = "Test PDF"
+        const val TEST_PDF_FILE_INO = "ino-test-3"
     }
 
     private val _sessionSyncCount = java.util.concurrent.atomic.AtomicInteger(0)
@@ -65,6 +69,8 @@ class StubAbsServer {
             request.path == "/api/items/$TEST_ITEM_ID/ebook/$TEST_FILE_INO" -> epubFileResponse()
             request.path == "/api/items/$TEST_STANDALONE_ITEM_ID" -> standaloneItemResponse()
             request.path == "/api/items/$TEST_STANDALONE_ITEM_ID/ebook/$TEST_STANDALONE_FILE_INO" -> epubFileResponse()
+            request.path == "/api/items/$TEST_PDF_ITEM_ID" -> pdfItemResponse()
+            request.path == "/api/items/$TEST_PDF_ITEM_ID/ebook/$TEST_PDF_FILE_INO" -> pdfFileResponse()
             request.path?.matches(Regex("/api/me/progress/[^/]+")) == true && request.method == "PATCH" -> progressSyncResponse(request)
             else -> MockResponse().setResponseCode(404)
         }
@@ -84,7 +90,8 @@ class StubAbsServer {
         200,
         """{"results":[
           {"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null},
-          {"id":"$TEST_STANDALONE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_STANDALONE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_STANDALONE_FILE_INO"}},"userMediaProgress":null}
+          {"id":"$TEST_STANDALONE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_STANDALONE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_STANDALONE_FILE_INO"}},"userMediaProgress":null},
+          {"id":"$TEST_PDF_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PDF_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"pdf","ebookFile":{"ino":"$TEST_PDF_FILE_INO"}},"userMediaProgress":null}
         ]}"""
     )
 
@@ -98,12 +105,26 @@ class StubAbsServer {
         """{"id":"$TEST_STANDALONE_ITEM_ID","media":{"ebookFile":{"ino":"$TEST_STANDALONE_FILE_INO"}}}"""
     )
 
+    private fun pdfItemResponse() = json(
+        200,
+        """{"id":"$TEST_PDF_ITEM_ID","media":{"ebookFile":{"ino":"$TEST_PDF_FILE_INO"}}}"""
+    )
+
     private fun epubFileResponse(): MockResponse {
         val context = InstrumentationRegistry.getInstrumentation().context
         val bytes = context.assets.open("test.epub").use { it.readBytes() }
         return MockResponse()
             .setResponseCode(200)
             .addHeader("Content-Type", "application/epub+zip")
+            .setBody(okio.Buffer().write(bytes))
+    }
+
+    private fun pdfFileResponse(): MockResponse {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bytes = context.assets.open("test.pdf").use { it.readBytes() }
+        return MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", "application/pdf")
             .setBody(okio.Buffer().write(bytes))
     }
 
