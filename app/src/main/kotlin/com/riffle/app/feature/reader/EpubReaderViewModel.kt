@@ -154,7 +154,10 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
-        _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
+        _currentLocatorProgression.value =
+            locator.locations.totalProgression?.toFloat()
+                ?: locator.locations.progression?.toFloat()
+                ?: 0f
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
@@ -197,18 +200,15 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val railSegments: StateFlow<List<RailSegment>> = combine(
-        tocEntries,
-        currentLocatorHref,
-    ) { toc, href ->
-        if (href == null) emptyList() else buildRailSegments(toc, href)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val railSegments: StateFlow<List<RailSegment>> = tocEntries
+        .map { buildRailSegments(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
-        tocEntries,
+        railSegments,
         currentLocatorHref,
-    ) { toc, href ->
-        if (href == null) 0 else findActiveSegmentIndex(buildRailSegments(toc, href), href)
+    ) { segments, href ->
+        if (href == null) 0 else findActiveSegmentIndex(segments, href)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
