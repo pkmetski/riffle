@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -60,6 +60,20 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `book_formatting_preferences` (`itemId` TEXT NOT NULL, `fontSize` REAL NOT NULL, `theme` TEXT NOT NULL, `fontFamily` TEXT NOT NULL, `lineSpacing` REAL NOT NULL, `margins` REAL NOT NULL, `orientation` TEXT NOT NULL, PRIMARY KEY(`itemId`))"
                 )
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // SQLite doesn't support DROP COLUMN before 3.35; recreate the table without orientation
+                db.execSQL(
+                    "CREATE TABLE `book_formatting_preferences_new` (`itemId` TEXT NOT NULL, `fontSize` REAL NOT NULL, `theme` TEXT NOT NULL, `fontFamily` TEXT NOT NULL, `lineSpacing` REAL NOT NULL, `margins` REAL NOT NULL, PRIMARY KEY(`itemId`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `book_formatting_preferences_new` SELECT `itemId`, `fontSize`, `theme`, `fontFamily`, `lineSpacing`, `margins` FROM `book_formatting_preferences`"
+                )
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
             }
         }
 

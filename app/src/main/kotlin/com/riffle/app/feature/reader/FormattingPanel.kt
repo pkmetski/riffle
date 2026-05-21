@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
-import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,26 +122,6 @@ fun FormattingPanel(
                 decrementDescription = "Decrease margins",
                 incrementDescription = "Increase margins",
             )
-
-            Spacer(Modifier.height(16.dp))
-
-            // Orientation
-            Text("Reading mode", style = MaterialTheme.typography.labelMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReaderOrientation.entries.forEach { orientation ->
-                    val selected = prefs.orientation == orientation
-                    Button(
-                        onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                        modifier = Modifier.semantics { contentDescription = "${orientation.name} mode" },
-                    ) { Text(if (orientation == ReaderOrientation.Paginated) "Paginated" else "Scroll") }
-                }
-            }
 
             Spacer(Modifier.height(8.dp))
             TextButton(

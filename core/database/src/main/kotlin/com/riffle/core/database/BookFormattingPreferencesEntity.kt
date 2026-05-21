@@ -11,5 +11,4 @@ data class BookFormattingPreferencesEntity(
     val fontFamily: String,
     val lineSpacing: Float,
     val margins: Float,
-    val orientation: String,
 )

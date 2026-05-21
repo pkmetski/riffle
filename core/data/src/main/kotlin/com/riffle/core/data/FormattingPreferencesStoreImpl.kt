@@ -9,7 +9,6 @@ import com.riffle.core.data.di.FormattingPreferencesDataStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderFontFamily
-import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -30,9 +29,6 @@ class FormattingPreferencesStoreImpl @Inject constructor(
                 ?: ReaderFontFamily.Serif,
             lineSpacing = prefs[KEY_LINE_SPACING] ?: 1.2f,
             margins = prefs[KEY_MARGINS] ?: 1.0f,
-            orientation = prefs[KEY_ORIENTATION]
-                ?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
-                ?: ReaderOrientation.Paginated,
         )
     }
 
@@ -43,7 +39,6 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_FONT_FAMILY] = preferences.fontFamily.name
             prefs[KEY_LINE_SPACING] = preferences.lineSpacing
             prefs[KEY_MARGINS] = preferences.margins
-            prefs[KEY_ORIENTATION] = preferences.orientation.name
         }
     }
 
@@ -53,6 +48,5 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_FONT_FAMILY = stringPreferencesKey("font_family")
         val KEY_LINE_SPACING = floatPreferencesKey("line_spacing")
         val KEY_MARGINS = floatPreferencesKey("margins")
-        val KEY_ORIENTATION = stringPreferencesKey("orientation")
     }
 }

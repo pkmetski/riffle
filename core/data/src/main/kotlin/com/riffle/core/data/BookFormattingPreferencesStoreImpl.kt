@@ -5,7 +5,6 @@ import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
-import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import javax.inject.Inject
 
@@ -21,7 +20,6 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
             fontFamily = runCatching { ReaderFontFamily.valueOf(entity.fontFamily) }.getOrDefault(ReaderFontFamily.Serif),
             lineSpacing = entity.lineSpacing,
             margins = entity.margins,
-            orientation = runCatching { ReaderOrientation.valueOf(entity.orientation) }.getOrDefault(ReaderOrientation.Paginated),
         )
     }
 
@@ -34,7 +32,6 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
                 fontFamily = preferences.fontFamily.name,
                 lineSpacing = preferences.lineSpacing,
                 margins = preferences.margins,
-                orientation = preferences.orientation.name,
             )
         )
     }

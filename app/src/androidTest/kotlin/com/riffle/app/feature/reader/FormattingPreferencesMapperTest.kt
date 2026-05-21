@@ -3,11 +3,8 @@ package com.riffle.app.feature.reader
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
-import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.readium.r2.navigator.preferences.Theme
@@ -87,15 +84,4 @@ class FormattingPreferencesMapperTest {
         assertEquals(1.4, result.pageMargins!!, 0.001)
     }
 
-    @Test
-    fun paginatedOrientationMapsToScrollFalse() {
-        val result = FormattingPreferences(orientation = ReaderOrientation.Paginated).toEpubPreferences()
-        assertFalse(result.scroll!!)
-    }
-
-    @Test
-    fun scrollOrientationMapsToScrollTrue() {
-        val result = FormattingPreferences(orientation = ReaderOrientation.Scroll).toEpubPreferences()
-        assertTrue(result.scroll!!)
-    }
 }
