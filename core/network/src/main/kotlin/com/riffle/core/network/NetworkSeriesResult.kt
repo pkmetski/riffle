@@ -8,6 +8,7 @@ data class NetworkSeriesItem(
     val sequence: String?,
     val readingProgress: Float,
     val isSupported: Boolean,
+    val ebookFileIno: String? = null,
 )
 
 data class NetworkSeries(

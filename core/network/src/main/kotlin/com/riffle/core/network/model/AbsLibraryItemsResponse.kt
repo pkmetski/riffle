@@ -18,6 +18,12 @@ internal data class AbsLibraryItemsResponse(val results: List<AbsLibraryItemDto>
     data class AbsMediaDto(
         val metadata: AbsMetadataDto,
         val ebookFormat: String? = null,
+        val ebookFile: AbsEbookFileDto? = null,
+    )
+
+    @Serializable
+    data class AbsEbookFileDto(
+        val ino: String = "",
     )
 
     @Serializable

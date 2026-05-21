@@ -29,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun CollectionDetailScreen(
     collectionName: String,
+    onItemSelected: (com.riffle.core.domain.LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: CollectionDetailViewModel = hiltViewModel(),
 ) {
@@ -66,7 +67,7 @@ fun CollectionDetailScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     items(items, key = { it.id }) { item ->
-                        LibraryItemCard(item = item, token = viewModel.authToken)
+                        LibraryItemCard(item = item, token = viewModel.authToken, onClick = { onItemSelected(item) })
                     }
                 }
             }

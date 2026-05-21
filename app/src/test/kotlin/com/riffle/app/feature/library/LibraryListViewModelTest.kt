@@ -47,6 +47,7 @@ class LibraryListViewModelTest {
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun refreshLibraries() = refreshResult
         override suspend fun refreshLibraryItems(libraryId: String) = refreshResult
         override suspend fun refreshSeries(libraryId: String) = refreshResult
@@ -93,6 +94,7 @@ class LibraryListViewModelTest {
                 return if (callCount++ == 0) LibraryRefreshResult.NetworkError(IOException())
                 else LibraryRefreshResult.Success
             }
+            override suspend fun getItem(itemId: String): LibraryItem? = null
             override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
             override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
             override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success

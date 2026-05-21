@@ -25,6 +25,12 @@ internal data class AbsCollectionsResponse(val results: List<AbsCollectionDto>) 
     data class AbsCollectionMediaDto(
         val metadata: AbsCollectionMetadataDto,
         val ebookFormat: String? = null,
+        val ebookFile: AbsCollectionEbookFileDto? = null,
+    )
+
+    @Serializable
+    data class AbsCollectionEbookFileDto(
+        val ino: String = "",
     )
 
     @Serializable

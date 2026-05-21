@@ -2,16 +2,23 @@ package com.riffle.core.data.di
 
 import android.content.Context
 import androidx.room.Room
+import com.riffle.core.data.EpubCacheManagerImpl
+import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
+import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ServerRepositoryImpl
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ServerDao
+import com.riffle.core.domain.EpubCacheManager
+import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
@@ -50,6 +57,14 @@ abstract class DataModule {
     @Singleton
     abstract fun bindAbsLibraryApi(impl: AbsApiClient): AbsLibraryApi
 
+    @Binds
+    @Singleton
+    abstract fun bindEpubRepository(impl: EpubRepositoryImpl): EpubRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReadingPositionStore(impl: ReadingPositionStoreImpl): ReadingPositionStore
+
     companion object {
         @Provides
         @Singleton
@@ -64,7 +79,12 @@ abstract class DataModule {
         @Singleton
         fun provideDatabase(@ApplicationContext context: Context): RiffleDatabase =
             Room.databaseBuilder(context, RiffleDatabase::class.java, "riffle.db")
-                .addMigrations(RiffleDatabase.MIGRATION_1_2, RiffleDatabase.MIGRATION_2_3, RiffleDatabase.MIGRATION_3_4)
+                .addMigrations(
+                    RiffleDatabase.MIGRATION_1_2,
+                    RiffleDatabase.MIGRATION_2_3,
+                    RiffleDatabase.MIGRATION_3_4,
+                    RiffleDatabase.MIGRATION_4_5,
+                )
                 .build()
 
         @Provides
@@ -86,5 +106,14 @@ abstract class DataModule {
         @Provides
         @Singleton
         fun provideCollectionDao(db: RiffleDatabase): CollectionDao = db.collectionDao()
+
+        @Provides
+        @Singleton
+        fun provideReadingPositionDao(db: RiffleDatabase): ReadingPositionDao = db.readingPositionDao()
+
+        @Provides
+        @Singleton
+        fun provideEpubCacheManager(@ApplicationContext context: Context): EpubCacheManager =
+            EpubCacheManagerImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() })
     }
 }

@@ -26,6 +26,12 @@ internal data class AbsSeriesResponse(val results: List<AbsSeriesDto>) {
     data class AbsSeriesMediaDto(
         val metadata: AbsSeriesMetadataDto,
         val ebookFormat: String? = null,
+        val ebookFile: AbsSeriesEbookFileDto? = null,
+    )
+
+    @Serializable
+    data class AbsSeriesEbookFileDto(
+        val ino: String = "",
     )
 
     @Serializable

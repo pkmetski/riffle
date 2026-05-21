@@ -27,4 +27,19 @@ interface AbsLibraryApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkCollectionResult
+
+    suspend fun getItemEbookFileIno(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkItemEbookInoResult = throw UnsupportedOperationException("getItemEbookFileIno not implemented")
+
+    suspend fun downloadEpub(
+        baseUrl: String,
+        itemId: String,
+        fileIno: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkEpubDownloadResult = throw UnsupportedOperationException("downloadEpub not implemented")
 }

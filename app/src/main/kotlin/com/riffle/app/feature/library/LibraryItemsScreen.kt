@@ -50,6 +50,7 @@ fun LibraryItemsScreen(
     libraryName: String,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
+    onItemSelected: (LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
@@ -110,7 +111,7 @@ fun LibraryItemsScreen(
                             SectionHeader("Books")
                         }
                         items(ungroupedItems, key = { "item_${it.id}" }) { item ->
-                            LibraryItemCard(item = item, token = viewModel.authToken)
+                            LibraryItemCard(item = item, token = viewModel.authToken, onClick = { onItemSelected(item) })
                         }
                     }
                 }
@@ -182,9 +183,13 @@ private fun CollectionCard(collection: Collection, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun LibraryItemCard(item: LibraryItem, token: String) {
+internal fun LibraryItemCard(item: LibraryItem, token: String, onClick: (() -> Unit)? = null) {
     val alpha = if (!item.isSupported) 0.38f else 1f
-    Card(modifier = Modifier.fillMaxWidth().alpha(alpha)) {
+    val cardModifier = if (item.isSupported && onClick != null)
+        Modifier.fillMaxWidth().alpha(alpha).clickable(onClick = onClick)
+    else
+        Modifier.fillMaxWidth().alpha(alpha)
+    Card(modifier = cardModifier) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)

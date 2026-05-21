@@ -14,8 +14,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CollectionEntity::class,
         SeriesItemEntity::class,
         CollectionItemEntity::class,
+        ReadingPositionEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun libraryItemDao(): LibraryItemDao
     abstract fun seriesDao(): SeriesDao
     abstract fun collectionDao(): CollectionDao
+    abstract fun readingPositionDao(): ReadingPositionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -41,6 +43,13 @@ abstract class RiffleDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `libraries` ADD COLUMN `isUnsupported` INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `isSupported` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `ebookFileIno` TEXT")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `reading_positions` (`itemId` TEXT NOT NULL, `cfi` TEXT NOT NULL, PRIMARY KEY(`itemId`))")
             }
         }
 
