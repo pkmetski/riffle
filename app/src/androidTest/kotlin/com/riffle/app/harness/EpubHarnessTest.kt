@@ -1,9 +1,11 @@
 package com.riffle.app.harness
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -296,7 +298,7 @@ class EpubHarnessTest {
         // Tap the center of the reading area — fires InputListener.onTap, toggles immersive
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(center) }
+            .performTouchInput { click(Offset(size.width * 0.5f, size.height * 0.3f)) }
 
         // Wait for TopAppBar to animate out
         composeTestRule.waitUntil(timeoutMillis = 2_000) {
@@ -307,7 +309,7 @@ class EpubHarnessTest {
         // Tap center again to exit immersive mode
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(center) }
+            .performTouchInput { click(Offset(size.width * 0.5f, size.height * 0.3f)) }
 
         // Back button reappears
         composeTestRule.waitUntil(timeoutMillis = 2_000) {
