@@ -11,6 +11,7 @@ import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibraryListScreen
 import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.reader.EpubReaderScreen
+import com.riffle.app.feature.reader.PdfReaderScreen
 import com.riffle.app.feature.server.AddServerScreen
 import com.riffle.app.feature.server.ServerListScreen
 import com.riffle.app.feature.settings.SettingsScreen
@@ -25,6 +26,7 @@ private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val EPUB_READER = "epub_reader/{itemId}"
+private const val PDF_READER = "pdf_reader/{itemId}"
 
 @Composable
 fun RiffleNavGraph() {
@@ -74,7 +76,7 @@ fun RiffleNavGraph() {
                     navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
                 },
                 onItemSelected = { item ->
-                    navController.navigate("epub_reader/${URLEncoder.encode(item.id, "UTF-8")}")
+                    readerRouteFor(item)?.let { navController.navigate(it) }
                 },
                 onNavigateBack = { navController.popBackStack() },
             )
@@ -94,7 +96,7 @@ fun RiffleNavGraph() {
             SeriesDetailScreen(
                 seriesName = seriesName,
                 onItemSelected = { item ->
-                    navController.navigate("epub_reader/${URLEncoder.encode(item.id, "UTF-8")}")
+                    readerRouteFor(item)?.let { navController.navigate(it) }
                 },
                 onNavigateBack = { navController.popBackStack() },
             )
@@ -114,7 +116,7 @@ fun RiffleNavGraph() {
             CollectionDetailScreen(
                 collectionName = collectionName,
                 onItemSelected = { item ->
-                    navController.navigate("epub_reader/${URLEncoder.encode(item.id, "UTF-8")}")
+                    readerRouteFor(item)?.let { navController.navigate(it) }
                 },
                 onNavigateBack = { navController.popBackStack() },
             )
@@ -126,6 +128,14 @@ fun RiffleNavGraph() {
             )
         ) {
             EpubReaderScreen(onNavigateBack = { navController.popBackStack() })
+        }
+        composable(
+            route = PDF_READER,
+            arguments = listOf(
+                navArgument("itemId") { type = NavType.StringType },
+            )
+        ) {
+            PdfReaderScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

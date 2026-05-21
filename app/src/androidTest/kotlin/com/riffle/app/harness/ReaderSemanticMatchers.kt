@@ -68,4 +68,30 @@ object ReaderSemanticMatchers {
                 .fetchSemanticsNodes().isNotEmpty()
         }
     }
+
+    /** Asserts the PDF reader is showing [page] (1-based) with no error state. */
+    fun ComposeTestRule.assertOnPdfPage(page: Int): SemanticsNodeInteraction =
+        onNode(hasTestTag(TAG_READER_READY) and hasContentDescription("page:$page", substring = true))
+            .assertExists()
+
+    /** Polls until the PDF reader shows [page] (1-based), or throws after [timeoutMillis]. */
+    fun ComposeTestRule.waitUntilOnPdfPage(page: Int, timeoutMillis: Long = 20_000) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(hasTestTag(TAG_READER_READY) and hasContentDescription("page:$page", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * Polls until the PDF reader shows any page number in its content description, meaning the
+     * PDF has finished loading and the locator is stable. The stable initial page reported by
+     * the Readium PDF navigator after load is not necessarily page 1 due to how the pdfium
+     * adapter converts pdfium's 0-based page indices to 1-based Readium locator positions.
+     */
+    fun ComposeTestRule.waitUntilPdfLoaded(timeoutMillis: Long = 20_000) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(hasTestTag(TAG_READER_READY) and hasContentDescription("page:", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 }

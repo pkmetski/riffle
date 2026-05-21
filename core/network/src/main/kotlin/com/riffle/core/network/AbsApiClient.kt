@@ -1,5 +1,6 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsEbookProgressRequest
@@ -126,7 +127,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     title = dto.media.metadata.title,
                     author = dto.media.metadata.authorName,
                     readingProgress = progress,
-                    isSupported = dto.media.ebookFormat != null,
+                    ebookFormat = EbookFormat.from(dto.media.ebookFormat),
                     ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
                 )
             })
@@ -169,7 +170,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             author = book.media.metadata.authorName,
                             sequence = book.seriesSequence,
                             readingProgress = progress,
-                            isSupported = book.media.ebookFormat != null,
+                            ebookFormat = EbookFormat.from(book.media.ebookFormat),
                             ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
                         )
                     },
@@ -213,7 +214,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             title = book.media.metadata.title,
                             author = book.media.metadata.authorName,
                             readingProgress = progress,
-                            isSupported = book.media.ebookFormat != null,
+                            ebookFormat = EbookFormat.from(book.media.ebookFormat),
                             ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
                         )
                     },
@@ -268,11 +269,14 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
         try {
             val response = client.newCall(request).execute()
-            val bytes = response.body?.bytes() ?: return@withContext NetworkEpubDownloadResult.NetworkError(
+            val body = response.body ?: return@withContext NetworkEpubDownloadResult.NetworkError(
                 IOException("Empty response body")
             )
-            if (response.isSuccessful) NetworkEpubDownloadResult.Success(bytes)
-            else NetworkEpubDownloadResult.NetworkError(IOException("HTTP ${response.code}"))
+            if (response.isSuccessful) NetworkEpubDownloadResult.Success(body)
+            else {
+                body.close()
+                NetworkEpubDownloadResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
         } catch (e: IOException) {
             NetworkEpubDownloadResult.NetworkError(e)
         }

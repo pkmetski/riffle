@@ -1,5 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.EbookFormat
+
 data class NetworkSeriesItem(
     val id: String,
     val libraryId: String,
@@ -7,9 +9,11 @@ data class NetworkSeriesItem(
     val author: String,
     val sequence: String?,
     val readingProgress: Float,
-    val isSupported: Boolean,
+    val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
-)
+) {
+    val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
+}
 
 data class NetworkSeries(
     val id: String,

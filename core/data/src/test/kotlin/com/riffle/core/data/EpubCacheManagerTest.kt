@@ -29,7 +29,7 @@ class EpubCacheManagerTest {
     @Test
     fun `cacheEpub writes file to cache dir`() = runTest {
         val bytes = "epub-content".toByteArray()
-        val file = manager.cacheEpub("item-1", bytes)
+        val file = manager.cacheEpub("item-1", bytes.inputStream())
         assertTrue(file.exists())
         assertTrue(file.absolutePath.startsWith(cacheDir.absolutePath))
     }
@@ -37,7 +37,7 @@ class EpubCacheManagerTest {
     @Test
     fun `getCachedEpub returns file after it has been cached`() = runTest {
         val bytes = "epub-content".toByteArray()
-        manager.cacheEpub("item-1", bytes)
+        manager.cacheEpub("item-1", bytes.inputStream())
         val result = manager.getCachedEpub("item-1")
         assertNotNull(result)
         assertArrayEquals(bytes, result!!.readBytes())
@@ -51,7 +51,7 @@ class EpubCacheManagerTest {
 
     @Test
     fun `evictAll removes cached files but leaves download-tier files untouched`() = runTest {
-        manager.cacheEpub("item-1", "epub-content".toByteArray())
+        manager.cacheEpub("item-1", "epub-content".toByteArray().inputStream())
         val downloadFile = downloadDir.resolve("item-2.epub").also { it.writeBytes("download".toByteArray()) }
 
         manager.evictAll()

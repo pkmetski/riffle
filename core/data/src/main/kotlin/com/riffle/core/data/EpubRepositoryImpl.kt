@@ -36,7 +36,9 @@ class EpubRepositoryImpl @Inject constructor(
                 }
             }
             when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
-                is NetworkEpubDownloadResult.Success -> cacheManager.cacheEpub(item.id, result.bytes)
+                is NetworkEpubDownloadResult.Success -> result.body.use { body ->
+                    cacheManager.cacheEpub(item.id, body.byteStream())
+                }
                 is NetworkEpubDownloadResult.NetworkError -> return EpubOpenResult.NetworkError(result.cause)
             }
         }

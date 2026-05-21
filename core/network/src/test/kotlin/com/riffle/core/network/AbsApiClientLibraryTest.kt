@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import com.riffle.core.domain.EbookFormat
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -99,9 +100,9 @@ class AbsApiClientLibraryTest {
         assertTrue(result is NetworkLibraryItemsResult.Success)
         val success = result as NetworkLibraryItemsResult.Success
         assertEquals(2, success.items.size)
-        assertTrue(success.items[0].isSupported)
+        assertEquals(EbookFormat.Epub, success.items[0].ebookFormat)
         assertEquals(0.42f, success.items[0].readingProgress, 0.001f)
-        assertFalse(success.items[1].isSupported)
+        assertEquals(EbookFormat.Unsupported, success.items[1].ebookFormat)
     }
 
     @Test
