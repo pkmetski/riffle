@@ -298,7 +298,7 @@ class EpubHarnessTest {
         // Tap the center of the reading area — fires InputListener.onTap, toggles immersive
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(size.width * 0.5f, size.height * 0.3f)) }
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
 
         // Wait for TopAppBar to animate out
         composeTestRule.waitUntil(timeoutMillis = 2_000) {
@@ -309,7 +309,7 @@ class EpubHarnessTest {
         // Tap center again to exit immersive mode
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(size.width * 0.5f, size.height * 0.3f)) }
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
 
         // Back button reappears
         composeTestRule.waitUntil(timeoutMillis = 2_000) {
