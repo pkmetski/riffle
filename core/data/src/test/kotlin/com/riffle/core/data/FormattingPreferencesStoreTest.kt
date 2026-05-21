@@ -24,7 +24,7 @@ class FormattingPreferencesStoreTest {
 
     private fun buildStore() = FormattingPreferencesStoreImpl(
         PreferenceDataStoreFactory.create(
-            scope = testScope,
+            scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("prefs.preferences_pb") },
         )
     )
