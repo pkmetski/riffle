@@ -3,6 +3,9 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +48,9 @@ import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import kotlinx.coroutines.flow.Flow
+import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.input.TapEvent
+import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 
@@ -59,6 +66,7 @@ fun EpubReaderScreen(
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var showFormattingPanel by remember { mutableStateOf(false) }
+    val immersiveState = rememberImmersiveModeState()
 
     // Close reading session when screen is disposed (navigation away)
     DisposableEffect(viewModel) {
@@ -101,26 +109,32 @@ fun EpubReaderScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (state is ReaderState.Ready) {
-                        IconButton(onClick = viewModel::openToc) {
-                            Icon(Icons.Filled.List, contentDescription = "Table of Contents")
+            AnimatedVisibility(
+                visible = !immersiveState.isImmersive,
+                enter = slideInVertically(initialOffsetY = { -it }),
+                exit = slideOutVertically(targetOffsetY = { -it }),
+            ) {
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
-                        IconButton(
-                            onClick = { showFormattingPanel = true },
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = "Format")
+                    },
+                    actions = {
+                        if (state is ReaderState.Ready) {
+                            IconButton(onClick = viewModel::openToc) {
+                                Icon(Icons.Filled.List, contentDescription = "Table of Contents")
+                            }
+                            IconButton(
+                                onClick = { showFormattingPanel = true },
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "Format")
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -143,6 +157,7 @@ fun EpubReaderScreen(
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = viewModel::onPositionChanged,
                         onNavigationEvents = viewModel.navigationEvents,
+                        onTap = immersiveState::toggle,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -199,17 +214,31 @@ fun EpubReaderScreen(
 // per process — creating multiple instances triggers a DataStore "multiple active" crash.
 private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configuration() }
 
+@OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
+    onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+
+    // rememberUpdatedState ensures the listener always calls the latest onTap lambda
+    // without needing to be re-created when onTap changes.
+    val currentOnTap by rememberUpdatedState(onTap)
+    val tapListener = remember {
+        object : InputListener {
+            override fun onTap(event: TapEvent): Boolean {
+                currentOnTap()
+                return false
+            }
+        }
+    }
 
     LaunchedEffect(onNavigationEvents) {
         onNavigationEvents.collect { link ->
@@ -217,9 +246,12 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Cancels any in-flight submitPreferences call before sending the next one.
     LaunchedEffect(formattingPrefs, fragmentRef.value) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences())
+    }
+
+    DisposableEffect(tapListener) {
+        onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
     AndroidView(
@@ -242,6 +274,7 @@ private fun EpubNavigatorView(
                 val fragment = fm.findFragmentById(containerView.id) as? EpubNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
+                fragment.addInputListener(tapListener)
                 fragmentActivity.lifecycleScope.launch {
                     fragment.currentLocator.collect { locator -> onPositionChanged(locator) }
                 }
