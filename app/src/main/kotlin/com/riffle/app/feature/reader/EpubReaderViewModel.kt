@@ -8,9 +8,16 @@ import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.readium.r2.shared.publication.Link
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -95,5 +102,33 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
+    }
+
+    private val _tocVisible = MutableStateFlow(false)
+    val tocVisible: StateFlow<Boolean> = _tocVisible
+
+    fun openToc() { _tocVisible.value = true }
+    fun closeToc() { _tocVisible.value = false }
+
+    val tocEntries: StateFlow<List<TocEntry>> = state
+        .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
+    val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()
+
+    fun navigateToEntry(entry: TocEntry) {
+        val pub = (state.value as? ReaderState.Ready)?.publication ?: return
+        val link = pub.tableOfContents.findLinkByHref(entry.href) ?: return
+        _navigationEvents.trySend(link)
+        _tocVisible.value = false
+    }
+
+    private fun List<Link>.findLinkByHref(href: String): Link? {
+        for (link in this) {
+            if (link.href.toString() == href) return link
+            link.children.findLinkByHref(href)?.let { return it }
+        }
+        return null
     }
 }

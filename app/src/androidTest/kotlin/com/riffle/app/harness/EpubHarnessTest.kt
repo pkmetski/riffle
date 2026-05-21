@@ -118,6 +118,33 @@ class EpubHarnessTest {
         assertReaderReady()
     }
 
+    @Test
+    fun opensTocAndNavigatesToChapter3() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        // Open the TOC panel
+        composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Tap the chapter 3 entry
+        composeTestRule.onNodeWithText("Chapter 3: The End").performClick()
+
+        // Reader should navigate to chapter 3
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.assertInChapter("chapter3")
+        composeTestRule.assertNoErrorState()
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private fun addServerAndBrowseLibrary() {

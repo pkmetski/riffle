@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -16,8 +17,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +36,8 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
+import kotlinx.coroutines.flow.Flow
+import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +58,7 @@ fun EpubReaderScreen(
     }
 
     val title = (state as? ReaderState.Ready)?.title ?: ""
+    val tocVisible by viewModel.tocVisible.collectAsState()
 
     Scaffold(
         topBar = {
@@ -60,6 +67,13 @@ fun EpubReaderScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (state is ReaderState.Ready) {
+                        IconButton(onClick = viewModel::openToc) {
+                            Icon(Icons.Filled.List, contentDescription = "Table of Contents")
+                        }
                     }
                 }
             )
@@ -76,14 +90,24 @@ fun EpubReaderScreen(
                 }
                 is ReaderState.Ready -> {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
+                    val tocEntries by viewModel.tocEntries.collectAsState()
                     EpubNavigatorView(
                         state = s,
                         onPositionChanged = viewModel::onPositionChanged,
+                        onNavigationEvents = viewModel.navigationEvents,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
                             .semantics { contentDescription = locatorHref ?: "" },
                     )
+                    if (tocVisible) {
+                        TocPanel(
+                            entries = tocEntries,
+                            activeHref = locatorHref,
+                            onEntryClick = viewModel::navigateToEntry,
+                            onDismiss = viewModel::closeToc,
+                        )
+                    }
                 }
                 is ReaderState.Error -> {
                     Text(
@@ -102,10 +126,18 @@ fun EpubReaderScreen(
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
     onPositionChanged: (Locator) -> Unit,
+    onNavigationEvents: Flow<Link>,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
+    val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+
+    LaunchedEffect(onNavigationEvents) {
+        onNavigationEvents.collect { link ->
+            fragmentRef.value?.go(link)
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -126,6 +158,7 @@ private fun EpubNavigatorView(
                     .commitNow()
                 val fragment = fm.findFragmentById(containerView.id) as? EpubNavigatorFragment
                     ?: return@AndroidView
+                fragmentRef.value = fragment
                 fragmentActivity.lifecycleScope.launch {
                     fragment.currentLocator.collect { locator -> onPositionChanged(locator) }
                 }
