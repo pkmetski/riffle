@@ -279,6 +279,45 @@ class EpubHarnessTest {
         composeTestRule.assertRailActiveSegment("Chapter 2")
     }
 
+    @Test
+    fun tappingContentTogglesImmersiveMode() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        // Back button is visible before immersive mode
+        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+
+        // Tap the center of the reading area — fires InputListener.onTap, toggles immersive
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(center) }
+
+        // Wait for TopAppBar to animate out
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back")
+                .fetchSemanticsNodes().isEmpty()
+        }
+
+        // Tap center again to exit immersive mode
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(center) }
+
+        // Back button reappears
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+        composeTestRule.assertNoErrorState()
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private fun addServerAndBrowseLibrary() {
