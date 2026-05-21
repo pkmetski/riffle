@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -82,6 +83,18 @@ class FormattingPreferencesMapperTest {
     fun marginsMapsDirectlyToPageMargins() {
         val result = FormattingPreferences(margins = 1.4f).toEpubPreferences()
         assertEquals(1.4, result.pageMargins!!, 0.001)
+    }
+
+    @Test
+    fun horizontalOrientationMapsToScrollFalse() {
+        val result = FormattingPreferences(orientation = ReaderOrientation.Horizontal).toEpubPreferences()
+        assertEquals(false, result.scroll)
+    }
+
+    @Test
+    fun verticalOrientationMapsToScrollTrue() {
+        val result = FormattingPreferences(orientation = ReaderOrientation.Vertical).toEpubPreferences()
+        assertEquals(true, result.scroll)
     }
 
 }

@@ -127,7 +127,6 @@ abstract class DataModule {
                     RiffleDatabase.MIGRATION_3_4,
                     RiffleDatabase.MIGRATION_4_5,
                     RiffleDatabase.MIGRATION_5_6,
-                    RiffleDatabase.MIGRATION_6_7,
                 )
                 .build()
 

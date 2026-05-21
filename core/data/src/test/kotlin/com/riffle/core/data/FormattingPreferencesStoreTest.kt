@@ -3,6 +3,7 @@ package com.riffle.core.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -66,5 +67,12 @@ class FormattingPreferencesStoreTest {
         val store = buildStore()
         store.update(FormattingPreferences(margins = 1.6f))
         assertEquals(1.6f, store.preferences.first().margins)
+    }
+
+    @Test
+    fun `saved orientation is returned after update`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(orientation = ReaderOrientation.Vertical))
+        assertEquals(ReaderOrientation.Vertical, store.preferences.first().orientation)
     }
 }

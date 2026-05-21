@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.preferences.FontFamily
@@ -26,4 +27,5 @@ fun FormattingPreferences.toEpubPreferences(): EpubPreferences = EpubPreferences
     publisherStyles = false,
     lineHeight = lineSpacing.toDouble(),
     pageMargins = margins.toDouble(),
+    scroll = orientation == ReaderOrientation.Vertical,
 )
