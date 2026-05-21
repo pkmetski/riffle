@@ -1,18 +1,28 @@
 package com.riffle.core.data
 
+import com.riffle.core.database.CollectionDao
+import com.riffle.core.database.CollectionEntity
+import com.riffle.core.database.CollectionItemEntity
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.SeriesDao
+import com.riffle.core.database.SeriesEntity
+import com.riffle.core.database.SeriesItemEntity
+import com.riffle.core.domain.Collection
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.Series
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.NetworkCollectionResult
 import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItemsResult
+import com.riffle.core.network.NetworkSeriesResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -24,6 +34,8 @@ class LibraryRepositoryImpl @Inject constructor(
     private val api: AbsLibraryApi,
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
+    private val seriesDao: SeriesDao,
+    private val collectionDao: CollectionDao,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) : LibraryRepository {
@@ -39,6 +51,21 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
         libraryItemDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeUngroupedByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeSeries(libraryId: String): Flow<List<Series>> =
+        seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeCollections(libraryId: String): Flow<List<Collection>> =
+        collectionDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
+        seriesDao.observeItemsBySeriesId(seriesId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
+        collectionDao.observeItemsByCollectionId(collectionId).map { list -> list.map { it.toDomain() } }
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
@@ -86,6 +113,97 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
+        val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        return when (val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
+            is NetworkSeriesResult.Success -> {
+                val seriesEntities = result.series.map { s ->
+                    SeriesEntity(
+                        id = s.id,
+                        libraryId = s.libraryId,
+                        name = s.name,
+                        coverUrl = s.items.firstOrNull()?.let { "${server.url.value}/api/items/${it.id}/cover" },
+                        bookCount = s.bookCount,
+                    )
+                }
+                val itemEntities = result.series.flatMap { s ->
+                    s.items.map { item ->
+                        LibraryItemEntity(
+                            id = item.id,
+                            libraryId = item.libraryId,
+                            title = item.title,
+                            author = item.author,
+                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
+                            readingProgress = item.readingProgress,
+                            isDownloaded = false,
+                            isSupported = item.isSupported,
+                        )
+                    }
+                }.distinctBy { it.id }
+                val seriesItemEntities = result.series.flatMap { s ->
+                    s.items.mapIndexed { index, item ->
+                        SeriesItemEntity(
+                            seriesId = s.id,
+                            itemId = item.id,
+                            sequenceOrder = item.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
+                        )
+                    }
+                }
+                seriesDao.deleteItemsByLibraryId(libraryId)
+                seriesDao.deleteByLibraryId(libraryId)
+                libraryItemDao.upsertAll(itemEntities)
+                seriesDao.upsertAll(seriesEntities)
+                seriesDao.upsertAllItems(seriesItemEntities)
+                LibraryRefreshResult.Success
+            }
+            is NetworkSeriesResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
+        }
+    }
+
+    override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
+        val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        return when (val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
+            is NetworkCollectionResult.Success -> {
+                val collectionEntities = result.collections.map { c ->
+                    CollectionEntity(
+                        id = c.id,
+                        libraryId = c.libraryId,
+                        name = c.name,
+                        bookCount = c.bookCount,
+                    )
+                }
+                val itemEntities = result.collections.flatMap { c ->
+                    c.items.map { item ->
+                        LibraryItemEntity(
+                            id = item.id,
+                            libraryId = item.libraryId,
+                            title = item.title,
+                            author = item.author,
+                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
+                            readingProgress = item.readingProgress,
+                            isDownloaded = false,
+                            isSupported = item.isSupported,
+                        )
+                    }
+                }.distinctBy { it.id }
+                val collectionItemEntities = result.collections.flatMap { c ->
+                    c.items.map { item ->
+                        CollectionItemEntity(collectionId = c.id, itemId = item.id)
+                    }
+                }
+                collectionDao.deleteItemsByLibraryId(libraryId)
+                collectionDao.deleteByLibraryId(libraryId)
+                libraryItemDao.upsertAll(itemEntities)
+                collectionDao.upsertAll(collectionEntities)
+                collectionDao.upsertAllItems(collectionItemEntities)
+                LibraryRefreshResult.Success
+            }
+            is NetworkCollectionResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
+        }
+    }
+
     private fun LibraryEntity.toDomain() = Library(id = id, name = name, mediaType = mediaType, isUnsupported = isUnsupported)
 
     private fun LibraryItemEntity.toDomain() = LibraryItem(
@@ -98,5 +216,20 @@ class LibraryRepositoryImpl @Inject constructor(
         isCached = false,
         isDownloaded = isDownloaded,
         isSupported = isSupported,
+    )
+
+    private fun SeriesEntity.toDomain() = Series(
+        id = id,
+        libraryId = libraryId,
+        name = name,
+        coverUrl = coverUrl,
+        bookCount = bookCount,
+    )
+
+    private fun CollectionEntity.toDomain() = Collection(
+        id = id,
+        libraryId = libraryId,
+        name = name,
+        bookCount = bookCount,
     )
 }

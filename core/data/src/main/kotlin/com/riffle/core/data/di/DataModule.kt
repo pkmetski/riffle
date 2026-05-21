@@ -5,9 +5,11 @@ import androidx.room.Room
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
+import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ServerDao
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ServerRepository
@@ -62,7 +64,7 @@ abstract class DataModule {
         @Singleton
         fun provideDatabase(@ApplicationContext context: Context): RiffleDatabase =
             Room.databaseBuilder(context, RiffleDatabase::class.java, "riffle.db")
-                .addMigrations(RiffleDatabase.MIGRATION_1_2, RiffleDatabase.MIGRATION_2_3)
+                .addMigrations(RiffleDatabase.MIGRATION_1_2, RiffleDatabase.MIGRATION_2_3, RiffleDatabase.MIGRATION_3_4)
                 .build()
 
         @Provides
@@ -76,5 +78,13 @@ abstract class DataModule {
         @Provides
         @Singleton
         fun provideLibraryItemDao(db: RiffleDatabase): LibraryItemDao = db.libraryItemDao()
+
+        @Provides
+        @Singleton
+        fun provideSeriesDao(db: RiffleDatabase): SeriesDao = db.seriesDao()
+
+        @Provides
+        @Singleton
+        fun provideCollectionDao(db: RiffleDatabase): CollectionDao = db.collectionDao()
     }
 }

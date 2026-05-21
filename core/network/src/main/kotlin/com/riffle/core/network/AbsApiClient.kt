@@ -1,10 +1,12 @@
 package com.riffle.core.network
 
 import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
+import com.riffle.core.network.model.AbsSeriesResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -127,6 +129,93 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             })
         } catch (e: IOException) {
             NetworkLibraryItemsResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getSeries(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkSeriesResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/libraries/$libraryId/series?minified=1&limit=500")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string() ?: return@withContext NetworkSeriesResult.NetworkError(
+                IOException("Empty response body")
+            )
+            val parsed = json.decodeFromString<AbsSeriesResponse>(raw)
+            NetworkSeriesResult.Success(parsed.results.map { dto ->
+                NetworkSeries(
+                    id = dto.id,
+                    libraryId = dto.libraryId.ifEmpty { libraryId },
+                    name = dto.name,
+                    items = dto.books.map { book ->
+                        val progress = book.userMediaProgress?.ebookProgress
+                            ?: book.userMediaProgress?.progress
+                            ?: 0f
+                        NetworkSeriesItem(
+                            id = book.id,
+                            libraryId = book.libraryId,
+                            title = book.media.metadata.title,
+                            author = book.media.metadata.authorName,
+                            sequence = book.seriesSequence,
+                            readingProgress = progress,
+                            isSupported = book.media.ebookFormat != null,
+                        )
+                    },
+                )
+            })
+        } catch (e: Exception) {
+            NetworkSeriesResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getCollections(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkCollectionResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/libraries/$libraryId/collections?limit=500")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string() ?: return@withContext NetworkCollectionResult.NetworkError(
+                IOException("Empty response body")
+            )
+            val parsed = json.decodeFromString<AbsCollectionsResponse>(raw)
+            NetworkCollectionResult.Success(parsed.results.map { dto ->
+                NetworkCollection(
+                    id = dto.id,
+                    libraryId = dto.libraryId,
+                    name = dto.name,
+                    items = dto.books.map { book ->
+                        val progress = book.userMediaProgress?.ebookProgress
+                            ?: book.userMediaProgress?.progress
+                            ?: 0f
+                        NetworkLibraryItem(
+                            id = book.id,
+                            libraryId = book.libraryId,
+                            title = book.media.metadata.title,
+                            author = book.media.metadata.authorName,
+                            readingProgress = progress,
+                            isSupported = book.media.ebookFormat != null,
+                        )
+                    },
+                )
+            })
+        } catch (e: Exception) {
+            NetworkCollectionResult.NetworkError(e)
         }
     }
 
