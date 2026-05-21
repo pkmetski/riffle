@@ -143,6 +143,71 @@ class EpubHarnessTest {
         composeTestRule.assertNoErrorState()
     }
 
+    @Test
+    fun sessionUpdateSentAfterReading() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        // Wait 35 seconds for at least one periodic sync to fire
+        composeTestRule.waitUntil(timeoutMillis = 40_000) {
+            stubServer.sessionSyncCount > 0
+        }
+        assert(stubServer.sessionSyncCount > 0) {
+            "Expected at least one session sync after 35s of reading"
+        }
+    }
+
+    @Test
+    fun progressSyncUsesCorrectEndpoint() {
+        // Regression: previously synced to /api/session (wrong endpoint); must use PATCH /api/me/progress/:itemId
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        composeTestRule.waitUntil(timeoutMillis = 40_000) {
+            stubServer.sessionSyncCount > 0
+        }
+
+        val path = stubServer.lastProgressPath
+        assert(path == "/api/me/progress/${StubAbsServer.TEST_STANDALONE_ITEM_ID}") {
+            "Expected PATCH /api/me/progress/:itemId but got: $path"
+        }
+    }
+
+    @Test
+    fun progressSyncSendsEpubCfiNotJson() {
+        // Regression: previously sent Readium Locator JSON as ebookLocation; must send epubcfi(...)
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        composeTestRule.waitUntil(timeoutMillis = 40_000) {
+            stubServer.sessionSyncCount > 0
+        }
+
+        val body = stubServer.lastProgressBody
+        assert(body != null) { "No progress sync body captured" }
+        assert(body!!.contains("\"ebookLocation\":\"epubcfi(")) {
+            "Expected ebookLocation to be an epub.js CFI (epubcfi(...)) but body was: $body"
+        }
+        assert(!body.contains("\"href\"")) {
+            "ebookLocation must not be a Readium Locator JSON object but body was: $body"
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private fun addServerAndBrowseLibrary() {

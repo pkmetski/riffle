@@ -35,6 +35,14 @@ class StubAbsServer {
         const val TEST_STANDALONE_FILE_INO = "ino-test-2"
     }
 
+    private val _sessionSyncCount = java.util.concurrent.atomic.AtomicInteger(0)
+    val sessionSyncCount: Int get() = _sessionSyncCount.get()
+
+    @Volatile var lastProgressPath: String? = null
+        private set
+    @Volatile var lastProgressBody: String? = null
+        private set
+
     private val server = MockWebServer()
 
     val baseUrl: String get() = server.url("/").toString().trimEnd('/')
@@ -57,6 +65,7 @@ class StubAbsServer {
             request.path == "/api/items/$TEST_ITEM_ID/ebook/$TEST_FILE_INO" -> epubFileResponse()
             request.path == "/api/items/$TEST_STANDALONE_ITEM_ID" -> standaloneItemResponse()
             request.path == "/api/items/$TEST_STANDALONE_ITEM_ID/ebook/$TEST_STANDALONE_FILE_INO" -> epubFileResponse()
+            request.path?.matches(Regex("/api/me/progress/[^/]+")) == true && request.method == "PATCH" -> progressSyncResponse(request)
             else -> MockResponse().setResponseCode(404)
         }
     }
@@ -107,6 +116,13 @@ class StubAbsServer {
         200,
         """{"results":[{"id":"$TEST_COLLECTION_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_COLLECTION_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
     )
+
+    private fun progressSyncResponse(request: RecordedRequest): MockResponse {
+        lastProgressPath = request.path
+        lastProgressBody = request.body.readUtf8()
+        _sessionSyncCount.incrementAndGet()
+        return json(200, "{}")
+    }
 
     private fun json(code: Int, body: String) = MockResponse()
         .setResponseCode(code)
