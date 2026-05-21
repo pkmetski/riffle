@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -66,6 +67,38 @@ object ReaderSemanticMatchers {
         waitUntil(timeoutMillis = timeoutMillis) {
             onAllNodes(hasTestTag(TAG_READER_READY) and hasContentDescription(hrefSubstring, substring = true))
                 .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    const val TAG_RAIL = "chapter_navigation_rail"
+
+    /**
+     * Asserts the navigation rail has an active segment whose title contains [titleSubstring].
+     * The active segment exposes its title via contentDescription "Active rail segment: <title>".
+     */
+    fun ComposeTestRule.assertRailActiveSegment(titleSubstring: String) {
+        val nodes = onAllNodes(
+            hasContentDescription("Active rail segment: $titleSubstring", substring = true)
+        ).fetchSemanticsNodes()
+        if (nodes.isEmpty()) {
+            throw AssertionError(
+                "Expected navigation rail to have an active segment matching '$titleSubstring' " +
+                "but no such segment was found"
+            )
+        }
+    }
+
+    /**
+     * Polls until the rail's active segment title contains [titleSubstring], or throws after [timeoutMillis].
+     */
+    fun ComposeTestRule.waitUntilRailActiveSegment(
+        titleSubstring: String,
+        timeoutMillis: Long = 15_000,
+    ) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(
+                hasContentDescription("Active rail segment: $titleSubstring", substring = true)
+            ).fetchSemanticsNodes().isNotEmpty()
         }
     }
 }
