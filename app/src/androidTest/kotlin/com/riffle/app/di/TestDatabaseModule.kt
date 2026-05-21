@@ -3,6 +3,7 @@ package com.riffle.app.di
 import android.content.Context
 import androidx.room.Room
 import com.riffle.core.data.di.DatabaseModule
+import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
@@ -62,4 +63,8 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideReadingPositionDao(db: RiffleDatabase): ReadingPositionDao = db.readingPositionDao()
+
+    @Provides
+    @Singleton
+    fun provideBookFormattingPreferencesDao(db: RiffleDatabase): BookFormattingPreferencesDao = db.bookFormattingPreferencesDao()
 }
