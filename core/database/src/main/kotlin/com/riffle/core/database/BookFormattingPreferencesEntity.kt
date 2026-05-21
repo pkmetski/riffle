@@ -12,4 +12,5 @@ data class BookFormattingPreferencesEntity(
     val lineSpacing: Float,
     val margins: Float,
     val orientation: String,
+    val showChapterMap: Boolean = true,
 )

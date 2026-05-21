@@ -162,13 +162,15 @@ fun EpubReaderScreen(
                             onDismiss = viewModel::closeToc,
                         )
                     }
-                    ChapterNavigationRail(
-                        segments = railSegments,
-                        activeIndex = activeRailSegmentIndex,
-                        cursorPosition = cursorPosition,
-                        onSegmentClick = viewModel::navigateToSegment,
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                    )
+                    if (formattingPrefs.showChapterMap) {
+                        ChapterNavigationRail(
+                            segments = railSegments,
+                            activeIndex = activeRailSegmentIndex,
+                            cursorPosition = cursorPosition,
+                            onSegmentClick = viewModel::navigateToSegment,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
+                    }
                 }
                 is ReaderState.Error -> {
                     Text(
