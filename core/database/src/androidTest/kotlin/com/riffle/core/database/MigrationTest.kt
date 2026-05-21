@@ -140,6 +140,40 @@ class MigrationTest {
     }
 
     @Test
+    fun migration5To6() {
+        helper.createDatabase(TEST_DB, 5).use { db ->
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded, isSupported, ebookFileIno) VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.25, 0, 1, NULL)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 6, true, RiffleDatabase.MIGRATION_5_6)
+
+        db.query("SELECT COUNT(*) FROM book_formatting_preferences").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
+    fun migration6To7() {
+        helper.createDatabase(TEST_DB, 6).use { db ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation) VALUES ('item1', 1.0, 'Light', 'Serif', 1.2, 1.0, 'Horizontal')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 7, true, RiffleDatabase.MIGRATION_6_7)
+
+        db.query("SELECT itemId, showChapterMap FROM book_formatting_preferences WHERE itemId = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(1, cursor.getInt(1)) // showChapterMap defaults to 1 (true)
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -148,11 +182,13 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 5, true,
+            TEST_DB, 7, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
             RiffleDatabase.MIGRATION_4_5,
+            RiffleDatabase.MIGRATION_5_6,
+            RiffleDatabase.MIGRATION_6_7,
         )
 
         db.query("SELECT url, displayName FROM servers WHERE id = 's1'").use { cursor ->
