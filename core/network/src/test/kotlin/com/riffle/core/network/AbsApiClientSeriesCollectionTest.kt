@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import com.riffle.core.domain.EbookFormat
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -71,10 +72,10 @@ class AbsApiClientSeriesCollectionTest {
         assertEquals(2, items.size)
         assertEquals("2", items[0].sequence)
         assertEquals(0.75f, items[0].readingProgress, 0.001f)
-        assertTrue(items[0].isSupported)
+        assertEquals(EbookFormat.Epub, items[0].ebookFormat)
         assertNull(items[1].sequence)
         assertEquals(0f, items[1].readingProgress, 0.001f)
-        assertFalse(items[1].isSupported)
+        assertEquals(EbookFormat.Unsupported, items[1].ebookFormat)
     }
 
     @Test
@@ -119,7 +120,7 @@ class AbsApiClientSeriesCollectionTest {
         assertEquals("Discworld", series[0].name)
         assertEquals(1, series[0].bookCount)
         assertEquals("The Colour Of Magic", series[0].items[0].title)
-        assertTrue(series[0].items[0].isSupported)
+        assertEquals(EbookFormat.Epub, series[0].items[0].ebookFormat)
     }
 
     @Test
@@ -151,8 +152,8 @@ class AbsApiClientSeriesCollectionTest {
         assertEquals("col-1", success.collections[0].id)
         assertEquals("My Collection", success.collections[0].name)
         assertEquals(2, success.collections[0].bookCount)
-        assertTrue(success.collections[0].items[0].isSupported)
-        assertFalse(success.collections[0].items[1].isSupported)
+        assertEquals(EbookFormat.Epub, success.collections[0].items[0].ebookFormat)
+        assertEquals(EbookFormat.Unsupported, success.collections[0].items[1].ebookFormat)
     }
 
     @Test

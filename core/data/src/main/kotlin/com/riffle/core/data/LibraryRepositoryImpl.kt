@@ -12,6 +12,7 @@ import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
@@ -107,6 +108,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             isDownloaded = false,
                             isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
+                            ebookFormat = item.ebookFormat.toStorageString(),
                         )
                     }
                 libraryItemDao.deleteByLibraryId(libraryId)
@@ -145,6 +147,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             isDownloaded = false,
                             isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
+                            ebookFormat = item.ebookFormat.toStorageString(),
                         )
                     }
                 }.distinctBy { it.id }
@@ -193,6 +196,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             isDownloaded = false,
                             isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
+                            ebookFormat = item.ebookFormat.toStorageString(),
                         )
                     }
                 }.distinctBy { it.id }
@@ -223,7 +227,7 @@ class LibraryRepositoryImpl @Inject constructor(
         readingProgress = readingProgress,
         isCached = false,
         isDownloaded = isDownloaded,
-        isSupported = isSupported,
+        ebookFormat = EbookFormat.from(ebookFormat.takeIf { isSupported }),
         ebookFileIno = ebookFileIno,
     )
 

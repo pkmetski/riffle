@@ -7,6 +7,8 @@ plugins {
 }
 
 // Exclude legacy Android Support Library to prevent duplicate-class conflicts with AndroidX.
+// pdfium-android:1.8.2 references android.support.v4.util.ArrayMap — that class is provided
+// via the stub in app/src/main/java/android/support/v4/util/ArrayMap.java instead.
 configurations.all {
     exclude(group = "com.android.support")
 }

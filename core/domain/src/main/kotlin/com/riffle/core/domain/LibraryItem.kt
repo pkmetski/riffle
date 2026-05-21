@@ -9,6 +9,8 @@ data class LibraryItem(
     val readingProgress: Float,
     val isCached: Boolean,
     val isDownloaded: Boolean,
-    val isSupported: Boolean,
+    val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
-)
+) {
+    val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
+}

@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.Server
@@ -93,7 +94,7 @@ class EpubPositionIntegrationTest {
         readingProgress = 0f,
         isCached = false,
         isDownloaded = false,
-        isSupported = true,
+        ebookFormat = EbookFormat.Epub,
         ebookFileIno = "ino-42",
     )
 

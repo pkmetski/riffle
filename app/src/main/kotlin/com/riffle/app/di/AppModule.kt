@@ -1,3 +1,5 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.di
 
 import android.content.Context
@@ -6,6 +8,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import org.readium.adapter.pdfium.document.PdfiumDocumentFactory
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.http.DefaultHttpClient
 import org.readium.r2.streamer.PublicationOpener
@@ -34,6 +37,6 @@ object AppModule {
         httpClient: DefaultHttpClient,
         assetRetriever: AssetRetriever
     ): PublicationOpener = PublicationOpener(
-        DefaultPublicationParser(context, httpClient, assetRetriever, pdfFactory = null)
+        DefaultPublicationParser(context, httpClient, assetRetriever, pdfFactory = PdfiumDocumentFactory(context))
     )
 }
