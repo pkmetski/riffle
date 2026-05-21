@@ -18,8 +18,10 @@ import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPresent
 import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
+import com.riffle.app.harness.ReaderSemanticMatchers.assertRailActiveSegment
 import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
+import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilRailActiveSegment
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.domain.EpubCacheManager
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -249,6 +251,32 @@ class EpubHarnessTest {
         assert(progress in 0f..0.5f) {
             "ebookProgress should be a book-wide fraction near 0 when opening at chapter 1, but was $progress (body: $body)"
         }
+    }
+
+    @Test
+    fun railShowsSegment3AsActiveAfterNavigatingToChapter2Section3() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+
+        // Navigate to Chapter 2 Section 3 via the TOC panel
+        composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText("Section 2.3: Turning Point").performClick()
+
+        // Wait until the navigator reaches chapter 2
+        composeTestRule.waitUntilInChapter("chapter2", timeoutMillis = 15_000)
+        composeTestRule.assertNoErrorState()
+
+        // Assert the rail highlights segment 3 (Section 2.3)
+        composeTestRule.waitUntilRailActiveSegment("Section 2.3", timeoutMillis = 10_000)
+        composeTestRule.assertRailActiveSegment("Section 2.3")
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
