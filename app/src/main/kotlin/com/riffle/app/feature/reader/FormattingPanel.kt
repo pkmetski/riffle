@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -101,12 +102,12 @@ fun FormattingPanel(
 
             Spacer(Modifier.height(16.dp))
 
-            // Line spacing
+            // Line spacing (Readium's effective range is 1.0–2.0)
             Text("Line spacing", style = MaterialTheme.typography.labelMedium)
             StepperRow(
                 label = "%.1f×".format(prefs.lineSpacing),
-                onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(0.8f).round1())) },
-                onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(2.5f).round1())) },
+                onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f).round1())) },
+                onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(2.0f).round1())) },
                 decrementDescription = "Decrease line spacing",
                 incrementDescription = "Increase line spacing",
             )
@@ -143,14 +144,15 @@ fun FormattingPanel(
                 }
             }
 
-            if (hasBookOverrides) {
-                Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = onReset,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                ) {
-                    Text("Reset to global defaults")
-                }
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = onReset,
+                enabled = hasBookOverrides,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .alpha(if (hasBookOverrides) 1f else 0f),
+            ) {
+                Text("Reset to global defaults")
             }
 
             Spacer(Modifier.height(24.dp))

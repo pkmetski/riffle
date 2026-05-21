@@ -23,6 +23,8 @@ fun FormattingPreferences.toEpubPreferences(): EpubPreferences = EpubPreferences
         ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
         ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
     },
+    // lineHeight only takes effect when publisherStyles is off
+    publisherStyles = false,
     lineHeight = lineSpacing.toDouble(),
     pageMargins = margins.toDouble(),
     scroll = orientation == ReaderOrientation.Scroll,
