@@ -15,8 +15,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SeriesItemEntity::class,
         CollectionItemEntity::class,
         ReadingPositionEntity::class,
+        BookFormattingPreferencesEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun seriesDao(): SeriesDao
     abstract fun collectionDao(): CollectionDao
     abstract fun readingPositionDao(): ReadingPositionDao
+    abstract fun bookFormattingPreferencesDao(): BookFormattingPreferencesDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -50,6 +52,14 @@ abstract class RiffleDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `ebookFileIno` TEXT")
                 db.execSQL("CREATE TABLE IF NOT EXISTS `reading_positions` (`itemId` TEXT NOT NULL, `cfi` TEXT NOT NULL, PRIMARY KEY(`itemId`))")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_formatting_preferences` (`itemId` TEXT NOT NULL, `fontSize` REAL NOT NULL, `theme` TEXT NOT NULL, `fontFamily` TEXT NOT NULL, `lineSpacing` REAL NOT NULL, `margins` REAL NOT NULL, `orientation` TEXT NOT NULL, PRIMARY KEY(`itemId`))"
+                )
             }
         }
 

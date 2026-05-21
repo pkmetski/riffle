@@ -4,8 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ReadingSessionController
 import com.riffle.core.domain.ReadingSessionRepository
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -57,6 +61,8 @@ class EpubReaderViewModel @Inject constructor(
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
     private val readingSessionRepository: ReadingSessionRepository,
+    private val formattingPreferencesStore: FormattingPreferencesStore,
+    private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -78,8 +84,28 @@ class EpubReaderViewModel @Inject constructor(
     private var syncJob: Job? = null
     private var closeSyncDone = false
 
+    // Optimistic local state: updates immediately so the navigator receives changes without
+    // waiting for the Room write to complete.
+    private val _formattingPreferences = MutableStateFlow(FormattingPreferences())
+    val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
+
+    private val _hasBookOverrides = MutableStateFlow(false)
+    val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
+
     init {
         viewModelScope.launch { openBook() }
+        viewModelScope.launch { loadFormattingPreferences() }
+    }
+
+    private suspend fun loadFormattingPreferences() {
+        val bookPrefs = bookFormattingPreferencesStore.load(itemId)
+        if (bookPrefs != null) {
+            _formattingPreferences.value = bookPrefs
+            _hasBookOverrides.value = true
+        } else {
+            _formattingPreferences.value = formattingPreferencesStore.preferences.first()
+            _hasBookOverrides.value = false
+        }
     }
 
     private suspend fun openBook() {
@@ -193,6 +219,20 @@ class EpubReaderViewModel @Inject constructor(
         return when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
             is Try.Success -> r.value
             is Try.Failure -> null
+        }
+    }
+
+    fun updateFormatting(prefs: FormattingPreferences) {
+        _formattingPreferences.value = prefs
+        _hasBookOverrides.value = true
+        viewModelScope.launch { bookFormattingPreferencesStore.save(itemId, prefs) }
+    }
+
+    fun resetToGlobalDefaults() {
+        viewModelScope.launch {
+            bookFormattingPreferencesStore.clear(itemId)
+            _formattingPreferences.value = formattingPreferencesStore.preferences.first()
+            _hasBookOverrides.value = false
         }
     }
 }

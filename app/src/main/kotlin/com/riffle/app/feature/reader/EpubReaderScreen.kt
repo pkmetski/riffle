@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +39,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
@@ -51,8 +54,11 @@ fun EpubReaderScreen(
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val formattingPrefs by viewModel.formattingPreferences.collectAsState()
+    val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var showFormattingPanel by remember { mutableStateOf(false) }
 
     // Close reading session when screen is disposed (navigation away)
     DisposableEffect(viewModel) {
@@ -107,6 +113,11 @@ fun EpubReaderScreen(
                         IconButton(onClick = viewModel::openToc) {
                             Icon(Icons.Filled.List, contentDescription = "Table of Contents")
                         }
+                        IconButton(
+                            onClick = { showFormattingPanel = true },
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = "Format")
+                        }
                     }
                 }
             )
@@ -126,12 +137,19 @@ fun EpubReaderScreen(
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     EpubNavigatorView(
                         state = s,
+                        formattingPrefs = formattingPrefs,
                         onPositionChanged = viewModel::onPositionChanged,
                         onNavigationEvents = viewModel.navigationEvents,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
-                            .semantics { contentDescription = locatorHref ?: "" },
+                            .semantics {
+                                contentDescription = buildString {
+                                    append(locatorHref ?: "")
+                                    append(" theme:")
+                                    append(formattingPrefs.theme.name.lowercase())
+                                }
+                            },
                     )
                     if (tocVisible) {
                         TocPanel(
@@ -152,6 +170,16 @@ fun EpubReaderScreen(
                 }
             }
         }
+
+        if (showFormattingPanel) {
+            FormattingPanel(
+                prefs = formattingPrefs,
+                hasBookOverrides = hasBookOverrides,
+                onPrefsChange = { viewModel.updateFormatting(it) },
+                onReset = { viewModel.resetToGlobalDefaults() },
+                onDismiss = { showFormattingPanel = false },
+            )
+        }
     }
 }
 
@@ -162,6 +190,7 @@ private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configurati
 @Composable
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
+    formattingPrefs: FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     modifier: Modifier = Modifier,
@@ -174,6 +203,11 @@ private fun EpubNavigatorView(
         onNavigationEvents.collect { link ->
             fragmentRef.value?.go(link)
         }
+    }
+
+    // Cancels any in-flight submitPreferences call before sending the next one.
+    LaunchedEffect(formattingPrefs, fragmentRef.value) {
+        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences())
     }
 
     AndroidView(
