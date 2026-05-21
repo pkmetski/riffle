@@ -87,7 +87,11 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    private val _currentLocatorHref = MutableStateFlow<String?>(null)
+    val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
+
     fun onPositionChanged(locator: Locator) {
+        _currentLocatorHref.value = locator.href.toString()
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
