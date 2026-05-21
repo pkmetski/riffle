@@ -101,15 +101,27 @@ class TocIntegrationTest {
     }
 
     @Test
-    fun railSegmentsForChapter2SubsectionHref() = runTest {
+    fun railSegmentsAreAllTopLevelChapters() = runTest {
         val pub = openTestEpub()
         val entries = pub.tableOfContents.toTocEntries()
 
-        val segments = buildRailSegments(entries, "chapter2.xhtml#s3")
-        assertEquals(3, segments.size)
+        // Rail always shows all top-level chapters, regardless of current position
+        val segments = buildRailSegments(entries)
+        assertEquals("Rail should have one segment per top-level chapter", 3, segments.size)
+        assertTrue("Segment 0 href should contain 'chapter1'", segments[0].href.contains("chapter1"))
+        assertTrue("Segment 1 href should contain 'chapter2'", segments[1].href.contains("chapter2"))
+        assertTrue("Segment 2 href should contain 'chapter3'", segments[2].href.contains("chapter3"))
+    }
 
+    @Test
+    fun activeSegmentIsChapter2WhenLocatorIsInChapter2() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+        val segments = buildRailSegments(entries)
+
+        // A subchapter href (with fragment) should still resolve to the parent chapter segment
         val activeIndex = findActiveSegmentIndex(segments, "chapter2.xhtml#s3")
-        assertEquals("Segment 3 (index 2) should be active for chapter2.xhtml#s3", 2, activeIndex)
+        assertEquals("Chapter 2 (index 1) should be active for chapter2.xhtml#s3", 1, activeIndex)
     }
 
     private suspend fun openTestEpub() = run {

@@ -1,19 +1,16 @@
 package com.riffle.app.feature.reader
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -29,42 +26,58 @@ fun ChapterNavigationRail(
 ) {
     if (segments.isEmpty()) return
 
-    val activeColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-    val cursorColor = MaterialTheme.colorScheme.onBackground
+    val barColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+    val activeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
+    val dividerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val cursorColor = MaterialTheme.colorScheme.primary
+
+    val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(6.dp)
             .testTag("chapter_navigation_rail")
-            .drawWithContent {
-                drawContent()
-                val x = cursorPosition.coerceIn(0f, 1f) * size.width
-                drawLine(
-                    color = cursorColor,
-                    start = Offset(x, 0f),
-                    end = Offset(x, size.height),
-                    strokeWidth = 2.dp.toPx(),
-                )
-            },
-    ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            segments.forEachIndexed { index, segment ->
-                val isActive = index == activeIndex
-                val segmentModifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = 0.5.dp)
-                    .background(if (isActive) activeColor else inactiveColor)
-                    .clickable { onSegmentClick(segment) }
-                    .then(
-                        if (isActive) Modifier.semantics {
-                            contentDescription = "Active rail segment: ${segment.title}"
-                        } else Modifier
-                    )
-                Box(modifier = segmentModifier)
+            .semantics { contentDescription = "Active rail segment: $activeTitle" }
+            .pointerInput(segments) {
+                detectTapGestures { offset ->
+                    val idx = (offset.x / size.width * segments.size)
+                        .toInt()
+                        .coerceIn(0, segments.size - 1)
+                    onSegmentClick(segments[idx])
+                }
             }
-        }
-    }
+            .drawWithCache {
+                val n = segments.size
+                val segW = size.width / n
+                onDrawBehind {
+                    // Background bar
+                    drawRect(color = barColor)
+                    // Active chapter highlight
+                    drawRect(
+                        color = activeColor,
+                        topLeft = Offset(activeIndex * segW, 0f),
+                        size = Size(segW, size.height),
+                    )
+                    // Chapter boundary dividers (between segments, not at edges)
+                    for (i in 1 until n) {
+                        val x = segW * i
+                        drawLine(
+                            color = dividerColor,
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 1.dp.toPx(),
+                        )
+                    }
+                    // Position cursor (book-wide)
+                    val cx = cursorPosition.coerceIn(0f, 1f) * size.width
+                    drawLine(
+                        color = cursorColor,
+                        start = Offset(cx, 0f),
+                        end = Offset(cx, size.height),
+                        strokeWidth = 2.dp.toPx(),
+                    )
+                }
+            },
+    )
 }
