@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.runtime.Composable
@@ -10,11 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.fragment.app.FragmentActivity
 
 @Stable
 class ImmersiveModeState(
@@ -41,7 +40,7 @@ class ImmersiveModeState(
 
 @Composable
 fun rememberImmersiveModeState(): ImmersiveModeState {
-    val window = (LocalContext.current as FragmentActivity).window
+    val window = checkNotNull(LocalActivity.current).window
     val controller = remember(window) { WindowInsetsControllerCompat(window, window.decorView) }
     val state = remember(controller) { ImmersiveModeState(controller) }
 
