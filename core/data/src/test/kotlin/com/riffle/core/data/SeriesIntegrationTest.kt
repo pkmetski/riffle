@@ -202,7 +202,7 @@ class SeriesIntegrationTest {
         val request = mockServer.takeRequest()
         assertEquals("Bearer test-token", request.getHeader("Authorization"))
         assertEquals(
-            "/api/libraries/e77c113d-4383-488d-956f-89c18db431ac/series?minified=1&limit=500",
+            "/api/libraries/e77c113d-4383-488d-956f-89c18db431ac/series?limit=500",
             request.path
         )
     }
