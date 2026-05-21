@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "bb0c102fb0121523e85e1f8a1607de34",
+    "identityHash": "d65e86833953197ecddf247d2c90759d",
     "entities": [
       {
         "tableName": "servers",
@@ -90,7 +90,7 @@
       },
       {
         "tableName": "library_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `isDownloaded` INTEGER NOT NULL, `isSupported` INTEGER NOT NULL, `ebookFileIno` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `isDownloaded` INTEGER NOT NULL, `isSupported` INTEGER NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -143,6 +143,12 @@
             "fieldPath": "ebookFileIno",
             "columnName": "ebookFileIno",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ebookFormat",
+            "columnName": "ebookFormat",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -372,7 +378,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bb0c102fb0121523e85e1f8a1607de34')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd65e86833953197ecddf247d2c90759d')"
     ]
   }
 }
