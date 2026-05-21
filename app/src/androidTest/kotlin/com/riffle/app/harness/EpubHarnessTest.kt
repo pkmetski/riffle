@@ -19,6 +19,7 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPre
 import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
+import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
 import com.riffle.core.database.RiffleDatabase
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -137,11 +138,8 @@ class EpubHarnessTest {
         // Tap the chapter 3 entry
         composeTestRule.onNodeWithText("Chapter 3: The End").performClick()
 
-        // Reader should navigate to chapter 3
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isEmpty()
-        }
-        composeTestRule.assertInChapter("chapter3")
+        // Panel closes immediately; wait for the navigator to actually reach chapter 3
+        composeTestRule.waitUntilInChapter("chapter3", timeoutMillis = 15_000)
         composeTestRule.assertNoErrorState()
     }
 

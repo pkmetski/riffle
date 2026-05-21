@@ -57,4 +57,15 @@ object ReaderSemanticMatchers {
     fun ComposeTestRule.assertInChapter(hrefSubstring: String): SemanticsNodeInteraction =
         onNode(hasTestTag(TAG_READER_READY) and hasContentDescription(hrefSubstring, substring = true))
             .assertExists()
+
+    /**
+     * Polls until the reader's locator href contains [hrefSubstring], or throws after [timeoutMillis].
+     * Use this after triggering async navigation (e.g. TOC tap) where the locator updates with a delay.
+     */
+    fun ComposeTestRule.waitUntilInChapter(hrefSubstring: String, timeoutMillis: Long = 15_000) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(hasTestTag(TAG_READER_READY) and hasContentDescription(hrefSubstring, substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 }
