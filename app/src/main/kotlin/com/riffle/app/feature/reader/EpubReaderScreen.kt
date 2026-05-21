@@ -275,6 +275,9 @@ private fun EpubNavigatorView(
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
+                // Pre-focus the WebView so the first content tap fires onTap
+                // rather than being consumed to gain focus.
+                fragment.publicationView.requestFocus()
                 fragmentActivity.lifecycleScope.launch {
                     fragment.currentLocator.collect { locator -> onPositionChanged(locator) }
                 }
