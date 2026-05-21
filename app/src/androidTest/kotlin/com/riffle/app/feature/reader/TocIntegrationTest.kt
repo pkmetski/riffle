@@ -119,9 +119,16 @@ class TocIntegrationTest {
         val entries = pub.tableOfContents.toTocEntries()
         val segments = buildRailSegments(entries)
 
-        // A subchapter href (with fragment) should still resolve to the parent chapter segment
-        val activeIndex = findActiveSegmentIndex(segments, "chapter2.xhtml#s3")
-        assertEquals("Chapter 2 (index 1) should be active for chapter2.xhtml#s3", 1, activeIndex)
+        // Use the actual Readium href for a Chapter 2 subchapter so the path format matches.
+        // Readium returns full container-relative paths (e.g. OEBPS/chapter2.xhtml#s3),
+        // not bare filenames, so hardcoding "chapter2.xhtml#s3" would never match.
+        val chapter2 = entries.find { it.href.contains("chapter2") }
+        assertNotNull("Expected a chapter 2 entry in TOC", chapter2)
+        val section23 = chapter2!!.children.find { it.href.contains("s3") }
+        assertNotNull("Expected section 2.3 under chapter 2", section23)
+
+        val activeIndex = findActiveSegmentIndex(segments, section23!!.href)
+        assertEquals("Chapter 2 (index 1) should be active when locator is in chapter 2", 1, activeIndex)
     }
 
     private suspend fun openTestEpub() = run {
