@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -153,6 +154,7 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
+        _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
@@ -182,6 +184,9 @@ class EpubReaderViewModel @Inject constructor(
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
     val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
 
+    private val _currentLocatorProgression = MutableStateFlow(0f)
+    val currentLocatorProgression: StateFlow<Float> = _currentLocatorProgression
+
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
 
@@ -192,6 +197,29 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val railSegments: StateFlow<List<RailSegment>> = tocEntries
+        .map { buildRailSegments(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val activeRailSegmentIndex: StateFlow<Int> = combine(
+        railSegments,
+        currentLocatorHref,
+    ) { segments, href ->
+        if (href == null) 0 else findActiveSegmentIndex(segments, href)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    // Cursor position within the rail (0..1). Derived from active segment + within-chapter
+    // progression so the cursor is always inside the highlighted (active) segment, regardless
+    // of whether chapter lengths match the equal-width segment layout.
+    val railCursorPosition: StateFlow<Float> = combine(
+        activeRailSegmentIndex,
+        railSegments,
+        currentLocatorProgression,
+    ) { activeIndex, segments, progression ->
+        if (segments.isEmpty()) 0f
+        else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()
 
@@ -200,6 +228,12 @@ class EpubReaderViewModel @Inject constructor(
         val link = pub.tableOfContents.findLinkByHref(entry.href) ?: return
         _navigationEvents.trySend(link)
         _tocVisible.value = false
+    }
+
+    fun navigateToSegment(segment: RailSegment) {
+        val pub = (state.value as? ReaderState.Ready)?.publication ?: return
+        val link = pub.tableOfContents.findLinkByHref(segment.href) ?: return
+        _navigationEvents.trySend(link)
     }
 
     private fun List<Link>.findLinkByHref(href: String): Link? {

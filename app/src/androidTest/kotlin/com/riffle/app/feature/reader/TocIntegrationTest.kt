@@ -91,6 +91,46 @@ class TocIntegrationTest {
         assertEquals(section11.href, active!!.href)
     }
 
+    @Test
+    fun chapter2HasThreeSubsections() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+        val chapter2 = entries.find { it.href.contains("chapter2") }
+        assertNotNull("Expected a chapter 2 entry", chapter2)
+        assertEquals("Chapter 2 should have 3 subsections", 3, chapter2!!.children.size)
+    }
+
+    @Test
+    fun railSegmentsAreAllTopLevelChapters() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+
+        // Rail always shows all top-level chapters, regardless of current position
+        val segments = buildRailSegments(entries)
+        assertEquals("Rail should have one segment per top-level chapter", 3, segments.size)
+        assertTrue("Segment 0 href should contain 'chapter1'", segments[0].href.contains("chapter1"))
+        assertTrue("Segment 1 href should contain 'chapter2'", segments[1].href.contains("chapter2"))
+        assertTrue("Segment 2 href should contain 'chapter3'", segments[2].href.contains("chapter3"))
+    }
+
+    @Test
+    fun activeSegmentIsChapter2WhenLocatorIsInChapter2() = runTest {
+        val pub = openTestEpub()
+        val entries = pub.tableOfContents.toTocEntries()
+        val segments = buildRailSegments(entries)
+
+        // Use the actual Readium href for a Chapter 2 subchapter so the path format matches.
+        // Readium returns full container-relative paths (e.g. OEBPS/chapter2.xhtml#s3),
+        // not bare filenames, so hardcoding "chapter2.xhtml#s3" would never match.
+        val chapter2 = entries.find { it.href.contains("chapter2") }
+        assertNotNull("Expected a chapter 2 entry in TOC", chapter2)
+        val section23 = chapter2!!.children.find { it.href.contains("s3") }
+        assertNotNull("Expected section 2.3 under chapter 2", section23)
+
+        val activeIndex = findActiveSegmentIndex(segments, section23!!.href)
+        assertEquals("Chapter 2 (index 1) should be active when locator is in chapter 2", 1, activeIndex)
+    }
+
     private suspend fun openTestEpub() = run {
         val context = InstrumentationRegistry.getInstrumentation().context
         val epubBytes = context.assets.open("test.epub").use { it.readBytes() }
