@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPresent
+import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -70,6 +71,8 @@ class EpubHarnessTest {
 
         composeTestRule.assertNoErrorState()
         composeTestRule.onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY).assertIsDisplayed()
+        // Chapter 1 is long enough to span multiple pages; assert we are still in chapter 1.
+        composeTestRule.assertInChapter("chapter1")
     }
 
     @Test

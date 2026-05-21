@@ -2,8 +2,11 @@ package com.riffle.app.harness
 
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -37,4 +40,13 @@ object ReaderSemanticMatchers {
     /** Asserts a node with the given content description is present. */
     fun ComposeTestRule.assertContentDescriptionPresent(description: String): SemanticsNodeInteraction =
         onNodeWithContentDescription(description).assertExists()
+
+    /**
+     * Asserts the reader's current locator href contains [hrefSubstring].
+     * The reader view exposes its current locator href as a semantic content description,
+     * allowing tests to verify which chapter/resource is displayed without inspecting WebView content.
+     */
+    fun ComposeTestRule.assertInChapter(hrefSubstring: String): SemanticsNodeInteraction =
+        onNode(hasTestTag(TAG_READER_READY) and hasContentDescription(hrefSubstring, substring = true))
+            .assertExists()
 }
