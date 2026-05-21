@@ -2,6 +2,7 @@ package com.riffle.core.network
 
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
@@ -30,7 +31,7 @@ sealed class NetworkLoginResult {
     data class InsecureConnection(val type: InsecureConnectionType) : NetworkLoginResult()
 }
 
-class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi {
+class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -274,6 +275,30 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             else NetworkEpubDownloadResult.NetworkError(IOException("HTTP ${response.code}"))
         } catch (e: IOException) {
             NetworkEpubDownloadResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun syncEbookProgress(
+        baseUrl: String,
+        libraryItemId: String,
+        payload: NetworkEbookProgressPayload,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkSyncSessionResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val body = json.encodeToString(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress))
+            .toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/me/progress/$libraryItemId")
+            .addHeader("Authorization", "Bearer $token")
+            .patch(body)
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) NetworkSyncSessionResult.Success
+            else NetworkSyncSessionResult.NetworkError(IOException("HTTP ${response.code}"))
+        } catch (e: IOException) {
+            NetworkSyncSessionResult.NetworkError(e)
         }
     }
 

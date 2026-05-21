@@ -7,18 +7,26 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.ReadingSessionController
+import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.readium.r2.shared.publication.Link
 import org.json.JSONObject
+import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -27,6 +35,8 @@ import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
 import javax.inject.Inject
+
+private const val SYNC_INTERVAL_MS = 30_000L
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -46,12 +56,27 @@ class EpubReaderViewModel @Inject constructor(
     private val epubRepository: EpubRepository,
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
+    private val readingSessionRepository: ReadingSessionRepository,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
+
+    private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
+
+    private val sessionController = ReadingSessionController(
+        repository = readingSessionRepository,
+        scope = viewModelScope,
+        onSyncError = { _syncErrorEvents.tryEmit(Unit) },
+    )
+
+    private var lastLocator: Locator? = null
+    private var publication: Publication? = null
+    private var syncJob: Job? = null
+    private var closeSyncDone = false
 
     init {
         viewModelScope.launch { openBook() }
@@ -65,44 +90,71 @@ class EpubReaderViewModel @Inject constructor(
         }
         when (val result = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> {
-                val publication = openPublication(result.epubFile)
-                if (publication == null) {
+                val pub = openPublication(result.epubFile)
+                if (pub == null) {
                     _state.value = ReaderState.Error("Failed to open EPUB")
                     return
                 }
+                publication = pub
                 val locator = result.lastPosition?.let { Locator.fromJSON(JSONObject(it)) }
                 _state.value = ReaderState.Ready(
-                    publication = publication,
+                    publication = pub,
                     title = item.title,
                     initialLocator = locator,
                 )
+                startPeriodicSync()
             }
             is EpubOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
             EpubOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
         }
     }
 
-    private suspend fun openPublication(file: File): Publication? {
-        val url = AbsoluteUrl("file://${file.absolutePath}") ?: return null
-        val asset = when (val r = assetRetriever.retrieve(url)) {
-            is Try.Success -> r.value
-            is Try.Failure -> return null
-        }
-        return when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
-            is Try.Success -> r.value
-            is Try.Failure -> null
+    private fun startPeriodicSync() {
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
+            while (true) {
+                delay(SYNC_INTERVAL_MS)
+                syncCurrentPosition()
+            }
         }
     }
 
-    private val _currentLocatorHref = MutableStateFlow<String?>(null)
-    val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
+    private fun syncCurrentPosition() {
+        val locator = lastLocator ?: return
+        sessionController.sync(itemId, locator.toPayload())
+    }
 
     fun onPositionChanged(locator: Locator) {
+        lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
     }
+
+    fun onReaderResumed() {
+        closeSyncDone = false
+        if (_state.value is ReaderState.Ready) startPeriodicSync()
+    }
+
+    fun onReaderClosed() {
+        syncJob?.cancel()
+        if (closeSyncDone) return
+        closeSyncDone = true
+        val locator = lastLocator ?: return
+        viewModelScope.launch {
+            epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
+            sessionController.sync(itemId, locator.toPayload())
+        }
+    }
+
+    private fun Locator.toPayload() = SessionPayload(
+        ebookLocation = buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
+        ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
+    )
+
+    private val _currentLocatorHref = MutableStateFlow<String?>(null)
+    val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
 
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
@@ -130,5 +182,17 @@ class EpubReaderViewModel @Inject constructor(
             link.children.findLinkByHref(href)?.let { return it }
         }
         return null
+    }
+
+    private suspend fun openPublication(file: File): Publication? {
+        val url = AbsoluteUrl("file://${file.absolutePath}") ?: return null
+        val asset = when (val r = assetRetriever.retrieve(url)) {
+            is Try.Success -> r.value
+            is Try.Failure -> return null
+        }
+        return when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
+            is Try.Success -> r.value
+            is Try.Failure -> null
+        }
     }
 }
