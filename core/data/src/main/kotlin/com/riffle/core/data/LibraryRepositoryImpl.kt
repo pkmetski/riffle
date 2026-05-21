@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
@@ -40,6 +41,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val tokenStorage: TokenStorage,
 ) : LibraryRepository {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeLibraries(): Flow<List<Library>> =
         serverRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }

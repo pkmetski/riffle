@@ -2,6 +2,7 @@ package com.riffle.core.data.di
 
 import android.content.Context
 import androidx.room.Room
+import com.riffle.core.data.CrashReportRepositoryImpl
 import com.riffle.core.data.EpubCacheManagerImpl
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.KeystoreTokenStorage
@@ -15,6 +16,7 @@ import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ServerDao
+import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.EpubCacheManager
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryRepository
@@ -31,7 +33,13 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import java.io.File
+import javax.inject.Qualifier
 import javax.inject.Singleton
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class CrashReportFile
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -48,6 +56,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindTokenStorage(impl: KeystoreTokenStorage): TokenStorage
+
+    @Binds
+    @Singleton
+    abstract fun bindCrashReportRepository(impl: CrashReportRepositoryImpl): CrashReportRepository
 
     @Binds
     @Singleton
@@ -86,6 +98,12 @@ abstract class DataModule {
                     RiffleDatabase.MIGRATION_4_5,
                 )
                 .build()
+
+        @Provides
+        @Singleton
+        @CrashReportFile
+        fun provideCrashReportFile(@ApplicationContext context: Context): File =
+            File(context.filesDir, "crash_report.txt")
 
         @Provides
         @Singleton
