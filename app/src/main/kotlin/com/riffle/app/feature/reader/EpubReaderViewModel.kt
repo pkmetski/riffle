@@ -154,10 +154,7 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
-        _currentLocatorProgression.value =
-            locator.locations.totalProgression?.toFloat()
-                ?: locator.locations.progression?.toFloat()
-                ?: 0f
+        _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
@@ -210,6 +207,18 @@ class EpubReaderViewModel @Inject constructor(
     ) { segments, href ->
         if (href == null) 0 else findActiveSegmentIndex(segments, href)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    // Cursor position within the rail (0..1). Derived from active segment + within-chapter
+    // progression so the cursor is always inside the highlighted (active) segment, regardless
+    // of whether chapter lengths match the equal-width segment layout.
+    val railCursorPosition: StateFlow<Float> = combine(
+        activeRailSegmentIndex,
+        railSegments,
+        currentLocatorProgression,
+    ) { activeIndex, segments, progression ->
+        if (segments.isEmpty()) 0f
+        else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()

@@ -137,7 +137,7 @@ fun EpubReaderScreen(
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     val railSegments by viewModel.railSegments.collectAsState()
                     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
-                    val cursorPosition by viewModel.currentLocatorProgression.collectAsState()
+                    val cursorPosition by viewModel.railCursorPosition.collectAsState()
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
