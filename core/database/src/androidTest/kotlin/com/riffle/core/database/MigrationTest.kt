@@ -90,8 +90,14 @@ class MigrationTest {
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 4, true, RiffleDatabase.MIGRATION_3_4)
 
-        db.query("SELECT id FROM libraries WHERE id = 'lib1'").use { cursor ->
+        db.query("SELECT id, name, mediaType, serverId, isUnsupported FROM libraries WHERE id = 'lib1'").use { cursor ->
             assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("lib1", cursor.getString(0))
+            assertEquals("Books", cursor.getString(1))
+            assertEquals("book", cursor.getString(2))
+            assertEquals("s1", cursor.getString(3))
+            assertEquals(0, cursor.getInt(4))
         }
         db.query("SELECT COUNT(*) FROM series").use { cursor ->
             cursor.moveToFirst(); assertEquals(0, cursor.getInt(0))
