@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,12 +37,22 @@ import com.riffle.core.domain.Server
 fun ServerListScreen(
     onAddServer: () -> Unit,
     onBrowseLibrary: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     viewModel: ServerListViewModel = hiltViewModel(),
 ) {
     val servers by viewModel.servers.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Servers") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Servers") },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddServer) {
                 Icon(Icons.Default.Add, contentDescription = "Add server")
