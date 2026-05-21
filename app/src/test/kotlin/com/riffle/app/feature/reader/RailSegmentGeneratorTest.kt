@@ -5,63 +5,75 @@ import org.junit.Test
 
 class RailSegmentGeneratorTest {
 
-    private val chapter1 = TocEntry("Chapter 1: The Beginning", "chapter1.xhtml",
+    private val sec21 = TocEntry("Section 2.1: Rising Action", "chapter2.xhtml#s1")
+    private val sec22 = TocEntry("Section 2.2: Conflict",      "chapter2.xhtml#s2")
+    private val sec23 = TocEntry("Section 2.3: Turning Point", "chapter2.xhtml#s3")
+
+    private val chapter1 = TocEntry("Chapter 1", "chapter1.xhtml",
         listOf(TocEntry("1.1", "chapter1.xhtml#s1"), TocEntry("1.2", "chapter1.xhtml#s2")))
-    private val chapter2 = TocEntry("Chapter 2: The Middle", "chapter2.xhtml",
-        listOf(TocEntry("2.1", "chapter2.xhtml#s1"), TocEntry("2.2", "chapter2.xhtml#s2"), TocEntry("2.3", "chapter2.xhtml#s3")))
-    private val chapter3 = TocEntry("Chapter 3: The End", "chapter3.xhtml")
+    private val chapter2 = TocEntry("Chapter 2", "chapter2.xhtml", listOf(sec21, sec22, sec23))
+    private val chapter3 = TocEntry("Chapter 3", "chapter3.xhtml")
     private val toc = listOf(chapter1, chapter2, chapter3)
 
     // ── buildRailSegments ──────────────────────────────────────────────────
 
     @Test
-    fun `returns one segment per top-level chapter`() {
-        val segments = buildRailSegments(toc)
-        assertEquals(3, segments.size)
-        assertEquals(RailSegment("Chapter 1: The Beginning", "chapter1.xhtml"), segments[0])
-        assertEquals(RailSegment("Chapter 2: The Middle",    "chapter2.xhtml"), segments[1])
-        assertEquals(RailSegment("Chapter 3: The End",       "chapter3.xhtml"), segments[2])
+    fun `segments for chapter with subchapters returns children`() {
+        val segments = buildRailSegments(toc, "chapter2.xhtml#s2")
+        assertEquals(listOf(
+            RailSegment("Section 2.1: Rising Action", "chapter2.xhtml#s1"),
+            RailSegment("Section 2.2: Conflict",      "chapter2.xhtml#s2"),
+            RailSegment("Section 2.3: Turning Point", "chapter2.xhtml#s3"),
+        ), segments)
     }
 
     @Test
-    fun `returns empty list for empty TOC`() {
-        assertEquals(emptyList<RailSegment>(), buildRailSegments(emptyList()))
+    fun `segments for chapter with no subchapters returns single segment`() {
+        val segments = buildRailSegments(toc, "chapter3.xhtml")
+        assertEquals(listOf(RailSegment("Chapter 3", "chapter3.xhtml")), segments)
     }
 
     @Test
-    fun `ignores subchapters — segments are always top-level`() {
-        val segments = buildRailSegments(toc)
-        // chapter1 has 2 children, chapter2 has 3, but segments are only the 3 top-level entries
+    fun `segments when href is chapter root (no fragment)`() {
+        val segments = buildRailSegments(toc, "chapter2.xhtml")
         assertEquals(3, segments.size)
+    }
+
+    @Test
+    fun `segments for unknown href returns empty`() {
+        val segments = buildRailSegments(toc, "unknown.xhtml")
+        assertEquals(emptyList<RailSegment>(), segments)
     }
 
     // ── findActiveSegmentIndex ─────────────────────────────────────────────
 
-    private val bookSegments = listOf(
-        RailSegment("Chapter 1: The Beginning", "chapter1.xhtml"),
-        RailSegment("Chapter 2: The Middle",    "chapter2.xhtml"),
-        RailSegment("Chapter 3: The End",       "chapter3.xhtml"),
-    )
-
     @Test
-    fun `exact href match selects correct chapter`() {
-        assertEquals(2, findActiveSegmentIndex(bookSegments, "chapter3.xhtml"))
+    fun `active segment for exact href match`() {
+        val segments = listOf(
+            RailSegment("Section 2.1: Rising Action", "chapter2.xhtml#s1"),
+            RailSegment("Section 2.2: Conflict",      "chapter2.xhtml#s2"),
+            RailSegment("Section 2.3: Turning Point", "chapter2.xhtml#s3"),
+        )
+        assertEquals(2, findActiveSegmentIndex(segments, "chapter2.xhtml#s3"))
     }
 
     @Test
-    fun `fragment href falls back to base href match`() {
-        // currentHref has a fragment (subchapter anchor), but segment hrefs are bare chapter hrefs
-        assertEquals(1, findActiveSegmentIndex(bookSegments, "chapter2.xhtml#s3"))
-        assertEquals(0, findActiveSegmentIndex(bookSegments, "chapter1.xhtml#s1"))
+    fun `active segment defaults to 0 when no exact match`() {
+        val segments = listOf(
+            RailSegment("Section 2.1: Rising Action", "chapter2.xhtml#s1"),
+            RailSegment("Section 2.2: Conflict",      "chapter2.xhtml#s2"),
+        )
+        assertEquals(0, findActiveSegmentIndex(segments, "chapter2.xhtml"))
     }
 
     @Test
-    fun `returns 0 when href matches no segment`() {
-        assertEquals(0, findActiveSegmentIndex(bookSegments, "unknown.xhtml"))
+    fun `active segment for single segment list is always 0`() {
+        val segments = listOf(RailSegment("Chapter 3", "chapter3.xhtml"))
+        assertEquals(0, findActiveSegmentIndex(segments, "chapter3.xhtml"))
     }
 
     @Test
-    fun `returns 0 for empty segment list`() {
-        assertEquals(0, findActiveSegmentIndex(emptyList(), "chapter1.xhtml"))
+    fun `active segment for empty list returns 0`() {
+        assertEquals(0, findActiveSegmentIndex(emptyList(), "chapter3.xhtml"))
     }
 }
