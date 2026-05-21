@@ -70,5 +70,8 @@ A thin UI element fixed at the bottom of the reader screen. Visualises the curre
 ### Screen Wake Lock
 A reader-active setting that prevents the device screen from sleeping while a book is open.
 
+### Immersive Mode
+A reader state in which the app's TopAppBar and Android's system bars (status bar + navigation bar) are both hidden, giving the reading content the full screen. Toggled by tapping the reading content area. Chrome and system bars reappear together — either via another tap or by an edge-swipe that temporarily reveals the system bars. Not persisted across sessions; the reader always opens with chrome visible.
+
 ### Supported Formats
 EPUB (reflowable) and PDF (fixed-layout). Rendered via the Readium Kotlin SDK (EPUB navigator + Pdfium adapter).
