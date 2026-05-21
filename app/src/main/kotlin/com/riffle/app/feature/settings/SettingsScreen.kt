@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontFamily
 import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.feature.reader.FormattingPanel
 import java.text.DateFormat
 import java.util.Date
 
@@ -44,9 +46,11 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val report = viewModel.lastCrashReport
+    val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
+    var showFormattingPanel by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -66,6 +70,20 @@ fun SettingsScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
+            Text(
+                text = "Reading defaults",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text("Formatting") },
+                supportingContent = { Text("Font, theme, spacing & margins") },
+                trailingContent = {
+                    TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
+                },
+            )
+            HorizontalDivider()
             Text(
                 text = "Crash reports",
                 style = MaterialTheme.typography.titleSmall,
@@ -112,5 +130,15 @@ fun SettingsScreen(
             }
             HorizontalDivider()
         }
+    }
+
+    if (showFormattingPanel) {
+        FormattingPanel(
+            prefs = globalFormatting,
+            hasBookOverrides = false,
+            onPrefsChange = { viewModel.updateGlobalFormatting(it) },
+            onReset = {},
+            onDismiss = { showFormattingPanel = false },
+        )
     }
 }
