@@ -135,6 +135,9 @@ fun EpubReaderScreen(
                 is ReaderState.Ready -> {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
+                    val railSegments by viewModel.railSegments.collectAsState()
+                    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
+                    val cursorPosition by viewModel.railCursorPosition.collectAsState()
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
@@ -157,6 +160,15 @@ fun EpubReaderScreen(
                             activeHref = locatorHref,
                             onEntryClick = viewModel::navigateToEntry,
                             onDismiss = viewModel::closeToc,
+                        )
+                    }
+                    if (formattingPrefs.showChapterMap) {
+                        ChapterNavigationRail(
+                            segments = railSegments,
+                            activeIndex = activeRailSegmentIndex,
+                            cursorPosition = cursorPosition,
+                            onSegmentClick = viewModel::navigateToSegment,
+                            modifier = Modifier.align(Alignment.BottomCenter),
                         )
                     }
                 }

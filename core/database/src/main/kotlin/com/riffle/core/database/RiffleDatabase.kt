@@ -66,6 +66,9 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `ebookFormat` TEXT NOT NULL DEFAULT 'epub'")
+                db.execSQL(
+                    "ALTER TABLE `book_formatting_preferences` ADD COLUMN `showChapterMap` INTEGER NOT NULL DEFAULT 1"
+                )
             }
         }
 

@@ -3,6 +3,7 @@ package com.riffle.core.data
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.data.di.FormattingPreferencesDataStore
@@ -33,6 +34,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             orientation = prefs[KEY_ORIENTATION]
                 ?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
                 ?: ReaderOrientation.Horizontal,
+            showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
         )
     }
 
@@ -44,6 +46,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_LINE_SPACING] = preferences.lineSpacing
             prefs[KEY_MARGINS] = preferences.margins
             prefs[KEY_ORIENTATION] = preferences.orientation.name
+            prefs[KEY_SHOW_CHAPTER_MAP] = preferences.showChapterMap
         }
     }
 
@@ -54,5 +57,6 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_LINE_SPACING = floatPreferencesKey("line_spacing")
         val KEY_MARGINS = floatPreferencesKey("margins")
         val KEY_ORIENTATION = stringPreferencesKey("orientation")
+        val KEY_SHOW_CHAPTER_MAP = booleanPreferencesKey("show_chapter_map")
     }
 }

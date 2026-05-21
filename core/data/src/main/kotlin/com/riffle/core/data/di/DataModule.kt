@@ -3,10 +3,10 @@ package com.riffle.core.data.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
 import com.riffle.core.data.EpubCacheManagerImpl
 import com.riffle.core.data.EpubRepositoryImpl
-import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl

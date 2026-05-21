@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -148,6 +149,24 @@ fun FormattingPanel(
                         },
                     ) { Text(label) }
                 }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Chapter Map toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Chapter Map",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.showChapterMap,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showChapterMap = it)) },
+                )
             }
 
             Spacer(Modifier.height(8.dp))
