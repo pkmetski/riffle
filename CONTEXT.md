@@ -77,7 +77,7 @@ The navigable chapter and subchapter structure of a Library Item, derived from t
 A thin UI element fixed at the bottom of the reader screen. Visualises the current chapter's subchapter breakdown and the user's position within it. Tapping a segment jumps to that subchapter.
 
 ### Screen Wake Lock
-A reader-active setting that prevents the device screen from sleeping while a book is open.
+A global user preference (default: on) that prevents the device screen from sleeping while a book is open. Applies to both EPUB and PDF readers. Configured once for all books — not a per-book override.
 
 ### Immersive Mode
 A reader state in which the app's TopAppBar and Android's system bars (status bar + navigation bar) are both hidden, giving the reading content the full screen. Toggled by tapping the reading content area. Chrome and system bars reappear together — either via another tap or by an edge-swipe that temporarily reveals the system bars. Not persisted across sessions; the reader always opens with chrome visible.

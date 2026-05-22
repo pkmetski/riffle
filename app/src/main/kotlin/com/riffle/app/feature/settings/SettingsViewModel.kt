@@ -9,6 +9,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Server
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -30,6 +31,7 @@ class SettingsViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
+    private val wakeLockPreferencesStore: WakeLockPreferencesStore,
 ) : ViewModel() {
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
@@ -37,6 +39,9 @@ class SettingsViewModel @Inject constructor(
     val globalFormattingPreferences: StateFlow<FormattingPreferences> =
         formattingPreferencesStore.preferences
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FormattingPreferences())
+
+    val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val servers: StateFlow<List<Server>> = serverRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -70,6 +75,10 @@ class SettingsViewModel @Inject constructor(
 
     fun updateGlobalFormatting(prefs: FormattingPreferences) {
         viewModelScope.launch { formattingPreferencesStore.update(prefs) }
+    }
+
+    fun setKeepScreenOn(value: Boolean) {
+        viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
     }
 
     fun removeServer(serverId: String) {

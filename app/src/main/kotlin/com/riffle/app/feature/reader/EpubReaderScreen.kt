@@ -65,6 +65,7 @@ fun EpubReaderScreen(
     val state by viewModel.state.collectAsState()
     val formattingPrefs by viewModel.formattingPreferences.collectAsState()
     val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var showFormattingPanel by remember { mutableStateOf(false) }
@@ -90,10 +91,11 @@ fun EpubReaderScreen(
         onDispose { lifecycle.removeObserver(observer) }
     }
 
-    // Screen wake lock
-    DisposableEffect(Unit) {
+    // Screen wake lock — gated on user preference
+    DisposableEffect(keepScreenOn) {
         val window = (context as? FragmentActivity)?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (keepScreenOn) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
@@ -168,6 +170,8 @@ fun EpubReaderScreen(
                                     append(locatorHref ?: "")
                                     append(" theme:")
                                     append(formattingPrefs.theme.name.lowercase())
+                                    append(" wake-lock:")
+                                    append(if (keepScreenOn) "on" else "off")
                                 }
                             },
                     )

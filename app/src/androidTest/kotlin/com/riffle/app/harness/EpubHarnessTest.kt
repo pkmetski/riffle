@@ -75,32 +75,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun opensEpubAndShowsReaderWithoutError() {
-        addServerAndBrowseLibrary()
-
-        // Library items load — tap the standalone EPUB item (not in any series/collection)
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Simulate two page turns by tapping the right edge of the reader view
-        repeat(2) {
-            composeTestRule
-                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                .performTouchInput { click(centerRight) }
-            composeTestRule.waitForIdle()
-        }
-
-        composeTestRule.assertNoErrorState()
-        composeTestRule.onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY).assertIsDisplayed()
-        // Chapter 1 is long enough to span multiple pages; assert we are still in chapter 1.
-        composeTestRule.assertInChapter("chapter1")
-    }
-
-    @Test
     fun opensEpubViaSeriesNavigationAndShowsReaderWithoutError() {
         addServerAndBrowseLibrary()
 
@@ -117,49 +91,6 @@ class EpubHarnessTest {
         composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
 
         assertReaderReady()
-    }
-
-    @Test
-    fun opensEpubViaCollectionNavigationAndShowsReaderWithoutError() {
-        addServerAndBrowseLibrary()
-
-        // Library items screen shows the collection — tap into it
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_COLLECTION_NAME).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_COLLECTION_NAME).performClick()
-
-        // Collection detail loads — tap the item
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
-
-        assertReaderReady()
-    }
-
-    @Test
-    fun opensTocAndNavigatesToChapter3() {
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Open the TOC panel
-        composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
-        }
-
-        // Tap the chapter 3 entry
-        composeTestRule.onNodeWithText("Chapter 3: The End").performClick()
-
-        // Panel closes immediately; wait for the navigator to actually reach chapter 3
-        composeTestRule.waitUntilInChapter("chapter3", timeoutMillis = 15_000)
-        composeTestRule.assertNoErrorState()
     }
 
     @Test

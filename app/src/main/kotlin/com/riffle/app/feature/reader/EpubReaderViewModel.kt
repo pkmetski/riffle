@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
@@ -64,6 +65,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readingSessionRepository: ReadingSessionRepository,
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
+    private val wakeLockPreferencesStore: WakeLockPreferencesStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -84,6 +86,9 @@ class EpubReaderViewModel @Inject constructor(
     private var publication: Publication? = null
     private var syncJob: Job? = null
     private var closeSyncDone = false
+
+    val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     // Optimistic local state: updates immediately so the navigator receives changes without
     // waiting for the Room write to complete.
