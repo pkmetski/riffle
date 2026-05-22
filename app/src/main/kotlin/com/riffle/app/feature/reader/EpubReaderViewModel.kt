@@ -202,7 +202,8 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private fun Locator.toPayload() = SessionPayload(
-        ebookLocation = buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
+        ebookLocation = locations.fragments.firstOrNull()
+            ?: buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
         ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
     )
 

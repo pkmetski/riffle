@@ -21,6 +21,7 @@ class ReadingSessionControllerTest {
         syncResult: SyncSessionResult = SyncSessionResult.Success,
     ) = object : ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload) = syncResult
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
     }
 
     @Test
@@ -34,6 +35,7 @@ class ReadingSessionControllerTest {
                     syncedPayload = payload
                     return SyncSessionResult.Success
                 }
+                override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
             },
             scope,
         )
@@ -78,6 +80,7 @@ class ReadingSessionControllerTest {
                     callCount++
                     return SyncSessionResult.Success
                 }
+                override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
             },
             scope,
         )
