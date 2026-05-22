@@ -36,11 +36,11 @@ fun LibrarySectionScreen(
     onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
-    val inProgress by viewModel.inProgress.collectAsState()
-    val allBooks by viewModel.allBooks.collectAsState()
-    val finished by viewModel.finished.collectAsState()
-    val series by viewModel.series.collectAsState()
-    val collections by viewModel.collections.collectAsState()
+    val inProgress by viewModel.filteredInProgress.collectAsState()
+    val allBooks by viewModel.filteredAllBooks.collectAsState()
+    val finished by viewModel.filteredFinished.collectAsState()
+    val series by viewModel.filteredSeries.collectAsState()
+    val collections by viewModel.filteredCollections.collectAsState()
 
     Scaffold(
         topBar = {
