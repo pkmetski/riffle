@@ -8,10 +8,16 @@
 A user-configured Audiobookshelf server instance (URL + credentials). Multiple Servers can be added; the user switches between them manually. All local data (Cache, Downloads, Annotations) is scoped to a Server.
 
 ### Library
-A top-level collection on the connected ABS server. Riffle surfaces all Libraries whose `mediaType` is `book` (podcast libraries are excluded). Because ABS does not expose a reliable library-level signal to distinguish ebook libraries from audiobook libraries, all book Libraries are shown. A Library may be Unsupported.
+A top-level collection on the connected ABS server. Riffle surfaces all Libraries whose `mediaType` is `book` (podcast libraries are excluded). Because ABS does not expose a reliable library-level signal to distinguish ebook libraries from audiobook libraries, all book Libraries are shown. The user decides which Libraries are visible in the navigation drawer via Library Visibility Preferences.
 
-### Unsupported Library
-A Library whose items have been fetched at least once and every one of them is an Unsupported Library Item. Displayed in the Library list as dimmed and not tappable. Re-evaluated on each refresh — becomes supported again if ebook items appear. A Library with zero fetched items is not considered Unsupported.
+### Navigation Drawer
+The primary navigation surface. Contains: the active Server name in a header (tappable → Server Switcher dropdown), the server-ordered list of visible Libraries for the active Server, and a Settings entry. Replaces the standalone LibraryListScreen and ServerListScreen as the main navigation entry point. On a fresh install with no Servers configured, the app opens directly to AddServerScreen; after the first Server is added, it navigates to the first Library in the Library Visibility Preferences list.
+
+### Server Switcher
+A dropdown triggered from the Navigation Drawer header. Lists all configured Servers; tapping one makes it the active Server and loads its Libraries. Read-only — adding and removing Servers both live in Settings.
+
+### Library Visibility Preferences
+A per-Server, user-managed set of hidden Libraries. Determines which Libraries appear in the Navigation Drawer. All Libraries are visible by default; the user can hide individual Libraries. At least one Library must remain visible — the last visible Library's toggle cannot be turned off. Library order follows the server-defined order. When opening a Server (on first launch, after adding a Server, or when switching Servers), the app navigates to the first non-hidden Library in the list.
 
 ### Series
 A named, ordered grouping of Library Items within a Library. Defined on the ABS server (e.g. "The Stormlight Archive").

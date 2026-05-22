@@ -15,13 +15,21 @@ class KeystoreTokenStorage @Inject constructor(
 
     private val prefs by lazy {
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        EncryptedSharedPreferences.create(
+        fun create() = EncryptedSharedPreferences.create(
             "riffle_tokens",
             masterKeyAlias,
             context,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
+        try {
+            create()
+        } catch (_: Exception) {
+            // Keyset is missing or corrupt (e.g. app reinstalled without clearing prefs, or
+            // KeyStore invalidated). Tokens are unrecoverable — wipe and start fresh.
+            context.deleteSharedPreferences("riffle_tokens")
+            create()
+        }
     }
 
     override suspend fun saveToken(serverId: String, token: String) =
