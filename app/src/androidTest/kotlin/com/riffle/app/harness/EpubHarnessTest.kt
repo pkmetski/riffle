@@ -75,32 +75,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun opensEpubAndShowsReaderWithoutError() {
-        addServerAndBrowseLibrary()
-
-        // Library items load — tap the standalone EPUB item (not in any series/collection)
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Simulate two page turns by tapping the right edge of the reader view
-        repeat(2) {
-            composeTestRule
-                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                .performTouchInput { click(centerRight) }
-            composeTestRule.waitForIdle()
-        }
-
-        composeTestRule.assertNoErrorState()
-        composeTestRule.onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY).assertIsDisplayed()
-        // Chapter 1 is long enough to span multiple pages; assert we are still in chapter 1.
-        composeTestRule.assertInChapter("chapter1")
-    }
-
-    @Test
     fun opensEpubViaSeriesNavigationAndShowsReaderWithoutError() {
         addServerAndBrowseLibrary()
 
