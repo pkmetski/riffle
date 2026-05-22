@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
+import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilOnPdfPage
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilPdfLoaded
 import com.riffle.core.database.RiffleDatabase
@@ -71,6 +72,7 @@ class PdfHarnessTest {
             composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
 
         // Wait for the PDF reader to be ready and show the title
         composeTestRule.waitUntil(timeoutMillis = 20_000) {

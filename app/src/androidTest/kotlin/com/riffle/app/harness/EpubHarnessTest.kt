@@ -22,6 +22,7 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.assertRailActiveSegment
 import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
+import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilRailActiveSegment
 import com.riffle.core.database.RiffleDatabase
@@ -326,6 +327,7 @@ class EpubHarnessTest {
     }
 
     private fun assertReaderReady(title: String = StubAbsServer.TEST_ITEM_TITLE) {
+        composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()

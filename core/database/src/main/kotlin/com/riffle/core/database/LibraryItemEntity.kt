@@ -15,4 +15,9 @@ data class LibraryItemEntity(
     val isSupported: Boolean = true,
     val ebookFileIno: String? = null,
     val ebookFormat: String = "epub",
+    val description: String? = null,
+    val seriesName: String? = null,
+    val publishedYear: String? = null,
+    val genres: String = "",
+    val publisher: String? = null,
 )

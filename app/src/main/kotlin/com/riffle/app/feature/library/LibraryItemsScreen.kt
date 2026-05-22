@@ -275,7 +275,7 @@ private fun CollectionCard(collection: Collection, onClick: () -> Unit) {
 @Composable
 internal fun LibraryItemCard(item: LibraryItem, token: String, onClick: (() -> Unit)? = null) {
     val alpha = if (!item.isSupported) 0.38f else 1f
-    val cardModifier = if (item.isSupported && onClick != null)
+    val cardModifier = if (onClick != null)
         Modifier.fillMaxWidth().alpha(alpha).clickable(onClick = onClick)
     else
         Modifier.fillMaxWidth().alpha(alpha)
