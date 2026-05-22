@@ -14,37 +14,44 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.Series
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryItemsScreen(
     libraryName: String,
@@ -54,24 +61,27 @@ fun LibraryItemsScreen(
     onItemSelected: (LibraryItem) -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
-    val series by viewModel.series.collectAsState()
-    val collections by viewModel.collections.collectAsState()
-    val ungroupedItems by viewModel.ungroupedItems.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val filteredSeries by viewModel.filteredSeries.collectAsState()
+    val filteredCollections by viewModel.filteredCollections.collectAsState()
+    val filteredUngroupedItems by viewModel.filteredUngroupedItems.collectAsState()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onSearchQueryChange("")
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(libraryName) },
-                navigationIcon = {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "Open menu")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::refresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                }
+            LibrarySearchHeader(
+                libraryName = libraryName,
+                searchQuery = searchQuery,
+                onSearchQueryChange = viewModel::onSearchQueryChange,
+                onOpenDrawer = onOpenDrawer,
             )
         }
     ) { padding ->
@@ -79,10 +89,15 @@ fun LibraryItemsScreen(
             if (viewModel.isOffline) {
                 OfflineBanner()
             }
-            val isEmpty = series.isEmpty() && collections.isEmpty() && ungroupedItems.isEmpty()
-            if (isEmpty) {
+            val queryActive = searchQuery.isNotEmpty()
+            val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() && filteredUngroupedItems.isEmpty()
+            if (allEmpty && !queryActive) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No items in this library")
+                }
+            } else if (allEmpty && queryActive) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No results for '$searchQuery'")
                 }
             } else {
                 LazyColumn(
@@ -90,33 +105,108 @@ fun LibraryItemsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    if (series.isNotEmpty()) {
+                    if (filteredSeries.isNotEmpty()) {
                         item {
                             SectionHeader("Series")
                         }
-                        items(series, key = { "series_${it.id}" }) { s ->
+                        items(filteredSeries, key = { "series_${it.id}" }) { s ->
                             SeriesCard(series = s, token = viewModel.authToken, onClick = { onSeriesSelected(s) })
                         }
                     }
-                    if (collections.isNotEmpty()) {
+                    if (filteredCollections.isNotEmpty()) {
                         item {
                             SectionHeader("Collections")
                         }
-                        items(collections, key = { "col_${it.id}" }) { col ->
+                        items(filteredCollections, key = { "col_${it.id}" }) { col ->
                             CollectionCard(collection = col, onClick = { onCollectionSelected(col) })
                         }
                     }
-                    if (ungroupedItems.isNotEmpty()) {
+                    if (filteredUngroupedItems.isNotEmpty()) {
                         item {
                             SectionHeader("Books")
                         }
-                        items(ungroupedItems, key = { "item_${it.id}" }) { item ->
+                        items(filteredUngroupedItems, key = { "item_${it.id}" }) { item ->
                             LibraryItemCard(item = item, token = viewModel.authToken, onClick = { onItemSelected(item) })
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LibrarySearchHeader(
+    libraryName: String,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onOpenDrawer: () -> Unit,
+) {
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(end = 16.dp),
+        ) {
+            IconButton(onClick = onOpenDrawer) {
+                Icon(Icons.Default.Menu, contentDescription = "Open menu")
+            }
+            Text(
+                text = libraryName.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            val underlineColor = MaterialTheme.colorScheme.primary
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                singleLine = true,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(bottom = 4.dp)
+                    .drawBehind {
+                        drawLine(
+                            color = underlineColor,
+                            start = Offset(0f, size.height),
+                            end = Offset(size.width, size.height),
+                            strokeWidth = 1.5.dp.toPx(),
+                        )
+                    },
+                decorationBox = { inner ->
+                    Box {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                "Search",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+        }
+        HorizontalDivider()
     }
 }
 
