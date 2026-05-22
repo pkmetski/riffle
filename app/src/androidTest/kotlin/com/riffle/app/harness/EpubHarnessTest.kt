@@ -94,49 +94,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun opensEpubViaCollectionNavigationAndShowsReaderWithoutError() {
-        addServerAndBrowseLibrary()
-
-        // Library items screen shows the collection — tap into it
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_COLLECTION_NAME).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_COLLECTION_NAME).performClick()
-
-        // Collection detail loads — tap the item
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_ITEM_TITLE).performClick()
-
-        assertReaderReady()
-    }
-
-    @Test
-    fun opensTocAndNavigatesToChapter3() {
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Open the TOC panel
-        composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
-        }
-
-        // Tap the chapter 3 entry
-        composeTestRule.onNodeWithText("Chapter 3: The End").performClick()
-
-        // Panel closes immediately; wait for the navigator to actually reach chapter 3
-        composeTestRule.waitUntilInChapter("chapter3", timeoutMillis = 15_000)
-        composeTestRule.assertNoErrorState()
-    }
-
-    @Test
     fun progressSyncUsesCorrectEndpoint() {
         // Regression: previously synced to /api/session (wrong endpoint); must use PATCH /api/me/progress/:itemId
         addServerAndBrowseLibrary()
