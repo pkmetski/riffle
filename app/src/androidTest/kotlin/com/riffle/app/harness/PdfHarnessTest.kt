@@ -56,7 +56,12 @@ class PdfHarnessTest {
     }
 
     @After
-    fun tearDown() = stubServer.shutdown()
+    fun tearDown() {
+        stubServer.shutdown()
+        composeTestRule.activityRule.scenario.close()
+        Thread.sleep(400)
+        database.clearAllTables()
+    }
 
     @Test
     fun opensPdfNavigatesTwoPagesAndShowsPage3WithNoError() {

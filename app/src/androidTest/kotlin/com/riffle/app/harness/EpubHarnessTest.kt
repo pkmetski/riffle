@@ -67,6 +67,10 @@ class EpubHarnessTest {
         // to cancel and deregister from the DataStore registry (async cancellation).
         composeTestRule.activityRule.scenario.close()
         Thread.sleep(400)
+        // Clear DB after closing the activity so the next test's activity starts with an
+        // empty DB. Without this, HomeScreen.LaunchedEffect can read stale server data
+        // before setUp()'s clearAllTables() runs and navigate to the wrong screen.
+        database.clearAllTables()
     }
 
     @Test
