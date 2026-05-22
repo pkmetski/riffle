@@ -25,7 +25,13 @@ class HomeViewModel @Inject constructor(
         if (servers.isEmpty()) return StartDestination.AddServer
 
         val activeServer = servers.firstOrNull { it.isActive } ?: servers.first()
-        val libraries = libraryRepository.observeLibraries().first()
+        var libraries = libraryRepository.observeLibraries().first()
+
+        if (libraries.isEmpty()) {
+            libraryRepository.refreshLibraries()
+            libraries = libraryRepository.observeLibraries().first()
+        }
+
         if (libraries.isEmpty()) return StartDestination.AddServer
 
         val hiddenIds = visibilityStore.hiddenLibraryIds(activeServer.id).first()

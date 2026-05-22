@@ -165,6 +165,8 @@ class SettingsViewModelTest {
     fun `removeServer last server emits NavigateToAddServer event`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         val vm = makeViewModel()
+        backgroundScope.launch { vm.servers.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
 
         vm.removeServer("srv-1")
         testDispatcher.scheduler.advanceUntilIdle()
