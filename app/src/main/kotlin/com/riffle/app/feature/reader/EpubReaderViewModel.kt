@@ -213,9 +213,7 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun serverCfiToLocator(cfi: String): Locator? {
         val pub = publication ?: return null
-        val match = Regex("""epubcfi\(/6/(\d+)""").find(cfi) ?: return null
-        val step = match.groupValues[1].toIntOrNull() ?: return null
-        val spineIndex = step / 2 - 1
+        val spineIndex = epubCfiToSpineIndex(cfi) ?: return null
         val link = pub.readingOrder.getOrNull(spineIndex) ?: return null
         return try {
             Locator.fromJSON(

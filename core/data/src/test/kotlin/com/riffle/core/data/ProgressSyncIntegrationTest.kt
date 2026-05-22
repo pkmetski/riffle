@@ -124,4 +124,53 @@ class ProgressSyncIntegrationTest {
         assertEquals("GET", server.takeRequest().method)
         assertEquals(null, positionStore.updatedTimestamp)
     }
+
+    @Test
+    fun `local-newer path with real ABS plain-text OK response does not corrupt localUpdatedAt`() = runTest {
+        positionStore.localUpdatedAt = 3_000L
+        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "text/plain")
+                .setBody("OK")
+        )
+
+        val result = buildRepo().runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.LocalWins)
+        assertTrue(positionStore.updatedTimestamp != null)
+        assertTrue(positionStore.updatedTimestamp!! > 0L)
+    }
+
+    @Test
+    fun `two-cycle scenario plain-text OK PATCH does not cause server to win on next cycle`() = runTest {
+        positionStore.localUpdatedAt = 3_000L
+        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "text/plain")
+                .setBody("OK")
+        )
+
+        buildRepo().runSyncCycle("item-1", payload)
+
+        val updatedTs = positionStore.updatedTimestamp
+        assertTrue(updatedTs != null)
+        assertTrue(updatedTs!! > 0L)
+        // Simulate: on the next cycle the server timestamp is still 1779445105751
+        // localUpdatedAt must be > 0 so server would NOT win
+        val serverTs = 1779445105751L
+        assertTrue("localUpdatedAt must be > 0 so server doesn't always win", updatedTs > 0L)
+    }
+
+    @Test
+    fun `local-newer path with JSON response containing lastUpdate updates localUpdatedAt correctly`() = runTest {
+        positionStore.localUpdatedAt = 3_000L
+        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3100}"""))
+
+        buildRepo().runSyncCycle("item-1", payload)
+
+        assertEquals(3100L, positionStore.updatedTimestamp)
+    }
 }

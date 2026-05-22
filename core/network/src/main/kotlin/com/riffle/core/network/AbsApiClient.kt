@@ -341,7 +341,8 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         try {
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
-                val raw = response.body?.string() ?: return@withContext NetworkGetProgressResult.NetworkError(
+                val raw = response.body?.string()
+                if (raw.isNullOrEmpty()) return@withContext NetworkGetProgressResult.NetworkError(
                     IOException("Empty response body")
                 )
                 val parsed = json.decodeFromString<AbsProgressResponse>(raw)

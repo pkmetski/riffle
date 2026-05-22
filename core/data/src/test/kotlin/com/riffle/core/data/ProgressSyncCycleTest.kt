@@ -138,4 +138,47 @@ class ProgressSyncCycleTest {
         assertEquals(0, api.patchCallCount)
         assertEquals(null, positionStore.updatedTimestamp)
     }
+
+    @Test
+    fun `local-newer with PATCH returning zero lastUpdate does NOT corrupt localUpdatedAt to zero`() = runTest {
+        val localTs = 3_000L
+        val positionStore = FakePositionStore(localUpdatedAt = localTs)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", 1_000L)),
+            patchResult = NetworkSyncSessionResult.Success(0L),
+        )
+
+        buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertTrue(positionStore.updatedTimestamp != null)
+        assertTrue(positionStore.updatedTimestamp!! > 0L)
+    }
+
+    @Test
+    fun `local-newer with PATCH returning positive lastUpdate sets localUpdatedAt correctly`() = runTest {
+        val localTs = 3_000L
+        val patchResponseTs = 3_100L
+        val positionStore = FakePositionStore(localUpdatedAt = localTs)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", 1_000L)),
+            patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
+        )
+
+        buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertEquals(patchResponseTs, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `local-newer with zero PATCH lastUpdate still returns LocalWins`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 3_000L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", 1_000L)),
+            patchResult = NetworkSyncSessionResult.Success(0L),
+        )
+
+        val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.LocalWins)
+    }
 }

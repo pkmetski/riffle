@@ -50,7 +50,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             localUpdatedAt > serverProgress.lastUpdate -> {
                 val patchResult = api.syncEbookProgress(baseUrl, itemId, payload.toNetwork(), token, insecure)
                 if (patchResult is NetworkSyncSessionResult.Success) {
-                    positionStore.updateLocalTimestamp(itemId, patchResult.lastUpdate)
+                    val ts = patchResult.lastUpdate.takeIf { it > 0L } ?: System.currentTimeMillis()
+                    positionStore.updateLocalTimestamp(itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
             }
