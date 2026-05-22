@@ -45,11 +45,14 @@ fun PdfReaderScreen(
     viewModel: PdfReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val context = LocalContext.current
 
-    DisposableEffect(Unit) {
+    // Screen wake lock — gated on user preference
+    DisposableEffect(keepScreenOn) {
         val window = (context as? FragmentActivity)?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (keepScreenOn) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
@@ -86,7 +89,13 @@ fun PdfReaderScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
-                            .semantics { contentDescription = currentPage?.let { "page:$it" } ?: "" },
+                            .semantics {
+                                contentDescription = buildString {
+                                    append(currentPage?.let { "page:$it" } ?: "")
+                                    append(" wake-lock:")
+                                    append(if (keepScreenOn) "on" else "off")
+                                }
+                            },
                     )
                 }
                 is ReaderState.Error -> {
