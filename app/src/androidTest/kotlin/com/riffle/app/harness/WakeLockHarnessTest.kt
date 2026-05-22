@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.hasSetTextAction
@@ -70,7 +71,7 @@ class WakeLockHarnessTest {
         composeTestRule.waitForIdle()
 
         // Navigate back and open the reader
-        composeTestRule.onNodeWithText("Back", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithContentDescription("Back").performClick()
         composeTestRule.waitForIdle()
 
         openFirstBook()
