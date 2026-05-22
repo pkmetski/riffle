@@ -41,16 +41,23 @@ class LibraryItemsViewModelTest {
     private val collectionsFlow = MutableStateFlow<List<Collection>>(emptyList())
     private val itemsFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val allItemsFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
+    private val inProgressFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
+    private val finishedFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
+    private val allBooksFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
 
     private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = itemsFlow
+        override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
+        override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = finishedFlow
+        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
         override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun markItemOpened(itemId: String) {}
         override suspend fun refreshLibraries() = LibraryRefreshResult.Success
         override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
         override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
@@ -213,5 +220,61 @@ class LibraryItemsViewModelTest {
         vm.onSearchQueryChange("hello")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals("hello", vm.searchQuery.value)
+    }
+
+    // --- C1: inProgress flow ---
+
+    @Test
+    fun `inProgress emits items from repository observeInProgressItems`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.inProgress.collect {} }
+        val expected = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
+        inProgressFlow.value = expected
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(expected, vm.inProgress.value)
+    }
+
+    // --- C2: finished flow ---
+
+    @Test
+    fun `finished emits items from repository observeFinishedItems`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.finished.collect {} }
+        val expected = listOf(item("1984", "George Orwell"))
+        finishedFlow.value = expected
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(expected, vm.finished.value)
+    }
+
+    // --- C3: allBooks flow ---
+
+    @Test
+    fun `allBooks emits all items from repository observeAllBooks`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.allBooks.collect {} }
+        val expected = listOf(item("Dune", "Frank Herbert"), item("1984", "George Orwell"), item("Foundation", "Isaac Asimov"))
+        allBooksFlow.value = expected
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(expected, vm.allBooks.value)
+    }
+
+    // --- C4: series and collections unchanged ---
+
+    @Test
+    fun `series flow still emits from repository`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.series.collect {} }
+        seriesFlow.value = listOf(series("Mistborn"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(series("Mistborn")), vm.series.value)
+    }
+
+    @Test
+    fun `collections flow still emits from repository`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.collections.collect {} }
+        collectionsFlow.value = listOf(collection("Fantasy"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(collection("Fantasy")), vm.collections.value)
     }
 }

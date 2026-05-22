@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
+import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
@@ -96,6 +97,15 @@ class LibraryRepositoryTest {
         override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> =
             roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
+        override fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>> =
+            MutableStateFlow(roomData[libraryId]?.value?.filter { it.readingProgress > 0f && it.readingProgress < 1f } ?: emptyList())
+
+        override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> =
+            MutableStateFlow(roomData[libraryId]?.value?.filter { it.readingProgress == 1f } ?: emptyList())
+
+        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> =
+            roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {
             upserted.addAll(items)
             items.groupBy { it.libraryId }.forEach { (libraryId, entities) ->
@@ -109,6 +119,14 @@ class LibraryRepositoryTest {
         override suspend fun deleteByLibraryId(libraryId: String) {
             roomData[libraryId]?.value = emptyList()
         }
+
+        override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
+
+        override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> =
+            roomData[libraryId]?.value
+                ?.filter { it.lastOpenedAt != null }
+                ?.map { LastOpenedAtRow(it.id, it.lastOpenedAt!!) }
+                ?: emptyList()
     }
 
     private class FakeSeriesDao : SeriesDao {
@@ -339,6 +357,31 @@ class LibraryRepositoryTest {
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
         assertEquals(2, dao.upserted.size)
+    }
+
+    @Test
+    fun `refreshLibraryItems preserves lastOpenedAt across refresh`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        // Seed an existing item with a known lastOpenedAt
+        dao.upsertAll(listOf(
+            LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.4f, false, lastOpenedAt = 99_000L),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(99_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
     }
 
     @Test

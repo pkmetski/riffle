@@ -35,4 +35,27 @@ interface LibraryItemDao {
 
     @Query("DELETE FROM library_items WHERE libraryId = :libraryId")
     suspend fun deleteByLibraryId(libraryId: String)
+
+    @Query("""
+        SELECT * FROM library_items
+        WHERE libraryId = :libraryId
+          AND readingProgress > 0.0
+          AND readingProgress < 1.0
+        ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
+    """)
+    fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>>
+
+    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress = 1.0 ORDER BY title ASC")
+    fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>>
+
+    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY title ASC")
+    fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>>
+
+    @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE id = :itemId")
+    suspend fun updateLastOpenedAt(itemId: String, timestamp: Long)
+
+    @Query("SELECT id, lastOpenedAt FROM library_items WHERE libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
+    suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow>
 }
+
+data class LastOpenedAtRow(val id: String, val lastOpenedAt: Long)

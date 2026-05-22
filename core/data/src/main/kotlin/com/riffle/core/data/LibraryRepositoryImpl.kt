@@ -58,6 +58,15 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
         libraryItemDao.observeUngroupedByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
 
+    override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeInProgress(libraryId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeFinished(libraryId).map { list -> list.map { it.toDomain() } }
+
+    override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeAllBooks(libraryId).map { list -> list.map { it.toDomain() } }
+
     override fun observeSeries(libraryId: String): Flow<List<Series>> =
         seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
 
@@ -72,6 +81,10 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override suspend fun getItem(itemId: String): LibraryItem? =
         libraryItemDao.getById(itemId)?.toDomain()
+
+    override suspend fun markItemOpened(itemId: String) {
+        libraryItemDao.updateLastOpenedAt(itemId, System.currentTimeMillis())
+    }
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
@@ -94,6 +107,7 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkLibraryItemsResult.Success -> {
+                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
                 val entities = result.items
                     .sortedByDescending { it.isSupported }
                     .distinctBy { it.title.trim().lowercase() }
@@ -114,6 +128,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             publishedYear = item.publishedYear,
                             genres = item.genres.joinToString(","),
                             publisher = item.publisher,
+                            lastOpenedAt = lastOpenedAtMap[item.id],
                         )
                     }
                 libraryItemDao.deleteByLibraryId(libraryId)
@@ -131,6 +146,7 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return when (val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkSeriesResult.Success -> {
+                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
                 val seriesEntities = result.series.map { s ->
                     SeriesEntity(
                         id = s.id,
@@ -158,6 +174,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             publishedYear = item.publishedYear,
                             genres = item.genres.joinToString(","),
                             publisher = item.publisher,
+                            lastOpenedAt = lastOpenedAtMap[item.id],
                         )
                     }
                 }.distinctBy { it.id }
@@ -186,6 +203,7 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return when (val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkCollectionResult.Success -> {
+                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
                 val collectionEntities = result.collections.map { c ->
                     CollectionEntity(
                         id = c.id,
@@ -212,6 +230,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             publishedYear = item.publishedYear,
                             genres = item.genres.joinToString(","),
                             publisher = item.publisher,
+                            lastOpenedAt = lastOpenedAtMap[item.id],
                         )
                     }
                 }.distinctBy { it.id }
@@ -249,6 +268,7 @@ class LibraryRepositoryImpl @Inject constructor(
         publishedYear = publishedYear,
         genres = genres.split(",").filter { it.isNotEmpty() },
         publisher = publisher,
+        lastOpenedAt = lastOpenedAt,
     )
 
     private fun SeriesEntity.toDomain() = Series(
