@@ -57,13 +57,13 @@ class LibraryItemsViewModel @Inject constructor(
     val ungroupedItems: StateFlow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val inProgress: StateFlow<List<LibraryItem>> = libraryRepository.observeInProgressItems(libraryId)
+    private val inProgress: StateFlow<List<LibraryItem>> = libraryRepository.observeInProgressItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val finished: StateFlow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
+    private val finished: StateFlow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
+    private val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
@@ -103,6 +103,18 @@ class LibraryItemsViewModel @Inject constructor(
         val base = if (query.isEmpty()) ungrouped
             else all.filter { it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true) }
         if (offline) base.filter { isAvailableOffline(it) } else base
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val filteredInProgress: StateFlow<List<LibraryItem>> = combine(inProgress, isOffline) { items, offline ->
+        if (offline) items.filter { isAvailableOffline(it) } else items
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val filteredFinished: StateFlow<List<LibraryItem>> = combine(finished, isOffline) { items, offline ->
+        if (offline) items.filter { isAvailableOffline(it) } else items
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(allBooks, isOffline) { items, offline ->
+        if (offline) items.filter { isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var authToken: String by mutableStateOf("")

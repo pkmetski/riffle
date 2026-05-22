@@ -75,14 +75,12 @@ fun LibraryItemsScreen(
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val filteredSeries by viewModel.filteredSeries.collectAsState()
-    val filteredCollections by viewModel.filteredCollections.collectAsState()
     val filteredUngroupedItems by viewModel.filteredUngroupedItems.collectAsState()
-    val inProgress by viewModel.inProgress.collectAsState()
-    val allBooks by viewModel.allBooks.collectAsState()
-    val finished by viewModel.finished.collectAsState()
-    val series by viewModel.series.collectAsState()
-    val collections by viewModel.collections.collectAsState()
+    val inProgress by viewModel.filteredInProgress.collectAsState()
+    val allBooks by viewModel.filteredAllBooks.collectAsState()
+    val finished by viewModel.filteredFinished.collectAsState()
+    val series by viewModel.filteredSeries.collectAsState()
+    val collections by viewModel.filteredCollections.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
 
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -122,8 +120,8 @@ fun LibraryItemsScreen(
             if (queryActive) {
                 SearchResultsContent(
                     query = searchQuery,
-                    filteredSeries = filteredSeries,
-                    filteredCollections = filteredCollections,
+                    filteredSeries = series,
+                    filteredCollections = collections,
                     filteredItems = filteredUngroupedItems,
                     token = viewModel.authToken,
                     onSeriesSelected = onSeriesSelected,

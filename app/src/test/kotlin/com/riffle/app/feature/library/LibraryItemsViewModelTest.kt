@@ -264,40 +264,40 @@ class LibraryItemsViewModelTest {
         assertEquals("hello", vm.searchQuery.value)
     }
 
-    // --- C1: inProgress flow ---
+    // --- C1: filteredInProgress flow ---
 
     @Test
-    fun `inProgress emits items from repository observeInProgressItems`() = runTest {
+    fun `filteredInProgress emits items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.inProgress.collect {} }
+        backgroundScope.launch { vm.filteredInProgress.collect {} }
         val expected = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         inProgressFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.inProgress.value)
+        assertEquals(expected, vm.filteredInProgress.value)
     }
 
-    // --- C2: finished flow ---
+    // --- C2: filteredFinished flow ---
 
     @Test
-    fun `finished emits items from repository observeFinishedItems`() = runTest {
+    fun `filteredFinished emits items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.finished.collect {} }
+        backgroundScope.launch { vm.filteredFinished.collect {} }
         val expected = listOf(item("1984", "George Orwell"))
         finishedFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.finished.value)
+        assertEquals(expected, vm.filteredFinished.value)
     }
 
-    // --- C3: allBooks flow ---
+    // --- C3: filteredAllBooks flow ---
 
     @Test
-    fun `allBooks emits all items from repository observeAllBooks`() = runTest {
+    fun `filteredAllBooks emits all items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.allBooks.collect {} }
+        backgroundScope.launch { vm.filteredAllBooks.collect {} }
         val expected = listOf(item("Dune", "Frank Herbert"), item("1984", "George Orwell"), item("Foundation", "Isaac Asimov"))
         allBooksFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.allBooks.value)
+        assertEquals(expected, vm.filteredAllBooks.value)
     }
 
     // --- C4: series and collections unchanged ---
