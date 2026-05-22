@@ -129,6 +129,11 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     readingProgress = progress,
                     ebookFormat = EbookFormat.from(dto.media.ebookFormat),
                     ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                    description = dto.media.metadata.description,
+                    seriesName = dto.media.metadata.seriesName,
+                    publishedYear = dto.media.metadata.publishedYear,
+                    genres = dto.media.metadata.genres,
+                    publisher = dto.media.metadata.publisher,
                 )
             })
         } catch (e: IOException) {
@@ -172,6 +177,11 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             readingProgress = progress,
                             ebookFormat = EbookFormat.from(book.media.ebookFormat),
                             ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                            description = book.media.metadata.description,
+                            seriesName = book.media.metadata.seriesName,
+                            publishedYear = book.media.metadata.publishedYear,
+                            genres = book.media.metadata.genres,
+                            publisher = book.media.metadata.publisher,
                         )
                     },
                 )
@@ -216,6 +226,11 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             readingProgress = progress,
                             ebookFormat = EbookFormat.from(book.media.ebookFormat),
                             ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                            description = book.media.metadata.description,
+                            seriesName = book.media.metadata.seriesName,
+                            publishedYear = book.media.metadata.publishedYear,
+                            genres = book.media.metadata.genres,
+                            publisher = book.media.metadata.publisher,
                         )
                     },
                 )

@@ -37,6 +37,11 @@ internal data class AbsCollectionsResponse(val results: List<AbsCollectionDto>) 
     data class AbsCollectionMetadataDto(
         val title: String = "",
         val authorName: String = "",
+        val description: String? = null,
+        val seriesName: String? = null,
+        val publishedYear: String? = null,
+        val genres: List<String> = emptyList(),
+        val publisher: String? = null,
     )
 
     @Serializable

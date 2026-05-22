@@ -10,6 +10,11 @@ data class NetworkLibraryItem(
     val readingProgress: Float,
     val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
+    val description: String? = null,
+    val seriesName: String? = null,
+    val publishedYear: String? = null,
+    val genres: List<String> = emptyList(),
+    val publisher: String? = null,
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }

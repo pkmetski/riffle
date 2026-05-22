@@ -174,6 +174,29 @@ class MigrationTest {
     }
 
     @Test
+    fun migration7To8() {
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded, isSupported, ebookFileIno, ebookFormat) VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 0, 1, NULL, 'epub')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 8, true, RiffleDatabase.MIGRATION_7_8)
+
+        db.query("SELECT id, title, description, seriesName, publishedYear, genres, publisher FROM library_items WHERE id = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals("Dune", cursor.getString(1))
+            assertNull(cursor.getString(2))   // description defaults to NULL
+            assertNull(cursor.getString(3))   // seriesName defaults to NULL
+            assertNull(cursor.getString(4))   // publishedYear defaults to NULL
+            assertEquals("", cursor.getString(5)) // genres defaults to empty string
+            assertNull(cursor.getString(6))   // publisher defaults to NULL
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -182,13 +205,14 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 7, true,
+            TEST_DB, 8, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
             RiffleDatabase.MIGRATION_4_5,
             RiffleDatabase.MIGRATION_5_6,
             RiffleDatabase.MIGRATION_6_7,
+            RiffleDatabase.MIGRATION_7_8,
         )
 
         db.query("SELECT url, displayName FROM servers WHERE id = 's1'").use { cursor ->
