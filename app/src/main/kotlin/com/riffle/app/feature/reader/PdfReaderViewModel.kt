@@ -13,6 +13,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,7 +22,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -65,8 +66,8 @@ class PdfReaderViewModel @Inject constructor(
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
 
-    val serverLocatorEvents: Flow<Locator> = progressSyncController.serverPositionEvents
-        .mapNotNull { serverProgress -> serverLocationToLocator(serverProgress.ebookLocation) }
+    private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
+    val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
     private var lastLocator: Locator? = null
     private var syncJob: Job? = null
@@ -75,6 +76,11 @@ class PdfReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { openBook() }
+        viewModelScope.launch {
+            progressSyncController.serverPositionEvents.collect { serverProgress ->
+                serverLocationToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
+            }
+        }
     }
 
     private suspend fun openBook() {

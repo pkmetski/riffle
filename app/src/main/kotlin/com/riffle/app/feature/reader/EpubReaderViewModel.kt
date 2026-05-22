@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -84,8 +83,8 @@ class EpubReaderViewModel @Inject constructor(
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
 
-    val serverLocatorEvents: Flow<Locator> = progressSyncController.serverPositionEvents
-        .mapNotNull { serverProgress -> serverCfiToLocator(serverProgress.ebookLocation) }
+    private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
+    val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
     private var lastLocator: Locator? = null
     private var publication: Publication? = null
@@ -110,6 +109,11 @@ class EpubReaderViewModel @Inject constructor(
     init {
         viewModelScope.launch { openBook() }
         viewModelScope.launch { loadFormattingPreferences() }
+        viewModelScope.launch {
+            progressSyncController.serverPositionEvents.collect { serverProgress ->
+                serverCfiToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
+            }
+        }
     }
 
     private suspend fun loadFormattingPreferences() {
