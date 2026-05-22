@@ -12,6 +12,15 @@ ifeq ($(JAVA_HOME),)
     echo "/Applications/Android Studio.app/Contents/jbr/Contents/Home")
 endif
 
+# Auto-detect ANDROID_HOME from local.properties or the standard Mac location.
+ifeq ($(ANDROID_HOME),)
+  export ANDROID_HOME := $(shell grep -m1 '^sdk.dir=' local.properties 2>/dev/null | cut -d= -f2-)
+  ifeq ($(ANDROID_HOME),)
+    export ANDROID_HOME := $(HOME)/Library/Android/sdk
+  endif
+endif
+export PATH := $(ANDROID_HOME)/emulator:$(ANDROID_HOME)/platform-tools:$(PATH)
+
 .PHONY: help
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
