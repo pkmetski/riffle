@@ -15,6 +15,7 @@ import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.WakeLockPreferencesStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +50,11 @@ class SettingsViewModelTest {
     private val noOpFormattingStore = object : FormattingPreferencesStore {
         override val preferences = flowOf(FormattingPreferences())
         override suspend fun update(preferences: FormattingPreferences) {}
+    }
+
+    private val noOpWakeLockStore = object : WakeLockPreferencesStore {
+        override val keepScreenOn = flowOf(true)
+        override suspend fun setKeepScreenOn(value: Boolean) {}
     }
 
     private fun server(id: String, active: Boolean = false) = Server(
@@ -113,6 +119,7 @@ class SettingsViewModelTest {
         serverRepository = fakeServerRepo(),
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
+        wakeLockPreferencesStore = noOpWakeLockStore,
     )
 
     // --- existing crash report tests (unchanged) ---
