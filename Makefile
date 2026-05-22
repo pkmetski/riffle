@@ -3,6 +3,15 @@ FONTS_DIR := app/src/main/assets/fonts
 WRAPPER_JAR := gradle/wrapper/gradle-wrapper.jar
 GRADLE_VERSION := 8.9
 
+# Auto-detect JAVA_HOME when not already set.
+# Prefers Android Studio's bundled JBR so the build works without a
+# separate JDK install; falls back to whatever the system resolves.
+# Note: wildcard doesn't handle spaces in paths, so we use $(shell test).
+ifeq ($(JAVA_HOME),)
+  export JAVA_HOME := $(shell test -x "/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java" && \
+    echo "/Applications/Android Studio.app/Contents/jbr/Contents/Home")
+endif
+
 .PHONY: help
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -12,7 +21,7 @@ bootstrap: deps wrapper fonts ## Full first-time setup (installs deps, wrapper, 
 
 .PHONY: deps
 deps: ## Install missing system dependencies (Java, Gradle via Homebrew on macOS)
-	@command -v java >/dev/null 2>&1 || { \
+	@java -version >/dev/null 2>&1 || { \
 		echo "Java not found. Installing temurin via Homebrew..."; \
 		brew install --cask temurin@17; \
 	}
@@ -103,6 +112,7 @@ harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run harness test
 		[ "$$name" = "$(AVD_NAME)" ] && echo $$s && break; \
 	done); \
 	echo "Running harness tests on $$SERIAL..."; \
+	adb -s $$SERIAL shell pm clear com.riffle.app 2>/dev/null || true; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest; \
 	TEST_EXIT=$$?; \
 	echo "Shutting down emulator..."; \
