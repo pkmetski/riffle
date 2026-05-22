@@ -54,6 +54,7 @@ fun SettingsScreen(
 ) {
     val report = viewModel.lastCrashReport
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val servers by viewModel.servers.collectAsState()
     val libraryItems by viewModel.libraryUiItems.collectAsState()
     val clipboard = LocalClipboard.current
@@ -162,6 +163,16 @@ fun SettingsScreen(
                 supportingContent = { Text("Font, theme, spacing & margins") },
                 trailingContent = {
                     TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
+                },
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text("Keep screen on while reading") },
+                trailingContent = {
+                    Switch(
+                        checked = keepScreenOn,
+                        onCheckedChange = { viewModel.setKeepScreenOn(it) },
+                    )
                 },
             )
             HorizontalDivider()

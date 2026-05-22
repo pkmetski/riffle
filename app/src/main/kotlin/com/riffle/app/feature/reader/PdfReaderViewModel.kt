@@ -6,10 +6,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfOpenResult
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.PdfRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -29,12 +32,16 @@ class PdfReaderViewModel @Inject constructor(
     private val pdfRepository: PdfRepository,
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
+    private val wakeLockPreferencesStore: WakeLockPreferencesStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
+
+    val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     init {
         viewModelScope.launch { openBook() }

@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
+import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.data.EpubCacheManagerImpl
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
@@ -24,6 +25,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PdfCacheManager
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
@@ -55,6 +57,10 @@ annotation class FormattingPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LibraryVisibilityPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class WakeLockPreferencesDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -116,6 +122,10 @@ abstract class DataModule {
     @Singleton
     abstract fun bindLibraryVisibilityPreferencesStore(impl: LibraryVisibilityPreferencesStoreImpl): LibraryVisibilityPreferencesStore
 
+    @Binds
+    @Singleton
+    abstract fun bindWakeLockPreferencesStore(impl: WakeLockPreferencesStoreImpl): WakeLockPreferencesStore
+
     companion object {
         @Provides
         @Singleton
@@ -155,5 +165,12 @@ abstract class DataModule {
         fun provideLibraryVisibilityPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.libraryVisibilityPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @WakeLockPreferencesDataStore
+        fun provideWakeLockPreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.wakeLockPreferencesDataStore
     }
 }
