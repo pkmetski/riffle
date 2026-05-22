@@ -106,7 +106,7 @@ clean: ## Clean build outputs
 install: wrapper fonts ## Build debug APK and install on connected device
 	./gradlew :app:installDebug
 
-AVD_NAME := Harness Medium Phone
+AVD_NAME := Harness_Medium_Phone
 
 .PHONY: harness-test
 harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run harness tests, then shut it down
