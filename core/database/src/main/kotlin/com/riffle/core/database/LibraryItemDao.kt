@@ -41,7 +41,7 @@ interface LibraryItemDao {
         WHERE libraryId = :libraryId
           AND readingProgress > 0.0
           AND readingProgress < 1.0
-        ORDER BY lastOpenedAt DESC NULLS LAST
+        ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
     """)
     fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>>
 
