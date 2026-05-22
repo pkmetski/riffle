@@ -52,4 +52,8 @@ class LibraryItemDetailViewModel @Inject constructor(
             }
         }
     }
+
+    fun markOpened() {
+        viewModelScope.launch { repository.markItemOpened(itemId) }
+    }
 }

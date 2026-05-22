@@ -43,6 +43,15 @@ class LibraryItemsViewModel @Inject constructor(
     val ungroupedItems: StateFlow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val inProgress: StateFlow<List<LibraryItem>> = libraryRepository.observeInProgressItems(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val finished: StateFlow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
