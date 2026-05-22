@@ -5,7 +5,9 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -20,9 +22,9 @@ class HomeViewModel @Inject constructor(
         data class Library(val libraryId: String, val libraryName: String) : StartDestination()
     }
 
-    suspend fun getStartDestination(): StartDestination {
+    suspend fun getStartDestination(): StartDestination = withContext(Dispatchers.IO) {
         val servers = serverRepository.observeAll().first()
-        if (servers.isEmpty()) return StartDestination.AddServer
+        if (servers.isEmpty()) return@withContext StartDestination.AddServer
 
         val activeServer = servers.firstOrNull { it.isActive } ?: servers.first()
         var libraries = libraryRepository.observeLibraries().first()
@@ -32,10 +34,10 @@ class HomeViewModel @Inject constructor(
             libraries = libraryRepository.observeLibraries().first()
         }
 
-        if (libraries.isEmpty()) return StartDestination.AddServer
+        if (libraries.isEmpty()) return@withContext StartDestination.AddServer
 
         val hiddenIds = visibilityStore.hiddenLibraryIds(activeServer.id).first()
         val firstVisible = libraries.firstOrNull { it.id !in hiddenIds } ?: libraries.first()
-        return StartDestination.Library(firstVisible.id, firstVisible.name)
+        StartDestination.Library(firstVisible.id, firstVisible.name)
     }
 }
