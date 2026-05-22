@@ -9,6 +9,7 @@ import com.riffle.core.domain.AddServerResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
+import com.riffle.app.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -20,9 +21,9 @@ class AddServerViewModel @Inject constructor(
     private val repository: ServerRepository,
 ) : ViewModel() {
 
-    var url by mutableStateOf("")
-    var username by mutableStateOf("")
-    var password by mutableStateOf("")
+    var url by mutableStateOf(BuildConfig.DEV_SERVER_URL)
+    var username by mutableStateOf(BuildConfig.DEV_USERNAME)
+    var password by mutableStateOf(BuildConfig.DEV_PASSWORD)
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
