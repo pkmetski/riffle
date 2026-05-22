@@ -161,6 +161,7 @@ fun EpubReaderScreen(
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = viewModel::onPositionChanged,
                         onNavigationEvents = viewModel.navigationEvents,
+                        serverLocatorEvents = viewModel.serverLocatorEvents,
                         onTap = immersiveState::toggle,
                         modifier = Modifier
                             .fillMaxSize()
@@ -227,6 +228,7 @@ private fun EpubNavigatorView(
     formattingPrefs: FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
+    serverLocatorEvents: Flow<Locator>,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -249,6 +251,12 @@ private fun EpubNavigatorView(
     LaunchedEffect(onNavigationEvents) {
         onNavigationEvents.collect { link ->
             fragmentRef.value?.go(link)
+        }
+    }
+
+    LaunchedEffect(serverLocatorEvents) {
+        serverLocatorEvents.collect { locator ->
+            fragmentRef.value?.go(locator)
         }
     }
 

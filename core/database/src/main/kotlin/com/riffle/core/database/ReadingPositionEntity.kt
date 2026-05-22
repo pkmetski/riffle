@@ -7,4 +7,5 @@ import androidx.room.PrimaryKey
 data class ReadingPositionEntity(
     @PrimaryKey val itemId: String,
     val cfi: String,
+    val localUpdatedAt: Long = 0,
 )

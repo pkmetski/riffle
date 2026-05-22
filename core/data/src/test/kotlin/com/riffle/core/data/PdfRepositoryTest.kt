@@ -87,6 +87,8 @@ class PdfRepositoryTest {
         val store = mutableMapOf<String, String>()
         override suspend fun save(itemId: String, cfi: String) { store[itemId] = cfi }
         override suspend fun load(itemId: String): String? = store[itemId]
+        override suspend fun loadLocalUpdatedAt(itemId: String): Long = 0L
+        override suspend fun updateLocalTimestamp(itemId: String, millis: Long) = Unit
     }
 
     private fun item(id: String = "item-1", ino: String? = "ino-42") = LibraryItem(
