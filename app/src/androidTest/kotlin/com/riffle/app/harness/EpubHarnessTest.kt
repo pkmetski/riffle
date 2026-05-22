@@ -67,6 +67,10 @@ class EpubHarnessTest {
         // to cancel and deregister from the DataStore registry (async cancellation).
         composeTestRule.activityRule.scenario.close()
         Thread.sleep(400)
+        // Clear DB after closing the activity so the next test's activity starts with an
+        // empty DB. Without this, HomeScreen.LaunchedEffect can read stale server data
+        // before setUp()'s clearAllTables() runs and navigate to the wrong screen.
+        database.clearAllTables()
     }
 
     @Test
@@ -323,7 +327,11 @@ class EpubHarnessTest {
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private fun addServerAndBrowseLibrary() {
-        composeTestRule.onNodeWithContentDescription("Add server").performClick()
+        // With no servers, HomeScreen automatically navigates to AddServerScreen.
+        // Wait for the form to appear before filling it in.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextInput(stubServer.baseUrl)
         composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextInput("testuser")
         composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextInput("testpass")
@@ -332,16 +340,8 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Browse").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Browse").performClick()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_LIBRARY_NAME).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_LIBRARY_NAME).performClick()
+        // After server is added, HomeScreen.getStartDestination() refreshes libraries and
+        // navigates directly to LibraryItemsScreen — no Browse or library-selection step needed.
     }
 
     private fun assertReaderReady(title: String = StubAbsServer.TEST_ITEM_TITLE) {

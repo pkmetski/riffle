@@ -10,6 +10,7 @@ import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
+import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.PdfCacheManagerImpl
 import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
@@ -21,6 +22,7 @@ import com.riffle.core.domain.EpubCacheManager
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PdfCacheManager
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
@@ -49,6 +51,10 @@ annotation class CrashReportFile
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class FormattingPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class LibraryVisibilityPreferencesDataStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -106,6 +112,10 @@ abstract class DataModule {
     @Singleton
     abstract fun bindBookFormattingPreferencesStore(impl: BookFormattingPreferencesStoreImpl): BookFormattingPreferencesStore
 
+    @Binds
+    @Singleton
+    abstract fun bindLibraryVisibilityPreferencesStore(impl: LibraryVisibilityPreferencesStoreImpl): LibraryVisibilityPreferencesStore
+
     companion object {
         @Provides
         @Singleton
@@ -138,5 +148,12 @@ abstract class DataModule {
         fun provideFormattingPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.formattingPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @LibraryVisibilityPreferencesDataStore
+        fun provideLibraryVisibilityPreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.libraryVisibilityPreferencesDataStore
     }
 }

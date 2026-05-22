@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
-import com.riffle.app.navigation.RiffleNavGraph
+import com.riffle.app.navigation.MainScreen
 import com.riffle.app.ui.theme.RiffleTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -15,7 +15,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent {
             RiffleTheme {
-                RiffleNavGraph()
+                MainScreen()
             }
         }
     }

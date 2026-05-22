@@ -1,11 +1,7 @@
-package com.riffle.app.feature.settings
+package com.riffle.app.feature.navigation
 
 import com.riffle.core.domain.AddServerResult
 import com.riffle.core.domain.Collection
-import com.riffle.core.domain.CrashReport
-import com.riffle.core.domain.CrashReportRepository
-import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
@@ -17,10 +13,10 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -30,26 +26,20 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class SettingsViewModelTest {
+class NavigationDrawerViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    // --- helpers ---
-
-    private val noOpFormattingStore = object : FormattingPreferencesStore {
-        override val preferences = flowOf(FormattingPreferences())
-        override suspend fun update(preferences: FormattingPreferences) {}
-    }
+    private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
+    private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
 
     private fun server(id: String, active: Boolean = false) = Server(
         id = id,
@@ -60,11 +50,6 @@ class SettingsViewModelTest {
     )
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
-
-    private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
-    private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
-    private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
-    private val activeServerId get() = serversFlow.value.firstOrNull { it.isActive }?.id
 
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = serversFlow
@@ -94,6 +79,8 @@ class SettingsViewModelTest {
         override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
+    private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+
     private fun fakeVisibilityStore(): LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
         override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> =
             hiddenFlow.map { it[serverId].orEmpty() }
@@ -105,135 +92,121 @@ class SettingsViewModelTest {
         }
     }
 
-    private fun makeViewModel(report: CrashReport? = null) = SettingsViewModel(
-        crashReportRepository = object : CrashReportRepository {
-            override fun getLastCrashReport() = report
-        },
-        formattingPreferencesStore = noOpFormattingStore,
+    private fun makeVm() = NavigationDrawerViewModel(
         serverRepository = fakeServerRepo(),
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
     )
 
-    // --- existing crash report tests (unchanged) ---
-
     @Test
-    fun `lastCrashReport is populated from repository when a crash has been recorded`() {
-        val report = CrashReport(content = "stack trace here", timestampMillis = 1_000_000L)
-        val vm = makeViewModel(report)
-        assertEquals(report, vm.lastCrashReport)
-    }
-
-    @Test
-    fun `lastCrashReport is null when repository has no report`() {
-        val vm = makeViewModel(null)
-        assertNull(vm.lastCrashReport)
-    }
-
-    // --- server management ---
-
-    @Test
-    fun `removeServer removes a non-active server from the list`() = runTest {
-        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.servers.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        vm.removeServer("srv-2")
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals(listOf(server("srv-1", active = true)), vm.servers.value)
-    }
-
-    @Test
-    fun `removeServer active server promotes the next server as active`() = runTest {
-        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.servers.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        vm.removeServer("srv-1")
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val remaining = vm.servers.value
-        assertEquals(1, remaining.size)
-        assertEquals("srv-2", remaining[0].id)
-        assertTrue(remaining[0].isActive)
-    }
-
-    @Test
-    fun `removeServer last server emits NavigateToAddServer event`() = runTest {
-        serversFlow.value = listOf(server("srv-1", active = true))
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.servers.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        vm.removeServer("srv-1")
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val event = vm.navigationEvents.first()
-        assertTrue(event is SettingsNavEvent.NavigateToAddServer)
-    }
-
-    // --- library visibility ---
-
-    @Test
-    fun `setLibraryVisible false calls hideLibrary on the store`() = runTest {
+    fun `redirectToLibrary emits next visible library when active library is hidden`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
 
-        vm.setLibraryVisible(serverId = "srv-1", libraryId = "lib-1", visible = false)
-        testDispatcher.scheduler.advanceUntilIdle()
+        val vm = makeVm()
+        vm.setActiveLibrary("lib-1")
 
-        val hidden = hiddenFlow.value["srv-1"].orEmpty()
-        assertTrue("lib-1" in hidden)
-    }
+        // Collect the first redirect in the test scope (not backgroundScope) so
+        // advanceUntilIdle drives it — backgroundScope coroutines are not advanced by it.
+        val redirect = async { vm.redirectToLibrary.first() }
+        testScheduler.advanceUntilIdle()
 
-    @Test
-    fun `setLibraryVisible true calls showLibrary on the store`() = runTest {
-        serversFlow.value = listOf(server("srv-1", active = true))
-        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+        assertTrue("no redirect while lib-1 is still visible", !redirect.isCompleted)
+
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
+        testScheduler.advanceUntilIdle()
 
-        vm.setLibraryVisible(serverId = "srv-1", libraryId = "lib-1", visible = true)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val hidden = hiddenFlow.value["srv-1"].orEmpty()
-        assertFalse("lib-1" in hidden)
+        assertEquals(library("lib-2"), redirect.await())
     }
 
     @Test
-    fun `libraryUiItems switchEnabled is false for the sole visible library`() = runTest {
+    fun `redirectToLibrary does not emit when active library is still visible`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
-        hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))  // only lib-1 is visible
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
+
+        val vm = makeVm()
+        vm.setActiveLibrary("lib-1")
+
+        val redirects = mutableListOf<Library>()
+        backgroundScope.launch { vm.redirectToLibrary.collect { redirects.add(it) } }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val items = vm.libraryUiItems.value
-        val lib1Item = items.first { it.library.id == "lib-1" }
-        val lib2Item = items.first { it.library.id == "lib-2" }
-        assertFalse("lib-1 is the sole visible library, its switch must be disabled", lib1Item.switchEnabled)
-        assertTrue("lib-2 is hidden, its switch must be enabled (to allow un-hiding)", lib2Item.switchEnabled)
+        // Only lib-2 is hidden — lib-1 is still visible
+        hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(redirects.isEmpty())
     }
 
     @Test
-    fun `libraryUiItems switchEnabled is true for all libraries when multiple are visible`() = runTest {
+    fun `redirectToLibrary does not emit when no visible libraries remain`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
-        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
-        // nothing hidden — both visible
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
+        librariesFlow.value = listOf(library("lib-1"))
+
+        val vm = makeVm()
+        vm.setActiveLibrary("lib-1")
+
+        val redirects = mutableListOf<Library>()
+        backgroundScope.launch { vm.redirectToLibrary.collect { redirects.add(it) } }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val items = vm.libraryUiItems.value
-        assertTrue(items.all { it.switchEnabled })
+        hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(redirects.isEmpty())
+    }
+
+    @Test
+    fun `diagnostic - visibleLibraries updates after hiding`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+
+        val vm = makeVm()
+        vm.setActiveLibrary("lib-1")
+
+        backgroundScope.launch { vm.visibleLibraries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("visibleLibraries should have both initially",
+            listOf(library("lib-1"), library("lib-2")), vm.visibleLibraries.value)
+
+        hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("visibleLibraries should only have lib-2 after hiding lib-1",
+            listOf(library("lib-2")), vm.visibleLibraries.value)
+    }
+
+    @Test
+    fun `visibleLibraries excludes hidden library IDs`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"), library("lib-3"))
+        hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.visibleLibraries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(library("lib-1"), library("lib-3")), vm.visibleLibraries.value)
+    }
+
+    @Test
+    fun `switching servers updates visibleLibraries to the new server libraries`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
+        librariesFlow.value = listOf(library("lib-A"))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.visibleLibraries.collect {} }
+        backgroundScope.launch { vm.activeServer.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(library("lib-A")), vm.visibleLibraries.value)
+
+        // Switch server — the library repo emits new libs for the new active server
+        serversFlow.update { list -> list.map { it.copy(isActive = it.id == "srv-2") } }
+        librariesFlow.value = listOf(library("lib-B"), library("lib-C"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(library("lib-B"), library("lib-C")), vm.visibleLibraries.value)
     }
 }

@@ -101,7 +101,7 @@ fun AddServerScreen(
                 Button(
                     onClick = viewModel::onConnect,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = viewModel.url.isNotBlank() && viewModel.username.isNotBlank(),
+                    enabled = viewModel.url.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
                 ) {
                     Text("Connect")
                 }

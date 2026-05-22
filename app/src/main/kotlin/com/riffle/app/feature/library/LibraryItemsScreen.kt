@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
@@ -48,10 +48,10 @@ import com.riffle.core.domain.Series
 @Composable
 fun LibraryItemsScreen(
     libraryName: String,
+    onOpenDrawer: () -> Unit,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
-    onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val series by viewModel.series.collectAsState()
@@ -63,8 +63,8 @@ fun LibraryItemsScreen(
             TopAppBar(
                 title = { Text(libraryName) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open menu")
                     }
                 },
                 actions = {
