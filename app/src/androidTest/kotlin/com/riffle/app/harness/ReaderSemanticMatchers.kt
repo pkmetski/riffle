@@ -6,9 +6,11 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 
 /**
  * Domain-specific semantic assertion helpers for the EPUB reader screen.
@@ -22,6 +24,17 @@ object ReaderSemanticMatchers {
     const val TAG_READER_READY = "reader_ready"
     const val TAG_LOADING = "reader_loading"
     const val TAG_TOC_PANEL = "toc_panel"
+
+    /**
+     * Waits for the Library Item Detail Screen's Read button to appear, then taps it.
+     * Insert this between tapping a book item card and waiting for the reader to load.
+     */
+    fun ComposeTestRule.tapReadInDetailScreen(timeoutMillis: Long = 10_000) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodesWithText("Read").fetchSemanticsNodes().isNotEmpty()
+        }
+        onNodeWithText("Read").performClick()
+    }
 
     /** Asserts the reader error UI is not visible. */
     fun ComposeTestRule.assertNoErrorState() {
