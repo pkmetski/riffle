@@ -5,6 +5,7 @@ import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
+import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
@@ -105,6 +106,7 @@ class SeriesIntegrationTest {
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun deleteByLibraryId(libraryId: String) {}
         override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
+        override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
     }
 
     private class FakeCollectionDao : CollectionDao {

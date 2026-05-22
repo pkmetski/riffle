@@ -366,7 +366,7 @@ class LibraryRepositoryTest {
         val dao = FakeLibraryItemDao()
         // Seed an existing item with a known lastOpenedAt
         dao.upsertAll(listOf(
-            LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.4f, false, lastOpenedAt = 99_000L),
+            LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 99_000L),
         ))
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
