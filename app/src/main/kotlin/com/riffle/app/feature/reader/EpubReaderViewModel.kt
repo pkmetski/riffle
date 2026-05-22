@@ -88,7 +88,7 @@ class EpubReaderViewModel @Inject constructor(
     private var closeSyncDone = false
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     // Optimistic local state: updates immediately so the navigator receives changes without
     // waiting for the Room write to complete.

@@ -41,7 +41,7 @@ class PdfReaderViewModel @Inject constructor(
     val state: StateFlow<ReaderState> = _state
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     init {
         viewModelScope.launch { openBook() }
