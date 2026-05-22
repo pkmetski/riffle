@@ -1,6 +1,7 @@
 package com.riffle.app.feature.settings
 
 import android.content.ClipData
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -167,6 +168,7 @@ fun SettingsScreen(
             )
             HorizontalDivider()
             ListItem(
+                modifier = Modifier.clickable { viewModel.setKeepScreenOn(!keepScreenOn) },
                 headlineContent = { Text("Keep screen on while reading") },
                 trailingContent = {
                     Switch(
