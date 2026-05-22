@@ -109,6 +109,11 @@ class LibraryRepositoryImpl @Inject constructor(
                             isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
+                            description = item.description,
+                            seriesName = item.seriesName,
+                            publishedYear = item.publishedYear,
+                            genres = item.genres.joinToString(","),
+                            publisher = item.publisher,
                         )
                     }
                 libraryItemDao.deleteByLibraryId(libraryId)
@@ -148,6 +153,11 @@ class LibraryRepositoryImpl @Inject constructor(
                             isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
+                            description = item.description,
+                            seriesName = item.seriesName,
+                            publishedYear = item.publishedYear,
+                            genres = item.genres.joinToString(","),
+                            publisher = item.publisher,
                         )
                     }
                 }.distinctBy { it.id }
@@ -197,6 +207,11 @@ class LibraryRepositoryImpl @Inject constructor(
                             isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
+                            description = item.description,
+                            seriesName = item.seriesName,
+                            publishedYear = item.publishedYear,
+                            genres = item.genres.joinToString(","),
+                            publisher = item.publisher,
                         )
                     }
                 }.distinctBy { it.id }
@@ -229,6 +244,11 @@ class LibraryRepositoryImpl @Inject constructor(
         isDownloaded = isDownloaded,
         ebookFormat = EbookFormat.from(ebookFormat.takeIf { isSupported }),
         ebookFileIno = ebookFileIno,
+        description = description,
+        seriesName = seriesName,
+        publishedYear = publishedYear,
+        genres = genres.split(",").filter { it.isNotEmpty() },
+        publisher = publisher,
     )
 
     private fun SeriesEntity.toDomain() = Series(

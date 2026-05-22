@@ -15,6 +15,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.riffle.app.feature.library.CollectionDetailScreen
+import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.navigation.HomeScreen
@@ -34,6 +35,7 @@ private const val SETTINGS = "settings"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
+private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER = "epub_reader/{itemId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 
@@ -144,7 +146,8 @@ fun MainScreen(
                         navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
                     },
                     onItemSelected = { item ->
-                        readerRouteFor(item)?.let { navController.navigate(it) }
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
                     },
                 )
             }
@@ -163,7 +166,8 @@ fun MainScreen(
                 SeriesDetailScreen(
                     seriesName = seriesName,
                     onItemSelected = { item ->
-                        readerRouteFor(item)?.let { navController.navigate(it) }
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
                     },
                     onNavigateBack = { navController.popBackStack() },
                 )
@@ -183,9 +187,23 @@ fun MainScreen(
                 CollectionDetailScreen(
                     collectionName = collectionName,
                     onItemSelected = { item ->
-                        readerRouteFor(item)?.let { navController.navigate(it) }
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
                     },
                     onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = LIBRARY_ITEM_DETAIL,
+                arguments = listOf(
+                    navArgument("itemId") { type = NavType.StringType },
+                )
+            ) {
+                LibraryItemDetailScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onReadItem = { item ->
+                        readerRouteFor(item)?.let { navController.navigate(it) }
+                    },
                 )
             }
             composable(
