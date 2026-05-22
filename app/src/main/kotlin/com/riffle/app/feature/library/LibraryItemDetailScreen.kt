@@ -101,7 +101,7 @@ fun LibraryItemDetailScreen(
                 LibraryItemDetailContent(
                     item = state.item,
                     token = viewModel.authToken,
-                    onReadItem = onReadItem,
+                    onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                     modifier = Modifier.padding(padding),
                 )
             }

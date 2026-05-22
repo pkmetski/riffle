@@ -20,4 +20,5 @@ data class LibraryItemEntity(
     val publishedYear: String? = null,
     val genres: String = "",
     val publisher: String? = null,
+    val lastOpenedAt: Long? = null,
 )

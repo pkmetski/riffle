@@ -28,6 +28,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 - [ ] Screen Wake Lock ([#22](https://github.com/pkmetski/riffle/issues/22))
 - [x] Fullscreen reader mode ([#50](https://github.com/pkmetski/riffle/issues/50))
 - [x] Navigation Drawer UX — replaces server & library list screens ([#54](https://github.com/pkmetski/riffle/issues/54))
+- [x] Library screen redesign — Plex-style sections with cover grid ([#66](https://github.com/pkmetski/riffle/issues/66))
 
 ## Requirements
 

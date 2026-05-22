@@ -12,11 +12,15 @@ interface LibraryRepository {
     fun observeLibraries(): Flow<List<Library>>
     fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>>
+    fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>>
+    fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>>
+    fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>>
     fun observeSeries(libraryId: String): Flow<List<Series>>
     fun observeCollections(libraryId: String): Flow<List<Collection>>
     fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>>
     fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>>
     suspend fun getItem(itemId: String): LibraryItem?
+    suspend fun markItemOpened(itemId: String)
     suspend fun refreshLibraries(): LibraryRefreshResult
     suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult
     suspend fun refreshSeries(libraryId: String): LibraryRefreshResult

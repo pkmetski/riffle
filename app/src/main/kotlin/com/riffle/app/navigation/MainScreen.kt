@@ -17,6 +17,8 @@ import androidx.navigation.navArgument
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
+import com.riffle.app.feature.library.LibrarySectionScreen
+import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.navigation.HomeScreen
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
@@ -33,6 +35,7 @@ private const val HOME = "home"
 private const val ADD_SERVER = "add_server"
 private const val SETTINGS = "settings"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
+private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
@@ -149,6 +152,39 @@ fun MainScreen(
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
                     },
+                    onSectionSeeMore = { sectionType ->
+                        val encodedName = URLEncoder.encode(libraryName, "UTF-8")
+                        navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
+                    },
+                )
+            }
+            composable(
+                route = LIBRARY_SECTION,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("libraryName") { type = NavType.StringType },
+                    navArgument("sectionType") { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
+                val sectionType = LibrarySectionType.valueOf(
+                    backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.ALL_BOOKS.name
+                )
+                LibrarySectionScreen(
+                    sectionType = sectionType,
+                    onItemSelected = { item ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
+                    },
+                    onSeriesSelected = { series ->
+                        val encodedName = URLEncoder.encode(series.name, "UTF-8")
+                        navController.navigate("series_detail/$libraryId/${series.id}/$encodedName")
+                    },
+                    onCollectionSelected = { collection ->
+                        val encodedName = URLEncoder.encode(collection.name, "UTF-8")
+                        navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
+                    },
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(
