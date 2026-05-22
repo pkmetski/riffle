@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -11,6 +13,10 @@ plugins {
 // via the stub in app/src/main/java/android/support/v4/util/ArrayMap.java instead.
 configurations.all {
     exclude(group = "com.android.support")
+}
+
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 android {
@@ -28,9 +34,18 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "DEV_SERVER_URL", "\"\"")
+        buildConfigField("String", "DEV_USERNAME", "\"\"")
+        buildConfigField("String", "DEV_PASSWORD", "\"\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "DEV_SERVER_URL", "\"${localProps.getProperty("dev.serverUrl", "")}\"")
+            buildConfigField("String", "DEV_USERNAME",   "\"${localProps.getProperty("dev.username", "")}\"")
+            buildConfigField("String", "DEV_PASSWORD",   "\"${localProps.getProperty("dev.password", "")}\"")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -49,6 +64,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
