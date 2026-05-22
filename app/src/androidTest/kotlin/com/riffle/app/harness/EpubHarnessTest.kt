@@ -25,8 +25,9 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilRailActiveSegment
+import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.domain.EpubCacheManager
+import com.riffle.core.domain.LocalStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
@@ -48,7 +49,7 @@ class EpubHarnessTest {
     @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Inject lateinit var database: RiffleDatabase
-    @Inject lateinit var epubCacheManager: EpubCacheManager
+    @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
 
     private val stubServer = StubAbsServer()
 
@@ -57,7 +58,7 @@ class EpubHarnessTest {
         stubServer.start()
         hiltRule.inject()
         database.clearAllTables()
-        epubCacheManager.evictAll()
+        epubCacheStore.clear()
     }
 
     @After

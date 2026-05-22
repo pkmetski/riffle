@@ -2,11 +2,18 @@ package com.riffle.app.feature.library
 
 import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EbookFormat
+import com.riffle.core.domain.EpubDownloadResult
+import com.riffle.core.domain.EpubOpenResult
+import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.PdfDownloadResult
+import com.riffle.core.domain.PdfOpenResult
+import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
@@ -16,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -44,6 +52,8 @@ class LibraryItemsViewModelTest {
     private val inProgressFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val finishedFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val allBooksFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
+    private val collectionItemsByCollectionId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
+    private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
 
     private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
@@ -54,8 +64,10 @@ class LibraryItemsViewModelTest {
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
         override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
-        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
+            seriesItemsBySeriesId.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
+        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
+            collectionItemsByCollectionId.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun refreshLibraries() = LibraryRefreshResult.Success
@@ -79,11 +91,41 @@ class LibraryItemsViewModelTest {
         override suspend fun deleteToken(serverId: String) {}
     }
 
-    private fun makeViewModel() = LibraryItemsViewModel(
+    private fun fakeEpubRepo(): EpubRepository = object : EpubRepository {
+        override suspend fun openEpub(item: LibraryItem): EpubOpenResult = EpubOpenResult.Offline
+        override suspend fun downloadEpub(item: LibraryItem): EpubDownloadResult = EpubDownloadResult.Success
+        override suspend fun removeDownload(itemId: String) {}
+        override fun isDownloaded(itemId: String): Boolean = false
+        override fun isCached(itemId: String): Boolean = false
+        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+    }
+
+    private fun fakePdfRepo(): PdfRepository = object : PdfRepository {
+        override suspend fun openPdf(item: LibraryItem): PdfOpenResult = PdfOpenResult.Offline
+        override suspend fun downloadPdf(item: LibraryItem): PdfDownloadResult = PdfDownloadResult.Success
+        override suspend fun removeDownload(itemId: String) {}
+        override fun isDownloaded(itemId: String): Boolean = false
+        override fun isCached(itemId: String): Boolean = false
+        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+    }
+
+    private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
+        val state = MutableStateFlow(online)
+        override val isOnline: StateFlow<Boolean> = state
+    }
+
+    private fun makeViewModel(
+        connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
+        epubRepository: EpubRepository = fakeEpubRepo(),
+        pdfRepository: PdfRepository = fakePdfRepo(),
+    ) = LibraryItemsViewModel(
         SavedStateHandle(mapOf("libraryId" to "lib-1")),
         fakeRepo(),
         fakeServerRepo(),
         fakeTokenStorage(),
+        epubRepository,
+        pdfRepository,
+        connectivityObserver,
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
@@ -276,5 +318,120 @@ class LibraryItemsViewModelTest {
         collectionsFlow.value = listOf(collection("Fantasy"))
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(collection("Fantasy")), vm.collections.value)
+    }
+
+    // --- offline filtering ---
+
+    private fun fakeEpubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : EpubRepository {
+        override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
+        override suspend fun downloadEpub(item: LibraryItem) = EpubDownloadResult.Success
+        override suspend fun removeDownload(itemId: String) {}
+        override fun isDownloaded(itemId: String): Boolean = itemId in downloadedIds
+        override fun isCached(itemId: String): Boolean = false
+        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+    }
+
+    @Test
+    fun `when offline ungrouped items are filtered to only downloaded`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+        )
+        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.isOffline.collect {} }
+        itemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredUngroupedItems.value)
+        assertEquals(true, vm.isOffline.value)
+    }
+
+    @Test
+    fun `when online no offline filter is applied to ungrouped items`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = true),
+            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+        )
+        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        itemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, vm.filteredUngroupedItems.value.size)
+        assertEquals(false, vm.isOffline.value)
+    }
+
+    @Test
+    fun `isOffline becomes false when connectivity returns to online`() = runTest {
+        val connectivity = FakeConnectivityObserver(online = false)
+        val vm = makeViewModel(connectivityObserver = connectivity)
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.isOffline.value)
+
+        connectivity.state.value = true
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.isOffline.value)
+    }
+
+    @Test
+    fun `when offline collections with no available offline items are hidden`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+        )
+        backgroundScope.launch { vm.filteredCollections.collect {} }
+        collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
+        collectionItemsByCollectionId.getOrPut("id-Fantasy") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("Mistborn", "Brandon Sanderson"))
+        collectionItemsByCollectionId.getOrPut("id-Sci-Fi") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("Dune", "Frank Herbert"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyList<Collection>(), vm.filteredCollections.value)
+    }
+
+    @Test
+    fun `when offline collections with at least one available offline item are shown`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Mistborn")),
+        )
+        backgroundScope.launch { vm.filteredCollections.collect {} }
+        collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
+        collectionItemsByCollectionId.getOrPut("id-Fantasy") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("Mistborn", "Brandon Sanderson"))
+        collectionItemsByCollectionId.getOrPut("id-Sci-Fi") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("Dune", "Frank Herbert"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(collection("Fantasy")), vm.filteredCollections.value)
+    }
+
+    @Test
+    fun `when offline series with no available offline items are hidden`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+        )
+        backgroundScope.launch { vm.filteredSeries.collect {} }
+        seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
+        seriesItemsBySeriesId.getOrPut("id-Mistborn") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("The Final Empire", "Brandon Sanderson"))
+        seriesItemsBySeriesId.getOrPut("id-Stormlight") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("The Way of Kings", "Brandon Sanderson"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyList<Series>(), vm.filteredSeries.value)
+    }
+
+    @Test
+    fun `when offline series with at least one available offline item are shown`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-The Way of Kings")),
+        )
+        backgroundScope.launch { vm.filteredSeries.collect {} }
+        seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
+        seriesItemsBySeriesId.getOrPut("id-Mistborn") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("The Final Empire", "Brandon Sanderson"))
+        seriesItemsBySeriesId.getOrPut("id-Stormlight") { MutableStateFlow(emptyList()) }.value =
+            listOf(item("The Way of Kings", "Brandon Sanderson"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(series("Stormlight")), vm.filteredSeries.value)
     }
 }

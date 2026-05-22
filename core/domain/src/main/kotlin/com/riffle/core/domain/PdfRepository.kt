@@ -8,7 +8,17 @@ sealed class PdfOpenResult {
     data object Offline : PdfOpenResult()
 }
 
+sealed class PdfDownloadResult {
+    data object Success : PdfDownloadResult()
+    data object AlreadyDownloaded : PdfDownloadResult()
+    data class NetworkError(val cause: Throwable) : PdfDownloadResult()
+}
+
 interface PdfRepository {
     suspend fun openPdf(item: LibraryItem): PdfOpenResult
+    suspend fun downloadPdf(item: LibraryItem): PdfDownloadResult
+    suspend fun removeDownload(itemId: String)
+    fun isDownloaded(itemId: String): Boolean
+    fun isCached(itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, locatorJson: String)
 }

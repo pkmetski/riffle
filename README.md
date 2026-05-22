@@ -15,7 +15,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 - [ ] PDF reader — open & navigate ([#9](https://github.com/pkmetski/riffle/issues/9))
 - [x] Reading Session & outbound Progress Sync ([#10](https://github.com/pkmetski/riffle/issues/10))
 - [ ] Inbound Progress Sync & conflict resolution ([#11](https://github.com/pkmetski/riffle/issues/11))
-- [ ] Offline Mode & Downloads ([#12](https://github.com/pkmetski/riffle/issues/12))
+- [x] Offline Mode & Downloads ([#12](https://github.com/pkmetski/riffle/issues/12))
 - [x] EPUB Formatting Preferences ([#13](https://github.com/pkmetski/riffle/issues/13))
 - [ ] PDF Formatting Preferences ([#14](https://github.com/pkmetski/riffle/issues/14))
 - [x] Table of Contents navigation ([#15](https://github.com/pkmetski/riffle/issues/15))

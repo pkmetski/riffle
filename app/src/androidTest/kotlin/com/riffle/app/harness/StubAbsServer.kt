@@ -89,9 +89,9 @@ class StubAbsServer {
     private fun libraryItemsResponse() = json(
         200,
         """{"results":[
-          {"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null},
-          {"id":"$TEST_STANDALONE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_STANDALONE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_STANDALONE_FILE_INO"}},"userMediaProgress":null},
-          {"id":"$TEST_PDF_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PDF_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"pdf","ebookFile":{"ino":"$TEST_PDF_FILE_INO"}},"userMediaProgress":null}
+          {"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null},
+          {"id":"$TEST_STANDALONE_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_STANDALONE_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_STANDALONE_FILE_INO"}},"userMediaProgress":null},
+          {"id":"$TEST_PDF_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_PDF_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"pdf","ebookFile":{"ino":"$TEST_PDF_FILE_INO"}},"userMediaProgress":null}
         ]}"""
     )
 
@@ -130,12 +130,12 @@ class StubAbsServer {
 
     private fun seriesResponse() = json(
         200,
-        """{"results":[{"id":"$TEST_SERIES_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_SERIES_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","seriesSequence":"1","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
+        """{"results":[{"id":"$TEST_SERIES_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_SERIES_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","seriesSequence":"1","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
     )
 
     private fun collectionsResponse() = json(
         200,
-        """{"results":[{"id":"$TEST_COLLECTION_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_COLLECTION_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR"},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
+        """{"results":[{"id":"$TEST_COLLECTION_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_COLLECTION_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
     )
 
     private fun progressSyncResponse(request: RecordedRequest): MockResponse {

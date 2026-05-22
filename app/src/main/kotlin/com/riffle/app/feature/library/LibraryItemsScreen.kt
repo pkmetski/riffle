@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
@@ -82,14 +83,21 @@ fun LibraryItemsScreen(
     val finished by viewModel.finished.collectAsState()
     val series by viewModel.series.collectAsState()
     val collections by viewModel.collections.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
 
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboardController?.hide() }
 
+    val focusManager = LocalFocusManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.onSearchQueryChange("")
+            if (event == Lifecycle.Event.ON_RESUME) {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                viewModel.onSearchQueryChange("")
+                viewModel.refresh()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -106,7 +114,7 @@ fun LibraryItemsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            if (viewModel.isOffline) {
+            if (isOffline) {
                 OfflineBanner()
             }
 
