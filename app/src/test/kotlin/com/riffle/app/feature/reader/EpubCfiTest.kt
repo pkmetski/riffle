@@ -60,4 +60,102 @@ class EpubCfiTest {
         val url = "file:///data/book.epub!/OEBPS/chapter1.xhtml"
         assertEquals("OEBPS/chapter1.xhtml", normalizeEpubHref(url))
     }
+
+    @Test
+    fun `normalize URL-encoded path decodes via URI path`() {
+        val encoded = "Text/Martin%2C%20George%20R.%20R.%20-%20Song%20of%20Ice%20and%20Fire%2001%20-%20A%20Game%20of%20Thrones_split_000.htm"
+        val result = normalizeEpubHref(encoded)
+        assertEquals("Text/Martin, George R. R. - Song of Ice and Fire 01 - A Game of Thrones_split_000.htm", result)
+    }
+
+    @Test
+    fun `normalize already normalized relative path is unchanged`() {
+        assertEquals("Text/Section0061.xhtml", normalizeEpubHref("Text/Section0061.xhtml"))
+    }
+
+    // epubCfiToSpineIndex tests
+
+    @Test
+    fun `step 2 returns spine index 0`() {
+        assertEquals(0, epubCfiToSpineIndex("epubcfi(/6/2!/4/2)"))
+    }
+
+    @Test
+    fun `step 4 returns spine index 1`() {
+        assertEquals(1, epubCfiToSpineIndex("epubcfi(/6/4!/4/2)"))
+    }
+
+    @Test
+    fun `step 160 returns spine index 79`() {
+        assertEquals(79, epubCfiToSpineIndex("epubcfi(/6/160!/4/2)"))
+    }
+
+    @Test
+    fun `full CFI with element ID and character offset - step 160`() {
+        assertEquals(79, epubCfiToSpineIndex("epubcfi(/6/160!/4/4[heading_id_2]/1:0)"))
+    }
+
+    @Test
+    fun `full CFI with character offset - step 24`() {
+        assertEquals(11, epubCfiToSpineIndex("epubcfi(/6/24!/4/2/1:42)"))
+    }
+
+    @Test
+    fun `empty string returns null`() {
+        assertEquals(null, epubCfiToSpineIndex(""))
+    }
+
+    @Test
+    fun `malformed CFI without slash-6 returns null`() {
+        assertEquals(null, epubCfiToSpineIndex("epubcfi(/4/2!/4/2)"))
+    }
+
+    @Test
+    fun `odd step returns null`() {
+        assertEquals(null, epubCfiToSpineIndex("epubcfi(/6/3!/4/2)"))
+    }
+
+    @Test
+    fun `step 0 returns null`() {
+        assertEquals(null, epubCfiToSpineIndex("epubcfi(/6/0!/4/2)"))
+    }
+
+    @Test
+    fun `non-epubcfi string returns null`() {
+        assertEquals(null, epubCfiToSpineIndex("some-text"))
+    }
+
+    @Test
+    fun `step 999 returns 499`() {
+        // step 999 is odd — should return null
+        assertEquals(null, epubCfiToSpineIndex("epubcfi(/6/999!/4/2)"))
+    }
+
+    @Test
+    fun `step 998 returns 498`() {
+        assertEquals(498, epubCfiToSpineIndex("epubcfi(/6/998!/4/2)"))
+    }
+
+    // round-trip tests: buildEpubCfi + epubCfiToSpineIndex
+
+    @Test
+    fun `round-trip buildEpubCfi then epubCfiToSpineIndex for all items`() {
+        for (i in readingOrder.indices) {
+            val cfi = buildEpubCfi(readingOrder, readingOrder[i])
+            assertEquals(i, epubCfiToSpineIndex(cfi))
+        }
+    }
+
+    // buildEpubCfi with URL-encoded hrefs
+
+    @Test
+    fun `buildEpubCfi with URL-encoded href at index 1`() {
+        val encodedHref = "Text/Martin%2C%20George%20R.%20R.%20-%20Song%20of%20Ice%20and%20Fire%2001%20-%20A%20Game%20of%20Thrones_split_000.htm"
+        val encodedReadingOrder = listOf(
+            "Text/titlepage.xhtml",
+            encodedHref,
+            "Text/Section0061.xhtml",
+        )
+        assertEquals("epubcfi(/6/4!/4/2)", buildEpubCfi(encodedReadingOrder, encodedHref))
+    }
 }

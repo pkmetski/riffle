@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
@@ -55,6 +56,12 @@ class ReadingSessionIntegrationTest {
             override suspend fun saveToken(serverId: String, token: String) = Unit
             override suspend fun getToken(serverId: String): String? = "test-token"
             override suspend fun deleteToken(serverId: String) = Unit
+        },
+        positionStore = object : ReadingPositionStore {
+            override suspend fun save(itemId: String, cfi: String) = Unit
+            override suspend fun load(itemId: String): String? = null
+            override suspend fun loadLocalUpdatedAt(itemId: String): Long = 0L
+            override suspend fun updateLocalTimestamp(itemId: String, millis: Long) = Unit
         },
     )
 

@@ -5,9 +5,19 @@ data class NetworkEbookProgressPayload(
     val ebookProgress: Float,
 )
 
+data class NetworkServerProgress(
+    val ebookLocation: String,
+    val lastUpdate: Long,
+)
+
 sealed class NetworkSyncSessionResult {
-    data object Success : NetworkSyncSessionResult()
+    data class Success(val lastUpdate: Long) : NetworkSyncSessionResult()
     data class NetworkError(val cause: Throwable) : NetworkSyncSessionResult()
+}
+
+sealed class NetworkGetProgressResult {
+    data class Success(val progress: NetworkServerProgress) : NetworkGetProgressResult()
+    data class NetworkError(val cause: Throwable) : NetworkGetProgressResult()
 }
 
 interface AbsSessionApi {
@@ -18,4 +28,11 @@ interface AbsSessionApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkSyncSessionResult
+
+    suspend fun getProgress(
+        baseUrl: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkGetProgressResult
 }

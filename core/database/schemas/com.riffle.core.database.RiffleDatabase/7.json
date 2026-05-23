@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "d65e86833953197ecddf247d2c90759d",
+    "identityHash": "2fc2b8710e066310432d8cb0b480bf83",
     "entities": [
       {
         "tableName": "servers",
@@ -293,7 +293,7 @@
       },
       {
         "tableName": "reading_positions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`itemId` TEXT NOT NULL, `cfi` TEXT NOT NULL, PRIMARY KEY(`itemId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`itemId` TEXT NOT NULL, `cfi` TEXT NOT NULL, `localUpdatedAt` INTEGER NOT NULL, PRIMARY KEY(`itemId`))",
         "fields": [
           {
             "fieldPath": "itemId",
@@ -305,6 +305,12 @@
             "fieldPath": "cfi",
             "columnName": "cfi",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localUpdatedAt",
+            "columnName": "localUpdatedAt",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -378,7 +384,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd65e86833953197ecddf247d2c90759d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2fc2b8710e066310432d8cb0b480bf83')"
     ]
   }
 }

@@ -56,11 +56,13 @@ A server-side record of a single continuous reading period. Opened via the ABS A
 Aggregated reading data fetched from the ABS server — time spent reading, books finished, current streaks. Populated by Reading Sessions pushed from the app.
 
 ### Progress Sync
-Bidirectional reconciliation of reading position between the app and the ABS server.
+Bidirectional reconciliation of reading position between the app and the ABS server. Applies to all supported formats (EPUB, PDF, and any future formats).
 
-- **Outbound:** local progress is pushed to the server periodically (every ~30 seconds) and on reader close.
-- **Inbound:** the server's latest position is fetched when the app resumes from background or sleep.
-- **Conflict resolution:** when the local position and server position differ meaningfully (i.e. neither is trivially ahead due to a single sync delay), the user is prompted to choose which position to continue from.
+- **Cycle:** on every periodic tick (~30 seconds) and immediately on reader resume, the app runs a GET-then-maybe-PATCH cycle for the open book.
+- **Inbound check (GET first):** fetch server position and its `lastUpdate` timestamp via `GET /api/me/progress/:libraryItemId`. Compare against `localUpdatedAt` — the local timestamp updated on every position change (page turn, scroll), persisted to the local DB.
+- **Last-update-wins:** if `server.lastUpdate > localUpdatedAt`, jump the reader to the server's position silently and set `localUpdatedAt = server.lastUpdate`. If `localUpdatedAt >= server.lastUpdate`, PATCH local position to server.
+- **Offline behaviour:** if the GET fails (server unreachable), skip the entire cycle — no PATCH is attempted. `localUpdatedAt` continues to advance with page turns. When connectivity returns the next cycle runs normally; `localUpdatedAt` will be newer than the server's stale timestamp, so local position is pushed.
+- **No conflict prompt:** there is no user-facing conflict resolution UI. The last-update-wins rule is applied silently in all cases.
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:

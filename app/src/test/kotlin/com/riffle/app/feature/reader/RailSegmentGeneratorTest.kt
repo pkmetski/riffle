@@ -64,4 +64,52 @@ class RailSegmentGeneratorTest {
     fun `returns 0 for empty segment list`() {
         assertEquals(0, findActiveSegmentIndex(emptyList(), "chapter1.xhtml"))
     }
+
+    @Test
+    fun `URL-encoded hrefs are preserved in rail segments`() {
+        val encodedHref = "Text/Martin%2C%20George%20R.%20R.%20-%20Song%20of%20Ice%20and%20Fire%2001%20-%20A%20Game%20of%20Thrones_split_000.htm"
+        val toc = listOf(TocEntry("PROLOGUE", encodedHref))
+        val segments = buildRailSegments(toc)
+        assertEquals(1, segments.size)
+        assertEquals(encodedHref, segments[0].href)
+    }
+
+    @Test
+    fun `findActiveSegmentIndex with URL-encoded href exact match`() {
+        val encodedHref = "Text/Martin%2C%20George%20R.%20R.%20-%20Song%20of%20Ice%20and%20Fire%2001%20-%20A%20Game%20of%20Thrones_split_000.htm"
+        val segments = listOf(
+            RailSegment("Title Page", "Text/titlepage.xhtml"),
+            RailSegment("PROLOGUE", encodedHref),
+        )
+        assertEquals(1, findActiveSegmentIndex(segments, encodedHref))
+    }
+
+    @Test
+    fun `findActiveSegmentIndex with URL-encoded href and fragment fallback`() {
+        val encodedHref = "Text/chapter1%20special.xhtml"
+        val segments = listOf(RailSegment("Chapter 1", encodedHref))
+        assertEquals(0, findActiveSegmentIndex(segments, "$encodedHref#s1"))
+    }
+
+    @Test
+    fun `segments with duplicate chapter titles but unique hrefs are all retained`() {
+        val toc = listOf(
+            TocEntry("EDDARD", "chapter_eddard1.xhtml"),
+            TocEntry("EDDARD", "chapter_eddard2.xhtml"),
+            TocEntry("EDDARD", "chapter_eddard3.xhtml"),
+        )
+        val segments = buildRailSegments(toc)
+        assertEquals(3, segments.size)
+        assertEquals("chapter_eddard1.xhtml", segments[0].href)
+        assertEquals("chapter_eddard2.xhtml", segments[1].href)
+        assertEquals("chapter_eddard3.xhtml", segments[2].href)
+    }
+
+    @Test
+    fun `single-chapter book returns one segment`() {
+        val toc = listOf(TocEntry("Only Chapter", "only.xhtml"))
+        val segments = buildRailSegments(toc)
+        assertEquals(1, segments.size)
+        assertEquals(RailSegment("Only Chapter", "only.xhtml"), segments[0])
+    }
 }
