@@ -16,8 +16,10 @@ import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.domain.WakeLockPreferencesStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -33,6 +35,7 @@ class WakeLockHarnessTest {
     @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Inject lateinit var database: RiffleDatabase
+    @Inject lateinit var wakeLockPreferencesStore: WakeLockPreferencesStore
 
     private val stubServer = StubAbsServer()
 
@@ -41,6 +44,7 @@ class WakeLockHarnessTest {
         stubServer.start()
         hiltRule.inject()
         database.clearAllTables()
+        runBlocking { wakeLockPreferencesStore.setKeepScreenOn(true) }
     }
 
     @After
