@@ -102,6 +102,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `lastOpenedAt` INTEGER")
+                db.execSQL("ALTER TABLE `reading_positions` ADD COLUMN `localUpdatedAt` INTEGER NOT NULL DEFAULT 0")
             }
         }
 

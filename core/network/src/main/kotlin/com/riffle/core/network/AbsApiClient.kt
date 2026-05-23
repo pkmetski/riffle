@@ -5,6 +5,7 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
+import com.riffle.core.network.model.AbsProgressResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
@@ -314,10 +315,41 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
         try {
             val response = client.newCall(request).execute()
-            if (response.isSuccessful) NetworkSyncSessionResult.Success
-            else NetworkSyncSessionResult.NetworkError(IOException("HTTP ${response.code}"))
+            if (response.isSuccessful) {
+                val lastUpdate = response.body?.string()
+                    ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
+                    ?.lastUpdate ?: 0L
+                NetworkSyncSessionResult.Success(lastUpdate)
+            } else NetworkSyncSessionResult.NetworkError(IOException("HTTP ${response.code}"))
         } catch (e: IOException) {
             NetworkSyncSessionResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getProgress(
+        baseUrl: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkGetProgressResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/me/progress/$libraryItemId")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val raw = response.body?.string()
+                if (raw.isNullOrEmpty()) return@withContext NetworkGetProgressResult.NetworkError(
+                    IOException("Empty response body")
+                )
+                val parsed = json.decodeFromString<AbsProgressResponse>(raw)
+                NetworkGetProgressResult.Success(NetworkServerProgress(parsed.ebookLocation, parsed.lastUpdate))
+            } else NetworkGetProgressResult.NetworkError(IOException("HTTP ${response.code}"))
+        } catch (e: IOException) {
+            NetworkGetProgressResult.NetworkError(e)
         }
     }
 

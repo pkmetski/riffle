@@ -203,6 +203,9 @@ class MigrationTest {
             db.execSQL(
                 "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded, isSupported, ebookFileIno, ebookFormat) VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 0, 1, NULL, 'epub')"
             )
+            db.execSQL(
+                "INSERT INTO reading_positions (itemId, cfi) VALUES ('item-1', 'epubcfi(/6/4!/4/1:0)')"
+            )
         }
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, RiffleDatabase.MIGRATION_8_9)
@@ -213,6 +216,13 @@ class MigrationTest {
             assertEquals("item1", cursor.getString(0))
             assertEquals("Dune", cursor.getString(1))
             assertNull(cursor.getString(2)) // lastOpenedAt defaults to NULL
+        }
+        db.query("SELECT itemId, cfi, localUpdatedAt FROM reading_positions WHERE itemId = 'item-1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item-1", cursor.getString(0))
+            assertEquals("epubcfi(/6/4!/4/1:0)", cursor.getString(1))
+            assertEquals(0L, cursor.getLong(2)) // localUpdatedAt defaults to 0
         }
     }
 

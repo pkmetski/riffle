@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -99,5 +100,107 @@ class AbsApiClientSessionTest {
             "tok", false,
         )
         assertTrue(result is NetworkSyncSessionResult.NetworkError)
+    }
+
+    @Test
+    fun `syncEbookProgress returns Success with lastUpdate 0 when server responds with plain-text OK`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "text/plain")
+                .setBody("OK")
+        )
+        val result = client.syncEbookProgress(
+            baseUrl(), "item-1",
+            NetworkEbookProgressPayload("cfi", 0.5f),
+            "tok", false,
+        )
+        assertTrue(result is NetworkSyncSessionResult.Success)
+        assertEquals(0L, (result as NetworkSyncSessionResult.Success).lastUpdate)
+    }
+
+    @Test
+    fun `syncEbookProgress returns Success with lastUpdate when server responds with JSON containing lastUpdate`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""{"ebookLocation":"cfi","lastUpdate":1779445105751}""")
+        )
+        val result = client.syncEbookProgress(
+            baseUrl(), "item-1",
+            NetworkEbookProgressPayload("cfi", 0.5f),
+            "tok", false,
+        )
+        assertTrue(result is NetworkSyncSessionResult.Success)
+        assertEquals(1779445105751L, (result as NetworkSyncSessionResult.Success).lastUpdate)
+    }
+
+    @Test
+    fun `syncEbookProgress returns Success with lastUpdate 0 when server responds with empty JSON`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("{}")
+        )
+        val result = client.syncEbookProgress(
+            baseUrl(), "item-1",
+            NetworkEbookProgressPayload("cfi", 0.5f),
+            "tok", false,
+        )
+        assertTrue(result is NetworkSyncSessionResult.Success)
+        assertEquals(0L, (result as NetworkSyncSessionResult.Success).lastUpdate)
+    }
+
+    @Test
+    fun `getProgress parses complex CFI with element ID and character offset`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""{"ebookLocation":"epubcfi(/6/160!/4/4[heading_id_2]/1:0)","lastUpdate":1779445105751}""")
+        )
+        val result = client.getProgress(baseUrl(), "item-1", "tok", false)
+        assertTrue(result is NetworkGetProgressResult.Success)
+        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertEquals("epubcfi(/6/160!/4/4[heading_id_2]/1:0)", progress.ebookLocation)
+        assertEquals(1779445105751L, progress.lastUpdate)
+    }
+
+    @Test
+    fun `getProgress parses all standard ABS fields`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                    {
+                        "id":"prog-1",
+                        "userId":"user-1",
+                        "libraryItemId":"item-1",
+                        "episodeId":null,
+                        "mediaItemId":"item-1",
+                        "mediaItemType":"book",
+                        "duration":3600.0,
+                        "progress":0.9897289586305278,
+                        "currentTime":3560.0,
+                        "isFinished":false,
+                        "hideFromContinueListening":false,
+                        "ebookLocation":"epubcfi(/6/160!/4/4[heading_id_2]/1:0)",
+                        "ebookProgress":0.9897289586305278,
+                        "lastUpdate":1779445105751,
+                        "startedAt":1779000000000,
+                        "finishedAt":null
+                    }
+                """.trimIndent())
+        )
+        val result = client.getProgress(baseUrl(), "item-1", "tok", false)
+        assertTrue(result is NetworkGetProgressResult.Success)
+        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertEquals("epubcfi(/6/160!/4/4[heading_id_2]/1:0)", progress.ebookLocation)
+        assertEquals(1779445105751L, progress.lastUpdate)
+    }
+
+    @Test
+    fun `getProgress returns NetworkError on empty body`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+        val result = client.getProgress(baseUrl(), "item-1", "tok", false)
+        assertTrue(result is NetworkGetProgressResult.NetworkError)
     }
 }

@@ -324,7 +324,7 @@
       },
       {
         "tableName": "reading_positions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`itemId` TEXT NOT NULL, `cfi` TEXT NOT NULL, PRIMARY KEY(`itemId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`itemId` TEXT NOT NULL, `cfi` TEXT NOT NULL, `localUpdatedAt` INTEGER NOT NULL, PRIMARY KEY(`itemId`))",
         "fields": [
           {
             "fieldPath": "itemId",
@@ -336,6 +336,12 @@
             "fieldPath": "cfi",
             "columnName": "cfi",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localUpdatedAt",
+            "columnName": "localUpdatedAt",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],

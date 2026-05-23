@@ -11,7 +11,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
-import com.riffle.core.domain.ReadingSessionController
+import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,12 +25,13 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -76,16 +77,23 @@ class EpubReaderViewModel @Inject constructor(
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
-    private val sessionController = ReadingSessionController(
+    private val progressSyncController = ProgressSyncController(
         repository = readingSessionRepository,
         scope = viewModelScope,
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
 
+    private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
+    val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
+
     private var lastLocator: Locator? = null
     private var publication: Publication? = null
     private var syncJob: Job? = null
     private var closeSyncDone = false
+    // True after the navigator emits its first locator (the restored position on open).
+    // The first emission is not new user progress — the position is already in DB — so we skip
+    // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
+    private var initialLocatorSeen = false
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -101,6 +109,11 @@ class EpubReaderViewModel @Inject constructor(
     init {
         viewModelScope.launch { openBook() }
         viewModelScope.launch { loadFormattingPreferences() }
+        viewModelScope.launch {
+            progressSyncController.serverPositionEvents.collect { serverProgress ->
+                serverCfiToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
+            }
+        }
     }
 
     private suspend fun loadFormattingPreferences() {
@@ -134,6 +147,9 @@ class EpubReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
+                // Sync immediately while localUpdatedAt is still the genuine stored value —
+                // before the navigator restore emits and would stamp localUpdatedAt = now.
+                progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
                 startPeriodicSync()
             }
             is EpubOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
@@ -153,13 +169,17 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
-        sessionController.sync(itemId, locator.toPayload())
+        progressSyncController.sync(itemId, locator.toPayload())
     }
 
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
         _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
+        if (!initialLocatorSeen) {
+            initialLocatorSeen = true
+            return
+        }
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
         }
@@ -167,7 +187,11 @@ class EpubReaderViewModel @Inject constructor(
 
     fun onReaderResumed() {
         closeSyncDone = false
-        if (_state.value is ReaderState.Ready) startPeriodicSync()
+        initialLocatorSeen = false
+        if (_state.value is ReaderState.Ready) {
+            syncCurrentPosition()
+            startPeriodicSync()
+        }
     }
 
     fun onReaderClosed() {
@@ -177,14 +201,29 @@ class EpubReaderViewModel @Inject constructor(
         val locator = lastLocator ?: return
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
-            sessionController.sync(itemId, locator.toPayload())
+            progressSyncController.sync(itemId, locator.toPayload())
         }
     }
 
     private fun Locator.toPayload() = SessionPayload(
-        ebookLocation = buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
+        ebookLocation = locations.fragments.firstOrNull()
+            ?: buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
         ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
     )
+
+    private fun serverCfiToLocator(cfi: String): Locator? {
+        val pub = publication ?: return null
+        val spineIndex = epubCfiToSpineIndex(cfi) ?: return null
+        val link = pub.readingOrder.getOrNull(spineIndex) ?: return null
+        return try {
+            Locator.fromJSON(
+                JSONObject()
+                    .put("href", link.href.toString())
+                    .put("type", "application/xhtml+xml")
+                    .put("locations", JSONObject().put("fragments", JSONArray(listOf(cfi))))
+            )
+        } catch (_: Exception) { null }
+    }
 
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
     val currentLocatorHref: StateFlow<String?> = _currentLocatorHref

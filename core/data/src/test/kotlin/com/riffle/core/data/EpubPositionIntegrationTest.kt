@@ -145,9 +145,11 @@ class EpubPositionIntegrationTest {
     }
 
     private class InMemoryReadingPositionDao : ReadingPositionDao {
-        private val store = mutableMapOf<String, String>()
-        override suspend fun upsert(entity: ReadingPositionEntity) { store[entity.itemId] = entity.cfi }
-        override suspend fun getByItemId(itemId: String): ReadingPositionEntity? =
-            store[itemId]?.let { ReadingPositionEntity(itemId, it) }
+        private val entities = mutableMapOf<String, ReadingPositionEntity>()
+        override suspend fun upsert(entity: ReadingPositionEntity) { entities[entity.itemId] = entity }
+        override suspend fun getByItemId(itemId: String): ReadingPositionEntity? = entities[itemId]
+        override suspend fun updateLocalTimestamp(itemId: String, millis: Long) {
+            entities[itemId]?.let { entities[itemId] = it.copy(localUpdatedAt = millis) }
+        }
     }
 }
