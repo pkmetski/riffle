@@ -18,8 +18,9 @@ import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilOnPdfPage
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilPdfLoaded
+import com.riffle.core.data.di.PdfCacheStore
 import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.domain.PdfCacheManager
+import com.riffle.core.domain.LocalStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
@@ -41,7 +42,7 @@ class PdfHarnessTest {
     @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Inject lateinit var database: RiffleDatabase
-    @Inject lateinit var pdfCacheManager: PdfCacheManager
+    @PdfCacheStore @Inject lateinit var pdfCacheStore: LocalStore
 
     private val stubServer = StubAbsServer()
 
@@ -50,10 +51,8 @@ class PdfHarnessTest {
         stubServer.start()
         hiltRule.inject()
         database.clearAllTables()
-        // Evict the file-based PDF cache so every run exercises the download path,
-        // not just the first run after install. Without this, cached files hide bugs
-        // in the download/streaming code (e.g. NetworkOnMainThreadException).
-        pdfCacheManager.evictAll()
+        // Clear the file-based PDF cache so every run exercises the download path.
+        pdfCacheStore.clear()
     }
 
     @After

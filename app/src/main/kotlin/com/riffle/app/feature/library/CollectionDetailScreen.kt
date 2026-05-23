@@ -34,6 +34,7 @@ fun CollectionDetailScreen(
     viewModel: CollectionDetailViewModel = hiltViewModel(),
 ) {
     val items by viewModel.items.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
 
     Scaffold(
         topBar = {
@@ -53,7 +54,7 @@ fun CollectionDetailScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            if (viewModel.isOffline) {
+            if (isOffline) {
                 OfflineBanner()
             }
             if (items.isEmpty()) {

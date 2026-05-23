@@ -4,33 +4,35 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
+import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
-import com.riffle.core.data.WakeLockPreferencesStoreImpl
-import com.riffle.core.data.EpubCacheManagerImpl
+import com.riffle.core.data.DownloadsRepositoryImpl
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
-import com.riffle.core.data.PdfCacheManagerImpl
+import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
+import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReportRepository
-import com.riffle.core.domain.EpubCacheManager
+import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
-import com.riffle.core.domain.PdfCacheManager
-import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
@@ -61,6 +63,22 @@ annotation class LibraryVisibilityPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class WakeLockPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class EpubCacheStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class EpubDownloadsStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PdfCacheStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PdfDownloadsStore
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -96,14 +114,6 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindEpubRepository(impl: EpubRepositoryImpl): EpubRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindPdfRepository(impl: PdfRepositoryImpl): PdfRepository
-
-    @Binds
-    @Singleton
     abstract fun bindReadingPositionStore(impl: ReadingPositionStoreImpl): ReadingPositionStore
 
     @Binds
@@ -126,6 +136,10 @@ abstract class DataModule {
     @Singleton
     abstract fun bindWakeLockPreferencesStore(impl: WakeLockPreferencesStoreImpl): WakeLockPreferencesStore
 
+    @Binds
+    @Singleton
+    abstract fun bindConnectivityObserver(impl: ConnectivityObserverImpl): ConnectivityObserver
+
     companion object {
         @Provides
         @Singleton
@@ -144,13 +158,58 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideEpubCacheManager(@ApplicationContext context: Context): EpubCacheManager =
-            EpubCacheManagerImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() })
+        @EpubCacheStore
+        fun provideEpubCacheStore(@ApplicationContext context: Context): LocalStore =
+            LocalStoreImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() }, ".epub")
 
         @Provides
         @Singleton
-        fun providePdfCacheManager(@ApplicationContext context: Context): PdfCacheManager =
-            PdfCacheManagerImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() })
+        @EpubDownloadsStore
+        fun provideEpubDownloadsStore(@ApplicationContext context: Context): LocalStore =
+            LocalStoreImpl(context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }, ".epub")
+
+        @Provides
+        @Singleton
+        @PdfCacheStore
+        fun providePdfCacheStore(@ApplicationContext context: Context): LocalStore =
+            LocalStoreImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() }, ".pdf")
+
+        @Provides
+        @Singleton
+        @PdfDownloadsStore
+        fun providePdfDownloadsStore(@ApplicationContext context: Context): LocalStore =
+            LocalStoreImpl(context.filesDir.resolve("downloads/pdfs").also { it.mkdirs() }, ".pdf")
+
+        @Provides
+        @Singleton
+        fun provideEpubRepository(
+            api: AbsLibraryApi,
+            @EpubCacheStore cacheStore: LocalStore,
+            @EpubDownloadsStore downloadsStore: LocalStore,
+            positionStore: ReadingPositionStore,
+            serverRepository: ServerRepository,
+            tokenStorage: TokenStorage,
+        ): EpubRepository = EpubRepositoryImpl(api, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+
+        @Provides
+        @Singleton
+        fun providePdfRepository(
+            api: AbsLibraryApi,
+            @PdfCacheStore cacheStore: LocalStore,
+            @PdfDownloadsStore downloadsStore: LocalStore,
+            positionStore: ReadingPositionStore,
+            serverRepository: ServerRepository,
+            tokenStorage: TokenStorage,
+        ): PdfRepository = PdfRepositoryImpl(api, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+
+        @Provides
+        @Singleton
+        fun provideDownloadsRepository(
+            @EpubCacheStore epubCacheStore: LocalStore,
+            @EpubDownloadsStore epubDownloadsStore: LocalStore,
+            @PdfCacheStore pdfCacheStore: LocalStore,
+            @PdfDownloadsStore pdfDownloadsStore: LocalStore,
+        ): DownloadsRepository = DownloadsRepositoryImpl(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore)
 
         @Provides
         @Singleton

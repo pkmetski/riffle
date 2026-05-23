@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
@@ -34,6 +35,7 @@ import java.net.URLEncoder
 private const val HOME = "home"
 private const val ADD_SERVER = "add_server"
 private const val SETTINGS = "settings"
+private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
@@ -88,6 +90,10 @@ fun MainScreen(
                 popUpTo(HOME) { inclusive = true }
             }
         },
+        onDownloadsSelected = {
+            scope.launch { drawerState.close() }
+            navController.navigate(DOWNLOADS)
+        },
         onSettingsSelected = {
             scope.launch { drawerState.close() }
             navController.navigate(SETTINGS)
@@ -123,6 +129,15 @@ fun MainScreen(
                 SettingsScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddServer = { navController.navigate(ADD_SERVER) },
+                )
+            }
+            composable(DOWNLOADS) {
+                DownloadsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onItemSelected = { item ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
+                    },
                 )
             }
             composable(

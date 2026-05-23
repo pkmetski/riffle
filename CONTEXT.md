@@ -11,7 +11,7 @@ A user-configured Audiobookshelf server instance (URL + credentials). Multiple S
 A top-level collection on the connected ABS server. Riffle surfaces all Libraries whose `mediaType` is `book` (podcast libraries are excluded). Because ABS does not expose a reliable library-level signal to distinguish ebook libraries from audiobook libraries, all book Libraries are shown. The user decides which Libraries are visible in the navigation drawer via Library Visibility Preferences.
 
 ### Navigation Drawer
-The primary navigation surface. Contains: the active Server name in a header (tappable → Server Switcher dropdown), the server-ordered list of visible Libraries for the active Server, and a Settings entry. Replaces the standalone LibraryListScreen and ServerListScreen as the main navigation entry point. On a fresh install with no Servers configured, the app opens directly to AddServerScreen; after the first Server is added, it navigates to the first Library in the Library Visibility Preferences list.
+The primary navigation surface. Contains: the active Server name in a header (tappable → Server Switcher dropdown), the server-ordered list of visible Libraries for the active Server, a Downloads entry, and a Settings entry — in that order. Replaces the standalone LibraryListScreen and ServerListScreen as the main navigation entry point. On a fresh install with no Servers configured, the app opens directly to AddServerScreen; after the first Server is added, it navigates to the first Library in the Library Visibility Preferences list.
 
 ### Server Switcher
 A dropdown triggered from the Navigation Drawer header. Lists all configured Servers; tapping one makes it the active Server and loads its Libraries. Read-only — adding and removing Servers both live in Settings.
@@ -32,7 +32,10 @@ An entry within a Library on the ABS server. Includes metadata (title, author, c
 A Library Item that has no ebook file on the server (e.g. an audiobook). Displayed in the library list as dimmed. Tapping it opens the Library Item Detail Screen, which explains why the item cannot be read.
 
 ### Library Item Detail Screen
-A screen that displays the full metadata for a single Library Item: cover, title, author, series membership, description, published year, genres, and publisher. Also shows reading progress and local availability (Cached / Downloaded). For supported items, contains a Read button that launches the appropriate reader (EPUB or PDF). For Unsupported Library Items, the Read button is absent and the screen explains that no ebook file is available. Reachable by tapping any Library Item card in the library list, a Series detail, or a Collection detail. Back-navigating from the reader returns here before returning to the list.
+A screen that displays the full metadata for a single Library Item: cover, title, author, series membership, description, published year, genres, and publisher. Also shows reading progress and local availability via a Download Button. For supported items, contains a Read button that launches the appropriate reader (EPUB or PDF). For Unsupported Library Items, the Read button is absent and the screen explains that no ebook file is available. Reachable by tapping any Library Item card in the library list, a Series detail, or a Collection detail. Back-navigating from the reader returns here before returning to the list.
+
+### Download Button
+An icon-only button on the Library Item Detail Screen that manages the local copy of an item. Cycles through three visible states: outline arrow (not downloaded — tap to download), spinner (download in progress), filled arrow (downloaded — tap to remove). Removing a download is immediate with an Undo snackbar; no confirmation dialog. Applies to both EPUB and PDF items.
 
 ### Cache
 A local copy of a Library Item's EPUB file that the app creates automatically when the user opens a book. Stored in a clearable system cache directory. Available for offline reading as long as it has not been evicted.
@@ -40,8 +43,11 @@ A local copy of a Library Item's EPUB file that the app creates automatically wh
 ### Download
 A local copy of a Library Item's EPUB file that the user explicitly requests. Stored in a permanent directory that is never auto-cleared. Available for offline reading indefinitely.
 
+### Downloads Screen
+A dedicated screen reachable from the Navigation Drawer. Lists all locally available Library Items in two sections: Downloaded (permanent, user-requested) and Cached (auto-created on open, may be evicted). Each item shows the appropriate indicator icon. Provides a "Remove all" action per section; bulk removal of Downloads requires a confirmation dialog. The Cached section's "Clear all" action has no confirmation.
+
 ### Offline Mode
-The state in which the app cannot reach the ABS server. In this state, the app reads from Cache or Download. Reading progress recorded during Offline Mode is queued for Progress Sync.
+The state in which the app cannot reach the ABS server — either because the device has no network or because the server itself is unreachable. Detected reactively: the banner appears after a request fails or when ConnectivityManager reports no network. In this state, the app reads from Cache or Download. Reading progress recorded during Offline Mode is queued for Progress Sync.
 
 ### Reading Session
 A server-side record of a single continuous reading period. Opened via the ABS API when the user starts reading, updated periodically, and closed when the user leaves the reader or the app backgrounds. Feeds server-side reading statistics (time read, pages per day, streaks).

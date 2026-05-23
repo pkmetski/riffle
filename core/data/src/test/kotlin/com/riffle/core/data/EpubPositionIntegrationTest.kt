@@ -33,7 +33,7 @@ import java.io.IOException
  * saved by a previous instance — simulating what happens after an app restart.
  *
  * Uses a shared in-memory DAO (acting as the persistent Room database), a real
- * EpubCacheManagerImpl, and a real MockWebServer.
+ * LocalStoreImpl, and a real MockWebServer.
  */
 class EpubPositionIntegrationTest {
 
@@ -41,7 +41,7 @@ class EpubPositionIntegrationTest {
     val tmp = TemporaryFolder()
 
     private lateinit var server: MockWebServer
-    private lateinit var cacheManager: EpubCacheManagerImpl
+    private lateinit var cacheStore: LocalStoreImpl
     private lateinit var sharedPositionDao: InMemoryReadingPositionDao
 
     private val epubBytes = "PK fake epub content".toByteArray()
@@ -50,7 +50,7 @@ class EpubPositionIntegrationTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        cacheManager = EpubCacheManagerImpl(tmp.newFolder("cache"))
+        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub")
         sharedPositionDao = InMemoryReadingPositionDao()
     }
 
@@ -61,7 +61,8 @@ class EpubPositionIntegrationTest {
 
     private fun buildRepo(): EpubRepositoryImpl = EpubRepositoryImpl(
         api = AbsApiClient(OkHttpClient()),
-        cacheManager = cacheManager,
+        cacheStore = cacheStore,
+        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub"),
         positionStore = ReadingPositionStoreImpl(sharedPositionDao),
         serverRepository = object : ServerRepository {
             val activeServer = Server(
