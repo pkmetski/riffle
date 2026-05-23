@@ -8,7 +8,17 @@ sealed class EpubOpenResult {
     data object Offline : EpubOpenResult()
 }
 
+sealed class EpubDownloadResult {
+    data object Success : EpubDownloadResult()
+    data object AlreadyDownloaded : EpubDownloadResult()
+    data class NetworkError(val cause: Throwable) : EpubDownloadResult()
+}
+
 interface EpubRepository {
     suspend fun openEpub(item: LibraryItem): EpubOpenResult
+    suspend fun downloadEpub(item: LibraryItem): EpubDownloadResult
+    suspend fun removeDownload(itemId: String)
+    fun isDownloaded(itemId: String): Boolean
+    fun isCached(itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, cfi: String)
 }

@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -216,6 +217,62 @@ class MigrationTest {
     }
 
     @Test
+    fun migration9To10() {
+        helper.createDatabase(TEST_DB, 9).use { db ->
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded, isSupported, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt) " +
+                    "VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 1, 1, NULL, 'epub', 'A desc', NULL, '1965', '', NULL, NULL)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 10, true, RiffleDatabase.MIGRATION_9_10)
+
+        db.query("SELECT id, title, author, readingProgress, isSupported, ebookFormat FROM library_items WHERE id = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals("Dune", cursor.getString(1))
+            assertEquals("Herbert", cursor.getString(2))
+            assertEquals(0.5, cursor.getDouble(3), 0.001)
+            assertEquals(1, cursor.getInt(4))
+            assertEquals("epub", cursor.getString(5))
+        }
+        // isDownloaded column must not exist
+        db.query("PRAGMA table_info(library_items)").use { cursor ->
+            val colNames = buildList {
+                while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+            assertTrue("isDownloaded must be removed", !colNames.contains("isDownloaded"))
+        }
+    }
+
+    @Test
+    fun migration10To11() {
+        helper.createDatabase(TEST_DB, 10).use { db ->
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isSupported, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt) " +
+                    "VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 1, NULL, 'epub', 'A desc', NULL, '1965', '', NULL, NULL)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 11, true, RiffleDatabase.MIGRATION_10_11)
+
+        db.query("SELECT id, title, ebookFormat FROM library_items WHERE id = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals("Dune", cursor.getString(1))
+            assertEquals("epub", cursor.getString(2))
+        }
+        db.query("PRAGMA table_info(library_items)").use { cursor ->
+            val colNames = buildList {
+                while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+            assertTrue("isSupported must be removed", !colNames.contains("isSupported"))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -224,7 +281,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 9, true,
+            TEST_DB, 11, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -233,6 +290,8 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_6_7,
             RiffleDatabase.MIGRATION_7_8,
             RiffleDatabase.MIGRATION_8_9,
+            RiffleDatabase.MIGRATION_9_10,
+            RiffleDatabase.MIGRATION_10_11,
         )
 
         db.query("SELECT url, displayName FROM servers WHERE id = 's1'").use { cursor ->

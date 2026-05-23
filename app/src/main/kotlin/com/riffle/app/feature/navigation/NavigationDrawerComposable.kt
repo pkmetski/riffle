@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +41,7 @@ fun RiffleNavigationDrawer(
     activeLibraryId: String?,
     onServerSelected: (Server) -> Unit,
     onLibrarySelected: (Library) -> Unit,
+    onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -60,6 +62,12 @@ fun RiffleNavigationDrawer(
                     )
                 }
                 HorizontalDivider()
+                NavigationDrawerItem(
+                    label = { Text("Downloads") },
+                    icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                    selected = false,
+                    onClick = onDownloadsSelected,
+                )
                 NavigationDrawerItem(
                     label = { Text("Settings") },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },

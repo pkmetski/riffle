@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 9,
-    "identityHash": "a1582a5e37b7fb471c2b4c114f2b737e",
+    "version": 11,
+    "identityHash": "PLACEHOLDER_RUN_KSP_TO_REGENERATE",
     "entities": [
       {
         "tableName": "servers",
@@ -90,7 +90,7 @@
       },
       {
         "tableName": "library_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `isDownloaded` INTEGER NOT NULL, `isSupported` INTEGER NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `library_items` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -125,18 +125,6 @@
             "fieldPath": "readingProgress",
             "columnName": "readingProgress",
             "affinity": "REAL",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isDownloaded",
-            "columnName": "isDownloaded",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isSupported",
-            "columnName": "isSupported",
-            "affinity": "INTEGER",
             "notNull": true
           },
           {
@@ -409,7 +397,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a1582a5e37b7fb471c2b4c114f2b737e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'PLACEHOLDER_RUN_KSP_TO_REGENERATE')"
     ]
   }
 }

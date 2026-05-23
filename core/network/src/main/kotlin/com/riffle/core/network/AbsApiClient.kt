@@ -34,7 +34,7 @@ sealed class NetworkLoginResult {
 
 class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     override suspend fun login(

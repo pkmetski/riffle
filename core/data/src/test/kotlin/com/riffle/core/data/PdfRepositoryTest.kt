@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
@@ -31,7 +32,8 @@ class PdfRepositoryTest {
     val tmp = TemporaryFolder()
 
     private lateinit var server: MockWebServer
-    private lateinit var cacheManager: PdfCacheManagerImpl
+    private lateinit var cacheStore: LocalStoreImpl
+    private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePdfPositionStore
     private lateinit var repo: PdfRepositoryImpl
 
@@ -41,11 +43,13 @@ class PdfRepositoryTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        cacheManager = PdfCacheManagerImpl(tmp.newFolder("pdf-cache"))
+        cacheStore = LocalStoreImpl(tmp.newFolder("pdf-cache"), ".pdf")
+        downloadsStore = LocalStoreImpl(tmp.newFolder("pdf-downloads"), ".pdf")
         positionStore = FakePdfPositionStore()
         repo = PdfRepositoryImpl(
             api = AbsApiClient(OkHttpClient()),
-            cacheManager = cacheManager,
+            cacheStore = cacheStore,
+            downloadsStore = downloadsStore,
             positionStore = positionStore,
             serverRepository = fakeServerRepository(server.url("/").toString().trimEnd('/')),
             tokenStorage = fakeTokenStorage("test-token"),
@@ -98,6 +102,8 @@ class PdfRepositoryTest {
         ebookFileIno = ino,
     )
 
+    // --- openPdf ---
+
     @Test
     fun `openPdf with cache miss downloads file from server and returns Success`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
@@ -109,12 +115,20 @@ class PdfRepositoryTest {
     fun `openPdf with cache miss writes file to cache for subsequent opens`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
         repo.openPdf(item())
-        assertTrue(cacheManager.getCachedPdf("item-1") != null)
+        assertTrue(cacheStore.get("item-1") != null)
     }
 
     @Test
     fun `openPdf with cache hit makes no network request`() = runTest {
-        cacheManager.cachePdf("item-1", pdfBytes.inputStream())
+        cacheStore.save("item-1", pdfBytes.inputStream())
+        val result = repo.openPdf(item())
+        assertEquals(0, server.requestCount)
+        assertTrue(result is PdfOpenResult.Success)
+    }
+
+    @Test
+    fun `openPdf with downloads hit makes no network request`() = runTest {
+        downloadsStore.save("item-1", pdfBytes.inputStream())
         val result = repo.openPdf(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is PdfOpenResult.Success)
@@ -122,7 +136,7 @@ class PdfRepositoryTest {
 
     @Test
     fun `openPdf returns last saved reading position`() = runTest {
-        cacheManager.cachePdf("item-1", pdfBytes.inputStream())
+        cacheStore.save("item-1", pdfBytes.inputStream())
         positionStore.save("item-1", """{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""")
         val result = repo.openPdf(item()) as PdfOpenResult.Success
         assertEquals("""{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""", result.lastPosition)
@@ -130,7 +144,7 @@ class PdfRepositoryTest {
 
     @Test
     fun `openPdf returns null lastPosition for fresh pdf`() = runTest {
-        cacheManager.cachePdf("item-1", pdfBytes.inputStream())
+        cacheStore.save("item-1", pdfBytes.inputStream())
         val result = repo.openPdf(item()) as PdfOpenResult.Success
         assertNull(result.lastPosition)
     }
@@ -153,5 +167,61 @@ class PdfRepositoryTest {
         server.enqueue(MockResponse().setResponseCode(404).setBody("{}"))
         val result = repo.openPdf(item(ino = null))
         assertTrue("Expected NetworkError but got: $result", result is PdfOpenResult.NetworkError)
+    }
+
+    // --- downloadPdf ---
+
+    @Test
+    fun `downloadPdf saves file to downloads store and returns Success`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
+        val result = repo.downloadPdf(item())
+        assertTrue(result is PdfDownloadResult.Success)
+        assertTrue(downloadsStore.get("item-1") != null)
+    }
+
+    @Test
+    fun `downloadPdf returns AlreadyDownloaded when file already in downloads store`() = runTest {
+        downloadsStore.save("item-1", pdfBytes.inputStream())
+        val result = repo.downloadPdf(item())
+        assertEquals(0, server.requestCount)
+        assertTrue(result is PdfDownloadResult.AlreadyDownloaded)
+    }
+
+    @Test
+    fun `downloadPdf does not write to cache store`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
+        repo.downloadPdf(item())
+        assertNull(cacheStore.get("item-1"))
+    }
+
+    @Test
+    fun `isDownloaded returns true after downloadPdf succeeds`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
+        repo.downloadPdf(item())
+        assertTrue(repo.isDownloaded("item-1"))
+    }
+
+    @Test
+    fun `isCached returns true after openPdf populates cache`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
+        repo.openPdf(item())
+        assertTrue(repo.isCached("item-1"))
+    }
+
+    @Test
+    fun `removeDownload deletes file from downloads store`() = runTest {
+        downloadsStore.save("item-1", pdfBytes.inputStream())
+        repo.removeDownload("item-1")
+        assertTrue(!repo.isDownloaded("item-1"))
+    }
+
+    @Test
+    fun `downloadPdf promotes cached file to downloads without network request`() = runTest {
+        cacheStore.save("item-1", pdfBytes.inputStream())
+        val result = repo.downloadPdf(item())
+        assertEquals(0, server.requestCount)
+        assertTrue(result is PdfDownloadResult.Success)
+        assertTrue(downloadsStore.get("item-1") != null)
+        assertNull(cacheStore.get("item-1"))
     }
 }

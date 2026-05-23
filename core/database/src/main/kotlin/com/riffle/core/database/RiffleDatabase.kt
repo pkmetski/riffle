@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 9,
+    version = 11,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -102,6 +102,52 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `lastOpenedAt` INTEGER")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `library_items_new` (" +
+                        "`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                        "`author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, " +
+                        "`isSupported` INTEGER NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, " +
+                        "`description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, " +
+                        "`genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `library_items_new` " +
+                        "(id, libraryId, title, author, coverUrl, readingProgress, isSupported, " +
+                        "ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt) " +
+                        "SELECT id, libraryId, title, author, coverUrl, readingProgress, isSupported, " +
+                        "ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt " +
+                        "FROM `library_items`"
+                )
+                db.execSQL("DROP TABLE `library_items`")
+                db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `library_items_new` (" +
+                        "`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                        "`author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, " +
+                        "`ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, " +
+                        "`description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, " +
+                        "`genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `library_items_new` " +
+                        "(id, libraryId, title, author, coverUrl, readingProgress, " +
+                        "ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt) " +
+                        "SELECT id, libraryId, title, author, coverUrl, readingProgress, " +
+                        "ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt " +
+                        "FROM `library_items`"
+                )
+                db.execSQL("DROP TABLE `library_items`")
+                db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
             }
         }
     }

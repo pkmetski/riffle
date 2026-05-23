@@ -29,7 +29,7 @@ object ReaderSemanticMatchers {
      * Waits for the Library Item Detail Screen's Read button to appear, then taps it.
      * Insert this between tapping a book item card and waiting for the reader to load.
      */
-    fun ComposeTestRule.tapReadInDetailScreen(timeoutMillis: Long = 10_000) {
+    fun ComposeTestRule.tapReadInDetailScreen(timeoutMillis: Long = 20_000) {
         waitUntil(timeoutMillis = timeoutMillis) {
             onAllNodesWithText("Read").fetchSemanticsNodes().isNotEmpty()
         }

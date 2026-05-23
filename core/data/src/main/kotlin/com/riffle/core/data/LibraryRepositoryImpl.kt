@@ -119,8 +119,6 @@ class LibraryRepositoryImpl @Inject constructor(
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
                             readingProgress = item.readingProgress,
-                            isDownloaded = false,
-                            isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
@@ -133,7 +131,7 @@ class LibraryRepositoryImpl @Inject constructor(
                     }
                 libraryItemDao.deleteByLibraryId(libraryId)
                 libraryItemDao.upsertAll(entities)
-                val isUnsupported = entities.isNotEmpty() && entities.none { it.isSupported }
+                val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                 libraryDao.setUnsupported(libraryId, isUnsupported)
                 LibraryRefreshResult.Success
             }
@@ -165,8 +163,6 @@ class LibraryRepositoryImpl @Inject constructor(
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
                             readingProgress = item.readingProgress,
-                            isDownloaded = false,
-                            isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
@@ -221,8 +217,6 @@ class LibraryRepositoryImpl @Inject constructor(
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
                             readingProgress = item.readingProgress,
-                            isDownloaded = false,
-                            isSupported = item.isSupported,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
@@ -260,8 +254,8 @@ class LibraryRepositoryImpl @Inject constructor(
         coverUrl = coverUrl,
         readingProgress = readingProgress,
         isCached = false,
-        isDownloaded = isDownloaded,
-        ebookFormat = EbookFormat.from(ebookFormat.takeIf { isSupported }),
+        isDownloaded = false,
+        ebookFormat = EbookFormat.from(ebookFormat),
         ebookFileIno = ebookFileIno,
         description = description,
         seriesName = seriesName,

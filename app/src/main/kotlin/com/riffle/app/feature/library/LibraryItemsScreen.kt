@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
@@ -74,22 +75,27 @@ fun LibraryItemsScreen(
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val filteredSeries by viewModel.filteredSeries.collectAsState()
-    val filteredCollections by viewModel.filteredCollections.collectAsState()
     val filteredUngroupedItems by viewModel.filteredUngroupedItems.collectAsState()
-    val inProgress by viewModel.inProgress.collectAsState()
-    val allBooks by viewModel.allBooks.collectAsState()
-    val finished by viewModel.finished.collectAsState()
-    val series by viewModel.series.collectAsState()
-    val collections by viewModel.collections.collectAsState()
+    val inProgress by viewModel.filteredInProgress.collectAsState()
+    val allBooks by viewModel.filteredAllBooks.collectAsState()
+    val finished by viewModel.filteredFinished.collectAsState()
+    val series by viewModel.filteredSeries.collectAsState()
+    val collections by viewModel.filteredCollections.collectAsState()
+    val isOffline by viewModel.isOffline.collectAsState()
 
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboardController?.hide() }
 
+    val focusManager = LocalFocusManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.onSearchQueryChange("")
+            if (event == Lifecycle.Event.ON_RESUME) {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                viewModel.onSearchQueryChange("")
+                viewModel.refresh()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -106,7 +112,7 @@ fun LibraryItemsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            if (viewModel.isOffline) {
+            if (isOffline) {
                 OfflineBanner()
             }
 
@@ -114,8 +120,8 @@ fun LibraryItemsScreen(
             if (queryActive) {
                 SearchResultsContent(
                     query = searchQuery,
-                    filteredSeries = filteredSeries,
-                    filteredCollections = filteredCollections,
+                    filteredSeries = series,
+                    filteredCollections = collections,
                     filteredItems = filteredUngroupedItems,
                     token = viewModel.authToken,
                     onSeriesSelected = onSeriesSelected,
