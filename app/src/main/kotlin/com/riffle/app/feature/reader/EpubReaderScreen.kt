@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -156,9 +157,6 @@ fun EpubReaderScreen(
                 is ReaderState.Ready -> {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
-                    val railSegments by viewModel.railSegments.collectAsState()
-                    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
-                    val cursorPosition by viewModel.railCursorPosition.collectAsState()
                     LaunchedEffect(tocVisible, showFormattingPanel) {
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
@@ -192,15 +190,14 @@ fun EpubReaderScreen(
                         )
                     }
                     if (formattingPrefs.showChapterMap) {
-                        RiffleTheme(darkTheme = formattingPrefs.theme == ReaderTheme.Dark) {
-                            ChapterNavigationRail(
-                                segments = railSegments,
-                                activeIndex = activeRailSegmentIndex,
-                                cursorPosition = cursorPosition,
-                                onSegmentClick = viewModel::navigateToSegment,
-                                modifier = Modifier.align(Alignment.BottomCenter),
-                            )
-                        }
+                        // Rail state (cursorPosition changes at scroll framerate) is isolated
+                        // inside EpubChapterRailOverlay so EpubNavigatorView is not in the
+                        // same recomposition scope and does not recompose on every scroll event.
+                        EpubChapterRailOverlay(
+                            viewModel = viewModel,
+                            darkTheme = formattingPrefs.theme == ReaderTheme.Dark,
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
                     }
                 }
                 is ReaderState.Error -> {
@@ -223,6 +220,28 @@ fun EpubReaderScreen(
                 onDismiss = { showFormattingPanel = false },
             )
         }
+    }
+}
+
+// Collects scroll-rate state in its own scope so that changes to cursorPosition only
+// recompose this composable and not sibling EpubNavigatorView.
+@Composable
+private fun BoxScope.EpubChapterRailOverlay(
+    viewModel: EpubReaderViewModel,
+    darkTheme: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val railSegments by viewModel.railSegments.collectAsState()
+    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
+    val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    RiffleTheme(darkTheme = darkTheme) {
+        ChapterNavigationRail(
+            segments = railSegments,
+            activeIndex = activeRailSegmentIndex,
+            cursorPosition = cursorPosition,
+            onSegmentClick = viewModel::navigateToSegment,
+            modifier = modifier,
+        )
     }
 }
 
