@@ -183,7 +183,6 @@ fun MainScreen(
                     navArgument("sectionType") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
-                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
                 val sectionType = LibrarySectionType.valueOf(
                     backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.IN_PROGRESS.name
                 )
