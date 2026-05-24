@@ -59,6 +59,20 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun setProgress(itemId: String, progress: Float) {
+        val cfi = positionStore.load(itemId) ?: ""
+        // Bump before credential check: marks the record dirty so the sync cycle pushes it
+        // even if we have no server right now (offline / no active server).
+        positionStore.updateLocalTimestamp(itemId, System.currentTimeMillis())
+        val (baseUrl, token) = resolveCredentials() ?: return
+        api.syncEbookProgress(
+            baseUrl, itemId,
+            NetworkEbookProgressPayload(cfi, progress),
+            token, insecureAllowed(),
+        )
+        // PATCH failure intentionally ignored — next sync cycle will push
+    }
+
     private suspend fun resolveCredentials(): Pair<String, String>? {
         val server = serverRepository.getActive() ?: return null
         val token = tokenStorage.getToken(server.id) ?: return null

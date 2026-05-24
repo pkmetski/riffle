@@ -18,6 +18,10 @@ import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.ProgressSyncCycleResult
+import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -137,6 +141,12 @@ class LibraryItemDetailViewModelTest {
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
+    private val noOpSessionRepository = object : ReadingSessionRepository {
+        override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+        override suspend fun setProgress(itemId: String, progress: Float) = Unit
+    }
+
     private fun makeVm(
         repo: LibraryRepository,
         itemId: String = "item-1",
@@ -149,6 +159,7 @@ class LibraryItemDetailViewModelTest {
         tokenStorage = noOpTokenStorage,
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
+        sessionRepository = noOpSessionRepository,
     )
 
     // --- existing uiState tests ---
