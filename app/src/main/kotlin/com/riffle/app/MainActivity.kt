@@ -46,42 +46,39 @@ class MainActivity : FragmentActivity() {
 
     private val consumedVolumeKeyCodes = mutableSetOf<Int>()
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val keyCode = event.keyCode
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode != KeyEvent.KEYCODE_VOLUME_DOWN && keyCode != KeyEvent.KEYCODE_VOLUME_UP) {
-            return super.dispatchKeyEvent(event)
+            return super.onKeyDown(keyCode, event)
         }
-        if (event.action == KeyEvent.ACTION_UP) {
-            if (consumedVolumeKeyCodes.remove(keyCode)) return true
-            return super.dispatchKeyEvent(event)
-        }
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            val isVolumeDown = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
-            val action = VolumeKeyEventHandler.handle(
-                isVolumeDown = isVolumeDown,
-                isReaderActive = readerStateHolder.isReaderActive,
-                volumeNavEnabled = volumeNavEnabled.value,
-                invertVolumeKeys = invertVolumeKeys.value,
-                isPanelOpen = readerStateHolder.isPanelOpen,
-            )
-            return when (action) {
-                VolumeKeyAction.NavigateForward -> {
-                    consumedVolumeKeyCodes.add(keyCode)
-                    volumeNavigationController.emit(VolumeNavEvent.Forward)
-                    true
-                }
-                VolumeKeyAction.NavigateBackward -> {
-                    consumedVolumeKeyCodes.add(keyCode)
-                    volumeNavigationController.emit(VolumeNavEvent.Backward)
-                    true
-                }
-                VolumeKeyAction.Swallow -> {
-                    consumedVolumeKeyCodes.add(keyCode)
-                    true
-                }
-                VolumeKeyAction.PassThrough -> super.dispatchKeyEvent(event)
+        val isVolumeDown = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+        val action = VolumeKeyEventHandler.handle(
+            isVolumeDown = isVolumeDown,
+            isReaderActive = readerStateHolder.isReaderActive,
+            volumeNavEnabled = volumeNavEnabled.value,
+            invertVolumeKeys = invertVolumeKeys.value,
+            isPanelOpen = readerStateHolder.isPanelOpen,
+        )
+        return when (action) {
+            VolumeKeyAction.NavigateForward -> {
+                consumedVolumeKeyCodes.add(keyCode)
+                volumeNavigationController.emit(VolumeNavEvent.Forward)
+                true
             }
+            VolumeKeyAction.NavigateBackward -> {
+                consumedVolumeKeyCodes.add(keyCode)
+                volumeNavigationController.emit(VolumeNavEvent.Backward)
+                true
+            }
+            VolumeKeyAction.Swallow -> {
+                consumedVolumeKeyCodes.add(keyCode)
+                true
+            }
+            VolumeKeyAction.PassThrough -> super.onKeyDown(keyCode, event)
         }
-        return super.dispatchKeyEvent(event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (consumedVolumeKeyCodes.remove(keyCode)) return true
+        return super.onKeyUp(keyCode, event)
     }
 }
