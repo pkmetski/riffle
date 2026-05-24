@@ -205,7 +205,7 @@ private fun LibraryItemDetailContent(
                     Text("Read")
                 }
                 ReadToggleButton(
-                    isRead = item.readingProgress >= 0.99f,
+                    isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
                     onMarkAsRead = onMarkAsRead,
                     onMarkAsUnread = onMarkAsUnread,
                 )

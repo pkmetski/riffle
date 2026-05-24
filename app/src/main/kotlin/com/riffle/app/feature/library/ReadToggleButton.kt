@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
+internal const val READ_PROGRESS_THRESHOLD = 0.99f
+
 @Composable
 fun ReadToggleButton(
     isRead: Boolean,
@@ -23,38 +25,22 @@ fun ReadToggleButton(
     onMarkAsUnread: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val size = 40.dp
-    if (isRead) {
-        Box(
-            modifier = modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .clickable(onClick = onMarkAsUnread),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Mark as unread",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(20.dp),
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .then(
+                if (isRead) Modifier.background(MaterialTheme.colorScheme.primaryContainer)
+                else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
             )
-        }
-    } else {
-        Box(
-            modifier = modifier
-                .size(size)
-                .clip(CircleShape)
-                .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                .clickable(onClick = onMarkAsRead),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Mark as read",
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(20.dp),
-            )
-        }
+            .clickable(onClick = if (isRead) onMarkAsUnread else onMarkAsRead),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = if (isRead) "Mark as unread" else "Mark as read",
+            tint = if (isRead) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }

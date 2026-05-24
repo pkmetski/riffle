@@ -210,6 +210,7 @@ class ProgressSyncCycleTest {
 
         repo.setProgress("item-1", 1.0f)
 
+        assertEquals(1, api.patchCallCount)
         assertNotNull(positionStore.updatedTimestamp)
         assertTrue(positionStore.updatedTimestamp!! > 0L)
     }
