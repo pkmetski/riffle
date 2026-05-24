@@ -13,6 +13,7 @@ import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,6 +42,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
+    private val sessionRepository: ReadingSessionRepository,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -76,6 +78,28 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     fun markOpened() {
         viewModelScope.launch { repository.markItemOpened(itemId) }
+    }
+
+    fun markAsRead() {
+        viewModelScope.launch {
+            repository.updateReadingProgress(itemId, 1.0f)
+            sessionRepository.setProgress(itemId, 1.0f)
+            val current = _uiState.value
+            if (current is LibraryItemDetailUiState.Ready) {
+                _uiState.value = current.copy(item = current.item.copy(readingProgress = 1.0f))
+            }
+        }
+    }
+
+    fun markAsUnread() {
+        viewModelScope.launch {
+            repository.updateReadingProgress(itemId, 0.0f)
+            sessionRepository.setProgress(itemId, 0.0f)
+            val current = _uiState.value
+            if (current is LibraryItemDetailUiState.Ready) {
+                _uiState.value = current.copy(item = current.item.copy(readingProgress = 0.0f))
+            }
+        }
     }
 
     fun startDownload() {
