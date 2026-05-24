@@ -60,6 +60,7 @@ fun MainScreen(
     val activeLibraryId = currentBackStack
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
+    val currentRoute = currentBackStack?.destination?.route
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
@@ -73,6 +74,7 @@ fun MainScreen(
 
     RiffleNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = !isReaderRoute(currentRoute),
         activeServer = activeServer,
         allServers = allServers,
         visibleLibraries = visibleLibraries,
@@ -276,3 +278,7 @@ fun MainScreen(
         }
     }
 }
+
+internal fun isReaderRoute(route: String?): Boolean =
+    route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
+        route?.startsWith(PDF_READER.substringBefore("{")) == true

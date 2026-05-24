@@ -35,6 +35,7 @@ import com.riffle.core.domain.Server
 @Composable
 fun RiffleNavigationDrawer(
     drawerState: DrawerState,
+    gesturesEnabled: Boolean = true,
     activeServer: Server?,
     allServers: List<Server>,
     visibleLibraries: List<Library>,
@@ -47,6 +48,7 @@ fun RiffleNavigationDrawer(
 ) {
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = gesturesEnabled,
         drawerContent = {
             ModalDrawerSheet {
                 DrawerHeader(
