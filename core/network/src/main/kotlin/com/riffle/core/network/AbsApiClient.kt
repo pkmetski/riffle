@@ -3,6 +3,7 @@ package com.riffle.core.network
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsMeResponse
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsProgressResponse
@@ -97,6 +98,32 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             })
         } catch (e: IOException) {
             NetworkLibrariesResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getUserProgress(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkUserProgressResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/me")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string() ?: return@withContext NetworkUserProgressResult.NetworkError(
+                IOException("Empty response body")
+            )
+            val parsed = json.decodeFromString<AbsMeResponse>(raw)
+            val progressMap = parsed.mediaProgress
+                .filter { it.libraryItemId.isNotEmpty() }
+                .associate { it.libraryItemId to (it.ebookProgress ?: it.progress) }
+            NetworkUserProgressResult.Success(progressMap)
+        } catch (e: IOException) {
+            NetworkUserProgressResult.NetworkError(e)
         }
     }
 

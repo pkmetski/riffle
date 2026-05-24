@@ -54,6 +54,9 @@ interface LibraryItemDao {
     @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE id = :itemId")
     suspend fun updateLastOpenedAt(itemId: String, timestamp: Long)
 
+    @Query("UPDATE library_items SET readingProgress = :progress WHERE id = :itemId")
+    suspend fun updateReadingProgress(itemId: String, progress: Float)
+
     @Query("SELECT id, lastOpenedAt FROM library_items WHERE libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
     suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow>
 

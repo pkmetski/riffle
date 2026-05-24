@@ -109,6 +109,7 @@ class SeriesIntegrationTest {
         override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
+        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
     }
 
     private class FakeCollectionDao : CollectionDao {

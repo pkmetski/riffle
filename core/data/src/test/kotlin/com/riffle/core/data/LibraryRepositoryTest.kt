@@ -134,6 +134,8 @@ class LibraryRepositoryTest {
                 ?.filter { it.readingProgress > 0f }
                 ?.map { ReadingProgressRow(it.id, it.readingProgress) }
                 ?: emptyList()
+
+        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
     }
 
     private class FakeSeriesDao : SeriesDao {

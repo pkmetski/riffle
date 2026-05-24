@@ -186,6 +186,7 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
+            libraryRepository.updateReadingProgress(itemId, locator.toPayload().ebookProgress)
         }
     }
 
@@ -207,8 +208,10 @@ class EpubReaderViewModel @Inject constructor(
         closeSyncDone = true
         val locator = lastLocator ?: return
         viewModelScope.launch {
+            val payload = locator.toPayload()
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
-            progressSyncController.sync(itemId, locator.toPayload())
+            libraryRepository.updateReadingProgress(itemId, payload.ebookProgress)
+            progressSyncController.sync(itemId, payload)
         }
     }
 

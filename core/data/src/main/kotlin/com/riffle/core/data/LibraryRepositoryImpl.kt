@@ -25,6 +25,7 @@ import com.riffle.core.network.NetworkCollectionResult
 import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
+import com.riffle.core.network.NetworkUserProgressResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -86,6 +87,10 @@ class LibraryRepositoryImpl @Inject constructor(
         libraryItemDao.updateLastOpenedAt(itemId, System.currentTimeMillis())
     }
 
+    override suspend fun updateReadingProgress(itemId: String, progress: Float) {
+        libraryItemDao.updateReadingProgress(itemId, progress)
+    }
+
     override suspend fun refreshLibraries(): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
@@ -105,10 +110,14 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        val serverProgressMap = when (val r = api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed)) {
+            is NetworkUserProgressResult.Success -> r.progressByItemId
+            is NetworkUserProgressResult.NetworkError -> emptyMap()
+        }
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkLibraryItemsResult.Success -> {
                 val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
-                val readingProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
+                val localProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val entities = result.items
                     .sortedByDescending { it.isSupported }
                     .distinctBy { it.title.trim().lowercase() }
@@ -119,7 +128,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             title = item.title,
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = item.readingProgress ?: readingProgressMap[item.id] ?: 0f,
+                            readingProgress = serverProgressMap[item.id] ?: item.readingProgress ?: localProgressMap[item.id] ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,

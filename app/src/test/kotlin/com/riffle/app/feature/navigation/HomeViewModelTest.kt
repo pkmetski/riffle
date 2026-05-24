@@ -63,6 +63,7 @@ class HomeViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun markItemOpened(itemId: String) {}
+        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries(): LibraryRefreshResult { onRefresh(); return LibraryRefreshResult.Success }
         override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
         override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success

@@ -147,8 +147,10 @@ class PdfReaderViewModel @Inject constructor(
         closeSyncDone = true
         val locator = lastLocator ?: return
         viewModelScope.launch {
+            val payload = locator.toPayload()
             pdfRepository.saveReadingPosition(itemId, locator.toJSON().toString())
-            progressSyncController.sync(itemId, locator.toPayload())
+            libraryRepository.updateReadingProgress(itemId, payload.ebookProgress)
+            progressSyncController.sync(itemId, payload)
         }
     }
 
@@ -177,6 +179,7 @@ class PdfReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             pdfRepository.saveReadingPosition(itemId, locator.toJSON().toString())
+            libraryRepository.updateReadingProgress(itemId, locator.toPayload().ebookProgress)
         }
     }
 
