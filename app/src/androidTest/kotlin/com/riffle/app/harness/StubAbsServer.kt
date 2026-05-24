@@ -71,6 +71,7 @@ class StubAbsServer {
             request.path == "/api/items/$TEST_STANDALONE_ITEM_ID/ebook/$TEST_STANDALONE_FILE_INO" -> epubFileResponse()
             request.path == "/api/items/$TEST_PDF_ITEM_ID" -> pdfItemResponse()
             request.path == "/api/items/$TEST_PDF_ITEM_ID/ebook/$TEST_PDF_FILE_INO" -> pdfFileResponse()
+            request.path == "/api/me" && request.method == "GET" -> meResponse()
             request.path?.matches(Regex("/api/me/progress/[^/]+")) == true && request.method == "GET" -> progressGetResponse()
             request.path?.matches(Regex("/api/me/progress/[^/]+")) == true && request.method == "PATCH" -> progressSyncResponse(request)
             else -> MockResponse().setResponseCode(404)
@@ -137,6 +138,11 @@ class StubAbsServer {
     private fun collectionsResponse() = json(
         200,
         """{"results":[{"id":"$TEST_COLLECTION_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_COLLECTION_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
+    )
+
+    private fun meResponse() = json(
+        200,
+        """{"mediaProgress":[]}"""
     )
 
     private fun progressGetResponse() = json(

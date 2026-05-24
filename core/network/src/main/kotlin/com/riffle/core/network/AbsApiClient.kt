@@ -122,7 +122,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 .filter { it.libraryItemId.isNotEmpty() }
                 .associate { it.libraryItemId to (it.ebookProgress ?: it.progress) }
             NetworkUserProgressResult.Success(progressMap)
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             NetworkUserProgressResult.NetworkError(e)
         }
     }

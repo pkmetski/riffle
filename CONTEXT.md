@@ -95,3 +95,18 @@ A reader state in which the app's TopAppBar and Android's system bars (status ba
 
 ### Supported Formats
 EPUB (reflowable) and PDF (fixed-layout). Rendered via the Readium Kotlin SDK (EPUB navigator + Pdfium adapter).
+
+### Library Tab Bar
+The bottom navigation surface within a Library screen. Contains four icon-only tabs — Home, Series, Collections, and All Books — scoped to the currently viewed Library. Replaces the Plex-style single scrollable feed as the primary way to browse a Library's content. The Navigation Drawer remains the navigation surface for switching Libraries, accessing Downloads, and Settings.
+
+### Home Tab
+The first tab in the Library Tab Bar. Displays two sections: In Progress (books the user has started but not finished) and Completed (books the user has finished). Each section shows a horizontal cover grid with a "See All" link to the full section list.
+
+### Series Tab
+The second tab in the Library Tab Bar. Displays all Series in the current Library as a full cover grid.
+
+### Collections Tab
+The third tab in the Library Tab Bar. Displays all Collections in the current Library as a full cover grid.
+
+### All Books Tab
+The fourth tab in the Library Tab Bar. Displays every Library Item in the current Library as a full cover grid.
