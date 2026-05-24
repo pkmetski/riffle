@@ -111,6 +111,8 @@ fun LibraryItemDetailScreen(
                     token = viewModel.authToken,
                     downloadState = downloadState,
                     onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                    onMarkAsRead = { viewModel.markAsRead() },
+                    onMarkAsUnread = { viewModel.markAsUnread() },
                     onDownload = { viewModel.startDownload() },
                     onRemove = {
                         viewModel.removeDownload()
@@ -162,6 +164,8 @@ private fun LibraryItemDetailContent(
     token: String,
     downloadState: DownloadState,
     onReadItem: (LibraryItem) -> Unit,
+    onMarkAsRead: () -> Unit,
+    onMarkAsUnread: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -200,6 +204,11 @@ private fun LibraryItemDetailContent(
                 ) {
                     Text("Read")
                 }
+                ReadToggleButton(
+                    isRead = item.readingProgress >= 0.99f,
+                    onMarkAsRead = onMarkAsRead,
+                    onMarkAsUnread = onMarkAsUnread,
+                )
                 DownloadButton(
                     state = downloadState,
                     onDownload = onDownload,
