@@ -1,0 +1,61 @@
+package com.riffle.app.feature.reader
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class VolumeKeyEventHandlerTest {
+
+    // Helper so tests read naturally: handle(volumeDown, readerActive, navEnabled, invert, panelOpen)
+    private fun handle(
+        isVolumeDown: Boolean,
+        isReaderActive: Boolean = true,
+        volumeNavEnabled: Boolean = true,
+        invertVolumeKeys: Boolean = false,
+        isPanelOpen: Boolean = false,
+    ) = VolumeKeyEventHandler.handle(
+        isVolumeDown = isVolumeDown,
+        isReaderActive = isReaderActive,
+        volumeNavEnabled = volumeNavEnabled,
+        invertVolumeKeys = invertVolumeKeys,
+        isPanelOpen = isPanelOpen,
+    )
+
+    @Test
+    fun `returns PassThrough when reader is not the active screen`() {
+        assertEquals(VolumeKeyAction.PassThrough, handle(isVolumeDown = true, isReaderActive = false))
+        assertEquals(VolumeKeyAction.PassThrough, handle(isVolumeDown = false, isReaderActive = false))
+    }
+
+    @Test
+    fun `returns PassThrough when volume key navigation is disabled`() {
+        assertEquals(VolumeKeyAction.PassThrough, handle(isVolumeDown = true, volumeNavEnabled = false))
+        assertEquals(VolumeKeyAction.PassThrough, handle(isVolumeDown = false, volumeNavEnabled = false))
+    }
+
+    @Test
+    fun `returns Swallow when a panel is open`() {
+        assertEquals(VolumeKeyAction.Swallow, handle(isVolumeDown = true, isPanelOpen = true))
+        assertEquals(VolumeKeyAction.Swallow, handle(isVolumeDown = false, isPanelOpen = true))
+    }
+
+    @Test
+    fun `volume-down navigates forward when not inverted`() {
+        assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = true, invertVolumeKeys = false))
+    }
+
+    @Test
+    fun `volume-up navigates backward when not inverted`() {
+        assertEquals(VolumeKeyAction.NavigateBackward, handle(isVolumeDown = false, invertVolumeKeys = false))
+    }
+
+    @Test
+    fun `volume-down navigates backward when inverted`() {
+        assertEquals(VolumeKeyAction.NavigateBackward, handle(isVolumeDown = true, invertVolumeKeys = true))
+    }
+
+    @Test
+    fun `volume-up navigates forward when inverted`() {
+        assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = false, invertVolumeKeys = true))
+    }
+
+}

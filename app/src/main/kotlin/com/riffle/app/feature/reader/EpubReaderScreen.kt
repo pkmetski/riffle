@@ -46,6 +46,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.ReaderOrientation
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
@@ -156,12 +157,16 @@ fun EpubReaderScreen(
                     val railSegments by viewModel.railSegments.collectAsState()
                     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
                     val cursorPosition by viewModel.railCursorPosition.collectAsState()
+                    LaunchedEffect(tocVisible, showFormattingPanel) {
+                        viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
+                    }
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = viewModel::onPositionChanged,
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
+                        volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         modifier = Modifier
                             .fillMaxSize()
@@ -229,12 +234,15 @@ private fun EpubNavigatorView(
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
+    volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+
+    val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
     // without needing to be re-created when onTap changes.
@@ -257,6 +265,24 @@ private fun EpubNavigatorView(
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
             fragmentRef.value?.go(locator)
+        }
+    }
+
+    LaunchedEffect(volumeNavEvents) {
+        volumeNavEvents.collect { event ->
+            val fragment = fragmentRef.value ?: return@collect
+            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical) {
+                // Scroll mode: goForward() jumps chapters; scroll the viewport by 80% instead.
+                when (event) {
+                    VolumeNavEvent.Forward -> fragment.evaluateJavascript("window.scrollBy(0, window.innerHeight * 0.8)")
+                    VolumeNavEvent.Backward -> fragment.evaluateJavascript("window.scrollBy(0, -window.innerHeight * 0.8)")
+                }
+            } else {
+                when (event) {
+                    VolumeNavEvent.Forward -> fragment.goForward(animated = false)
+                    VolumeNavEvent.Backward -> fragment.goBackward(animated = false)
+                }
+            }
         }
     }
 

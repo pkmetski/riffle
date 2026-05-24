@@ -9,6 +9,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Server
+import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +33,7 @@ class SettingsViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
+    private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
 ) : ViewModel() {
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
@@ -42,6 +44,12 @@ class SettingsViewModel @Inject constructor(
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    val volumeKeyNavigationEnabled: StateFlow<Boolean> = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val servers: StateFlow<List<Server>> = serverRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -79,6 +87,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setKeepScreenOn(value: Boolean) {
         viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
+    }
+
+    fun setVolumeKeyNavigationEnabled(value: Boolean) {
+        viewModelScope.launch { volumeKeyPreferencesStore.setVolumeKeyNavigationEnabled(value) }
+    }
+
+    fun setInvertVolumeKeys(value: Boolean) {
+        viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
     }
 
     fun removeServer(serverId: String) {

@@ -47,6 +47,8 @@ class PdfReaderViewModel @Inject constructor(
     private val publicationOpener: PublicationOpener,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val readingSessionRepository: ReadingSessionRepository,
+    private val volumeNavigationController: VolumeNavigationController,
+    private val readerStateHolder: ReaderStateHolder,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -56,6 +58,8 @@ class PdfReaderViewModel @Inject constructor(
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
@@ -126,6 +130,7 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     fun onReaderResumed() {
+        readerStateHolder.isReaderActive = true
         closeSyncDone = false
         initialLocatorSeen = false
         if (_state.value is ReaderState.Ready) {
@@ -135,6 +140,8 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     fun onReaderClosed() {
+        readerStateHolder.isReaderActive = false
+        readerStateHolder.isPanelOpen = false
         syncJob?.cancel()
         if (closeSyncDone) return
         closeSyncDone = true

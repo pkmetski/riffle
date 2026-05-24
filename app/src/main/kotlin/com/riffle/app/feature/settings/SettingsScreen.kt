@@ -56,6 +56,8 @@ fun SettingsScreen(
     val report = viewModel.lastCrashReport
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
+    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val servers by viewModel.servers.collectAsState()
     val libraryItems by viewModel.libraryUiItems.collectAsState()
     val clipboard = LocalClipboard.current
@@ -174,6 +176,30 @@ fun SettingsScreen(
                     Switch(
                         checked = keepScreenOn,
                         onCheckedChange = { viewModel.setKeepScreenOn(it) },
+                    )
+                },
+            )
+            HorizontalDivider()
+            ListItem(
+                modifier = Modifier.clickable { viewModel.setVolumeKeyNavigationEnabled(!volumeKeyNavigationEnabled) },
+                headlineContent = { Text("Volume key navigation") },
+                supportingContent = { Text("Use volume buttons to turn pages while reading") },
+                trailingContent = {
+                    Switch(
+                        checked = volumeKeyNavigationEnabled,
+                        onCheckedChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
+                    )
+                },
+            )
+            HorizontalDivider()
+            ListItem(
+                modifier = Modifier.clickable { viewModel.setInvertVolumeKeys(!invertVolumeKeys) },
+                headlineContent = { Text("Invert volume keys") },
+                supportingContent = { Text("Volume down goes to previous page") },
+                trailingContent = {
+                    Switch(
+                        checked = invertVolumeKeys,
+                        onCheckedChange = { viewModel.setInvertVolumeKeys(it) },
                     )
                 },
             )

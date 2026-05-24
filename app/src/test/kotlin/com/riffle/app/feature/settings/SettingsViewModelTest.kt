@@ -15,6 +15,7 @@ import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,6 +56,15 @@ class SettingsViewModelTest {
     private val noOpWakeLockStore = object : WakeLockPreferencesStore {
         override val keepScreenOn = flowOf(true)
         override suspend fun setKeepScreenOn(value: Boolean) {}
+    }
+
+    private val volumeNavEnabledFlow = MutableStateFlow(true)
+    private val invertVolumeKeysFlow = MutableStateFlow(false)
+    private val fakeVolumeKeyStore = object : VolumeKeyPreferencesStore {
+        override val volumeKeyNavigationEnabled: Flow<Boolean> = volumeNavEnabledFlow
+        override val invertVolumeKeys: Flow<Boolean> = invertVolumeKeysFlow
+        override suspend fun setVolumeKeyNavigationEnabled(value: Boolean) { volumeNavEnabledFlow.value = value }
+        override suspend fun setInvertVolumeKeys(value: Boolean) { invertVolumeKeysFlow.value = value }
     }
 
     private fun server(id: String, active: Boolean = false) = Server(
@@ -124,6 +134,7 @@ class SettingsViewModelTest {
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
+        volumeKeyPreferencesStore = fakeVolumeKeyStore,
     )
 
     // --- existing crash report tests (unchanged) ---
@@ -246,5 +257,51 @@ class SettingsViewModelTest {
 
         val items = vm.libraryUiItems.value
         assertTrue(items.all { it.switchEnabled })
+    }
+
+    // --- volume key preferences ---
+
+    @Test
+    fun `volumeKeyNavigationEnabled StateFlow reflects store default value`() = runTest {
+        volumeNavEnabledFlow.value = true
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.volumeKeyNavigationEnabled.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.volumeKeyNavigationEnabled.value)
+    }
+
+    @Test
+    fun `setVolumeKeyNavigationEnabled false updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.volumeKeyNavigationEnabled.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setVolumeKeyNavigationEnabled(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(false, volumeNavEnabledFlow.first())
+    }
+
+    @Test
+    fun `invertVolumeKeys StateFlow reflects store default value`() = runTest {
+        invertVolumeKeysFlow.value = false
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.invertVolumeKeys.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.invertVolumeKeys.value)
+    }
+
+    @Test
+    fun `setInvertVolumeKeys true updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.invertVolumeKeys.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setInvertVolumeKeys(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, invertVolumeKeysFlow.first())
     }
 }
