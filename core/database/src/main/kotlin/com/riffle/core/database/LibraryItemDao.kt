@@ -40,12 +40,12 @@ interface LibraryItemDao {
         SELECT * FROM library_items
         WHERE libraryId = :libraryId
           AND readingProgress > 0.0
-          AND readingProgress < 1.0
+          AND readingProgress < 0.99
         ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
     """)
     fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress = 1.0 ORDER BY title ASC")
+    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY title ASC")
     fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY title ASC")
@@ -54,8 +54,15 @@ interface LibraryItemDao {
     @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE id = :itemId")
     suspend fun updateLastOpenedAt(itemId: String, timestamp: Long)
 
+    @Query("UPDATE library_items SET readingProgress = :progress WHERE id = :itemId")
+    suspend fun updateReadingProgress(itemId: String, progress: Float)
+
     @Query("SELECT id, lastOpenedAt FROM library_items WHERE libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
     suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow>
+
+    @Query("SELECT id, readingProgress FROM library_items WHERE libraryId = :libraryId AND readingProgress > 0.0")
+    suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow>
 }
 
 data class LastOpenedAtRow(val id: String, val lastOpenedAt: Long)
+data class ReadingProgressRow(val id: String, val readingProgress: Float)

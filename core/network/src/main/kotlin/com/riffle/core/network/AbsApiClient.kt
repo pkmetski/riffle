@@ -3,6 +3,7 @@ package com.riffle.core.network
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsMeResponse
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsProgressResponse
@@ -100,6 +101,32 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun getUserProgress(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkUserProgressResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/me")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string() ?: return@withContext NetworkUserProgressResult.NetworkError(
+                IOException("Empty response body")
+            )
+            val parsed = json.decodeFromString<AbsMeResponse>(raw)
+            val progressMap = parsed.mediaProgress
+                .filter { it.libraryItemId.isNotEmpty() }
+                .associate { it.libraryItemId to (it.ebookProgress ?: it.progress) }
+            NetworkUserProgressResult.Success(progressMap)
+        } catch (e: Exception) {
+            NetworkUserProgressResult.NetworkError(e)
+        }
+    }
+
     override suspend fun getLibraryItems(
         baseUrl: String,
         libraryId: String,
@@ -121,7 +148,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             NetworkLibraryItemsResult.Success(parsed.results.map { dto ->
                 val progress = dto.userMediaProgress?.ebookProgress
                     ?: dto.userMediaProgress?.progress
-                    ?: 0f
                 NetworkLibraryItem(
                     id = dto.id,
                     libraryId = dto.libraryId,
@@ -168,7 +194,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     items = dto.books.map { book ->
                         val progress = book.userMediaProgress?.ebookProgress
                             ?: book.userMediaProgress?.progress
-                            ?: 0f
                         NetworkSeriesItem(
                             id = book.id,
                             libraryId = book.libraryId,
@@ -218,7 +243,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     items = dto.books.map { book ->
                         val progress = book.userMediaProgress?.ebookProgress
                             ?: book.userMediaProgress?.progress
-                            ?: 0f
                         NetworkLibraryItem(
                             id = book.id,
                             libraryId = book.libraryId,

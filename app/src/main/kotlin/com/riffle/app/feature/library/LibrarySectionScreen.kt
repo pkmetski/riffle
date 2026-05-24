@@ -22,25 +22,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.Series
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibrarySectionScreen(
     sectionType: LibrarySectionType,
     onItemSelected: (LibraryItem) -> Unit,
-    onSeriesSelected: (Series) -> Unit,
-    onCollectionSelected: (Collection) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val inProgress by viewModel.filteredInProgress.collectAsState()
-    val allBooks by viewModel.filteredAllBooks.collectAsState()
     val finished by viewModel.filteredFinished.collectAsState()
-    val series by viewModel.filteredSeries.collectAsState()
-    val collections by viewModel.filteredCollections.collectAsState()
 
     Scaffold(
         topBar = {
@@ -61,27 +54,10 @@ fun LibrarySectionScreen(
                 onItemSelected = onItemSelected,
                 contentPadding = padding,
             )
-            LibrarySectionType.ALL_BOOKS -> BookGrid(
-                items = allBooks,
-                token = viewModel.authToken,
-                onItemSelected = onItemSelected,
-                contentPadding = padding,
-            )
             LibrarySectionType.FINISHED -> BookGrid(
                 items = finished,
                 token = viewModel.authToken,
                 onItemSelected = onItemSelected,
-                contentPadding = padding,
-            )
-            LibrarySectionType.SERIES -> SeriesGrid(
-                items = series,
-                token = viewModel.authToken,
-                onSeriesSelected = onSeriesSelected,
-                contentPadding = padding,
-            )
-            LibrarySectionType.COLLECTIONS -> CollectionsGrid(
-                items = collections,
-                onCollectionSelected = onCollectionSelected,
                 contentPadding = padding,
             )
         }
@@ -117,73 +93,6 @@ private fun BookGrid(
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
                 BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun SeriesGrid(
-    items: List<Series>,
-    token: String,
-    onSeriesSelected: (Series) -> Unit,
-    contentPadding: PaddingValues,
-) {
-    if (items.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize().padding(contentPadding),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("No items")
-        }
-        return
-    }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(
-            start = 12.dp,
-            end = 12.dp,
-            top = contentPadding.calculateTopPadding() + 8.dp,
-            bottom = contentPadding.calculateBottomPadding() + 16.dp,
-        ),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(items, key = { it.id }) { s ->
-            Box(modifier = Modifier.padding(4.dp)) {
-                SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun CollectionsGrid(
-    items: List<Collection>,
-    onCollectionSelected: (Collection) -> Unit,
-    contentPadding: PaddingValues,
-) {
-    if (items.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize().padding(contentPadding),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("No items")
-        }
-        return
-    }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(
-            start = 12.dp,
-            end = 12.dp,
-            top = contentPadding.calculateTopPadding() + 8.dp,
-            bottom = contentPadding.calculateBottomPadding() + 16.dp,
-        ),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(items, key = { it.id }) { col ->
-            Box(modifier = Modifier.padding(4.dp)) {
-                CollectionCoverTile(collection = col, onClick = { onCollectionSelected(col) })
             }
         }
     }
