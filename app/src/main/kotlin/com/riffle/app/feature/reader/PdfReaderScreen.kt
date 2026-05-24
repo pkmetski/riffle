@@ -119,6 +119,7 @@ fun PdfReaderScreen(
                         state = s,
                         onPageChanged = viewModel::onPageChanged,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
+                        volumeNavEvents = viewModel.volumeNavEvents,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -149,6 +150,7 @@ private fun PdfNavigatorView(
     state: ReaderState.Ready,
     onPageChanged: (Locator) -> Unit,
     serverLocatorEvents: Flow<Locator>,
+    volumeNavEvents: Flow<VolumeNavEvent>,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -158,6 +160,15 @@ private fun PdfNavigatorView(
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
             fragmentRef.value?.go(locator)
+        }
+    }
+
+    LaunchedEffect(volumeNavEvents) {
+        volumeNavEvents.collect { event ->
+            when (event) {
+                VolumeNavEvent.Forward -> fragmentRef.value?.goForward(animated = false)
+                VolumeNavEvent.Backward -> fragmentRef.value?.goBackward(animated = false)
+            }
         }
     }
 
