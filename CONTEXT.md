@@ -87,6 +87,9 @@ A thin UI element fixed at the bottom of the reader screen. Visualises the curre
 ### Screen Wake Lock
 A global user preference (default: on) that prevents the device screen from sleeping while a book is open. Applies to both EPUB and PDF readers. Configured once for all books — not a per-book override.
 
+### Volume Key Navigation
+A global user preference (default: on) that enables page turns via the device's hardware volume buttons while reading. Applies to both EPUB and PDF readers. Volume Down advances to the next page; Volume Up goes to the previous page. When a panel (TOC or Formatting) is open, volume key presses are swallowed — no navigation occurs and the system volume UI is suppressed. Includes a secondary preference, **Invert Volume Keys** (default: off), which swaps the direction mapping so Volume Down goes to the previous page and Volume Up to the next.
+
 ### Immersive Mode
 A reader state in which the app's TopAppBar and Android's system bars (status bar + navigation bar) are both hidden, giving the reading content the full screen. Toggled by tapping the reading content area. Chrome and system bars reappear together — either via another tap or by an edge-swipe that temporarily reveals the system bars. Not persisted across sessions; the reader always opens with chrome visible.
 

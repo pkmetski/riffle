@@ -67,6 +67,8 @@ class EpubReaderViewModel @Inject constructor(
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
+    private val volumeNavigationController: VolumeNavigationController,
+    private val readerStateHolder: ReaderStateHolder,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -97,6 +99,8 @@ class EpubReaderViewModel @Inject constructor(
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
     // Optimistic local state: updates immediately so the navigator receives changes without
     // waiting for the Room write to complete.
@@ -186,6 +190,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onReaderResumed() {
+        readerStateHolder.isReaderActive = true
         closeSyncDone = false
         initialLocatorSeen = false
         if (_state.value is ReaderState.Ready) {
@@ -195,6 +200,8 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onReaderClosed() {
+        readerStateHolder.isReaderActive = false
+        readerStateHolder.isPanelOpen = false
         syncJob?.cancel()
         if (closeSyncDone) return
         closeSyncDone = true
@@ -203,6 +210,10 @@ class EpubReaderViewModel @Inject constructor(
             epubRepository.saveReadingPosition(itemId, locator.toJSON().toString())
             progressSyncController.sync(itemId, locator.toPayload())
         }
+    }
+
+    fun onPanelStateChanged(isOpen: Boolean) {
+        readerStateHolder.isPanelOpen = isOpen
     }
 
     private fun Locator.toPayload() = SessionPayload(

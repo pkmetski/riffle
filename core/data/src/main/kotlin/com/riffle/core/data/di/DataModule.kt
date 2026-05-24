@@ -17,6 +17,7 @@ import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
+import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
@@ -32,6 +33,7 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
@@ -63,6 +65,10 @@ annotation class LibraryVisibilityPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class WakeLockPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class VolumeKeyPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -135,6 +141,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindWakeLockPreferencesStore(impl: WakeLockPreferencesStoreImpl): WakeLockPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindVolumeKeyPreferencesStore(impl: VolumeKeyPreferencesStoreImpl): VolumeKeyPreferencesStore
 
     @Binds
     @Singleton
@@ -231,5 +241,12 @@ abstract class DataModule {
         fun provideWakeLockPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.wakeLockPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @VolumeKeyPreferencesDataStore
+        fun provideVolumeKeyPreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.volumeKeyPreferencesDataStore
     }
 }
