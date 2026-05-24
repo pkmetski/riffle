@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -128,7 +129,11 @@ fun LibraryItemsScreen(
                 onOpenDrawer = onOpenDrawer,
             )
         },
-        bottomBar = { LibraryTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it }) },
+        bottomBar = {
+            if (searchQuery.isEmpty()) {
+                LibraryTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
+            }
+        },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             if (isOffline) {
@@ -165,11 +170,12 @@ fun LibraryItemsScreen(
                         items = collections,
                         onCollectionSelected = onCollectionSelected,
                     )
-                    else -> AllBooksTabContent(
+                    3 -> AllBooksTabContent(
                         items = allBooks,
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
                     )
+                    else -> {}
                 }
             }
         }
@@ -197,7 +203,7 @@ private fun SearchResultsContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
         if (filteredSeries.isNotEmpty()) {
             item { SectionHeader("Series") }
@@ -755,10 +761,10 @@ private fun HomeTabContent(
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader("In Progress") }
+            item(key = "header_in_progress") { SectionHeader(LibrarySectionType.IN_PROGRESS.displayName) }
             item(key = "grid_in_progress") {
                 BookSectionGrid(
                     items = inProgress,
@@ -771,7 +777,7 @@ private fun HomeTabContent(
             }
         }
         if (finished.isNotEmpty()) {
-            item(key = "header_completed") { SectionHeader("Completed") }
+            item(key = "header_completed") { SectionHeader(LibrarySectionType.FINISHED.displayName) }
             item(key = "grid_completed") {
                 BookSectionGrid(
                     items = finished,
@@ -800,7 +806,7 @@ private fun SeriesTabContent(
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier.fillMaxSize(),
@@ -829,7 +835,7 @@ private fun CollectionsTabContent(
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier.fillMaxSize(),
@@ -859,7 +865,7 @@ private fun AllBooksTabContent(
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier.fillMaxSize(),
