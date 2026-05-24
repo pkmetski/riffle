@@ -7,7 +7,7 @@ data class NetworkLibraryItem(
     val libraryId: String,
     val title: String,
     val author: String,
-    val readingProgress: Float,
+    val readingProgress: Float?,
     val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
     val description: String? = null,

@@ -21,6 +21,7 @@ interface LibraryRepository {
     fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>>
     suspend fun getItem(itemId: String): LibraryItem?
     suspend fun markItemOpened(itemId: String)
+    suspend fun updateReadingProgress(itemId: String, progress: Float)
     suspend fun refreshLibraries(): LibraryRefreshResult
     suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult
     suspend fun refreshSeries(libraryId: String): LibraryRefreshResult

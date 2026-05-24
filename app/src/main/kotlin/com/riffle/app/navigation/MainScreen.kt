@@ -183,23 +183,14 @@ fun MainScreen(
                     navArgument("sectionType") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
-                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
                 val sectionType = LibrarySectionType.valueOf(
-                    backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.ALL_BOOKS.name
+                    backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.IN_PROGRESS.name
                 )
                 LibrarySectionScreen(
                     sectionType = sectionType,
                     onItemSelected = { item ->
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
-                    },
-                    onSeriesSelected = { series ->
-                        val encodedName = URLEncoder.encode(series.name, "UTF-8")
-                        navController.navigate("series_detail/$libraryId/${series.id}/$encodedName")
-                    },
-                    onCollectionSelected = { collection ->
-                        val encodedName = URLEncoder.encode(collection.name, "UTF-8")
-                        navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
                     },
                     onNavigateBack = { navController.popBackStack() },
                 )

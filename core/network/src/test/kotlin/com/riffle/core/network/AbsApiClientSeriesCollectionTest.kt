@@ -71,10 +71,10 @@ class AbsApiClientSeriesCollectionTest {
         val items = (result as NetworkSeriesResult.Success).series[0].items
         assertEquals(2, items.size)
         assertEquals("2", items[0].sequence)
-        assertEquals(0.75f, items[0].readingProgress, 0.001f)
+        assertEquals(0.75f, items[0].readingProgress!!, 0.001f)
         assertEquals(EbookFormat.Epub, items[0].ebookFormat)
         assertNull(items[1].sequence)
-        assertEquals(0f, items[1].readingProgress, 0.001f)
+        assertNull(items[1].readingProgress)
         assertEquals(EbookFormat.Unsupported, items[1].ebookFormat)
     }
 

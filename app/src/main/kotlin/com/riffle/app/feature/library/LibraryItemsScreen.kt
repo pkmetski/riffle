@@ -16,12 +16,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
@@ -30,6 +39,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +49,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -86,6 +100,8 @@ fun LibraryItemsScreen(
     val collections by viewModel.filteredCollections.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
 
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboardController?.hide() }
 
@@ -112,7 +128,12 @@ fun LibraryItemsScreen(
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onOpenDrawer = onOpenDrawer,
             )
-        }
+        },
+        bottomBar = {
+            if (searchQuery.isEmpty()) {
+                LibraryTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
+            }
+        },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             if (isOffline) {
@@ -132,110 +153,30 @@ fun LibraryItemsScreen(
                     onItemSelected = onItemSelected,
                 )
             } else {
-                val allSectionsEmpty = inProgress.isEmpty() && series.isEmpty() &&
-                        collections.isEmpty() && allBooks.isEmpty() && finished.isEmpty()
-                if (allSectionsEmpty) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No items in this library")
-                    }
-                } else {
-                    SectionedLibraryContent(
+                when (selectedTab) {
+                    0 -> HomeTabContent(
                         inProgress = inProgress,
-                        series = series,
-                        collections = collections,
-                        allBooks = allBooks,
                         finished = finished,
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
-                        onSeriesSelected = onSeriesSelected,
-                        onCollectionSelected = onCollectionSelected,
                         onSectionSeeMore = onSectionSeeMore,
                     )
+                    1 -> SeriesTabContent(
+                        items = series,
+                        token = viewModel.authToken,
+                        onSeriesSelected = onSeriesSelected,
+                    )
+                    2 -> CollectionsTabContent(
+                        items = collections,
+                        onCollectionSelected = onCollectionSelected,
+                    )
+                    3 -> AllBooksTabContent(
+                        items = allBooks,
+                        token = viewModel.authToken,
+                        onItemSelected = onItemSelected,
+                    )
+                    else -> {}
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionedLibraryContent(
-    inProgress: List<LibraryItem>,
-    series: List<Series>,
-    collections: List<Collection>,
-    allBooks: List<LibraryItem>,
-    finished: List<LibraryItem>,
-    token: String,
-    onItemSelected: (LibraryItem) -> Unit,
-    onSeriesSelected: (Series) -> Unit,
-    onCollectionSelected: (Collection) -> Unit,
-    onSectionSeeMore: (LibrarySectionType) -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp),
-    ) {
-        if (inProgress.isNotEmpty()) {
-            item(key = "header_in_progress") { SectionHeader(LibrarySectionType.IN_PROGRESS.displayName) }
-            item(key = "grid_in_progress") {
-                BookSectionGrid(
-                    items = inProgress,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT) {
-                        { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
-                    } else null,
-                )
-            }
-        }
-        if (series.isNotEmpty()) {
-            item(key = "header_series") { SectionHeader(LibrarySectionType.SERIES.displayName) }
-            item(key = "grid_series") {
-                SeriesSectionGrid(
-                    items = series,
-                    token = token,
-                    onSeriesSelected = onSeriesSelected,
-                    onSeeMore = if (series.size > SECTION_PREVIEW_LIMIT) {
-                        { onSectionSeeMore(LibrarySectionType.SERIES) }
-                    } else null,
-                )
-            }
-        }
-        if (collections.isNotEmpty()) {
-            item(key = "header_collections") { SectionHeader(LibrarySectionType.COLLECTIONS.displayName) }
-            item(key = "grid_collections") {
-                CollectionsSectionGrid(
-                    items = collections,
-                    onCollectionSelected = onCollectionSelected,
-                    onSeeMore = if (collections.size > SECTION_PREVIEW_LIMIT) {
-                        { onSectionSeeMore(LibrarySectionType.COLLECTIONS) }
-                    } else null,
-                )
-            }
-        }
-        if (allBooks.isNotEmpty()) {
-            item(key = "header_all_books") { SectionHeader(LibrarySectionType.ALL_BOOKS.displayName) }
-            item(key = "grid_all_books") {
-                BookSectionGrid(
-                    items = allBooks,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = if (allBooks.size > SECTION_PREVIEW_LIMIT) {
-                        { onSectionSeeMore(LibrarySectionType.ALL_BOOKS) }
-                    } else null,
-                )
-            }
-        }
-        if (finished.isNotEmpty()) {
-            item(key = "header_finished") { SectionHeader(LibrarySectionType.FINISHED.displayName) }
-            item(key = "grid_finished") {
-                BookSectionGrid(
-                    items = finished,
-                    token = token,
-                    onItemSelected = onItemSelected,
-                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT) {
-                        { onSectionSeeMore(LibrarySectionType.FINISHED) }
-                    } else null,
-                )
             }
         }
     }
@@ -262,7 +203,7 @@ private fun SearchResultsContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
         if (filteredSeries.isNotEmpty()) {
             item { SectionHeader("Series") }
@@ -774,3 +715,168 @@ internal fun LibraryItemCard(item: LibraryItem, token: String, onClick: (() -> U
     }
 }
 
+// --- Tab bar ---
+
+@Composable
+private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    NavigationBar {
+        NavigationBarItem(
+            selected = selectedTab == 0,
+            onClick = { onTabSelected(0) },
+            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+        )
+        NavigationBarItem(
+            selected = selectedTab == 1,
+            onClick = { onTabSelected(1) },
+            icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
+        )
+        NavigationBarItem(
+            selected = selectedTab == 2,
+            onClick = { onTabSelected(2) },
+            icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+        )
+        NavigationBarItem(
+            selected = selectedTab == 3,
+            onClick = { onTabSelected(3) },
+            icon = { Icon(Icons.Filled.GridView, contentDescription = "All Books") },
+        )
+    }
+}
+
+// --- Tab content composables ---
+
+@Composable
+private fun HomeTabContent(
+    inProgress: List<LibraryItem>,
+    finished: List<LibraryItem>,
+    token: String,
+    onItemSelected: (LibraryItem) -> Unit,
+    onSectionSeeMore: (LibrarySectionType) -> Unit,
+) {
+    if (inProgress.isEmpty() && finished.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No books in progress or completed")
+        }
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
+        if (inProgress.isNotEmpty()) {
+            item(key = "header_in_progress") { SectionHeader(LibrarySectionType.IN_PROGRESS.displayName) }
+            item(key = "grid_in_progress") {
+                BookSectionGrid(
+                    items = inProgress,
+                    token = token,
+                    onItemSelected = onItemSelected,
+                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT) {
+                        { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
+                    } else null,
+                )
+            }
+        }
+        if (finished.isNotEmpty()) {
+            item(key = "header_completed") { SectionHeader(LibrarySectionType.FINISHED.displayName) }
+            item(key = "grid_completed") {
+                BookSectionGrid(
+                    items = finished,
+                    token = token,
+                    onItemSelected = onItemSelected,
+                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT) {
+                        { onSectionSeeMore(LibrarySectionType.FINISHED) }
+                    } else null,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeriesTabContent(
+    items: List<Series>,
+    token: String,
+    onSeriesSelected: (Series) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No series in this library")
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(
+            start = 12.dp, end = 12.dp, bottom = 16.dp,
+        ),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("Series (${items.size})")
+        }
+        items(items, key = { it.id }) { s ->
+            Box(modifier = Modifier.padding(4.dp)) {
+                SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectionsTabContent(
+    items: List<Collection>,
+    onCollectionSelected: (Collection) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No collections in this library")
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(
+            start = 12.dp, end = 12.dp, bottom = 16.dp,
+        ),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("Collections (${items.size})")
+        }
+        items(items, key = { it.id }) { col ->
+            Box(modifier = Modifier.padding(4.dp)) {
+                CollectionCoverTile(collection = col, onClick = { onCollectionSelected(col) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun AllBooksTabContent(
+    items: List<LibraryItem>,
+    token: String,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
+    if (items.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No items in this library")
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(
+            start = 12.dp, end = 12.dp, bottom = 16.dp,
+        ),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("All Books (${items.size})")
+        }
+        items(items, key = { it.id }) { item ->
+            Box(modifier = Modifier.padding(4.dp)) {
+                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) })
+            }
+        }
+    }
+}
