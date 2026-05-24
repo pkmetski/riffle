@@ -139,8 +139,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             lastOpenedAt = lastOpenedAtMap[item.id],
                         )
                     }
-                libraryItemDao.deleteByLibraryId(libraryId)
-                libraryItemDao.upsertAll(entities)
+                libraryItemDao.replaceAllForLibrary(libraryId, entities)
                 val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                 libraryDao.setUnsupported(libraryId, isUnsupported)
                 LibraryRefreshResult.Success
@@ -154,8 +153,6 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return when (val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkSeriesResult.Success -> {
-                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
-                val readingProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val seriesEntities = result.series.map { s ->
                     SeriesEntity(
                         id = s.id,
@@ -165,26 +162,6 @@ class LibraryRepositoryImpl @Inject constructor(
                         bookCount = s.bookCount,
                     )
                 }
-                val itemEntities = result.series.flatMap { s ->
-                    s.items.map { item ->
-                        LibraryItemEntity(
-                            id = item.id,
-                            libraryId = item.libraryId,
-                            title = item.title,
-                            author = item.author,
-                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = item.readingProgress ?: readingProgressMap[item.id] ?: 0f,
-                            ebookFileIno = item.ebookFileIno,
-                            ebookFormat = item.ebookFormat.toStorageString(),
-                            description = item.description,
-                            seriesName = item.seriesName,
-                            publishedYear = item.publishedYear,
-                            genres = item.genres.joinToString(","),
-                            publisher = item.publisher,
-                            lastOpenedAt = lastOpenedAtMap[item.id],
-                        )
-                    }
-                }.distinctBy { it.id }
                 val seriesItemEntities = result.series.flatMap { s ->
                     s.items.mapIndexed { index, item ->
                         SeriesItemEntity(
@@ -194,11 +171,7 @@ class LibraryRepositoryImpl @Inject constructor(
                         )
                     }
                 }
-                seriesDao.deleteItemsByLibraryId(libraryId)
-                seriesDao.deleteByLibraryId(libraryId)
-                libraryItemDao.upsertAll(itemEntities)
-                seriesDao.upsertAll(seriesEntities)
-                seriesDao.upsertAllItems(seriesItemEntities)
+                seriesDao.replaceAllForLibrary(libraryId, seriesEntities, seriesItemEntities)
                 LibraryRefreshResult.Success
             }
             is NetworkSeriesResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
@@ -210,8 +183,6 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return when (val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkCollectionResult.Success -> {
-                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
-                val readingProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val collectionEntities = result.collections.map { c ->
                     CollectionEntity(
                         id = c.id,
@@ -220,36 +191,12 @@ class LibraryRepositoryImpl @Inject constructor(
                         bookCount = c.bookCount,
                     )
                 }
-                val itemEntities = result.collections.flatMap { c ->
-                    c.items.map { item ->
-                        LibraryItemEntity(
-                            id = item.id,
-                            libraryId = item.libraryId,
-                            title = item.title,
-                            author = item.author,
-                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = item.readingProgress ?: readingProgressMap[item.id] ?: 0f,
-                            ebookFileIno = item.ebookFileIno,
-                            ebookFormat = item.ebookFormat.toStorageString(),
-                            description = item.description,
-                            seriesName = item.seriesName,
-                            publishedYear = item.publishedYear,
-                            genres = item.genres.joinToString(","),
-                            publisher = item.publisher,
-                            lastOpenedAt = lastOpenedAtMap[item.id],
-                        )
-                    }
-                }.distinctBy { it.id }
                 val collectionItemEntities = result.collections.flatMap { c ->
                     c.items.map { item ->
                         CollectionItemEntity(collectionId = c.id, itemId = item.id)
                     }
                 }
-                collectionDao.deleteItemsByLibraryId(libraryId)
-                collectionDao.deleteByLibraryId(libraryId)
-                libraryItemDao.upsertAll(itemEntities)
-                collectionDao.upsertAll(collectionEntities)
-                collectionDao.upsertAllItems(collectionItemEntities)
+                collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
                 LibraryRefreshResult.Success
             }
             is NetworkCollectionResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
