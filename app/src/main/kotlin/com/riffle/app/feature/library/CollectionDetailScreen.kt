@@ -1,13 +1,13 @@
 package com.riffle.app.feature.library
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
@@ -53,7 +53,7 @@ fun CollectionDetailScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        Column(modifier = Modifier.padding(top = padding.calculateTopPadding())) {
             if (isOffline) {
                 OfflineBanner()
             }
@@ -62,13 +62,20 @@ fun CollectionDetailScreen(
                     Text("No books in this collection")
                 }
             } else {
-                LazyColumn(
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = 8.dp,
+                        bottom = padding.calculateBottomPadding() + 16.dp,
+                    ),
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     items(items, key = { it.id }) { item ->
-                        LibraryItemCard(item = item, token = viewModel.authToken, onClick = { onItemSelected(item) })
+                        Box(modifier = Modifier.padding(4.dp)) {
+                            BookCoverTile(item = item, token = viewModel.authToken, onClick = { onItemSelected(item) })
+                        }
                     }
                 }
             }
