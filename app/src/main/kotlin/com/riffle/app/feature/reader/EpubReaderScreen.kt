@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -49,10 +50,11 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import kotlinx.coroutines.flow.Flow
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -136,6 +138,7 @@ fun EpubReaderScreen(
                 }
                 is ReaderState.Ready -> {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
+                    val currentProgression by viewModel.currentLocatorProgression.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     LaunchedEffect(tocVisible, showFormattingPanel) {
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
@@ -143,6 +146,8 @@ fun EpubReaderScreen(
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
+                        currentProgression = currentProgression,
+                        currentHref = locatorHref,
                         onPositionChanged = { locator ->
                             immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
@@ -263,6 +268,8 @@ private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configurati
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
+    currentProgression: Float,
+    currentHref: String?,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
@@ -329,11 +336,36 @@ private fun EpubNavigatorView(
 
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = View.generateViewId() }
+            ScrollBoundaryNavigationContainer(ctx).apply {
+                val fragmentContainer = FragmentContainerView(ctx).apply { id = View.generateViewId() }
+                addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            }
         },
-        update = { containerView ->
+        update = { container ->
+            container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+            container.currentProgression = currentProgression
+
+            fragmentRef.value?.let { fragment ->
+                container.onNavigateForward = { fragment.goForward(false) }
+                container.onNavigateBackward = navigateBackward@{
+                    val idx = state.publication.readingOrder
+                        .indexOfFirst { it.href.toString() == currentHref }
+                    if (idx <= 0) return@navigateBackward
+                    val prevLink = state.publication.readingOrder[idx - 1]
+                    val locator = Locator.fromJSON(
+                        JSONObject()
+                            .put("href", prevLink.href.toString())
+                            .put("type", "application/xhtml+xml")
+                            .put("locations", JSONObject().put("progression", 1.0))
+                    ) ?: return@navigateBackward
+                    fragment.go(locator)
+                }
+            }
+
+            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
+                ?: return@AndroidView
             val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(containerView.id) == null) {
+            if (fm.findFragmentById(fragmentContainer.id) == null) {
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
                     configuration = sharedEpubNavigatorConfig,
@@ -343,9 +375,9 @@ private fun EpubNavigatorView(
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
-                    .add(containerView.id, EpubNavigatorFragment::class.java, null)
+                    .add(fragmentContainer.id, EpubNavigatorFragment::class.java, null)
                     .commitNow()
-                val fragment = fm.findFragmentById(containerView.id) as? EpubNavigatorFragment
+                val fragment = fm.findFragmentById(fragmentContainer.id) as? EpubNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
