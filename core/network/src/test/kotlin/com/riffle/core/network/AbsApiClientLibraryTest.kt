@@ -8,6 +8,7 @@ import com.riffle.core.domain.EbookFormat
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -101,7 +102,7 @@ class AbsApiClientLibraryTest {
         val success = result as NetworkLibraryItemsResult.Success
         assertEquals(2, success.items.size)
         assertEquals(EbookFormat.Epub, success.items[0].ebookFormat)
-        assertEquals(0.42f, success.items[0].readingProgress, 0.001f)
+        assertEquals(0.42f, success.items[0].readingProgress!!, 0.001f)
         assertEquals(EbookFormat.Unsupported, success.items[1].ebookFormat)
     }
 
@@ -117,7 +118,7 @@ class AbsApiClientLibraryTest {
             server.url("/").toString().trimEnd('/'), "lib-1", "token-abc", false
         )
         val success = result as NetworkLibraryItemsResult.Success
-        assertEquals(0f, success.items[0].readingProgress, 0.001f)
+        assertNull(success.items[0].readingProgress)
     }
 
     @Test

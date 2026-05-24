@@ -167,7 +167,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     items = dto.books.map { book ->
                         val progress = book.userMediaProgress?.ebookProgress
                             ?: book.userMediaProgress?.progress
-                            ?: 0f
                         NetworkSeriesItem(
                             id = book.id,
                             libraryId = book.libraryId,
@@ -217,7 +216,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     items = dto.books.map { book ->
                         val progress = book.userMediaProgress?.ebookProgress
                             ?: book.userMediaProgress?.progress
-                            ?: 0f
                         NetworkLibraryItem(
                             id = book.id,
                             libraryId = book.libraryId,

@@ -4,6 +4,7 @@ import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
 import com.riffle.core.database.LastOpenedAtRow
+import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
@@ -126,6 +127,12 @@ class LibraryRepositoryTest {
             roomData[libraryId]?.value
                 ?.filter { it.lastOpenedAt != null }
                 ?.map { LastOpenedAtRow(it.id, it.lastOpenedAt!!) }
+                ?: emptyList()
+
+        override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> =
+            roomData[libraryId]?.value
+                ?.filter { it.readingProgress > 0f }
+                ?.map { ReadingProgressRow(it.id, it.readingProgress) }
                 ?: emptyList()
     }
 
