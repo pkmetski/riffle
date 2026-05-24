@@ -126,8 +126,10 @@ class EpubHarnessTest {
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
+        // Wait for a sync that carries a real CFI — the immediate sync in openBook() may fire
+        // first with an empty location before the Readium navigator emits its first locator.
         composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.sessionSyncCount > 0
+            stubServer.lastProgressBody?.contains("epubcfi(") == true
         }
 
         val body = stubServer.lastProgressBody
