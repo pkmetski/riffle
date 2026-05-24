@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -180,5 +181,36 @@ class ProgressSyncCycleTest {
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
 
         assertTrue(result is ProgressSyncCycleResult.LocalWins)
+    }
+
+    @Test
+    fun `setProgress bumps localUpdatedAt and attempts PATCH`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
+            patchResult = NetworkSyncSessionResult.Success(2_000L),
+        )
+        val repo = buildRepo(api, positionStore)
+
+        repo.setProgress("item-1", 1.0f)
+
+        assertEquals(1, api.patchCallCount)
+        assertNotNull(positionStore.updatedTimestamp)
+        assertTrue(positionStore.updatedTimestamp!! > 0L)
+    }
+
+    @Test
+    fun `setProgress bumps localUpdatedAt even when PATCH fails`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
+            patchResult = NetworkSyncSessionResult.NetworkError(IOException("network down")),
+        )
+        val repo = buildRepo(api, positionStore)
+
+        repo.setProgress("item-1", 1.0f)
+
+        assertNotNull(positionStore.updatedTimestamp)
+        assertTrue(positionStore.updatedTimestamp!! > 0L)
     }
 }
