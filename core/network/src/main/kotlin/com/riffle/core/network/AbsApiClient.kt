@@ -121,7 +121,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             NetworkLibraryItemsResult.Success(parsed.results.map { dto ->
                 val progress = dto.userMediaProgress?.ebookProgress
                     ?: dto.userMediaProgress?.progress
-                    ?: 0f
                 NetworkLibraryItem(
                     id = dto.id,
                     libraryId = dto.libraryId,

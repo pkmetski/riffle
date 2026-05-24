@@ -108,6 +108,7 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkLibraryItemsResult.Success -> {
                 val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
+                val readingProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val entities = result.items
                     .sortedByDescending { it.isSupported }
                     .distinctBy { it.title.trim().lowercase() }
@@ -118,7 +119,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             title = item.title,
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = item.readingProgress,
+                            readingProgress = item.readingProgress ?: readingProgressMap[item.id] ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
@@ -145,6 +146,7 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkSeriesResult.Success -> {
                 val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
+                val readingProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val seriesEntities = result.series.map { s ->
                     SeriesEntity(
                         id = s.id,
@@ -162,7 +164,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             title = item.title,
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = item.readingProgress,
+                            readingProgress = item.readingProgress ?: readingProgressMap[item.id] ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
@@ -200,6 +202,7 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkCollectionResult.Success -> {
                 val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
+                val readingProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val collectionEntities = result.collections.map { c ->
                     CollectionEntity(
                         id = c.id,
@@ -216,7 +219,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             title = item.title,
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = item.readingProgress,
+                            readingProgress = item.readingProgress ?: readingProgressMap[item.id] ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
