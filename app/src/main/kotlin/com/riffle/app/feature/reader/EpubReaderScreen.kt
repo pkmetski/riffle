@@ -45,8 +45,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.launch
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
@@ -190,13 +192,15 @@ fun EpubReaderScreen(
                         )
                     }
                     if (formattingPrefs.showChapterMap) {
-                        ChapterNavigationRail(
-                            segments = railSegments,
-                            activeIndex = activeRailSegmentIndex,
-                            cursorPosition = cursorPosition,
-                            onSegmentClick = viewModel::navigateToSegment,
-                            modifier = Modifier.align(Alignment.BottomCenter),
-                        )
+                        RiffleTheme(darkTheme = formattingPrefs.theme == ReaderTheme.Dark) {
+                            ChapterNavigationRail(
+                                segments = railSegments,
+                                activeIndex = activeRailSegmentIndex,
+                                cursorPosition = cursorPosition,
+                                onSegmentClick = viewModel::navigateToSegment,
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                            )
+                        }
                     }
                 }
                 is ReaderState.Error -> {
