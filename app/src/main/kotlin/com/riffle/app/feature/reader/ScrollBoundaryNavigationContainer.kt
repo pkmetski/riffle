@@ -51,8 +51,6 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         },
     )
 
-    // Package-visible so the unit test can call it directly without going through the
-    // GestureDetector pipeline, which requires a real event pump to fire reliably.
     internal fun handleFling(velocityX: Float, velocityY: Float) {
         if (!isScrollMode) return
         // Ignore diagonal or predominantly horizontal flings — those belong to the ViewPager.
@@ -71,6 +69,31 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                 lastNavigationMs = now
                 dragAccum = 0f
                 onNavigateBackward?.invoke()
+            }
+        }
+    }
+
+    // Called by the volume key handler. In scroll mode: if already at the chapter boundary,
+    // navigate to the adjacent chapter; otherwise trigger a smooth CSS scroll. The WebView
+    // stops naturally at the chapter end, so the next key press at progression ≈ 1.0 / 0.0
+    // will navigate instead of scrolling — giving the desired "sticky boundary" feel.
+    internal fun handleVolumeScroll(forward: Boolean, evaluateJs: (String) -> Unit) {
+        if (!isScrollMode) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNavigationMs < NAVIGATION_COOLDOWN_MS) return
+        if (forward) {
+            if (currentProgression >= VOLUME_FORWARD_THRESHOLD) {
+                lastNavigationMs = now
+                onNavigateForward?.invoke()
+            } else {
+                evaluateJs("window.scrollBy({top: window.innerHeight * 0.8, behavior: 'smooth'})")
+            }
+        } else {
+            if (currentProgression <= VOLUME_BACKWARD_THRESHOLD) {
+                lastNavigationMs = now
+                onNavigateBackward?.invoke()
+            } else {
+                evaluateJs("window.scrollBy({top: -(window.innerHeight * 0.8), behavior: 'smooth'})")
             }
         }
     }
@@ -162,5 +185,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         internal const val STALE_PROGRESSION_MS = 300L
         // Pixels of drag past the stuck boundary before navigation fires.
         internal const val DRAG_THRESHOLD_PX = 80f
+        // Volume key thresholds are tight: only a true end-of-chapter (WebView can't
+        // scroll further) triggers navigation. Mid-chapter scrolls stay below 0.98.
+        internal const val VOLUME_FORWARD_THRESHOLD = 0.98f
+        internal const val VOLUME_BACKWARD_THRESHOLD = 0.02f
     }
 }

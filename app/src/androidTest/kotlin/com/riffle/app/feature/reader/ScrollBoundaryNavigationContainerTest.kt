@@ -208,6 +208,74 @@ class ScrollBoundaryNavigationContainerTest {
         assertFalse(invoked)
     }
 
+    // -- Volume key scroll --
+
+    @Test
+    fun volumeScrollForwardAtBoundaryInvokesNavigateForward() {
+        var invoked = false
+        val c = container(isScrollMode = true, progression = 0.99f)
+        c.onNavigateForward = { invoked = true }
+        c.handleVolumeScroll(forward = true) { /* js not expected */ }
+        assertTrue(invoked)
+    }
+
+    @Test
+    fun volumeScrollForwardMidChapterFiresJsAndDoesNotNavigate() {
+        var invoked = false
+        val jsCapture = mutableListOf<String>()
+        val c = container(isScrollMode = true, progression = 0.5f)
+        c.onNavigateForward = { invoked = true }
+        c.handleVolumeScroll(forward = true) { js -> jsCapture += js }
+        assertFalse(invoked)
+        assertEquals(1, jsCapture.size)
+        assertTrue(jsCapture[0].contains("behavior: 'smooth'"))
+        assertTrue(jsCapture[0].contains("innerHeight * 0.8"))
+        assertFalse(jsCapture[0].contains("-("))
+    }
+
+    @Test
+    fun volumeScrollBackwardAtBoundaryInvokesNavigateBackward() {
+        var invoked = false
+        val c = container(isScrollMode = true, progression = 0.01f)
+        c.onNavigateBackward = { invoked = true }
+        c.handleVolumeScroll(forward = false) { /* js not expected */ }
+        assertTrue(invoked)
+    }
+
+    @Test
+    fun volumeScrollBackwardMidChapterFiresJsAndDoesNotNavigate() {
+        var invoked = false
+        val jsCapture = mutableListOf<String>()
+        val c = container(isScrollMode = true, progression = 0.5f)
+        c.onNavigateBackward = { invoked = true }
+        c.handleVolumeScroll(forward = false) { js -> jsCapture += js }
+        assertFalse(invoked)
+        assertEquals(1, jsCapture.size)
+        assertTrue(jsCapture[0].contains("behavior: 'smooth'"))
+        assertTrue(jsCapture[0].contains("-("))
+    }
+
+    @Test
+    fun volumeScrollForwardRapidPressesFireOnlyOnce() {
+        var count = 0
+        val c = container(isScrollMode = true, progression = 0.99f)
+        c.onNavigateForward = { count++ }
+        c.handleVolumeScroll(forward = true) {}
+        c.handleVolumeScroll(forward = true) {}
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun volumeScrollInPaginatedModeIsNoOp() {
+        var invoked = false
+        val jsCapture = mutableListOf<String>()
+        val c = container(isScrollMode = false, progression = 0.5f)
+        c.onNavigateForward = { invoked = true }
+        c.handleVolumeScroll(forward = true) { js -> jsCapture += js }
+        assertFalse(invoked)
+        assertTrue(jsCapture.isEmpty())
+    }
+
     // -- Touch event passthrough --
 
     @Test
