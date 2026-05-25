@@ -23,7 +23,7 @@ androidxTest = "1.6.2"
 coroutines = "1.11.0"
 kotlinx-serialization = "1.7.3"
 coil = "2.7.0"
-jsoup = "1.17.2"
+jsoup = "1.22.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
