@@ -7,8 +7,6 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsServerInfoApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -31,8 +29,6 @@ class NavigationDrawerViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
-    private val serverInfoApi: AbsServerInfoApi,
-    private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
     val allServers: StateFlow<List<Server>> = serverRepository.observeAll()
@@ -92,13 +88,8 @@ class NavigationDrawerViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            val token = tokenStorage.getToken(server.id) ?: return@launch
-            val version = serverInfoApi.getServerInfo(
-                baseUrl = server.url.value,
-                token = token,
-                insecureAllowed = server.insecureConnectionAllowed,
-            )
-            serverVersionCache[server.id] = version
+            val version = serverRepository.getServerVersion(server.id)
+            if (version != null) serverVersionCache[server.id] = version
             _serverVersion.value = version
         }
     }
