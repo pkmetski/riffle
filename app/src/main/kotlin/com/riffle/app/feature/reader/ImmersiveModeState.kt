@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import android.os.SystemClock
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
@@ -26,20 +27,28 @@ class ImmersiveModeState(
     // has actually been called, so we know whether restoring bars would reflow the WebView.
     private var systemBarsHidden = false
 
+    // Timestamp of the last user-initiated toggle() call. Used to suppress dismissOverlay()
+    // for a brief window so a locator event immediately after a tap doesn't re-hide the bar
+    // before Compose has a chance to compose the enter animation.
+    private var lastToggleMs = 0L
+
     // Does NOT call controller.show() when revealing the AppBar — showing the nav bar
     // changes the WebView's visible height and reflows paginated EPUB content.
     fun toggle() {
         if (isImmersive) {
+            lastToggleMs = SystemClock.elapsedRealtime()
             isImmersive = false
         } else {
             hide()
         }
     }
 
-    // Called on page turn: only auto-hides the AppBar when bars are already hidden,
+    // Called on position change: only auto-hides the AppBar when bars are already hidden,
     // so position changes in normal (bars-visible) mode don't dismiss the overlay.
+    // Suppressed for TOGGLE_COOLDOWN_MS after the user taps to reveal the bar.
     fun dismissOverlay() {
-        if (systemBarsHidden) isImmersive = true
+        val now = SystemClock.elapsedRealtime()
+        if (systemBarsHidden && now - lastToggleMs > TOGGLE_COOLDOWN_MS) isImmersive = true
     }
 
     internal fun hide() {
@@ -59,6 +68,13 @@ class ImmersiveModeState(
     internal fun onBarsRestoredExternally() {
         systemBarsHidden = false
         isImmersive = false
+    }
+
+    companion object {
+        // After the user taps to reveal the TopAppBar, suppress auto-dismiss for this long
+        // so that a locator event arriving in the same Compose frame doesn't immediately
+        // undo the reveal before the enter animation can start.
+        const val TOGGLE_COOLDOWN_MS = 500L
     }
 }
 
