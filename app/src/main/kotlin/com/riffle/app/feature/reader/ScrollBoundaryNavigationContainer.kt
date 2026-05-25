@@ -30,6 +30,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     private var gestureStartX = 0f
     private var gestureStartY = 0f
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var isIntercepting = false
 
     private val gestureDetector = GestureDetector(
         context,
@@ -80,13 +81,24 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         if (ev.actionMasked == MotionEvent.ACTION_MOVE) {
             val dx = abs(ev.x - gestureStartX)
             val dy = abs(ev.y - gestureStartY)
-            if (dx > touchSlop && dx > dy) return true
+            if (!isIntercepting && dx > touchSlop && dx > dy) {
+                isIntercepting = true
+                return true
+            }
         }
-        return false
+        if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            isIntercepting = false
+        }
+        return isIntercepting
     }
 
-    // Consume events that were intercepted as horizontal gestures.
-    override fun onTouchEvent(ev: MotionEvent): Boolean = true
+    // Consume events that were intercepted as horizontal gestures; pass everything else through.
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            isIntercepting = false
+        }
+        return isIntercepting
+    }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (isScrollMode) {

@@ -188,6 +188,9 @@ class EpubHarnessTest {
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
+        // Reveal the TopAppBar before tapping the TOC button.
+        showTopAppBar()
+
         // Navigate to Chapter 2 Section 3 via the TOC panel
         composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -215,10 +218,19 @@ class EpubHarnessTest {
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
 
-        // Back button is visible before immersive mode
+        // Reader opens in immersive mode (TopAppBar hidden) — tap to reveal it
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
+
+        // Wait for TopAppBar to animate in
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
 
-        // Tap the center of the reading area — fires InputListener.onTap, toggles immersive
+        // Tap center again to re-enter immersive mode
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
             .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
@@ -228,18 +240,6 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithContentDescription("Back")
                 .fetchSemanticsNodes().isEmpty()
         }
-
-        // Tap center again to exit immersive mode
-        composeTestRule
-            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
-
-        // Back button reappears
-        composeTestRule.waitUntil(timeoutMillis = 2_000) {
-            composeTestRule.onAllNodesWithContentDescription("Back")
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
         composeTestRule.assertNoErrorState()
     }
 
@@ -273,10 +273,18 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
         }
-        with(composeTestRule) {
-            assertNoErrorState()
-            assertTextVisible(title)
-            assertContentDescriptionPresent("Back")
+        composeTestRule.assertNoErrorState()
+        composeTestRule.onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY).assertExists()
+    }
+
+    // Taps the reader content to exit immersive mode and reveal the floating TopAppBar,
+    // then waits for the Back button to appear. Call this before interacting with toolbar items.
+    private fun showTopAppBar() {
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

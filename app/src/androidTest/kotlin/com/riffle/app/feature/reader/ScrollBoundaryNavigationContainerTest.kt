@@ -157,8 +157,9 @@ class ScrollBoundaryNavigationContainerTest {
                 move.recycle()
             }
         }
-        // Drain the message queue so the post{} callback inside ACTION_MOVE runs.
-        instrumentation.waitForIdleSync()
+        // Use a second runOnMainSync as a barrier: post{} callbacks queued during the block
+        // above are guaranteed to have run before this empty block executes.
+        onMain {}
         assertTrue(invoked)
     }
 
@@ -180,7 +181,7 @@ class ScrollBoundaryNavigationContainerTest {
                 move.recycle()
             }
         }
-        instrumentation.waitForIdleSync()
+        onMain {}
         assertFalse(invoked)
     }
 
@@ -203,7 +204,7 @@ class ScrollBoundaryNavigationContainerTest {
                 move.recycle()
             }
         }
-        instrumentation.waitForIdleSync()
+        onMain {}
         assertFalse(invoked)
     }
 
