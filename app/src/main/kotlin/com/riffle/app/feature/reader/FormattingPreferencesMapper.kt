@@ -1,3 +1,5 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences

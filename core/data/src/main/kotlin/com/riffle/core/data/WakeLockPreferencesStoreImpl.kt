@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class WakeLockPreferencesStoreImpl @Inject constructor(
-    @WakeLockPreferencesDataStore private val dataStore: DataStore<Preferences>,
+    @param:WakeLockPreferencesDataStore private val dataStore: DataStore<Preferences>,
 ) : WakeLockPreferencesStore {
 
     override val keepScreenOn: Flow<Boolean> = dataStore.data.map { prefs ->

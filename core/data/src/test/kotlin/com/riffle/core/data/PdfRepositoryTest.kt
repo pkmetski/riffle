@@ -78,7 +78,7 @@ class PdfRepositoryTest {
     }
 
     private fun fakeTokenStorage(token: String): TokenStorage = object : TokenStorage {
-        override suspend fun saveToken(serverId: String, t: String) = Unit
+        override suspend fun saveToken(serverId: String, token: String) = Unit
         override suspend fun getToken(serverId: String): String = token
         override suspend fun deleteToken(serverId: String) = Unit
     }
