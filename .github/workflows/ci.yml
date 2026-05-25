@@ -30,6 +30,7 @@ jobs:
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
       - run: make fonts
       - run: ./gradlew assembleDebug
 
@@ -54,6 +55,7 @@ jobs:
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
       - run: make fonts
       - run: ./gradlew lint
       - name: Upload lint reports
@@ -85,6 +87,7 @@ jobs:
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
       - run: make fonts
       - run: ./gradlew test
       - name: Upload test reports
@@ -110,6 +113,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: true
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
@@ -129,6 +133,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/fonts
+          key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
       - run: make fonts
       - name: Run harness tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -166,6 +175,7 @@ jobs:
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
       - run: make fonts
       - run: ./gradlew :core:data:testDebugUnitTest -PintegrationTests
       - name: Upload test reports
