@@ -51,6 +51,7 @@ class LibraryItemsViewModelTest {
     private val allItemsFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val inProgressFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val finishedFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
+    private val recentlyAddedFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val allBooksFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val collectionItemsByCollectionId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
@@ -61,6 +62,7 @@ class LibraryItemsViewModelTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = itemsFlow
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = finishedFlow
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = recentlyAddedFlow
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
         override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
@@ -491,5 +493,53 @@ class LibraryItemsViewModelTest {
         // Both must be true simultaneously: loading done AND token present
         assertEquals(false, vm.isLoading.value)
         assertEquals("tok-abc", vm.authToken)
+    }
+
+    // --- filteredRecentlyAdded ---
+
+    @Test
+    fun `filteredRecentlyAdded emits items from repository when online`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        val expected = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
+        recentlyAddedFlow.value = expected
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(expected, vm.filteredRecentlyAdded.value)
+    }
+
+    @Test
+    fun `filteredRecentlyAdded is capped at 50 items`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        recentlyAddedFlow.value = (1..60).map { i -> item("Book $i", "Author") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(50, vm.filteredRecentlyAdded.value.size)
+    }
+
+    @Test
+    fun `filteredRecentlyAdded when offline filters to only downloaded items`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+        )
+        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        backgroundScope.launch { vm.isOffline.collect {} }
+        recentlyAddedFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredRecentlyAdded.value)
+    }
+
+    @Test
+    fun `filteredRecentlyAdded when offline cap still applies after filtering`() = runTest {
+        val downloadedIds = (1..60).map { "id-Book $it" }.toSet()
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(downloadedIds),
+        )
+        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        backgroundScope.launch { vm.isOffline.collect {} }
+        recentlyAddedFlow.value = (1..60).map { i -> item("Book $i", "Author") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(50, vm.filteredRecentlyAdded.value.size)
     }
 }

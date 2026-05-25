@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -149,6 +149,12 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE `library_items`")
                 db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `addedAt` INTEGER")
             }
         }
     }

@@ -34,6 +34,7 @@ fun LibrarySectionScreen(
 ) {
     val inProgress by viewModel.filteredInProgress.collectAsState()
     val finished by viewModel.filteredFinished.collectAsState()
+    val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
 
     Scaffold(
         topBar = {
@@ -56,6 +57,12 @@ fun LibrarySectionScreen(
             )
             LibrarySectionType.FINISHED -> BookGrid(
                 items = finished,
+                token = viewModel.authToken,
+                onItemSelected = onItemSelected,
+                contentPadding = padding,
+            )
+            LibrarySectionType.RECENTLY_ADDED -> BookGrid(
+                items = recentlyAdded,
                 token = viewModel.authToken,
                 onItemSelected = onItemSelected,
                 contentPadding = padding,

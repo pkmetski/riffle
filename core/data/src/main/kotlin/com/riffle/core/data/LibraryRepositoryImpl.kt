@@ -65,6 +65,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
         libraryItemDao.observeFinished(libraryId).map { list -> list.map { it.toDomain() } }
 
+    override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeRecentlyAdded(libraryId).map { list -> list.map { it.toDomain() } }
+
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
         libraryItemDao.observeAllBooks(libraryId).map { list -> list.map { it.toDomain() } }
 
@@ -136,6 +139,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             genres = item.genres.joinToString(","),
                             publisher = item.publisher,
                             lastOpenedAt = lastOpenedAtMap[item.id],
+                            addedAt = item.addedAt,
                         )
                     }
                 libraryItemDao.replaceAllForLibrary(libraryId, entities)
@@ -221,6 +225,7 @@ class LibraryRepositoryImpl @Inject constructor(
         genres = genres.split(",").filter { it.isNotEmpty() },
         publisher = publisher,
         lastOpenedAt = lastOpenedAt,
+        addedAt = addedAt,
     )
 
     private fun SeriesEntity.toDomain() = Series(

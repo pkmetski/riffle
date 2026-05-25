@@ -17,6 +17,7 @@ data class LibraryItem(
     val genres: List<String> = emptyList(),
     val publisher: String? = null,
     val lastOpenedAt: Long? = null,
+    val addedAt: Long? = null,
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }
