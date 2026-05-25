@@ -7,10 +7,11 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.readium.r2.navigator.epub.EpubPreferences
+import org.readium.r2.navigator.preferences.ColumnCount
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.Theme
 
-fun FormattingPreferences.toEpubPreferences(): EpubPreferences = EpubPreferences(
+fun FormattingPreferences.toEpubPreferences(isLandscape: Boolean = false): EpubPreferences = EpubPreferences(
     fontSize = fontSize.toDouble(),
     theme = when (theme) {
         ReaderTheme.Light -> Theme.LIGHT
@@ -30,4 +31,5 @@ fun FormattingPreferences.toEpubPreferences(): EpubPreferences = EpubPreferences
     lineHeight = lineSpacing.toDouble(),
     pageMargins = margins.toDouble(),
     scroll = orientation == ReaderOrientation.Vertical,
+    columnCount = if (orientation != ReaderOrientation.Vertical && doublePageSpread && isLandscape) ColumnCount.TWO else ColumnCount.ONE,
 )

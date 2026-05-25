@@ -35,6 +35,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
                 ?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
                 ?: ReaderOrientation.Horizontal,
             showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
+            doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
         )
     }
 
@@ -47,6 +48,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_MARGINS] = preferences.margins
             prefs[KEY_ORIENTATION] = preferences.orientation.name
             prefs[KEY_SHOW_CHAPTER_MAP] = preferences.showChapterMap
+            prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
         }
     }
 
@@ -58,5 +60,6 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_MARGINS = floatPreferencesKey("margins")
         val KEY_ORIENTATION = stringPreferencesKey("orientation")
         val KEY_SHOW_CHAPTER_MAP = booleanPreferencesKey("show_chapter_map")
+        val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
     }
 }

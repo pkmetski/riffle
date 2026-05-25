@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import android.content.res.Configuration
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -274,6 +276,7 @@ private fun EpubNavigatorView(
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Non-State holder for current href — written by the locator coroutine, read inside
@@ -339,8 +342,8 @@ private fun EpubNavigatorView(
     }
 
     // fragmentRef.value excluded: fragment is created with initialPreferences, so adding it would call submitPreferences twice and flash.
-    LaunchedEffect(formattingPrefs) {
-        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences())
+    LaunchedEffect(formattingPrefs, isLandscape) {
+        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape))
     }
 
     DisposableEffect(tapListener) {
@@ -393,7 +396,7 @@ private fun EpubNavigatorView(
                     configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = state.initialLocator,
-                    initialPreferences = formattingPrefs.toEpubPreferences(),
+                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape),
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
