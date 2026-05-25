@@ -95,7 +95,9 @@ class PdfHarnessTest {
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
             .performTouchInput { click(center) }
-        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Back").assertExists()
     }
 
@@ -123,7 +125,9 @@ class PdfHarnessTest {
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
             .performTouchInput { click(center) }
-        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Back").assertExists()
     }
 
