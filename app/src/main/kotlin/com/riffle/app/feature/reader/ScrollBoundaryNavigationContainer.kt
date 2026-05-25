@@ -9,7 +9,6 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import kotlin.math.abs
-import kotlin.math.absoluteValue
 
 class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context) {
 
@@ -28,7 +27,6 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
 
     private var lastNavigationMs = 0L
     private var progressionLastChangedMs = 0L
-    private var lastVolumeScrollProgression = Float.NaN
     private var lastVolumeNavMs = 0L
     private var lastTouchY = 0f
     private var dragAccum = 0f
@@ -76,40 +74,24 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         }
     }
 
-    // Called by the volume key handler. In scroll mode: if already at the chapter boundary,
-    // navigate to the adjacent chapter; otherwise trigger a smooth CSS scroll. The WebView
-    // stops naturally at the chapter end, so the next key press at progression ≈ 1.0 / 0.0
-    // will navigate instead of scrolling — giving the desired "sticky boundary" feel.
-    internal fun handleVolumeScroll(forward: Boolean, evaluateJs: (String) -> Unit) {
+    // Called by the volume key handler. atBoundary is computed by the caller via JS so it
+    // reflects the WebView's actual scroll position rather than Readium's progression value.
+    internal fun handleVolumeScroll(forward: Boolean, atBoundary: Boolean, evaluateJs: (String) -> Unit) {
         if (!isScrollMode) return
         val now = SystemClock.elapsedRealtime()
-        // Use a short per-button cooldown to absorb OS key-repeat events, but keep this
-        // independent of lastNavigationMs so a prior fling or chapter navigation doesn't
-        // swallow the user's deliberate next button press.
         if (now - lastVolumeNavMs < VOLUME_NAV_COOLDOWN_MS) return
         if (forward) {
-            // Navigate if at the boundary threshold, or if the last scroll moved progression
-            // by less than VOLUME_SCROLL_EPSILON — meaning the WebView is effectively stuck
-            // (tiny residual movement near the chapter end still counts as stuck).
-            val scrolledTooLittle = !lastVolumeScrollProgression.isNaN() &&
-                (currentProgression - lastVolumeScrollProgression).absoluteValue < VOLUME_SCROLL_EPSILON
-            if (currentProgression >= VOLUME_FORWARD_THRESHOLD || scrolledTooLittle) {
+            if (atBoundary) {
                 lastVolumeNavMs = now
-                lastVolumeScrollProgression = Float.NaN
                 onNavigateForward?.invoke()
             } else {
-                lastVolumeScrollProgression = currentProgression
                 evaluateJs("window.scrollBy({top: window.innerHeight * 0.8, behavior: 'smooth'})")
             }
         } else {
-            val scrolledTooLittle = !lastVolumeScrollProgression.isNaN() &&
-                (currentProgression - lastVolumeScrollProgression).absoluteValue < VOLUME_SCROLL_EPSILON
-            if (currentProgression <= VOLUME_BACKWARD_THRESHOLD || scrolledTooLittle) {
+            if (atBoundary) {
                 lastVolumeNavMs = now
-                lastVolumeScrollProgression = Float.NaN
                 onNavigateBackward?.invoke()
             } else {
-                lastVolumeScrollProgression = currentProgression
                 evaluateJs("window.scrollBy({top: -(window.innerHeight * 0.8), behavior: 'smooth'})")
             }
         }
@@ -202,17 +184,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         internal const val STALE_PROGRESSION_MS = 300L
         // Pixels of drag past the stuck boundary before navigation fires.
         internal const val DRAG_THRESHOLD_PX = 80f
-        // Volume key thresholds: generous enough that the visible end-of-chapter (where
-        // Readium may report < 1.0) triggers navigation in one press rather than two.
-        internal const val VOLUME_FORWARD_THRESHOLD = 0.95f
-        internal const val VOLUME_BACKWARD_THRESHOLD = 0.05f
         // Short cooldown for volume key presses — just long enough to absorb OS key-repeat
         // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding fling or
         // chapter transition never swallows a deliberate button press.
         internal const val VOLUME_NAV_COOLDOWN_MS = 300L
-        // If a smooth scroll moved progression by less than this fraction, the WebView is
-        // effectively stuck at the chapter boundary (residual pixel movement still counts).
-        // Mid-chapter scrolls move ~0.04+ per press; stuck scrolls move < 0.01.
-        internal const val VOLUME_SCROLL_EPSILON = 0.02f
     }
 }

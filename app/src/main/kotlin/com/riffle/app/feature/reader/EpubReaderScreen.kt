@@ -312,8 +312,22 @@ private fun EpubNavigatorView(
             val container = containerRef.value
             if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
                 when (event) {
-                    VolumeNavEvent.Forward -> container.handleVolumeScroll(true) { js -> launch { fragment.evaluateJavascript(js) } }
-                    VolumeNavEvent.Backward -> container.handleVolumeScroll(false) { js -> launch { fragment.evaluateJavascript(js) } }
+                    VolumeNavEvent.Forward -> {
+                        val atBottom = fragment.evaluateJavascript(
+                            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
+                        )?.trim('"') == "true"
+                        container.handleVolumeScroll(forward = true, atBoundary = atBottom) { js ->
+                            launch { fragment.evaluateJavascript(js) }
+                        }
+                    }
+                    VolumeNavEvent.Backward -> {
+                        val atTop = fragment.evaluateJavascript(
+                            "(window.scrollY <= 4).toString()"
+                        )?.trim('"') == "true"
+                        container.handleVolumeScroll(forward = false, atBoundary = atTop) { js ->
+                            launch { fragment.evaluateJavascript(js) }
+                        }
+                    }
                 }
             } else {
                 when (event) {

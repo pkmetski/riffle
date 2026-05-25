@@ -213,9 +213,9 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun volumeScrollForwardAtBoundaryInvokesNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.96f)
+        val c = container(isScrollMode = true, progression = 0.5f)
         c.onNavigateForward = { invoked = true }
-        c.handleVolumeScroll(forward = true) { /* js not expected */ }
+        c.handleVolumeScroll(forward = true, atBoundary = true) { /* js not expected */ }
         assertTrue(invoked)
     }
 
@@ -225,7 +225,7 @@ class ScrollBoundaryNavigationContainerTest {
         val jsCapture = mutableListOf<String>()
         val c = container(isScrollMode = true, progression = 0.5f)
         c.onNavigateForward = { invoked = true }
-        c.handleVolumeScroll(forward = true) { js -> jsCapture += js }
+        c.handleVolumeScroll(forward = true, atBoundary = false) { js -> jsCapture += js }
         assertFalse(invoked)
         assertEquals(1, jsCapture.size)
         assertTrue(jsCapture[0].contains("behavior: 'smooth'"))
@@ -236,9 +236,9 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun volumeScrollBackwardAtBoundaryInvokesNavigateBackward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.04f)
+        val c = container(isScrollMode = true, progression = 0.5f)
         c.onNavigateBackward = { invoked = true }
-        c.handleVolumeScroll(forward = false) { /* js not expected */ }
+        c.handleVolumeScroll(forward = false, atBoundary = true) { /* js not expected */ }
         assertTrue(invoked)
     }
 
@@ -248,7 +248,7 @@ class ScrollBoundaryNavigationContainerTest {
         val jsCapture = mutableListOf<String>()
         val c = container(isScrollMode = true, progression = 0.5f)
         c.onNavigateBackward = { invoked = true }
-        c.handleVolumeScroll(forward = false) { js -> jsCapture += js }
+        c.handleVolumeScroll(forward = false, atBoundary = false) { js -> jsCapture += js }
         assertFalse(invoked)
         assertEquals(1, jsCapture.size)
         assertTrue(jsCapture[0].contains("behavior: 'smooth'"))
@@ -256,48 +256,30 @@ class ScrollBoundaryNavigationContainerTest {
     }
 
     @Test
-    fun volumeScrollForwardWhenStuckAtBoundaryInvokesNavigateForward() {
-        var invoked = false
-        // 0.93f is below the 0.95f threshold but WebView can't scroll further.
-        val c = container(isScrollMode = true, progression = 0.93f)
-        c.onNavigateForward = { invoked = true }
-        // First press — not at hard threshold, fires scroll, records progression.
-        c.handleVolumeScroll(forward = true) {}
-        assertFalse(invoked)
-        // Simulate a tiny residual scroll (< VOLUME_SCROLL_EPSILON = 0.02).
-        c.currentProgression = 0.935f
-        // Second press — moved less than epsilon, treated as stuck, should navigate.
-        c.handleVolumeScroll(forward = true) {}
-        assertTrue(invoked)
-    }
-
-    @Test
     fun volumeScrollForwardRapidPressesWithinCooldownFireOnlyOnce() {
         var count = 0
-        val c = container(isScrollMode = true, progression = 0.99f)
+        val c = container(isScrollMode = true, progression = 0.5f)
         c.onNavigateForward = { count++ }
         // Both calls are within VOLUME_NAV_COOLDOWN_MS of each other.
-        c.handleVolumeScroll(forward = true) {}
-        c.handleVolumeScroll(forward = true) {}
+        c.handleVolumeScroll(forward = true, atBoundary = true) {}
+        c.handleVolumeScroll(forward = true, atBoundary = true) {}
         assertEquals(1, count)
     }
 
     @Test
     fun volumeScrollForwardAfterChapterNavigationIsNotBlocked() {
         var count = 0
-        val c = container(isScrollMode = true, progression = 0.99f)
+        val c = container(isScrollMode = true, progression = 0.5f)
         c.onNavigateForward = { count++ }
         // First press navigates.
-        c.handleVolumeScroll(forward = true) {}
+        c.handleVolumeScroll(forward = true, atBoundary = true) {}
         assertEquals(1, count)
-        // Simulate the new chapter loading at progression = 0.0, past the cooldown.
+        // Past the cooldown, next press should scroll (not navigate).
         Thread.sleep(ScrollBoundaryNavigationContainer.VOLUME_NAV_COOLDOWN_MS + 50)
-        c.currentProgression = 0.0f
-        // Next press should scroll, not be blocked.
         val jsCapture = mutableListOf<String>()
-        c.handleVolumeScroll(forward = true) { js -> jsCapture += js }
+        c.handleVolumeScroll(forward = true, atBoundary = false) { js -> jsCapture += js }
         assertEquals(1, jsCapture.size)
-        assertEquals(1, count) // no additional navigation
+        assertEquals(1, count)
     }
 
     @Test
@@ -306,7 +288,7 @@ class ScrollBoundaryNavigationContainerTest {
         val jsCapture = mutableListOf<String>()
         val c = container(isScrollMode = false, progression = 0.5f)
         c.onNavigateForward = { invoked = true }
-        c.handleVolumeScroll(forward = true) { js -> jsCapture += js }
+        c.handleVolumeScroll(forward = true, atBoundary = false) { js -> jsCapture += js }
         assertFalse(invoked)
         assertTrue(jsCapture.isEmpty())
     }
