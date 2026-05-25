@@ -27,6 +27,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
 
     private var lastNavigationMs = 0L
     private var progressionLastChangedMs = 0L
+    private var lastVolumeScrollProgression = Float.NaN
     private var lastTouchY = 0f
     private var dragAccum = 0f
     private var gestureStartX = 0f
@@ -82,17 +83,27 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         val now = SystemClock.elapsedRealtime()
         if (now - lastNavigationMs < NAVIGATION_COOLDOWN_MS) return
         if (forward) {
-            if (currentProgression >= VOLUME_FORWARD_THRESHOLD) {
+            // Navigate if explicitly at the boundary threshold, or if the last scroll attempt
+            // didn't change progression (WebView was already stuck at the chapter end).
+            val atBoundary = currentProgression >= VOLUME_FORWARD_THRESHOLD ||
+                currentProgression == lastVolumeScrollProgression
+            if (atBoundary) {
                 lastNavigationMs = now
+                lastVolumeScrollProgression = Float.NaN
                 onNavigateForward?.invoke()
             } else {
+                lastVolumeScrollProgression = currentProgression
                 evaluateJs("window.scrollBy({top: window.innerHeight * 0.8, behavior: 'smooth'})")
             }
         } else {
-            if (currentProgression <= VOLUME_BACKWARD_THRESHOLD) {
+            val atBoundary = currentProgression <= VOLUME_BACKWARD_THRESHOLD ||
+                currentProgression == lastVolumeScrollProgression
+            if (atBoundary) {
                 lastNavigationMs = now
+                lastVolumeScrollProgression = Float.NaN
                 onNavigateBackward?.invoke()
             } else {
+                lastVolumeScrollProgression = currentProgression
                 evaluateJs("window.scrollBy({top: -(window.innerHeight * 0.8), behavior: 'smooth'})")
             }
         }

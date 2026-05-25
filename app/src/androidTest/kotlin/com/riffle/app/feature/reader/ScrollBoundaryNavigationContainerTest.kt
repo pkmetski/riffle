@@ -256,6 +256,19 @@ class ScrollBoundaryNavigationContainerTest {
     }
 
     @Test
+    fun volumeScrollForwardWhenStuckAtBoundaryInvokesNavigateForward() {
+        var invoked = false
+        val c = container(isScrollMode = true, progression = 0.95f)
+        c.onNavigateForward = { invoked = true }
+        // First press — not at hard threshold, fires scroll, records progression.
+        c.handleVolumeScroll(forward = true) {}
+        assertFalse(invoked)
+        // Second press — progression unchanged (WebView stuck), should navigate.
+        c.handleVolumeScroll(forward = true) {}
+        assertTrue(invoked)
+    }
+
+    @Test
     fun volumeScrollForwardRapidPressesFireOnlyOnce() {
         var count = 0
         val c = container(isScrollMode = true, progression = 0.99f)
