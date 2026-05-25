@@ -63,6 +63,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -99,6 +100,7 @@ fun LibraryItemsScreen(
     val series by viewModel.filteredSeries.collectAsState()
     val collections by viewModel.filteredCollections.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -113,7 +115,6 @@ fun LibraryItemsScreen(
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()
                 viewModel.onSearchQueryChange("")
-                viewModel.refresh()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -157,21 +158,25 @@ fun LibraryItemsScreen(
                     0 -> HomeTabContent(
                         inProgress = inProgress,
                         finished = finished,
+                        isLoading = isLoading,
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
                         onSectionSeeMore = onSectionSeeMore,
                     )
                     1 -> SeriesTabContent(
                         items = series,
+                        isLoading = isLoading,
                         token = viewModel.authToken,
                         onSeriesSelected = onSeriesSelected,
                     )
                     2 -> CollectionsTabContent(
                         items = collections,
+                        isLoading = isLoading,
                         onCollectionSelected = onCollectionSelected,
                     )
                     3 -> AllBooksTabContent(
                         items = allBooks,
+                        isLoading = isLoading,
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
                     )
@@ -345,6 +350,7 @@ fun BookCoverTile(
                     .addHeader("Authorization", "Bearer $token")
                     .crossfade(true)
                     .build(),
+                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -406,6 +412,7 @@ fun SeriesCoverTile(
                 .addHeader("Authorization", "Bearer $token")
                 .crossfade(true)
                 .build(),
+            placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
             contentDescription = series.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -505,6 +512,7 @@ private fun SearchSeriesRow(series: Series, token: String, onClick: () -> Unit) 
                     .addHeader("Authorization", "Bearer $token")
                     .crossfade(true)
                     .build(),
+                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                 contentDescription = series.name,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -652,6 +660,7 @@ internal fun LibraryItemCard(item: LibraryItem, token: String, onClick: (() -> U
                     .addHeader("Authorization", "Bearer $token")
                     .crossfade(true)
                     .build(),
+                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -749,10 +758,12 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 private fun HomeTabContent(
     inProgress: List<LibraryItem>,
     finished: List<LibraryItem>,
+    isLoading: Boolean,
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
 ) {
+    if (isLoading) return
     if (inProgress.isEmpty() && finished.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No books in progress or completed")
@@ -795,9 +806,11 @@ private fun HomeTabContent(
 @Composable
 private fun SeriesTabContent(
     items: List<Series>,
+    isLoading: Boolean,
     token: String,
     onSeriesSelected: (Series) -> Unit,
 ) {
+    if (isLoading) return
     if (items.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No series in this library")
@@ -825,8 +838,10 @@ private fun SeriesTabContent(
 @Composable
 private fun CollectionsTabContent(
     items: List<Collection>,
+    isLoading: Boolean,
     onCollectionSelected: (Collection) -> Unit,
 ) {
+    if (isLoading) return
     if (items.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No collections in this library")
@@ -854,9 +869,11 @@ private fun CollectionsTabContent(
 @Composable
 private fun AllBooksTabContent(
     items: List<LibraryItem>,
+    isLoading: Boolean,
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
 ) {
+    if (isLoading) return
     if (items.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No items in this library")

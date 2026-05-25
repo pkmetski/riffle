@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -35,6 +36,12 @@ interface LibraryItemDao {
 
     @Query("DELETE FROM library_items WHERE libraryId = :libraryId")
     suspend fun deleteByLibraryId(libraryId: String)
+
+    @Transaction
+    suspend fun replaceAllForLibrary(libraryId: String, items: List<LibraryItemEntity>) {
+        deleteByLibraryId(libraryId)
+        upsertAll(items)
+    }
 
     @Query("""
         SELECT * FROM library_items

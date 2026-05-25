@@ -4,7 +4,9 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -42,7 +44,6 @@ class LibraryItemDaoTest {
         author = "Author",
         coverUrl = null,
         readingProgress = readingProgress,
-        isDownloaded = false,
         lastOpenedAt = lastOpenedAt,
     )
 
@@ -117,5 +118,28 @@ class LibraryItemDaoTest {
         assertEquals(0, inProgress.size)
         assertEquals(0, finished.size)
         assertEquals(1, allBooks.size)
+    }
+
+    // A6 — replaceAllForLibrary must never expose an empty intermediate state to observers.
+    // If @Transaction is removed the delete emits before the insert, causing a visible flicker.
+    @Test
+    fun replaceAllForLibrary_neverEmitsEmptyIntermediateState() = runTest {
+        dao.upsertAll(listOf(item("a", 0.3f), item("b", 0.6f)))
+
+        val emittedStates = mutableListOf<List<LibraryItemEntity>>()
+        val collectJob = launch {
+            dao.observeAllBooks("lib1").collect { emittedStates.add(it.toList()) }
+        }
+        yield() // let the initial emission land before we replace
+
+        dao.replaceAllForLibrary("lib1", listOf(item("c", 0f), item("d", 0.5f), item("e", 1f)))
+        yield()
+
+        collectJob.cancel()
+
+        assert(emittedStates.none { it.isEmpty() }) {
+            "Observed an empty intermediate state — @Transaction may have been removed from replaceAllForLibrary"
+        }
+        assertEquals(setOf("c", "d", "e"), emittedStates.last().map { it.id }.toSet())
     }
 }

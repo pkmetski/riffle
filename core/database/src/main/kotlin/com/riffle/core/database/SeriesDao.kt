@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -31,4 +32,16 @@ interface SeriesDao {
 
     @Query("DELETE FROM series_items WHERE seriesId IN (SELECT id FROM series WHERE libraryId = :libraryId)")
     suspend fun deleteItemsByLibraryId(libraryId: String)
+
+    @Transaction
+    suspend fun replaceAllForLibrary(
+        libraryId: String,
+        series: List<SeriesEntity>,
+        seriesItems: List<SeriesItemEntity>,
+    ) {
+        deleteItemsByLibraryId(libraryId)
+        deleteByLibraryId(libraryId)
+        upsertAll(series)
+        upsertAllItems(seriesItems)
+    }
 }

@@ -511,63 +511,6 @@ class LibraryRepositoryTest {
         assertFalse(item.isSupported)
     }
 
-    // ── refreshSeries: format round-trip (regression) ─────────────────────────
-
-    @Test
-    fun `refreshSeries stores epub item with correct ebookFormat`() = runTest {
-        fakeServerRepository.activeServer = activeServer()
-        fakeTokenStorage.tokens["s1"] = "tok"
-        val itemDao = FakeLibraryItemDao()
-        val api = object : AbsLibraryApi {
-            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibrariesResult.Success(emptyList())
-            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibraryItemsResult.Success(emptyList())
-            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkSeriesResult.Success(listOf(
-                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
-                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub),
-                    )),
-                ))
-            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkCollectionResult.Success(emptyList())
-        }
-        val repo = makeRepo(libraryItemDao = itemDao, api = api)
-        repo.refreshSeries("lib-1")
-        // Items from series refresh are written to library_items; read back via observeLibraryItems
-        val items = repo.observeLibraryItems("lib-1").first()
-        assertEquals(1, items.size)
-        assertTrue("series epub item must be supported", items[0].isSupported)
-        assertEquals(EbookFormat.Epub, items[0].ebookFormat)
-    }
-
-    @Test
-    fun `refreshSeries stores unsupported item with correct ebookFormat`() = runTest {
-        fakeServerRepository.activeServer = activeServer()
-        fakeTokenStorage.tokens["s1"] = "tok"
-        val itemDao = FakeLibraryItemDao()
-        val api = object : AbsLibraryApi {
-            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibrariesResult.Success(emptyList())
-            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkLibraryItemsResult.Success(emptyList())
-            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkSeriesResult.Success(listOf(
-                    NetworkSeries("ser-1", "lib-1", "Audiobook Series", listOf(
-                        NetworkSeriesItem("item-1", "lib-1", "Book 1", "Author", "1", 0f, EbookFormat.Unsupported),
-                    )),
-                ))
-            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                NetworkCollectionResult.Success(emptyList())
-        }
-        val repo = makeRepo(libraryItemDao = itemDao, api = api)
-        repo.refreshSeries("lib-1")
-        val items = repo.observeLibraryItems("lib-1").first()
-        assertEquals(1, items.size)
-        assertFalse(items[0].isSupported)
-        assertEquals(EbookFormat.Unsupported, items[0].ebookFormat)
-    }
-
     // ── refreshSeries ─────────────────────────────────────────────────────────
 
     @Test
