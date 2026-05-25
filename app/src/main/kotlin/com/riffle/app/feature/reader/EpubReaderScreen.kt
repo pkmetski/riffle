@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +53,6 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -158,6 +158,7 @@ fun EpubReaderScreen(
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
+                        latestLocator = { viewModel.latestLocator },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -281,6 +282,7 @@ private fun EpubNavigatorView(
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
+    latestLocator: () -> Locator?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -291,8 +293,6 @@ private fun EpubNavigatorView(
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
-    val locatorJobRef = remember { arrayOf<Job?>(null) }
-
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -360,39 +360,64 @@ private fun EpubNavigatorView(
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            locatorJobRef[0]?.cancel()
-            locatorJobRef[0] = null
-            // Explicitly remove the fragment when leaving composition so that
-            // Fragment.onDestroyView() fires immediately and releases the WebView's
-            // native Chromium renderer memory. Skip when the Activity is finishing —
-            // Android destroys fragments as part of Activity teardown in that case.
-            val fragment = fragmentRef.value ?: return@onDispose
-            fragmentRef.value = null
-            val fm = fragmentActivity.supportFragmentManager
-            if (!fragmentActivity.isFinishing && !fm.isStateSaved) {
-                fm.beginTransaction().remove(fragment).commitNow()
-            }
-        }
-    }
+    val containerId = rememberSaveable { View.generateViewId() }
 
     AndroidView(
         factory = { ctx ->
             ScrollBoundaryNavigationContainer(ctx).apply {
-                val fragmentContainer = FragmentContainerView(ctx).apply { id = View.generateViewId() }
+                val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                 addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
             }.also { containerRef.value = it }
         },
         update = { container ->
             container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
 
+            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
+                ?: return@AndroidView
+            val fm = fragmentActivity.supportFragmentManager
+
+            if (fm.findFragmentById(containerId) == null) {
+                val fragmentFactory = EpubNavigatorFactory(
+                    publication = state.publication,
+                    configuration = sharedEpubNavigatorConfig,
+                ).createFragmentFactory(
+                    initialLocator = latestLocator() ?: state.initialLocator,
+                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape),
+                )
+                fm.fragmentFactory = fragmentFactory
+                fm.beginTransaction()
+                    .add(containerId, EpubNavigatorFragment::class.java, null)
+                    .commitNow()
+                val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
+                    ?: return@AndroidView
+                fragmentRef.value = fragment
+                fragment.addInputListener(tapListener)
+                fragmentActivity.lifecycleScope.launch {
+                    fragment.currentLocator.collect { locator ->
+                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
+                        currentHrefHolder[0] = locator.href.toString()
+                        onPositionChanged(locator)
+                    }
+                }
+            } else if (fragmentRef.value == null) {
+                val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
+                    ?: return@AndroidView
+                fragmentRef.value = fragment
+                fragment.addInputListener(tapListener)
+                fragmentActivity.lifecycleScope.launch {
+                    fragment.currentLocator.collect { locator ->
+                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
+                        currentHrefHolder[0] = locator.href.toString()
+                        onPositionChanged(locator)
+                    }
+                }
+            }
+
             fragmentRef.value?.let { fragment ->
                 container.onNavigateForward = navigateForward@{
                     val idx = state.publication.readingOrder
                         .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
                     if (idx < 0 || idx >= state.publication.readingOrder.size - 1) return@navigateForward
-                    // goForward() in scroll mode jumps to the next spine item (chapter start).
                     fragment.goForward(animated = false)
                 }
                 container.onNavigateBackward = navigateBackward@{
@@ -400,8 +425,6 @@ private fun EpubNavigatorView(
                         .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
                     if (idx <= 0) return@navigateBackward
                     val prevLink = state.publication.readingOrder[idx - 1]
-                    // Navigate to progression=1.0 on the previous spine item so the reader
-                    // lands at the end of the previous chapter, not the start.
                     val locator = Locator.fromJSON(
                         JSONObject()
                             .put("href", prevLink.href.toString())
@@ -410,36 +433,6 @@ private fun EpubNavigatorView(
                     ) ?: return@navigateBackward
                     fragmentActivity.lifecycleScope.launch {
                         fragment.go(locator, animated = false)
-                    }
-                }
-            }
-
-            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
-                ?: return@AndroidView
-            val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(fragmentContainer.id) == null) {
-                val fragmentFactory = EpubNavigatorFactory(
-                    publication = state.publication,
-                    configuration = sharedEpubNavigatorConfig,
-                ).createFragmentFactory(
-                    initialLocator = state.initialLocator,
-                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape),
-                )
-                fm.fragmentFactory = fragmentFactory
-                fm.beginTransaction()
-                    .add(fragmentContainer.id, EpubNavigatorFragment::class.java, null)
-                    .commitNow()
-                val fragment = fm.findFragmentById(fragmentContainer.id) as? EpubNavigatorFragment
-                    ?: return@AndroidView
-                fragmentRef.value = fragment
-                fragment.addInputListener(tapListener)
-                locatorJobRef[0] = fragmentActivity.lifecycleScope.launch {
-                    fragment.currentLocator.collect { locator ->
-                        // Update container directly — bypasses Compose state to avoid
-                        // recomposing EpubNavigatorView on every scroll frame.
-                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        currentHrefHolder[0] = locator.href.toString()
-                        onPositionChanged(locator)
                     }
                 }
             }
