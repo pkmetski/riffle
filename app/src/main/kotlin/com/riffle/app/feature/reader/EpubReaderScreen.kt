@@ -11,7 +11,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
@@ -20,7 +20,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -115,37 +114,18 @@ fun EpubReaderScreen(
     val title = (state as? ReaderState.Ready)?.title ?: ""
     val tocVisible by viewModel.tocVisible.collectAsState()
 
-    Scaffold(
-        topBar = {
-            AnimatedVisibility(
-                visible = !immersiveState.isImmersive,
-                enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
-                exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
-            ) {
-                TopAppBar(
-                    title = { Text(title) },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        if (state is ReaderState.Ready) {
-                            IconButton(onClick = viewModel::openToc) {
-                                Icon(Icons.Filled.List, contentDescription = "Table of Contents")
-                            }
-                            IconButton(
-                                onClick = { showFormattingPanel = true },
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = "Format")
-                            }
-                        }
-                    }
-                )
-            }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+    // TopAppBar floats as an overlay so its show/hide never resizes the content area —
+    // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
+    // WebView simultaneously with the system-bar animation.
+    Box(modifier = Modifier.fillMaxSize()) {
+        // navigationBarsPadding only — status bar insets are omitted because in immersive
+        // mode the status bar is hidden, and the floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+        ) {
             when (val s = state) {
                 ReaderState.Loading -> {
                     CircularProgressIndicator(
@@ -163,7 +143,10 @@ fun EpubReaderScreen(
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
-                        onPositionChanged = viewModel::onPositionChanged,
+                        onPositionChanged = { locator ->
+                            immersiveState.dismissOverlay()
+                            viewModel.onPositionChanged(locator)
+                        },
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
@@ -209,6 +192,33 @@ fun EpubReaderScreen(
                     )
                 }
             }
+        }
+
+        AnimatedVisibility(
+            visible = !immersiveState.isImmersive,
+            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
+            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
+        ) {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (state is ReaderState.Ready) {
+                        IconButton(onClick = viewModel::openToc) {
+                            Icon(Icons.Filled.List, contentDescription = "Table of Contents")
+                        }
+                        IconButton(
+                            onClick = { showFormattingPanel = true },
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = "Format")
+                        }
+                    }
+                }
+            )
         }
 
         if (showFormattingPanel) {
