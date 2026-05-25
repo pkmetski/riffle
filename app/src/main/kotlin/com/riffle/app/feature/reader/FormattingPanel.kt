@@ -151,6 +151,25 @@ fun FormattingPanel(
                 }
             }
 
+            if (prefs.orientation == ReaderOrientation.Horizontal) {
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Double page in landscape",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = prefs.doublePageSpread,
+                        onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
+                    )
+                }
+            }
+
             Spacer(Modifier.height(16.dp))
 
             // Chapter Map toggle

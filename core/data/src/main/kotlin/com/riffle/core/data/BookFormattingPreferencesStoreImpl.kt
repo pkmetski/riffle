@@ -23,6 +23,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
             margins = entity.margins,
             orientation = runCatching { ReaderOrientation.valueOf(entity.orientation) }.getOrDefault(ReaderOrientation.Horizontal),
             showChapterMap = entity.showChapterMap,
+            doublePageSpread = entity.doublePageSpread,
         )
     }
 
@@ -37,6 +38,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
                 margins = preferences.margins,
                 orientation = preferences.orientation.name,
                 showChapterMap = preferences.showChapterMap,
+                doublePageSpread = preferences.doublePageSpread,
             )
         )
     }
