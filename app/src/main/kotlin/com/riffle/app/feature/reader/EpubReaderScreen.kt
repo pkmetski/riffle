@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -211,7 +211,7 @@ fun EpubReaderScreen(
                 actions = {
                     if (state is ReaderState.Ready) {
                         IconButton(onClick = viewModel::openToc) {
-                            Icon(Icons.Filled.List, contentDescription = "Table of Contents")
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
                         }
                         IconButton(
                             onClick = { showFormattingPanel = true },
