@@ -12,6 +12,7 @@ sealed class SyncSessionResult {
 
 data class ServerProgress(
     val ebookLocation: String,
+    val ebookProgress: Float = 0f,
     val lastUpdate: Long,
 )
 

@@ -370,8 +370,14 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     IOException("Empty response body")
                 )
                 val parsed = json.decodeFromString<AbsProgressResponse>(raw)
-                NetworkGetProgressResult.Success(NetworkServerProgress(parsed.ebookLocation, parsed.lastUpdate))
-            } else NetworkGetProgressResult.NetworkError(IOException("HTTP ${response.code}"))
+                NetworkGetProgressResult.Success(
+                    NetworkServerProgress(parsed.ebookLocation, parsed.ebookProgress, parsed.lastUpdate)
+                )
+            } else if (response.code == 404) {
+                NetworkGetProgressResult.Success(NetworkServerProgress("", 0f, 0L))
+            } else {
+                NetworkGetProgressResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
         } catch (e: IOException) {
             NetworkGetProgressResult.NetworkError(e)
         }

@@ -45,7 +45,13 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         return when {
             serverProgress.lastUpdate > localUpdatedAt -> {
                 positionStore.updateLocalTimestamp(itemId, serverProgress.lastUpdate)
-                ProgressSyncCycleResult.ServerWins(ServerProgress(serverProgress.ebookLocation, serverProgress.lastUpdate))
+                ProgressSyncCycleResult.ServerWins(
+                    ServerProgress(
+                        ebookLocation = serverProgress.ebookLocation,
+                        ebookProgress = serverProgress.ebookProgress,
+                        lastUpdate = serverProgress.lastUpdate,
+                    )
+                )
             }
             localUpdatedAt > serverProgress.lastUpdate -> {
                 val patchResult = api.syncEbookProgress(baseUrl, itemId, payload.toNetwork(), token, insecure)

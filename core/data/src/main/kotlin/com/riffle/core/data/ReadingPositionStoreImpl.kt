@@ -20,6 +20,14 @@ class ReadingPositionStoreImpl @Inject constructor(
         dao.getByItemId(itemId)?.localUpdatedAt ?: 0L
 
     override suspend fun updateLocalTimestamp(itemId: String, millis: Long) {
-        dao.updateLocalTimestamp(itemId, millis)
+        // Use upsert so that a row is always created — the UPDATE-only query silently does nothing
+        // when no row exists yet, leaving localUpdatedAt = 0 and causing the server to win every
+        // subsequent sync cycle until the user has moved enough to trigger a position save.
+        val existing = dao.getByItemId(itemId)
+        dao.upsert(ReadingPositionEntity(
+            itemId = itemId,
+            cfi = existing?.cfi ?: "",
+            localUpdatedAt = millis,
+        ))
     }
 }

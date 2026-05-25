@@ -164,6 +164,45 @@ class ProgressSyncIntegrationTest {
     }
 
     @Test
+    fun `GET 404 with local progress treats as no server record and sends PATCH`() = runTest {
+        positionStore.localUpdatedAt = 4_000L
+        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":4100}"""))
+
+        val result = buildRepo().runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.LocalWins)
+        assertEquals(2, server.requestCount)
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals("PATCH", server.takeRequest().method)
+        assertEquals(4100L, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `GET 404 with no local progress returns InSync without PATCH`() = runTest {
+        positionStore.localUpdatedAt = 0L
+        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+
+        val result = buildRepo().runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.InSync)
+        assertEquals(1, server.requestCount)
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals(null, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `GET 404 followed by successful local push correctly updates localUpdatedAt`() = runTest {
+        positionStore.localUpdatedAt = 7_000L
+        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+        server.enqueue(json(200, """{"ebookLocation":"cfi","lastUpdate":7200}"""))
+
+        buildRepo().runSyncCycle("item-1", payload)
+
+        assertEquals(7200L, positionStore.updatedTimestamp)
+    }
+
+    @Test
     fun `local-newer path with JSON response containing lastUpdate updates localUpdatedAt correctly`() = runTest {
         positionStore.localUpdatedAt = 3_000L
         server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
