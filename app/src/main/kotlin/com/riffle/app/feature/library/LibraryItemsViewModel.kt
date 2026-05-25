@@ -28,10 +28,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,6 +76,9 @@ class LibraryItemsViewModel @Inject constructor(
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _refreshFailed = MutableStateFlow(false)
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     // The banner appears when the device has no network or when the last server refresh failed.
     val isOffline: StateFlow<Boolean> = combine(
@@ -126,7 +132,20 @@ class LibraryItemsViewModel @Inject constructor(
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
-            refresh()
+            val refreshJob = launch { refresh() }
+            // Unblock the UI as soon as we have something meaningful to show:
+            // either Room returns cached data quickly, or we wait for the network
+            // refresh to complete so an empty state is known to be genuine.
+            val anyCachedData = merge(
+                inProgress.filter { it.isNotEmpty() },
+                finished.filter { it.isNotEmpty() },
+                allBooks.filter { it.isNotEmpty() },
+                series.filter { it.isNotEmpty() },
+                collections.filter { it.isNotEmpty() },
+            )
+            val hasCached = withTimeoutOrNull(500L) { anyCachedData.first() } != null
+            if (!hasCached) refreshJob.join()
+            _isLoading.value = false
         }
         // Auto-refresh whenever the device returns to online so cached data is refreshed
         // and the offline banner clears without requiring a manual lifecycle resume.

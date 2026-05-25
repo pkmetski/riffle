@@ -106,6 +106,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.coil.compose)
+    implementation(libs.okhttp)
 
     implementation(libs.readium.shared)
     implementation(libs.readium.streamer)
