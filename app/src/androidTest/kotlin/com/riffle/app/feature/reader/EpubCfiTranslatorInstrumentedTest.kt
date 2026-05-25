@@ -13,17 +13,11 @@ import java.util.zip.ZipFile
 /**
  * Instrumented unit tests for EpubCfiTranslator running against the bundled test.epub.
  *
- * These tests exercise the translator with real EPUB HTML (rather than synthetic snippets)
- * to catch issues like namespace prefixes, whitespace handling, and element IDs that only
- * appear in actual chapter files.
- *
- * test.epub spine:
- *   index 0 → OEBPS/chapter1.xhtml  (CFI spine step /2)
- *   index 1 → OEBPS/chapter2.xhtml  (CFI spine step /4)
- *   index 2 → OEBPS/chapter3.xhtml  (CFI spine step /6)
- *
- * chapter1.xhtml has <h2 id="s1">, <h2 id="s2">, <h2 id="s3"> section headings.
- * chapter2.xhtml has <h2 id="s1">, <h2 id="s2">, <h2 id="s3"> section headings.
+ * chapter1.xhtml body element children:
+ *   step  2: h1           step  4-12: p×5 (5 paragraphs)
+ *   step 14: h2#s1        step 16-24: p×5
+ *   step 26: h2#s2        step 28-36: p×5
+ *   step 38: h2#s3        step 40-48: p×5
  */
 @RunWith(AndroidJUnit4::class)
 class EpubCfiTranslatorInstrumentedTest {
@@ -114,12 +108,9 @@ class EpubCfiTranslatorInstrumentedTest {
     @Test
     fun idAnchoredAndNumericGiveSameResultForRealSectionHeading() {
         val html = readChapterHtml("OEBPS/chapter1.xhtml")
-        // chapter1.xhtml: body children are h1 + 4 p + h2#s1 + ...
-        // h1 = step 2, p×4 = steps 4,6,8,10, h2#s1 = step 12
-        // CFI with ID assertion: /4/12[s1]/1:0
-        // CFI without assertion:  /4/12/1:0
-        val withId = cfiDocPathToProgression("/4/12[s1]/1:0", html)
-        val withoutId = cfiDocPathToProgression("/4/12/1:0", html)
+        // h1=2, p×5=4..12, h2#s1=14 — step 14 is both the numeric and ID-anchored target
+        val withId = cfiDocPathToProgression("/4/14[s1]/1:0", html)
+        val withoutId = cfiDocPathToProgression("/4/14/1:0", html)
         assertNotNull(withId)
         assertNotNull(withoutId)
         assertEquals(withoutId!!, withId!!, 0.001)
@@ -129,8 +120,8 @@ class EpubCfiTranslatorInstrumentedTest {
     fun idAnchoredNavigationUsesDeepestValidId() {
         val html = readChapterHtml("OEBPS/chapter1.xhtml")
         // s2 is the second section heading; its position must be > s1
-        val progS1 = cfiDocPathToProgression("/4/12[s1]/1:0", html)!!
-        val progS2 = cfiDocPathToProgression("/4/24[s2]/1:0", html)!!
+        val progS1 = cfiDocPathToProgression("/4/14[s1]/1:0", html)!!
+        val progS2 = cfiDocPathToProgression("/4/26[s2]/1:0", html)!!
         assertTrue("s2 must come after s1: $progS1 >= $progS2", progS1 < progS2)
     }
 
@@ -138,7 +129,7 @@ class EpubCfiTranslatorInstrumentedTest {
     fun idAnchoredFallsBackToNumericWhenIdAbsent() {
         val html = readChapterHtml("OEBPS/chapter1.xhtml")
         // An ID that doesn't exist in the HTML → numeric fallback, still valid
-        val prog = cfiDocPathToProgression("/4/12[does-not-exist]/1:0", html)
+        val prog = cfiDocPathToProgression("/4/14[does-not-exist]/1:0", html)
         assertNotNull("Should fall back to numeric and return valid progression", prog)
         assertTrue(prog!! in 0.0..1.0)
     }
@@ -161,13 +152,9 @@ class EpubCfiTranslatorInstrumentedTest {
     @Test
     fun outboundCfiForSectionHeadingContainsIdAssertion() {
         val html = readChapterHtml("OEBPS/chapter1.xhtml")
-        // Compute total chars in chapter1, find progression that lands at h2#s1.
-        // We don't know exact char count, but we can find a progression that produces
-        // a path containing [s1] by recovering the position from a known ID anchor.
-        val progAtS1 = cfiDocPathToProgression("/4/12[s1]/1:0", html)!!
+        val progAtS1 = cfiDocPathToProgression("/4/14[s1]/1:0", html)!!
         val outPath = progressionToCfiDocPath(progAtS1, html)
         assertNotNull(outPath)
-        // The outbound path for a position at h2#s1 should include [s1]
         assertTrue("Expected [s1] in outbound path: $outPath", outPath!!.contains("[s1]"))
     }
 
@@ -190,8 +177,7 @@ class EpubCfiTranslatorInstrumentedTest {
     @Test
     fun roundTripWithIdAssertionsOnRealHtml() {
         val html = readChapterHtml("OEBPS/chapter1.xhtml")
-        // Probe a position that lands at the s1 heading and verify round-trip via its ID
-        val progAtS1 = cfiDocPathToProgression("/4/12[s1]/1:0", html)!!
+        val progAtS1 = cfiDocPathToProgression("/4/14[s1]/1:0", html)!!
         val outPath = progressionToCfiDocPath(progAtS1, html)!!
         val recovered = cfiDocPathToProgression(outPath, html)!!
         assertEquals(progAtS1, recovered, 0.005)
