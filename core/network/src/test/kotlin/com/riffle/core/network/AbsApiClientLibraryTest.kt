@@ -143,4 +143,30 @@ class AbsApiClientLibraryTest {
         val result = client.getLibraryItems("http://127.0.0.1:1", "lib-1", "token", false)
         assertTrue(result is NetworkLibraryItemsResult.NetworkError)
     }
+
+    @Test
+    fun `getLibraryItems parses addedAt timestamp`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","addedAt":1708369906982,"media":{"metadata":{"title":"Dune","authorName":"Frank Herbert"},"ebookFormat":"epub"}}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
+        val success = result as NetworkLibraryItemsResult.Success
+        assertEquals(1708369906982L, success.items[0].addedAt)
+    }
+
+    @Test
+    fun `getLibraryItems sets addedAt to null when field is absent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Dune","authorName":"Frank Herbert"},"ebookFormat":"epub"}}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
+        val success = result as NetworkLibraryItemsResult.Success
+        assertNull(success.items[0].addedAt)
+    }
 }
