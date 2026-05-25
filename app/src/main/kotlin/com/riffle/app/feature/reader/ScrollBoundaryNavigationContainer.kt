@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -123,7 +125,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                                 if (dragAccum >= DRAG_THRESHOLD_PX) {
                                     lastNavigationMs = now
                                     dragAccum = 0f
-                                    post { onNavigateForward?.invoke() }
+                                    Handler(Looper.getMainLooper()).post { onNavigateForward?.invoke() }
                                 }
                             }
                             dy > 0 && currentProgression <= DRAG_BACKWARD_THRESHOLD && progressionStale -> {
@@ -131,7 +133,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                                 if (dragAccum >= DRAG_THRESHOLD_PX) {
                                     lastNavigationMs = now
                                     dragAccum = 0f
-                                    post { onNavigateBackward?.invoke() }
+                                    Handler(Looper.getMainLooper()).post { onNavigateBackward?.invoke() }
                                 }
                             }
                             else -> dragAccum = 0f

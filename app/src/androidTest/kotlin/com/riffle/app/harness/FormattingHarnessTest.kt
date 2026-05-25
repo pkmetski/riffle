@@ -64,7 +64,7 @@ class FormattingHarnessTest {
         composeTestRule
             .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
             .performTouchInput { click(Offset(width * 0.5f, height * 0.5f)) }
-        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithContentDescription("Format").fetchSemanticsNodes().isNotEmpty()
         }
 

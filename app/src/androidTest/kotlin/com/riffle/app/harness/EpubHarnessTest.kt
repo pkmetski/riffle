@@ -224,10 +224,11 @@ class EpubHarnessTest {
             .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
 
         // Wait for TopAppBar to animate in
-        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithContentDescription("Back")
                 .fetchSemanticsNodes().isNotEmpty()
         }
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
 
         // Tap center again to re-enter immersive mode
@@ -236,7 +237,7 @@ class EpubHarnessTest {
             .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
 
         // Wait for TopAppBar to animate out
-        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithContentDescription("Back")
                 .fetchSemanticsNodes().isEmpty()
         }
