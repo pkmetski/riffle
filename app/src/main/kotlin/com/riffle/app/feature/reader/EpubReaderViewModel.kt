@@ -116,8 +116,11 @@ class EpubReaderViewModel @Inject constructor(
     val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
 
     init {
-        viewModelScope.launch { openBook() }
-        viewModelScope.launch { loadFormattingPreferences() }
+        viewModelScope.launch {
+            // Sequential: prefs must be available before openBook() so initialPreferences is set correctly.
+            loadFormattingPreferences()
+            openBook()
+        }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverCfiToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
