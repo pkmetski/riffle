@@ -22,19 +22,43 @@ class ImmersiveModeState(
     var isImmersive by mutableStateOf(false)
         internal set
 
+    // Distinct from isImmersive (TopAppBar visibility): tracks whether controller.hide()
+    // has actually been called, so we know whether restoring bars would reflow the WebView.
+    private var systemBarsHidden = false
+
+    // Does NOT call controller.show() when revealing the AppBar — showing the nav bar
+    // changes the WebView's visible height and reflows paginated EPUB content.
     fun toggle() {
-        if (isImmersive) show() else hide()
+        if (isImmersive) {
+            isImmersive = false
+        } else {
+            hide()
+        }
+    }
+
+    // Called on page turn: only auto-hides the AppBar when bars are already hidden,
+    // so position changes in normal (bars-visible) mode don't dismiss the overlay.
+    fun dismissOverlay() {
+        if (systemBarsHidden) isImmersive = true
     }
 
     internal fun hide() {
+        systemBarsHidden = true
         isImmersive = true
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         controller.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     internal fun show() {
+        systemBarsHidden = false
         isImmersive = false
         controller.show(WindowInsetsCompat.Type.systemBars())
+    }
+
+    // Called when the system restores bars externally (edge-swipe with BEHAVIOR_DEFAULT).
+    internal fun onBarsRestoredExternally() {
+        systemBarsHidden = false
+        isImmersive = false
     }
 }
 
@@ -44,22 +68,27 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     val controller = remember(window) { WindowInsetsControllerCompat(window, window.decorView) }
     val state = remember(controller) { ImmersiveModeState(controller) }
 
-    // Sync isImmersive with actual system bar visibility.
-    // When BEHAVIOR_DEFAULT is set, an edge-swipe permanently restores the bars, and
-    // Compose's WindowInsets.systemBars reflects the change.
+    // Always enter immersive mode when the reader opens.
+    LaunchedEffect(state) {
+        state.hide()
+    }
+
+    // Sync isImmersive with actual system bar visibility so that an edge-swipe
+    // (which BEHAVIOR_DEFAULT turns into a permanent bar restore) also shows the
+    // TopAppBar overlay.
     //
-    // We track prevTopInset to distinguish two cases:
-    //   - Bars animating OUT (topInset: 56→40→20→0): prevTopInset never reaches 0 first,
-    //     so we never reset isImmersive mid-animation.
-    //   - Bars restored by edge-swipe (topInset: 0→20→...): prevTopInset WAS 0,
-    //     so the first non-zero value triggers the reset.
+    // prevTopInset distinguishes two cases:
+    //   - Bars animating OUT (56→40→20→0): prevTopInset never reaches 0 first,
+    //     so we never show the overlay mid-animation.
+    //   - Bars restored by edge-swipe (0→20→…): prevTopInset WAS 0,
+    //     so the first non-zero value shows the overlay.
     val density = LocalDensity.current
     val topInset = WindowInsets.systemBars.getTop(density)
     val prevTopInset = remember { mutableStateOf(topInset) }
     LaunchedEffect(topInset) {
         val wasHidden = prevTopInset.value == 0
         prevTopInset.value = topInset
-        if (state.isImmersive && topInset > 0 && wasHidden) state.isImmersive = false
+        if (topInset > 0 && wasHidden) state.onBarsRestoredExternally()
     }
 
     // Always restore system bars when the reader screen leaves the composition.
