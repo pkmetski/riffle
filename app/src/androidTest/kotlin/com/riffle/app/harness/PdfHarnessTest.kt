@@ -74,18 +74,13 @@ class PdfHarnessTest {
         composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
 
-        // Wait for the PDF reader to be ready and show the title
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty() &&
-                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.assertNoErrorState()
-
-        // Wait for the PDF to fully load (any page number appears in content description).
         composeTestRule.waitUntilPdfLoaded()
 
-        // Navigate two pages forward by tapping the right side of the reader
         repeat(2) {
             composeTestRule
                 .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
@@ -93,9 +88,46 @@ class PdfHarnessTest {
             composeTestRule.waitForIdle()
         }
 
-        // Assert PDF reader is displaying page 3 with no error state
         composeTestRule.waitUntilOnPdfPage(3)
         composeTestRule.assertNoErrorState()
+
+        // Reveal overlay before asserting the Back button (overlay is hidden in immersive mode).
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(center) }
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithContentDescription("Back").assertExists()
+    }
+
+    @Test
+    fun pdfReaderHidesTopAppBarOnOpenAndShowsItOnCenterTap() {
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
+
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
+                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.assertNoErrorState()
+        composeTestRule.waitUntilPdfLoaded()
+
+        // TopAppBar must be hidden in immersive mode on open.
+        composeTestRule.onNodeWithContentDescription("Back").assertDoesNotExist()
+
+        // Center tap reveals overlay.
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(center) }
+        composeTestRule.waitUntil(timeoutMillis = 2_000) {
+            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithContentDescription("Back").assertExists()
     }
 

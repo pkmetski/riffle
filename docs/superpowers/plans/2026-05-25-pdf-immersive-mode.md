@@ -1,3 +1,143 @@
+# PDF Immersive Mode Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Add immersive mode to the PDF reader so it behaves identically to the EPUB reader — system bars hidden on open, TopAppBar toggle on center tap, auto-dismiss overlay on page turns.
+
+**Architecture:** `ImmersiveModeState` and `rememberImmersiveModeState()` are used unchanged. All changes are in `PdfReaderScreen.kt`: the `Scaffold` is replaced with a `Box` + floating `AnimatedVisibility` TopAppBar (same pattern as `EpubReaderScreen`), an `InputListener` tap listener is registered on `PdfiumNavigatorFragment` for center-tap immersive toggle, and `dismissOverlay()` is wired to the page-change callback.
+
+**Tech Stack:** Kotlin, Jetpack Compose, Readium (`PdfiumNavigatorFragment`, `InputListener`, `TapEvent`), `WindowInsetsControllerCompat`
+
+---
+
+## Files
+
+- Modify: `app/src/main/kotlin/com/riffle/app/feature/reader/PdfReaderScreen.kt`
+- Modify (test): `app/src/androidTest/kotlin/com/riffle/app/harness/PdfHarnessTest.kt`
+- No other files change.
+
+---
+
+## Task 1: Fix existing PDF harness test and add failing immersive test
+
+The existing `opensPdfNavigatesTwoPagesAndShowsPage3WithNoError` test will break once immersive mode is added (the TopAppBar title and Back button will be hidden). Fix it now so it still passes with the current code, and update it to work correctly after immersive is added. Then add a new test that asserts immersive behaviour — this test must **fail** with the current code (before implementation).
+
+**Files:**
+- Modify: `app/src/androidTest/kotlin/com/riffle/app/harness/PdfHarnessTest.kt`
+
+- [ ] **Step 1: Open the existing test**
+
+Read `app/src/androidTest/kotlin/com/riffle/app/harness/PdfHarnessTest.kt`.
+
+- [ ] **Step 2: Fix `opensPdfNavigatesTwoPagesAndShowsPage3WithNoError`**
+
+Two changes are needed:
+
+1. The `waitUntil` block currently requires the item title text to be visible — remove that condition since the TopAppBar will be hidden after immersive mode is added.
+2. Before asserting the Back button exists, add a center tap to reveal the overlay; in immersive mode the button is hidden until a tap.
+
+Replace the body of `opensPdfNavigatesTwoPagesAndShowsPage3WithNoError` with:
+
+```kotlin
+@Test
+fun opensPdfNavigatesTwoPagesAndShowsPage3WithNoError() {
+    addServerAndBrowseLibrary()
+
+    composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+    composeTestRule.tapReadInDetailScreen()
+
+    composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.assertNoErrorState()
+    composeTestRule.waitUntilPdfLoaded()
+
+    repeat(2) {
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(centerRight) }
+        composeTestRule.waitForIdle()
+    }
+
+    composeTestRule.waitUntilOnPdfPage(3)
+    composeTestRule.assertNoErrorState()
+
+    // Reveal overlay before asserting the Back button (overlay is hidden in immersive mode).
+    composeTestRule
+        .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+        .performTouchInput { click(center) }
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithContentDescription("Back").assertExists()
+}
+```
+
+- [ ] **Step 3: Add the new failing immersive test**
+
+Append this test to `PdfHarnessTest`. With the current (non-immersive) code the TopAppBar is always visible, so `assertDoesNotExist()` on "Back" fails — confirming the test is a valid red.
+
+```kotlin
+@Test
+fun pdfReaderHidesTopAppBarOnOpenAndShowsItOnCenterTap() {
+    addServerAndBrowseLibrary()
+
+    composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.onAllNodesWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithText(StubAbsServer.TEST_PDF_ITEM_TITLE).performClick()
+    composeTestRule.tapReadInDetailScreen()
+
+    composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.assertNoErrorState()
+    composeTestRule.waitUntilPdfLoaded()
+
+    // TopAppBar must be hidden in immersive mode on open.
+    composeTestRule.onNodeWithContentDescription("Back").assertDoesNotExist()
+
+    // Center tap reveals overlay.
+    composeTestRule
+        .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+        .performTouchInput { click(center) }
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithContentDescription("Back").assertExists()
+}
+```
+
+- [ ] **Step 4: Run only the new test to confirm it fails**
+
+```
+make harness-test
+```
+
+Expected: `opensPdfNavigatesTwoPagesAndShowsPage3WithNoError` PASSES (with the fix it works against current non-immersive code), `pdfReaderHidesTopAppBarOnOpenAndShowsItOnCenterTap` FAILS with `assertDoesNotExist failed: expected the node to not exist`.
+
+- [ ] **Step 5: Commit the test changes**
+
+```bash
+git add app/src/androidTest/kotlin/com/riffle/app/harness/PdfHarnessTest.kt
+git commit -m "test(pdf-reader): add failing immersive mode test and fix existing navigation test"
+```
+
+---
+
+## Task 2: Implement immersive mode in PdfReaderScreen
+
+Replace `Scaffold` with a floating-overlay layout and wire `ImmersiveModeState` for tap toggle and page-change auto-dismiss.
+
+**Files:**
+- Modify: `app/src/main/kotlin/com/riffle/app/feature/reader/PdfReaderScreen.kt`
+
+- [ ] **Step 1: Replace the imports block**
+
+Replace the entire imports section of `PdfReaderScreen.kt` with:
+
+```kotlin
 @file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
 
 package com.riffle.app.feature.reader
@@ -52,7 +192,13 @@ import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.publication.Locator
+```
 
+- [ ] **Step 2: Replace the `PdfReaderScreen` composable**
+
+Replace the entire `PdfReaderScreen` function (lines 49–146) with:
+
+```kotlin
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfReaderScreen(
@@ -169,7 +315,13 @@ fun PdfReaderScreen(
         }
     }
 }
+```
 
+- [ ] **Step 3: Replace the `PdfNavigatorView` composable**
+
+Replace the entire `PdfNavigatorView` function (lines 148–210) with:
+
+```kotlin
 @Composable
 private fun PdfNavigatorView(
     state: ReaderState.Ready,
@@ -251,3 +403,27 @@ private fun PdfNavigatorView(
         modifier = modifier,
     )
 }
+```
+
+- [ ] **Step 4: Build to confirm no compile errors**
+
+```
+./gradlew :app:compileDebugKotlin
+```
+
+Expected: `BUILD SUCCESSFUL`
+
+- [ ] **Step 5: Run the harness tests**
+
+```
+make harness-test
+```
+
+Expected: both `opensPdfNavigatesTwoPagesAndShowsPage3WithNoError` and `pdfReaderHidesTopAppBarOnOpenAndShowsItOnCenterTap` PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/src/main/kotlin/com/riffle/app/feature/reader/PdfReaderScreen.kt
+git commit -m "feat(pdf-reader): add immersive mode with floating TopAppBar overlay"
+```
