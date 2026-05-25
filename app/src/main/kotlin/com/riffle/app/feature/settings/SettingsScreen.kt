@@ -260,6 +260,12 @@ fun SettingsScreen(
             onPrefsChange = { viewModel.updateGlobalFormatting(it) },
             onReset = {},
             onDismiss = { showFormattingPanel = false },
+            keepScreenOn = keepScreenOn,
+            onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
+            volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+            onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
+            invertVolumeKeys = invertVolumeKeys,
+            onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
         )
     }
 }
