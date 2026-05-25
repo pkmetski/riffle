@@ -198,6 +198,38 @@ class AbsApiClientSessionTest {
     }
 
     @Test
+    fun `getProgress 404 returns Success with lastUpdate zero and empty ebookLocation`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+        val result = client.getProgress(baseUrl(), "item-1", "tok", false)
+        assertTrue(result is NetworkGetProgressResult.Success)
+        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertEquals("", progress.ebookLocation)
+        assertEquals(0f, progress.ebookProgress, 0.001f)
+        assertEquals(0L, progress.lastUpdate)
+    }
+
+    @Test
+    fun `getProgress non-404 non-2xx returns NetworkError`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+        val result = client.getProgress(baseUrl(), "item-1", "tok", false)
+        assertTrue(result is NetworkGetProgressResult.NetworkError)
+    }
+
+    @Test
+    fun `getProgress parses ebookProgress field from ABS response`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""{"ebookLocation":"epubcfi(/6/4!/4/2/1:5)","ebookProgress":0.42,"lastUpdate":9000}""")
+        )
+        val result = client.getProgress(baseUrl(), "item-1", "tok", false)
+        assertTrue(result is NetworkGetProgressResult.Success)
+        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertEquals(0.42f, progress.ebookProgress, 0.001f)
+        assertEquals(9000L, progress.lastUpdate)
+    }
+
+    @Test
     fun `getProgress returns NetworkError on empty body`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200))
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)

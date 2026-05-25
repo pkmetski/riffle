@@ -69,6 +69,12 @@ User-controlled reading display settings. Scope varies by format:
 - **EPUB:** font size, theme (Light / Dark / Sepia), font family (system fonts + Literata, Merriweather, OpenDyslexic), line spacing, margins, reading orientation (paginated / continuous scroll).
 - **PDF:** theme (as colour filter), scroll direction (paged / continuous), zoom persistence.
 
+### EPUB CFI
+An EPUB Canonical Fragment Identifier — a string of the form `epubcfi(/6/N!<docPath>)` that pinpoints an exact location within an EPUB chapter. The spine step (`/6/N`) identifies the chapter; the document path after `!` identifies a node and character offset within that chapter's HTML. Two CFI dialects exist in practice: Readium emits XPath-style node addresses; epub.js (ABS's web reader) emits character-count-based addresses. The two are structurally incompatible. See ADR 0013.
+
+### EPUB CFI Translator
+The layer (`EpubCfiTranslator`) responsible for converting between Readium's native position representation and the character-count-based EPUB CFI format used by ABS/epub.js. All `ebookLocation` values crossing the Riffle↔ABS API boundary — in both directions — must pass through this translator. Inbound: server CFI → within-chapter progression → Readium Locator. Outbound: Readium within-chapter progression → CFI doc path → full CFI string. `ebookProgress` (book-wide float) is a separate display field and does not go through the translator. See ADR 0013.
+
 ### Highlight
 A marked text range in an EPUB, stored with a colour and an optional Note. Anchored to an EPUB CFI position.
 
