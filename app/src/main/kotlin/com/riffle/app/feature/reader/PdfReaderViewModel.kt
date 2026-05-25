@@ -79,6 +79,7 @@ class PdfReaderViewModel @Inject constructor(
     val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
     private var lastLocator: Locator? = null
+    val latestLocator: Locator? get() = lastLocator
     private var syncJob: Job? = null
     private var closeSyncDone = false
     private var initialLocatorSeen = false
