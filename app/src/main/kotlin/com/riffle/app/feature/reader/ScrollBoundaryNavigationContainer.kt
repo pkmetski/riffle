@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import kotlin.math.abs
+import kotlin.math.absoluteValue
 
 class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context) {
 
@@ -87,11 +88,12 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         // swallow the user's deliberate next button press.
         if (now - lastVolumeNavMs < VOLUME_NAV_COOLDOWN_MS) return
         if (forward) {
-            // Navigate if explicitly at the boundary threshold, or if the last scroll attempt
-            // didn't change progression (WebView was already stuck at the chapter end).
-            val atBoundary = currentProgression >= VOLUME_FORWARD_THRESHOLD ||
-                currentProgression == lastVolumeScrollProgression
-            if (atBoundary) {
+            // Navigate if at the boundary threshold, or if the last scroll moved progression
+            // by less than VOLUME_SCROLL_EPSILON — meaning the WebView is effectively stuck
+            // (tiny residual movement near the chapter end still counts as stuck).
+            val scrolledTooLittle = !lastVolumeScrollProgression.isNaN() &&
+                (currentProgression - lastVolumeScrollProgression).absoluteValue < VOLUME_SCROLL_EPSILON
+            if (currentProgression >= VOLUME_FORWARD_THRESHOLD || scrolledTooLittle) {
                 lastVolumeNavMs = now
                 lastVolumeScrollProgression = Float.NaN
                 onNavigateForward?.invoke()
@@ -100,9 +102,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                 evaluateJs("window.scrollBy({top: window.innerHeight * 0.8, behavior: 'smooth'})")
             }
         } else {
-            val atBoundary = currentProgression <= VOLUME_BACKWARD_THRESHOLD ||
-                currentProgression == lastVolumeScrollProgression
-            if (atBoundary) {
+            val scrolledTooLittle = !lastVolumeScrollProgression.isNaN() &&
+                (currentProgression - lastVolumeScrollProgression).absoluteValue < VOLUME_SCROLL_EPSILON
+            if (currentProgression <= VOLUME_BACKWARD_THRESHOLD || scrolledTooLittle) {
                 lastVolumeNavMs = now
                 lastVolumeScrollProgression = Float.NaN
                 onNavigateBackward?.invoke()
@@ -187,10 +189,10 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
 
     companion object {
         internal const val NAVIGATION_COOLDOWN_MS = 1500L
-        // Fling threshold: raised to 90% to match drag, requiring the user to be close to
-        // the chapter boundary before an upward/downward fling crosses chapters.
-        internal const val FLING_FORWARD_THRESHOLD = 0.90f
-        internal const val FLING_BACKWARD_THRESHOLD = 0.10f
+        // Fling threshold: raised to 95% so flings only cross chapters when the user is
+        // very close to the boundary, reducing accidental chapter skips.
+        internal const val FLING_FORWARD_THRESHOLD = 0.95f
+        internal const val FLING_BACKWARD_THRESHOLD = 0.05f
         // Drag thresholds are tighter since drag relies on progression going stale
         // (WebView truly stuck at the boundary), so false positives are less likely.
         internal const val DRAG_FORWARD_THRESHOLD = 0.90f
@@ -208,5 +210,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding fling or
         // chapter transition never swallows a deliberate button press.
         internal const val VOLUME_NAV_COOLDOWN_MS = 300L
+        // If a smooth scroll moved progression by less than this fraction, the WebView is
+        // effectively stuck at the chapter boundary (residual pixel movement still counts).
+        // Mid-chapter scrolls move ~0.04+ per press; stuck scrolls move < 0.01.
+        internal const val VOLUME_SCROLL_EPSILON = 0.02f
     }
 }

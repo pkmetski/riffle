@@ -51,7 +51,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun upwardFlingJustAboveForwardThresholdInvokesNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.91f)
+        val c = container(isScrollMode = true, progression = 0.96f)
         c.onNavigateForward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = -2000f)
         assertTrue(invoked)
@@ -60,7 +60,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun upwardFlingJustBelowForwardThresholdDoesNotInvokeNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.89f)
+        val c = container(isScrollMode = true, progression = 0.94f)
         c.onNavigateForward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = -2000f)
         assertFalse(invoked)
@@ -88,7 +88,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun downwardFlingJustBelowBackwardThresholdInvokesNavigateBackward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.09f)
+        val c = container(isScrollMode = true, progression = 0.04f)
         c.onNavigateBackward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = 2000f)
         assertTrue(invoked)
@@ -97,7 +97,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun downwardFlingJustAboveBackwardThresholdDoesNotInvokeNavigateBackward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.11f)
+        val c = container(isScrollMode = true, progression = 0.06f)
         c.onNavigateBackward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = 2000f)
         assertFalse(invoked)
@@ -264,7 +264,9 @@ class ScrollBoundaryNavigationContainerTest {
         // First press — not at hard threshold, fires scroll, records progression.
         c.handleVolumeScroll(forward = true) {}
         assertFalse(invoked)
-        // Second press — progression unchanged (WebView stuck), should navigate.
+        // Simulate a tiny residual scroll (< VOLUME_SCROLL_EPSILON = 0.02).
+        c.currentProgression = 0.935f
+        // Second press — moved less than epsilon, treated as stuck, should navigate.
         c.handleVolumeScroll(forward = true) {}
         assertTrue(invoked)
     }
