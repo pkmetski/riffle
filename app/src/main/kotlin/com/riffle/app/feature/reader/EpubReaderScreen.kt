@@ -309,7 +309,10 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(formattingPrefs, fragmentRef.value) {
+    // Only re-apply when prefs change. Fragment creation is excluded from the key because
+    // the fragment is created with initialPreferences already set — adding fragmentRef.value
+    // as a key would call submitPreferences twice on startup, causing a white flash.
+    LaunchedEffect(formattingPrefs) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences())
     }
 
@@ -329,6 +332,7 @@ private fun EpubNavigatorView(
                     configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = state.initialLocator,
+                    initialPreferences = formattingPrefs.toEpubPreferences(),
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
