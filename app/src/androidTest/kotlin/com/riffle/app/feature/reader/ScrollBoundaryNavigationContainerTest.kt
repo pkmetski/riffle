@@ -10,10 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-// GestureDetector requires a Looper; view creation and event dispatch run on the main thread
-// via runOnMainSync. The handleFling tests call the internal method directly because
-// synthetic MotionEvents cannot reliably trigger GestureDetector.onFling without a real
-// window and event pump — that pipeline is a well-tested Android framework concern.
+// View creation and event dispatch run on the main thread via runOnMainSync.
 @RunWith(AndroidJUnit4::class)
 class ScrollBoundaryNavigationContainerTest {
 
@@ -36,105 +33,6 @@ class ScrollBoundaryNavigationContainerTest {
         return c!!
     }
 
-    // -- Fling-based navigation --
-
-    @Test
-    fun upwardFlingAtChapterEndInScrollModeInvokesNavigateForward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 1.0f)
-        c.onNavigateForward = { invoked = true }
-        // Negative velocityY = finger moves up = reading forward through content.
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        assertTrue(invoked)
-    }
-
-    @Test
-    fun upwardFlingJustAboveForwardThresholdInvokesNavigateForward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 0.96f)
-        c.onNavigateForward = { invoked = true }
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        assertTrue(invoked)
-    }
-
-    @Test
-    fun upwardFlingJustBelowForwardThresholdDoesNotInvokeNavigateForward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 0.94f)
-        c.onNavigateForward = { invoked = true }
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        assertFalse(invoked)
-    }
-
-    @Test
-    fun upwardFlingMidChapterDoesNotInvokeNavigateForward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 0.5f)
-        c.onNavigateForward = { invoked = true }
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        assertFalse(invoked)
-    }
-
-    @Test
-    fun downwardFlingAtChapterStartInScrollModeInvokesNavigateBackward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 0.0f)
-        c.onNavigateBackward = { invoked = true }
-        // Positive velocityY = finger moves down = reading backward through content.
-        c.handleFling(velocityX = 0f, velocityY = 2000f)
-        assertTrue(invoked)
-    }
-
-    @Test
-    fun downwardFlingJustBelowBackwardThresholdInvokesNavigateBackward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 0.04f)
-        c.onNavigateBackward = { invoked = true }
-        c.handleFling(velocityX = 0f, velocityY = 2000f)
-        assertTrue(invoked)
-    }
-
-    @Test
-    fun downwardFlingJustAboveBackwardThresholdDoesNotInvokeNavigateBackward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 0.06f)
-        c.onNavigateBackward = { invoked = true }
-        c.handleFling(velocityX = 0f, velocityY = 2000f)
-        assertFalse(invoked)
-    }
-
-    @Test
-    fun flingInPaginatedModeInvokesNeitherCallback() {
-        var forwardInvoked = false
-        var backwardInvoked = false
-        val c = container(isScrollMode = false, progression = 1.0f)
-        c.onNavigateForward = { forwardInvoked = true }
-        c.onNavigateBackward = { backwardInvoked = true }
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        assertFalse(forwardInvoked)
-        assertFalse(backwardInvoked)
-    }
-
-    @Test
-    fun predominantlyHorizontalFlingAtChapterEndDoesNotInvokeNavigateForward() {
-        var invoked = false
-        val c = container(isScrollMode = true, progression = 1.0f)
-        c.onNavigateForward = { invoked = true }
-        // Horizontal fling should be left for the ViewPager, not chapter crossing.
-        c.handleFling(velocityX = -3000f, velocityY = -2000f)
-        assertFalse(invoked)
-    }
-
-    @Test
-    fun rapidlyRepeatedFlingFiresNavigationOnlyOnce() {
-        var count = 0
-        val c = container(isScrollMode = true, progression = 1.0f)
-        c.onNavigateForward = { count++ }
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        c.handleFling(velocityX = 0f, velocityY = -2000f)
-        assertEquals(1, count)
-    }
-
     // -- Drag-past-boundary navigation --
 
     @Test
@@ -144,15 +42,19 @@ class ScrollBoundaryNavigationContainerTest {
         c.onNavigateForward = { invoked = true }
         // Wait for progression to go stale (> STALE_PROGRESSION_MS = 300ms).
         Thread.sleep(ScrollBoundaryNavigationContainer.STALE_PROGRESSION_MS + 50)
+        // Drag distance must exceed DRAG_THRESHOLD_DP converted to pixels on this device.
+        val density = context.resources.displayMetrics.density
+        val dragPx = (ScrollBoundaryNavigationContainer.DRAG_THRESHOLD_DP * density + 20).toInt()
+        val stepPx = 10f
+        val steps = (dragPx / stepPx).toInt() + 1
         onMain {
             val t = SystemClock.uptimeMillis()
-            val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 100f, 500f, 0)
+            val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 100f, dragPx + 100f, 0)
             c.dispatchTouchEvent(down)
             down.recycle()
-            // 10 moves × 10px = 100px upward drag; exceeds DRAG_THRESHOLD_PX (80px).
-            for (i in 1..10) {
+            for (i in 1..steps) {
                 val mt = SystemClock.uptimeMillis()
-                val move = MotionEvent.obtain(t, mt, MotionEvent.ACTION_MOVE, 100f, 500f - i * 10f, 0)
+                val move = MotionEvent.obtain(t, mt, MotionEvent.ACTION_MOVE, 100f, dragPx + 100f - i * stepPx, 0)
                 c.dispatchTouchEvent(move)
                 move.recycle()
             }
@@ -188,7 +90,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun dragPastForwardBoundaryBelowDragThresholdProgressionDoesNotInvokeNavigateForward() {
         var invoked = false
-        // 0.85f is below DRAG_FORWARD_THRESHOLD (0.90f) so drag should not trigger.
+        // 0.85f is below DRAG_FORWARD_THRESHOLD (0.90f) so drag accumulation should not start.
         val c = container(isScrollMode = true, progression = 0.85f)
         c.onNavigateForward = { invoked = true }
         Thread.sleep(ScrollBoundaryNavigationContainer.STALE_PROGRESSION_MS + 50)

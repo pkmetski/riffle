@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
@@ -34,45 +33,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     private var gestureStartY = 0f
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var isIntercepting = false
-
-    private val gestureDetector = GestureDetector(
-        context,
-        object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                velocityX: Float,
-                velocityY: Float,
-            ): Boolean {
-                // Defer to avoid invoking navigation during active touch event dispatch,
-                // which can interfere with the WebView's in-progress gesture handling.
-                post { handleFling(velocityX, velocityY) }
-                return false
-            }
-        },
-    )
-
-    internal fun handleFling(velocityX: Float, velocityY: Float) {
-        if (!isScrollMode) return
-        // Ignore diagonal or predominantly horizontal flings — those belong to the ViewPager.
-        if (abs(velocityX) >= abs(velocityY)) return
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastNavigationMs < NAVIGATION_COOLDOWN_MS) return
-        when {
-            // Finger moves up (negative velocityY) = scrolling forward through content.
-            velocityY < 0 && currentProgression >= FLING_FORWARD_THRESHOLD -> {
-                lastNavigationMs = now
-                dragAccum = 0f
-                onNavigateForward?.invoke()
-            }
-            // Finger moves down (positive velocityY) = scrolling backward through content.
-            velocityY > 0 && currentProgression <= FLING_BACKWARD_THRESHOLD -> {
-                lastNavigationMs = now
-                dragAccum = 0f
-                onNavigateBackward?.invoke()
-            }
-        }
-    }
+    // Density-independent drag threshold: 120dp converted to pixels at runtime so the
+    // required pull distance is consistent across screen densities.
+    private val dragThresholdPx = DRAG_THRESHOLD_DP * context.resources.displayMetrics.density
 
     // Called by the volume key handler. atBoundary is computed by the caller via JS so it
     // reflects the WebView's actual scroll position rather than Readium's progression value.
@@ -144,7 +107,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                         when {
                             dy < 0 && currentProgression >= DRAG_FORWARD_THRESHOLD && progressionStale -> {
                                 dragAccum -= dy // dy is negative; -dy accumulates positive distance
-                                if (dragAccum >= DRAG_THRESHOLD_PX) {
+                                if (dragAccum >= dragThresholdPx) {
                                     lastNavigationMs = now
                                     dragAccum = 0f
                                     Handler(Looper.getMainLooper()).post { onNavigateForward?.invoke() }
@@ -152,7 +115,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                             }
                             dy > 0 && currentProgression <= DRAG_BACKWARD_THRESHOLD && progressionStale -> {
                                 dragAccum += dy
-                                if (dragAccum >= DRAG_THRESHOLD_PX) {
+                                if (dragAccum >= dragThresholdPx) {
                                     lastNavigationMs = now
                                     dragAccum = 0f
                                     Handler(Looper.getMainLooper()).post { onNavigateBackward?.invoke() }
@@ -165,25 +128,21 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dragAccum = 0f
             }
         }
-        gestureDetector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }
 
     companion object {
         internal const val NAVIGATION_COOLDOWN_MS = 1500L
-        // Fling threshold: raised to 95% so flings only cross chapters when the user is
-        // very close to the boundary, reducing accidental chapter skips.
-        internal const val FLING_FORWARD_THRESHOLD = 0.95f
-        internal const val FLING_BACKWARD_THRESHOLD = 0.05f
-        // Drag thresholds are tighter since drag relies on progression going stale
-        // (WebView truly stuck at the boundary), so false positives are less likely.
+        // Drag thresholds: drag navigation only activates when the WebView is truly stuck
+        // at the boundary (progression stale) and the user pulls deliberately past it.
         internal const val DRAG_FORWARD_THRESHOLD = 0.90f
         internal const val DRAG_BACKWARD_THRESHOLD = 0.10f
         // Progression must not have changed for this long before drag-navigation activates.
         // At 60 fps the locator fires every ~16 ms, so 300 ms = ~18 missed frames = clearly stuck.
         internal const val STALE_PROGRESSION_MS = 300L
-        // Pixels of drag past the stuck boundary before navigation fires.
-        internal const val DRAG_THRESHOLD_PX = 80f
+        // Required pull distance in dp. Converted to pixels at construction time so it is
+        // consistent across screen densities. 120dp requires a clearly intentional drag.
+        internal const val DRAG_THRESHOLD_DP = 120f
         // Short cooldown for volume key presses — just long enough to absorb OS key-repeat
         // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding fling or
         // chapter transition never swallows a deliberate button press.
