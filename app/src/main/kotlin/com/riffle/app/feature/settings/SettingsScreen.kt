@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
@@ -193,13 +194,16 @@ fun SettingsScreen(
             )
             HorizontalDivider()
             ListItem(
-                modifier = Modifier.clickable { viewModel.setInvertVolumeKeys(!invertVolumeKeys) },
+                modifier = Modifier
+                    .clickable(enabled = volumeKeyNavigationEnabled) { viewModel.setInvertVolumeKeys(!invertVolumeKeys) }
+                    .alpha(if (volumeKeyNavigationEnabled) 1f else 0.38f),
                 headlineContent = { Text("Invert volume keys") },
                 supportingContent = { Text("Volume down goes to previous page") },
                 trailingContent = {
                     Switch(
                         checked = invertVolumeKeys,
                         onCheckedChange = { viewModel.setInvertVolumeKeys(it) },
+                        enabled = volumeKeyNavigationEnabled,
                     )
                 },
             )
