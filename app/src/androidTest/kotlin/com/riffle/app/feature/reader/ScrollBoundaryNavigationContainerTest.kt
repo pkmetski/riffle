@@ -51,7 +51,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun upwardFlingJustAboveForwardThresholdInvokesNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.76f)
+        val c = container(isScrollMode = true, progression = 0.91f)
         c.onNavigateForward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = -2000f)
         assertTrue(invoked)
@@ -60,7 +60,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun upwardFlingJustBelowForwardThresholdDoesNotInvokeNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.74f)
+        val c = container(isScrollMode = true, progression = 0.89f)
         c.onNavigateForward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = -2000f)
         assertFalse(invoked)
@@ -88,7 +88,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun downwardFlingJustBelowBackwardThresholdInvokesNavigateBackward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.24f)
+        val c = container(isScrollMode = true, progression = 0.09f)
         c.onNavigateBackward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = 2000f)
         assertTrue(invoked)
@@ -97,7 +97,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun downwardFlingJustAboveBackwardThresholdDoesNotInvokeNavigateBackward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.26f)
+        val c = container(isScrollMode = true, progression = 0.11f)
         c.onNavigateBackward = { invoked = true }
         c.handleFling(velocityX = 0f, velocityY = 2000f)
         assertFalse(invoked)
@@ -213,7 +213,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun volumeScrollForwardAtBoundaryInvokesNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.99f)
+        val c = container(isScrollMode = true, progression = 0.96f)
         c.onNavigateForward = { invoked = true }
         c.handleVolumeScroll(forward = true) { /* js not expected */ }
         assertTrue(invoked)
@@ -236,7 +236,7 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun volumeScrollBackwardAtBoundaryInvokesNavigateBackward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.01f)
+        val c = container(isScrollMode = true, progression = 0.04f)
         c.onNavigateBackward = { invoked = true }
         c.handleVolumeScroll(forward = false) { /* js not expected */ }
         assertTrue(invoked)
@@ -258,7 +258,8 @@ class ScrollBoundaryNavigationContainerTest {
     @Test
     fun volumeScrollForwardWhenStuckAtBoundaryInvokesNavigateForward() {
         var invoked = false
-        val c = container(isScrollMode = true, progression = 0.95f)
+        // 0.93f is below the 0.95f threshold but WebView can't scroll further.
+        val c = container(isScrollMode = true, progression = 0.93f)
         c.onNavigateForward = { invoked = true }
         // First press — not at hard threshold, fires scroll, records progression.
         c.handleVolumeScroll(forward = true) {}

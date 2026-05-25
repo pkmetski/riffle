@@ -187,10 +187,10 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
 
     companion object {
         internal const val NAVIGATION_COOLDOWN_MS = 1500L
-        // Fling threshold: a fast fling at 75%+ of the chapter navigates forward.
-        // Symmetric thresholds: 25% from either end triggers a fling, 10% for drag.
-        internal const val FLING_FORWARD_THRESHOLD = 0.75f
-        internal const val FLING_BACKWARD_THRESHOLD = 0.25f
+        // Fling threshold: raised to 90% to match drag, requiring the user to be close to
+        // the chapter boundary before an upward/downward fling crosses chapters.
+        internal const val FLING_FORWARD_THRESHOLD = 0.90f
+        internal const val FLING_BACKWARD_THRESHOLD = 0.10f
         // Drag thresholds are tighter since drag relies on progression going stale
         // (WebView truly stuck at the boundary), so false positives are less likely.
         internal const val DRAG_FORWARD_THRESHOLD = 0.90f
@@ -200,10 +200,10 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         internal const val STALE_PROGRESSION_MS = 300L
         // Pixels of drag past the stuck boundary before navigation fires.
         internal const val DRAG_THRESHOLD_PX = 80f
-        // Volume key thresholds are tight: only a true end-of-chapter (WebView can't
-        // scroll further) triggers navigation. Mid-chapter scrolls stay below 0.98.
-        internal const val VOLUME_FORWARD_THRESHOLD = 0.98f
-        internal const val VOLUME_BACKWARD_THRESHOLD = 0.02f
+        // Volume key thresholds: generous enough that the visible end-of-chapter (where
+        // Readium may report < 1.0) triggers navigation in one press rather than two.
+        internal const val VOLUME_FORWARD_THRESHOLD = 0.95f
+        internal const val VOLUME_BACKWARD_THRESHOLD = 0.05f
         // Short cooldown for volume key presses — just long enough to absorb OS key-repeat
         // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding fling or
         // chapter transition never swallows a deliberate button press.
