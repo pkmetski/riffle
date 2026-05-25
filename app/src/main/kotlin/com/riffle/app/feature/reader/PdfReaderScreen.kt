@@ -5,16 +5,20 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -24,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +48,8 @@ import kotlinx.coroutines.launch
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFactory
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
+import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.publication.Locator
 
@@ -56,6 +63,7 @@ fun PdfReaderScreen(
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val immersiveState = rememberImmersiveModeState()
 
     DisposableEffect(viewModel) {
         onDispose { viewModel.onReaderClosed() }
@@ -92,19 +100,17 @@ fun PdfReaderScreen(
 
     val title = (state as? ReaderState.Ready)?.title ?: ""
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+    // TopAppBar floats as an overlay so its show/hide never resizes the PDF view —
+    // same pattern as EpubReaderScreen.
+    Box(modifier = Modifier.fillMaxSize()) {
+        // navigationBarsPadding only — status bar insets are omitted because in immersive
+        // mode the status bar is hidden, and the floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+        ) {
             when (val s = state) {
                 ReaderState.Loading -> {
                     CircularProgressIndicator(
@@ -117,7 +123,11 @@ fun PdfReaderScreen(
                     val currentPage by viewModel.currentPage.collectAsState()
                     PdfNavigatorView(
                         state = s,
-                        onPageChanged = viewModel::onPageChanged,
+                        onPageChanged = { locator ->
+                            immersiveState.dismissOverlay()
+                            viewModel.onPageChanged(locator)
+                        },
+                        onTap = immersiveState::toggle,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         modifier = Modifier
@@ -142,6 +152,21 @@ fun PdfReaderScreen(
                 }
             }
         }
+
+        AnimatedVisibility(
+            visible = !immersiveState.isImmersive,
+            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
+            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
+        ) {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -149,6 +174,7 @@ fun PdfReaderScreen(
 private fun PdfNavigatorView(
     state: ReaderState.Ready,
     onPageChanged: (Locator) -> Unit,
+    onTap: () -> Unit,
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
     modifier: Modifier = Modifier,
@@ -156,6 +182,18 @@ private fun PdfNavigatorView(
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val fragmentRef = remember { mutableStateOf<PdfiumNavigatorFragment?>(null) }
+
+    // rememberUpdatedState ensures the listener always calls the latest onTap lambda
+    // without needing to be re-created when onTap changes.
+    val currentOnTap by rememberUpdatedState(onTap)
+    val tapListener = remember {
+        object : InputListener {
+            override fun onTap(event: TapEvent): Boolean {
+                currentOnTap()
+                return false
+            }
+        }
+    }
 
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
@@ -170,6 +208,10 @@ private fun PdfNavigatorView(
                 VolumeNavEvent.Backward -> fragmentRef.value?.goBackward(animated = false)
             }
         }
+    }
+
+    DisposableEffect(tapListener) {
+        onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
     AndroidView(
@@ -192,14 +234,15 @@ private fun PdfNavigatorView(
                 val fragment = fm.findFragmentById(containerView.id) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
-                // Enable tap-to-navigate: PDFs are always in scroll mode, so we must
-                // explicitly opt in to handling taps while scrolling.
+                // DirectionalNavigationAdapter handles edge taps for page navigation;
+                // tapListener (registered after) receives only center taps that DA doesn't consume.
                 fragment.addInputListener(
                     DirectionalNavigationAdapter(
                         navigator = fragment,
                         handleTapsWhileScrolling = true,
                     )
                 )
+                fragment.addInputListener(tapListener)
                 fragmentActivity.lifecycleScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
                 }
