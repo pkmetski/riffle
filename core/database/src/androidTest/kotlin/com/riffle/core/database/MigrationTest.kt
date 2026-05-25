@@ -303,6 +303,24 @@ class MigrationTest {
     }
 
     @Test
+    fun migration12To13() {
+        helper.createDatabase(TEST_DB, 12).use { db ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap) VALUES ('item1', 1.0, 'Light', 'Serif', 1.2, 1.0, 'Horizontal', 1)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 13, true, RiffleDatabase.MIGRATION_12_13)
+
+        db.query("SELECT itemId, doublePageSpread FROM book_formatting_preferences WHERE itemId = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1)) // doublePageSpread defaults to 0 (false)
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -311,7 +329,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 12, true,
+            TEST_DB, 13, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -323,6 +341,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_9_10,
             RiffleDatabase.MIGRATION_10_11,
             RiffleDatabase.MIGRATION_11_12,
+            RiffleDatabase.MIGRATION_12_13,
         )
 
         db.query("SELECT url, displayName FROM servers WHERE id = 's1'").use { cursor ->
