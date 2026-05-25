@@ -14,17 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Regression tests for the EpubNavigatorView submitPreferences call contract.
- *
- * Background: the original LaunchedEffect(formattingPrefs, fragmentRef.value) fired
- * submitPreferences on fragment creation (when fragmentRef.value changed null → fragment).
- * Since the fragment was already created with EpubPreferences() defaults, this caused
- * Readium to re-render with the stored prefs — producing a white flash on every open.
- *
- * The fix: LaunchedEffect(formattingPrefs) only — submitPreferences fires only when prefs
- * change, not when the fragment becomes available.
- */
+// Regression: LaunchedEffect(formattingPrefs) must not fire submitPreferences when the fragment becomes available.
 @RunWith(AndroidJUnit4::class)
 class EpubNavigatorPreferencesTest {
 

@@ -223,8 +223,7 @@ fun EpubReaderScreen(
     }
 }
 
-// Collects scroll-rate state in its own scope so that changes to cursorPosition only
-// recompose this composable and not sibling EpubNavigatorView.
+// Isolated scope: cursorPosition updates only recompose this composable, not sibling EpubNavigatorView.
 @Composable
 private fun BoxScope.EpubChapterRailOverlay(
     viewModel: EpubReaderViewModel,
@@ -309,9 +308,7 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Only re-apply when prefs change. Fragment creation is excluded from the key because
-    // the fragment is created with initialPreferences already set — adding fragmentRef.value
-    // as a key would call submitPreferences twice on startup, causing a white flash.
+    // fragmentRef.value excluded: fragment is created with initialPreferences, so adding it would call submitPreferences twice and flash.
     LaunchedEffect(formattingPrefs) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences())
     }

@@ -117,9 +117,7 @@ class EpubReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // Preferences must be loaded before openBook() transitions state to Ready.
-            // If they ran in parallel, EpubNavigatorView could render with default prefs
-            // (e.g. Light theme) then flash to the stored prefs when they arrive.
+            // Sequential: prefs must be available before openBook() so initialPreferences is set correctly.
             loadFormattingPreferences()
             openBook()
         }

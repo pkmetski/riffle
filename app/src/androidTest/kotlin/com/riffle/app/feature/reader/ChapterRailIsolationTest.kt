@@ -17,16 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Regression test: cursor-position changes must recompose only the rail overlay, not siblings.
- *
- * Background: af582dd wrapped ChapterNavigationRail in RiffleTheme while railCursorPosition
- * (a scroll-rate StateFlow) was still collected in the same scope as EpubNavigatorView.
- * Every scroll event triggered a recomposition of the navigator view, causing flickering.
- *
- * The fix extracts rail state collection into EpubChapterRailOverlay. This test guards that
- * contract: a composable that lives alongside the rail does NOT recompose when the cursor moves.
- */
+// Regression: cursor-position changes must recompose only the rail overlay, not sibling EpubNavigatorView.
 @RunWith(AndroidJUnit4::class)
 class ChapterRailIsolationTest {
 
@@ -103,10 +94,6 @@ class ChapterRailIsolationTest {
     }
 }
 
-/**
- * Mirrors EpubChapterRailOverlay's contract: collects the cursor StateFlow internally so that
- * only this composable recomposes when the cursor moves, not any sibling.
- */
 @Composable
 private fun IsolatedRailForTest(
     cursorFlow: StateFlow<Float>,

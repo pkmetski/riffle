@@ -53,18 +53,7 @@ class EpubReaderViewModelTest {
         assertEquals(2, syncCount)
     }
 
-    // Regression guard for the sequential loadFormattingPreferences() + openBook() init pattern.
-    //
-    // EpubReaderViewModel.init runs these sequentially so that formattingPreferences already
-    // holds the stored value when openBook() transitions state to Ready. EpubNavigatorView
-    // passes formattingPreferences as initialPreferences to createFragmentFactory(), so if
-    // the prefs were still at their default value at that point, Readium would render one
-    // frame with wrong settings and then flash when submitPreferences() arrived.
-    //
-    // EpubReaderViewModel is an AndroidViewModel with Readium dependencies that require
-    // android.net.Uri and cannot be instantiated in JVM unit tests without Robolectric.
-    // These tests verify the sequential coroutine pattern in isolation instead.
-
+    // Regression: prefs must be loaded before openBook() so initialPreferences is correct when the fragment is created.
     @Test
     fun `formattingPreferences has stored value when openBook resolves in sequential execution`() = runTest {
         val storedPrefs = "dark"   // stand-in for FormattingPreferences(theme = ReaderTheme.Dark)
