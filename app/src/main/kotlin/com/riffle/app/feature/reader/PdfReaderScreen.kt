@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -130,6 +131,7 @@ fun PdfReaderScreen(
                         onTap = immersiveState::toggle,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
+                        latestLocator = { viewModel.latestLocator },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -177,6 +179,7 @@ private fun PdfNavigatorView(
     onTap: () -> Unit,
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
+    latestLocator: () -> Locator?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -214,29 +217,46 @@ private fun PdfNavigatorView(
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
+    val containerId = rememberSaveable { View.generateViewId() }
+
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = View.generateViewId() }
+            FragmentContainerView(ctx).apply { id = containerId }
         },
         update = { containerView ->
             val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(containerView.id) == null) {
+            if (fm.findFragmentById(containerId) == null) {
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
                     pdfEngineProvider = PdfiumEngineProvider(),
                 ).createFragmentFactory(
-                    initialLocator = state.initialLocator,
+                    initialLocator = latestLocator() ?: state.initialLocator,
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
-                    .add(containerView.id, PdfiumNavigatorFragment::class.java, null)
+                    .add(containerId, PdfiumNavigatorFragment::class.java, null)
                     .commitNow()
                 @Suppress("UNCHECKED_CAST")
-                val fragment = fm.findFragmentById(containerView.id) as? PdfiumNavigatorFragment
+                val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 // DirectionalNavigationAdapter handles edge taps for page navigation;
                 // tapListener (registered after) receives only center taps that DA doesn't consume.
+                fragment.addInputListener(
+                    DirectionalNavigationAdapter(
+                        navigator = fragment,
+                        handleTapsWhileScrolling = true,
+                    )
+                )
+                fragment.addInputListener(tapListener)
+                fragmentActivity.lifecycleScope.launch {
+                    fragment.currentLocator.collect { locator -> onPageChanged(locator) }
+                }
+            } else if (fragmentRef.value == null) {
+                @Suppress("UNCHECKED_CAST")
+                val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
+                    ?: return@AndroidView
+                fragmentRef.value = fragment
                 fragment.addInputListener(
                     DirectionalNavigationAdapter(
                         navigator = fragment,
