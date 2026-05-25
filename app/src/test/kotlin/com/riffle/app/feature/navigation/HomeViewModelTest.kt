@@ -11,6 +11,7 @@ import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
+import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +51,10 @@ class HomeViewModelTest {
         }
     }
 
-    private fun fakeLibraryRepo(onRefresh: () -> Unit = {}): LibraryRepository = object : LibraryRepository {
+    private fun fakeLibraryRepo(
+        onRefresh: () -> Unit = {},
+        refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
+    ): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -64,7 +68,7 @@ class HomeViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult { onRefresh(); return LibraryRefreshResult.Success }
+        override suspend fun refreshLibraries(): LibraryRefreshResult { onRefresh(); return refreshResult }
         override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
         override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
         override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
@@ -112,11 +116,31 @@ class HomeViewModelTest {
     @Test
     fun `getStartDestination returns AddServer when server exists but refresh yields no libraries`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
-        // libraries remain empty even after refresh — server has no libraries
+        // libraries remain empty even after a successful refresh — server has no book libraries
 
         val result = makeVm().getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.AddServer, result)
+    }
+
+    @Test
+    fun `getStartDestination returns NoLibraries when refresh fails with network error`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        val repo = fakeLibraryRepo(refreshResult = LibraryRefreshResult.NetworkError(IOException("Connection refused")))
+
+        val result = makeVm(repo).getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.NoLibraries, result)
+    }
+
+    @Test
+    fun `getStartDestination returns NoLibraries when refresh fails with no active server`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        val repo = fakeLibraryRepo(refreshResult = LibraryRefreshResult.NoActiveServer)
+
+        val result = makeVm(repo).getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.NoLibraries, result)
     }
 
     @Test

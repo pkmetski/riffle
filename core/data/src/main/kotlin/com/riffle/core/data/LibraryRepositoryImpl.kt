@@ -99,8 +99,7 @@ class LibraryRepositoryImpl @Inject constructor(
                 val entities = result.libraries
                     .filter { it.mediaType == "book" }
                     .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
-                libraryDao.deleteByServerId(server.id)
-                libraryDao.upsertAll(entities)
+                libraryDao.replaceAllForServer(server.id, entities)
                 LibraryRefreshResult.Success
             }
             is NetworkLibrariesResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
