@@ -28,6 +28,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     private var lastNavigationMs = 0L
     private var progressionLastChangedMs = 0L
     private var lastVolumeScrollProgression = Float.NaN
+    private var lastVolumeNavMs = 0L
     private var lastTouchY = 0f
     private var dragAccum = 0f
     private var gestureStartX = 0f
@@ -81,14 +82,17 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     internal fun handleVolumeScroll(forward: Boolean, evaluateJs: (String) -> Unit) {
         if (!isScrollMode) return
         val now = SystemClock.elapsedRealtime()
-        if (now - lastNavigationMs < NAVIGATION_COOLDOWN_MS) return
+        // Use a short per-button cooldown to absorb OS key-repeat events, but keep this
+        // independent of lastNavigationMs so a prior fling or chapter navigation doesn't
+        // swallow the user's deliberate next button press.
+        if (now - lastVolumeNavMs < VOLUME_NAV_COOLDOWN_MS) return
         if (forward) {
             // Navigate if explicitly at the boundary threshold, or if the last scroll attempt
             // didn't change progression (WebView was already stuck at the chapter end).
             val atBoundary = currentProgression >= VOLUME_FORWARD_THRESHOLD ||
                 currentProgression == lastVolumeScrollProgression
             if (atBoundary) {
-                lastNavigationMs = now
+                lastVolumeNavMs = now
                 lastVolumeScrollProgression = Float.NaN
                 onNavigateForward?.invoke()
             } else {
@@ -99,7 +103,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
             val atBoundary = currentProgression <= VOLUME_BACKWARD_THRESHOLD ||
                 currentProgression == lastVolumeScrollProgression
             if (atBoundary) {
-                lastNavigationMs = now
+                lastVolumeNavMs = now
                 lastVolumeScrollProgression = Float.NaN
                 onNavigateBackward?.invoke()
             } else {
@@ -200,5 +204,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         // scroll further) triggers navigation. Mid-chapter scrolls stay below 0.98.
         internal const val VOLUME_FORWARD_THRESHOLD = 0.98f
         internal const val VOLUME_BACKWARD_THRESHOLD = 0.02f
+        // Short cooldown for volume key presses — just long enough to absorb OS key-repeat
+        // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding fling or
+        // chapter transition never swallows a deliberate button press.
+        internal const val VOLUME_NAV_COOLDOWN_MS = 300L
     }
 }

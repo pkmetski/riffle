@@ -269,13 +269,32 @@ class ScrollBoundaryNavigationContainerTest {
     }
 
     @Test
-    fun volumeScrollForwardRapidPressesFireOnlyOnce() {
+    fun volumeScrollForwardRapidPressesWithinCooldownFireOnlyOnce() {
         var count = 0
         val c = container(isScrollMode = true, progression = 0.99f)
         c.onNavigateForward = { count++ }
+        // Both calls are within VOLUME_NAV_COOLDOWN_MS of each other.
         c.handleVolumeScroll(forward = true) {}
         c.handleVolumeScroll(forward = true) {}
         assertEquals(1, count)
+    }
+
+    @Test
+    fun volumeScrollForwardAfterChapterNavigationIsNotBlocked() {
+        var count = 0
+        val c = container(isScrollMode = true, progression = 0.99f)
+        c.onNavigateForward = { count++ }
+        // First press navigates.
+        c.handleVolumeScroll(forward = true) {}
+        assertEquals(1, count)
+        // Simulate the new chapter loading at progression = 0.0, past the cooldown.
+        Thread.sleep(ScrollBoundaryNavigationContainer.VOLUME_NAV_COOLDOWN_MS + 50)
+        c.currentProgression = 0.0f
+        // Next press should scroll, not be blocked.
+        val jsCapture = mutableListOf<String>()
+        c.handleVolumeScroll(forward = true) { js -> jsCapture += js }
+        assertEquals(1, jsCapture.size)
+        assertEquals(1, count) // no additional navigation
     }
 
     @Test
