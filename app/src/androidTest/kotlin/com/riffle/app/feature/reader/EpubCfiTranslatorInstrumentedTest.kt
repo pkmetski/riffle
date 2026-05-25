@@ -29,9 +29,10 @@ import java.util.zip.ZipFile
 class EpubCfiTranslatorInstrumentedTest {
 
     private fun readChapterHtml(entryPath: String): String {
-        val context = InstrumentationRegistry.getInstrumentation().context
-        val epubBytes = context.assets.open("test.epub").use { it.readBytes() }
-        val tmp = File(context.cacheDir, "cfi_test.epub")
+        val instr = InstrumentationRegistry.getInstrumentation()
+        val epubBytes = instr.context.assets.open("test.epub").use { it.readBytes() }
+        val tmp = File(instr.targetContext.cacheDir, "cfi_test.epub")
+        tmp.parentFile?.mkdirs()
         tmp.writeBytes(epubBytes)
         return ZipFile(tmp).use { zip ->
             zip.getInputStream(
