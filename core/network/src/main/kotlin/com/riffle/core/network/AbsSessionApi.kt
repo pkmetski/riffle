@@ -7,6 +7,7 @@ data class NetworkEbookProgressPayload(
 
 data class NetworkServerProgress(
     val ebookLocation: String,
+    val ebookProgress: Float = 0f,
     val lastUpdate: Long,
 )
 

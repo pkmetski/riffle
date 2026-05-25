@@ -81,7 +81,7 @@ class ProgressSyncCycleTest {
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
             getResult = NetworkGetProgressResult.Success(
-                NetworkServerProgress("epubcfi(/6/8!/4/1:0)", serverTs)
+                NetworkServerProgress("epubcfi(/6/8!/4/1:0)", lastUpdate = serverTs)
             )
         )
 
@@ -101,7 +101,7 @@ class ProgressSyncCycleTest {
         val patchResponseTs = 3_100L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", serverTs)),
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = serverTs)),
             patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
         )
 
@@ -117,7 +117,7 @@ class ProgressSyncCycleTest {
         val ts = 2_000L
         val positionStore = FakePositionStore(localUpdatedAt = ts)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("cfi", ts))
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("cfi", lastUpdate = ts))
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -145,7 +145,7 @@ class ProgressSyncCycleTest {
         val localTs = 3_000L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", 1_000L)),
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
             patchResult = NetworkSyncSessionResult.Success(0L),
         )
 
@@ -161,7 +161,7 @@ class ProgressSyncCycleTest {
         val patchResponseTs = 3_100L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", 1_000L)),
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
             patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
         )
 
@@ -174,7 +174,7 @@ class ProgressSyncCycleTest {
     fun `local-newer with zero PATCH lastUpdate still returns LocalWins`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 3_000L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", 1_000L)),
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
             patchResult = NetworkSyncSessionResult.Success(0L),
         )
 
@@ -197,6 +197,57 @@ class ProgressSyncCycleTest {
         assertEquals(1, api.patchCallCount)
         assertNotNull(positionStore.updatedTimestamp)
         assertTrue(positionStore.updatedTimestamp!! > 0L)
+    }
+
+    // --- 404-equivalent (server has no progress record) ---
+
+    @Test
+    fun `server returns no-progress (lastUpdate=0) with no local data returns InSync`() = runTest {
+        // Both local and server have lastUpdate=0 — nothing to push or pull.
+        val positionStore = FakePositionStore(localUpdatedAt = 0L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("", lastUpdate = 0L))
+        )
+
+        val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.InSync)
+        assertEquals(0, api.patchCallCount)
+    }
+
+    @Test
+    fun `server returns no-progress (lastUpdate=0) with local data returns LocalWins and sends PATCH`() = runTest {
+        // Server has no record (mapped 404), local has been read — must push.
+        val positionStore = FakePositionStore(localUpdatedAt = 5_000L)
+        val patchResponseTs = 5_100L
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("", lastUpdate = 0L)),
+            patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
+        )
+
+        val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.LocalWins)
+        assertEquals(1, api.patchCallCount)
+        assertEquals(patchResponseTs, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `server returns no-progress and ServerWins result carries ebookProgress field`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 0L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(
+                NetworkServerProgress("epubcfi(/6/4!/4/2/1:5)", ebookProgress = 0.42f, lastUpdate = 9_000L)
+            )
+        )
+
+        val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertTrue(result is ProgressSyncCycleResult.ServerWins)
+        val serverProgress = (result as ProgressSyncCycleResult.ServerWins).serverProgress
+        assertEquals("epubcfi(/6/4!/4/2/1:5)", serverProgress.ebookLocation)
+        assertEquals(0.42f, serverProgress.ebookProgress, 0.001f)
+        assertEquals(9_000L, serverProgress.lastUpdate)
     }
 
     @Test

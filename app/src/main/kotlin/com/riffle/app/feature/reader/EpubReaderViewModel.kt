@@ -13,8 +13,10 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -31,16 +33,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import org.json.JSONArray
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.services.locateProgression
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
+import java.util.zip.ZipFile
 import javax.inject.Inject
 
 private const val SYNC_INTERVAL_MS = 30_000L
@@ -95,6 +99,9 @@ class EpubReaderViewModel @Inject constructor(
 
     private var lastLocator: Locator? = null
     private var publication: Publication? = null
+    private var epubFile: File? = null
+    @Volatile private var epubZip: ZipFile? = null
+    private val chapterHtmlCache = mutableMapOf<Int, String>()
     private var syncJob: Job? = null
     private var closeSyncDone = false
     // True after the navigator emits its first locator (the restored position on open).
@@ -123,7 +130,7 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
-                serverCfiToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
+                serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
             }
         }
     }
@@ -147,6 +154,7 @@ class EpubReaderViewModel @Inject constructor(
         }
         when (val result = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> {
+                epubFile = result.epubFile
                 val pub = openPublication(result.epubFile)
                 if (pub == null) {
                     _state.value = ReaderState.Error("Failed to open EPUB")
@@ -162,6 +170,7 @@ class EpubReaderViewModel @Inject constructor(
                 // Sync immediately while localUpdatedAt is still the genuine stored value —
                 // before the navigator restore emits and would stamp localUpdatedAt = now.
                 progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
+
                 startPeriodicSync()
             }
             is EpubOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
@@ -181,7 +190,9 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
-        progressSyncController.sync(itemId, locator.toPayload())
+        viewModelScope.launch {
+            progressSyncController.sync(itemId, locator.toPayload())
+        }
     }
 
     fun onPositionChanged(locator: Locator) {
@@ -225,24 +236,76 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = isOpen
     }
 
-    private fun Locator.toPayload() = SessionPayload(
-        ebookLocation = locations.fragments.firstOrNull()
-            ?: buildEpubCfi(publication?.readingOrder ?: emptyList(), href),
-        ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
-    )
+    // Translates via character-count CFIs; see EpubCfiTranslator and ADR 0013.
+    private suspend fun Locator.toPayload(): SessionPayload = withContext(Dispatchers.Default) {
+        val readingOrder = publication?.readingOrder ?: emptyList()
+        val spineIndex = readingOrder.indexOfFirst { link ->
+            normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href.toString())
+        }
+        val fullCfi = if (spineIndex >= 0) {
+            val spineStep = (spineIndex + 1) * 2
+            val html = readChapterHtml(spineIndex)
+            val docPath = html?.let { progressionToCfiDocPath(locations.progression ?: 0.0, it) }
+            if (docPath != null) "epubcfi(/6/$spineStep!$docPath)"
+            else buildEpubCfi(readingOrder, href)
+        } else {
+            buildEpubCfi(readingOrder, href)
+        }
+        SessionPayload(
+            ebookLocation = fullCfi,
+            ebookProgress = locations.totalProgression?.toFloat() ?: locations.progression?.toFloat() ?: 0f,
+        )
+    }
 
-    private fun serverCfiToLocator(cfi: String): Locator? {
+    private suspend fun serverProgressToLocator(serverProgress: ServerProgress): Locator? {
         val pub = publication ?: return null
-        val spineIndex = epubCfiToSpineIndex(cfi) ?: return null
-        val link = pub.readingOrder.getOrNull(spineIndex) ?: return null
-        return try {
-            Locator.fromJSON(
-                JSONObject()
-                    .put("href", link.href.toString())
-                    .put("type", "application/xhtml+xml")
-                    .put("locations", JSONObject().put("fragments", JSONArray(listOf(cfi))))
-            )
-        } catch (_: Exception) { null }
+        val cfi = serverProgress.ebookLocation.takeIf { it.startsWith("epubcfi(") }
+        if (cfi != null) {
+            val docPath = extractCfiDocPath(cfi)
+            val spineIndex = epubCfiToSpineIndex(cfi)
+            val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
+            val html = spineIndex?.let { readChapterHtml(it) }
+            val chapterProgression = if (docPath != null && html != null) cfiDocPathToProgression(docPath, html) else null
+            if (link != null && chapterProgression != null) {
+                return try {
+                    Locator.fromJSON(
+                        JSONObject()
+                            .put("href", link.href.toString())
+                            .put("type", "application/xhtml+xml")
+                            .put("locations", JSONObject().put("progression", chapterProgression))
+                    )
+                } catch (_: Exception) { null }
+            }
+        }
+        // Fallback: no usable CFI — navigate via book-wide progress float
+        val progress = serverProgress.ebookProgress.toDouble().coerceIn(0.0, 1.0)
+        return if (progress > 0.0) pub.locateProgression(progress) else null
+    }
+
+    private suspend fun readChapterHtml(spineIndex: Int): String? {
+        chapterHtmlCache[spineIndex]?.let { return it }
+        return withContext(Dispatchers.IO) {
+            val file = epubFile ?: return@withContext null
+            val pub = publication ?: return@withContext null
+            val link = pub.readingOrder.getOrNull(spineIndex) ?: return@withContext null
+            val entryPath = normalizeEpubHref(link.href.toString())
+            val zip = try {
+                epubZip ?: synchronized(this@EpubReaderViewModel) {
+                    epubZip ?: ZipFile(file).also { epubZip = it }
+                }
+            } catch (_: Exception) { return@withContext null }
+            try {
+                zip.getEntry(entryPath)?.let { entry ->
+                    zip.getInputStream(entry).bufferedReader().readText()
+                }?.also { chapterHtmlCache[spineIndex] = it }
+            } catch (_: Exception) { null }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        epubZip?.close()
+        epubZip = null
     }
 
     private val _currentLocatorHref = MutableStateFlow<String?>(null)

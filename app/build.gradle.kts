@@ -116,6 +116,9 @@ dependencies {
     implementation(libs.acra.core)
     implementation(libs.acra.toast)
 
+    implementation(libs.jsoup)
+    testImplementation(libs.jsoup)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
