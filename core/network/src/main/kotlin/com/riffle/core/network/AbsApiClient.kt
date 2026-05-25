@@ -11,6 +11,7 @@ import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
+import com.riffle.core.network.model.AbsServerInfoResponse
 import com.riffle.core.network.model.AbsSeriesResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,7 +35,7 @@ sealed class NetworkLoginResult {
     data class InsecureConnection(val type: InsecureConnectionType) : NetworkLoginResult()
 }
 
-class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi {
+class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -381,6 +382,27 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             }
         } catch (e: IOException) {
             NetworkGetProgressResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getServerInfo(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): String? = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/server-info")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+            val raw = response.body?.string() ?: return@withContext null
+            json.decodeFromString<AbsServerInfoResponse>(raw).version
+        } catch (_: Exception) {
+            null
         }
     }
 
