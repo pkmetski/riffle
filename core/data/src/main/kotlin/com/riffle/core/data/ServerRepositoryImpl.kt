@@ -42,6 +42,7 @@ class ServerRepositoryImpl @Inject constructor(
                     displayName = displayNameFrom(url.value),
                     isActive = false,                    // overridden inside transaction
                     insecureConnectionAllowed = insecureAllowed,
+                    username = networkResult.username,
                 )
                 val inserted = dao.upsertAsFirstIfNoActive(entity)
                 tokenStorage.saveToken(id, networkResult.token)
@@ -81,6 +82,7 @@ class ServerRepositoryImpl @Inject constructor(
             displayName = displayName,
             isActive = isActive,
             insecureConnectionAllowed = insecureConnectionAllowed,
+            username = username,
         )
     }
 }

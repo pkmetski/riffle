@@ -67,6 +67,7 @@ class SeriesIntegrationTest {
             displayName = "test",
             isActive = true,
             insecureConnectionAllowed = false,
+            username = "",
         )
     }
 

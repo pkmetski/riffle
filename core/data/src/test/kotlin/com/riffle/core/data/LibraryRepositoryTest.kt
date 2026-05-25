@@ -232,6 +232,7 @@ class LibraryRepositoryTest {
         displayName = "abs",
         isActive = true,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     // ── refreshLibraries ─────────────────────────────────────────────────────

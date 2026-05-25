@@ -55,7 +55,7 @@ class ProgressSyncCycleTest {
         ReadingSessionRepositoryImpl(
             api = api,
             serverRepository = object : ServerRepository {
-                val server = Server("s1", ServerUrl.parse("http://localhost")!!, "T", true, false)
+                val server = Server("s1", ServerUrl.parse("http://localhost")!!, "T", true, false, "")
                 override fun observeAll(): Flow<List<Server>> = flowOf(listOf(server))
                 override suspend fun getActive(): Server = server
                 override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult = throw UnsupportedOperationException()

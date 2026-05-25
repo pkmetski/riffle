@@ -47,6 +47,7 @@ class NavigationDrawerViewModelTest {
         displayName = id,
         isActive = active,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)

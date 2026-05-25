@@ -44,6 +44,7 @@ class AddServerViewModelTest {
         displayName = "abs.example.com",
         isActive = true,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     private fun fakeRepo(result: AddServerResult): ServerRepository = object : ServerRepository {

@@ -475,7 +475,7 @@ class LibraryItemsViewModelTest {
         val vm = makeViewModel(
             serverRepository = object : ServerRepository {
                 override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
-                override suspend fun getActive() = Server("srv-1", ServerUrl.parse("http://localhost")!!, "Test", true, false)
+                override suspend fun getActive() = Server("srv-1", ServerUrl.parse("http://localhost")!!, "Test", true, false, "")
                 override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) =
                     throw UnsupportedOperationException()
                 override suspend fun setActive(serverId: String) {}
