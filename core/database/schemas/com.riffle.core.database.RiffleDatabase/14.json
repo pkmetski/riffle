@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 12,
-    "identityHash": "93895f215aecd4cebc446cbb62830a3e",
+    "version": 14,
+    "identityHash": "3d5b25358e1f6861ff418719700229c5",
     "entities": [
       {
         "tableName": "servers",
@@ -96,7 +96,7 @@
       },
       {
         "tableName": "library_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, `addedAt` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -173,6 +173,11 @@
           {
             "fieldPath": "lastOpenedAt",
             "columnName": "lastOpenedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
             "affinity": "INTEGER"
           }
         ],
@@ -348,7 +353,7 @@
       },
       {
         "tableName": "book_formatting_preferences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`itemId` TEXT NOT NULL, `fontSize` REAL NOT NULL, `theme` TEXT NOT NULL, `fontFamily` TEXT NOT NULL, `lineSpacing` REAL NOT NULL, `margins` REAL NOT NULL, `orientation` TEXT NOT NULL, `showChapterMap` INTEGER NOT NULL, PRIMARY KEY(`itemId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`itemId` TEXT NOT NULL, `fontSize` REAL NOT NULL, `theme` TEXT NOT NULL, `fontFamily` TEXT NOT NULL, `lineSpacing` REAL NOT NULL, `margins` REAL NOT NULL, `orientation` TEXT NOT NULL, `showChapterMap` INTEGER NOT NULL, `doublePageSpread` INTEGER NOT NULL, PRIMARY KEY(`itemId`))",
         "fields": [
           {
             "fieldPath": "itemId",
@@ -397,6 +402,12 @@
             "columnName": "showChapterMap",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "doublePageSpread",
+            "columnName": "doublePageSpread",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -409,7 +420,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '93895f215aecd4cebc446cbb62830a3e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3d5b25358e1f6861ff418719700229c5')"
     ]
   }
 }
