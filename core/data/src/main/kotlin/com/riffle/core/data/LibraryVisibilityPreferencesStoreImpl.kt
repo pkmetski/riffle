@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class LibraryVisibilityPreferencesStoreImpl @Inject constructor(
-    @LibraryVisibilityPreferencesDataStore private val dataStore: DataStore<Preferences>,
+    @param:LibraryVisibilityPreferencesDataStore private val dataStore: DataStore<Preferences>,
 ) : LibraryVisibilityPreferencesStore {
 
     override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> =
