@@ -1,6 +1,7 @@
 package com.riffle.app.feature.navigation
 
 import androidx.lifecycle.ViewModel
+import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ServerRepository
@@ -19,6 +20,7 @@ class HomeViewModel @Inject constructor(
 
     sealed class StartDestination {
         data object AddServer : StartDestination()
+        data object NoLibraries : StartDestination()
         data class Library(val libraryId: String, val libraryName: String) : StartDestination()
     }
 
@@ -30,11 +32,15 @@ class HomeViewModel @Inject constructor(
         var libraries = libraryRepository.observeLibraries().first()
 
         if (libraries.isEmpty()) {
-            libraryRepository.refreshLibraries()
+            val refreshResult = libraryRepository.refreshLibraries()
             libraries = libraryRepository.observeLibraries().first()
+            if (libraries.isEmpty()) {
+                return@withContext when (refreshResult) {
+                    LibraryRefreshResult.Success -> StartDestination.AddServer
+                    else -> StartDestination.NoLibraries
+                }
+            }
         }
-
-        if (libraries.isEmpty()) return@withContext StartDestination.AddServer
 
         val hiddenIds = visibilityStore.hiddenLibraryIds(activeServer.id).first()
         val firstVisible = libraries.firstOrNull { it.id !in hiddenIds } ?: libraries.first()

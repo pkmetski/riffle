@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -49,10 +50,11 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import kotlinx.coroutines.flow.Flow
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -273,6 +275,9 @@ private fun EpubNavigatorView(
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+    // Non-State holder for current href — written by the locator coroutine, read inside
+    // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
+    val currentHrefHolder = remember { arrayOf<String?>(null) }
 
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
@@ -329,11 +334,45 @@ private fun EpubNavigatorView(
 
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = View.generateViewId() }
+            ScrollBoundaryNavigationContainer(ctx).apply {
+                val fragmentContainer = FragmentContainerView(ctx).apply { id = View.generateViewId() }
+                addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            }
         },
-        update = { containerView ->
+        update = { container ->
+            container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+
+            fragmentRef.value?.let { fragment ->
+                container.onNavigateForward = navigateForward@{
+                    val idx = state.publication.readingOrder
+                        .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
+                    if (idx < 0 || idx >= state.publication.readingOrder.size - 1) return@navigateForward
+                    // goForward() in scroll mode jumps to the next spine item (chapter start).
+                    fragment.goForward(animated = false)
+                }
+                container.onNavigateBackward = navigateBackward@{
+                    val idx = state.publication.readingOrder
+                        .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
+                    if (idx <= 0) return@navigateBackward
+                    val prevLink = state.publication.readingOrder[idx - 1]
+                    // Navigate to progression=1.0 on the previous spine item so the reader
+                    // lands at the end of the previous chapter, not the start.
+                    val locator = Locator.fromJSON(
+                        JSONObject()
+                            .put("href", prevLink.href.toString())
+                            .put("type", "application/xhtml+xml")
+                            .put("locations", JSONObject().put("progression", 1.0))
+                    ) ?: return@navigateBackward
+                    fragmentActivity.lifecycleScope.launch {
+                        fragment.go(locator, animated = false)
+                    }
+                }
+            }
+
+            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
+                ?: return@AndroidView
             val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(containerView.id) == null) {
+            if (fm.findFragmentById(fragmentContainer.id) == null) {
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
                     configuration = sharedEpubNavigatorConfig,
@@ -343,14 +382,20 @@ private fun EpubNavigatorView(
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
-                    .add(containerView.id, EpubNavigatorFragment::class.java, null)
+                    .add(fragmentContainer.id, EpubNavigatorFragment::class.java, null)
                     .commitNow()
-                val fragment = fm.findFragmentById(containerView.id) as? EpubNavigatorFragment
+                val fragment = fm.findFragmentById(fragmentContainer.id) as? EpubNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
                 fragmentActivity.lifecycleScope.launch {
-                    fragment.currentLocator.collect { locator -> onPositionChanged(locator) }
+                    fragment.currentLocator.collect { locator ->
+                        // Update container directly — bypasses Compose state to avoid
+                        // recomposing EpubNavigatorView on every scroll frame.
+                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
+                        currentHrefHolder[0] = locator.href.toString()
+                        onPositionChanged(locator)
+                    }
                 }
             }
         },

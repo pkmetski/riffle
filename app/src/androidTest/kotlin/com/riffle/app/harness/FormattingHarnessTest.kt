@@ -1,5 +1,7 @@
 package com.riffle.app.harness
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -7,8 +9,10 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performTextInput
@@ -55,6 +59,14 @@ class FormattingHarnessTest {
     @Test
     fun openFormattingPanelAndSwitchToSepiaTheme() {
         addServerAndBrowseToReader()
+
+        // Reader opens in immersive mode — tap content to reveal the floating TopAppBar.
+        composeTestRule
+            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+            .performTouchInput { click(Offset(width * 0.5f, height * 0.5f)) }
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithContentDescription("Format").fetchSemanticsNodes().isNotEmpty()
+        }
 
         // Open formatting panel
         composeTestRule.onNodeWithContentDescription("Format").performClick()

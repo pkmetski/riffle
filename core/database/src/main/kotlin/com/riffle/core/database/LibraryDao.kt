@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,6 +18,12 @@ interface LibraryDao {
 
     @Query("DELETE FROM libraries WHERE serverId = :serverId")
     suspend fun deleteByServerId(serverId: String)
+
+    @Transaction
+    suspend fun replaceAllForServer(serverId: String, libraries: List<LibraryEntity>) {
+        deleteByServerId(serverId)
+        upsertAll(libraries)
+    }
 
     @Query("UPDATE libraries SET isUnsupported = :isUnsupported WHERE id = :libraryId")
     suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean)
