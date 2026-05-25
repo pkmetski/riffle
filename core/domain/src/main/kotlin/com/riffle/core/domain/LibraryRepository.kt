@@ -14,6 +14,7 @@ interface LibraryRepository {
     fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>>
+    fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>>
     fun observeSeries(libraryId: String): Flow<List<Series>>
     fun observeCollections(libraryId: String): Flow<List<Collection>>

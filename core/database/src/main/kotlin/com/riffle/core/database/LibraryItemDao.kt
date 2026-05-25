@@ -55,6 +55,9 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY title ASC")
     fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>>
 
+    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
+    fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>>
+
     @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY title ASC")
     fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>>
 

@@ -97,6 +97,7 @@ fun LibraryItemsScreen(
     val inProgress by viewModel.filteredInProgress.collectAsState()
     val allBooks by viewModel.filteredAllBooks.collectAsState()
     val finished by viewModel.filteredFinished.collectAsState()
+    val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
     val series by viewModel.filteredSeries.collectAsState()
     val collections by viewModel.filteredCollections.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
@@ -157,6 +158,7 @@ fun LibraryItemsScreen(
                 when (selectedTab) {
                     0 -> HomeTabContent(
                         inProgress = inProgress,
+                        recentlyAdded = recentlyAdded,
                         finished = finished,
                         isLoading = isLoading,
                         token = viewModel.authToken,
@@ -757,6 +759,7 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 @Composable
 private fun HomeTabContent(
     inProgress: List<LibraryItem>,
+    recentlyAdded: List<LibraryItem>,
     finished: List<LibraryItem>,
     isLoading: Boolean,
     token: String,
@@ -764,7 +767,7 @@ private fun HomeTabContent(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
 ) {
     if (isLoading) return
-    if (inProgress.isEmpty() && finished.isEmpty()) {
+    if (inProgress.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No books in progress or completed")
         }
@@ -783,6 +786,19 @@ private fun HomeTabContent(
                     onItemSelected = onItemSelected,
                     onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT) {
                         { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
+                    } else null,
+                )
+            }
+        }
+        if (recentlyAdded.isNotEmpty()) {
+            item(key = "header_recently_added") { SectionHeader(LibrarySectionType.RECENTLY_ADDED.displayName) }
+            item(key = "grid_recently_added") {
+                BookSectionGrid(
+                    items = recentlyAdded,
+                    token = token,
+                    onItemSelected = onItemSelected,
+                    onSeeMore = if (recentlyAdded.size > SECTION_PREVIEW_LIMIT) {
+                        { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) }
                     } else null,
                 )
             }

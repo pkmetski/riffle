@@ -66,6 +66,9 @@ class LibraryItemsViewModel @Inject constructor(
     private val finished: StateFlow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val recentlyAdded: StateFlow<List<LibraryItem>> = libraryRepository.observeRecentlyAddedItems(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -117,6 +120,11 @@ class LibraryItemsViewModel @Inject constructor(
 
     val filteredFinished: StateFlow<List<LibraryItem>> = combine(finished, isOffline) { items, offline ->
         if (offline) items.filter { isAvailableOffline(it) } else items
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val filteredRecentlyAdded: StateFlow<List<LibraryItem>> = combine(recentlyAdded, isOffline) { items, offline ->
+        val filtered = if (offline) items.filter { isAvailableOffline(it) } else items
+        filtered.take(50)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(allBooks, isOffline) { items, offline ->
