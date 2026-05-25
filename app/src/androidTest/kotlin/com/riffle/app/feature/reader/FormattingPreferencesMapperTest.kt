@@ -6,9 +6,12 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.preferences.Theme
+import org.readium.r2.shared.ExperimentalReadiumApi
 
 @RunWith(AndroidJUnit4::class)
 class FormattingPreferencesMapperTest {
@@ -95,6 +98,19 @@ class FormattingPreferencesMapperTest {
     fun verticalOrientationMapsToScrollTrue() {
         val result = FormattingPreferences(orientation = ReaderOrientation.Vertical).toEpubPreferences()
         assertEquals(true, result.scroll)
+    }
+
+    @OptIn(ExperimentalReadiumApi::class)
+    @Test
+    fun defaultFormattingPreferencesMappingDiffersFromReadiumDefaultEpubPreferences() {
+        // Regression guard: if FormattingPreferences().toEpubPreferences() were equal to
+        // EpubPreferences(), omitting initialPreferences in createFragmentFactory would be
+        // harmless. It is not — toEpubPreferences() always sets explicit values (theme, font,
+        // scroll, publisherStyles, etc.) while EpubPreferences() leaves all fields null,
+        // causing Readium to use its own defaults which differ from ours. Without
+        // initialPreferences the fragment renders one frame with wrong settings then flashes
+        // when submitPreferences applies the real values.
+        assertNotEquals(EpubPreferences(), FormattingPreferences().toEpubPreferences())
     }
 
 }
