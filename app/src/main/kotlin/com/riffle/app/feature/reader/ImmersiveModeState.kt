@@ -35,6 +35,8 @@ class ImmersiveModeState(
     // NOT called for system-initiated changes (onBarsRestoredExternally).
     internal var onUserImmersiveChanged: ((Boolean) -> Unit)? = null
 
+    // Does NOT call controller.show() when revealing the AppBar — showing the nav bar
+    // changes the WebView's visible height and reflows paginated EPUB content.
     fun toggle() {
         if (isImmersive) {
             lastToggleMs = SystemClock.elapsedRealtime()
@@ -111,6 +113,11 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     // (which BEHAVIOR_DEFAULT turns into a permanent bar restore) also shows the TopAppBar overlay.
     val density = LocalDensity.current
     val topInset = WindowInsets.systemBars.getTop(density)
+    // prevTopInset distinguishes two cases:
+    //   - Bars animating OUT (56→40→20→0): prevTopInset never reaches 0 first,
+    //     so we never show the overlay mid-animation.
+    //   - Bars restored by edge-swipe (0→20→…): prevTopInset WAS 0,
+    //     so the first non-zero value shows the overlay.
     val prevTopInset = remember { mutableStateOf(topInset) }
     LaunchedEffect(topInset) {
         val wasHidden = prevTopInset.value == 0

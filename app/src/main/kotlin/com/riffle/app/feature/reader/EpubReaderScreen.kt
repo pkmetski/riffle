@@ -48,7 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.rememberCoroutineScope
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -288,6 +288,7 @@ private fun EpubNavigatorView(
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Non-State holder for current href — written by the locator coroutine, read inside
@@ -392,7 +393,7 @@ private fun EpubNavigatorView(
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
+                coroutineScope.launch {
                     fragment.currentLocator.collect { locator ->
                         container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
                         currentHrefHolder[0] = locator.href.toString()
@@ -404,7 +405,7 @@ private fun EpubNavigatorView(
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
+                coroutineScope.launch {
                     fragment.currentLocator.collect { locator ->
                         container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
                         currentHrefHolder[0] = locator.href.toString()
@@ -431,7 +432,7 @@ private fun EpubNavigatorView(
                             .put("type", "application/xhtml+xml")
                             .put("locations", JSONObject().put("progression", 1.0))
                     ) ?: return@navigateBackward
-                    fragmentActivity.lifecycleScope.launch {
+                    coroutineScope.launch {
                         fragment.go(locator, animated = false)
                     }
                 }

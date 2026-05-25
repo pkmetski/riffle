@@ -43,7 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
@@ -184,6 +184,7 @@ private fun PdfNavigatorView(
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
+    val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<PdfiumNavigatorFragment?>(null) }
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -249,7 +250,7 @@ private fun PdfNavigatorView(
                     )
                 )
                 fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
+                coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
                 }
             } else if (fragmentRef.value == null) {
@@ -264,7 +265,7 @@ private fun PdfNavigatorView(
                     )
                 )
                 fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
+                coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
                 }
             }
