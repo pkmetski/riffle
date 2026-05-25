@@ -231,6 +231,7 @@ private fun PdfNavigatorView(
                 fm.beginTransaction()
                     .add(containerView.id, PdfiumNavigatorFragment::class.java, null)
                     .commitNow()
+                @Suppress("UNCHECKED_CAST")
                 val fragment = fm.findFragmentById(containerView.id) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment

@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class VolumeKeyPreferencesStoreImpl @Inject constructor(
-    @VolumeKeyPreferencesDataStore private val dataStore: DataStore<Preferences>,
+    @param:VolumeKeyPreferencesDataStore private val dataStore: DataStore<Preferences>,
 ) : VolumeKeyPreferencesStore {
 
     override val volumeKeyNavigationEnabled: Flow<Boolean> = dataStore.data.map { prefs ->

@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class FormattingPreferencesStoreImpl @Inject constructor(
-    @FormattingPreferencesDataStore private val dataStore: DataStore<Preferences>,
+    @param:FormattingPreferencesDataStore private val dataStore: DataStore<Preferences>,
 ) : FormattingPreferencesStore {
 
     override val preferences: Flow<FormattingPreferences> = dataStore.data.map { prefs ->

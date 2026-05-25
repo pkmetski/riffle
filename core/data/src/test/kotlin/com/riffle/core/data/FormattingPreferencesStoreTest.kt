@@ -5,6 +5,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -14,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FormattingPreferencesStoreTest {
 
     @get:Rule
