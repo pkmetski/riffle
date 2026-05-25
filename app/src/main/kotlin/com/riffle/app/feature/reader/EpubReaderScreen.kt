@@ -275,6 +275,7 @@ private fun EpubNavigatorView(
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+    val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
@@ -308,11 +309,25 @@ private fun EpubNavigatorView(
     LaunchedEffect(volumeNavEvents) {
         volumeNavEvents.collect { event ->
             val fragment = fragmentRef.value ?: return@collect
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical) {
-                // Scroll mode: goForward() jumps chapters; scroll the viewport by 80% instead.
+            val container = containerRef.value
+            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
                 when (event) {
-                    VolumeNavEvent.Forward -> fragment.evaluateJavascript("window.scrollBy(0, window.innerHeight * 0.8)")
-                    VolumeNavEvent.Backward -> fragment.evaluateJavascript("window.scrollBy(0, -window.innerHeight * 0.8)")
+                    VolumeNavEvent.Forward -> {
+                        val atBottom = fragment.evaluateJavascript(
+                            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
+                        )?.trim('"') == "true"
+                        container.handleVolumeScroll(forward = true, atBoundary = atBottom) { js ->
+                            launch { fragment.evaluateJavascript(js) }
+                        }
+                    }
+                    VolumeNavEvent.Backward -> {
+                        val atTop = fragment.evaluateJavascript(
+                            "(window.scrollY <= 4).toString()"
+                        )?.trim('"') == "true"
+                        container.handleVolumeScroll(forward = false, atBoundary = atTop) { js ->
+                            launch { fragment.evaluateJavascript(js) }
+                        }
+                    }
                 }
             } else {
                 when (event) {
@@ -337,7 +352,7 @@ private fun EpubNavigatorView(
             ScrollBoundaryNavigationContainer(ctx).apply {
                 val fragmentContainer = FragmentContainerView(ctx).apply { id = View.generateViewId() }
                 addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-            }
+            }.also { containerRef.value = it }
         },
         update = { container ->
             container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
