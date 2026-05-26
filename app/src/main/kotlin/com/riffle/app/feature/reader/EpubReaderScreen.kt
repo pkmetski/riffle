@@ -363,8 +363,7 @@ private fun EpubNavigatorView(
     }
 
     LaunchedEffect(searchResults, currentSearchIndex) {
-        val fragment = fragmentRef.value ?: return@LaunchedEffect
-        if (fragment !is DecorableNavigator) return@LaunchedEffect
+        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val decorations = searchResults.mapIndexed { index, locator ->
             Decoration(
                 id = "search_$index",
