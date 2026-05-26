@@ -52,6 +52,7 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -290,6 +291,7 @@ private fun EpubNavigatorView(
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
+    val locatorJobRef = remember { arrayOf<Job?>(null) }
 
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
@@ -358,6 +360,23 @@ private fun EpubNavigatorView(
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            locatorJobRef[0]?.cancel()
+            locatorJobRef[0] = null
+            // Explicitly remove the fragment when leaving composition so that
+            // Fragment.onDestroyView() fires immediately and releases the WebView's
+            // native Chromium renderer memory. Skip when the Activity is finishing —
+            // Android destroys fragments as part of Activity teardown in that case.
+            val fragment = fragmentRef.value ?: return@onDispose
+            fragmentRef.value = null
+            val fm = fragmentActivity.supportFragmentManager
+            if (!fragmentActivity.isFinishing && !fm.isStateSaved) {
+                fm.beginTransaction().remove(fragment).commitNow()
+            }
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             ScrollBoundaryNavigationContainer(ctx).apply {
@@ -414,7 +433,7 @@ private fun EpubNavigatorView(
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
+                locatorJobRef[0] = fragmentActivity.lifecycleScope.launch {
                     fragment.currentLocator.collect { locator ->
                         // Update container directly — bypasses Compose state to avoid
                         // recomposing EpubNavigatorView on every scroll frame.
