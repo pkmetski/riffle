@@ -786,7 +786,7 @@ private fun HomeTabContent(
                     items = inProgress,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT) {
+                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
                     } else null,
                 )
@@ -799,7 +799,7 @@ private fun HomeTabContent(
                     items = recentlyAdded,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (recentlyAdded.size > SECTION_PREVIEW_LIMIT) {
+                    onSeeMore = if (recentlyAdded.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) }
                     } else null,
                 )
@@ -812,7 +812,7 @@ private fun HomeTabContent(
                     items = finished,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT) {
+                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.FINISHED) }
                     } else null,
                 )
