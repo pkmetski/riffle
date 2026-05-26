@@ -352,8 +352,9 @@ private fun EpubNavigatorView(
         }
     }
 
-    // fragmentRef.value excluded: fragment is created with initialPreferences, so adding it would call submitPreferences twice and flash.
-    LaunchedEffect(formattingPrefs, isLandscape) {
+    // fragmentRef.value is a key so the effect re-fires when the fragment becomes available
+    // after rotation (isLandscape changes while fragmentRef is null, so the call would be lost).
+    LaunchedEffect(formattingPrefs, isLandscape, fragmentRef.value) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape))
     }
 
