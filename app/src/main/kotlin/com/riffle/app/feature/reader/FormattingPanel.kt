@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -41,6 +43,12 @@ fun FormattingPanel(
     onPrefsChange: (FormattingPreferences) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
+    keepScreenOn: Boolean,
+    onKeepScreenOnChange: (Boolean) -> Unit,
+    volumeKeyNavigationEnabled: Boolean,
+    onVolumeKeyNavigationEnabledChange: (Boolean) -> Unit,
+    invertVolumeKeys: Boolean,
+    onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -197,6 +205,89 @@ fun FormattingPanel(
                     .alpha(if (hasBookOverrides) 1f else 0f),
             ) {
                 Text("Reset to global defaults")
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // "Also while reading" section — global settings surfaced here for convenience;
+            // changes write to the same global DataStore as the Settings screen.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f))
+                Text(
+                    "Also while reading",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onKeepScreenOnChange(!keepScreenOn) },
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Keep screen on", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Applies to all books",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = keepScreenOn, onCheckedChange = onKeepScreenOnChange)
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onVolumeKeyNavigationEnabledChange(!volumeKeyNavigationEnabled) },
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Volume key navigation", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Applies to all books",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = volumeKeyNavigationEnabled,
+                    onCheckedChange = onVolumeKeyNavigationEnabledChange,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = volumeKeyNavigationEnabled) { onInvertVolumeKeysChange(!invertVolumeKeys) }
+                    .alpha(if (volumeKeyNavigationEnabled) 1f else 0.38f),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Invert volume keys", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Applies to all books",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = invertVolumeKeys,
+                    onCheckedChange = onInvertVolumeKeysChange,
+                    enabled = volumeKeyNavigationEnabled,
+                )
             }
 
             Spacer(Modifier.height(24.dp))

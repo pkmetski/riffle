@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
+import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
@@ -71,6 +72,7 @@ class EpubReaderViewModel @Inject constructor(
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
+    private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val volumeNavigationController: VolumeNavigationController,
     private val readerStateHolder: ReaderStateHolder,
 ) : AndroidViewModel(application) {
@@ -111,6 +113,12 @@ class EpubReaderViewModel @Inject constructor(
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val volumeKeyNavigationEnabled: StateFlow<Boolean> = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
@@ -395,5 +403,17 @@ class EpubReaderViewModel @Inject constructor(
             _formattingPreferences.value = formattingPreferencesStore.preferences.first()
             _hasBookOverrides.value = false
         }
+    }
+
+    fun setKeepScreenOn(value: Boolean) {
+        viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
+    }
+
+    fun setVolumeKeyNavigationEnabled(value: Boolean) {
+        viewModelScope.launch { volumeKeyPreferencesStore.setVolumeKeyNavigationEnabled(value) }
+    }
+
+    fun setInvertVolumeKeys(value: Boolean) {
+        viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
     }
 }
