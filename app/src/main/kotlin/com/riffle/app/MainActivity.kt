@@ -4,7 +4,9 @@ import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentFactory
 import com.riffle.app.feature.reader.ReaderStateHolder
 import com.riffle.app.feature.reader.VolumeKeyAction
 import com.riffle.app.feature.reader.VolumeKeyEventHandler
@@ -31,6 +33,16 @@ class MainActivity : FragmentActivity() {
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (savedInstanceState != null) {
+            // EpubNavigatorFragment and PdfiumNavigatorFragment require their respective
+            // NavigatorFactory and have no public no-arg constructor. On Activity recreation
+            // (rotation), FragmentManager.restoreSaveStateInternal() tries to reinstantiate
+            // them with the DEFAULT factory before any Compose code runs — crashing with
+            // Fragment$InstantiationException. Registering this safe factory first makes
+            // restoration succeed with a plain Fragment placeholder; the reader screens'
+            // AndroidView.update code then detects and replaces it via the proper factory.
+            supportFragmentManager.fragmentFactory = SafeNavigatorFragmentFactory()
+        }
         super.onCreate(savedInstanceState)
         volumeNavEnabled = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
             .stateIn(lifecycleScope, SharingStarted.Eagerly, true)
@@ -81,4 +93,20 @@ class MainActivity : FragmentActivity() {
         if (consumedVolumeKeyCodes.remove(keyCode)) return true
         return super.onKeyUp(keyCode, event)
     }
+}
+
+// Readium navigator fragments (EpubNavigatorFragment, PdfiumNavigatorFragment) have no
+// public no-arg constructor and must be created via their respective NavigatorFactory.
+// The default FragmentFactory uses reflection and cannot instantiate them, so
+// FragmentManager.restoreSaveStateInternal() throws InstantiationException on Activity
+// recreation (e.g. rotation) before Compose code has a chance to register the proper factory.
+// This safe wrapper returns a plain Fragment placeholder for any class that can't be
+// reflectively instantiated; the reader screens replace the placeholder immediately.
+private class SafeNavigatorFragmentFactory : FragmentFactory() {
+    override fun instantiate(classLoader: ClassLoader, className: String): Fragment =
+        try {
+            super.instantiate(classLoader, className)
+        } catch (_: Fragment.InstantiationException) {
+            Fragment()
+        }
 }

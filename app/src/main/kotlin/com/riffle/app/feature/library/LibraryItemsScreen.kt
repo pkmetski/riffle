@@ -112,6 +112,7 @@ fun LibraryItemsScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
+        kotlinx.coroutines.yield()
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
     }
@@ -578,6 +579,9 @@ internal fun LibrarySearchHeader(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
+        // yield() lets Android's view-focus pass (which runs during layout, before coroutines
+        // are dispatched) finish before we clear, so clearFocus actually sticks on entry.
+        kotlinx.coroutines.yield()
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
     }
