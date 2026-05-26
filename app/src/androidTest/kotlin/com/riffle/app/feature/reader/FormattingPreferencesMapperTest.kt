@@ -1,3 +1,5 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -7,9 +9,12 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.readium.r2.navigator.epub.EpubPreferences
+import org.readium.r2.navigator.preferences.ColumnCount
+import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.Theme
 import org.readium.r2.shared.ExperimentalReadiumApi
 
@@ -111,6 +116,64 @@ class FormattingPreferencesMapperTest {
         // initialPreferences the fragment renders one frame with wrong settings then flashes
         // when submitPreferences applies the real values.
         assertNotEquals(EpubPreferences(), FormattingPreferences().toEpubPreferences())
+    }
+
+    // --- Double-page / fixed-layout mapping ---
+
+    @Test
+    fun doublePageInLandscapeReflowableProducesTwoColumns() {
+        val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
+            isLandscape = true,
+            isFixedLayout = false,
+        )
+        assertEquals(ColumnCount.TWO, result.columnCount)
+        assertNull(result.spread)
+    }
+
+    @Test
+    fun doublePageInPortraitReflowableProducesOneColumn() {
+        val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
+            isLandscape = false,
+            isFixedLayout = false,
+        )
+        assertEquals(ColumnCount.ONE, result.columnCount)
+    }
+
+    @Test
+    fun doublePageOffInLandscapeReflowableProducesOneColumn() {
+        val result = FormattingPreferences(doublePageSpread = false).toEpubPreferences(
+            isLandscape = true,
+            isFixedLayout = false,
+        )
+        assertEquals(ColumnCount.ONE, result.columnCount)
+    }
+
+    @Test
+    fun verticalOrientationSuppressesDoublePageColumns() {
+        val result = FormattingPreferences(
+            orientation = ReaderOrientation.Vertical,
+            doublePageSpread = true,
+        ).toEpubPreferences(isLandscape = true, isFixedLayout = false)
+        assertEquals(ColumnCount.ONE, result.columnCount)
+    }
+
+    @Test
+    fun doublePageInLandscapeFixedLayoutProducesSpreadAlways() {
+        val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
+            isLandscape = true,
+            isFixedLayout = true,
+        )
+        assertEquals(Spread.ALWAYS, result.spread)
+        assertEquals(ColumnCount.ONE, result.columnCount)
+    }
+
+    @Test
+    fun doublePageOffInLandscapeFixedLayoutProducesSpreadNever() {
+        val result = FormattingPreferences(doublePageSpread = false).toEpubPreferences(
+            isLandscape = true,
+            isFixedLayout = true,
+        )
+        assertEquals(Spread.NEVER, result.spread)
     }
 
 }

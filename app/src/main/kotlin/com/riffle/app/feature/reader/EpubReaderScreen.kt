@@ -63,6 +63,8 @@ import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.epub.EpubLayout
+import org.readium.r2.shared.publication.presentation.presentation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -288,6 +290,7 @@ private fun EpubNavigatorView(
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isFixedLayout = state.publication.metadata.presentation.layout == EpubLayout.FIXED
     val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
@@ -355,7 +358,7 @@ private fun EpubNavigatorView(
     // fragmentRef.value is a key so the effect re-fires when the fragment becomes available
     // after rotation (isLandscape changes while fragmentRef is null, so the call would be lost).
     LaunchedEffect(formattingPrefs, isLandscape, fragmentRef.value) {
-        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape))
+        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout))
     }
 
     DisposableEffect(tapListener) {
@@ -412,7 +415,7 @@ private fun EpubNavigatorView(
                     configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = latestLocator() ?: state.initialLocator,
-                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape),
+                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
