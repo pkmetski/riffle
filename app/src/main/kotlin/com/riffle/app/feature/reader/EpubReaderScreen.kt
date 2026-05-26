@@ -362,7 +362,19 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Tracks whether we have live search decorations painted in the WebView.
+    // Prevents calling applyDecorations on initial composition (before WebView content loads),
+    // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
+    val hasActiveDecorations = remember { mutableStateOf(false) }
+
     LaunchedEffect(searchResults, currentSearchIndex) {
+        if (searchResults.isEmpty()) {
+            if (!hasActiveDecorations.value) return@LaunchedEffect
+            val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+            fragment.applyDecorations(emptyList(), group = "search")
+            hasActiveDecorations.value = false
+            return@LaunchedEffect
+        }
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val decorations = searchResults.mapIndexed { index, locator ->
             Decoration(
@@ -375,6 +387,7 @@ private fun EpubNavigatorView(
             )
         }
         fragment.applyDecorations(decorations, group = "search")
+        hasActiveDecorations.value = true
     }
 
     LaunchedEffect(volumeNavEvents) {
