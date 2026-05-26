@@ -86,6 +86,7 @@ class LibraryItemsViewModelTest {
             throw UnsupportedOperationException()
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private fun fakeTokenStorage(): TokenStorage = object : TokenStorage {
@@ -480,6 +481,7 @@ class LibraryItemsViewModelTest {
                     throw UnsupportedOperationException()
                 override suspend fun setActive(serverId: String) {}
                 override suspend fun remove(serverId: String) {}
+                override suspend fun getServerVersion(serverId: String): String? = null
             },
             tokenStorage = object : TokenStorage {
                 override suspend fun saveToken(serverId: String, token: String) {}

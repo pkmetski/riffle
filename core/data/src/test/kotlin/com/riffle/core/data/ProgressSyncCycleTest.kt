@@ -61,6 +61,7 @@ class ProgressSyncCycleTest {
                 override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult = throw UnsupportedOperationException()
                 override suspend fun setActive(serverId: String) = Unit
                 override suspend fun remove(serverId: String) = Unit
+                override suspend fun getServerVersion(serverId: String): String? = null
             },
             tokenStorage = object : TokenStorage {
                 override suspend fun saveToken(serverId: String, token: String) = Unit

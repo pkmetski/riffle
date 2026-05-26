@@ -50,6 +50,7 @@ class HomeViewModelTest {
         override suspend fun remove(serverId: String) {
             serversFlow.update { list -> list.filter { it.id != serverId } }
         }
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private fun fakeLibraryRepo(

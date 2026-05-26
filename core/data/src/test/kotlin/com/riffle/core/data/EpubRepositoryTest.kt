@@ -76,6 +76,7 @@ class EpubRepositoryTest {
             throw UnsupportedOperationException()
         override suspend fun setActive(serverId: String) = Unit
         override suspend fun remove(serverId: String) = Unit
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private fun fakeTokenStorage(token: String): TokenStorage = object : TokenStorage {
