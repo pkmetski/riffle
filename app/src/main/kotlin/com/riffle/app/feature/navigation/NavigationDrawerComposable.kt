@@ -35,10 +35,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.BuildConfig
 import com.riffle.core.domain.Library
@@ -128,8 +131,13 @@ private fun DrawerHeader(
     onServerSelected: (Server) -> Unit,
 ) {
     var switcherExpanded by remember { mutableStateOf(false) }
+    var headerWidth by remember { mutableStateOf(Dp.Unspecified) }
+    val density = LocalDensity.current
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
+    ) {
         ListItem(
             headlineContent = {
                 val name = activeServer?.displayName ?: "No server"
@@ -167,6 +175,7 @@ private fun DrawerHeader(
         DropdownMenu(
             expanded = switcherExpanded,
             onDismissRequest = { switcherExpanded = false },
+            modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
             allServers.forEach { server ->
                 DropdownMenuItem(
