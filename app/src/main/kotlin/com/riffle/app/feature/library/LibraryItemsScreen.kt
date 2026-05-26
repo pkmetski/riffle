@@ -105,10 +105,12 @@ fun LibraryItemsScreen(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) { keyboardController?.hide() }
-
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

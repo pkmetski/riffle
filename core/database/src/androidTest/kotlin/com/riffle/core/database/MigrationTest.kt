@@ -321,6 +321,27 @@ class MigrationTest {
     }
 
     @Test
+    fun migration13To14() {
+        helper.createDatabase(TEST_DB, 13).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed) " +
+                    "VALUES ('s1', 'http://localhost', 'My Server', 1, 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 14, true, RiffleDatabase.MIGRATION_13_14)
+
+        db.query("SELECT id, url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("http://localhost", cursor.getString(1))
+            assertEquals("My Server", cursor.getString(2))
+            assertEquals("", cursor.getString(3))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -329,7 +350,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 13, true,
+            TEST_DB, 14, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -342,13 +363,15 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_10_11,
             RiffleDatabase.MIGRATION_11_12,
             RiffleDatabase.MIGRATION_12_13,
+            RiffleDatabase.MIGRATION_13_14,
         )
 
-        db.query("SELECT url, displayName FROM servers WHERE id = 's1'").use { cursor ->
+        db.query("SELECT url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("My Server", cursor.getString(1))
+            assertEquals("", cursor.getString(2))
         }
     }
 }

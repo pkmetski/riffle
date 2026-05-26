@@ -9,6 +9,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
+import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.NetworkLoginResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -19,6 +20,7 @@ class ServerRepositoryImpl @Inject constructor(
     private val dao: ServerDao,
     private val tokenStorage: TokenStorage,
     private val absApiClient: AbsApi,
+    private val serverInfoApi: AbsServerInfoApi,
 ) : ServerRepository {
 
     override fun observeAll(): Flow<List<Server>> =
@@ -42,6 +44,7 @@ class ServerRepositoryImpl @Inject constructor(
                     displayName = displayNameFrom(url.value),
                     isActive = false,                    // overridden inside transaction
                     insecureConnectionAllowed = insecureAllowed,
+                    username = networkResult.username,
                 )
                 val inserted = dao.upsertAsFirstIfNoActive(entity)
                 tokenStorage.saveToken(id, networkResult.token)
@@ -65,6 +68,16 @@ class ServerRepositoryImpl @Inject constructor(
         tokenStorage.deleteToken(serverId)
     }
 
+    override suspend fun getServerVersion(serverId: String): String? {
+        val server = dao.getById(serverId)?.toDomain() ?: return null
+        val token = tokenStorage.getToken(serverId) ?: return null
+        return serverInfoApi.getServerInfo(
+            baseUrl = server.url.value,
+            token = token,
+            insecureAllowed = server.insecureConnectionAllowed,
+        )
+    }
+
     private fun displayNameFrom(url: String): String =
         try {
             java.net.URI(url).host ?: url.substringAfter("://").substringBefore("/")
@@ -81,6 +94,7 @@ class ServerRepositoryImpl @Inject constructor(
             displayName = displayName,
             isActive = isActive,
             insecureConnectionAllowed = insecureConnectionAllowed,
+            username = username,
         )
     }
 }

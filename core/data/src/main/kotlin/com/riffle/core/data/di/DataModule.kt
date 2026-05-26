@@ -38,6 +38,7 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import dagger.Binds
 import dagger.Module
@@ -117,6 +118,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAbsSessionApi(impl: AbsApiClient): AbsSessionApi
+
+    @Binds
+    @Singleton
+    abstract fun bindAbsServerInfoApi(impl: AbsApiClient): AbsServerInfoApi
 
     @Binds
     @Singleton

@@ -10,4 +10,5 @@ data class ServerEntity(
     val displayName: String,
     val isActive: Boolean,
     val insecureConnectionAllowed: Boolean,
+    val username: String,
 )

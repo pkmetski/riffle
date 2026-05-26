@@ -11,6 +11,7 @@ import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
+import com.riffle.core.network.model.AbsServerInfoResponse
 import com.riffle.core.network.model.AbsSeriesResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -28,13 +29,13 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 sealed class NetworkLoginResult {
-    data class Success(val userId: String, val token: String) : NetworkLoginResult()
+    data class Success(val userId: String, val token: String, val username: String) : NetworkLoginResult()
     data class WrongCredentials(val message: String) : NetworkLoginResult()
     data class NetworkError(val cause: Throwable) : NetworkLoginResult()
     data class InsecureConnection(val type: InsecureConnectionType) : NetworkLoginResult()
 }
 
-class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi {
+class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -59,7 +60,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                         IOException("Empty response body")
                     )
                     val parsed = json.decodeFromString<AbsLoginResponse>(raw)
-                    NetworkLoginResult.Success(userId = parsed.user.id, token = parsed.user.token)
+                    NetworkLoginResult.Success(userId = parsed.user.id, token = parsed.user.token, username = parsed.user.username)
                 }
                 401 -> NetworkLoginResult.WrongCredentials("Invalid username or password")
                 else -> NetworkLoginResult.NetworkError(IOException("Unexpected HTTP ${response.code}"))
@@ -381,6 +382,27 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             }
         } catch (e: IOException) {
             NetworkGetProgressResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getServerInfo(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): String? = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/server-info")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+            val raw = response.body?.string() ?: return@withContext null
+            json.decodeFromString<AbsServerInfoResponse>(raw).version
+        } catch (_: Exception) {
+            null
         }
     }
 
