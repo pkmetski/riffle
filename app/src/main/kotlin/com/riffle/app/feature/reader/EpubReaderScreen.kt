@@ -164,6 +164,7 @@ fun EpubReaderScreen(
                         },
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
+                        searchNavigationEvents = viewModel.searchNavigationEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
@@ -302,6 +303,7 @@ private fun EpubNavigatorView(
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
+    searchNavigationEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
@@ -344,6 +346,12 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
+            fragmentRef.value?.go(locator)
+        }
+    }
+
+    LaunchedEffect(searchNavigationEvents) {
+        searchNavigationEvents.collect { locator ->
             fragmentRef.value?.go(locator)
         }
     }
