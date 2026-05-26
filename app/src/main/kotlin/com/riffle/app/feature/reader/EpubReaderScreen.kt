@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -218,12 +219,13 @@ fun EpubReaderScreen(
                 },
                 actions = {
                     if (state is ReaderState.Ready) {
+                        IconButton(onClick = { }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
                         IconButton(onClick = viewModel::openToc) {
                             Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
                         }
-                        IconButton(
-                            onClick = { showFormattingPanel = true },
-                        ) {
+                        IconButton(onClick = { showFormattingPanel = true }) {
                             Icon(Icons.Default.Settings, contentDescription = "Format")
                         }
                     }
