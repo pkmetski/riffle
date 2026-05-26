@@ -121,6 +121,10 @@ fun EpubReaderScreen(
         }
     }
 
+    val isSearchActive by viewModel.isSearchActive.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
+    val currentSearchIndex by viewModel.currentSearchIndex.collectAsState()
     val title = (state as? ReaderState.Ready)?.title ?: ""
     val tocVisible by viewModel.tocVisible.collectAsState()
 
@@ -148,6 +152,7 @@ fun EpubReaderScreen(
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     LaunchedEffect(tocVisible, showFormattingPanel) {
+                        if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
                     EpubNavigatorView(
@@ -210,27 +215,40 @@ fun EpubReaderScreen(
             enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
             exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
         ) {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (state is ReaderState.Ready) {
-                        IconButton(onClick = { }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
+            if (isSearchActive) {
+                SearchTopBar(
+                    query = searchQuery,
+                    resultCount = searchResults.size,
+                    currentIndex = currentSearchIndex,
+                    onQueryChange = viewModel::onSearchQueryChanged,
+                    onPrev = viewModel::prevSearchResult,
+                    onNext = viewModel::nextSearchResult,
+                    onClose = viewModel::closeSearch,
+                    onNavigateBack = onNavigateBack,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
-                        IconButton(onClick = viewModel::openToc) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                    },
+                    actions = {
+                        if (state is ReaderState.Ready) {
+                            IconButton(onClick = viewModel::openSearch) {
+                                Icon(Icons.Default.Search, contentDescription = "Search")
+                            }
+                            IconButton(onClick = viewModel::openToc) {
+                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                            }
+                            IconButton(onClick = { showFormattingPanel = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Format")
+                            }
                         }
-                        IconButton(onClick = { showFormattingPanel = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Format")
-                        }
-                    }
-                }
-            )
+                    },
+                )
+            }
         }
 
         if (showFormattingPanel) {
