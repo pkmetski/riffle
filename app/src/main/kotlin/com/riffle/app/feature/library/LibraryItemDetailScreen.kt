@@ -38,9 +38,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import android.content.res.Configuration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -178,6 +180,7 @@ private fun LibraryItemDetailContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item.coverUrl?.let { url ->
+            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(url)
@@ -186,8 +189,9 @@ private fun LibraryItemDetailContent(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f),
+                    .then(if (isLandscape) Modifier.fillMaxWidth(0.4f) else Modifier.fillMaxWidth())
+                    .aspectRatio(2f / 3f)
+                    .align(Alignment.CenterHorizontally),
             )
         }
 
