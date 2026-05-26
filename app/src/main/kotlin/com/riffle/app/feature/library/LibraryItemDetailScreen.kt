@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import android.content.res.Configuration
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -178,6 +180,7 @@ private fun LibraryItemDetailContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item.coverUrl?.let { url ->
+            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(url)
@@ -186,8 +189,9 @@ private fun LibraryItemDetailContent(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f),
+                    .then(if (isLandscape) Modifier.fillMaxWidth(0.4f) else Modifier.fillMaxWidth())
+                    .aspectRatio(2f / 3f)
+                    .align(Alignment.CenterHorizontally),
             )
         }
 

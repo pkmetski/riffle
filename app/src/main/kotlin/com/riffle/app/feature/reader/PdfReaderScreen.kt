@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,10 +40,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
@@ -130,6 +131,7 @@ fun PdfReaderScreen(
                         onTap = immersiveState::toggle,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
+                        latestLocator = { viewModel.latestLocator },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -177,10 +179,12 @@ private fun PdfNavigatorView(
     onTap: () -> Unit,
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
+    latestLocator: () -> Locator?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
+    val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<PdfiumNavigatorFragment?>(null) }
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -214,25 +218,55 @@ private fun PdfNavigatorView(
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
+    // Remove the fragment from FM when navigating away (not on rotation) so it doesn't
+    // linger in saved state and crash restoration on the next configuration change.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!fragmentActivity.isChangingConfigurations) {
+                fragmentRef.value?.let { frag ->
+                    runCatching {
+                        fragmentActivity.supportFragmentManager
+                            .beginTransaction()
+                            .remove(frag)
+                            .commitNowAllowingStateLoss()
+                    }
+                }
+            }
+        }
+    }
+
+    val containerId = rememberSaveable { View.generateViewId() }
+
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = View.generateViewId() }
+            FragmentContainerView(ctx).apply { id = containerId }
         },
         update = { containerView ->
             val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(containerView.id) == null) {
+            // After Activity recreation, the FragmentManager may have restored a
+            // PdfiumNavigatorFragment using the default factory (not PdfiumNavigatorFactory).
+            // Without the factory, the fragment cannot connect to the Readium streaming server.
+            // Remove any such stale fragment so the creation path below can recreate it
+            // properly with latestLocator() as the initial position.
+            if (fragmentRef.value == null) {
+                fm.findFragmentById(containerId)?.let { stale ->
+                    fm.beginTransaction().remove(stale).commitNow()
+                }
+            }
+
+            if (fm.findFragmentById(containerId) == null) {
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
                     pdfEngineProvider = PdfiumEngineProvider(),
                 ).createFragmentFactory(
-                    initialLocator = state.initialLocator,
+                    initialLocator = latestLocator() ?: state.initialLocator,
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
-                    .add(containerView.id, PdfiumNavigatorFragment::class.java, null)
+                    .add(containerId, PdfiumNavigatorFragment::class.java, null)
                     .commitNow()
                 @Suppress("UNCHECKED_CAST")
-                val fragment = fm.findFragmentById(containerView.id) as? PdfiumNavigatorFragment
+                val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
                 // DirectionalNavigationAdapter handles edge taps for page navigation;
@@ -244,7 +278,7 @@ private fun PdfNavigatorView(
                     )
                 )
                 fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
+                coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
                 }
             }

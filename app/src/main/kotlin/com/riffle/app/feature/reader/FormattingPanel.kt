@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,7 +56,12 @@ fun FormattingPanel(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 8.dp)
+                .navigationBarsPadding(),
+        ) {
 
             // Font size
             Text("Font size", style = MaterialTheme.typography.labelMedium)
