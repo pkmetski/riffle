@@ -58,6 +58,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
+import org.readium.r2.navigator.epub.css.ColCount
+import org.readium.r2.navigator.epub.css.RsProperties
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -297,6 +299,11 @@ private fun EpubNavigatorView(
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
+    // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
+    // Plain array (not MutableState) to avoid triggering recomposition.
+    val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
+
+
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -398,6 +405,20 @@ private fun EpubNavigatorView(
                 ?: return@AndroidView
             val fm = fragmentActivity.supportFragmentManager
 
+            // RS properties (colCount/colWidth) are baked into the fragment at creation time and
+            // cannot be changed via submitPreferences. Recreate the fragment whenever the
+            // double-page mode changes so the new RS config takes effect.
+            val isDoublePage = !isFixedLayout &&
+                formattingPrefs.orientation != ReaderOrientation.Vertical &&
+                formattingPrefs.doublePageSpread &&
+                isLandscape
+            val existingFrag = fragmentRef.value
+            if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
+                fm.beginTransaction().remove(existingFrag).commitNow()
+                fragmentRef.value = null
+                fragmentDoublePageHolder[0] = null
+            }
+
             // After Activity recreation, the FragmentManager may have restored an
             // EpubNavigatorFragment using the default factory (not EpubNavigatorFactory).
             // Without the factory, the fragment's WebView cannot connect to the Readium
@@ -410,12 +431,27 @@ private fun EpubNavigatorView(
             }
 
             if (fm.findFragmentById(containerId) == null) {
+                // --RS__colCount is injected as an unconditional inline style on <html> at
+                // page-load time, bypassing Readium's 60em media-query threshold. colWidth
+                // must be set to "auto" to remove the default 45em minimum which would otherwise
+                // prevent two columns from fitting in a phone-width viewport.
+                val rsProperties = if (isDoublePage) {
+                    RsProperties(
+                        colCount = ColCount.TWO,
+                        overrides = mapOf("--RS__colWidth" to "auto"),
+                    )
+                } else {
+                    RsProperties()
+                }
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
                     configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = latestLocator() ?: state.initialLocator,
                     initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
+                    configuration = EpubNavigatorFragment.Configuration(
+                        readiumCssRsProperties = rsProperties,
+                    ),
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
@@ -424,6 +460,7 @@ private fun EpubNavigatorView(
                 val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
+                fragmentDoublePageHolder[0] = isDoublePage
                 fragment.addInputListener(tapListener)
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator ->
