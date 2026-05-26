@@ -148,9 +148,10 @@ fun EpubReaderScreen(
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are omitted because in immersive
-        // mode the status bar is hidden, and the floating TopAppBar carries its own
-        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // root (see ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so
+        // they never reach Readium's WebViews. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()

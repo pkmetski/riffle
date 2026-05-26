@@ -106,9 +106,10 @@ fun PdfReaderScreen(
     // TopAppBar floats as an overlay so its show/hide never resizes the PDF view —
     // same pattern as EpubReaderScreen.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are omitted because in immersive
-        // mode the status bar is hidden, and the floating TopAppBar carries its own
-        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // root (see ViewCompat.setOnApplyWindowInsetsListener in the PDF AndroidView factory)
+        // so they never reach Readium's PDF views. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()
