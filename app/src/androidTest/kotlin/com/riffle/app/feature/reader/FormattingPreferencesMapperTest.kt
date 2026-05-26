@@ -13,7 +13,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.readium.r2.navigator.epub.EpubPreferences
-import org.readium.r2.navigator.preferences.ColumnCount
 import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.Theme
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -118,44 +117,7 @@ class FormattingPreferencesMapperTest {
         assertNotEquals(EpubPreferences(), FormattingPreferences().toEpubPreferences())
     }
 
-    // --- Double-page / fixed-layout mapping ---
-
-    @Test
-    fun doublePageInLandscapeReflowableProducesTwoColumns() {
-        val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
-            isLandscape = true,
-            isFixedLayout = false,
-        )
-        assertEquals(ColumnCount.TWO, result.columnCount)
-        assertNull(result.spread)
-    }
-
-    @Test
-    fun doublePageInPortraitReflowableDeferToReadiumDefault() {
-        val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
-            isLandscape = false,
-            isFixedLayout = false,
-        )
-        assertNull(result.columnCount)
-    }
-
-    @Test
-    fun doublePageOffInLandscapeReflowableDeferToReadiumDefault() {
-        val result = FormattingPreferences(doublePageSpread = false).toEpubPreferences(
-            isLandscape = true,
-            isFixedLayout = false,
-        )
-        assertNull(result.columnCount)
-    }
-
-    @Test
-    fun verticalOrientationDeferToReadiumDefault() {
-        val result = FormattingPreferences(
-            orientation = ReaderOrientation.Vertical,
-            doublePageSpread = true,
-        ).toEpubPreferences(isLandscape = true, isFixedLayout = false)
-        assertNull(result.columnCount)
-    }
+    // --- Fixed-layout spread mapping ---
 
     @Test
     fun doublePageInLandscapeFixedLayoutProducesSpreadAlways() {
@@ -174,6 +136,13 @@ class FormattingPreferencesMapperTest {
             isFixedLayout = true,
         )
         assertEquals(Spread.NEVER, result.spread)
+        assertNull(result.columnCount)
+    }
+
+    @Test
+    fun reflowableEpubNeverSetsColumnCount() {
+        assertNull(FormattingPreferences(doublePageSpread = true).toEpubPreferences(isLandscape = true).columnCount)
+        assertNull(FormattingPreferences(doublePageSpread = false).toEpubPreferences(isLandscape = true).columnCount)
     }
 
 }

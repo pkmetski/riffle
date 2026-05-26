@@ -58,8 +58,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import org.readium.r2.navigator.epub.css.ColCount
-import org.readium.r2.navigator.epub.css.RsProperties
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -431,27 +429,13 @@ private fun EpubNavigatorView(
             }
 
             if (fm.findFragmentById(containerId) == null) {
-                // --RS__colCount is injected as an unconditional inline style on <html> at
-                // page-load time, bypassing Readium's 60em media-query threshold. colWidth
-                // must be set to "auto" to remove the default 45em minimum which would otherwise
-                // prevent two columns from fitting in a phone-width viewport.
-                val rsProperties = if (isDoublePage) {
-                    RsProperties(
-                        colCount = ColCount.TWO,
-                        overrides = mapOf("--RS__colWidth" to "auto"),
-                    )
-                } else {
-                    RsProperties()
-                }
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
                     configuration = sharedEpubNavigatorConfig,
                 ).createFragmentFactory(
                     initialLocator = latestLocator() ?: state.initialLocator,
                     initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
-                    configuration = EpubNavigatorFragment.Configuration(
-                        readiumCssRsProperties = rsProperties,
-                    ),
+                    configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()

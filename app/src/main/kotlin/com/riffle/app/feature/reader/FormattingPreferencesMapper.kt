@@ -6,8 +6,10 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
-import org.readium.r2.navigator.preferences.ColumnCount
+import org.readium.r2.navigator.epub.css.ColCount
+import org.readium.r2.navigator.epub.css.RsProperties
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.Theme
@@ -37,9 +39,32 @@ fun FormattingPreferences.toEpubPreferences(
         lineHeight = lineSpacing.toDouble(),
         pageMargins = margins.toDouble(),
         scroll = orientation == ReaderOrientation.Vertical,
-        // Reflowable: null lets Readium's RS default apply (2 cols at ≥60em viewport).
-        // Fixed-layout: spread controls two-page side-by-side rendering; column count is ignored.
-        columnCount = if (!isFixedLayout && isDoublePage) ColumnCount.TWO else null,
+        // Fixed-layout: spread controls two-page side-by-side rendering.
+        // Reflowable: column count is set via RS properties in toFragmentConfiguration().
         spread = if (isFixedLayout) (if (isDoublePage) Spread.ALWAYS else Spread.NEVER) else null,
+    )
+}
+
+fun FormattingPreferences.toFragmentConfiguration(
+    isLandscape: Boolean = false,
+    isFixedLayout: Boolean = false,
+): EpubNavigatorFragment.Configuration {
+    // --RS__colCount is injected as an unconditional inline style on <html> at page-load
+    // time, bypassing Readium's 60em media-query threshold that --USER__colCount relies on.
+    // --RS__colWidth must be "auto" to remove the default 45em minimum which would otherwise
+    // prevent two columns from fitting in a phone-width viewport.
+    val isDoublePage = !isFixedLayout &&
+        orientation != ReaderOrientation.Vertical &&
+        doublePageSpread &&
+        isLandscape
+    return EpubNavigatorFragment.Configuration(
+        readiumCssRsProperties = if (isDoublePage) {
+            RsProperties(
+                colCount = ColCount.TWO,
+                overrides = mapOf("--RS__colWidth" to "auto"),
+            )
+        } else {
+            RsProperties()
+        },
     )
 }
