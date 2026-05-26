@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -239,7 +241,14 @@ private fun PdfNavigatorView(
 
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = containerId }
+            FragmentContainerView(ctx).apply {
+                id = containerId
+                // Compose handles all inset-based padding. Consuming insets here prevents
+                // Readium's PDF views from applying status-bar padding on physical devices.
+                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
+                    WindowInsetsCompat.CONSUMED
+                }
+            }
         },
         update = { containerView ->
             val fm = fragmentActivity.supportFragmentManager
