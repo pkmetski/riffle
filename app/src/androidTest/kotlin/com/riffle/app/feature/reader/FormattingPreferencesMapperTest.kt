@@ -131,30 +131,30 @@ class FormattingPreferencesMapperTest {
     }
 
     @Test
-    fun doublePageInPortraitReflowableProducesOneColumn() {
+    fun doublePageInPortraitReflowableDeferToReadiumDefault() {
         val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
             isLandscape = false,
             isFixedLayout = false,
         )
-        assertEquals(ColumnCount.ONE, result.columnCount)
+        assertNull(result.columnCount)
     }
 
     @Test
-    fun doublePageOffInLandscapeReflowableProducesOneColumn() {
+    fun doublePageOffInLandscapeReflowableDeferToReadiumDefault() {
         val result = FormattingPreferences(doublePageSpread = false).toEpubPreferences(
             isLandscape = true,
             isFixedLayout = false,
         )
-        assertEquals(ColumnCount.ONE, result.columnCount)
+        assertNull(result.columnCount)
     }
 
     @Test
-    fun verticalOrientationSuppressesDoublePageColumns() {
+    fun verticalOrientationDeferToReadiumDefault() {
         val result = FormattingPreferences(
             orientation = ReaderOrientation.Vertical,
             doublePageSpread = true,
         ).toEpubPreferences(isLandscape = true, isFixedLayout = false)
-        assertEquals(ColumnCount.ONE, result.columnCount)
+        assertNull(result.columnCount)
     }
 
     @Test
@@ -164,7 +164,7 @@ class FormattingPreferencesMapperTest {
             isFixedLayout = true,
         )
         assertEquals(Spread.ALWAYS, result.spread)
-        assertEquals(ColumnCount.ONE, result.columnCount)
+        assertNull(result.columnCount)
     }
 
     @Test

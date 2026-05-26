@@ -37,9 +37,9 @@ fun FormattingPreferences.toEpubPreferences(
         lineHeight = lineSpacing.toDouble(),
         pageMargins = margins.toDouble(),
         scroll = orientation == ReaderOrientation.Vertical,
-        // Reflowable: CSS column count controls two-column text layout.
+        // Reflowable: null lets Readium's RS default apply (2 cols at ≥60em viewport).
         // Fixed-layout: spread controls two-page side-by-side rendering; column count is ignored.
-        columnCount = if (!isFixedLayout && isDoublePage) ColumnCount.TWO else ColumnCount.ONE,
+        columnCount = if (!isFixedLayout && isDoublePage) ColumnCount.TWO else null,
         spread = if (isFixedLayout) (if (isDoublePage) Spread.ALWAYS else Spread.NEVER) else null,
     )
 }
