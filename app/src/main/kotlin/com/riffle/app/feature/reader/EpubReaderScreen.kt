@@ -73,6 +73,8 @@ fun EpubReaderScreen(
     val formattingPrefs by viewModel.formattingPreferences.collectAsState()
     val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
+    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var showFormattingPanel by remember { mutableStateOf(false) }
@@ -232,6 +234,12 @@ fun EpubReaderScreen(
                 onPrefsChange = { viewModel.updateFormatting(it) },
                 onReset = { viewModel.resetToGlobalDefaults() },
                 onDismiss = { showFormattingPanel = false },
+                keepScreenOn = keepScreenOn,
+                onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
+                volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+                onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
+                invertVolumeKeys = invertVolumeKeys,
+                onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             )
         }
     }
