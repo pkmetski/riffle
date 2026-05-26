@@ -57,6 +57,8 @@ import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import org.readium.r2.navigator.DecorableNavigator
+import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
@@ -165,6 +167,8 @@ fun EpubReaderScreen(
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         searchNavigationEvents = viewModel.searchNavigationEvents,
+                        searchResults = searchResults,
+                        currentSearchIndex = currentSearchIndex,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
@@ -304,6 +308,8 @@ private fun EpubNavigatorView(
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
+    searchResults: List<Locator>,
+    currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
@@ -354,6 +360,22 @@ private fun EpubNavigatorView(
         searchNavigationEvents.collect { locator ->
             fragmentRef.value?.go(locator)
         }
+    }
+
+    LaunchedEffect(searchResults, currentSearchIndex) {
+        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        if (fragment !is DecorableNavigator) return@LaunchedEffect
+        val decorations = searchResults.mapIndexed { index, locator ->
+            Decoration(
+                id = "search_$index",
+                locator = locator,
+                style = if (index == currentSearchIndex)
+                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFF5A623"))
+                else
+                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
+            )
+        }
+        fragment.applyDecorations(decorations, group = "search")
     }
 
     LaunchedEffect(volumeNavEvents) {
