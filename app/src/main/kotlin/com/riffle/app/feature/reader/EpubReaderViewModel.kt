@@ -100,6 +100,7 @@ class EpubReaderViewModel @Inject constructor(
     val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
     private var lastLocator: Locator? = null
+    val latestLocator: Locator? get() = lastLocator
     private var publication: Publication? = null
     private var epubFile: File? = null
     @Volatile private var epubZip: ZipFile? = null

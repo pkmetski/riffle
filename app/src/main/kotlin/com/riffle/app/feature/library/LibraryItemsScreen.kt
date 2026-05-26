@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,9 +15,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -65,6 +68,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
@@ -108,6 +112,7 @@ fun LibraryItemsScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
+        kotlinx.coroutines.yield()
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
     }
@@ -310,15 +315,17 @@ private fun CoverGrid(
     modifier: Modifier = Modifier,
     content: @Composable (index: Int) -> Unit,
 ) {
-    val rows = (count + 2) / 3
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val columns = if (isLandscape) 5 else 3
+    val rows = (count + columns - 1) / columns
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (row in 0 until rows) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                for (col in 0 until 3) {
-                    val index = row * 3 + col
+                for (col in 0 until columns) {
+                    val index = row * columns + col
                     Box(modifier = Modifier.weight(1f)) {
                         if (index < count) content(index)
                     }
@@ -563,14 +570,23 @@ private fun SearchCollectionRow(collection: Collection, onClick: () -> Unit) {
 // --- Header / banner composables ---
 
 @Composable
-private fun LibrarySearchHeader(
+internal fun LibrarySearchHeader(
     libraryName: String,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onOpenDrawer: () -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        // yield() lets Android's view-focus pass (which runs during layout, before coroutines
+        // are dispatched) finish before we clear, so clearFocus actually sticks on entry.
+        kotlinx.coroutines.yield()
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),
