@@ -106,6 +106,7 @@ class LibraryItemDetailViewModelTest {
             AddServerResult.WrongCredentials()
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private val noOpTokenStorage = object : TokenStorage {

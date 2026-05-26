@@ -41,6 +41,8 @@ class NavigationDrawerGestureTest {
                 allServers = emptyList(),
                 visibleLibraries = emptyList(),
                 activeLibraryId = null,
+                serverVersion = null,
+                onDrawerOpened = {},
                 onServerSelected = {},
                 onLibrarySelected = {},
                 onDownloadsSelected = {},

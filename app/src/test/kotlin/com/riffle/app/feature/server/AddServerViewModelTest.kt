@@ -44,6 +44,7 @@ class AddServerViewModelTest {
         displayName = "abs.example.com",
         isActive = true,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     private fun fakeRepo(result: AddServerResult): ServerRepository = object : ServerRepository {
@@ -52,6 +53,7 @@ class AddServerViewModelTest {
         override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) = result
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     @Test
@@ -132,6 +134,7 @@ class AddServerViewModelTest {
             }
             override suspend fun setActive(serverId: String) {}
             override suspend fun remove(serverId: String) {}
+            override suspend fun getServerVersion(serverId: String): String? = null
         }
         val vm = AddServerViewModel(repo)
         vm.url = "http://abs.example.com"

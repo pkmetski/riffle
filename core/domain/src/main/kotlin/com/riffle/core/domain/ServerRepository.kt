@@ -20,4 +20,5 @@ interface ServerRepository {
     ): AddServerResult
     suspend fun setActive(serverId: String)
     suspend fun remove(serverId: String)
+    suspend fun getServerVersion(serverId: String): String?
 }

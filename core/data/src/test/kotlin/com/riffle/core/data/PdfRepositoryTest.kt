@@ -68,6 +68,7 @@ class PdfRepositoryTest {
             displayName = "Test",
             isActive = true,
             insecureConnectionAllowed = false,
+            username = "",
         )
         override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
         override suspend fun getActive(): Server = activeServer
@@ -75,6 +76,7 @@ class PdfRepositoryTest {
             throw UnsupportedOperationException()
         override suspend fun setActive(serverId: String) = Unit
         override suspend fun remove(serverId: String) = Unit
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private fun fakeTokenStorage(token: String): TokenStorage = object : TokenStorage {
