@@ -65,6 +65,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
@@ -310,15 +312,17 @@ private fun CoverGrid(
     modifier: Modifier = Modifier,
     content: @Composable (index: Int) -> Unit,
 ) {
-    val rows = (count + 2) / 3
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val columns = if (isLandscape) 5 else 3
+    val rows = (count + columns - 1) / columns
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (row in 0 until rows) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                for (col in 0 until 3) {
-                    val index = row * 3 + col
+                for (col in 0 until columns) {
+                    val index = row * columns + col
                     Box(modifier = Modifier.weight(1f)) {
                         if (index < count) content(index)
                     }

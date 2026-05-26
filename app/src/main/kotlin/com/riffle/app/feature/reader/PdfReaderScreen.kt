@@ -226,6 +226,17 @@ private fun PdfNavigatorView(
         },
         update = { containerView ->
             val fm = fragmentActivity.supportFragmentManager
+            // After Activity recreation, the FragmentManager may have restored a
+            // PdfiumNavigatorFragment using the default factory (not PdfiumNavigatorFactory).
+            // Without the factory, the fragment cannot connect to the Readium streaming server.
+            // Remove any such stale fragment so the creation path below can recreate it
+            // properly with latestLocator() as the initial position.
+            if (fragmentRef.value == null) {
+                fm.findFragmentById(containerId)?.let { stale ->
+                    fm.beginTransaction().remove(stale).commitNow()
+                }
+            }
+
             if (fm.findFragmentById(containerId) == null) {
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
@@ -249,18 +260,6 @@ private fun PdfNavigatorView(
                         handleTapsWhileScrolling = true,
                     )
                 )
-                fragment.addInputListener(tapListener)
-                coroutineScope.launch {
-                    fragment.currentLocator.collect { locator -> onPageChanged(locator) }
-                }
-            } else if (fragmentRef.value == null) {
-                // After Activity recreation: reconnect to the FM-restored fragment.
-                // DirectionalNavigationAdapter is NOT re-added — the fragment survived rotation
-                // with it already registered, so adding it again would double navigation.
-                @Suppress("UNCHECKED_CAST")
-                val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
-                    ?: return@AndroidView
-                fragmentRef.value = fragment
                 fragment.addInputListener(tapListener)
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }

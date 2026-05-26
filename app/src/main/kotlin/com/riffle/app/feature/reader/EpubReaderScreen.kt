@@ -377,6 +377,17 @@ private fun EpubNavigatorView(
                 ?: return@AndroidView
             val fm = fragmentActivity.supportFragmentManager
 
+            // After Activity recreation, the FragmentManager may have restored an
+            // EpubNavigatorFragment using the default factory (not EpubNavigatorFactory).
+            // Without the factory, the fragment's WebView cannot connect to the Readium
+            // streaming server. Remove any such stale fragment so the creation path below
+            // can recreate it properly with latestLocator() as the initial position.
+            if (fragmentRef.value == null) {
+                fm.findFragmentById(containerId)?.let { stale ->
+                    fm.beginTransaction().remove(stale).commitNow()
+                }
+            }
+
             if (fm.findFragmentById(containerId) == null) {
                 val fragmentFactory = EpubNavigatorFactory(
                     publication = state.publication,
@@ -389,18 +400,6 @@ private fun EpubNavigatorView(
                 fm.beginTransaction()
                     .add(containerId, EpubNavigatorFragment::class.java, null)
                     .commitNow()
-                val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
-                    ?: return@AndroidView
-                fragmentRef.value = fragment
-                fragment.addInputListener(tapListener)
-                coroutineScope.launch {
-                    fragment.currentLocator.collect { locator ->
-                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        currentHrefHolder[0] = locator.href.toString()
-                        onPositionChanged(locator)
-                    }
-                }
-            } else if (fragmentRef.value == null) {
                 val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
