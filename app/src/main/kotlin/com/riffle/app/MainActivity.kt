@@ -105,16 +105,20 @@ class MainActivity : FragmentActivity() {
 // This safe wrapper returns a plain Fragment placeholder for any class that can't be
 // reflectively instantiated; the reader screens replace the placeholder immediately.
 private class SafeNavigatorFragmentFactory : FragmentFactory() {
-    override fun instantiate(classLoader: ClassLoader, className: String): Fragment =
-        try {
+    override fun instantiate(classLoader: ClassLoader, className: String): Fragment {
+        // All org.readium fragments are only valid when created through their NavigatorFactory.
+        // A default-factory instance (via reflection) either fails (no no-arg constructor) or
+        // succeeds but leaves the fragment without required dependencies — crashing in
+        // onViewCreated (e.g. PdfiumDocumentFragment.reset()). Replace every Readium fragment
+        // from saved state with a view-providing placeholder; reader screens detect and
+        // replace it via their factory once Compose starts.
+        if (className.startsWith("org.readium.")) return NavigatorPlaceholderFragment()
+        return try {
             super.instantiate(classLoader, className)
         } catch (_: Fragment.InstantiationException) {
-            // The real navigator fragment (e.g. EpubNavigatorFragment) will be removed and
-            // recreated by the reader screen's AndroidView.update once Compose starts.
-            // The placeholder must provide a view because FragmentManager calls onCreateView
-            // for any fragment bound to a FragmentContainerView during onStart.
             NavigatorPlaceholderFragment()
         }
+    }
 }
 
 class NavigatorPlaceholderFragment : Fragment() {

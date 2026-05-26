@@ -218,6 +218,23 @@ private fun PdfNavigatorView(
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
+    // Remove the fragment from FM when navigating away (not on rotation) so it doesn't
+    // linger in saved state and crash restoration on the next configuration change.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!fragmentActivity.isChangingConfigurations) {
+                fragmentRef.value?.let { frag ->
+                    runCatching {
+                        fragmentActivity.supportFragmentManager
+                            .beginTransaction()
+                            .remove(frag)
+                            .commitNowAllowingStateLoss()
+                    }
+                }
+            }
+        }
+    }
+
     val containerId = rememberSaveable { View.generateViewId() }
 
     AndroidView(
