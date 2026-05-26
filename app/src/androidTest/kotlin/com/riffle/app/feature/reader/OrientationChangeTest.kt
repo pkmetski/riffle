@@ -29,8 +29,12 @@ class OrientationChangeTest {
         }
 
         composeTestRule.activityRule.scenario.recreate()
-        composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("reader_loading").assertExists()
+        // After recreation the reader must still be on screen — not navigated back.
+        // Either loading or ready is acceptable; absence of both means the screen closed.
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodes(loadingMatcher).fetchSemanticsNodes().isNotEmpty() ||
+                composeTestRule.onAllNodes(readyMatcher).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

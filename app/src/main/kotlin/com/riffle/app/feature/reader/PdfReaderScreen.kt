@@ -254,16 +254,13 @@ private fun PdfNavigatorView(
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
                 }
             } else if (fragmentRef.value == null) {
+                // After Activity recreation: reconnect to the FM-restored fragment.
+                // DirectionalNavigationAdapter is NOT re-added — the fragment survived rotation
+                // with it already registered, so adding it again would double navigation.
                 @Suppress("UNCHECKED_CAST")
                 val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
-                fragment.addInputListener(
-                    DirectionalNavigationAdapter(
-                        navigator = fragment,
-                        handleTapsWhileScrolling = true,
-                    )
-                )
                 fragment.addInputListener(tapListener)
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }

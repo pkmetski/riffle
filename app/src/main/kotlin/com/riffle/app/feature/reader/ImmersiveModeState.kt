@@ -12,11 +12,13 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
@@ -27,8 +29,13 @@ class ImmersiveModeState(
     var isImmersive by mutableStateOf(false)
         internal set
 
+    // Distinct from isImmersive (TopAppBar visibility): tracks whether controller.hide()
+    // has actually been called, so we know whether restoring bars would reflow the WebView.
     private var systemBarsHidden = false
 
+    // Timestamp of the last user-initiated toggle() call. Used to suppress dismissOverlay()
+    // for a brief window so a locator event immediately after a tap doesn't re-hide the bar
+    // before Compose has a chance to compose the enter animation.
     private var lastToggleMs = 0L
 
     // Called when the user explicitly changes immersive state via toggle().
@@ -48,6 +55,9 @@ class ImmersiveModeState(
         }
     }
 
+    // Called on position change: only auto-hides the AppBar when bars are already hidden,
+    // so position changes in normal (bars-visible) mode don't dismiss the overlay.
+    // Suppressed for TOGGLE_COOLDOWN_MS after the user taps to reveal the bar.
     fun dismissOverlay() {
         val now = SystemClock.elapsedRealtime()
         if (systemBarsHidden && now - lastToggleMs > TOGGLE_COOLDOWN_MS) isImmersive = true
@@ -66,12 +76,16 @@ class ImmersiveModeState(
         controller.show(WindowInsetsCompat.Type.systemBars())
     }
 
+    // Called when the system restores bars externally (edge-swipe with BEHAVIOR_DEFAULT).
     internal fun onBarsRestoredExternally() {
         systemBarsHidden = false
         isImmersive = false
     }
 
     companion object {
+        // After the user taps to reveal the TopAppBar, suppress auto-dismiss for this long
+        // so that a locator event arriving in the same Compose frame doesn't immediately
+        // undo the reveal before the enter animation can start.
         const val TOGGLE_COOLDOWN_MS = 500L
     }
 }
@@ -98,10 +112,10 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
 
     // Re-enter immersive on resume from phone sleep if user hadn't explicitly turned it off.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val currentSavedIsImmersive by androidx.compose.runtime.rememberUpdatedState(savedIsImmersive)
+    val currentSavedIsImmersive by rememberUpdatedState(savedIsImmersive)
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && currentSavedIsImmersive) {
+            if (event == Lifecycle.Event.ON_RESUME && currentSavedIsImmersive) {
                 state.hide()
             }
         }
