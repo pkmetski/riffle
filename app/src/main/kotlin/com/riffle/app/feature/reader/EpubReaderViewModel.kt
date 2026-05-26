@@ -136,6 +136,23 @@ class EpubReaderViewModel @Inject constructor(
     private val _hasBookOverrides = MutableStateFlow(false)
     val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
 
+    private val _isSearchActive = MutableStateFlow(false)
+    val isSearchActive: StateFlow<Boolean> = _isSearchActive
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
+    val searchResults: StateFlow<List<Locator>> = _searchResults
+
+    private val _currentSearchIndex = MutableStateFlow(-1)
+    val currentSearchIndex: StateFlow<Int> = _currentSearchIndex
+
+    private val _searchNavigationChannel = Channel<Locator>(Channel.CONFLATED)
+    val searchNavigationEvents: Flow<Locator> = _searchNavigationChannel.receiveAsFlow()
+
+    private var searchJob: Job? = null
+
     init {
         viewModelScope.launch {
             // Sequential: prefs must be available before openBook() so initialPreferences is set correctly.
@@ -374,23 +391,6 @@ class EpubReaderViewModel @Inject constructor(
         if (segments.isEmpty()) 0f
         else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
-
-    private val _isSearchActive = MutableStateFlow(false)
-    val isSearchActive: StateFlow<Boolean> = _isSearchActive
-
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery
-
-    private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
-    val searchResults: StateFlow<List<Locator>> = _searchResults
-
-    private val _currentSearchIndex = MutableStateFlow(-1)
-    val currentSearchIndex: StateFlow<Int> = _currentSearchIndex
-
-    private val _searchNavigationChannel = Channel<Locator>(Channel.CONFLATED)
-    val searchNavigationEvents: Flow<Locator> = _searchNavigationChannel.receiveAsFlow()
-
-    private var searchJob: Job? = null
 
     fun openSearch() {
         _isSearchActive.value = true
