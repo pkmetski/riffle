@@ -77,4 +77,11 @@ class FormattingPreferencesStoreTest {
         store.update(FormattingPreferences(orientation = ReaderOrientation.Vertical))
         assertEquals(ReaderOrientation.Vertical, store.preferences.first().orientation)
     }
+
+    @Test
+    fun `saved justifyText is returned after update`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(justifyText = false))
+        assertEquals(false, store.preferences.first().justifyText)
+    }
 }
