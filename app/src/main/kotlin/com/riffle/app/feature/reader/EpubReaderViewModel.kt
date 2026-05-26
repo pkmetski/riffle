@@ -1,3 +1,5 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.feature.reader
 
 import android.app.Application
@@ -18,6 +20,7 @@ import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -40,6 +44,7 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.locateProgression
+import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -141,6 +146,20 @@ class EpubReaderViewModel @Inject constructor(
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
             }
+        }
+        @OptIn(FlowPreview::class)
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(300)
+                .collect { query ->
+                    searchJob?.cancel()
+                    if (query.length < 2) {
+                        _searchResults.value = emptyList()
+                        _currentSearchIndex.value = -1
+                        return@collect
+                    }
+                    searchJob = launch { performSearch(query) }
+                }
         }
     }
 
@@ -355,6 +374,79 @@ class EpubReaderViewModel @Inject constructor(
         if (segments.isEmpty()) 0f
         else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    private val _isSearchActive = MutableStateFlow(false)
+    val isSearchActive: StateFlow<Boolean> = _isSearchActive
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
+    val searchResults: StateFlow<List<Locator>> = _searchResults
+
+    private val _currentSearchIndex = MutableStateFlow(-1)
+    val currentSearchIndex: StateFlow<Int> = _currentSearchIndex
+
+    private val _searchNavigationChannel = Channel<Locator>(Channel.CONFLATED)
+    val searchNavigationEvents: Flow<Locator> = _searchNavigationChannel.receiveAsFlow()
+
+    private var searchJob: Job? = null
+
+    fun openSearch() {
+        _isSearchActive.value = true
+    }
+
+    fun closeSearch() {
+        _isSearchActive.value = false
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+        _currentSearchIndex.value = -1
+        searchJob?.cancel()
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun nextSearchResult() {
+        val results = _searchResults.value
+        if (results.isEmpty()) return
+        val next = (_currentSearchIndex.value + 1).coerceAtMost(results.size - 1)
+        _currentSearchIndex.value = next
+        _searchNavigationChannel.trySend(results[next])
+    }
+
+    fun prevSearchResult() {
+        val results = _searchResults.value
+        if (results.isEmpty()) return
+        val prev = (_currentSearchIndex.value - 1).coerceAtLeast(0)
+        _currentSearchIndex.value = prev
+        _searchNavigationChannel.trySend(results[prev])
+    }
+
+    private suspend fun performSearch(query: String) {
+        val pub = publication ?: return
+        val service = pub.findService(SearchService::class)
+        if (service == null) {
+            _searchResults.value = emptyList()
+            _currentSearchIndex.value = -1
+            return
+        }
+        val iterator = service.search(query)
+        val results = mutableListOf<Locator>()
+        while (true) {
+            val page = iterator.next().getOrNull() ?: break
+            results.addAll(page.locators)
+        }
+        iterator.close()
+        _searchResults.value = results
+        if (results.isEmpty()) {
+            _currentSearchIndex.value = -1
+        } else {
+            _currentSearchIndex.value = 0
+            _searchNavigationChannel.trySend(results[0])
+        }
+    }
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()
