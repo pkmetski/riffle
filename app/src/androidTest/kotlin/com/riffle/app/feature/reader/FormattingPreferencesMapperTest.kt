@@ -145,4 +145,16 @@ class FormattingPreferencesMapperTest {
         assertNull(FormattingPreferences(doublePageSpread = false).toEpubPreferences(isLandscape = true).columnCount)
     }
 
+    @Test
+    fun justifyTextTrueMapsToTextAlignJustify() {
+        val result = FormattingPreferences(justifyText = true).toEpubPreferences()
+        assertEquals(org.readium.r2.navigator.preferences.TextAlign.JUSTIFY, result.textAlign)
+    }
+
+    @Test
+    fun justifyTextFalseMapsToTextAlignStart() {
+        val result = FormattingPreferences(justifyText = false).toEpubPreferences()
+        assertEquals(org.readium.r2.navigator.preferences.TextAlign.START, result.textAlign)
+    }
+
 }
