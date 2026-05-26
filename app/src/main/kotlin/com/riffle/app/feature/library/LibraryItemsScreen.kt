@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -567,14 +569,20 @@ private fun SearchCollectionRow(collection: Collection, onClick: () -> Unit) {
 // --- Header / banner composables ---
 
 @Composable
-private fun LibrarySearchHeader(
+internal fun LibrarySearchHeader(
     libraryName: String,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onOpenDrawer: () -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),
