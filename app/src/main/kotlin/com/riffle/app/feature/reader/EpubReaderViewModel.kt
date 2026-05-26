@@ -434,11 +434,14 @@ class EpubReaderViewModel @Inject constructor(
         }
         val iterator = service.search(query)
         val results = mutableListOf<Locator>()
-        while (true) {
-            val page = iterator.next().getOrNull() ?: break
-            results.addAll(page.locators)
+        try {
+            while (true) {
+                val page = iterator.next().getOrNull() ?: break
+                results.addAll(page.locators)
+            }
+        } finally {
+            iterator.close()
         }
-        iterator.close()
         _searchResults.value = results
         if (results.isEmpty()) {
             _currentSearchIndex.value = -1
