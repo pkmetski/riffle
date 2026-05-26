@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
-import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import kotlin.math.abs
 
@@ -31,7 +30,6 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     private var dragAccum = 0f
     private var gestureStartX = 0f
     private var gestureStartY = 0f
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var isIntercepting = false
     // Density-independent drag threshold: 120dp converted to pixels at runtime so the
     // required pull distance is consistent across screen densities.
@@ -68,7 +66,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         if (ev.actionMasked == MotionEvent.ACTION_MOVE) {
             val dx = abs(ev.x - gestureStartX)
             val dy = abs(ev.y - gestureStartY)
-            if (!isIntercepting && dx > touchSlop && dx > dy) {
+            if (!isIntercepting && dx > dy) {
                 isIntercepting = true
                 return true
             }
