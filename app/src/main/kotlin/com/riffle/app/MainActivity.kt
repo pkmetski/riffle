@@ -2,6 +2,8 @@ package com.riffle.app
 
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.Fragment
@@ -107,6 +109,15 @@ private class SafeNavigatorFragmentFactory : FragmentFactory() {
         try {
             super.instantiate(classLoader, className)
         } catch (_: Fragment.InstantiationException) {
-            Fragment()
+            // The real navigator fragment (e.g. EpubNavigatorFragment) will be removed and
+            // recreated by the reader screen's AndroidView.update once Compose starts.
+            // The placeholder must provide a view because FragmentManager calls onCreateView
+            // for any fragment bound to a FragmentContainerView during onStart.
+            NavigatorPlaceholderFragment()
         }
+}
+
+class NavigatorPlaceholderFragment : Fragment() {
+    override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
+        android.widget.FrameLayout(requireContext())
 }
