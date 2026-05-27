@@ -98,7 +98,12 @@ class LibraryItemDetailViewModel @Inject constructor(
             sessionRepository.setProgress(itemId, 1.0f)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
-                _uiState.value = current.copy(item = current.item.copy(readingProgress = 1.0f))
+                // invariant: ADR 0018 — Read books are never in To Read
+                toReadRepository.removeFromToRead(current.item.id, current.item.libraryId)
+                _uiState.value = current.copy(
+                    item = current.item.copy(readingProgress = 1.0f),
+                    isInToRead = false,
+                )
             }
         }
     }

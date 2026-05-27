@@ -343,4 +343,49 @@ class LibraryItemDetailViewModelTest {
         assertFalse((vm.uiState.value as Ready).isInToRead)
         assertEquals(listOf(knownItem.id to knownItem.libraryId), toRead.removeCalls)
     }
+
+    // --- markAsRead / markAsUnread coupling to To Read (ADR 0018) ---
+
+    @Test
+    fun `markAsRead also removes the book from To Read`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(knownItem.id to knownItem.libraryId), toRead.removeCalls)
+        assertFalse((vm.uiState.value as Ready).isInToRead)
+    }
+
+    @Test
+    fun `markAsUnread does not touch To Read`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
+        val vm = makeVm(repo = fakeRepo(knownItem.copy(readingProgress = 1.0f)), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsUnread()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(toRead.removeCalls.isEmpty())
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+    }
+
+    @Test
+    fun `toggleToRead on a Read book does not clear the Read flag`() = runTest {
+        val readItem = knownItem.copy(readingProgress = 1.0f)
+        val toRead = FakeToReadRepository()
+        val vm = makeVm(repo = fakeRepo(readItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.toggleToRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.0f, (vm.uiState.value as Ready).item.readingProgress, 0.0001f)
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+    }
 }
