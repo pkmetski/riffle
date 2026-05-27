@@ -234,7 +234,8 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithContentDescription("Back")
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.waitForIdle()
+        // Don't call waitForIdle() here — it has no timeout and can block indefinitely if
+        // AnimatedVisibility or continuous WebView position callbacks keep Compose busy.
         composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
 
         // Tap center again to re-enter immersive mode
