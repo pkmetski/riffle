@@ -274,7 +274,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): CollectionWriteResult = TODO("Task 2")
+    ): NetworkCollectionWriteResult = TODO("Task 2")
 
     override suspend fun addBookToCollection(
         baseUrl: String,
@@ -282,7 +282,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): CollectionWriteResult = TODO("Task 3")
+    ): NetworkCollectionWriteResult = TODO("Task 3")
 
     override suspend fun removeBookFromCollection(
         baseUrl: String,
@@ -290,7 +290,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): CollectionWriteResult = TODO("Task 4")
+    ): NetworkCollectionWriteResult = TODO("Task 4")
 
     override suspend fun getItemEbookFileIno(
         baseUrl: String,

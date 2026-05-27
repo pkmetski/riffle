@@ -39,6 +39,11 @@ interface AbsLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkCollectionResult
 
+    /**
+     * POST /api/collections. Creates a Collection in [libraryId] named [name]. If [initialBookId]
+     * is non-null it is included as the collection's first (and only) book. The ABS endpoint
+     * accepts a list, but the only caller — `ToReadRepository` — adds one book at a time.
+     */
     suspend fun createCollection(
         baseUrl: String,
         libraryId: String,
@@ -46,7 +51,7 @@ interface AbsLibraryApi {
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): CollectionWriteResult
+    ): NetworkCollectionWriteResult
 
     suspend fun addBookToCollection(
         baseUrl: String,
@@ -54,7 +59,7 @@ interface AbsLibraryApi {
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): CollectionWriteResult
+    ): NetworkCollectionWriteResult
 
     suspend fun removeBookFromCollection(
         baseUrl: String,
@@ -62,7 +67,7 @@ interface AbsLibraryApi {
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): CollectionWriteResult
+    ): NetworkCollectionWriteResult
 
     suspend fun getItemEbookFileIno(
         baseUrl: String,
