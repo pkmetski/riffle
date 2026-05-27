@@ -192,9 +192,7 @@ fun EpubReaderScreen(
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
-                        onFootnoteTapped = { content, x, y ->
-                            viewModel.showFootnotePopup(content, x, y)
-                        },
+                        onFootnoteTapped = viewModel::showFootnotePopup,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -304,57 +302,6 @@ fun EpubReaderScreen(
 }
 
 // Isolated scope: cursorPosition updates only recompose this composable, not sibling EpubNavigatorView.
-// Sets up touch listeners in the main document AND every same-origin iframe.
-// Events inside iframes do NOT bubble to the parent document, so listeners attached only
-// to the parent miss taps on EPUB content rendered in an iframe (Readium reflowable).
-// All listeners write to the parent's window._riffleTap{X,Y} so the values are shared.
-private val FOOTNOTE_TAP_JS = """
-(function() {
-  var top = window;
-  top._riffleTapX = top._riffleTapX || 0;
-  top._riffleTapY = top._riffleTapY || 0;
-  function attach(doc, offX, offY) {
-    if (!doc || doc._riffleAttached) return;
-    doc._riffleAttached = true;
-    var dpr = top.devicePixelRatio || 1;
-    function h(e) {
-      var x = e.clientX, y = e.clientY;
-      if ((x === undefined || y === undefined) && e.changedTouches && e.changedTouches.length) {
-        x = e.changedTouches[0].clientX;
-        y = e.changedTouches[0].clientY;
-      }
-      if (x === undefined || y === undefined) return;
-      top._riffleTapX = (x + offX) * dpr;
-      top._riffleTapY = (y + offY) * dpr;
-    }
-    ['touchstart', 'pointerdown', 'mousedown', 'click'].forEach(function(type) {
-      doc.addEventListener(type, h, {capture: true, passive: true});
-    });
-  }
-  function attachAll() {
-    attach(document, 0, 0);
-    var frames = document.querySelectorAll('iframe');
-    for (var i = 0; i < frames.length; i++) {
-      try {
-        var f = frames[i];
-        var r = f.getBoundingClientRect();
-        attach(f.contentDocument, r.left, r.top);
-      } catch(_) {}
-    }
-  }
-  attachAll();
-  if (!top._riffleObs && top.MutationObserver) {
-    top._riffleObs = new MutationObserver(attachAll);
-    top._riffleObs.observe(document.body || document.documentElement, {childList: true, subtree: true});
-  }
-  // Re-scan iframes on a short interval too — load events on iframes don't always fire
-  // when content swaps via JS, and MutationObserver only watches the parent body.
-  if (!top._riffleInterval) {
-    top._riffleInterval = setInterval(attachAll, 500);
-  }
-})()
-""".trimIndent()
-
 @Composable
 private fun BoxScope.EpubChapterRailOverlay(
     viewModel: EpubReaderViewModel,
@@ -393,7 +340,7 @@ private fun EpubNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
-    onFootnoteTapped: (content: String, tapX: Float, tapY: Float) -> Unit,
+    onFootnoteTapped: (content: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -406,7 +353,6 @@ private fun EpubNavigatorView(
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
-    val footnoteJsHref = remember { arrayOf<String?>(null) }
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
     val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
@@ -433,20 +379,7 @@ private fun EpubNavigatorView(
                 if (context !is HyperlinkNavigator.FootnoteContext) return true
                 val plainText = Jsoup.parse(context.noteContent).text().trim()
                 if (plainText.isEmpty()) return true
-                coroutineScope.launch {
-                    val fragment = fragmentRef.value ?: return@launch
-                    val raw = fragment.evaluateJavascript(
-                        "JSON.stringify({x:window._riffleTapX||0,y:window._riffleTapY||0})"
-                    ) ?: return@launch
-                    val cleaned = raw.trim().let {
-                        if (it.startsWith("\"")) it.removeSurrounding("\"").replace("\\\"", "\"")
-                        else it
-                    }
-                    val json = try { org.json.JSONObject(cleaned) } catch (_: Exception) { null }
-                    val x = json?.optDouble("x")?.toFloat() ?: 0f
-                    val y = json?.optDouble("y")?.toFloat() ?: 0f
-                    currentOnFootnoteTapped(plainText, x, y)
-                }
+                currentOnFootnoteTapped(plainText)
                 return false
             }
 
@@ -634,13 +567,8 @@ private fun EpubNavigatorView(
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator ->
                         container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        val href = locator.href.toString()
-                        currentHrefHolder[0] = href
+                        currentHrefHolder[0] = locator.href.toString()
                         onPositionChanged(locator)
-                        if (footnoteJsHref[0] != href) {
-                            footnoteJsHref[0] = href
-                            fragment.evaluateJavascript(FOOTNOTE_TAP_JS)
-                        }
                     }
                 }
             }

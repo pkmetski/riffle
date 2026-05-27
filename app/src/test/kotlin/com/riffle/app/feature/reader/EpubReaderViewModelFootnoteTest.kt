@@ -23,14 +23,10 @@ class EpubReaderViewModelFootnoteTest {
         val emissions = mutableListOf<FootnotePopupState?>()
         backgroundScope.launch { flow.collect { emissions.add(it) } }
 
-        // Simulate showFootnotePopup(content, tapX, tapY)
-        flow.value = FootnotePopupState("Heraclitus of Ephesus (c. 535 BC)", 120f, 340f)
+        flow.value = FootnotePopupState("Heraclitus of Ephesus (c. 535 BC)")
 
-        assertEquals(2, emissions.size) // initial null + new value
-        val state = emissions[1]
-        assertEquals("Heraclitus of Ephesus (c. 535 BC)", state?.content)
-        assertEquals(120f, state?.tapX)
-        assertEquals(340f, state?.tapY)
+        assertEquals(2, emissions.size)
+        assertEquals("Heraclitus of Ephesus (c. 535 BC)", emissions[1]?.content)
     }
 
     @Test
@@ -39,11 +35,10 @@ class EpubReaderViewModelFootnoteTest {
         val emissions = mutableListOf<FootnotePopupState?>()
         backgroundScope.launch { flow.collect { emissions.add(it) } }
 
-        // Simulate showFootnotePopup then dismissFootnotePopup
-        flow.value = FootnotePopupState("Some footnote", 50f, 100f)
+        flow.value = FootnotePopupState("Some footnote")
         flow.value = null
 
-        assertEquals(3, emissions.size) // null → state → null
+        assertEquals(3, emissions.size)
         assertNull(emissions[0])
         assertEquals("Some footnote", emissions[1]?.content)
         assertNull(emissions[2])
@@ -55,20 +50,16 @@ class EpubReaderViewModelFootnoteTest {
         val emissions = mutableListOf<FootnotePopupState?>()
         backgroundScope.launch { flow.collect { emissions.add(it) } }
 
-        flow.value = FootnotePopupState("First footnote", 10f, 20f)
-        flow.value = FootnotePopupState("Second footnote", 30f, 40f)
+        flow.value = FootnotePopupState("First footnote")
+        flow.value = FootnotePopupState("Second footnote")
 
         assertEquals(3, emissions.size)
         assertEquals("First footnote", emissions[1]?.content)
         assertEquals("Second footnote", emissions[2]?.content)
-        assertEquals(30f, emissions[2]?.tapX)
-        assertEquals(40f, emissions[2]?.tapY)
     }
 
     @Test
     fun `blank lastPosition does not crash Locator parsing`() {
-        // Regression: JSONObject("") throws JSONException. The ViewModel must guard against
-        // blank/empty lastPosition strings from the position store.
         val blanks = listOf("", " ", null)
         for (input in blanks) {
             val locator = input?.takeIf { it.isNotBlank() }?.let {
@@ -91,9 +82,9 @@ class EpubReaderViewModelFootnoteTest {
 
     @Test
     fun `FootnotePopupState equality is structural`() {
-        val a = FootnotePopupState("text", 1f, 2f)
-        val b = FootnotePopupState("text", 1f, 2f)
-        val c = FootnotePopupState("other", 1f, 2f)
+        val a = FootnotePopupState("text")
+        val b = FootnotePopupState("text")
+        val c = FootnotePopupState("other")
         assertEquals(a, b)
         assert(a != c)
     }

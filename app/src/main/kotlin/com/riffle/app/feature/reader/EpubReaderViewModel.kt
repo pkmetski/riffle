@@ -245,8 +245,8 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    fun showFootnotePopup(content: String, tapX: Float, tapY: Float) {
-        _footnotePopup.value = FootnotePopupState(content, tapX, tapY)
+    fun showFootnotePopup(content: String) {
+        _footnotePopup.value = FootnotePopupState(content)
     }
 
     fun dismissFootnotePopup() {
