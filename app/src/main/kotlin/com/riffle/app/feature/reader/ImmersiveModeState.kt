@@ -83,6 +83,11 @@ class ImmersiveModeState(
     }
 
     // Called when the system restores bars externally (edge-swipe with BEHAVIOR_DEFAULT).
+    // NOTE: this is also triggered by toggle() showing the status bar via controller.show(),
+    // because the topInset watcher in rememberImmersiveModeState fires on any 0→positive
+    // transition. The call is idempotent here (flags are already in the target state), but
+    // avoid adding side-effects (e.g. controller.show(systemBars())) — that would reintroduce
+    // the nav-bar reflow on every in-app toggle exit.
     internal fun onBarsRestoredExternally() {
         systemBarsHidden = false
         isImmersive = false
