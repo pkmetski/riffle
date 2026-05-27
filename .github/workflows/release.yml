@@ -26,7 +26,7 @@ jobs:
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
-            "https://raw.githubusercontent.com/gradle/gradle/v8.9.0/gradle/wrapper/gradle-wrapper.jar"
+            "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
 
       - name: Download fonts
         run: make fonts
