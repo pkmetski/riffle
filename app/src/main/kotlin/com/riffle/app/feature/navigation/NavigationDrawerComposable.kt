@@ -3,9 +3,11 @@ package com.riffle.app.feature.navigation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -202,9 +204,13 @@ private fun DrawerHeader(
                             )
                         }
                     },
-                    leadingIcon = if (server.isActive) {
-                        { Icon(Icons.Default.Check, contentDescription = null) }
-                    } else null,
+                    leadingIcon = {
+                        if (server.isActive) {
+                            Icon(Icons.Default.Check, contentDescription = null)
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
+                    },
                     onClick = {
                         switcherExpanded = false
                         onServerSelected(server)
