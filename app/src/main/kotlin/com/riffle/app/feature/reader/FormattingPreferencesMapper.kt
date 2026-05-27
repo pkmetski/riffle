@@ -66,10 +66,7 @@ fun FormattingPreferences.toFragmentConfiguration(
                 overrides = mapOf("--RS__colWidth" to "auto"),
             )
         } else {
-            // Force one column to override Readium's default 60em media query, which
-            // would otherwise auto-switch to two columns on wide viewports (landscape phones,
-            // tablets, foldables) regardless of the user's double-page toggle.
-            RsProperties(colCount = ColCount.ONE)
+            RsProperties()
         },
         // Compose owns all window-inset handling (navigationBarsPadding on the reader Box,
         // status-bar consumed at the AndroidView root). Without this flag, Readium's
