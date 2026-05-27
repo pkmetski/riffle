@@ -22,39 +22,52 @@ class FragmentConfigurationMapperTest {
     }
 
     @Test
-    fun doublePageInPortraitReflowableUsesDefaultRsProperties() {
+    fun doublePageInPortraitReflowableUsesDefaultColumns() {
         val result = FormattingPreferences(doublePageSpread = true).toFragmentConfiguration(
             isLandscape = false,
             isFixedLayout = false,
         )
-        assertEquals(RsProperties(), result.readiumCssRsProperties)
+        assertEquals(null, result.readiumCssRsProperties.colCount)
     }
 
     @Test
-    fun doublePageOffInLandscapeReflowableUsesDefaultRsProperties() {
+    fun doublePageOffInLandscapeReflowableUsesDefaultColumns() {
         val result = FormattingPreferences(doublePageSpread = false).toFragmentConfiguration(
             isLandscape = true,
             isFixedLayout = false,
         )
-        assertEquals(RsProperties(), result.readiumCssRsProperties)
+        assertEquals(null, result.readiumCssRsProperties.colCount)
     }
 
     @Test
-    fun verticalOrientationUsesDefaultRsProperties() {
+    fun verticalOrientationUsesDefaultColumns() {
         val result = FormattingPreferences(
             orientation = ReaderOrientation.Vertical,
             doublePageSpread = true,
         ).toFragmentConfiguration(isLandscape = true, isFixedLayout = false)
-        assertEquals(RsProperties(), result.readiumCssRsProperties)
+        assertEquals(null, result.readiumCssRsProperties.colCount)
     }
 
     @Test
-    fun doublePageInLandscapeFixedLayoutUsesDefaultRsProperties() {
+    fun doublePageInLandscapeFixedLayoutUsesDefaultColumns() {
         val result = FormattingPreferences(doublePageSpread = true).toFragmentConfiguration(
             isLandscape = true,
             isFixedLayout = true,
         )
-        assertEquals(RsProperties(), result.readiumCssRsProperties)
+        assertEquals(null, result.readiumCssRsProperties.colCount)
+    }
+
+    // Regression: cutout/punch-hole devices in scroll mode used to show a status-bar-height
+    // band of page background at the top because R2EpubPageFragment reads displayCutout
+    // insets directly from decorView, bypassing our inset consumption at the AndroidView root.
+    // Compose owns inset handling for the reader, so Readium must not add its own padding.
+    @Test
+    fun fragmentConfigurationDisablesReadiumInsetsPadding() {
+        val result = FormattingPreferences().toFragmentConfiguration(
+            isLandscape = false,
+            isFixedLayout = false,
+        )
+        assertEquals(false, result.shouldApplyInsetsPadding)
     }
 
 }

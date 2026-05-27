@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesEntity
+import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
-import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -13,34 +13,38 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
     private val dao: BookFormattingPreferencesDao,
 ) : BookFormattingPreferencesStore {
 
-    override suspend fun load(itemId: String): FormattingPreferences? {
-        val entity = dao.getByItemId(itemId) ?: return null
-        return FormattingPreferences(
+    override suspend fun load(itemId: String): BookFormattingOverrides {
+        val entity = dao.getByItemId(itemId) ?: return BookFormattingOverrides()
+        return BookFormattingOverrides(
             fontSize = entity.fontSize,
-            theme = runCatching { ReaderTheme.valueOf(entity.theme) }.getOrDefault(ReaderTheme.Light),
-            fontFamily = runCatching { ReaderFontFamily.valueOf(entity.fontFamily) }.getOrDefault(ReaderFontFamily.Serif),
+            theme = entity.theme?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() },
+            fontFamily = entity.fontFamily?.let { runCatching { ReaderFontFamily.valueOf(it) }.getOrNull() },
             lineSpacing = entity.lineSpacing,
             margins = entity.margins,
-            orientation = runCatching { ReaderOrientation.valueOf(entity.orientation) }.getOrDefault(ReaderOrientation.Horizontal),
+            orientation = entity.orientation?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() },
             showChapterMap = entity.showChapterMap,
             doublePageSpread = entity.doublePageSpread,
             justifyText = entity.justifyText,
         )
     }
 
-    override suspend fun save(itemId: String, preferences: FormattingPreferences) {
+    override suspend fun save(itemId: String, overrides: BookFormattingOverrides) {
+        if (overrides.isEmpty) {
+            dao.deleteByItemId(itemId)
+            return
+        }
         dao.upsert(
             BookFormattingPreferencesEntity(
                 itemId = itemId,
-                fontSize = preferences.fontSize,
-                theme = preferences.theme.name,
-                fontFamily = preferences.fontFamily.name,
-                lineSpacing = preferences.lineSpacing,
-                margins = preferences.margins,
-                orientation = preferences.orientation.name,
-                showChapterMap = preferences.showChapterMap,
-                doublePageSpread = preferences.doublePageSpread,
-                justifyText = preferences.justifyText,
+                fontSize = overrides.fontSize,
+                theme = overrides.theme?.name,
+                fontFamily = overrides.fontFamily?.name,
+                lineSpacing = overrides.lineSpacing,
+                margins = overrides.margins,
+                orientation = overrides.orientation?.name,
+                showChapterMap = overrides.showChapterMap,
+                doublePageSpread = overrides.doublePageSpread,
+                justifyText = overrides.justifyText,
             )
         )
     }
