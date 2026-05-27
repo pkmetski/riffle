@@ -66,7 +66,18 @@ fun FormattingPreferences.toFragmentConfiguration(
                 overrides = mapOf("--RS__colWidth" to "auto"),
             )
         } else {
-            RsProperties()
+            // Force one column to override Readium's default 60em media query, which
+            // would otherwise auto-switch to two columns on wide viewports (landscape phones,
+            // tablets, foldables) regardless of the user's double-page toggle.
+            RsProperties(colCount = ColCount.ONE)
         },
+        // Compose owns all window-inset handling (navigationBarsPadding on the reader Box,
+        // status-bar consumed at the AndroidView root). Without this flag, Readium's
+        // R2EpubPageFragment reads displayCutout.safeInsetTop directly from decorView and
+        // adds it as containerView top-padding — bypassing our inset consumption. On devices
+        // with a cutout/punch-hole, this surfaces as a status-bar-height band of page
+        // background at the top in scroll mode (paginated mode hides it inside Readium's
+        // own vertical content padding).
+        shouldApplyInsetsPadding = false,
     )
 }
