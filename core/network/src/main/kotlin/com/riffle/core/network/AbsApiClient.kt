@@ -2,8 +2,8 @@ package com.riffle.core.network
 
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsCollectionBookRequest
+import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsCreateCollectionRequest
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
