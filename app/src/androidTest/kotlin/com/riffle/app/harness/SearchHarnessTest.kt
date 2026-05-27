@@ -224,11 +224,19 @@ class SearchHarnessTest {
     }
 
     private fun showTopAppBar() {
-        composeTestRule
-            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+        repeat(3) {
+            composeTestRule
+                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
+            try {
+                composeTestRule.waitUntil(timeoutMillis = 2_000) {
+                    composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+                }
+                return
+            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+                // dismissOverlay() race may have re-hidden the bar — retry tap
+            }
         }
+        throw AssertionError("showTopAppBar: Back button not visible after 3 tap attempts")
     }
 }
