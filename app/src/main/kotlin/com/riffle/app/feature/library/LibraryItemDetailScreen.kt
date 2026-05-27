@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,12 @@ fun LibraryItemDetailScreen(
     val downloadState by viewModel.downloadState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(viewModel) {
+        viewModel.snackbarEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -110,11 +117,13 @@ fun LibraryItemDetailScreen(
             is LibraryItemDetailUiState.Ready -> {
                 LibraryItemDetailContent(
                     item = state.item,
+                    isInToRead = state.isInToRead,
                     token = viewModel.authToken,
                     downloadState = downloadState,
                     onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                     onMarkAsRead = { viewModel.markAsRead() },
                     onMarkAsUnread = { viewModel.markAsUnread() },
+                    onToggleToRead = { viewModel.toggleToRead() },
                     onDownload = { viewModel.startDownload() },
                     onRemove = {
                         viewModel.removeDownload()
@@ -163,11 +172,13 @@ private fun CollapsibleDescription(description: String) {
 @Composable
 private fun LibraryItemDetailContent(
     item: LibraryItem,
+    isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
+    onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -212,6 +223,11 @@ private fun LibraryItemDetailContent(
                     isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
                     onMarkAsRead = onMarkAsRead,
                     onMarkAsUnread = onMarkAsUnread,
+                )
+                ToReadToggleButton(
+                    isInToRead = isInToRead,
+                    onAdd = onToggleToRead,
+                    onRemove = onToggleToRead,
                 )
                 DownloadButton(
                     state = downloadState,
