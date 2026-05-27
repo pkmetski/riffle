@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
@@ -14,6 +15,7 @@ class ToReadRepositoryImpl @Inject constructor(
     private val api: AbsLibraryApi,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
+    private val libraryRepository: LibraryRepository,
 ) : ToReadRepository {
 
     override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean {
@@ -30,14 +32,18 @@ class ToReadRepositoryImpl @Inject constructor(
         } else {
             api.addBookToCollection(session.baseUrl, existing.id, libraryItemId, session.token, session.insecureAllowed)
         }
-        return result is NetworkCollectionWriteResult.Success
+        val ok = result is NetworkCollectionWriteResult.Success
+        if (ok) libraryRepository.refreshCollections(libraryId)
+        return ok
     }
 
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
         val session = resolveSession() ?: return false
         val existing = findToReadCollection(session, libraryId) ?: return true
         val result = api.removeBookFromCollection(session.baseUrl, existing.id, libraryItemId, session.token, session.insecureAllowed)
-        return result is NetworkCollectionWriteResult.Success
+        val ok = result is NetworkCollectionWriteResult.Success
+        if (ok) libraryRepository.refreshCollections(libraryId)
+        return ok
     }
 
     private suspend fun resolveSession(): Session? {

@@ -310,10 +310,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
         try {
             val response = client.newCall(request).execute()
+            val raw = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
             }
-            val raw = response.body?.string().orEmpty()
             val collection = if (raw.isBlank()) {
                 null
             } else {

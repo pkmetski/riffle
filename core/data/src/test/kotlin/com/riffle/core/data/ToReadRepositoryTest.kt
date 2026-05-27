@@ -33,11 +33,15 @@ class ToReadRepositoryTest {
         username = "u",
     )
 
-    private fun makeRepo(api: AbsLibraryApi): ToReadRepositoryImpl =
+    private fun makeRepo(
+        api: AbsLibraryApi,
+        libraryRepository: FakeLibraryRepository = FakeLibraryRepository(),
+    ): ToReadRepositoryImpl =
         ToReadRepositoryImpl(
             api = api,
             serverRepository = FakeServerRepository(activeServer),
             tokenStorage = FakeTokenStorage(mutableMapOf("s1" to "tok")),
+            libraryRepository = libraryRepository,
         )
 
     @Test
@@ -76,6 +80,7 @@ class ToReadRepositoryTest {
             api = FakeAbsApi(),
             serverRepository = FakeServerRepository(activeServer = null),
             tokenStorage = FakeTokenStorage(mutableMapOf()),
+            libraryRepository = FakeLibraryRepository(),
         )
         assertFalse(repo.isInToRead("item-1", "lib-1"))
     }
@@ -108,8 +113,48 @@ class ToReadRepositoryTest {
             api = FakeAbsApi(),
             serverRepository = FakeServerRepository(activeServer = null),
             tokenStorage = FakeTokenStorage(mutableMapOf()),
+            libraryRepository = FakeLibraryRepository(),
         )
         assertFalse(repo.addToToRead("item-1", "lib-1"))
+    }
+
+    @Test
+    fun `addToToRead refreshes collections after successful add`() = runTest {
+        val api = FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to listOf(NetworkCollection("col-A", "lib-1", "To Read", emptyList()))))
+        val libRepo = FakeLibraryRepository()
+        makeRepo(api, libRepo).addToToRead("item-1", "lib-1")
+        assertEquals(listOf("lib-1"), libRepo.refreshCollectionsCalls)
+    }
+
+    @Test
+    fun `addToToRead does not refresh collections when the write fails`() = runTest {
+        val api = object : FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to emptyList())) {
+            override suspend fun createCollection(baseUrl: String, libraryId: String, name: String, initialBookId: String?, token: String, insecureAllowed: Boolean): NetworkCollectionWriteResult =
+                NetworkCollectionWriteResult.NetworkError(java.io.IOException("HTTP 500"))
+        }
+        val libRepo = FakeLibraryRepository()
+        makeRepo(api, libRepo).addToToRead("item-1", "lib-1")
+        assertTrue(libRepo.refreshCollectionsCalls.isEmpty())
+    }
+
+    @Test
+    fun `removeFromToRead refreshes collections after successful remove`() = runTest {
+        val api = FakeAbsApi(
+            collectionsByLibrary = mapOf(
+                "lib-1" to listOf(NetworkCollection("col-A", "lib-1", "To Read", listOf(stubItem("item-1")))),
+            ),
+        )
+        val libRepo = FakeLibraryRepository()
+        makeRepo(api, libRepo).removeFromToRead("item-1", "lib-1")
+        assertEquals(listOf("lib-1"), libRepo.refreshCollectionsCalls)
+    }
+
+    @Test
+    fun `removeFromToRead does not refresh when collection is missing`() = runTest {
+        val api = FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to emptyList()))
+        val libRepo = FakeLibraryRepository()
+        makeRepo(api, libRepo).removeFromToRead("item-1", "lib-1")
+        assertTrue(libRepo.refreshCollectionsCalls.isEmpty())
     }
 
     @Test
@@ -184,6 +229,31 @@ private class FakeTokenStorage(private val tokens: MutableMap<String, String>) :
     override suspend fun saveToken(serverId: String, token: String) { tokens[serverId] = token }
     override suspend fun getToken(serverId: String): String? = tokens[serverId]
     override suspend fun deleteToken(serverId: String) { tokens.remove(serverId) }
+}
+
+private class FakeLibraryRepository : com.riffle.core.domain.LibraryRepository {
+    val refreshCollectionsCalls = mutableListOf<String>()
+    override suspend fun refreshCollections(libraryId: String): com.riffle.core.domain.LibraryRefreshResult {
+        refreshCollectionsCalls += libraryId
+        return com.riffle.core.domain.LibraryRefreshResult.Success
+    }
+    override fun observeLibraries() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.Library>())
+    override fun observeLibraryItems(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeUngroupedLibraryItems(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeInProgressItems(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeFinishedItems(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeRecentlyAddedItems(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeAllBooks(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeSeries(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.Series>())
+    override fun observeCollections(libraryId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.Collection>())
+    override fun observeSeriesItems(seriesId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override fun observeCollectionItems(collectionId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.LibraryItem>())
+    override suspend fun getItem(itemId: String): com.riffle.core.domain.LibraryItem? = null
+    override suspend fun markItemOpened(itemId: String) {}
+    override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+    override suspend fun refreshLibraries(): com.riffle.core.domain.LibraryRefreshResult = com.riffle.core.domain.LibraryRefreshResult.Success
+    override suspend fun refreshLibraryItems(libraryId: String): com.riffle.core.domain.LibraryRefreshResult = com.riffle.core.domain.LibraryRefreshResult.Success
+    override suspend fun refreshSeries(libraryId: String): com.riffle.core.domain.LibraryRefreshResult = com.riffle.core.domain.LibraryRefreshResult.Success
 }
 
 private open class FakeAbsApi(
