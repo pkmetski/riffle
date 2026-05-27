@@ -14,4 +14,5 @@ data class BookFormattingPreferencesEntity(
     val orientation: String,
     val showChapterMap: Boolean = true,
     val doublePageSpread: Boolean = false,
+    val justifyText: Boolean = false,
 )

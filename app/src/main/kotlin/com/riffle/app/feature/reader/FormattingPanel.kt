@@ -118,6 +118,24 @@ fun FormattingPanel(
 
             Spacer(Modifier.height(16.dp))
 
+            // Justify text toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Justify text",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.justifyText,
+                    onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) },
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // Line spacing (Readium's effective range is 1.0–2.0)
             Text("Line spacing", style = MaterialTheme.typography.labelMedium)
             StepperRow(
