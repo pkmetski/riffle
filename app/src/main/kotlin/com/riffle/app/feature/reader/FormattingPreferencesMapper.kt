@@ -59,14 +59,25 @@ fun FormattingPreferences.toFragmentConfiguration(
         orientation != ReaderOrientation.Vertical &&
         doublePageSpread &&
         isLandscape
+    // Readium's pageMargins preference only scales horizontal margins. Add a fixed top/bottom
+    // gutter so paginated content isn't flush against the status/navigation bars.
+    val gutterOverride = "--RS__pageGutter" to "20px"
     return EpubNavigatorFragment.Configuration(
         readiumCssRsProperties = if (isDoublePage) {
             RsProperties(
                 colCount = ColCount.TWO,
-                overrides = mapOf("--RS__colWidth" to "auto"),
+                overrides = mapOf("--RS__colWidth" to "auto", gutterOverride),
             )
         } else {
-            RsProperties()
+            RsProperties(overrides = mapOf(gutterOverride))
         },
+        // Compose owns all window-inset handling (navigationBarsPadding on the reader Box,
+        // status-bar consumed at the AndroidView root). Without this flag, Readium's
+        // R2EpubPageFragment reads displayCutout.safeInsetTop directly from decorView and
+        // adds it as containerView top-padding — bypassing our inset consumption. On devices
+        // with a cutout/punch-hole, this surfaces as a status-bar-height band of page
+        // background at the top in scroll mode (paginated mode hides it inside Readium's
+        // own vertical content padding).
+        shouldApplyInsetsPadding = false,
     )
 }
