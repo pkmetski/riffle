@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -48,7 +49,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,8 +61,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.jsoup.Jsoup
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
@@ -72,6 +74,7 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.epub.EpubLayout
 import org.readium.r2.shared.publication.presentation.presentation
+import org.readium.r2.shared.util.AbsoluteUrl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,6 +146,7 @@ fun EpubReaderScreen(
     val currentSearchIndex by viewModel.currentSearchIndex.collectAsState()
     val title = (state as? ReaderState.Ready)?.title ?: ""
     val tocVisible by viewModel.tocVisible.collectAsState()
+    val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
@@ -178,6 +182,7 @@ fun EpubReaderScreen(
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
+                            viewModel.dismissFootnotePopup()
                         },
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
@@ -187,6 +192,9 @@ fun EpubReaderScreen(
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
+                        onFootnoteTapped = { content, x, y ->
+                            viewModel.showFootnotePopup(content, x, y)
+                        },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -286,6 +294,12 @@ fun EpubReaderScreen(
                 onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             )
         }
+        footnotePopup?.let { popupState ->
+            FootnotePopup(
+                state = popupState,
+                onDismiss = viewModel::dismissFootnotePopup,
+            )
+        }
     }
 }
 
@@ -314,6 +328,26 @@ private fun BoxScope.EpubChapterRailOverlay(
 // per process — creating multiple instances triggers a DataStore "multiple active" crash.
 private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configuration() }
 
+// Injected once per document. Records the tap position in physical pixels so that
+// shouldFollowInternalLink can position the popup near the tapped footnote link.
+// Readium's handleFootnote detects epub:type="noteref" links and provides the footnote
+// content via FootnoteContext — we only need to track coordinates here.
+private val FOOTNOTE_INTERCEPT_JS = """
+(function() {
+  if (window._riffleInit) return;
+  window._riffleInit = true;
+  window._riffleTapX = 0;
+  window._riffleTapY = 0;
+  document.addEventListener('touchstart', function(e) {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      var dpr = window.devicePixelRatio || 1;
+      window._riffleTapX = e.changedTouches[0].clientX * dpr;
+      window._riffleTapY = e.changedTouches[0].clientY * dpr;
+    }
+  }, {capture: true, passive: true});
+})()
+""".trimIndent()
+
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
@@ -328,6 +362,7 @@ private fun EpubNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
+    onFootnoteTapped: (content: String, tapX: Float, tapY: Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -350,12 +385,41 @@ private fun EpubNavigatorView(
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 currentOnTap()
                 return false
             }
+        }
+    }
+    // Implements Readium's HyperlinkNavigator.Listener to intercept epub:type=noteref links.
+    // Readium's handleFootnote loads the footnote content and provides it via FootnoteContext
+    // so we don't need to detect or fetch footnote text ourselves.
+    val fragmentListener = remember {
+        object : EpubNavigatorFragment.Listener {
+            override fun shouldFollowInternalLink(
+                link: Link,
+                context: HyperlinkNavigator.LinkContext?,
+            ): Boolean {
+                if (context !is HyperlinkNavigator.FootnoteContext) return true
+                val plainText = Jsoup.parse(context.noteContent).text().trim()
+                if (plainText.isEmpty()) return true
+                coroutineScope.launch {
+                    val fragment = fragmentRef.value ?: return@launch
+                    val raw = fragment.evaluateJavascript(
+                        "(function(){return {x:window._riffleTapX||0,y:window._riffleTapY||0};})()"
+                    ) ?: return@launch
+                    val json = try { org.json.JSONObject(raw) } catch (_: Exception) { null }
+                    val x = json?.optDouble("x")?.toFloat() ?: 0f
+                    val y = json?.optDouble("y")?.toFloat() ?: 0f
+                    currentOnFootnoteTapped(plainText, x, y)
+                }
+                return false
+            }
+
+            override fun onExternalLinkActivated(url: AbsoluteUrl) = Unit
         }
     }
 
@@ -525,6 +589,7 @@ private fun EpubNavigatorView(
                     initialLocator = latestLocator() ?: state.initialLocator,
                     initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
                     configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
+                    listener = fragmentListener,
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
@@ -540,6 +605,7 @@ private fun EpubNavigatorView(
                         container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
                         currentHrefHolder[0] = locator.href.toString()
                         onPositionChanged(locator)
+                        fragment.evaluateJavascript(FOOTNOTE_INTERCEPT_JS)
                     }
                 }
             }
@@ -571,3 +637,4 @@ private fun EpubNavigatorView(
         modifier = modifier,
     )
 }
+

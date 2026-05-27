@@ -87,6 +87,9 @@ class EpubReaderViewModel @Inject constructor(
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
+    private val _footnotePopup = MutableStateFlow<FootnotePopupState?>(null)
+    val footnotePopup: StateFlow<FootnotePopupState?> = _footnotePopup
+
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
@@ -240,6 +243,14 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             progressSyncController.sync(itemId, locator.toPayload())
         }
+    }
+
+    fun showFootnotePopup(content: String, tapX: Float, tapY: Float) {
+        _footnotePopup.value = FootnotePopupState(content, tapX, tapY)
+    }
+
+    fun dismissFootnotePopup() {
+        _footnotePopup.value = null
     }
 
     fun onPositionChanged(locator: Locator) {
