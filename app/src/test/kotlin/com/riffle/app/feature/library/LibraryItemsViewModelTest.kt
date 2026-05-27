@@ -137,8 +137,8 @@ class LibraryItemsViewModelTest {
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
     private fun collection(name: String) = Collection("id-$name", "lib-1", name, 1)
-    private fun item(title: String, author: String) = LibraryItem(
-        "id-$title", "lib-1", title, author, null, 0f, false, false, EbookFormat.Epub,
+    private fun item(title: String, author: String, coverUrl: String? = null) = LibraryItem(
+        "id-$title", "lib-1", title, author, coverUrl, 0f, false, false, EbookFormat.Epub,
     )
 
     // --- empty query passthrough ---
@@ -325,6 +325,68 @@ class LibraryItemsViewModelTest {
         collectionsFlow.value = listOf(collection("Fantasy"))
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(collection("Fantasy")), vm.collections.value)
+    }
+
+    // --- collectionCoverUrls derivation ---
+
+    @Test
+    fun `collectionCoverUrls is empty when no collections`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.collectionCoverUrls.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyMap<String, List<String>>(), vm.collectionCoverUrls.value)
+    }
+
+    @Test
+    fun `collectionCoverUrls maps each collection id to up to 4 member cover URLs`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.collectionCoverUrls.collect {} }
+        val col = collection("Fantasy")
+        collectionsFlow.value = listOf(col)
+        collectionItemsByCollectionId.getOrPut(col.id) { MutableStateFlow(emptyList()) }.value = listOf(
+            item("A", "X", coverUrl = "https://abs/cover/A"),
+            item("B", "X", coverUrl = "https://abs/cover/B"),
+            item("C", "X", coverUrl = "https://abs/cover/C"),
+            item("D", "X", coverUrl = "https://abs/cover/D"),
+            item("E", "X", coverUrl = "https://abs/cover/E"), // beyond the 4-cap
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            mapOf(col.id to listOf("https://abs/cover/A", "https://abs/cover/B", "https://abs/cover/C", "https://abs/cover/D")),
+            vm.collectionCoverUrls.value,
+        )
+    }
+
+    @Test
+    fun `collectionCoverUrls skips items with null or blank cover URLs`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.collectionCoverUrls.collect {} }
+        val col = collection("Mixed")
+        collectionsFlow.value = listOf(col)
+        collectionItemsByCollectionId.getOrPut(col.id) { MutableStateFlow(emptyList()) }.value = listOf(
+            item("A", "X", coverUrl = null),
+            item("B", "X", coverUrl = ""),
+            item("C", "X", coverUrl = "   "),
+            item("D", "X", coverUrl = "https://abs/cover/D"),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(col.id to listOf("https://abs/cover/D")), vm.collectionCoverUrls.value)
+    }
+
+    @Test
+    fun `collectionCoverUrls re-emits when a collection's items change`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.collectionCoverUrls.collect {} }
+        val col = collection("Reactive")
+        collectionsFlow.value = listOf(col)
+        val itemsFlow = collectionItemsByCollectionId.getOrPut(col.id) { MutableStateFlow(emptyList()) }
+        itemsFlow.value = listOf(item("A", "X", coverUrl = "u1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(col.id to listOf("u1")), vm.collectionCoverUrls.value)
+
+        itemsFlow.value = listOf(item("A", "X", coverUrl = "u1"), item("B", "X", coverUrl = "u2"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(col.id to listOf("u1", "u2")), vm.collectionCoverUrls.value)
     }
 
     // --- offline filtering ---

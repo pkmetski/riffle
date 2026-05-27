@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -108,6 +109,7 @@ fun LibraryItemsScreen(
     val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
     val series by viewModel.filteredSeries.collectAsState()
     val collections by viewModel.filteredCollections.collectAsState()
+    val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -185,6 +187,8 @@ fun LibraryItemsScreen(
                     2 -> CollectionsTabContent(
                         items = collections,
                         isLoading = isLoading,
+                        token = viewModel.authToken,
+                        collectionCoverUrls = collectionCoverUrls,
                         onCollectionSelected = onCollectionSelected,
                     )
                     3 -> AllBooksTabContent(
@@ -293,6 +297,8 @@ fun SeriesSectionGrid(
 @Composable
 fun CollectionsSectionGrid(
     items: List<Collection>,
+    token: String,
+    coverUrls: Map<String, List<String>>,
     onCollectionSelected: (Collection) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
@@ -306,7 +312,12 @@ fun CollectionsSectionGrid(
             SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
         } else {
             val col = preview[index]
-            CollectionCoverTile(collection = col, onClick = { onCollectionSelected(col) })
+            CollectionCoverTile(
+                collection = col,
+                coverUrls = coverUrls[col.id].orEmpty(),
+                token = token,
+                onClick = { onCollectionSelected(col) },
+            )
         }
     }
 }
@@ -448,6 +459,8 @@ fun SeriesCoverTile(
 @Composable
 fun CollectionCoverTile(
     collection: Collection,
+    coverUrls: List<String>,
+    token: String,
     onClick: () -> Unit,
 ) {
     val borderColor = MaterialTheme.colorScheme.outline
@@ -464,7 +477,24 @@ fun CollectionCoverTile(
                         style = Stroke(width = 1.dp.toPx()),
                     )
                 },
-        )
+        ) {
+            when {
+                coverUrls.isEmpty() -> { /* outlined empty tile */ }
+                coverUrls.size == 1 -> CollectionCoverImage(coverUrls[0], token, Modifier.fillMaxSize())
+                else -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            CollectionCoverImage(coverUrls.getOrNull(0), token, Modifier.weight(1f).fillMaxHeight())
+                            CollectionCoverImage(coverUrls.getOrNull(1), token, Modifier.weight(1f).fillMaxHeight())
+                        }
+                        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            CollectionCoverImage(coverUrls.getOrNull(2), token, Modifier.weight(1f).fillMaxHeight())
+                            CollectionCoverImage(coverUrls.getOrNull(3), token, Modifier.weight(1f).fillMaxHeight())
+                        }
+                    }
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = collection.name,
@@ -473,6 +503,25 @@ fun CollectionCoverTile(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun CollectionCoverImage(url: String?, token: String, modifier: Modifier) {
+    if (url == null) {
+        Box(modifier = modifier)
+        return
+    }
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(url)
+            .addHeader("Authorization", "Bearer $token")
+            .crossfade(true)
+            .build(),
+        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -883,6 +932,8 @@ private fun SeriesTabContent(
 private fun CollectionsTabContent(
     items: List<Collection>,
     isLoading: Boolean,
+    token: String,
+    collectionCoverUrls: Map<String, List<String>>,
     onCollectionSelected: (Collection) -> Unit,
 ) {
     if (isLoading) return
@@ -904,7 +955,12 @@ private fun CollectionsTabContent(
         }
         items(items, key = { it.id }) { col ->
             Box(modifier = Modifier.padding(4.dp)) {
-                CollectionCoverTile(collection = col, onClick = { onCollectionSelected(col) })
+                CollectionCoverTile(
+                    collection = col,
+                    coverUrls = collectionCoverUrls[col.id].orEmpty(),
+                    token = token,
+                    onClick = { onCollectionSelected(col) },
+                )
             }
         }
     }

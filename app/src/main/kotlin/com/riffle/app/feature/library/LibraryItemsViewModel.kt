@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
@@ -56,6 +57,23 @@ class LibraryItemsViewModel @Inject constructor(
 
     val collections: StateFlow<List<Collection>> = libraryRepository.observeCollections(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Up to 4 representative cover URLs per Collection, used by [CollectionCoverTile] for a 2×2 mosaic. */
+    val collectionCoverUrls: StateFlow<Map<String, List<String>>> = collections
+        .flatMapLatest { cols ->
+            if (cols.isEmpty()) {
+                flowOf(emptyMap())
+            } else {
+                combine(
+                    cols.map { col ->
+                        libraryRepository.observeCollectionItems(col.id).map { items ->
+                            col.id to items.take(4).mapNotNull { it.coverUrl?.takeIf { url -> url.isNotBlank() } }
+                        }
+                    },
+                ) { pairs -> pairs.toMap() }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val ungroupedItems: StateFlow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
