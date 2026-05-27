@@ -5,6 +5,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,9 +56,13 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.readium.r2.navigator.DecorableNavigator
+import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
@@ -113,6 +120,16 @@ fun EpubReaderScreen(
         }
     }
 
+    // Prevent window resizing on keyboard show/hide — avoids layout jumps when dismissing
+    // the search keyboard while the reader is open.
+    DisposableEffect(Unit) {
+        val window = (context as? FragmentActivity)?.window
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED)
+        }
+    }
+
     // Toast on sync error
     LaunchedEffect(viewModel) {
         viewModel.syncErrorEvents.collect {
@@ -120,6 +137,10 @@ fun EpubReaderScreen(
         }
     }
 
+    val isSearchActive by viewModel.isSearchActive.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
+    val currentSearchIndex by viewModel.currentSearchIndex.collectAsState()
     val title = (state as? ReaderState.Ready)?.title ?: ""
     val tocVisible by viewModel.tocVisible.collectAsState()
 
@@ -147,17 +168,21 @@ fun EpubReaderScreen(
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     LaunchedEffect(tocVisible, showFormattingPanel) {
+                        if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = { locator ->
-                            immersiveState.dismissOverlay()
+                            if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
                         },
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
+                        searchNavigationEvents = viewModel.searchNavigationEvents,
+                        searchResults = searchResults,
+                        currentSearchIndex = currentSearchIndex,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
@@ -209,26 +234,40 @@ fun EpubReaderScreen(
             enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
             exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
         ) {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (state is ReaderState.Ready) {
-                        IconButton(onClick = viewModel::openToc) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+            if (isSearchActive) {
+                SearchTopBar(
+                    query = searchQuery,
+                    resultCount = searchResults.size,
+                    currentIndex = currentSearchIndex,
+                    onQueryChange = viewModel::onSearchQueryChanged,
+                    onPrev = viewModel::prevSearchResult,
+                    onNext = viewModel::nextSearchResult,
+                    onClose = viewModel::closeSearch,
+                    onNavigateBack = onNavigateBack,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
-                        IconButton(
-                            onClick = { showFormattingPanel = true },
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = "Format")
+                    },
+                    actions = {
+                        if (state is ReaderState.Ready) {
+                            IconButton(onClick = viewModel::openSearch) {
+                                Icon(Icons.Default.Search, contentDescription = "Search")
+                            }
+                            IconButton(onClick = viewModel::openToc) {
+                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                            }
+                            IconButton(onClick = { showFormattingPanel = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Format")
+                            }
                         }
-                    }
-                }
-            )
+                    },
+                )
+            }
         }
 
         if (showFormattingPanel) {
@@ -282,6 +321,9 @@ private fun EpubNavigatorView(
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
+    searchNavigationEvents: Flow<Locator>,
+    searchResults: List<Locator>,
+    currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
@@ -326,6 +368,47 @@ private fun EpubNavigatorView(
         serverLocatorEvents.collect { locator ->
             fragmentRef.value?.go(locator)
         }
+    }
+
+    LaunchedEffect(searchNavigationEvents) {
+        searchNavigationEvents.collect { locator ->
+            fragmentRef.value?.go(locator)
+        }
+    }
+
+    // Tracks whether we have live search decorations painted in the WebView.
+    // Prevents calling applyDecorations on initial composition (before WebView content loads),
+    // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
+    val hasActiveDecorations = remember { mutableStateOf(false) }
+
+    LaunchedEffect(searchResults, currentSearchIndex) {
+        if (searchResults.isEmpty()) {
+            if (!hasActiveDecorations.value) return@LaunchedEffect
+            val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+            // applyDecorations calls evaluateJavascript which requires the main thread.
+            // Compose test infrastructure (FrameDeferringContinuationInterceptor) can resume
+            // LaunchedEffect coroutines on DefaultDispatcher; withContext(Main) ensures safety.
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "search")
+            }
+            hasActiveDecorations.value = false
+            return@LaunchedEffect
+        }
+        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        val decorations = searchResults.mapIndexed { index, locator ->
+            Decoration(
+                id = "search_$index",
+                locator = locator,
+                style = if (index == currentSearchIndex)
+                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFF5A623"))
+                else
+                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
+            )
+        }
+        withContext(Dispatchers.Main) {
+            fragment.applyDecorations(decorations, group = "search")
+        }
+        hasActiveDecorations.value = true
     }
 
     LaunchedEffect(volumeNavEvents) {
@@ -392,6 +475,7 @@ private fun EpubNavigatorView(
     AndroidView(
         factory = { ctx ->
             ScrollBoundaryNavigationContainer(ctx).apply {
+                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
                 val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                 addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
             }.also { containerRef.value = it }
