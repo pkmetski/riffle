@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -52,6 +54,7 @@ fun FootnotePopup(
                 .padding(horizontal = 12.dp, vertical = 12.dp)
                 .heightIn(max = POPUP_MAX_HEIGHT)
                 .testTag(TAG_FOOTNOTE_POPUP)
+                .semantics { contentDescription = "Footnote" }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,

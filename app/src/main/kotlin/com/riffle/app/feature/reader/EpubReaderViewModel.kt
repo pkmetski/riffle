@@ -209,6 +209,8 @@ class EpubReaderViewModel @Inject constructor(
                     return
                 }
                 publication = pub
+                // Stored lastPosition may be empty or malformed (legacy rows / corrupted writes).
+                // Fall back to null so openBook() can open the publication at its default position.
                 val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let {
                     try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
                 }
