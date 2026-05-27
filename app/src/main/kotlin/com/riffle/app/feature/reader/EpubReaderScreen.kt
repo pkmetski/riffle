@@ -304,19 +304,54 @@ fun EpubReaderScreen(
 }
 
 // Isolated scope: cursorPosition updates only recompose this composable, not sibling EpubNavigatorView.
+// Sets up touch listeners in the main document AND every same-origin iframe.
+// Events inside iframes do NOT bubble to the parent document, so listeners attached only
+// to the parent miss taps on EPUB content rendered in an iframe (Readium reflowable).
+// All listeners write to the parent's window._riffleTap{X,Y} so the values are shared.
 private val FOOTNOTE_TAP_JS = """
 (function() {
-  if (window._riffleInit) return;
-  window._riffleInit = true;
-  window._riffleTapX = 0;
-  window._riffleTapY = 0;
-  document.addEventListener('touchstart', function(e) {
-    if (e.changedTouches && e.changedTouches.length > 0) {
-      var dpr = window.devicePixelRatio || 1;
-      window._riffleTapX = e.changedTouches[0].clientX * dpr;
-      window._riffleTapY = e.changedTouches[0].clientY * dpr;
+  var top = window;
+  top._riffleTapX = top._riffleTapX || 0;
+  top._riffleTapY = top._riffleTapY || 0;
+  function attach(doc, offX, offY) {
+    if (!doc || doc._riffleAttached) return;
+    doc._riffleAttached = true;
+    var dpr = top.devicePixelRatio || 1;
+    function h(e) {
+      var x = e.clientX, y = e.clientY;
+      if ((x === undefined || y === undefined) && e.changedTouches && e.changedTouches.length) {
+        x = e.changedTouches[0].clientX;
+        y = e.changedTouches[0].clientY;
+      }
+      if (x === undefined || y === undefined) return;
+      top._riffleTapX = (x + offX) * dpr;
+      top._riffleTapY = (y + offY) * dpr;
     }
-  }, {capture: true, passive: true});
+    ['touchstart', 'pointerdown', 'mousedown', 'click'].forEach(function(type) {
+      doc.addEventListener(type, h, {capture: true, passive: true});
+    });
+  }
+  function attachAll() {
+    attach(document, 0, 0);
+    var frames = document.querySelectorAll('iframe');
+    for (var i = 0; i < frames.length; i++) {
+      try {
+        var f = frames[i];
+        var r = f.getBoundingClientRect();
+        attach(f.contentDocument, r.left, r.top);
+      } catch(_) {}
+    }
+  }
+  attachAll();
+  if (!top._riffleObs && top.MutationObserver) {
+    top._riffleObs = new MutationObserver(attachAll);
+    top._riffleObs.observe(document.body || document.documentElement, {childList: true, subtree: true});
+  }
+  // Re-scan iframes on a short interval too — load events on iframes don't always fire
+  // when content swaps via JS, and MutationObserver only watches the parent body.
+  if (!top._riffleInterval) {
+    top._riffleInterval = setInterval(attachAll, 500);
+  }
 })()
 """.trimIndent()
 
