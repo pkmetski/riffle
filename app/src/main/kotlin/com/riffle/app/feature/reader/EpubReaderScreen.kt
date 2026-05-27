@@ -378,7 +378,10 @@ private fun EpubNavigatorView(
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
     val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
-
+    // Tracks the last href for which FOOTNOTE_INTERCEPT_JS was injected.
+    // Re-inject only on chapter change, not on every scroll position update —
+    // the per-frame evaluateJavascript IPC keeps Compose perpetually busy otherwise.
+    val footnoteJsInjectedHref = remember { arrayOf<String?>(null) }
 
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
@@ -603,9 +606,13 @@ private fun EpubNavigatorView(
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator ->
                         container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        currentHrefHolder[0] = locator.href.toString()
+                        val href = locator.href.toString()
+                        currentHrefHolder[0] = href
                         onPositionChanged(locator)
-                        fragment.evaluateJavascript(FOOTNOTE_INTERCEPT_JS)
+                        if (footnoteJsInjectedHref[0] != href) {
+                            footnoteJsInjectedHref[0] = href
+                            fragment.evaluateJavascript(FOOTNOTE_INTERCEPT_JS)
+                        }
                     }
                 }
             }
