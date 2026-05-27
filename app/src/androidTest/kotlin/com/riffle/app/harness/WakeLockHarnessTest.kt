@@ -81,8 +81,10 @@ class WakeLockHarnessTest {
         composeTestRule.onNodeWithText("Keep screen on").performClick()
         composeTestRule.waitForIdle()
 
-        // The panel has no Done button (tap-outside-scrim dismisses); use system
-        // back to leave Settings entirely and return to the library.
+        // Two back-presses: the first dismisses the full-screen panel (consumed by its
+        // BackHandler), the second leaves Settings and returns to the library.
+        Espresso.pressBack()
+        composeTestRule.waitForIdle()
         Espresso.pressBack()
         composeTestRule.waitForIdle()
 

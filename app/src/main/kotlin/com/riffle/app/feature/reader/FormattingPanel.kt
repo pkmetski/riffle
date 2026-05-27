@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.RectangleShape
@@ -90,6 +91,7 @@ fun FormattingPanel(
                 .align(if (fullScreen) Alignment.TopCenter else Alignment.BottomCenter)
                 .fillMaxWidth()
                 .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.5f))
+                .then(if (fullScreen) Modifier.statusBarsPadding() else Modifier)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
