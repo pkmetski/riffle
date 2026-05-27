@@ -19,7 +19,7 @@ class RailSegmentGeneratorTest {
     private val chapter3 = TocEntry("Chapter 3", "chapter3.xhtml")
     private val toc = listOf(chapter1, chapter2, chapter3)
 
-    // ── buildRailSegments ─────────────────────────────────────────────────
+    // ── buildRailSegments: top-level ──────────────────────────────────────
 
     @Test
     fun `returns one segment per top-level entry`() {
@@ -38,6 +38,13 @@ class RailSegmentGeneratorTest {
     fun `empty toc returns empty list`() {
         assertEquals(emptyList<RailSegment>(), buildRailSegments(emptyList()))
     }
+
+    @Test
+    fun `subchapters are NOT promoted to top level for normally-titled entries`() {
+        assertEquals(3, buildRailSegments(toc).size)
+    }
+
+    // ── buildRailSegments: blank-title flattening ─────────────────────────
 
     @Test
     fun `blank-titled entry is replaced by its children at top level`() {
@@ -87,13 +94,114 @@ class RailSegmentGeneratorTest {
 
     @Test
     fun `blank-titled leaf entry is kept as a segment with blank title`() {
-        // Edge case: blank-titled but no children — keep as-is, don't lose it.
         val blank = TocEntry("", "lonely.xhtml")
         assertEquals(
             listOf(RailSegment("", "lonely.xhtml")),
             buildRailSegments(listOf(blank)),
         )
     }
+
+    // ── buildRailSegments: book-title-match flattening ────────────────────
+
+    @Test
+    fun `container with title equal to book title is flattened`() {
+        val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
+        val ch2 = TocEntry("Chapter 2", "ch2.xhtml")
+        val container = TocEntry("Les Misérables", "container.xhtml", listOf(ch1, ch2))
+        val cover = TocEntry("Cover", "cover.xhtml")
+        val toc = listOf(cover, container)
+
+        assertEquals(
+            listOf(
+                RailSegment("Cover", "cover.xhtml"),
+                RailSegment("Chapter 1", "ch1.xhtml"),
+                RailSegment("Chapter 2", "ch2.xhtml"),
+            ),
+            buildRailSegments(toc, bookTitle = "Les Misérables"),
+        )
+    }
+
+    @Test
+    fun `container title match is case-insensitive`() {
+        val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
+        val container = TocEntry("Lucky Starr And The Rings Of Saturn", "container.xhtml", listOf(ch1))
+        assertEquals(
+            listOf(RailSegment("Chapter 1", "ch1.xhtml")),
+            buildRailSegments(listOf(container), bookTitle = "Lucky Starr and the Rings of Saturn"),
+        )
+    }
+
+    @Test
+    fun `container title match is whitespace-insensitive`() {
+        val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
+        val container = TocEntry("  The   Metamorphosis  ", "container.xhtml", listOf(ch1))
+        assertEquals(
+            listOf(RailSegment("Chapter 1", "ch1.xhtml")),
+            buildRailSegments(listOf(container), bookTitle = "The Metamorphosis"),
+        )
+    }
+
+    @Test
+    fun `container whose title is a prefix of book title is NOT flattened`() {
+        // Guards against "Бай Ганьо тръгна по Европа" being treated as "Бай Ганьо".
+        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
+        val container = TocEntry("Foo Bar Baz", "container.xhtml", listOf(ch1))
+        val segments = buildRailSegments(listOf(container), bookTitle = "Foo")
+        assertEquals(1, segments.size)
+        assertEquals(RailSegment("Foo Bar Baz", "container.xhtml"), segments[0])
+    }
+
+    @Test
+    fun `container whose title differs from book title is NOT flattened`() {
+        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
+        val container = TocEntry("Appendix", "appendix.xhtml", listOf(ch1))
+        val other = TocEntry("Chapter 1", "real-ch1.xhtml")
+        val toc = listOf(other, container)
+
+        assertEquals(
+            listOf(
+                RailSegment("Chapter 1", "real-ch1.xhtml"),
+                RailSegment("Appendix", "appendix.xhtml"),
+            ),
+            buildRailSegments(toc, bookTitle = "Some Other Book"),
+        )
+    }
+
+    @Test
+    fun `empty book title disables book-title-match rule`() {
+        // A container whose title happens to be "" would still flatten via blank-title rule,
+        // but a non-blank container should NOT be flattened when no book title is provided.
+        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
+        val container = TocEntry("Some Container", "container.xhtml", listOf(ch1))
+        val segments = buildRailSegments(listOf(container), bookTitle = "")
+        assertEquals(1, segments.size)
+        assertEquals("Some Container", segments[0].title)
+    }
+
+    @Test
+    fun `blank container is flattened even when book title is provided`() {
+        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
+        val blank = TocEntry("", "container.xhtml", listOf(ch1))
+        assertEquals(
+            listOf(RailSegment("Ch 1", "ch1.xhtml")),
+            buildRailSegments(listOf(blank), bookTitle = "Some Book"),
+        )
+    }
+
+    @Test
+    fun `book-title-match flattening applies recursively for nested redundant containers`() {
+        // Outer container with book title, inner container ALSO with book title (unusual but
+        // possible). Both should be flattened, exposing the leaves at top level.
+        val leaf = TocEntry("Leaf", "leaf.xhtml")
+        val inner = TocEntry("My Book", "inner.xhtml", listOf(leaf))
+        val outer = TocEntry("My Book", "outer.xhtml", listOf(inner))
+        assertEquals(
+            listOf(RailSegment("Leaf", "leaf.xhtml")),
+            buildRailSegments(listOf(outer), bookTitle = "My Book"),
+        )
+    }
+
+    // ── buildRailSegments: misc invariants ────────────────────────────────
 
     @Test
     fun `URL-encoded hrefs are preserved`() {
@@ -115,11 +223,6 @@ class RailSegmentGeneratorTest {
         assertEquals("chapter_eddard1.xhtml", segments[0].href)
         assertEquals("chapter_eddard2.xhtml", segments[1].href)
         assertEquals("chapter_eddard3.xhtml", segments[2].href)
-    }
-
-    @Test
-    fun `subchapters are NOT promoted to top level for normally-titled entries`() {
-        assertEquals(3, buildRailSegments(toc).size)
     }
 
     // ── findActiveSegmentIndex ─────────────────────────────────────────────
