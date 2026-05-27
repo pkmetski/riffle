@@ -265,7 +265,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             url = "$baseUrl/api/collections",
             token = token,
             insecureAllowed = insecureAllowed,
-            parseResponseBody = true,
         ) { post(body) }
     }
 
@@ -282,7 +281,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             url = "$baseUrl/api/collections/$collectionId/book",
             token = token,
             insecureAllowed = insecureAllowed,
-            parseResponseBody = true,
         ) { post(body) }
     }
 
@@ -296,15 +294,13 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         url = "$baseUrl/api/collections/$collectionId/book/$libraryItemId",
         token = token,
         insecureAllowed = insecureAllowed,
-        parseResponseBody = true,
     ) { delete() }
 
     private suspend fun executeCollectionWrite(
         url: String,
         token: String,
         insecureAllowed: Boolean,
-        parseResponseBody: Boolean,
-        buildRequest: Request.Builder.() -> Request.Builder,
+        buildRequest: Request.Builder.() -> Unit,
     ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
         val request = Request.Builder()
@@ -318,7 +314,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
             }
             val raw = response.body?.string().orEmpty()
-            val collection = if (!parseResponseBody || raw.isBlank()) {
+            val collection = if (raw.isBlank()) {
                 null
             } else {
                 json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
