@@ -1,5 +1,5 @@
 [versions]
-agp = "8.10.1"
+agp = "9.2.1"
 kotlin = "2.2.20"
 ksp = "2.2.20-2.0.3"
 coreKtx = "1.18.0"
@@ -13,7 +13,7 @@ okhttp = "5.3.2"
 navigation = "2.8.4"
 hiltNavigation = "1.2.0"
 security = "1.0.0"
-hilt = "2.58"
+hilt = "2.59.2"
 acra = "5.11.3"
 readium = "3.0.0"
 junit = "4.13.2"
@@ -76,7 +76,6 @@ jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
