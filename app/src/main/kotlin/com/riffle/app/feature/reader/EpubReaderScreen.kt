@@ -328,26 +328,6 @@ private fun BoxScope.EpubChapterRailOverlay(
 // per process — creating multiple instances triggers a DataStore "multiple active" crash.
 private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configuration() }
 
-// Injected once per document. Records the tap position in physical pixels so that
-// shouldFollowInternalLink can position the popup near the tapped footnote link.
-// Readium's handleFootnote detects epub:type="noteref" links and provides the footnote
-// content via FootnoteContext — we only need to track coordinates here.
-private val FOOTNOTE_INTERCEPT_JS = """
-(function() {
-  if (window._riffleInit) return;
-  window._riffleInit = true;
-  window._riffleTapX = 0;
-  window._riffleTapY = 0;
-  document.addEventListener('touchstart', function(e) {
-    if (e.changedTouches && e.changedTouches.length > 0) {
-      var dpr = window.devicePixelRatio || 1;
-      window._riffleTapX = e.changedTouches[0].clientX * dpr;
-      window._riffleTapY = e.changedTouches[0].clientY * dpr;
-    }
-  }, {capture: true, passive: true});
-})()
-""".trimIndent()
-
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
@@ -378,11 +358,6 @@ private fun EpubNavigatorView(
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
     val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
-    // Tracks the last href for which FOOTNOTE_INTERCEPT_JS was injected.
-    // Re-inject only on chapter change, not on every scroll position update —
-    // the per-frame evaluateJavascript IPC keeps Compose perpetually busy otherwise.
-    val footnoteJsInjectedHref = remember { arrayOf<String?>(null) }
-
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -409,12 +384,22 @@ private fun EpubNavigatorView(
                 if (context !is HyperlinkNavigator.FootnoteContext) return true
                 val plainText = Jsoup.parse(context.noteContent).text().trim()
                 if (plainText.isEmpty()) return true
+                val linkHref = link.href.toString()
                 coroutineScope.launch {
                     val fragment = fragmentRef.value ?: return@launch
+                    val escaped = linkHref.replace("'", "\\'")
                     val raw = fragment.evaluateJavascript(
-                        "(function(){return {x:window._riffleTapX||0,y:window._riffleTapY||0};})()"
+                        "(function(){" +
+                            "var el=document.querySelector('a[href*=\"'+'" + escaped + "\"'+']');" +
+                            "if(!el){var all=document.querySelectorAll('a[epub\\\\:type=\"noteref\"],a[role=\"doc-noteref\"]');" +
+                            "if(all.length>0)el=all[all.length-1];}" +
+                            "if(!el)return JSON.stringify({x:0,y:0});" +
+                            "var r=el.getBoundingClientRect(),d=window.devicePixelRatio||1;" +
+                            "return JSON.stringify({x:r.left*d,y:r.bottom*d});" +
+                            "})()"
                     ) ?: return@launch
-                    val json = try { org.json.JSONObject(raw) } catch (_: Exception) { null }
+                    val cleaned = raw.trim().removeSurrounding("\"").replace("\\\"", "\"")
+                    val json = try { org.json.JSONObject(cleaned) } catch (_: Exception) { null }
                     val x = json?.optDouble("x")?.toFloat() ?: 0f
                     val y = json?.optDouble("y")?.toFloat() ?: 0f
                     currentOnFootnoteTapped(plainText, x, y)
@@ -606,13 +591,8 @@ private fun EpubNavigatorView(
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator ->
                         container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        val href = locator.href.toString()
-                        currentHrefHolder[0] = href
+                        currentHrefHolder[0] = locator.href.toString()
                         onPositionChanged(locator)
-                        if (footnoteJsInjectedHref[0] != href) {
-                            footnoteJsInjectedHref[0] = href
-                            fragment.evaluateJavascript(FOOTNOTE_INTERCEPT_JS)
-                        }
                     }
                 }
             }
