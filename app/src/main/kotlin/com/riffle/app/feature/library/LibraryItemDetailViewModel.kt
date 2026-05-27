@@ -14,17 +14,24 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface LibraryItemDetailUiState {
     data object Loading : LibraryItemDetailUiState
-    data class Ready(val item: LibraryItem) : LibraryItemDetailUiState
+    data class Ready(
+        val item: LibraryItem,
+        val isInToRead: Boolean = false,
+    ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
 }
 
@@ -43,6 +50,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
     private val sessionRepository: ReadingSessionRepository,
+    private val toReadRepository: ToReadRepository,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -52,6 +60,9 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.NotDownloaded)
     val downloadState: StateFlow<DownloadState> = _downloadState
+
+    private val _snackbarEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val snackbarEvents: SharedFlow<String> = _snackbarEvents.asSharedFlow()
 
     var authToken: String by mutableStateOf("")
         private set
@@ -66,7 +77,8 @@ class LibraryItemDetailViewModel @Inject constructor(
                 val item = repository.getItem(itemId)
                 if (item != null) {
                     _downloadState.value = deriveDownloadState(item)
-                    LibraryItemDetailUiState.Ready(item)
+                    val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
+                    LibraryItemDetailUiState.Ready(item = item, isInToRead = isInToRead)
                 } else {
                     LibraryItemDetailUiState.Error
                 }
@@ -86,7 +98,12 @@ class LibraryItemDetailViewModel @Inject constructor(
             sessionRepository.setProgress(itemId, 1.0f)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
-                _uiState.value = current.copy(item = current.item.copy(readingProgress = 1.0f))
+                // invariant: ADR 0018 — Read books are never in To Read
+                toReadRepository.removeFromToRead(current.item.id, current.item.libraryId)
+                _uiState.value = current.copy(
+                    item = current.item.copy(readingProgress = 1.0f),
+                    isInToRead = false,
+                )
             }
         }
     }
@@ -98,6 +115,28 @@ class LibraryItemDetailViewModel @Inject constructor(
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 _uiState.value = current.copy(item = current.item.copy(readingProgress = 0.0f))
+            }
+        }
+    }
+
+    fun toggleToRead() {
+        val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val wasInToRead = current.isInToRead
+        _uiState.value = current.copy(isInToRead = !wasInToRead)
+        viewModelScope.launch {
+            val itemId = current.item.id
+            val libraryId = current.item.libraryId
+            val ok = if (wasInToRead) {
+                toReadRepository.removeFromToRead(itemId, libraryId)
+            } else {
+                toReadRepository.addToToRead(itemId, libraryId)
+            }
+            if (!ok) {
+                val now = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+                _uiState.value = now.copy(isInToRead = wasInToRead)
+                _snackbarEvents.emit(
+                    if (wasInToRead) "Couldn't remove from To Read" else "Couldn't add to To Read"
+                )
             }
         }
     }

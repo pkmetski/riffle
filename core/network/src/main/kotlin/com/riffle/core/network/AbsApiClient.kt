@@ -2,17 +2,20 @@ package com.riffle.core.network
 
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
-import com.riffle.core.network.model.AbsMeResponse
+import com.riffle.core.network.model.AbsCreateCollectionRequest
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
-import com.riffle.core.network.model.AbsProgressResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
-import com.riffle.core.network.model.AbsServerInfoResponse
+import com.riffle.core.network.model.AbsMeResponse
+import com.riffle.core.network.model.AbsProgressResponse
 import com.riffle.core.network.model.AbsSeriesResponse
+import com.riffle.core.network.model.AbsServerInfoResponse
+import com.riffle.core.network.model.toNetworkCollection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -237,33 +240,88 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 IOException("Empty response body")
             )
             val parsed = json.decodeFromString<AbsCollectionsResponse>(raw)
-            NetworkCollectionResult.Success(parsed.results.map { dto ->
-                NetworkCollection(
-                    id = dto.id,
-                    libraryId = dto.libraryId,
-                    name = dto.name,
-                    items = dto.books.map { book ->
-                        val progress = book.userMediaProgress?.ebookProgress
-                            ?: book.userMediaProgress?.progress
-                        NetworkLibraryItem(
-                            id = book.id,
-                            libraryId = book.libraryId,
-                            title = book.media.metadata.title,
-                            author = book.media.metadata.authorName,
-                            readingProgress = progress,
-                            ebookFormat = EbookFormat.from(book.media.ebookFormat),
-                            ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
-                            description = book.media.metadata.description,
-                            seriesName = book.media.metadata.seriesName,
-                            publishedYear = book.media.metadata.publishedYear,
-                            genres = book.media.metadata.genres,
-                            publisher = book.media.metadata.publisher,
-                        )
-                    },
-                )
-            })
+            NetworkCollectionResult.Success(parsed.results.map { it.toNetworkCollection() })
         } catch (e: Exception) {
             NetworkCollectionResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun createCollection(
+        baseUrl: String,
+        libraryId: String,
+        name: String,
+        initialBookId: String?,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkCollectionWriteResult {
+        val payload = AbsCreateCollectionRequest(
+            libraryId = libraryId,
+            name = name,
+            books = listOfNotNull(initialBookId),
+        )
+        val body = json.encodeToString(AbsCreateCollectionRequest.serializer(), payload)
+            .toRequestBody(jsonMediaType)
+        return executeCollectionWrite(
+            url = "$baseUrl/api/collections",
+            token = token,
+            insecureAllowed = insecureAllowed,
+        ) { post(body) }
+    }
+
+    override suspend fun addBookToCollection(
+        baseUrl: String,
+        collectionId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkCollectionWriteResult {
+        val body = json.encodeToString(AbsCollectionBookRequest.serializer(), AbsCollectionBookRequest(libraryItemId))
+            .toRequestBody(jsonMediaType)
+        return executeCollectionWrite(
+            url = "$baseUrl/api/collections/$collectionId/book",
+            token = token,
+            insecureAllowed = insecureAllowed,
+        ) { post(body) }
+    }
+
+    override suspend fun removeBookFromCollection(
+        baseUrl: String,
+        collectionId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkCollectionWriteResult = executeCollectionWrite(
+        url = "$baseUrl/api/collections/$collectionId/book/$libraryItemId",
+        token = token,
+        insecureAllowed = insecureAllowed,
+    ) { delete() }
+
+    private suspend fun executeCollectionWrite(
+        url: String,
+        token: String,
+        insecureAllowed: Boolean,
+        buildRequest: Request.Builder.() -> Unit,
+    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+            .apply { buildRequest() }
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val collection = if (raw.isBlank()) {
+                null
+            } else {
+                json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
+            }
+            NetworkCollectionWriteResult.Success(collection)
+        } catch (e: IOException) {
+            NetworkCollectionWriteResult.NetworkError(e)
         }
     }
 
