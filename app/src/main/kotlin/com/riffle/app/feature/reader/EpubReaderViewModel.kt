@@ -384,9 +384,12 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val railSegments: StateFlow<List<RailSegment>> = tocEntries
-        .map { buildRailSegments(it, null) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val railSegments: StateFlow<List<RailSegment>> = combine(
+        tocEntries,
+        currentLocatorHref,
+    ) { entries, href ->
+        buildRailSegments(entries, href)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
