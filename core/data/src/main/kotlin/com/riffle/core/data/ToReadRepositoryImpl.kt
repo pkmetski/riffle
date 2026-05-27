@@ -17,31 +17,40 @@ class ToReadRepositoryImpl @Inject constructor(
 ) : ToReadRepository {
 
     override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean {
-        val collection = findToReadCollection(libraryId) ?: return false
+        val session = resolveSession() ?: return false
+        val collection = findToReadCollection(session, libraryId) ?: return false
         return collection.items.any { it.id == libraryItemId }
     }
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val server = serverRepository.getActive() ?: return false
-        val token = tokenStorage.getToken(server.id) ?: return false
-        val baseUrl = server.url.value
-        val existing = findToReadCollection(libraryId)
+        val session = resolveSession() ?: return false
+        val existing = findToReadCollection(session, libraryId)
         val result = if (existing == null) {
-            api.createCollection(baseUrl, libraryId, TO_READ_COLLECTION_NAME, libraryItemId, token, server.insecureConnectionAllowed)
+            api.createCollection(session.baseUrl, libraryId, TO_READ_COLLECTION_NAME, libraryItemId, session.token, session.insecureAllowed)
         } else {
-            api.addBookToCollection(baseUrl, existing.id, libraryItemId, token, server.insecureConnectionAllowed)
+            api.addBookToCollection(session.baseUrl, existing.id, libraryItemId, session.token, session.insecureAllowed)
         }
         return result is NetworkCollectionWriteResult.Success
     }
 
-    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean =
-        TODO("Task 7")
+    override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
+        val session = resolveSession() ?: return false
+        val existing = findToReadCollection(session, libraryId) ?: return true
+        val result = api.removeBookFromCollection(session.baseUrl, existing.id, libraryItemId, session.token, session.insecureAllowed)
+        return result is NetworkCollectionWriteResult.Success
+    }
 
-    private suspend fun findToReadCollection(libraryId: String): NetworkCollection? {
+    private suspend fun resolveSession(): Session? {
         val server = serverRepository.getActive() ?: return null
         val token = tokenStorage.getToken(server.id) ?: return null
-        val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)
+        return Session(baseUrl = server.url.value, token = token, insecureAllowed = server.insecureConnectionAllowed)
+    }
+
+    private suspend fun findToReadCollection(session: Session, libraryId: String): NetworkCollection? {
+        val result = api.getCollections(session.baseUrl, libraryId, session.token, session.insecureAllowed)
         if (result !is NetworkCollectionResult.Success) return null
         return result.collections.firstOrNull { it.name == TO_READ_COLLECTION_NAME }
     }
+
+    private data class Session(val baseUrl: String, val token: String, val insecureAllowed: Boolean)
 }

@@ -130,6 +130,35 @@ class ToReadRepositoryTest {
         assertFalse(makeRepo(api).addToToRead("item-1", "lib-1"))
     }
 
+    @Test
+    fun `removeFromToRead calls DELETE when collection exists`() = runTest {
+        val api = FakeAbsApi(
+            collectionsByLibrary = mapOf(
+                "lib-1" to listOf(NetworkCollection("col-A", "lib-1", "To Read", listOf(stubItem("item-1")))),
+            ),
+        )
+        val ok = makeRepo(api).removeFromToRead("item-1", "lib-1")
+        assertTrue(ok)
+        assertEquals(listOf("col-A" to "item-1"), api.removeCalls)
+    }
+
+    @Test
+    fun `removeFromToRead returns true and makes no call when no To Read collection`() = runTest {
+        val api = FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to emptyList()))
+        val ok = makeRepo(api).removeFromToRead("item-1", "lib-1")
+        assertTrue(ok)
+        assertTrue(api.removeCalls.isEmpty())
+    }
+
+    @Test
+    fun `removeFromToRead returns false when remove fails`() = runTest {
+        val api = object : FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to listOf(NetworkCollection("col-A", "lib-1", "To Read", listOf(stubItem("item-1")))))) {
+            override suspend fun removeBookFromCollection(baseUrl: String, collectionId: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkCollectionWriteResult =
+                NetworkCollectionWriteResult.NetworkError(java.io.IOException("HTTP 500"))
+        }
+        assertFalse(makeRepo(api).removeFromToRead("item-1", "lib-1"))
+    }
+
     private fun stubItem(id: String) = NetworkLibraryItem(
         id = id,
         libraryId = "lib-1",
