@@ -12,6 +12,7 @@ import org.readium.r2.navigator.epub.css.ColCount
 import org.readium.r2.navigator.epub.css.RsProperties
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.Spread
+import org.readium.r2.navigator.preferences.TextAlign
 import org.readium.r2.navigator.preferences.Theme
 
 fun FormattingPreferences.toEpubPreferences(
@@ -34,6 +35,7 @@ fun FormattingPreferences.toEpubPreferences(
             ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
             ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
         },
+        textAlign = if (justifyText) TextAlign.JUSTIFY else TextAlign.START,
         // lineHeight only takes effect when publisherStyles is off
         publisherStyles = false,
         lineHeight = lineSpacing.toDouble(),
