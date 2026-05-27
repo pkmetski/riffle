@@ -56,8 +56,10 @@ import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
@@ -383,7 +385,12 @@ private fun EpubNavigatorView(
         if (searchResults.isEmpty()) {
             if (!hasActiveDecorations.value) return@LaunchedEffect
             val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
-            fragment.applyDecorations(emptyList(), group = "search")
+            // applyDecorations calls evaluateJavascript which requires the main thread.
+            // Compose test infrastructure (FrameDeferringContinuationInterceptor) can resume
+            // LaunchedEffect coroutines on DefaultDispatcher; withContext(Main) ensures safety.
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "search")
+            }
             hasActiveDecorations.value = false
             return@LaunchedEffect
         }
@@ -398,7 +405,9 @@ private fun EpubNavigatorView(
                     Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
             )
         }
-        fragment.applyDecorations(decorations, group = "search")
+        withContext(Dispatchers.Main) {
+            fragment.applyDecorations(decorations, group = "search")
+        }
         hasActiveDecorations.value = true
     }
 
