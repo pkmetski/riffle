@@ -105,7 +105,6 @@ class TocIntegrationTest {
         val pub = openTestEpub()
         val entries = pub.tableOfContents.toTocEntries()
 
-        // Rail always shows all top-level chapters, regardless of current position
         val segments = buildRailSegments(entries)
         assertEquals("Rail should have one segment per top-level chapter", 3, segments.size)
         assertTrue("Segment 0 href should contain 'chapter1'", segments[0].href.contains("chapter1"))
@@ -117,16 +116,13 @@ class TocIntegrationTest {
     fun activeSegmentIsChapter2WhenLocatorIsInChapter2() = runTest {
         val pub = openTestEpub()
         val entries = pub.tableOfContents.toTocEntries()
-        val segments = buildRailSegments(entries)
 
-        // Use the actual Readium href for a Chapter 2 subchapter so the path format matches.
-        // Readium returns full container-relative paths (e.g. OEBPS/chapter2.xhtml#s3),
-        // not bare filenames, so hardcoding "chapter2.xhtml#s3" would never match.
         val chapter2 = entries.find { it.href.contains("chapter2") }
         assertNotNull("Expected a chapter 2 entry in TOC", chapter2)
         val section23 = chapter2!!.children.find { it.href.contains("s3") }
         assertNotNull("Expected section 2.3 under chapter 2", section23)
 
+        val segments = buildRailSegments(entries)
         val activeIndex = findActiveSegmentIndex(segments, section23!!.href)
         assertEquals("Chapter 2 (index 1) should be active when locator is in chapter 2", 1, activeIndex)
     }
