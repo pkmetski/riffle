@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 FONTS_DIR := app/src/main/assets/fonts
 WRAPPER_JAR := gradle/wrapper/gradle-wrapper.jar
-GRADLE_VERSION := 8.9
+GRADLE_VERSION := 9.4.1
 
 # Auto-detect JAVA_HOME when not already set.
 # Prefers Android Studio's bundled JBR so the build works without a
@@ -42,7 +42,7 @@ wrapper: ## Download Gradle wrapper jar
 	@if [ ! -f "$(WRAPPER_JAR)" ]; then \
 		echo "Downloading Gradle wrapper jar (v$(GRADLE_VERSION))..."; \
 		curl -fsSL -o $(WRAPPER_JAR) \
-			"https://raw.githubusercontent.com/gradle/gradle/v$(GRADLE_VERSION).0/gradle/wrapper/gradle-wrapper.jar"; \
+			"https://raw.githubusercontent.com/gradle/gradle/v$(GRADLE_VERSION)/gradle/wrapper/gradle-wrapper.jar"; \
 		echo "Downloaded $(WRAPPER_JAR)"; \
 	else \
 		echo "$(WRAPPER_JAR) already present"; \
