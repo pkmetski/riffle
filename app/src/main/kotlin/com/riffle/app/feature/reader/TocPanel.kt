@@ -43,6 +43,12 @@ private fun TocEntryRow(
     activeHref: String?,
     onEntryClick: (TocEntry) -> Unit,
 ) {
+    if (entry.title.isBlank()) {
+        entry.children.forEach { child ->
+            TocEntryRow(entry = child, depth = depth, activeHref = activeHref, onEntryClick = onEntryClick)
+        }
+        return
+    }
     val isActive = entry.href == activeHref
     Column {
         Text(
