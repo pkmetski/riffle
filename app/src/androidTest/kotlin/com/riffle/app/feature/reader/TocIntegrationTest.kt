@@ -105,7 +105,7 @@ class TocIntegrationTest {
         val pub = openTestEpub()
         val entries = pub.tableOfContents.toTocEntries()
 
-        val segments = buildRailSegments(entries, null)
+        val segments = buildRailSegments(entries)
         assertEquals("Rail should have one segment per top-level chapter", 3, segments.size)
         assertTrue("Segment 0 href should contain 'chapter1'", segments[0].href.contains("chapter1"))
         assertTrue("Segment 1 href should contain 'chapter2'", segments[1].href.contains("chapter2"))
@@ -122,9 +122,9 @@ class TocIntegrationTest {
         val section23 = chapter2!!.children.find { it.href.contains("s3") }
         assertNotNull("Expected section 2.3 under chapter 2", section23)
 
-        val segments = buildRailSegments(entries, section23!!.href)
-        val activeIndex = findActiveSegmentIndex(segments, section23.href)
-        assertTrue("Active segment should point to section 2.3", segments[activeIndex].href.contains("s3"))
+        val segments = buildRailSegments(entries)
+        val activeIndex = findActiveSegmentIndex(segments, section23!!.href)
+        assertEquals("Chapter 2 (index 1) should be active when locator is in chapter 2", 1, activeIndex)
     }
 
     private suspend fun openTestEpub() = run {

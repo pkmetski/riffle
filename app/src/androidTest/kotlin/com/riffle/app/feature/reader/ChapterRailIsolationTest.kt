@@ -106,6 +106,7 @@ private fun IsolatedRailForTest(
         segments = listOf(RailSegment(title = "Chapter 1", href = "ch1.xhtml")),
         activeIndex = 0,
         cursorPosition = cursor,
+        subdivisions = emptyList(),
         onSegmentClick = {},
         modifier = modifier,
     )
