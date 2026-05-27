@@ -1,4 +1,4 @@
-# ADR 0015 — Book Search via TopAppBar in-place transformation
+# ADR 0016 — Book Search via TopAppBar in-place transformation
 
 **Status:** Accepted
 

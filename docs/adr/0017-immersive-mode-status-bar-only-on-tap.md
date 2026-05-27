@@ -1,4 +1,4 @@
-# ADR 0015 — Immersive mode: full-screen content and selective bar restore on tap
+# ADR 0017 — Immersive mode: full-screen content and selective bar restore on tap
 
 **Status:** Accepted
 

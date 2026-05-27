@@ -1,5 +1,8 @@
 package com.riffle.core.network.model
 
+import com.riffle.core.domain.EbookFormat
+import com.riffle.core.network.NetworkCollection
+import com.riffle.core.network.NetworkLibraryItem
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -50,3 +53,28 @@ internal data class AbsCollectionsResponse(val results: List<AbsCollectionDto>) 
         val ebookProgress: Float? = null,
     )
 }
+
+internal fun AbsCollectionsResponse.AbsCollectionDto.toNetworkCollection(): NetworkCollection =
+    NetworkCollection(
+        id = id,
+        libraryId = libraryId,
+        name = name,
+        items = books.map { book ->
+            val progress = book.userMediaProgress?.ebookProgress
+                ?: book.userMediaProgress?.progress
+            NetworkLibraryItem(
+                id = book.id,
+                libraryId = book.libraryId,
+                title = book.media.metadata.title,
+                author = book.media.metadata.authorName,
+                readingProgress = progress,
+                ebookFormat = EbookFormat.from(book.media.ebookFormat),
+                ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                description = book.media.metadata.description,
+                seriesName = book.media.metadata.seriesName,
+                publishedYear = book.media.metadata.publishedYear,
+                genres = book.media.metadata.genres,
+                publisher = book.media.metadata.publisher,
+            )
+        },
+    )
