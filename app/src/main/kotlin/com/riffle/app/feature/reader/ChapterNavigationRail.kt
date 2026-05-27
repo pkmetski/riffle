@@ -21,6 +21,7 @@ fun ChapterNavigationRail(
     segments: List<RailSegment>,
     activeIndex: Int,
     cursorPosition: Float,
+    subdivisions: List<RailSegment>,
     onSegmentClick: (RailSegment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -29,6 +30,7 @@ fun ChapterNavigationRail(
     val barColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
     val activeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
     val dividerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val subDividerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
     val cursorColor = MaterialTheme.colorScheme.primary
 
     val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
@@ -50,6 +52,7 @@ fun ChapterNavigationRail(
             .drawWithCache {
                 val n = segments.size
                 val segW = size.width / n
+                val subCount = subdivisions.size
                 onDrawBehind {
                     // Background bar
                     drawRect(color = barColor)
@@ -59,6 +62,21 @@ fun ChapterNavigationRail(
                         topLeft = Offset(activeIndex * segW, 0f),
                         size = Size(segW, size.height),
                     )
+                    // Sub-divisions inside the active segment (drawn before main dividers so
+                    // they don't cross chapter boundaries visually).
+                    if (subCount > 1) {
+                        val subW = segW / subCount
+                        val activeLeft = activeIndex * segW
+                        for (i in 1 until subCount) {
+                            val x = activeLeft + subW * i
+                            drawLine(
+                                color = subDividerColor,
+                                start = Offset(x, size.height * 0.25f),
+                                end = Offset(x, size.height * 0.75f),
+                                strokeWidth = 0.5.dp.toPx(),
+                            )
+                        }
+                    }
                     // Chapter boundary dividers (between segments, not at edges)
                     for (i in 1 until n) {
                         val x = segW * i
