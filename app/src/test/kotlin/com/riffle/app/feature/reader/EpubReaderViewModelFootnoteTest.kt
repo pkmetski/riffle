@@ -5,9 +5,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.readium.r2.shared.publication.Locator
 
 // EpubReaderViewModel is an AndroidViewModel with Readium dependencies that cannot be
 // instantiated in JVM unit tests. These tests verify the StateFlow pattern used by
@@ -61,6 +63,30 @@ class EpubReaderViewModelFootnoteTest {
         assertEquals("Second footnote", emissions[2]?.content)
         assertEquals(30f, emissions[2]?.tapX)
         assertEquals(40f, emissions[2]?.tapY)
+    }
+
+    @Test
+    fun `blank lastPosition does not crash Locator parsing`() {
+        // Regression: JSONObject("") throws JSONException. The ViewModel must guard against
+        // blank/empty lastPosition strings from the position store.
+        val blanks = listOf("", " ", null)
+        for (input in blanks) {
+            val locator = input?.takeIf { it.isNotBlank() }?.let {
+                try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
+            }
+            assertNull("Expected null for input='$input'", locator)
+        }
+    }
+
+    @Test
+    fun `malformed lastPosition does not crash Locator parsing`() {
+        val malformed = listOf("{", "not json", "{\"href\":}")
+        for (input in malformed) {
+            val locator = input.takeIf { it.isNotBlank() }?.let {
+                try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
+            }
+            assertNull("Expected null for input='$input'", locator)
+        }
     }
 
     @Test

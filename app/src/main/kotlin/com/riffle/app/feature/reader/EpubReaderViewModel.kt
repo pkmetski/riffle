@@ -209,9 +209,9 @@ class EpubReaderViewModel @Inject constructor(
                     return
                 }
                 publication = pub
-                val locator = result.lastPosition
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { Locator.fromJSON(JSONObject(it)) }
+                val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let {
+                    try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
+                }
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
