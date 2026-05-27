@@ -17,6 +17,8 @@ import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
+import com.riffle.core.data.ToReadRepository
+import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -38,6 +40,7 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import dagger.Binds
 import dagger.Module
@@ -100,6 +103,10 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindToReadRepository(impl: ToReadRepositoryImpl): ToReadRepository
+
+    @Binds
+    @Singleton
     abstract fun bindTokenStorage(impl: KeystoreTokenStorage): TokenStorage
 
     @Binds
@@ -117,6 +124,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAbsSessionApi(impl: AbsApiClient): AbsSessionApi
+
+    @Binds
+    @Singleton
+    abstract fun bindAbsServerInfoApi(impl: AbsApiClient): AbsServerInfoApi
 
     @Binds
     @Singleton

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import android.content.res.Configuration
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -15,12 +16,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -30,29 +33,39 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.jsoup.Jsoup
+import org.readium.r2.navigator.DecorableNavigator
+import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
@@ -60,6 +73,9 @@ import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.epub.EpubLayout
+import org.readium.r2.shared.publication.presentation.presentation
+import org.readium.r2.shared.util.AbsoluteUrl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +87,8 @@ fun EpubReaderScreen(
     val formattingPrefs by viewModel.formattingPreferences.collectAsState()
     val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
+    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var showFormattingPanel by remember { mutableStateOf(false) }
@@ -106,6 +124,16 @@ fun EpubReaderScreen(
         }
     }
 
+    // Prevent window resizing on keyboard show/hide — avoids layout jumps when dismissing
+    // the search keyboard while the reader is open.
+    DisposableEffect(Unit) {
+        val window = (context as? FragmentActivity)?.window
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED)
+        }
+    }
+
     // Toast on sync error
     LaunchedEffect(viewModel) {
         viewModel.syncErrorEvents.collect {
@@ -113,16 +141,22 @@ fun EpubReaderScreen(
         }
     }
 
+    val isSearchActive by viewModel.isSearchActive.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
+    val currentSearchIndex by viewModel.currentSearchIndex.collectAsState()
     val title = (state as? ReaderState.Ready)?.title ?: ""
     val tocVisible by viewModel.tocVisible.collectAsState()
+    val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are omitted because in immersive
-        // mode the status bar is hidden, and the floating TopAppBar carries its own
-        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // root (see ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so
+        // they never reach Readium's WebViews. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -140,19 +174,26 @@ fun EpubReaderScreen(
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     LaunchedEffect(tocVisible, showFormattingPanel) {
+                        if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = { locator ->
-                            immersiveState.dismissOverlay()
+                            if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
+                            viewModel.dismissFootnotePopup()
                         },
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
+                        searchNavigationEvents = viewModel.searchNavigationEvents,
+                        searchResults = searchResults,
+                        currentSearchIndex = currentSearchIndex,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
+                        latestLocator = { viewModel.latestLocator },
+                        onFootnoteTapped = viewModel::showFootnotePopup,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -201,26 +242,40 @@ fun EpubReaderScreen(
             enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
             exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
         ) {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (state is ReaderState.Ready) {
-                        IconButton(onClick = viewModel::openToc) {
-                            Icon(Icons.Filled.List, contentDescription = "Table of Contents")
+            if (isSearchActive) {
+                SearchTopBar(
+                    query = searchQuery,
+                    resultCount = searchResults.size,
+                    currentIndex = currentSearchIndex,
+                    onQueryChange = viewModel::onSearchQueryChanged,
+                    onPrev = viewModel::prevSearchResult,
+                    onNext = viewModel::nextSearchResult,
+                    onClose = viewModel::closeSearch,
+                    onNavigateBack = onNavigateBack,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(title, style = MaterialTheme.typography.titleMedium) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
-                        IconButton(
-                            onClick = { showFormattingPanel = true },
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = "Format")
+                    },
+                    actions = {
+                        if (state is ReaderState.Ready) {
+                            IconButton(onClick = viewModel::openSearch) {
+                                Icon(Icons.Default.Search, contentDescription = "Search")
+                            }
+                            IconButton(onClick = viewModel::openToc) {
+                                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                            }
+                            IconButton(onClick = { showFormattingPanel = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Format")
+                            }
                         }
-                    }
-                }
-            )
+                    },
+                )
+            }
         }
 
         if (showFormattingPanel) {
@@ -230,6 +285,18 @@ fun EpubReaderScreen(
                 onPrefsChange = { viewModel.updateFormatting(it) },
                 onReset = { viewModel.resetToGlobalDefaults() },
                 onDismiss = { showFormattingPanel = false },
+                keepScreenOn = keepScreenOn,
+                onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
+                volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+                onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
+                invertVolumeKeys = invertVolumeKeys,
+                onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
+            )
+        }
+        footnotePopup?.let { popupState ->
+            FootnotePopup(
+                state = popupState,
+                onDismiss = viewModel::dismissFootnotePopup,
             )
         }
     }
@@ -268,28 +335,56 @@ private fun EpubNavigatorView(
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
+    searchNavigationEvents: Flow<Locator>,
+    searchResults: List<Locator>,
+    currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
+    latestLocator: () -> Locator?,
+    onFootnoteTapped: (content: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isFixedLayout = state.publication.metadata.presentation.layout == EpubLayout.FIXED
+    val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+    val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
-
+    // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
+    // Plain array (not MutableState) to avoid triggering recomposition.
+    val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 currentOnTap()
                 return false
             }
+        }
+    }
+    val fragmentListener = remember {
+        object : EpubNavigatorFragment.Listener {
+            override fun shouldFollowInternalLink(
+                link: Link,
+                context: HyperlinkNavigator.LinkContext?,
+            ): Boolean {
+                if (context !is HyperlinkNavigator.FootnoteContext) return true
+                val plainText = Jsoup.parse(context.noteContent).text().trim()
+                if (plainText.isEmpty()) return true
+                currentOnFootnoteTapped(plainText)
+                return false
+            }
+
+            override fun onExternalLinkActivated(url: AbsoluteUrl) = Unit
         }
     }
 
@@ -305,14 +400,69 @@ private fun EpubNavigatorView(
         }
     }
 
+    LaunchedEffect(searchNavigationEvents) {
+        searchNavigationEvents.collect { locator ->
+            fragmentRef.value?.go(locator)
+        }
+    }
+
+    // Tracks whether we have live search decorations painted in the WebView.
+    // Prevents calling applyDecorations on initial composition (before WebView content loads),
+    // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
+    val hasActiveDecorations = remember { mutableStateOf(false) }
+
+    LaunchedEffect(searchResults, currentSearchIndex) {
+        if (searchResults.isEmpty()) {
+            if (!hasActiveDecorations.value) return@LaunchedEffect
+            val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+            // applyDecorations calls evaluateJavascript which requires the main thread.
+            // Compose test infrastructure (FrameDeferringContinuationInterceptor) can resume
+            // LaunchedEffect coroutines on DefaultDispatcher; withContext(Main) ensures safety.
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "search")
+            }
+            hasActiveDecorations.value = false
+            return@LaunchedEffect
+        }
+        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        val decorations = searchResults.mapIndexed { index, locator ->
+            Decoration(
+                id = "search_$index",
+                locator = locator,
+                style = if (index == currentSearchIndex)
+                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFF5A623"))
+                else
+                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
+            )
+        }
+        withContext(Dispatchers.Main) {
+            fragment.applyDecorations(decorations, group = "search")
+        }
+        hasActiveDecorations.value = true
+    }
+
     LaunchedEffect(volumeNavEvents) {
         volumeNavEvents.collect { event ->
             val fragment = fragmentRef.value ?: return@collect
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical) {
-                // Scroll mode: goForward() jumps chapters; scroll the viewport by 80% instead.
+            val container = containerRef.value
+            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
                 when (event) {
-                    VolumeNavEvent.Forward -> fragment.evaluateJavascript("window.scrollBy(0, window.innerHeight * 0.8)")
-                    VolumeNavEvent.Backward -> fragment.evaluateJavascript("window.scrollBy(0, -window.innerHeight * 0.8)")
+                    VolumeNavEvent.Forward -> {
+                        val atBottom = fragment.evaluateJavascript(
+                            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
+                        )?.trim('"') == "true"
+                        container.handleVolumeScroll(forward = true, atBoundary = atBottom) { js ->
+                            launch { fragment.evaluateJavascript(js) }
+                        }
+                    }
+                    VolumeNavEvent.Backward -> {
+                        val atTop = fragment.evaluateJavascript(
+                            "(window.scrollY <= 4).toString()"
+                        )?.trim('"') == "true"
+                        container.handleVolumeScroll(forward = false, atBoundary = atTop) { js ->
+                            launch { fragment.evaluateJavascript(js) }
+                        }
+                    }
                 }
             } else {
                 when (event) {
@@ -323,31 +473,112 @@ private fun EpubNavigatorView(
         }
     }
 
-    // fragmentRef.value excluded: fragment is created with initialPreferences, so adding it would call submitPreferences twice and flash.
-    LaunchedEffect(formattingPrefs) {
-        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences())
+    // fragmentRef.value is a key so the effect re-fires when the fragment becomes available
+    // after rotation (isLandscape changes while fragmentRef is null, so the call would be lost).
+    LaunchedEffect(formattingPrefs, isLandscape, fragmentRef.value) {
+        fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout))
     }
 
     DisposableEffect(tapListener) {
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
 
+    // Remove the fragment from FM when navigating away (not on rotation) so it doesn't
+    // linger in saved state and crash restoration on the next configuration change.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!fragmentActivity.isChangingConfigurations) {
+                fragmentRef.value?.let { frag ->
+                    runCatching {
+                        fragmentActivity.supportFragmentManager
+                            .beginTransaction()
+                            .remove(frag)
+                            .commitNowAllowingStateLoss()
+                    }
+                }
+            }
+        }
+    }
+
+    val containerId = rememberSaveable { View.generateViewId() }
+
     AndroidView(
         factory = { ctx ->
             ScrollBoundaryNavigationContainer(ctx).apply {
-                val fragmentContainer = FragmentContainerView(ctx).apply { id = View.generateViewId() }
+                // Compose handles all inset-based padding (navigationBarsPadding on the outer
+                // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
+                // insets here prevents Readium's WebViews from applying status-bar padding,
+                // which on physical devices remains non-zero even after controller.hide().
+                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
+                val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                 addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-            }
+            }.also { containerRef.value = it }
         },
         update = { container ->
             container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+
+            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
+                ?: return@AndroidView
+            val fm = fragmentActivity.supportFragmentManager
+
+            // RS properties (colCount/colWidth) are baked into the fragment at creation time and
+            // cannot be changed via submitPreferences. Recreate the fragment whenever the
+            // double-page mode changes so the new RS config takes effect.
+            val isDoublePage = !isFixedLayout &&
+                formattingPrefs.orientation != ReaderOrientation.Vertical &&
+                formattingPrefs.doublePageSpread &&
+                isLandscape
+            val existingFrag = fragmentRef.value
+            if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
+                fm.beginTransaction().remove(existingFrag).commitNow()
+                fragmentRef.value = null
+                fragmentDoublePageHolder[0] = null
+            }
+
+            // After Activity recreation, the FragmentManager may have restored an
+            // EpubNavigatorFragment using the default factory (not EpubNavigatorFactory).
+            // Without the factory, the fragment's WebView cannot connect to the Readium
+            // streaming server. Remove any such stale fragment so the creation path below
+            // can recreate it properly with latestLocator() as the initial position.
+            if (fragmentRef.value == null) {
+                fm.findFragmentById(containerId)?.let { stale ->
+                    fm.beginTransaction().remove(stale).commitNow()
+                }
+            }
+
+            if (fm.findFragmentById(containerId) == null) {
+                val fragmentFactory = EpubNavigatorFactory(
+                    publication = state.publication,
+                    configuration = sharedEpubNavigatorConfig,
+                ).createFragmentFactory(
+                    initialLocator = latestLocator() ?: state.initialLocator,
+                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
+                    configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
+                    listener = fragmentListener,
+                )
+                fm.fragmentFactory = fragmentFactory
+                fm.beginTransaction()
+                    .add(containerId, EpubNavigatorFragment::class.java, null)
+                    .commitNow()
+                val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
+                    ?: return@AndroidView
+                fragmentRef.value = fragment
+                fragmentDoublePageHolder[0] = isDoublePage
+                fragment.addInputListener(tapListener)
+                coroutineScope.launch {
+                    fragment.currentLocator.collect { locator ->
+                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
+                        currentHrefHolder[0] = locator.href.toString()
+                        onPositionChanged(locator)
+                    }
+                }
+            }
 
             fragmentRef.value?.let { fragment ->
                 container.onNavigateForward = navigateForward@{
                     val idx = state.publication.readingOrder
                         .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
                     if (idx < 0 || idx >= state.publication.readingOrder.size - 1) return@navigateForward
-                    // goForward() in scroll mode jumps to the next spine item (chapter start).
                     fragment.goForward(animated = false)
                 }
                 container.onNavigateBackward = navigateBackward@{
@@ -355,46 +586,14 @@ private fun EpubNavigatorView(
                         .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
                     if (idx <= 0) return@navigateBackward
                     val prevLink = state.publication.readingOrder[idx - 1]
-                    // Navigate to progression=1.0 on the previous spine item so the reader
-                    // lands at the end of the previous chapter, not the start.
                     val locator = Locator.fromJSON(
                         JSONObject()
                             .put("href", prevLink.href.toString())
                             .put("type", "application/xhtml+xml")
                             .put("locations", JSONObject().put("progression", 1.0))
                     ) ?: return@navigateBackward
-                    fragmentActivity.lifecycleScope.launch {
+                    coroutineScope.launch {
                         fragment.go(locator, animated = false)
-                    }
-                }
-            }
-
-            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
-                ?: return@AndroidView
-            val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(fragmentContainer.id) == null) {
-                val fragmentFactory = EpubNavigatorFactory(
-                    publication = state.publication,
-                    configuration = sharedEpubNavigatorConfig,
-                ).createFragmentFactory(
-                    initialLocator = state.initialLocator,
-                    initialPreferences = formattingPrefs.toEpubPreferences(),
-                )
-                fm.fragmentFactory = fragmentFactory
-                fm.beginTransaction()
-                    .add(fragmentContainer.id, EpubNavigatorFragment::class.java, null)
-                    .commitNow()
-                val fragment = fm.findFragmentById(fragmentContainer.id) as? EpubNavigatorFragment
-                    ?: return@AndroidView
-                fragmentRef.value = fragment
-                fragment.addInputListener(tapListener)
-                fragmentActivity.lifecycleScope.launch {
-                    fragment.currentLocator.collect { locator ->
-                        // Update container directly — bypasses Compose state to avoid
-                        // recomposing EpubNavigatorView on every scroll frame.
-                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        currentHrefHolder[0] = locator.href.toString()
-                        onPositionChanged(locator)
                     }
                 }
             }
@@ -402,3 +601,4 @@ private fun EpubNavigatorView(
         modifier = modifier,
     )
 }
+

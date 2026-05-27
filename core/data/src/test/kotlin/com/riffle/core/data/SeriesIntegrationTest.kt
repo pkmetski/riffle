@@ -48,6 +48,7 @@ class SeriesIntegrationTest {
             AddServerResult.NetworkError(IOException())
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private val fakeTokenStorage = object : TokenStorage {
@@ -67,6 +68,7 @@ class SeriesIntegrationTest {
             displayName = "test",
             isActive = true,
             insecureConnectionAllowed = false,
+            username = "",
         )
     }
 
@@ -102,6 +104,7 @@ class SeriesIntegrationTest {
         override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun getById(itemId: String): LibraryItemEntity? = null
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}

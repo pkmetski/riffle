@@ -71,6 +71,7 @@ class EpubPositionIntegrationTest {
                 displayName = "Test",
                 isActive = true,
                 insecureConnectionAllowed = false,
+                username = "",
             )
             override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
             override suspend fun getActive(): Server = activeServer
@@ -78,6 +79,7 @@ class EpubPositionIntegrationTest {
                 throw UnsupportedOperationException()
             override suspend fun setActive(serverId: String) = Unit
             override suspend fun remove(serverId: String) = Unit
+            override suspend fun getServerVersion(serverId: String): String? = null
         },
         tokenStorage = object : TokenStorage {
             override suspend fun saveToken(serverId: String, token: String) = Unit

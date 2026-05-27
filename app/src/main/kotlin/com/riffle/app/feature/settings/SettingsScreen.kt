@@ -156,51 +156,17 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Reading defaults",
+                text = "Reading",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             HorizontalDivider()
             ListItem(
-                headlineContent = { Text("Formatting") },
-                supportingContent = { Text("Font, theme, spacing & margins") },
+                modifier = Modifier.clickable { showFormattingPanel = true },
+                headlineContent = { Text("Reading settings") },
+                supportingContent = { Text("Font, theme, spacing, screen wake, volume keys") },
                 trailingContent = {
                     TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
-                },
-            )
-            HorizontalDivider()
-            ListItem(
-                modifier = Modifier.clickable { viewModel.setKeepScreenOn(!keepScreenOn) },
-                headlineContent = { Text("Keep screen on while reading") },
-                trailingContent = {
-                    Switch(
-                        checked = keepScreenOn,
-                        onCheckedChange = { viewModel.setKeepScreenOn(it) },
-                    )
-                },
-            )
-            HorizontalDivider()
-            ListItem(
-                modifier = Modifier.clickable { viewModel.setVolumeKeyNavigationEnabled(!volumeKeyNavigationEnabled) },
-                headlineContent = { Text("Volume key navigation") },
-                supportingContent = { Text("Use volume buttons to turn pages while reading") },
-                trailingContent = {
-                    Switch(
-                        checked = volumeKeyNavigationEnabled,
-                        onCheckedChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
-                    )
-                },
-            )
-            HorizontalDivider()
-            ListItem(
-                modifier = Modifier.clickable { viewModel.setInvertVolumeKeys(!invertVolumeKeys) },
-                headlineContent = { Text("Invert volume keys") },
-                supportingContent = { Text("Volume down goes to previous page") },
-                trailingContent = {
-                    Switch(
-                        checked = invertVolumeKeys,
-                        onCheckedChange = { viewModel.setInvertVolumeKeys(it) },
-                    )
                 },
             )
             HorizontalDivider()
@@ -260,6 +226,13 @@ fun SettingsScreen(
             onPrefsChange = { viewModel.updateGlobalFormatting(it) },
             onReset = {},
             onDismiss = { showFormattingPanel = false },
+            keepScreenOn = keepScreenOn,
+            onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
+            volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+            onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
+            invertVolumeKeys = invertVolumeKeys,
+            onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
+            fullScreen = true,
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import android.content.res.Configuration
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,6 +64,12 @@ fun LibraryItemDetailScreen(
     val downloadState by viewModel.downloadState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(viewModel) {
+        viewModel.snackbarEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -108,11 +117,13 @@ fun LibraryItemDetailScreen(
             is LibraryItemDetailUiState.Ready -> {
                 LibraryItemDetailContent(
                     item = state.item,
+                    isInToRead = state.isInToRead,
                     token = viewModel.authToken,
                     downloadState = downloadState,
                     onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                     onMarkAsRead = { viewModel.markAsRead() },
                     onMarkAsUnread = { viewModel.markAsUnread() },
+                    onToggleToRead = { viewModel.toggleToRead() },
                     onDownload = { viewModel.startDownload() },
                     onRemove = {
                         viewModel.removeDownload()
@@ -140,11 +151,11 @@ private fun CollapsibleDescription(description: String) {
     var isOverflowing by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.animateContentSize()) {
-        Text(text = "Description", style = MaterialTheme.typography.titleMedium)
+        Text(text = "Summary", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = description,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             maxLines = if (expanded) Int.MAX_VALUE else 5,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { result -> if (!expanded) isOverflowing = result.hasVisualOverflow },
@@ -161,11 +172,13 @@ private fun CollapsibleDescription(description: String) {
 @Composable
 private fun LibraryItemDetailContent(
     item: LibraryItem,
+    isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
+    onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -178,6 +191,7 @@ private fun LibraryItemDetailContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item.coverUrl?.let { url ->
+            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(url)
@@ -186,8 +200,9 @@ private fun LibraryItemDetailContent(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f),
+                    .then(if (isLandscape) Modifier.fillMaxWidth(0.4f) else Modifier.fillMaxWidth())
+                    .aspectRatio(2f / 3f)
+                    .align(Alignment.CenterHorizontally),
             )
         }
 
@@ -209,6 +224,10 @@ private fun LibraryItemDetailContent(
                     onMarkAsRead = onMarkAsRead,
                     onMarkAsUnread = onMarkAsUnread,
                 )
+                ToReadToggleButton(
+                    isInToRead = isInToRead,
+                    onToggle = onToggleToRead,
+                )
                 DownloadButton(
                     state = downloadState,
                     onDownload = onDownload,
@@ -218,16 +237,16 @@ private fun LibraryItemDetailContent(
         } else {
             Text(
                 text = "No ebook file is available for this item on the server.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        Text(text = item.title, style = MaterialTheme.typography.headlineSmall)
-        Text(text = item.author, style = MaterialTheme.typography.bodyLarge)
+        Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
+        Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
 
         item.seriesName?.let { series ->
-            Text(text = series, style = MaterialTheme.typography.bodyMedium)
+            Text(text = series, style = MaterialTheme.typography.bodyLarge)
         }
 
         if (item.readingProgress > 0f) {
@@ -239,7 +258,7 @@ private fun LibraryItemDetailContent(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${(item.readingProgress * 100).toInt()}% read",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -256,7 +275,7 @@ private fun LibraryItemDetailContent(
         if (metadataItems.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 metadataItems.forEach { line ->
-                    Text(text = line, style = MaterialTheme.typography.bodySmall)
+                    Text(text = line, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

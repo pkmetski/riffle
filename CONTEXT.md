@@ -23,7 +23,16 @@ A per-Server, user-managed set of hidden Libraries. Determines which Libraries a
 A named, ordered grouping of Library Items within a Library. Defined on the ABS server (e.g. "The Stormlight Archive").
 
 ### Collection
-A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential.
+A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential. One Collection per Library may be the **To Read** list.
+
+### To Read
+A per-Library wishlist of Library Items the user intends to read. Implemented as a regular Collection named `To Read`, looked up by name and find-or-created on first use. Toggled via a bookmark icon on the Library Item Detail Screen (third 40dp circular icon in the action row, between mark-read and download). Filled bookmark = in the list, outline = not in the list.
+
+Behaves like any other Collection — visible in the Collections Tab, editable from the ABS web UI, persists when empty. App-managed rules:
+- **Find-or-create by name.** If the user renames the collection on the server, the next toggle creates a new "To Read" collection; the renamed one is left alone.
+- **Per-Library, not global.** A user with multiple Libraries has one "To Read" collection per Library.
+- **Read transitions remove from To Read.** Any transition of a Library Item to the Read state — manual mark-read, or future auto-finish detection — removes the item from "To Read". The reverse is not enforced: toggling To Read on a Read book does not clear the Read flag (a legitimate re-read signal).
+- **Optimistic, no queueing.** Taps flip the icon immediately, fire the request, and revert with a snackbar on failure. Offline taps fail with a snackbar — there is no durable mutation queue (yet; see notes on a future unified sync mechanism).
 
 ### Library Item
 An entry within a Library on the ABS server. Includes metadata (title, author, cover). May or may not have an associated ebook file. May belong to a Series, a Collection, or neither. A Library Item with no ebook file is an Unsupported Library Item.
@@ -66,7 +75,7 @@ Bidirectional reconciliation of reading position between the app and the ABS ser
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:
-- **EPUB:** font size, theme (Light / Dark / Sepia), font family (system fonts + Literata, Merriweather, OpenDyslexic), line spacing, margins, reading orientation (paginated / continuous scroll).
+- **EPUB:** font size, theme (Light / Dark / Sepia), font family (system fonts + Literata, Merriweather, OpenDyslexic), justify text (on/off toggle, default off), line spacing, margins, reading orientation (paginated / continuous scroll).
 - **PDF:** theme (as colour filter), scroll direction (paged / continuous), zoom persistence.
 
 ### EPUB CFI
@@ -97,7 +106,10 @@ A global user preference (default: on) that prevents the device screen from slee
 A global user preference (default: on) that enables page turns via the device's hardware volume buttons while reading. Applies to both EPUB and PDF readers. Volume Down advances to the next page; Volume Up goes to the previous page. When a panel (TOC or Formatting) is open, volume key presses are swallowed — no navigation occurs and the system volume UI is suppressed. Includes a secondary preference, **Invert Volume Keys** (default: off), which swaps the direction mapping so Volume Down goes to the previous page and Volume Up to the next.
 
 ### Immersive Mode
-A reader state in which the app's TopAppBar and Android's system bars (status bar + navigation bar) are both hidden, giving the reading content the full screen. Toggled by tapping the reading content area. Chrome and system bars reappear together — either via another tap or by an edge-swipe that temporarily reveals the system bars. Not persisted across sessions; the reader always opens with chrome visible.
+A reader state in which the app's TopAppBar and Android's system bars (status bar + navigation bar) are both hidden, giving the reading content the full screen. Toggled by tapping the reading content area. The reader always opens in immersive mode. Tapping while immersive restores the TopAppBar and the status bar (clock, battery); the navigation bar remains hidden to avoid reflowing the reader layout. An edge-swipe restores all system bars permanently (Android BEHAVIOR_DEFAULT). Not persisted across reading sessions — closing and reopening a book always starts in immersive mode. Device rotation preserves the current immersive state: if the user has revealed chrome before rotating, it stays revealed; if they were in immersive mode, it stays immersive.
+
+### Book Search
+An in-EPUB text search available while reading. Activated via a search icon in the reader's TopAppBar (leftmost of the three action icons: Search → TOC → Formatting). Tapping the icon transforms the TopAppBar in-place: the title and icons collapse and a search field with a ✕ button expands to fill the bar. Searches the full publication (all chapters) via Readium's `SearchService`. Results are highlighted directly in the reading content using Readium's `DecoratorService`; the active match is distinguished from others. A match count ("3 of 24") and prev/next arrows appear below the field for result navigation. Search triggers live with a short debounce. No results shows "No results" in the match count area. Tapping ✕ collapses the bar and leaves the user at their current position. The back arrow always exits the reader regardless of search state. Progress Sync updates normally during search navigation. Applies to EPUB only — absent from the PDF reader.
 
 ### Supported Formats
 EPUB (reflowable) and PDF (fixed-layout). Rendered via the Readium Kotlin SDK (EPUB navigator + Pdfium adapter).

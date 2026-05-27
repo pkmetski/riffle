@@ -11,7 +11,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
@@ -71,13 +72,20 @@ class WakeLockHarnessTest {
         // Disable "Keep screen on" in Settings before opening a book
         addServerAndNavigateToSettings()
 
-        composeTestRule.onNodeWithText("Keep screen on while reading").assertExists()
-        // Toggle the switch off (it's on by default)
-        composeTestRule.onNodeWithText("Keep screen on while reading").performClick()
+        // Open the Reading settings panel which now hosts the wake-lock toggle.
+        composeTestRule.onNodeWithText("Reading settings").performClick()
         composeTestRule.waitForIdle()
 
-        // Navigate back and open the reader
-        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.onNodeWithText("Keep screen on").assertExists()
+        // Toggle the switch off (it's on by default)
+        composeTestRule.onNodeWithText("Keep screen on").performClick()
+        composeTestRule.waitForIdle()
+
+        // Two back-presses: the first dismisses the full-screen panel (consumed by its
+        // BackHandler), the second leaves Settings and returns to the library.
+        Espresso.pressBack()
+        composeTestRule.waitForIdle()
+        Espresso.pressBack()
         composeTestRule.waitForIdle()
 
         openFirstBook()
@@ -102,9 +110,9 @@ class WakeLockHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextInput(stubServer.baseUrl)
-        composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextInput("testuser")
-        composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextInput("testpass")
+        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextReplacement(stubServer.baseUrl)
+        composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextReplacement("testuser")
+        composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextReplacement("testpass")
         composeTestRule.onNodeWithText("Connect").performClick()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
@@ -133,9 +141,9 @@ class WakeLockHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextInput(stubServer.baseUrl)
-        composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextInput("testuser")
-        composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextInput("testpass")
+        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextReplacement(stubServer.baseUrl)
+        composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextReplacement("testuser")
+        composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextReplacement("testpass")
         composeTestRule.onNodeWithText("Connect").performClick()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
@@ -164,9 +172,9 @@ class WakeLockHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextInput(stubServer.baseUrl)
-        composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextInput("testuser")
-        composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextInput("testpass")
+        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextReplacement(stubServer.baseUrl)
+        composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextReplacement("testuser")
+        composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextReplacement("testpass")
         composeTestRule.onNodeWithText("Connect").performClick()
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()

@@ -3,6 +3,7 @@ package com.riffle.core.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -16,6 +17,7 @@ import org.junit.rules.TemporaryFolder
  * Integration test: DataStore write → observable Flow emits updated value.
  * Uses a real DataStore instance (file-backed) — no mocking.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class FormattingPreferencesIntegrationTest {
 
     @get:Rule

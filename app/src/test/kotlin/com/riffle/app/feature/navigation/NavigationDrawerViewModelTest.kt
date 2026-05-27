@@ -47,9 +47,12 @@ class NavigationDrawerViewModelTest {
         displayName = id,
         isActive = active,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
+
+    private var fakeVersions: Map<String, String?> = emptyMap()
 
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = serversFlow
@@ -62,6 +65,7 @@ class NavigationDrawerViewModelTest {
         override suspend fun remove(serverId: String) {
             serversFlow.update { list -> list.filter { it.id != serverId } }
         }
+        override suspend fun getServerVersion(serverId: String): String? = fakeVersions[serverId]
     }
 
     private fun fakeLibraryRepo(): LibraryRepository = object : LibraryRepository {
@@ -70,6 +74,7 @@ class NavigationDrawerViewModelTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
@@ -213,5 +218,43 @@ class NavigationDrawerViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(library("lib-B"), library("lib-C")), vm.visibleLibraries.value)
+    }
+
+    @Test
+    fun `onDrawerOpened fetches and exposes server version for active server`() = runTest(testDispatcher) {
+        fakeVersions = mapOf("srv-1" to "1.2.3")
+        serversFlow.value = listOf(server("srv-1", active = true))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.activeServer.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        vm.onDrawerOpened()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("1.2.3", vm.serverVersion.value)
+    }
+
+    @Test
+    fun `onDrawerOpened does not cache null version so retry is possible`() = runTest(testDispatcher) {
+        fakeVersions = mapOf("srv-1" to null)
+        serversFlow.value = listOf(server("srv-1", active = true))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.activeServer.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        vm.onDrawerOpened()
+        testScheduler.advanceUntilIdle()
+
+        // First call yields null
+        assertEquals(null, vm.serverVersion.value)
+
+        // Now the server returns a version — retry should succeed since null was not cached
+        fakeVersions = mapOf("srv-1" to "2.0.0")
+        vm.onDrawerOpened()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("2.0.0", vm.serverVersion.value)
     }
 }

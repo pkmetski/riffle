@@ -51,6 +51,7 @@ class LibraryRepositoryTest {
             AddServerResult.NetworkError(IOException())
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private val fakeTokenStorage = object : TokenStorage {
@@ -103,6 +104,9 @@ class LibraryRepositoryTest {
 
         override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> =
             MutableStateFlow(roomData[libraryId]?.value?.filter { it.readingProgress == 1f } ?: emptyList())
+
+        override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> =
+            MutableStateFlow(roomData[libraryId]?.value?.sortedByDescending { it.addedAt } ?: emptyList())
 
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> =
             roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
@@ -229,6 +233,7 @@ class LibraryRepositoryTest {
         displayName = "abs",
         isActive = true,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     // ── refreshLibraries ─────────────────────────────────────────────────────
@@ -391,6 +396,40 @@ class LibraryRepositoryTest {
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
         assertEquals(99_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
+    }
+
+    @Test
+    fun `refreshLibraryItems persists addedAt from network`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, addedAt = 1_708_369_906_982L)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(1_708_369_906_982L, dao.upserted[0].addedAt)
+    }
+
+    @Test
+    fun `observeRecentlyAddedItems emits items from DAO ordered by addedAt`() = runTest {
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("item-1", "lib-1", "Older Book", "Author", null, 0f, addedAt = 1_000L),
+            LibraryItemEntity("item-2", "lib-1", "Newer Book", "Author", null, 0f, addedAt = 2_000L),
+        ))
+        val result = makeRepo(libraryItemDao = dao).observeRecentlyAddedItems("lib-1").first()
+        assertEquals(2, result.size)
+        assertEquals(2_000L, result[0].addedAt)
+        assertEquals(1_000L, result[1].addedAt)
     }
 
     @Test

@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 11,
+    version = 16,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -149,6 +149,60 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE `library_items`")
                 db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `addedAt` INTEGER")
+            }
+        }
+
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `book_formatting_preferences` ADD COLUMN `doublePageSpread` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `servers` ADD COLUMN `username` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `book_formatting_preferences` ADD COLUMN `justifyText` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // Make all non-PK columns nullable so a per-book row can store sparse overrides — null
+        // on a column means "follow the global setting." Existing rows are preserved verbatim,
+        // which keeps customised books behaving the same; only new writes use the sparse form.
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_formatting_preferences_new` (" +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`fontSize` REAL, " +
+                        "`theme` TEXT, " +
+                        "`fontFamily` TEXT, " +
+                        "`lineSpacing` REAL, " +
+                        "`margins` REAL, " +
+                        "`orientation` TEXT, " +
+                        "`showChapterMap` INTEGER, " +
+                        "`doublePageSpread` INTEGER, " +
+                        "`justifyText` INTEGER, " +
+                        "PRIMARY KEY(`itemId`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `book_formatting_preferences_new` " +
+                        "(itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText) " +
+                        "SELECT itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText " +
+                        "FROM `book_formatting_preferences`"
+                )
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
             }
         }
     }

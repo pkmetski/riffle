@@ -4,7 +4,7 @@ import org.readium.r2.shared.publication.Link
 
 fun List<Link>.toTocEntries(): List<TocEntry> = map { link ->
     TocEntry(
-        title = link.title ?: link.href.toString(),
+        title = link.title.orEmpty(),
         href = link.href.toString(),
         children = link.children.toTocEntries(),
     )

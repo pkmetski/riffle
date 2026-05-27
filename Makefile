@@ -110,21 +110,38 @@ AVD_NAME := Harness_Medium_Phone
 
 .PHONY: harness-test
 harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run harness tests, then shut it down
-	@echo "Starting emulator '$(AVD_NAME)'..."; \
-	emulator -avd "$(AVD_NAME)" -no-window -no-audio -no-boot-anim &> /tmp/riffle-emulator.log & \
+	@AVD_CONFIG=$$HOME/.android/avd/$(AVD_NAME).avd/config.ini; \
+	echo "Ensuring AVD heap is 1024 MB (was: $$(grep vm.heapSize $$AVD_CONFIG))..."; \
+	sed -i '' 's/^vm\.heapSize=.*/vm.heapSize=1024/' "$$AVD_CONFIG"; \
+	STALE=$$(for s in $$(adb devices 2>/dev/null | grep emulator | cut -f1); do \
+		name=$$(adb -s $$s emu avd name 2>/dev/null | head -1 | tr -d '\r'); \
+		[ "$$name" = "$(AVD_NAME)" ] && echo $$s; \
+	done); \
+	if [ -n "$$STALE" ]; then \
+		echo "Killing stale emulator $$STALE..."; \
+		adb -s $$STALE emu kill 2>/dev/null || true; \
+		until ! adb devices 2>/dev/null | grep -q "$$STALE"; do sleep 2; done; \
+	fi; \
+	echo "Starting emulator '$(AVD_NAME)'..."; \
+	emulator -avd "$(AVD_NAME)" -no-window -no-audio -no-boot-anim -no-snapshot-load \
+		&> /tmp/riffle-emulator.log & \
 	EMU_PID=$$!; \
 	echo "Waiting for emulator to boot (pid $$EMU_PID)..."; \
-	adb wait-for-device; \
-	until [ "$$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 2; done; \
-	SERIAL=$$(for s in $$(adb devices | grep emulator | cut -f1); do \
-		name=$$(adb -s $$s emu avd name 2>/dev/null | head -1 | tr -d '\r'); \
-		[ "$$name" = "$(AVD_NAME)" ] && echo $$s && break; \
-	done); \
+	SERIAL=""; \
+	until [ -n "$$SERIAL" ]; do \
+		sleep 2; \
+		SERIAL=$$(for s in $$(adb devices | grep emulator | cut -f1); do \
+			name=$$(adb -s $$s emu avd name 2>/dev/null | head -1 | tr -d '\r'); \
+			[ "$$name" = "$(AVD_NAME)" ] && echo $$s && break; \
+		done); \
+	done; \
+	until [ "$$(adb -s $$SERIAL shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 2; done; \
 	echo "Running harness tests on $$SERIAL..."; \
 	adb -s $$SERIAL shell pm clear com.riffle.app 2>/dev/null || true; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest; \
 	TEST_EXIT=$$?; \
 	echo "Shutting down emulator..."; \
 	adb -s $$SERIAL emu kill; \
-	wait $$EMU_PID 2>/dev/null; \
+	wait $$EMU_PID 2>/dev/null || true; \
+	kill -9 $$EMU_PID 2>/dev/null || true; \
 	exit $$TEST_EXIT

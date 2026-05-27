@@ -1,29 +1,48 @@
 package com.riffle.app.feature.reader
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -41,12 +60,64 @@ fun FormattingPanel(
     onPrefsChange: (FormattingPreferences) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
+    keepScreenOn: Boolean,
+    onKeepScreenOnChange: (Boolean) -> Unit,
+    volumeKeyNavigationEnabled: Boolean,
+    onVolumeKeyNavigationEnabledChange: (Boolean) -> Unit,
+    invertVolumeKeys: Boolean,
+    onInvertVolumeKeysChange: (Boolean) -> Unit,
+    fullScreen: Boolean = false,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+    // Reader use: fixed half-height panel (not ModalBottomSheet) so scrolling stays inside
+    // the panel — the reader pane behind must stay visible to preview changes.
+    // Settings use: full-screen panel with no scrim and system back to dismiss.
+    BackHandler(enabled = fullScreen, onBack = onDismiss)
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (!fullScreen) {
+            // Dim scrim covering the top half — tap to dismiss.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    )
+                    .background(Color.Black.copy(alpha = 0.32f)),
+            )
+        }
+        Surface(
+            modifier = Modifier
+                .align(if (fullScreen) Alignment.TopCenter else Alignment.BottomCenter)
+                .fillMaxWidth()
+                .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.5f))
+                .then(if (fullScreen) Modifier.statusBarsPadding() else Modifier)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                ),
+            shape = if (fullScreen) RectangleShape else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            tonalElevation = 1.dp,
+            shadowElevation = if (fullScreen) 0.dp else 8.dp,
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (fullScreen) {
+                    TopAppBar(
+                        title = { Text("Reading settings") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                    )
+                }
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .navigationBarsPadding(),
+            ) {
 
             // Font size
             Text("Font size", style = MaterialTheme.typography.labelMedium)
@@ -103,6 +174,24 @@ fun FormattingPanel(
 
             Spacer(Modifier.height(16.dp))
 
+            // Justify text toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Justify text",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.justifyText,
+                    onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) },
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // Line spacing (Readium's effective range is 1.0–2.0)
             Text("Line spacing", style = MaterialTheme.typography.labelMedium)
             StepperRow(
@@ -151,6 +240,25 @@ fun FormattingPanel(
                 }
             }
 
+            if (prefs.orientation == ReaderOrientation.Horizontal) {
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Double page in landscape",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = prefs.doublePageSpread,
+                        onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
+                    )
+                }
+            }
+
             Spacer(Modifier.height(16.dp))
 
             // Chapter Map toggle
@@ -180,7 +288,92 @@ fun FormattingPanel(
                 Text("Reset to global defaults")
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
+
+            // "Also while reading" section — global settings surfaced here for convenience;
+            // changes write to the same global DataStore as the Settings screen.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f))
+                Text(
+                    "Also while reading",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onKeepScreenOnChange(!keepScreenOn) },
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Keep screen on", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Applies to all books",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = keepScreenOn, onCheckedChange = onKeepScreenOnChange)
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onVolumeKeyNavigationEnabledChange(!volumeKeyNavigationEnabled) },
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Volume key navigation", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Applies to all books",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = volumeKeyNavigationEnabled,
+                    onCheckedChange = onVolumeKeyNavigationEnabledChange,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = volumeKeyNavigationEnabled) { onInvertVolumeKeysChange(!invertVolumeKeys) }
+                    .alpha(if (volumeKeyNavigationEnabled) 1f else 0.38f),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Invert volume keys", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Applies to all books",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = invertVolumeKeys,
+                    onCheckedChange = onInvertVolumeKeysChange,
+                    enabled = volumeKeyNavigationEnabled,
+                )
+            }
+
+                Spacer(Modifier.height(24.dp))
+            }
+            }
         }
     }
 }

@@ -8,6 +8,8 @@ data class FormattingPreferences(
     val margins: Float = 1.0f,
     val orientation: ReaderOrientation = ReaderOrientation.Horizontal,
     val showChapterMap: Boolean = true,
+    val doublePageSpread: Boolean = false,
+    val justifyText: Boolean = false,
 )
 
 enum class ReaderTheme { Light, Dark, Sepia }

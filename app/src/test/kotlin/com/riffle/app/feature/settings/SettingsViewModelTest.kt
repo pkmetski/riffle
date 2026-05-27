@@ -73,6 +73,7 @@ class SettingsViewModelTest {
         displayName = id,
         isActive = active,
         insecureConnectionAllowed = false,
+        username = "",
     )
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
@@ -93,6 +94,7 @@ class SettingsViewModelTest {
         override suspend fun remove(serverId: String) {
             serversFlow.update { list -> list.filter { it.id != serverId } }
         }
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private fun fakeLibraryRepo(): LibraryRepository = object : LibraryRepository {
@@ -101,6 +103,7 @@ class SettingsViewModelTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())

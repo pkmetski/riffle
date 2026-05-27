@@ -27,7 +27,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = findProperty("versionName") as String? ?: "0.1.0"
 
         testInstrumentationRunner = "com.riffle.app.HiltTestRunner"
         vectorDrawables {

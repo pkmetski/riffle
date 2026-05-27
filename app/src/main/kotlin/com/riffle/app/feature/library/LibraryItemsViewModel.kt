@@ -26,10 +26,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
@@ -57,6 +59,29 @@ class LibraryItemsViewModel @Inject constructor(
     val collections: StateFlow<List<Collection>> = libraryRepository.observeCollections(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * Up to 4 representative cover URLs per Collection, used by [CollectionCoverTile] for a 2×2
+     * mosaic. Keyed off the collection-id list (not the full Collection objects) so renames or
+     * other field changes on existing collections don't restart every member-items flow.
+     */
+    val collectionCoverUrls: StateFlow<Map<String, List<String>>> = collections
+        .map { cols -> cols.map { it.id } }
+        .distinctUntilChanged()
+        .flatMapLatest { ids ->
+            if (ids.isEmpty()) {
+                flowOf(emptyMap())
+            } else {
+                combine(
+                    ids.map { id ->
+                        libraryRepository.observeCollectionItems(id).map { items ->
+                            id to items.take(4).mapNotNull { it.coverUrl?.takeIf { url -> url.isNotBlank() } }
+                        }
+                    },
+                ) { pairs -> pairs.toMap() }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     val ungroupedItems: StateFlow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -64,6 +89,9 @@ class LibraryItemsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val finished: StateFlow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val recentlyAdded: StateFlow<List<LibraryItem>> = libraryRepository.observeRecentlyAddedItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
@@ -117,6 +145,11 @@ class LibraryItemsViewModel @Inject constructor(
 
     val filteredFinished: StateFlow<List<LibraryItem>> = combine(finished, isOffline) { items, offline ->
         if (offline) items.filter { isAvailableOffline(it) } else items
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val filteredRecentlyAdded: StateFlow<List<LibraryItem>> = combine(recentlyAdded, isOffline) { items, offline ->
+        val filtered = if (offline) items.filter { isAvailableOffline(it) } else items
+        filtered.take(50)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(allBooks, isOffline) { items, offline ->

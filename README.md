@@ -30,6 +30,9 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 - [x] Navigation Drawer UX — replaces server & library list screens ([#54](https://github.com/pkmetski/riffle/issues/54))
 - [x] Library screen redesign — Plex-style sections with cover grid ([#66](https://github.com/pkmetski/riffle/issues/66))
 - [x] Read/unread toggle ([#42](https://github.com/pkmetski/riffle/issues/42))
+- [x] Justify text toggle for EPUB reader ([#106](https://github.com/pkmetski/riffle/issues/106))
+- [x] Fully immersive mode — hide Android status bar ([#101](https://github.com/pkmetski/riffle/issues/101))
+- [x] "To Read" toggle on each book — per-Library ABS Collection
 
 ## Requirements
 

@@ -6,11 +6,13 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "book_formatting_preferences")
 data class BookFormattingPreferencesEntity(
     @PrimaryKey val itemId: String,
-    val fontSize: Float,
-    val theme: String,
-    val fontFamily: String,
-    val lineSpacing: Float,
-    val margins: Float,
-    val orientation: String,
-    val showChapterMap: Boolean = true,
+    val fontSize: Float? = null,
+    val theme: String? = null,
+    val fontFamily: String? = null,
+    val lineSpacing: Float? = null,
+    val margins: Float? = null,
+    val orientation: String? = null,
+    val showChapterMap: Boolean? = null,
+    val doublePageSpread: Boolean? = null,
+    val justifyText: Boolean? = null,
 )

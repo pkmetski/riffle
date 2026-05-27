@@ -8,11 +8,13 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class NavigationDrawerViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
@@ -34,6 +37,10 @@ class NavigationDrawerViewModel @Inject constructor(
     val activeServer: StateFlow<Server?> = allServers
         .map { servers -> servers.firstOrNull { it.isActive } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val serverVersionCache = mutableMapOf<String, String?>()
+    private val _serverVersion = MutableStateFlow<String?>(null)
+    val serverVersion: StateFlow<String?> = _serverVersion.asStateFlow()
 
     val visibleLibraries: StateFlow<List<Library>> = activeServer
         .filterNotNull()
@@ -60,12 +67,30 @@ class NavigationDrawerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            activeServer.collect { server ->
+                _serverVersion.value = serverVersionCache[server?.id]
+            }
+        }
+        viewModelScope.launch {
             visibleLibraries.collect { visible ->
                 val lastId = _lastActiveLibraryId.value ?: return@collect
                 if (visible.isNotEmpty() && visible.none { it.id == lastId }) {
                     _redirectToLibrary.emit(visible.first())
                 }
             }
+        }
+    }
+
+    fun onDrawerOpened() {
+        val server = activeServer.value ?: return
+        if (server.id in serverVersionCache) {
+            _serverVersion.value = serverVersionCache[server.id]
+            return
+        }
+        viewModelScope.launch {
+            val version = serverRepository.getServerVersion(server.id)
+            if (version != null) serverVersionCache[server.id] = version
+            _serverVersion.value = version
         }
     }
 

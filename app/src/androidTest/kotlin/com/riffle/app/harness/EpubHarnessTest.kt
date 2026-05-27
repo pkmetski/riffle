@@ -70,6 +70,10 @@ class EpubHarnessTest {
         // launches a new Activity. The sleep gives Readium's DataStore coroutine scope time
         // to cancel and deregister from the DataStore registry (async cancellation).
         composeTestRule.activityRule.scenario.close()
+        // Suggest GC after closing the activity to help reclaim WebView memory before the
+        // next test's Activity starts. Without this, 6 back-to-back E2E reader tests
+        // accumulate enough Java heap to OOM on the 512MB-capped emulator.
+        Runtime.getRuntime().gc()
         Thread.sleep(400)
         // Clear DB after closing the activity so the next test's activity starts with an
         // empty DB. Without this, HomeScreen.LaunchedEffect can read stale server data
@@ -230,7 +234,8 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithContentDescription("Back")
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.waitForIdle()
+        // Don't call waitForIdle() here — it has no timeout and can block indefinitely if
+        // AnimatedVisibility or continuous WebView position callbacks keep Compose busy.
         composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
 
         // Tap center again to re-enter immersive mode

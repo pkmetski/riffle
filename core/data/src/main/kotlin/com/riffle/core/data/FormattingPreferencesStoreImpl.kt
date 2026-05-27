@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class FormattingPreferencesStoreImpl @Inject constructor(
-    @FormattingPreferencesDataStore private val dataStore: DataStore<Preferences>,
+    @param:FormattingPreferencesDataStore private val dataStore: DataStore<Preferences>,
 ) : FormattingPreferencesStore {
 
     override val preferences: Flow<FormattingPreferences> = dataStore.data.map { prefs ->
@@ -35,6 +35,8 @@ class FormattingPreferencesStoreImpl @Inject constructor(
                 ?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
                 ?: ReaderOrientation.Horizontal,
             showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
+            doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
+            justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
         )
     }
 
@@ -47,6 +49,8 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_MARGINS] = preferences.margins
             prefs[KEY_ORIENTATION] = preferences.orientation.name
             prefs[KEY_SHOW_CHAPTER_MAP] = preferences.showChapterMap
+            prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
+            prefs[KEY_JUSTIFY_TEXT] = preferences.justifyText
         }
     }
 
@@ -58,5 +62,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_MARGINS = floatPreferencesKey("margins")
         val KEY_ORIENTATION = stringPreferencesKey("orientation")
         val KEY_SHOW_CHAPTER_MAP = booleanPreferencesKey("show_chapter_map")
+        val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
+        val KEY_JUSTIFY_TEXT = booleanPreferencesKey("justify_text")
     }
 }

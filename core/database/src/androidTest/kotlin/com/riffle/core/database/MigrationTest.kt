@@ -283,6 +283,130 @@ class MigrationTest {
     }
 
     @Test
+    fun migration11To12() {
+        helper.createDatabase(TEST_DB, 11).use { db ->
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt) " +
+                    "VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 12, true, RiffleDatabase.MIGRATION_11_12)
+
+        db.query("SELECT id, title, addedAt FROM library_items WHERE id = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals("Dune", cursor.getString(1))
+            assertNull(cursor.getString(2)) // addedAt defaults to NULL
+        }
+    }
+
+    @Test
+    fun migration12To13() {
+        helper.createDatabase(TEST_DB, 12).use { db ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap) VALUES ('item1', 1.0, 'Light', 'Serif', 1.2, 1.0, 'Horizontal', 1)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 13, true, RiffleDatabase.MIGRATION_12_13)
+
+        db.query("SELECT itemId, doublePageSpread FROM book_formatting_preferences WHERE itemId = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1)) // doublePageSpread defaults to 0 (false)
+        }
+    }
+
+    @Test
+    fun migration13To14() {
+        helper.createDatabase(TEST_DB, 13).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed) " +
+                    "VALUES ('s1', 'http://localhost', 'My Server', 1, 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 14, true, RiffleDatabase.MIGRATION_13_14)
+
+        db.query("SELECT id, url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("http://localhost", cursor.getString(1))
+            assertEquals("My Server", cursor.getString(2))
+            assertEquals("", cursor.getString(3))
+        }
+    }
+
+    @Test
+    fun migration14To15() {
+        helper.createDatabase(TEST_DB, 14).use { db ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread) " +
+                    "VALUES ('item1', 1.0, 'Light', 'Serif', 1.2, 1.0, 'Horizontal', 1, 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 15, true, RiffleDatabase.MIGRATION_14_15)
+
+        db.query("SELECT itemId, justifyText FROM book_formatting_preferences WHERE itemId = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1)) // justifyText defaults to 0 (false)
+        }
+    }
+
+    @Test
+    fun migration15To16() {
+        helper.createDatabase(TEST_DB, 15).use { db ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText) " +
+                    "VALUES ('item1', 1.3, 'Dark', 'Serif', 1.5, 1.2, 'Vertical', 1, 0, 1)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 16, true, RiffleDatabase.MIGRATION_15_16)
+
+        // Existing rows survive verbatim — they become explicit overrides, not null/follow-global.
+        db.query(
+            "SELECT itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText " +
+                "FROM book_formatting_preferences WHERE itemId = 'item1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(1.3, cursor.getDouble(1), 0.001)
+            assertEquals("Dark", cursor.getString(2))
+            assertEquals("Serif", cursor.getString(3))
+            assertEquals(1.5, cursor.getDouble(4), 0.001)
+            assertEquals(1.2, cursor.getDouble(5), 0.001)
+            assertEquals("Vertical", cursor.getString(6))
+            assertEquals(1, cursor.getInt(7))
+            assertEquals(0, cursor.getInt(8))
+            assertEquals(1, cursor.getInt(9))
+        }
+
+        // New writes can store NULL on any non-PK column ("follow global").
+        db.execSQL(
+            "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText) " +
+                "VALUES ('item2', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1)"
+        )
+        db.query(
+            "SELECT fontSize, theme, justifyText FROM book_formatting_preferences WHERE itemId = 'item2'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertTrue("fontSize should be null", cursor.isNull(0))
+            assertTrue("theme should be null", cursor.isNull(1))
+            assertEquals(1, cursor.getInt(2))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -291,7 +415,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 11, true,
+            TEST_DB, 16, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -302,13 +426,19 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_8_9,
             RiffleDatabase.MIGRATION_9_10,
             RiffleDatabase.MIGRATION_10_11,
+            RiffleDatabase.MIGRATION_11_12,
+            RiffleDatabase.MIGRATION_12_13,
+            RiffleDatabase.MIGRATION_13_14,
+            RiffleDatabase.MIGRATION_14_15,
+            RiffleDatabase.MIGRATION_15_16,
         )
 
-        db.query("SELECT url, displayName FROM servers WHERE id = 's1'").use { cursor ->
+        db.query("SELECT url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("My Server", cursor.getString(1))
+            assertEquals("", cursor.getString(2))
         }
     }
 }

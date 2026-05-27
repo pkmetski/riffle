@@ -1,11 +1,15 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.feature.reader
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
+import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
@@ -17,6 +21,7 @@ import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.SessionPayload
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -28,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -39,6 +45,7 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.locateProgression
+import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -71,6 +78,7 @@ class EpubReaderViewModel @Inject constructor(
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
+    private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val volumeNavigationController: VolumeNavigationController,
     private val readerStateHolder: ReaderStateHolder,
 ) : AndroidViewModel(application) {
@@ -79,6 +87,9 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
+
+    private val _footnotePopup = MutableStateFlow<FootnotePopupState?>(null)
+    val footnotePopup: StateFlow<FootnotePopupState?> = _footnotePopup
 
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
@@ -98,6 +109,7 @@ class EpubReaderViewModel @Inject constructor(
     val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
     private var lastLocator: Locator? = null
+    val latestLocator: Locator? get() = lastLocator
     private var publication: Publication? = null
     private var epubFile: File? = null
     @Volatile private var epubZip: ZipFile? = null
@@ -112,15 +124,42 @@ class EpubReaderViewModel @Inject constructor(
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val volumeKeyNavigationEnabled: StateFlow<Boolean> = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
-    // Optimistic local state: updates immediately so the navigator receives changes without
-    // waiting for the Room write to complete.
+    // Per-field book overrides. null on a field means "follow global", so changing global later
+    // propagates to the book for fields the user hasn't touched in the panel.
+    private val _bookOverrides = MutableStateFlow(BookFormattingOverrides())
+
+    // Effective prefs = global ⊕ overrides. Updated optimistically on user change so the
+    // navigator sees the new value without waiting for the Room write to complete.
     private val _formattingPreferences = MutableStateFlow(FormattingPreferences())
     val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
 
     private val _hasBookOverrides = MutableStateFlow(false)
     val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
+
+    private val _isSearchActive = MutableStateFlow(false)
+    val isSearchActive: StateFlow<Boolean> = _isSearchActive
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
+    val searchResults: StateFlow<List<Locator>> = _searchResults
+
+    private val _currentSearchIndex = MutableStateFlow(-1)
+    val currentSearchIndex: StateFlow<Int> = _currentSearchIndex
+
+    private val _searchNavigationChannel = Channel<Locator>(Channel.CONFLATED)
+    val searchNavigationEvents: Flow<Locator> = _searchNavigationChannel.receiveAsFlow()
+
+    private var searchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -128,22 +167,46 @@ class EpubReaderViewModel @Inject constructor(
             loadFormattingPreferences()
             openBook()
         }
+        // Keep effective prefs in sync with both global changes and override updates. This is
+        // why per-book settings are sparse: a global change to a field the user hasn't touched
+        // in this book flows through immediately.
+        viewModelScope.launch {
+            combine(
+                formattingPreferencesStore.preferences,
+                _bookOverrides,
+            ) { global, overrides -> overrides.applyTo(global) to !overrides.isEmpty }
+                .collect { (effective, hasOverrides) ->
+                    _formattingPreferences.value = effective
+                    _hasBookOverrides.value = hasOverrides
+                }
+        }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
             }
         }
+        @OptIn(FlowPreview::class)
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(300)
+                .collect { query ->
+                    searchJob?.cancel()
+                    if (query.length < 2) {
+                        _searchResults.value = emptyList()
+                        _currentSearchIndex.value = -1
+                        return@collect
+                    }
+                    searchJob = launch { performSearch(query) }
+                }
+        }
     }
 
     private suspend fun loadFormattingPreferences() {
-        val bookPrefs = bookFormattingPreferencesStore.load(itemId)
-        if (bookPrefs != null) {
-            _formattingPreferences.value = bookPrefs
-            _hasBookOverrides.value = true
-        } else {
-            _formattingPreferences.value = formattingPreferencesStore.preferences.first()
-            _hasBookOverrides.value = false
-        }
+        val overrides = bookFormattingPreferencesStore.load(itemId)
+        val global = formattingPreferencesStore.preferences.first()
+        _bookOverrides.value = overrides
+        _formattingPreferences.value = overrides.applyTo(global)
+        _hasBookOverrides.value = !overrides.isEmpty
     }
 
     private suspend fun openBook() {
@@ -161,7 +224,11 @@ class EpubReaderViewModel @Inject constructor(
                     return
                 }
                 publication = pub
-                val locator = result.lastPosition?.let { Locator.fromJSON(JSONObject(it)) }
+                // Stored lastPosition may be empty or malformed (legacy rows / corrupted writes).
+                // Fall back to null so openBook() can open the publication at its default position.
+                val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let {
+                    try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
+                }
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
@@ -193,6 +260,14 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             progressSyncController.sync(itemId, locator.toPayload())
         }
+    }
+
+    fun showFootnotePopup(content: String) {
+        _footnotePopup.value = FootnotePopupState(content)
+    }
+
+    fun dismissFootnotePopup() {
+        _footnotePopup.value = null
     }
 
     fun onPositionChanged(locator: Locator) {
@@ -324,8 +399,11 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val railSegments: StateFlow<List<RailSegment>> = tocEntries
-        .map { buildRailSegments(it) }
+    val railSegments: StateFlow<List<RailSegment>> = state
+        .map { s ->
+            val ready = s as? ReaderState.Ready ?: return@map emptyList()
+            buildRailSegments(ready.publication.tableOfContents.toTocEntries(), ready.title)
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
@@ -346,6 +424,78 @@ class EpubReaderViewModel @Inject constructor(
         if (segments.isEmpty()) 0f
         else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    fun openSearch() {
+        _isSearchActive.value = true
+    }
+
+    fun closeSearch() {
+        _isSearchActive.value = false
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+        _currentSearchIndex.value = -1
+        searchJob?.cancel()
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun nextSearchResult() {
+        val results = _searchResults.value
+        if (results.isEmpty()) return
+        val next = (_currentSearchIndex.value + 1).coerceAtMost(results.size - 1)
+        _currentSearchIndex.value = next
+        _searchNavigationChannel.trySend(results[next])
+    }
+
+    fun prevSearchResult() {
+        val results = _searchResults.value
+        if (results.isEmpty()) return
+        val prev = (_currentSearchIndex.value - 1).coerceAtLeast(0)
+        _currentSearchIndex.value = prev
+        _searchNavigationChannel.trySend(results[prev])
+    }
+
+    private suspend fun performSearch(query: String) {
+        val pub = publication ?: return
+        val service = pub.findService(SearchService::class)
+        if (service == null) {
+            _searchResults.value = emptyList()
+            _currentSearchIndex.value = -1
+            return
+        }
+        val results = try {
+            withContext(Dispatchers.IO) {
+                chapterHtmlCache.clear()
+                val iterator = service.search(query)
+                val acc = mutableListOf<Locator>()
+                try {
+                    while (true) {
+                        val pageResult = iterator.next()
+                        // isFailure = chapter unreadable (e.g. OOM wrapped by Readium as
+                        // SearchError.Reading); skip this chapter and continue to the next.
+                        // getOrNull() == null = end of book; stop.
+                        if (pageResult.isFailure) continue
+                        val page = pageResult.getOrNull() ?: break
+                        acc.addAll(page.locators)
+                    }
+                } finally {
+                    iterator.close()
+                }
+                acc
+            }
+        } catch (_: OutOfMemoryError) {
+            emptyList()
+        }
+        _searchResults.value = results
+        if (results.isEmpty()) {
+            _currentSearchIndex.value = -1
+        } else {
+            _currentSearchIndex.value = 0
+            _searchNavigationChannel.trySend(results[0])
+        }
+    }
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()
@@ -384,16 +534,32 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun updateFormatting(prefs: FormattingPreferences) {
+        val previousEffective = _formattingPreferences.value
+        val updated = _bookOverrides.value.withChanges(previousEffective, prefs)
+        _bookOverrides.value = updated
         _formattingPreferences.value = prefs
-        _hasBookOverrides.value = true
-        viewModelScope.launch { bookFormattingPreferencesStore.save(itemId, prefs) }
+        _hasBookOverrides.value = !updated.isEmpty
+        viewModelScope.launch { bookFormattingPreferencesStore.save(itemId, updated) }
     }
 
     fun resetToGlobalDefaults() {
         viewModelScope.launch {
             bookFormattingPreferencesStore.clear(itemId)
+            _bookOverrides.value = BookFormattingOverrides()
             _formattingPreferences.value = formattingPreferencesStore.preferences.first()
             _hasBookOverrides.value = false
         }
+    }
+
+    fun setKeepScreenOn(value: Boolean) {
+        viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
+    }
+
+    fun setVolumeKeyNavigationEnabled(value: Boolean) {
+        viewModelScope.launch { volumeKeyPreferencesStore.setVolumeKeyNavigationEnabled(value) }
+    }
+
+    fun setInvertVolumeKeys(value: Boolean) {
+        viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
     }
 }

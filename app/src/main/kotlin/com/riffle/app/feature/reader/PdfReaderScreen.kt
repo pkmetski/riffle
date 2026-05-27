@@ -5,16 +5,21 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -24,6 +29,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -31,18 +38,22 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFactory
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
+import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.publication.Locator
 
@@ -56,6 +67,7 @@ fun PdfReaderScreen(
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val immersiveState = rememberImmersiveModeState()
 
     DisposableEffect(viewModel) {
         onDispose { viewModel.onReaderClosed() }
@@ -92,19 +104,18 @@ fun PdfReaderScreen(
 
     val title = (state as? ReaderState.Ready)?.title ?: ""
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+    // TopAppBar floats as an overlay so its show/hide never resizes the PDF view —
+    // same pattern as EpubReaderScreen.
+    Box(modifier = Modifier.fillMaxSize()) {
+        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // root (see ViewCompat.setOnApplyWindowInsetsListener in the PDF AndroidView factory)
+        // so they never reach Readium's PDF views. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+        ) {
             when (val s = state) {
                 ReaderState.Loading -> {
                     CircularProgressIndicator(
@@ -117,9 +128,14 @@ fun PdfReaderScreen(
                     val currentPage by viewModel.currentPage.collectAsState()
                     PdfNavigatorView(
                         state = s,
-                        onPageChanged = viewModel::onPageChanged,
+                        onPageChanged = { locator ->
+                            immersiveState.dismissOverlay()
+                            viewModel.onPageChanged(locator)
+                        },
+                        onTap = immersiveState::toggle,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
+                        latestLocator = { viewModel.latestLocator },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -142,6 +158,21 @@ fun PdfReaderScreen(
                 }
             }
         }
+
+        AnimatedVisibility(
+            visible = !immersiveState.isImmersive,
+            enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
+            exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
+        ) {
+            TopAppBar(
+                title = { Text(title, style = MaterialTheme.typography.titleMedium) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -149,13 +180,28 @@ fun PdfReaderScreen(
 private fun PdfNavigatorView(
     state: ReaderState.Ready,
     onPageChanged: (Locator) -> Unit,
+    onTap: () -> Unit,
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
+    latestLocator: () -> Locator?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
+    val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<PdfiumNavigatorFragment?>(null) }
+
+    // rememberUpdatedState ensures the listener always calls the latest onTap lambda
+    // without needing to be re-created when onTap changes.
+    val currentOnTap by rememberUpdatedState(onTap)
+    val tapListener = remember {
+        object : InputListener {
+            override fun onTap(event: TapEvent): Boolean {
+                currentOnTap()
+                return false
+            }
+        }
+    }
 
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
@@ -172,35 +218,78 @@ private fun PdfNavigatorView(
         }
     }
 
+    DisposableEffect(tapListener) {
+        onDispose { fragmentRef.value?.removeInputListener(tapListener) }
+    }
+
+    // Remove the fragment from FM when navigating away (not on rotation) so it doesn't
+    // linger in saved state and crash restoration on the next configuration change.
+    DisposableEffect(Unit) {
+        onDispose {
+            if (!fragmentActivity.isChangingConfigurations) {
+                fragmentRef.value?.let { frag ->
+                    runCatching {
+                        fragmentActivity.supportFragmentManager
+                            .beginTransaction()
+                            .remove(frag)
+                            .commitNowAllowingStateLoss()
+                    }
+                }
+            }
+        }
+    }
+
+    val containerId = rememberSaveable { View.generateViewId() }
+
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = View.generateViewId() }
+            FragmentContainerView(ctx).apply {
+                id = containerId
+                // Compose handles all inset-based padding. Consuming insets here prevents
+                // Readium's PDF views from applying status-bar padding on physical devices.
+                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
+                    WindowInsetsCompat.CONSUMED
+                }
+            }
         },
         update = { containerView ->
             val fm = fragmentActivity.supportFragmentManager
-            if (fm.findFragmentById(containerView.id) == null) {
+            // After Activity recreation, the FragmentManager may have restored a
+            // PdfiumNavigatorFragment using the default factory (not PdfiumNavigatorFactory).
+            // Without the factory, the fragment cannot connect to the Readium streaming server.
+            // Remove any such stale fragment so the creation path below can recreate it
+            // properly with latestLocator() as the initial position.
+            if (fragmentRef.value == null) {
+                fm.findFragmentById(containerId)?.let { stale ->
+                    fm.beginTransaction().remove(stale).commitNow()
+                }
+            }
+
+            if (fm.findFragmentById(containerId) == null) {
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
                     pdfEngineProvider = PdfiumEngineProvider(),
                 ).createFragmentFactory(
-                    initialLocator = state.initialLocator,
+                    initialLocator = latestLocator() ?: state.initialLocator,
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
-                    .add(containerView.id, PdfiumNavigatorFragment::class.java, null)
+                    .add(containerId, PdfiumNavigatorFragment::class.java, null)
                     .commitNow()
-                val fragment = fm.findFragmentById(containerView.id) as? PdfiumNavigatorFragment
+                @Suppress("UNCHECKED_CAST")
+                val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
-                // Enable tap-to-navigate: PDFs are always in scroll mode, so we must
-                // explicitly opt in to handling taps while scrolling.
+                // DirectionalNavigationAdapter handles edge taps for page navigation;
+                // tapListener (registered after) receives only center taps that DA doesn't consume.
                 fragment.addInputListener(
                     DirectionalNavigationAdapter(
                         navigator = fragment,
                         handleTapsWhileScrolling = true,
                     )
                 )
-                fragmentActivity.lifecycleScope.launch {
+                fragment.addInputListener(tapListener)
+                coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
                 }
             }

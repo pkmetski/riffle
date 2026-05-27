@@ -79,6 +79,7 @@ class PdfReaderViewModel @Inject constructor(
     val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
     private var lastLocator: Locator? = null
+    val latestLocator: Locator? get() = lastLocator
     private var syncJob: Job? = null
     private var closeSyncDone = false
     private var initialLocatorSeen = false
@@ -105,7 +106,9 @@ class PdfReaderViewModel @Inject constructor(
                     _state.value = ReaderState.Error("Failed to open PDF: ${it.message}")
                     return
                 }
-                val locator = result.lastPosition?.let { Locator.fromJSON(JSONObject(it)) }
+                val locator = result.lastPosition
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { Locator.fromJSON(JSONObject(it)) }
                 _state.value = ReaderState.Ready(
                     publication = publication,
                     title = item.title,

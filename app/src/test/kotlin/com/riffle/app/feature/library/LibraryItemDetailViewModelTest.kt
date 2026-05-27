@@ -1,6 +1,8 @@
 package com.riffle.app.feature.library
 
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.app.feature.library.LibraryItemDetailUiState.Ready
+import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AddServerResult
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.EbookFormat
@@ -23,6 +25,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -34,6 +37,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -63,6 +68,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
@@ -83,6 +89,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
@@ -104,6 +111,7 @@ class LibraryItemDetailViewModelTest {
             AddServerResult.WrongCredentials()
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
     }
 
     private val noOpTokenStorage = object : TokenStorage {
@@ -147,11 +155,37 @@ class LibraryItemDetailViewModelTest {
         override suspend fun setProgress(itemId: String, progress: Float) = Unit
     }
 
+    private class FakeToReadRepository(
+        initial: Set<String> = emptySet(),
+        var addResult: Boolean = true,
+        var removeResult: Boolean = true,
+    ) : ToReadRepository {
+        val state = mutableSetOf<String>().also { it += initial }
+        val addCalls = mutableListOf<Pair<String, String>>()
+        val removeCalls = mutableListOf<Pair<String, String>>()
+
+        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
+            libraryItemId in state
+
+        override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
+            addCalls += libraryItemId to libraryId
+            if (addResult) state += libraryItemId
+            return addResult
+        }
+
+        override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
+            removeCalls += libraryItemId to libraryId
+            if (removeResult) state -= libraryItemId
+            return removeResult
+        }
+    }
+
     private fun makeVm(
         repo: LibraryRepository,
         itemId: String = "item-1",
         epubRepository: EpubRepository = FakeEpubRepository(),
         pdfRepository: PdfRepository = FakePdfRepository(),
+        toReadRepo: ToReadRepository = FakeToReadRepository(),
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         repository = repo,
@@ -160,6 +194,7 @@ class LibraryItemDetailViewModelTest {
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
         sessionRepository = noOpSessionRepository,
+        toReadRepository = toReadRepo,
     )
 
     // --- existing uiState tests ---
@@ -254,5 +289,103 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(DownloadState.NotDownloaded, vm.downloadState.value)
+    }
+
+    // --- toggleToRead tests ---
+
+    @Test
+    fun `toggleToRead optimistically flips state and persists on success`() = runTest {
+        val toRead = FakeToReadRepository()
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse((vm.uiState.value as Ready).isInToRead)
+
+        vm.toggleToRead()
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+        assertEquals(listOf(knownItem.id to knownItem.libraryId), toRead.addCalls)
+    }
+
+    @Test
+    fun `toggleToRead reverts state and emits snackbar on failure`() = runTest(testDispatcher) {
+        val toRead = FakeToReadRepository(addResult = false)
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        val snackbarMessages = mutableListOf<String>()
+        val collectorJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            vm.snackbarEvents.collect { snackbarMessages += it }
+        }
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.toggleToRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse((vm.uiState.value as Ready).isInToRead)
+        assertEquals(1, snackbarMessages.size)
+        assertTrue(snackbarMessages.single().contains("To Read", ignoreCase = true))
+        collectorJob.cancel()
+    }
+
+    @Test
+    fun `toggleToRead removes book when already in To Read`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+
+        vm.toggleToRead()
+        assertFalse((vm.uiState.value as Ready).isInToRead)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse((vm.uiState.value as Ready).isInToRead)
+        assertEquals(listOf(knownItem.id to knownItem.libraryId), toRead.removeCalls)
+    }
+
+    // --- markAsRead / markAsUnread coupling to To Read (ADR 0018) ---
+
+    @Test
+    fun `markAsRead also removes the book from To Read`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(knownItem.id to knownItem.libraryId), toRead.removeCalls)
+        assertFalse((vm.uiState.value as Ready).isInToRead)
+    }
+
+    @Test
+    fun `markAsUnread does not touch To Read`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
+        val vm = makeVm(repo = fakeRepo(knownItem.copy(readingProgress = 1.0f)), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsUnread()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(toRead.removeCalls.isEmpty())
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+    }
+
+    @Test
+    fun `toggleToRead on a Read book does not clear the Read flag`() = runTest {
+        val readItem = knownItem.copy(readingProgress = 1.0f)
+        val toRead = FakeToReadRepository()
+        val vm = makeVm(repo = fakeRepo(readItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.toggleToRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.0f, (vm.uiState.value as Ready).item.readingProgress, 0.0001f)
+        assertTrue((vm.uiState.value as Ready).isInToRead)
     }
 }

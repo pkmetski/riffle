@@ -1,3 +1,5 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -7,9 +9,11 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.readium.r2.navigator.epub.EpubPreferences
+import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.Theme
 import org.readium.r2.shared.ExperimentalReadiumApi
 
@@ -111,6 +115,46 @@ class FormattingPreferencesMapperTest {
         // initialPreferences the fragment renders one frame with wrong settings then flashes
         // when submitPreferences applies the real values.
         assertNotEquals(EpubPreferences(), FormattingPreferences().toEpubPreferences())
+    }
+
+    // --- Fixed-layout spread mapping ---
+
+    @Test
+    fun doublePageInLandscapeFixedLayoutProducesSpreadAlways() {
+        val result = FormattingPreferences(doublePageSpread = true).toEpubPreferences(
+            isLandscape = true,
+            isFixedLayout = true,
+        )
+        assertEquals(Spread.ALWAYS, result.spread)
+        assertNull(result.columnCount)
+    }
+
+    @Test
+    fun doublePageOffInLandscapeFixedLayoutProducesSpreadNever() {
+        val result = FormattingPreferences(doublePageSpread = false).toEpubPreferences(
+            isLandscape = true,
+            isFixedLayout = true,
+        )
+        assertEquals(Spread.NEVER, result.spread)
+        assertNull(result.columnCount)
+    }
+
+    @Test
+    fun reflowableEpubNeverSetsColumnCount() {
+        assertNull(FormattingPreferences(doublePageSpread = true).toEpubPreferences(isLandscape = true).columnCount)
+        assertNull(FormattingPreferences(doublePageSpread = false).toEpubPreferences(isLandscape = true).columnCount)
+    }
+
+    @Test
+    fun justifyTextTrueMapsToTextAlignJustify() {
+        val result = FormattingPreferences(justifyText = true).toEpubPreferences()
+        assertEquals(org.readium.r2.navigator.preferences.TextAlign.JUSTIFY, result.textAlign)
+    }
+
+    @Test
+    fun justifyTextFalseMapsToTextAlignStart() {
+        val result = FormattingPreferences(justifyText = false).toEpubPreferences()
+        assertEquals(org.readium.r2.navigator.preferences.TextAlign.START, result.textAlign)
     }
 
 }

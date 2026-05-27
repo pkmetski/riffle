@@ -1,12 +1,15 @@
 package com.riffle.app.feature.library
 
+import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -50,6 +55,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +63,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -65,6 +73,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
@@ -97,17 +106,22 @@ fun LibraryItemsScreen(
     val inProgress by viewModel.filteredInProgress.collectAsState()
     val allBooks by viewModel.filteredAllBooks.collectAsState()
     val finished by viewModel.filteredFinished.collectAsState()
+    val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
     val series by viewModel.filteredSeries.collectAsState()
     val collections by viewModel.filteredCollections.collectAsState()
+    val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) { keyboardController?.hide() }
-
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.yield()
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -157,6 +171,7 @@ fun LibraryItemsScreen(
                 when (selectedTab) {
                     0 -> HomeTabContent(
                         inProgress = inProgress,
+                        recentlyAdded = recentlyAdded,
                         finished = finished,
                         isLoading = isLoading,
                         token = viewModel.authToken,
@@ -172,6 +187,8 @@ fun LibraryItemsScreen(
                     2 -> CollectionsTabContent(
                         items = collections,
                         isLoading = isLoading,
+                        token = viewModel.authToken,
+                        collectionCoverUrls = collectionCoverUrls,
                         onCollectionSelected = onCollectionSelected,
                     )
                     3 -> AllBooksTabContent(
@@ -280,6 +297,8 @@ fun SeriesSectionGrid(
 @Composable
 fun CollectionsSectionGrid(
     items: List<Collection>,
+    token: String,
+    coverUrls: Map<String, List<String>>,
     onCollectionSelected: (Collection) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
@@ -293,7 +312,12 @@ fun CollectionsSectionGrid(
             SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
         } else {
             val col = preview[index]
-            CollectionCoverTile(collection = col, onClick = { onCollectionSelected(col) })
+            CollectionCoverTile(
+                collection = col,
+                coverUrls = coverUrls[col.id].orEmpty(),
+                token = token,
+                onClick = { onCollectionSelected(col) },
+            )
         }
     }
 }
@@ -306,15 +330,17 @@ private fun CoverGrid(
     modifier: Modifier = Modifier,
     content: @Composable (index: Int) -> Unit,
 ) {
-    val rows = (count + 2) / 3
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val columns = if (isLandscape) 5 else 3
+    val rows = (count + columns - 1) / columns
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (row in 0 until rows) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                for (col in 0 until 3) {
-                    val index = row * 3 + col
+                for (col in 0 until columns) {
+                    val index = row * columns + col
                     Box(modifier = Modifier.weight(1f)) {
                         if (index < count) content(index)
                     }
@@ -433,6 +459,8 @@ fun SeriesCoverTile(
 @Composable
 fun CollectionCoverTile(
     collection: Collection,
+    coverUrls: List<String>,
+    token: String,
     onClick: () -> Unit,
 ) {
     val borderColor = MaterialTheme.colorScheme.outline
@@ -449,7 +477,24 @@ fun CollectionCoverTile(
                         style = Stroke(width = 1.dp.toPx()),
                     )
                 },
-        )
+        ) {
+            when {
+                coverUrls.isEmpty() -> { /* outlined empty tile */ }
+                coverUrls.size == 1 -> CollectionCoverImage(coverUrls[0], token, Modifier.fillMaxSize())
+                else -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            CollectionCoverImage(coverUrls.getOrNull(0), token, Modifier.weight(1f).fillMaxHeight())
+                            CollectionCoverImage(coverUrls.getOrNull(1), token, Modifier.weight(1f).fillMaxHeight())
+                        }
+                        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            CollectionCoverImage(coverUrls.getOrNull(2), token, Modifier.weight(1f).fillMaxHeight())
+                            CollectionCoverImage(coverUrls.getOrNull(3), token, Modifier.weight(1f).fillMaxHeight())
+                        }
+                    }
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = collection.name,
@@ -458,6 +503,25 @@ fun CollectionCoverTile(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun CollectionCoverImage(url: String?, token: String, modifier: Modifier) {
+    if (url == null) {
+        Box(modifier = modifier)
+        return
+    }
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(url)
+            .addHeader("Authorization", "Bearer $token")
+            .crossfade(true)
+            .build(),
+        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -559,14 +623,29 @@ private fun SearchCollectionRow(collection: Collection, onClick: () -> Unit) {
 // --- Header / banner composables ---
 
 @Composable
-private fun LibrarySearchHeader(
+internal fun LibrarySearchHeader(
     libraryName: String,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onOpenDrawer: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    // Claim initial focus on an invisible focusable element so the BasicTextField below never
+    // receives auto-focus on entry (e.g. after login). clearFocus() alone races with Android's
+    // view-focus pass; assigning focus explicitly is reliable.
+    val initialFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        initialFocus.requestFocus()
+        keyboardController?.hide()
+    }
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+        Box(
+            modifier = Modifier
+                .size(1.dp)
+                .focusRequester(initialFocus)
+                .focusable(),
+        )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),
@@ -757,6 +836,7 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 @Composable
 private fun HomeTabContent(
     inProgress: List<LibraryItem>,
+    recentlyAdded: List<LibraryItem>,
     finished: List<LibraryItem>,
     isLoading: Boolean,
     token: String,
@@ -764,7 +844,7 @@ private fun HomeTabContent(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
 ) {
     if (isLoading) return
-    if (inProgress.isEmpty() && finished.isEmpty()) {
+    if (inProgress.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No books in progress or completed")
         }
@@ -781,8 +861,21 @@ private fun HomeTabContent(
                     items = inProgress,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT) {
+                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
+                    } else null,
+                )
+            }
+        }
+        if (recentlyAdded.isNotEmpty()) {
+            item(key = "header_recently_added") { SectionHeader(LibrarySectionType.RECENTLY_ADDED.displayName) }
+            item(key = "grid_recently_added") {
+                BookSectionGrid(
+                    items = recentlyAdded,
+                    token = token,
+                    onItemSelected = onItemSelected,
+                    onSeeMore = if (recentlyAdded.size > SECTION_PREVIEW_LIMIT + 1) {
+                        { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) }
                     } else null,
                 )
             }
@@ -794,7 +887,7 @@ private fun HomeTabContent(
                     items = finished,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT) {
+                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.FINISHED) }
                     } else null,
                 )
@@ -839,6 +932,8 @@ private fun SeriesTabContent(
 private fun CollectionsTabContent(
     items: List<Collection>,
     isLoading: Boolean,
+    token: String,
+    collectionCoverUrls: Map<String, List<String>>,
     onCollectionSelected: (Collection) -> Unit,
 ) {
     if (isLoading) return
@@ -860,7 +955,12 @@ private fun CollectionsTabContent(
         }
         items(items, key = { it.id }) { col ->
             Box(modifier = Modifier.padding(4.dp)) {
-                CollectionCoverTile(collection = col, onClick = { onCollectionSelected(col) })
+                CollectionCoverTile(
+                    collection = col,
+                    coverUrls = collectionCoverUrls[col.id].orEmpty(),
+                    token = token,
+                    onClick = { onCollectionSelected(col) },
+                )
             }
         }
     }
