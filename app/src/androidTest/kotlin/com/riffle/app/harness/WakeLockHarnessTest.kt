@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performTextReplacement
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
@@ -71,13 +72,18 @@ class WakeLockHarnessTest {
         // Disable "Keep screen on" in Settings before opening a book
         addServerAndNavigateToSettings()
 
-        composeTestRule.onNodeWithText("Keep screen on while reading").assertExists()
-        // Toggle the switch off (it's on by default)
-        composeTestRule.onNodeWithText("Keep screen on while reading").performClick()
+        // Open the Reading settings panel which now hosts the wake-lock toggle.
+        composeTestRule.onNodeWithText("Reading settings").performClick()
         composeTestRule.waitForIdle()
 
-        // Navigate back and open the reader
-        composeTestRule.onNodeWithContentDescription("Back").performClick()
+        composeTestRule.onNodeWithText("Keep screen on").assertExists()
+        // Toggle the switch off (it's on by default)
+        composeTestRule.onNodeWithText("Keep screen on").performClick()
+        composeTestRule.waitForIdle()
+
+        // The panel has no Done button (tap-outside-scrim dismisses); use system
+        // back to leave Settings entirely and return to the library.
+        Espresso.pressBack()
         composeTestRule.waitForIdle()
 
         openFirstBook()

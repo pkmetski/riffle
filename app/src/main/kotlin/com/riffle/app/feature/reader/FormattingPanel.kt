@@ -15,20 +15,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,6 +51,7 @@ import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormattingPanel(
     prefs: FormattingPreferences,
@@ -56,35 +65,51 @@ fun FormattingPanel(
     onVolumeKeyNavigationEnabledChange: (Boolean) -> Unit,
     invertVolumeKeys: Boolean,
     onInvertVolumeKeysChange: (Boolean) -> Unit,
+    fullScreen: Boolean = false,
 ) {
-    // Fixed half-height panel (not ModalBottomSheet) so scrolling stays inside the panel
-    // and doesn't expand it — the reader pane behind must stay visible to preview changes.
+    // Reader use: fixed half-height panel (not ModalBottomSheet) so scrolling stays inside
+    // the panel — the reader pane behind must stay visible to preview changes.
+    // Settings use: full-screen panel with no scrim and system back to dismiss.
+    BackHandler(enabled = fullScreen, onBack = onDismiss)
     Box(modifier = Modifier.fillMaxSize()) {
-        // Dim scrim covering the top half — tap to dismiss.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                )
-                .background(Color.Black.copy(alpha = 0.32f)),
-        )
+        if (!fullScreen) {
+            // Dim scrim covering the top half — tap to dismiss.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    )
+                    .background(Color.Black.copy(alpha = 0.32f)),
+            )
+        }
         Surface(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(if (fullScreen) Alignment.TopCenter else Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.5f)
+                .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.5f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {},
                 ),
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            shape = if (fullScreen) RectangleShape else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             tonalElevation = 1.dp,
-            shadowElevation = 8.dp,
+            shadowElevation = if (fullScreen) 0.dp else 8.dp,
         ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (fullScreen) {
+                    TopAppBar(
+                        title = { Text("Reading settings") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                    )
+                }
             Column(
                 modifier = Modifier
                     .verticalScroll(rememberScrollState())
@@ -345,6 +370,7 @@ fun FormattingPanel(
             }
 
                 Spacer(Modifier.height(24.dp))
+            }
             }
         }
     }
