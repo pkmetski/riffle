@@ -32,9 +32,11 @@ import androidx.compose.ui.unit.sp
 
 const val TAG_FOOTNOTE_POPUP = "footnote_popup"
 
-private val POPUP_WIDTH = 300.dp
+private val POPUP_WIDTH = 320.dp
 private val POPUP_MAX_HEIGHT = 200.dp
-private val POPUP_VERTICAL_GAP = 12.dp
+// clientY from touchstart is mid-line; we need enough gap to clear the rest of the line
+// plus a visual margin so the popup doesn't crowd the footnote reference.
+private val POPUP_VERTICAL_GAP = 28.dp
 
 @Composable
 fun FootnotePopup(
@@ -59,8 +61,10 @@ fun FootnotePopup(
 
             val above = state.tapY > viewportHeightPx / 2f
 
-            val idealLeft = tapXDp - 26.dp
-            val clampedLeft = idealLeft.coerceIn(8.dp, maxWidth - POPUP_WIDTH - 8.dp)
+            // Center horizontally on the screen rather than on the tap — more readable,
+            // and avoids the popup hugging the right edge when footnotes appear at line end.
+            val popupWidthClamped = minOf(POPUP_WIDTH, maxWidth - 16.dp)
+            val clampedLeft = ((maxWidth - popupWidthClamped) / 2).coerceAtLeast(8.dp)
 
             val cardOffset = if (above) {
                 Modifier.offset(x = clampedLeft, y = tapYDp - POPUP_VERTICAL_GAP - POPUP_MAX_HEIGHT)
@@ -71,7 +75,7 @@ fun FootnotePopup(
             Surface(
                 modifier = cardOffset
                     .testTag(TAG_FOOTNOTE_POPUP)
-                    .width(POPUP_WIDTH)
+                    .width(popupWidthClamped)
                     .heightIn(max = POPUP_MAX_HEIGHT)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
