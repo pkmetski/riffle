@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -14,8 +15,17 @@ class AbsApiClientCollectionsWriteTest {
     private lateinit var server: MockWebServer
     private lateinit var client: AbsApiClient
 
-    @Before fun setUp() { server = MockWebServer(); server.start(); client = AbsApiClient(OkHttpClient()) }
-    @After fun tearDown() { server.shutdown() }
+    @Before
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+        client = AbsApiClient(OkHttpClient())
+    }
+
+    @After
+    fun tearDown() {
+        server.shutdown()
+    }
 
     private fun baseUrl() = server.url("/").toString().trimEnd('/')
 
@@ -43,9 +53,10 @@ class AbsApiClientCollectionsWriteTest {
 
         assertTrue(result is NetworkCollectionWriteResult.Success)
         val collection = (result as NetworkCollectionWriteResult.Success).collection
-        assertEquals("col-1", collection?.id)
-        assertEquals("To Read", collection?.name)
-        assertEquals(1, collection?.items?.size)
+        assertNotNull(collection)
+        assertEquals("col-1", collection!!.id)
+        assertEquals("To Read", collection.name)
+        assertEquals(1, collection.items.size)
     }
 
     @Test
@@ -55,9 +66,13 @@ class AbsApiClientCollectionsWriteTest {
                 """{"id":"col-1","name":"To Read","libraryId":"lib-1","books":[]}"""
             ).addHeader("Content-Type", "application/json")
         )
-        client.createCollection(baseUrl(), "lib-1", "To Read", null, "tok", false)
+        val result = client.createCollection(baseUrl(), "lib-1", "To Read", null, "tok", false)
         val recorded = server.takeRequest()
         assertTrue(recorded.body.readUtf8().contains("\"books\":[]"))
+        assertTrue(result is NetworkCollectionWriteResult.Success)
+        val collection = (result as NetworkCollectionWriteResult.Success).collection
+        assertNotNull(collection)
+        assertTrue(collection!!.items.isEmpty())
     }
 
     @Test

@@ -4,17 +4,17 @@ import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsCreateCollectionRequest
-import com.riffle.core.network.model.AbsMeResponse
-import com.riffle.core.network.model.toNetworkCollection
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
-import com.riffle.core.network.model.AbsProgressResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
-import com.riffle.core.network.model.AbsServerInfoResponse
+import com.riffle.core.network.model.AbsMeResponse
+import com.riffle.core.network.model.AbsProgressResponse
 import com.riffle.core.network.model.AbsSeriesResponse
+import com.riffle.core.network.model.AbsServerInfoResponse
+import com.riffle.core.network.model.toNetworkCollection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -274,7 +274,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             val raw = response.body?.string().orEmpty()
             val dto = json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw)
             NetworkCollectionWriteResult.Success(dto.toNetworkCollection())
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             NetworkCollectionWriteResult.NetworkError(e)
         }
     }
