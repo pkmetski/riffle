@@ -5,8 +5,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -45,6 +43,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -148,9 +148,10 @@ fun EpubReaderScreen(
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are omitted because in immersive
-        // mode the status bar is hidden, and the floating TopAppBar carries its own
-        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // root (see ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so
+        // they never reach Readium's WebViews. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -475,6 +476,10 @@ private fun EpubNavigatorView(
     AndroidView(
         factory = { ctx ->
             ScrollBoundaryNavigationContainer(ctx).apply {
+                // Compose handles all inset-based padding (navigationBarsPadding on the outer
+                // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
+                // insets here prevents Readium's WebViews from applying status-bar padding,
+                // which on physical devices remains non-zero even after controller.hide().
                 ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
                 val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                 addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))

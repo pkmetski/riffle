@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -104,9 +106,10 @@ fun PdfReaderScreen(
     // TopAppBar floats as an overlay so its show/hide never resizes the PDF view —
     // same pattern as EpubReaderScreen.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are omitted because in immersive
-        // mode the status bar is hidden, and the floating TopAppBar carries its own
-        // TopAppBarDefaults.windowInsets when the user taps to reveal it.
+        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // root (see ViewCompat.setOnApplyWindowInsetsListener in the PDF AndroidView factory)
+        // so they never reach Readium's PDF views. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -239,7 +242,14 @@ private fun PdfNavigatorView(
 
     AndroidView(
         factory = { ctx ->
-            FragmentContainerView(ctx).apply { id = containerId }
+            FragmentContainerView(ctx).apply {
+                id = containerId
+                // Compose handles all inset-based padding. Consuming insets here prevents
+                // Readium's PDF views from applying status-bar padding on physical devices.
+                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
+                    WindowInsetsCompat.CONSUMED
+                }
+            }
         },
         update = { containerView ->
             val fm = fragmentActivity.supportFragmentManager
