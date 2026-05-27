@@ -253,8 +253,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkCollectionWriteResult {
         val payload = AbsCreateCollectionRequest(
             libraryId = libraryId,
             name = name,
@@ -262,22 +261,12 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         )
         val body = json.encodeToString(AbsCreateCollectionRequest.serializer(), payload)
             .toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/collections")
-            .addHeader("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string().orEmpty()
-            val dto = json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw)
-            NetworkCollectionWriteResult.Success(dto.toNetworkCollection())
-        } catch (e: IOException) {
-            NetworkCollectionWriteResult.NetworkError(e)
-        }
+        return executeCollectionWrite(
+            url = "$baseUrl/api/collections",
+            token = token,
+            insecureAllowed = insecureAllowed,
+            parseResponseBody = true,
+        ) { post(body) }
     }
 
     override suspend fun addBookToCollection(
@@ -286,26 +275,15 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkCollectionWriteResult {
         val body = json.encodeToString(AbsCollectionBookRequest.serializer(), AbsCollectionBookRequest(libraryItemId))
             .toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/collections/$collectionId/book")
-            .addHeader("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string().orEmpty()
-            val dto = json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw)
-            NetworkCollectionWriteResult.Success(dto.toNetworkCollection())
-        } catch (e: IOException) {
-            NetworkCollectionWriteResult.NetworkError(e)
-        }
+        return executeCollectionWrite(
+            url = "$baseUrl/api/collections/$collectionId/book",
+            token = token,
+            insecureAllowed = insecureAllowed,
+            parseResponseBody = true,
+        ) { post(body) }
     }
 
     override suspend fun removeBookFromCollection(
@@ -314,7 +292,42 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult = TODO("Task 4")
+    ): NetworkCollectionWriteResult = executeCollectionWrite(
+        url = "$baseUrl/api/collections/$collectionId/book/$libraryItemId",
+        token = token,
+        insecureAllowed = insecureAllowed,
+        parseResponseBody = true,
+    ) { delete() }
+
+    private suspend fun executeCollectionWrite(
+        url: String,
+        token: String,
+        insecureAllowed: Boolean,
+        parseResponseBody: Boolean,
+        buildRequest: Request.Builder.() -> Request.Builder,
+    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+            .apply { buildRequest() }
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string().orEmpty()
+            val collection = if (!parseResponseBody || raw.isBlank()) {
+                null
+            } else {
+                json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
+            }
+            NetworkCollectionWriteResult.Success(collection)
+        } catch (e: IOException) {
+            NetworkCollectionWriteResult.NetworkError(e)
+        }
+    }
 
     override suspend fun getItemEbookFileIno(
         baseUrl: String,

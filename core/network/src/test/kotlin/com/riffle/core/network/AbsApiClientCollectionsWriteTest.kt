@@ -107,4 +107,34 @@ class AbsApiClientCollectionsWriteTest {
         val result = client.addBookToCollection(baseUrl(), "col-1", "item-1", "tok", false)
         assertTrue(result is NetworkCollectionWriteResult.NetworkError)
     }
+
+    @Test
+    fun `removeBookFromCollection deletes the libraryItem from the collection`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"id":"col-1","name":"To Read","libraryId":"lib-1","books":[]}"""
+            ).addHeader("Content-Type", "application/json")
+        )
+        val result = client.removeBookFromCollection(baseUrl(), "col-1", "item-1", "tok", false)
+        val recorded = server.takeRequest()
+        assertEquals("DELETE", recorded.method)
+        assertEquals("/api/collections/col-1/book/item-1", recorded.path)
+        assertEquals("Bearer tok", recorded.getHeader("Authorization"))
+        assertTrue(result is NetworkCollectionWriteResult.Success)
+    }
+
+    @Test
+    fun `removeBookFromCollection tolerates empty body on success`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(""))
+        val result = client.removeBookFromCollection(baseUrl(), "col-1", "item-1", "tok", false)
+        assertTrue(result is NetworkCollectionWriteResult.Success)
+        assertEquals(null, (result as NetworkCollectionWriteResult.Success).collection)
+    }
+
+    @Test
+    fun `removeBookFromCollection returns NetworkError on 404`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+        val result = client.removeBookFromCollection(baseUrl(), "col-1", "item-1", "tok", false)
+        assertTrue(result is NetworkCollectionWriteResult.NetworkError)
+    }
 }
