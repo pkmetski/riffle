@@ -1,20 +1,28 @@
 package com.riffle.app.feature.reader
 
-fun buildRailSegments(tocEntries: List<TocEntry>, currentHref: String?): List<RailSegment> =
-    tocEntries.flatMap { entry -> expandEntry(entry, currentHref) }
+fun buildRailSegments(tocEntries: List<TocEntry>): List<RailSegment> =
+    tocEntries.flatMap { expandIfBlank(it) }
 
-private fun expandEntry(entry: TocEntry, currentHref: String?): List<RailSegment> {
+private fun expandIfBlank(entry: TocEntry): List<RailSegment> =
     if (entry.title.isBlank() && entry.children.isNotEmpty()) {
-        return entry.children.flatMap { expandEntry(it, currentHref) }
+        entry.children.flatMap { expandIfBlank(it) }
+    } else {
+        listOf(RailSegment(entry.title, entry.href))
     }
-    if (entry.children.isEmpty() || currentHref == null) {
-        return listOf(RailSegment(entry.title, entry.href))
-    }
-    if (entry.containsHref(currentHref)) {
-        return entry.children.flatMap { expandEntry(it, currentHref) }
-    }
-    return listOf(RailSegment(entry.title, entry.href))
+
+fun findActiveSubdivisions(tocEntries: List<TocEntry>, currentHref: String?): List<RailSegment> {
+    if (currentHref == null) return emptyList()
+    val topLevel = tocEntries.flatMap { promoteIfBlank(it) }
+    val active = topLevel.firstOrNull { it.containsHref(currentHref) } ?: return emptyList()
+    return active.children.map { RailSegment(it.title, it.href) }
 }
+
+private fun promoteIfBlank(entry: TocEntry): List<TocEntry> =
+    if (entry.title.isBlank() && entry.children.isNotEmpty()) {
+        entry.children.flatMap { promoteIfBlank(it) }
+    } else {
+        listOf(entry)
+    }
 
 private fun TocEntry.containsHref(href: String): Boolean {
     if (this.href == href) return true
