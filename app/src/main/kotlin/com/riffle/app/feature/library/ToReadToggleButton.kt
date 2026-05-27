@@ -20,8 +20,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ToReadToggleButton(
     isInToRead: Boolean,
-    onAdd: () -> Unit,
-    onRemove: () -> Unit,
+    onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -32,7 +31,7 @@ fun ToReadToggleButton(
                 if (isInToRead) Modifier.background(MaterialTheme.colorScheme.primaryContainer)
                 else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
             )
-            .clickable(onClick = if (isInToRead) onRemove else onAdd),
+            .clickable(onClick = onToggle),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

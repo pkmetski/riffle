@@ -134,7 +134,7 @@ class LibraryItemDetailViewModel @Inject constructor(
             if (!ok) {
                 val now = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
                 _uiState.value = now.copy(isInToRead = wasInToRead)
-                _snackbarEvents.tryEmit(
+                _snackbarEvents.emit(
                     if (wasInToRead) "Couldn't remove from To Read" else "Couldn't add to To Read"
                 )
             }

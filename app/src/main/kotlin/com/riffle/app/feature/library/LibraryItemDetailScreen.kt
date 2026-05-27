@@ -226,8 +226,7 @@ private fun LibraryItemDetailContent(
                 )
                 ToReadToggleButton(
                     isInToRead = isInToRead,
-                    onAdd = onToggleToRead,
-                    onRemove = onToggleToRead,
+                    onToggle = onToggleToRead,
                 )
                 DownloadButton(
                     state = downloadState,
