@@ -3,7 +3,9 @@ package com.riffle.core.network
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsCreateCollectionRequest
 import com.riffle.core.network.model.AbsMeResponse
+import com.riffle.core.network.model.toNetworkCollection
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsProgressResponse
@@ -237,31 +239,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 IOException("Empty response body")
             )
             val parsed = json.decodeFromString<AbsCollectionsResponse>(raw)
-            NetworkCollectionResult.Success(parsed.results.map { dto ->
-                NetworkCollection(
-                    id = dto.id,
-                    libraryId = dto.libraryId,
-                    name = dto.name,
-                    items = dto.books.map { book ->
-                        val progress = book.userMediaProgress?.ebookProgress
-                            ?: book.userMediaProgress?.progress
-                        NetworkLibraryItem(
-                            id = book.id,
-                            libraryId = book.libraryId,
-                            title = book.media.metadata.title,
-                            author = book.media.metadata.authorName,
-                            readingProgress = progress,
-                            ebookFormat = EbookFormat.from(book.media.ebookFormat),
-                            ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
-                            description = book.media.metadata.description,
-                            seriesName = book.media.metadata.seriesName,
-                            publishedYear = book.media.metadata.publishedYear,
-                            genres = book.media.metadata.genres,
-                            publisher = book.media.metadata.publisher,
-                        )
-                    },
-                )
-            })
+            NetworkCollectionResult.Success(parsed.results.map { it.toNetworkCollection() })
         } catch (e: Exception) {
             NetworkCollectionResult.NetworkError(e)
         }
@@ -274,7 +252,32 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult = TODO("Task 2")
+    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val payload = AbsCreateCollectionRequest(
+            libraryId = libraryId,
+            name = name,
+            books = listOfNotNull(initialBookId),
+        )
+        val body = json.encodeToString(AbsCreateCollectionRequest.serializer(), payload)
+            .toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/collections")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string().orEmpty()
+            val dto = json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw)
+            NetworkCollectionWriteResult.Success(dto.toNetworkCollection())
+        } catch (e: Exception) {
+            NetworkCollectionWriteResult.NetworkError(e)
+        }
+    }
 
     override suspend fun addBookToCollection(
         baseUrl: String,

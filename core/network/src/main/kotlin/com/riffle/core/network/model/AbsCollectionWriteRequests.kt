@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 internal data class AbsCreateCollectionRequest(
     val libraryId: String,
     val name: String,
-    val books: List<String> = emptyList(),
+    val books: List<String>,
 )
 
 /** POST /api/collections/:id/book body. */
