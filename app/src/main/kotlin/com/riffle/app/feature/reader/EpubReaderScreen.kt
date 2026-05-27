@@ -311,13 +311,11 @@ private fun BoxScope.EpubChapterRailOverlay(
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val cursorPosition by viewModel.railCursorPosition.collectAsState()
-    val subdivisions by viewModel.activeSubdivisions.collectAsState()
     RiffleTheme(darkTheme = darkTheme) {
         ChapterNavigationRail(
             segments = railSegments,
             activeIndex = activeRailSegmentIndex,
             cursorPosition = cursorPosition,
-            subdivisions = subdivisions,
             onSegmentClick = viewModel::navigateToSegment,
             modifier = modifier,
         )

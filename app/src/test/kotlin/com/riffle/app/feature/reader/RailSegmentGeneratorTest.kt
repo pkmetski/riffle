@@ -19,7 +19,7 @@ class RailSegmentGeneratorTest {
     private val chapter3 = TocEntry("Chapter 3", "chapter3.xhtml")
     private val toc = listOf(chapter1, chapter2, chapter3)
 
-    // ── buildRailSegments: stable top-level ───────────────────────────────
+    // ── buildRailSegments ─────────────────────────────────────────────────
 
     @Test
     fun `returns one segment per top-level entry`() {
@@ -60,6 +60,16 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
+    fun `empty title entry is replaced by its children at top level`() {
+        val story1 = TocEntry("Story 1", "story1.xhtml")
+        val blank = TocEntry("", "container.xhtml", listOf(story1))
+        assertEquals(
+            listOf(RailSegment("Story 1", "story1.xhtml")),
+            buildRailSegments(listOf(blank)),
+        )
+    }
+
+    @Test
     fun `nested blank-titled entries are recursively expanded at top level`() {
         val leaf = TocEntry("Leaf", "leaf.xhtml")
         val innerBlank = TocEntry("", "inner.xhtml", listOf(leaf))
@@ -72,6 +82,16 @@ class RailSegmentGeneratorTest {
                 RailSegment("Other", "other.xhtml"),
             ),
             buildRailSegments(toc),
+        )
+    }
+
+    @Test
+    fun `blank-titled leaf entry is kept as a segment with blank title`() {
+        // Edge case: blank-titled but no children — keep as-is, don't lose it.
+        val blank = TocEntry("", "lonely.xhtml")
+        assertEquals(
+            listOf(RailSegment("", "lonely.xhtml")),
+            buildRailSegments(listOf(blank)),
         )
     }
 
@@ -100,80 +120,6 @@ class RailSegmentGeneratorTest {
     @Test
     fun `subchapters are NOT promoted to top level for normally-titled entries`() {
         assertEquals(3, buildRailSegments(toc).size)
-    }
-
-    // ── findActiveSubdivisions ────────────────────────────────────────────
-
-    @Test
-    fun `subdivisions empty when currentHref is null`() {
-        assertEquals(emptyList<RailSegment>(), findActiveSubdivisions(toc, null))
-    }
-
-    @Test
-    fun `subdivisions empty when active top-level has no children`() {
-        assertEquals(emptyList<RailSegment>(), findActiveSubdivisions(toc, "chapter3.xhtml"))
-    }
-
-    @Test
-    fun `subdivisions are direct children of active top-level entry`() {
-        assertEquals(
-            listOf(
-                RailSegment("1.1", "chapter1.xhtml#s1"),
-                RailSegment("1.2", "chapter1.xhtml#s2"),
-            ),
-            findActiveSubdivisions(toc, "chapter1.xhtml#s1"),
-        )
-    }
-
-    @Test
-    fun `subdivisions when href has unknown fragment fall back to base match`() {
-        assertEquals(
-            listOf(
-                RailSegment("1.1", "chapter1.xhtml#s1"),
-                RailSegment("1.2", "chapter1.xhtml#s2"),
-            ),
-            findActiveSubdivisions(toc, "chapter1.xhtml#unknown"),
-        )
-    }
-
-    @Test
-    fun `subdivisions for chapter 2`() {
-        assertEquals(
-            listOf(
-                RailSegment("2.1", "chapter2.xhtml#s1"),
-                RailSegment("2.2", "chapter2.xhtml#s2"),
-                RailSegment("2.3", "chapter2.xhtml#s3"),
-            ),
-            findActiveSubdivisions(toc, "chapter2.xhtml#s2"),
-        )
-    }
-
-    @Test
-    fun `subdivisions empty when href matches nothing`() {
-        assertEquals(emptyList<RailSegment>(), findActiveSubdivisions(toc, "unknown.xhtml"))
-    }
-
-    @Test
-    fun `subdivisions returned when active is a deep descendant`() {
-        val section = TocEntry("Section", "part-ch-sec.xhtml")
-        val chapter = TocEntry("Chapter", "part-ch.xhtml", listOf(section))
-        val part = TocEntry("Part", "part.xhtml", listOf(chapter))
-        val deepToc = listOf(part)
-
-        assertEquals(
-            listOf(RailSegment("Chapter", "part-ch.xhtml")),
-            findActiveSubdivisions(deepToc, "part-ch-sec.xhtml"),
-        )
-    }
-
-    @Test
-    fun `subdivisions empty when active is a promoted child of blank container`() {
-        val story1 = TocEntry("Story 1", "story1.xhtml")
-        val story2 = TocEntry("Story 2", "story2.xhtml")
-        val blank = TocEntry("", "container.xhtml", listOf(story1, story2))
-        val toc = listOf(blank)
-
-        assertEquals(emptyList<RailSegment>(), findActiveSubdivisions(toc, "story1.xhtml"))
     }
 
     // ── findActiveSegmentIndex ─────────────────────────────────────────────

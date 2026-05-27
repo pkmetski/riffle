@@ -388,13 +388,6 @@ class EpubReaderViewModel @Inject constructor(
         .map { buildRailSegments(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val activeSubdivisions: StateFlow<List<RailSegment>> = combine(
-        tocEntries,
-        currentLocatorHref,
-    ) { entries, href ->
-        findActiveSubdivisions(entries, href)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
         currentLocatorHref,
