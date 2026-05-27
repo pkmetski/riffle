@@ -52,7 +52,7 @@ class TocParserTest {
     }
 
     @Test
-    fun linkWithoutTitleUsesFallbackFromHref() {
+    fun linkWithoutTitleProducesBlankTitleEntry() {
         val links = listOf(
             Link(href = Url("chapter1.xhtml")!!, title = null),
         )
@@ -60,7 +60,8 @@ class TocParserTest {
         val entries = links.toTocEntries()
 
         assertEquals(1, entries.size)
-        assertTrue(entries[0].title.isNotBlank())
+        assertEquals("", entries[0].title)
+        assertTrue(entries[0].href.contains("chapter1"))
     }
 
     @Test

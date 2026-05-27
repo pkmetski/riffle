@@ -51,15 +51,12 @@ fun ChapterNavigationRail(
                 val n = segments.size
                 val segW = size.width / n
                 onDrawBehind {
-                    // Background bar
                     drawRect(color = barColor)
-                    // Active chapter highlight
                     drawRect(
                         color = activeColor,
                         topLeft = Offset(activeIndex * segW, 0f),
                         size = Size(segW, size.height),
                     )
-                    // Chapter boundary dividers (between segments, not at edges)
                     for (i in 1 until n) {
                         val x = segW * i
                         drawLine(
@@ -69,7 +66,6 @@ fun ChapterNavigationRail(
                             strokeWidth = 1.dp.toPx(),
                         )
                     }
-                    // Position cursor (book-wide)
                     val cx = cursorPosition.coerceIn(0f, 1f) * size.width
                     drawLine(
                         color = cursorColor,
