@@ -87,6 +87,9 @@ class EpubReaderViewModel @Inject constructor(
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
+    private val _footnotePopup = MutableStateFlow<FootnotePopupState?>(null)
+    val footnotePopup: StateFlow<FootnotePopupState?> = _footnotePopup
+
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
@@ -206,9 +209,11 @@ class EpubReaderViewModel @Inject constructor(
                     return
                 }
                 publication = pub
-                val locator = result.lastPosition
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { Locator.fromJSON(JSONObject(it)) }
+                // Stored lastPosition may be empty or malformed (legacy rows / corrupted writes).
+                // Fall back to null so openBook() can open the publication at its default position.
+                val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let {
+                    try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
+                }
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
@@ -240,6 +245,14 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             progressSyncController.sync(itemId, locator.toPayload())
         }
+    }
+
+    fun showFootnotePopup(content: String) {
+        _footnotePopup.value = FootnotePopupState(content)
+    }
+
+    fun dismissFootnotePopup() {
+        _footnotePopup.value = null
     }
 
     fun onPositionChanged(locator: Locator) {

@@ -123,7 +123,7 @@ harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run harness test
 		until ! adb devices 2>/dev/null | grep -q "$$STALE"; do sleep 2; done; \
 	fi; \
 	echo "Starting emulator '$(AVD_NAME)'..."; \
-	emulator -avd "$(AVD_NAME)" -no-window -no-audio -no-boot-anim \
+	emulator -avd "$(AVD_NAME)" -no-window -no-audio -no-boot-anim -no-snapshot-load \
 		&> /tmp/riffle-emulator.log & \
 	EMU_PID=$$!; \
 	echo "Waiting for emulator to boot (pid $$EMU_PID)..."; \
@@ -142,5 +142,6 @@ harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run harness test
 	TEST_EXIT=$$?; \
 	echo "Shutting down emulator..."; \
 	adb -s $$SERIAL emu kill; \
-	wait $$EMU_PID 2>/dev/null; \
+	wait $$EMU_PID 2>/dev/null || true; \
+	kill -9 $$EMU_PID 2>/dev/null || true; \
 	exit $$TEST_EXIT

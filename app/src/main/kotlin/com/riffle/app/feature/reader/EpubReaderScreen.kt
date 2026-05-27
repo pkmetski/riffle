@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -48,7 +49,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,8 +61,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.jsoup.Jsoup
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
@@ -72,6 +74,7 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.epub.EpubLayout
 import org.readium.r2.shared.publication.presentation.presentation
+import org.readium.r2.shared.util.AbsoluteUrl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,6 +146,7 @@ fun EpubReaderScreen(
     val currentSearchIndex by viewModel.currentSearchIndex.collectAsState()
     val title = (state as? ReaderState.Ready)?.title ?: ""
     val tocVisible by viewModel.tocVisible.collectAsState()
+    val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
@@ -178,6 +182,7 @@ fun EpubReaderScreen(
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
+                            viewModel.dismissFootnotePopup()
                         },
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
@@ -187,6 +192,7 @@ fun EpubReaderScreen(
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
+                        onFootnoteTapped = viewModel::showFootnotePopup,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -286,6 +292,12 @@ fun EpubReaderScreen(
                 onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             )
         }
+        footnotePopup?.let { popupState ->
+            FootnotePopup(
+                state = popupState,
+                onDismiss = viewModel::dismissFootnotePopup,
+            )
+        }
     }
 }
 
@@ -328,6 +340,7 @@ private fun EpubNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
+    onFootnoteTapped: (content: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -343,19 +356,34 @@ private fun EpubNavigatorView(
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
     val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
-
-
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
                 currentOnTap()
                 return false
             }
+        }
+    }
+    val fragmentListener = remember {
+        object : EpubNavigatorFragment.Listener {
+            override fun shouldFollowInternalLink(
+                link: Link,
+                context: HyperlinkNavigator.LinkContext?,
+            ): Boolean {
+                if (context !is HyperlinkNavigator.FootnoteContext) return true
+                val plainText = Jsoup.parse(context.noteContent).text().trim()
+                if (plainText.isEmpty()) return true
+                currentOnFootnoteTapped(plainText)
+                return false
+            }
+
+            override fun onExternalLinkActivated(url: AbsoluteUrl) = Unit
         }
     }
 
@@ -525,6 +553,7 @@ private fun EpubNavigatorView(
                     initialLocator = latestLocator() ?: state.initialLocator,
                     initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
                     configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
+                    listener = fragmentListener,
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
@@ -571,3 +600,4 @@ private fun EpubNavigatorView(
         modifier = modifier,
     )
 }
+

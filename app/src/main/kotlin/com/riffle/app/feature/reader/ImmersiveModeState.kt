@@ -70,10 +70,17 @@ class ImmersiveModeState(
     }
 
     internal fun hide() {
-        systemBarsHidden = true
+        // Guard: only call controller.hide() if bars are not already hidden.
+        // On some API levels, calling hide() on already-hidden bars triggers a native crash
+        // in the WebView/Chromium renderer stack. The toggle() call-path can reach hide()
+        // while systemBarsHidden is true (user revealed TopAppBar then tapped again), so
+        // we must be idempotent here.
+        if (!systemBarsHidden) {
+            systemBarsHidden = true
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
         isImmersive = true
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-        controller.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     internal fun show() {
