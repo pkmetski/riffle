@@ -5,6 +5,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkCollectionResult
+import com.riffle.core.network.NetworkCollectionWriteResult
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,8 +21,18 @@ class ToReadRepositoryImpl @Inject constructor(
         return collection.items.any { it.id == libraryItemId }
     }
 
-    override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean =
-        TODO("Task 6")
+    override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
+        val server = serverRepository.getActive() ?: return false
+        val token = tokenStorage.getToken(server.id) ?: return false
+        val baseUrl = server.url.value
+        val existing = findToReadCollection(libraryId)
+        val result = if (existing == null) {
+            api.createCollection(baseUrl, libraryId, TO_READ_COLLECTION_NAME, libraryItemId, token, server.insecureConnectionAllowed)
+        } else {
+            api.addBookToCollection(baseUrl, existing.id, libraryItemId, token, server.insecureConnectionAllowed)
+        }
+        return result is NetworkCollectionWriteResult.Success
+    }
 
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean =
         TODO("Task 7")

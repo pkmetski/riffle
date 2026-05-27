@@ -16,6 +16,7 @@ import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -77,6 +78,56 @@ class ToReadRepositoryTest {
             tokenStorage = FakeTokenStorage(mutableMapOf()),
         )
         assertFalse(repo.isInToRead("item-1", "lib-1"))
+    }
+
+    @Test
+    fun `addToToRead creates the collection with the book when no To Read exists`() = runTest {
+        val api = FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to emptyList()))
+        val ok = makeRepo(api).addToToRead("item-1", "lib-1")
+        assertTrue(ok)
+        assertEquals(listOf(Triple("lib-1", "To Read", "item-1")), api.createCalls)
+        assertTrue(api.addCalls.isEmpty())
+    }
+
+    @Test
+    fun `addToToRead adds to existing To Read collection`() = runTest {
+        val api = FakeAbsApi(
+            collectionsByLibrary = mapOf(
+                "lib-1" to listOf(NetworkCollection("col-A", "lib-1", "To Read", emptyList())),
+            ),
+        )
+        val ok = makeRepo(api).addToToRead("item-1", "lib-1")
+        assertTrue(ok)
+        assertTrue(api.createCalls.isEmpty())
+        assertEquals(listOf("col-A" to "item-1"), api.addCalls)
+    }
+
+    @Test
+    fun `addToToRead returns false when no active server`() = runTest {
+        val repo = ToReadRepositoryImpl(
+            api = FakeAbsApi(),
+            serverRepository = FakeServerRepository(activeServer = null),
+            tokenStorage = FakeTokenStorage(mutableMapOf()),
+        )
+        assertFalse(repo.addToToRead("item-1", "lib-1"))
+    }
+
+    @Test
+    fun `addToToRead returns false when create fails`() = runTest {
+        val api = object : FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to emptyList())) {
+            override suspend fun createCollection(baseUrl: String, libraryId: String, name: String, initialBookId: String?, token: String, insecureAllowed: Boolean): NetworkCollectionWriteResult =
+                NetworkCollectionWriteResult.NetworkError(java.io.IOException("HTTP 500"))
+        }
+        assertFalse(makeRepo(api).addToToRead("item-1", "lib-1"))
+    }
+
+    @Test
+    fun `addToToRead returns false when add fails`() = runTest {
+        val api = object : FakeAbsApi(collectionsByLibrary = mapOf("lib-1" to listOf(NetworkCollection("col-A", "lib-1", "To Read", emptyList())))) {
+            override suspend fun addBookToCollection(baseUrl: String, collectionId: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkCollectionWriteResult =
+                NetworkCollectionWriteResult.NetworkError(java.io.IOException("HTTP 500"))
+        }
+        assertFalse(makeRepo(api).addToToRead("item-1", "lib-1"))
     }
 
     private fun stubItem(id: String) = NetworkLibraryItem(
