@@ -36,7 +36,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
                 ?: ReaderOrientation.Horizontal,
             showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
-            justifyText = prefs[KEY_JUSTIFY_TEXT] ?: true,
+            justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
         )
     }
 

@@ -66,7 +66,7 @@ Bidirectional reconciliation of reading position between the app and the ABS ser
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:
-- **EPUB:** font size, theme (Light / Dark / Sepia), font family (system fonts + Literata, Merriweather, OpenDyslexic), justify text (on/off toggle, default on), line spacing, margins, reading orientation (paginated / continuous scroll).
+- **EPUB:** font size, theme (Light / Dark / Sepia), font family (system fonts + Literata, Merriweather, OpenDyslexic), justify text (on/off toggle, default off), line spacing, margins, reading orientation (paginated / continuous scroll).
 - **PDF:** theme (as colour filter), scroll direction (paged / continuous), zoom persistence.
 
 ### EPUB CFI

@@ -172,7 +172,7 @@ abstract class RiffleDatabase : RoomDatabase() {
 
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `book_formatting_preferences` ADD COLUMN `justifyText` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE `book_formatting_preferences` ADD COLUMN `justifyText` INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

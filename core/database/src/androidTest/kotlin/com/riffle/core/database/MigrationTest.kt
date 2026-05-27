@@ -356,7 +356,7 @@ class MigrationTest {
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("item1", cursor.getString(0))
-            assertEquals(1, cursor.getInt(1)) // justifyText defaults to 1 (true)
+            assertEquals(0, cursor.getInt(1)) // justifyText defaults to 0 (false)
         }
     }
 
