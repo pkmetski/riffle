@@ -52,9 +52,11 @@ fun FormattingPanel(
     invertVolumeKeys: Boolean,
     onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
+    // skipPartiallyExpanded = false: sheet opens half-height so the reader stays visible
+    // for previewing setting changes. Users can drag up to expand for the full list.
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
     ) {
         Column(
             modifier = Modifier
