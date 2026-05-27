@@ -17,6 +17,8 @@ import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
+import com.riffle.core.data.ToReadRepository
+import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -98,6 +100,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindLibraryRepository(impl: LibraryRepositoryImpl): LibraryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindToReadRepository(impl: ToReadRepositoryImpl): ToReadRepository
 
     @Binds
     @Singleton

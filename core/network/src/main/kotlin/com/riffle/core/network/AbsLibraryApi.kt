@@ -51,7 +51,7 @@ interface AbsLibraryApi {
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult
+    ): NetworkCollectionWriteResult = throw UnsupportedOperationException("createCollection not implemented")
 
     suspend fun addBookToCollection(
         baseUrl: String,
@@ -59,7 +59,7 @@ interface AbsLibraryApi {
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult
+    ): NetworkCollectionWriteResult = throw UnsupportedOperationException("addBookToCollection not implemented")
 
     suspend fun removeBookFromCollection(
         baseUrl: String,
@@ -67,7 +67,7 @@ interface AbsLibraryApi {
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult
+    ): NetworkCollectionWriteResult = throw UnsupportedOperationException("removeBookFromCollection not implemented")
 
     suspend fun getItemEbookFileIno(
         baseUrl: String,
