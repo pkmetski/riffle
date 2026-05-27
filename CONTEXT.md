@@ -99,6 +99,9 @@ A global user preference (default: on) that enables page turns via the device's 
 ### Immersive Mode
 A reader state in which the app's TopAppBar and Android's system bars (status bar + navigation bar) are both hidden, giving the reading content the full screen. Toggled by tapping the reading content area. Chrome and system bars reappear together — either via another tap or by an edge-swipe that temporarily reveals the system bars. The reader always opens in immersive mode. Not persisted across reading sessions — closing and reopening a book always starts in immersive mode. Device rotation preserves the current immersive state: if the user has revealed chrome before rotating, it stays revealed; if they were in immersive mode, it stays immersive.
 
+### Book Search
+An in-EPUB text search available while reading. Activated via a search icon in the reader's TopAppBar (leftmost of the three action icons: Search → TOC → Formatting). Tapping the icon transforms the TopAppBar in-place: the title and icons collapse and a search field with a ✕ button expands to fill the bar. Searches the full publication (all chapters) via Readium's `SearchService`. Results are highlighted directly in the reading content using Readium's `DecoratorService`; the active match is distinguished from others. A match count ("3 of 24") and prev/next arrows appear below the field for result navigation. Search triggers live with a short debounce. No results shows "No results" in the match count area. Tapping ✕ collapses the bar and leaves the user at their current position. The back arrow always exits the reader regardless of search state. Progress Sync updates normally during search navigation. Applies to EPUB only — absent from the PDF reader.
+
 ### Supported Formats
 EPUB (reflowable) and PDF (fixed-layout). Rendered via the Readium Kotlin SDK (EPUB navigator + Pdfium adapter).
 

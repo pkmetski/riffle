@@ -5,6 +5,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -116,6 +118,16 @@ fun EpubReaderScreen(
         }
     }
 
+    // Prevent window resizing on keyboard show/hide — avoids layout jumps when dismissing
+    // the search keyboard while the reader is open.
+    DisposableEffect(Unit) {
+        val window = (context as? FragmentActivity)?.window
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_UNSPECIFIED)
+        }
+    }
+
     // Toast on sync error
     LaunchedEffect(viewModel) {
         viewModel.syncErrorEvents.collect {
@@ -161,7 +173,7 @@ fun EpubReaderScreen(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = { locator ->
-                            immersiveState.dismissOverlay()
+                            if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
                         },
                         onNavigationEvents = viewModel.navigationEvents,
@@ -454,6 +466,7 @@ private fun EpubNavigatorView(
     AndroidView(
         factory = { ctx ->
             ScrollBoundaryNavigationContainer(ctx).apply {
+                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
                 val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                 addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
             }.also { containerRef.value = it }

@@ -432,18 +432,28 @@ class EpubReaderViewModel @Inject constructor(
             _currentSearchIndex.value = -1
             return
         }
-        val results = withContext(Dispatchers.IO) {
-            val iterator = service.search(query)
-            val acc = mutableListOf<Locator>()
-            try {
-                while (true) {
-                    val page = iterator.next().getOrNull() ?: break
-                    acc.addAll(page.locators)
+        val results = try {
+            withContext(Dispatchers.IO) {
+                chapterHtmlCache.clear()
+                val iterator = service.search(query)
+                val acc = mutableListOf<Locator>()
+                try {
+                    while (true) {
+                        val pageResult = iterator.next()
+                        // isFailure = chapter unreadable (e.g. OOM wrapped by Readium as
+                        // SearchError.Reading); skip this chapter and continue to the next.
+                        // getOrNull() == null = end of book; stop.
+                        if (pageResult.isFailure) continue
+                        val page = pageResult.getOrNull() ?: break
+                        acc.addAll(page.locators)
+                    }
+                } finally {
+                    iterator.close()
                 }
-            } finally {
-                iterator.close()
+                acc
             }
-            acc
+        } catch (_: OutOfMemoryError) {
+            emptyList()
         }
         _searchResults.value = results
         if (results.isEmpty()) {

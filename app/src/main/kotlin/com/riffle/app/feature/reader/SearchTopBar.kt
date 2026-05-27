@@ -1,7 +1,5 @@
 package com.riffle.app.feature.reader
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,14 +21,20 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+
+object SearchTopBarTags {
+    const val FIELD = "search_field"
+    const val COUNT = "search_result_count"
+    const val PREV = "search_prev"
+    const val NEXT = "search_next"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +51,12 @@ fun SearchTopBar(
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    val countText = when {
+        query.length < 2 -> ""
+        resultCount == 0 -> "No results"
+        else -> "${currentIndex + 1} of $resultCount"
+    }
+
     TopAppBar(
         windowInsets = TopAppBarDefaults.windowInsets,
         navigationIcon = {
@@ -55,49 +65,48 @@ fun SearchTopBar(
             }
         },
         title = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    placeholder = { Text("Search in book…", fontSize = 16.sp) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {}),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
-                ) {
-                    val countText = when {
-                        query.length < 2 -> ""
-                        resultCount == 0 -> "No results"
-                        else -> "${currentIndex + 1} of $resultCount"
-                    }
-                    Text(
-                        text = countText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(onClick = onPrev, enabled = currentIndex > 0) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous result")
-                    }
-                    IconButton(onClick = onNext, enabled = currentIndex < resultCount - 1) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next result")
-                    }
-                }
-            }
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = { Text("Search in book…") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {}),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .testTag(SearchTopBarTags.FIELD),
+            )
         },
         actions = {
+            Text(
+                text = countText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .testTag(SearchTopBarTags.COUNT),
+            )
+            IconButton(
+                onClick = onPrev,
+                enabled = currentIndex > 0,
+                modifier = Modifier.testTag(SearchTopBarTags.PREV),
+            ) {
+                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous result")
+            }
+            IconButton(
+                onClick = onNext,
+                enabled = currentIndex < resultCount - 1,
+                modifier = Modifier.testTag(SearchTopBarTags.NEXT),
+            ) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next result")
+            }
             IconButton(onClick = onClose) {
                 Icon(Icons.Default.Close, contentDescription = "Close search")
             }
