@@ -3,6 +3,7 @@ package com.riffle.core.network
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCreateCollectionRequest
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
@@ -285,7 +286,27 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult = TODO("Task 3")
+    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val body = json.encodeToString(AbsCollectionBookRequest.serializer(), AbsCollectionBookRequest(libraryItemId))
+            .toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/collections/$collectionId/book")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string().orEmpty()
+            val dto = json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw)
+            NetworkCollectionWriteResult.Success(dto.toNetworkCollection())
+        } catch (e: IOException) {
+            NetworkCollectionWriteResult.NetworkError(e)
+        }
+    }
 
     override suspend fun removeBookFromCollection(
         baseUrl: String,

@@ -81,4 +81,30 @@ class AbsApiClientCollectionsWriteTest {
         val result = client.createCollection(baseUrl(), "lib-1", "To Read", null, "tok", false)
         assertTrue(result is NetworkCollectionWriteResult.NetworkError)
     }
+
+    @Test
+    fun `addBookToCollection posts libraryItemId to collection book endpoint`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"id":"col-1","name":"To Read","libraryId":"lib-1","books":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"T","authorName":"A"},"ebookFile":null,"coverPath":null}}]}"""
+            ).addHeader("Content-Type", "application/json")
+        )
+        val result = client.addBookToCollection(baseUrl(), "col-1", "item-1", "tok", false)
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals("/api/collections/col-1/book", recorded.path)
+        assertEquals("Bearer tok", recorded.getHeader("Authorization"))
+        assertTrue(recorded.body.readUtf8().contains("\"id\":\"item-1\""))
+        assertTrue(result is NetworkCollectionWriteResult.Success)
+        val collection = (result as NetworkCollectionWriteResult.Success).collection
+        assertNotNull(collection)
+        assertEquals("col-1", collection!!.id)
+    }
+
+    @Test
+    fun `addBookToCollection returns NetworkError on 404`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+        val result = client.addBookToCollection(baseUrl(), "col-1", "item-1", "tok", false)
+        assertTrue(result is NetworkCollectionWriteResult.NetworkError)
+    }
 }
