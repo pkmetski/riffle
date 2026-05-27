@@ -39,6 +39,31 @@ interface AbsLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkCollectionResult
 
+    suspend fun createCollection(
+        baseUrl: String,
+        libraryId: String,
+        name: String,
+        initialBookId: String?,
+        token: String,
+        insecureAllowed: Boolean,
+    ): CollectionWriteResult
+
+    suspend fun addBookToCollection(
+        baseUrl: String,
+        collectionId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): CollectionWriteResult
+
+    suspend fun removeBookFromCollection(
+        baseUrl: String,
+        collectionId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): CollectionWriteResult
+
     suspend fun getItemEbookFileIno(
         baseUrl: String,
         itemId: String,

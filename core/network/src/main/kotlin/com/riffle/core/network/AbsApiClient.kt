@@ -267,6 +267,31 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun createCollection(
+        baseUrl: String,
+        libraryId: String,
+        name: String,
+        initialBookId: String?,
+        token: String,
+        insecureAllowed: Boolean,
+    ): CollectionWriteResult = TODO("Task 2")
+
+    override suspend fun addBookToCollection(
+        baseUrl: String,
+        collectionId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): CollectionWriteResult = TODO("Task 3")
+
+    override suspend fun removeBookFromCollection(
+        baseUrl: String,
+        collectionId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): CollectionWriteResult = TODO("Task 4")
+
     override suspend fun getItemEbookFileIno(
         baseUrl: String,
         itemId: String,
