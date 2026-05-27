@@ -3,6 +3,7 @@ package com.riffle.app.feature.library
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +62,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -576,17 +580,23 @@ internal fun LibrarySearchHeader(
     onSearchQueryChange: (String) -> Unit,
     onOpenDrawer: () -> Unit,
 ) {
-    val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    // Claim initial focus on an invisible focusable element so the BasicTextField below never
+    // receives auto-focus on entry (e.g. after login). clearFocus() alone races with Android's
+    // view-focus pass; assigning focus explicitly is reliable.
+    val initialFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        // yield() lets Android's view-focus pass (which runs during layout, before coroutines
-        // are dispatched) finish before we clear, so clearFocus actually sticks on entry.
-        kotlinx.coroutines.yield()
-        focusManager.clearFocus(force = true)
+        initialFocus.requestFocus()
         keyboardController?.hide()
     }
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
     Column(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+        Box(
+            modifier = Modifier
+                .size(1.dp)
+                .focusRequester(initialFocus)
+                .focusable(),
+        )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),

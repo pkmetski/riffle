@@ -142,11 +142,11 @@ private fun CollapsibleDescription(description: String) {
     var isOverflowing by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.animateContentSize()) {
-        Text(text = "Description", style = MaterialTheme.typography.titleMedium)
+        Text(text = "Summary", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = description,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             maxLines = if (expanded) Int.MAX_VALUE else 5,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { result -> if (!expanded) isOverflowing = result.hasVisualOverflow },
@@ -222,16 +222,16 @@ private fun LibraryItemDetailContent(
         } else {
             Text(
                 text = "No ebook file is available for this item on the server.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        Text(text = item.title, style = MaterialTheme.typography.headlineSmall)
-        Text(text = item.author, style = MaterialTheme.typography.bodyLarge)
+        Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
+        Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
 
         item.seriesName?.let { series ->
-            Text(text = series, style = MaterialTheme.typography.bodyMedium)
+            Text(text = series, style = MaterialTheme.typography.bodyLarge)
         }
 
         if (item.readingProgress > 0f) {
@@ -243,7 +243,7 @@ private fun LibraryItemDetailContent(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${(item.readingProgress * 100).toInt()}% read",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -260,7 +260,7 @@ private fun LibraryItemDetailContent(
         if (metadataItems.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 metadataItems.forEach { line ->
-                    Text(text = line, style = MaterialTheme.typography.bodySmall)
+                    Text(text = line, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
