@@ -361,6 +361,52 @@ class MigrationTest {
     }
 
     @Test
+    fun migration15To16() {
+        helper.createDatabase(TEST_DB, 15).use { db ->
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText) " +
+                    "VALUES ('item1', 1.3, 'Dark', 'Serif', 1.5, 1.2, 'Vertical', 1, 0, 1)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 16, true, RiffleDatabase.MIGRATION_15_16)
+
+        // Existing rows survive verbatim — they become explicit overrides, not null/follow-global.
+        db.query(
+            "SELECT itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText " +
+                "FROM book_formatting_preferences WHERE itemId = 'item1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(1.3, cursor.getDouble(1), 0.001)
+            assertEquals("Dark", cursor.getString(2))
+            assertEquals("Serif", cursor.getString(3))
+            assertEquals(1.5, cursor.getDouble(4), 0.001)
+            assertEquals(1.2, cursor.getDouble(5), 0.001)
+            assertEquals("Vertical", cursor.getString(6))
+            assertEquals(1, cursor.getInt(7))
+            assertEquals(0, cursor.getInt(8))
+            assertEquals(1, cursor.getInt(9))
+        }
+
+        // New writes can store NULL on any non-PK column ("follow global").
+        db.execSQL(
+            "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText) " +
+                "VALUES ('item2', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1)"
+        )
+        db.query(
+            "SELECT fontSize, theme, justifyText FROM book_formatting_preferences WHERE itemId = 'item2'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertTrue("fontSize should be null", cursor.isNull(0))
+            assertTrue("theme should be null", cursor.isNull(1))
+            assertEquals(1, cursor.getInt(2))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -369,7 +415,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 15, true,
+            TEST_DB, 16, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -384,6 +430,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_12_13,
             RiffleDatabase.MIGRATION_13_14,
             RiffleDatabase.MIGRATION_14_15,
+            RiffleDatabase.MIGRATION_15_16,
         )
 
         db.query("SELECT url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->

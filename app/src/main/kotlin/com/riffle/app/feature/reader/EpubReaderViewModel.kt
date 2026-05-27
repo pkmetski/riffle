@@ -6,6 +6,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -131,8 +132,12 @@ class EpubReaderViewModel @Inject constructor(
 
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
-    // Optimistic local state: updates immediately so the navigator receives changes without
-    // waiting for the Room write to complete.
+    // Per-field book overrides. null on a field means "follow global", so changing global later
+    // propagates to the book for fields the user hasn't touched in the panel.
+    private val _bookOverrides = MutableStateFlow(BookFormattingOverrides())
+
+    // Effective prefs = global ⊕ overrides. Updated optimistically on user change so the
+    // navigator sees the new value without waiting for the Room write to complete.
     private val _formattingPreferences = MutableStateFlow(FormattingPreferences())
     val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
 
@@ -162,6 +167,19 @@ class EpubReaderViewModel @Inject constructor(
             loadFormattingPreferences()
             openBook()
         }
+        // Keep effective prefs in sync with both global changes and override updates. This is
+        // why per-book settings are sparse: a global change to a field the user hasn't touched
+        // in this book flows through immediately.
+        viewModelScope.launch {
+            combine(
+                formattingPreferencesStore.preferences,
+                _bookOverrides,
+            ) { global, overrides -> overrides.applyTo(global) to !overrides.isEmpty }
+                .collect { (effective, hasOverrides) ->
+                    _formattingPreferences.value = effective
+                    _hasBookOverrides.value = hasOverrides
+                }
+        }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
@@ -184,14 +202,11 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun loadFormattingPreferences() {
-        val bookPrefs = bookFormattingPreferencesStore.load(itemId)
-        if (bookPrefs != null) {
-            _formattingPreferences.value = bookPrefs
-            _hasBookOverrides.value = true
-        } else {
-            _formattingPreferences.value = formattingPreferencesStore.preferences.first()
-            _hasBookOverrides.value = false
-        }
+        val overrides = bookFormattingPreferencesStore.load(itemId)
+        val global = formattingPreferencesStore.preferences.first()
+        _bookOverrides.value = overrides
+        _formattingPreferences.value = overrides.applyTo(global)
+        _hasBookOverrides.value = !overrides.isEmpty
     }
 
     private suspend fun openBook() {
@@ -519,14 +534,18 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun updateFormatting(prefs: FormattingPreferences) {
+        val previousEffective = _formattingPreferences.value
+        val updated = _bookOverrides.value.withChanges(previousEffective, prefs)
+        _bookOverrides.value = updated
         _formattingPreferences.value = prefs
-        _hasBookOverrides.value = true
-        viewModelScope.launch { bookFormattingPreferencesStore.save(itemId, prefs) }
+        _hasBookOverrides.value = !updated.isEmpty
+        viewModelScope.launch { bookFormattingPreferencesStore.save(itemId, updated) }
     }
 
     fun resetToGlobalDefaults() {
         viewModelScope.launch {
             bookFormattingPreferencesStore.clear(itemId)
+            _bookOverrides.value = BookFormattingOverrides()
             _formattingPreferences.value = formattingPreferencesStore.preferences.first()
             _hasBookOverrides.value = false
         }
