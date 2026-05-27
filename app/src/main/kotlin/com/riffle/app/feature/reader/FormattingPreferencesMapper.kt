@@ -59,14 +59,19 @@ fun FormattingPreferences.toFragmentConfiguration(
         orientation != ReaderOrientation.Vertical &&
         doublePageSpread &&
         isLandscape
+    // Readium's `pageMargins` preference only scales the horizontal (inline) page margin.
+    // Top/bottom breathing room comes from `--RS__pageGutter`, which is baked in at fragment
+    // creation, so changes to this slider only affect vertical spacing on the next book open.
+    val pageGutterPx = (margins * 20f).toInt().coerceAtLeast(0)
+    val gutterOverride = "--RS__pageGutter" to "${pageGutterPx}px"
     return EpubNavigatorFragment.Configuration(
         readiumCssRsProperties = if (isDoublePage) {
             RsProperties(
                 colCount = ColCount.TWO,
-                overrides = mapOf("--RS__colWidth" to "auto"),
+                overrides = mapOf("--RS__colWidth" to "auto", gutterOverride),
             )
         } else {
-            RsProperties()
+            RsProperties(overrides = mapOf(gutterOverride))
         },
     )
 }
