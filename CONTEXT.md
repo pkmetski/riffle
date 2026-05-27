@@ -23,7 +23,16 @@ A per-Server, user-managed set of hidden Libraries. Determines which Libraries a
 A named, ordered grouping of Library Items within a Library. Defined on the ABS server (e.g. "The Stormlight Archive").
 
 ### Collection
-A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential.
+A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential. One Collection per Library may be the **To Read** list.
+
+### To Read
+A per-Library wishlist of Library Items the user intends to read. Implemented as a regular Collection named `To Read`, looked up by name and find-or-created on first use. Toggled via a bookmark icon on the Library Item Detail Screen (third 40dp circular icon in the action row, between mark-read and download). Filled bookmark = in the list, outline = not in the list.
+
+Behaves like any other Collection — visible in the Collections Tab, editable from the ABS web UI, persists when empty. App-managed rules:
+- **Find-or-create by name.** If the user renames the collection on the server, the next toggle creates a new "To Read" collection; the renamed one is left alone.
+- **Per-Library, not global.** A user with multiple Libraries has one "To Read" collection per Library.
+- **Read transitions remove from To Read.** Any transition of a Library Item to the Read state — manual mark-read, or future auto-finish detection — removes the item from "To Read". The reverse is not enforced: toggling To Read on a Read book does not clear the Read flag (a legitimate re-read signal).
+- **Optimistic, no queueing.** Taps flip the icon immediately, fire the request, and revert with a snackbar on failure. Offline taps fail with a snackbar — there is no durable mutation queue (yet; see notes on a future unified sync mechanism).
 
 ### Library Item
 An entry within a Library on the ABS server. Includes metadata (title, author, cover). May or may not have an associated ebook file. May belong to a Series, a Collection, or neither. A Library Item with no ebook file is an Unsupported Library Item.
