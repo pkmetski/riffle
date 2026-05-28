@@ -36,6 +36,15 @@ class FormattingPreferencesMapperTest {
     fun darkThemeMapsToDARK() {
         val result = FormattingPreferences(theme = ReaderTheme.Dark).toEpubPreferences()
         assertEquals(Theme.DARK, result.theme)
+        assertEquals(null, result.textColor)
+    }
+
+    @Test
+    fun darkDimThemeMapsToDARKWithDimmedTextColor() {
+        val result = FormattingPreferences(theme = ReaderTheme.DarkDim).toEpubPreferences()
+        assertEquals(Theme.DARK, result.theme)
+        // Slightly dimmer than pure white — see DARK_DIM_TEXT_COLOR in FormattingPreferencesMapper.
+        assertEquals(0xFFBBBBBB.toInt(), result.textColor?.int)
     }
 
     @Test

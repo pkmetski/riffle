@@ -1,7 +1,11 @@
 package com.riffle.app.feature.navigation
 
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.PendingServer
+import java.io.IOException
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
@@ -57,8 +61,10 @@ class NavigationDrawerViewModelTest {
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = serversFlow
         override suspend fun getActive(): Server? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult =
-            AddServerResult.WrongCredentials()
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+            AuthenticateResult.WrongCredentials()
+        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+            CommitServerResult.Failure(IOException())
         override suspend fun setActive(serverId: String) {
             serversFlow.update { list -> list.map { it.copy(isActive = it.id == serverId) } }
         }
@@ -102,10 +108,16 @@ class NavigationDrawerViewModelTest {
         }
     }
 
+    private val isOnlineFlow = MutableStateFlow(true)
+    private fun fakeConnectivity(): ConnectivityObserver = object : ConnectivityObserver {
+        override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
+    }
+
     private fun makeVm() = NavigationDrawerViewModel(
         serverRepository = fakeServerRepo(),
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
+        connectivityObserver = fakeConnectivity(),
     )
 
     @Test
@@ -221,40 +233,36 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
-    fun `onDrawerOpened fetches and exposes server version for active server`() = runTest(testDispatcher) {
-        fakeVersions = mapOf("srv-1" to "1.2.3")
-        serversFlow.value = listOf(server("srv-1", active = true))
+    fun `serverVersions populated for all servers when online`() = runTest(testDispatcher) {
+        fakeVersions = mapOf("srv-1" to "1.2.3", "srv-2" to "2.0.0")
+        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
+        isOnlineFlow.value = true
 
         val vm = makeVm()
-        backgroundScope.launch { vm.activeServer.collect {} }
+        backgroundScope.launch { vm.serverVersions.collect {} }
         testScheduler.advanceUntilIdle()
 
-        vm.onDrawerOpened()
-        testScheduler.advanceUntilIdle()
-
-        assertEquals("1.2.3", vm.serverVersion.value)
+        assertEquals(mapOf("srv-1" to "1.2.3", "srv-2" to "2.0.0"), vm.serverVersions.value)
     }
 
     @Test
-    fun `onDrawerOpened does not cache null version so retry is possible`() = runTest(testDispatcher) {
+    fun `serverVersions retries on connectivity change when previous fetch returned null`() = runTest(testDispatcher) {
+        // Server unreachable initially — getServerVersion returns null.
         fakeVersions = mapOf("srv-1" to null)
         serversFlow.value = listOf(server("srv-1", active = true))
+        isOnlineFlow.value = false
 
         val vm = makeVm()
-        backgroundScope.launch { vm.activeServer.collect {} }
+        backgroundScope.launch { vm.serverVersions.collect {} }
         testScheduler.advanceUntilIdle()
 
-        vm.onDrawerOpened()
+        assertTrue(vm.serverVersions.value.isEmpty())
+
+        // Server reachable now; flipping connectivity re-triggers the fetch.
+        fakeVersions = mapOf("srv-1" to "1.2.3")
+        isOnlineFlow.value = true
         testScheduler.advanceUntilIdle()
 
-        // First call yields null
-        assertEquals(null, vm.serverVersion.value)
-
-        // Now the server returns a version — retry should succeed since null was not cached
-        fakeVersions = mapOf("srv-1" to "2.0.0")
-        vm.onDrawerOpened()
-        testScheduler.advanceUntilIdle()
-
-        assertEquals("2.0.0", vm.serverVersion.value)
+        assertEquals(mapOf("srv-1" to "1.2.3"), vm.serverVersions.value)
     }
 }

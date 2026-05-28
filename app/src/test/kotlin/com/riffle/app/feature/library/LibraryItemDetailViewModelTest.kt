@@ -3,8 +3,11 @@ package com.riffle.app.feature.library
 import androidx.lifecycle.SavedStateHandle
 import com.riffle.app.feature.library.LibraryItemDetailUiState.Ready
 import com.riffle.core.data.ToReadRepository
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.PendingServer
+import java.io.IOException
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
@@ -107,8 +110,10 @@ class LibraryItemDetailViewModelTest {
     private val noOpServerRepo = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Server? = null
-        override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult =
-            AddServerResult.WrongCredentials()
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+            AuthenticateResult.WrongCredentials()
+        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+            CommitServerResult.Failure(IOException())
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
         override suspend fun getServerVersion(serverId: String): String? = null

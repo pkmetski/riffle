@@ -1,15 +1,22 @@
 package com.riffle.core.data
 
+import com.riffle.core.database.LibraryDao
+import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.ServerDao
 import com.riffle.core.database.ServerEntity
-import com.riffle.core.domain.AddServerResult
-import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.Library
+import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
+import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
+import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLoginResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -21,6 +28,9 @@ class ServerRepositoryImpl @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val absApiClient: AbsApi,
     private val serverInfoApi: AbsServerInfoApi,
+    private val libraryApi: AbsLibraryApi,
+    private val libraryDao: LibraryDao,
+    private val visibilityStore: LibraryVisibilityPreferencesStore,
 ) : ServerRepository {
 
     override fun observeAll(): Flow<List<Server>> =
@@ -28,35 +38,75 @@ class ServerRepositoryImpl @Inject constructor(
 
     override suspend fun getActive(): Server? = dao.getActive()?.toDomain()
 
-    override suspend fun addServer(
+    override suspend fun authenticate(
         url: ServerUrl,
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): AddServerResult {
-        val networkResult = absApiClient.login(url.value, username, password, insecureAllowed)
-        return when (networkResult) {
+    ): AuthenticateResult {
+        val loginResult = absApiClient.login(url.value, username, password, insecureAllowed)
+        return when (loginResult) {
+            is NetworkLoginResult.WrongCredentials -> AuthenticateResult.WrongCredentials(loginResult.message)
+            is NetworkLoginResult.NetworkError -> AuthenticateResult.NetworkError(loginResult.cause)
+            is NetworkLoginResult.InsecureConnection -> AuthenticateResult.InsecureConnection(loginResult.type)
             is NetworkLoginResult.Success -> {
-                val id = UUID.randomUUID().toString()
-                val entity = ServerEntity(
-                    id = id,
-                    url = url.value,
-                    displayName = displayNameFrom(url.value),
-                    isActive = false,                    // overridden inside transaction
-                    insecureConnectionAllowed = insecureAllowed,
-                    username = networkResult.username,
-                )
-                val inserted = dao.upsertAsFirstIfNoActive(entity)
-                tokenStorage.saveToken(id, networkResult.token)
-                AddServerResult.Success(inserted.toDomain())
+                when (val libs = libraryApi.getLibraries(url.value, loginResult.token, insecureAllowed)) {
+                    is NetworkLibrariesResult.NetworkError -> AuthenticateResult.LibraryFetchFailed(libs.cause)
+                    is NetworkLibrariesResult.Success -> AuthenticateResult.Success(
+                        PendingServer(
+                            url = url,
+                            displayName = displayNameFrom(url.value),
+                            username = loginResult.username,
+                            userId = loginResult.userId,
+                            token = loginResult.token,
+                            insecureConnectionAllowed = insecureAllowed,
+                            libraries = libs.libraries
+                                .filter { it.mediaType == "book" }
+                                .map {
+                                    Library(
+                                        id = it.id,
+                                        name = it.name,
+                                        mediaType = it.mediaType,
+                                        isUnsupported = false,
+                                    )
+                                },
+                        )
+                    )
+                }
             }
-            is NetworkLoginResult.WrongCredentials ->
-                AddServerResult.WrongCredentials(networkResult.message)
-            is NetworkLoginResult.NetworkError ->
-                AddServerResult.NetworkError(networkResult.cause)
-            is NetworkLoginResult.InsecureConnection ->
-                AddServerResult.InsecureConnection(networkResult.type)
         }
+    }
+
+    override suspend fun commit(
+        pending: PendingServer,
+        hiddenLibraryIds: Set<String>,
+    ): CommitServerResult = try {
+        val id = UUID.randomUUID().toString()
+        val entity = ServerEntity(
+            id = id,
+            url = pending.url.value,
+            displayName = pending.displayName,
+            isActive = false,                    // overridden inside transaction
+            insecureConnectionAllowed = pending.insecureConnectionAllowed,
+            username = pending.username,
+        )
+        val inserted = dao.upsertAsFirstIfNoActive(entity)
+        tokenStorage.saveToken(id, pending.token)
+        libraryDao.replaceAllForServer(
+            serverId = id,
+            libraries = pending.libraries.map {
+                LibraryEntity(
+                    id = it.id,
+                    name = it.name,
+                    mediaType = it.mediaType,
+                    serverId = id,
+                )
+            },
+        )
+        hiddenLibraryIds.forEach { visibilityStore.hideLibrary(id, it) }
+        CommitServerResult.Success(inserted.toDomain())
+    } catch (t: Throwable) {
+        CommitServerResult.Failure(t)
     }
 
     override suspend fun setActive(serverId: String) {

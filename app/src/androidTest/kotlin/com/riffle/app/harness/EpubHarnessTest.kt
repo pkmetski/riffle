@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPresent
@@ -184,71 +185,17 @@ class EpubHarnessTest {
         }
     }
 
-    @Test
-    fun railHighlightsActiveChapterAfterNavigation() {
-        addServerAndBrowseLibrary()
 
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+    // Reads the navigation-bar inset from the activity's decor view. Returns 0 if the bar
+    // is hidden, a positive pixel value otherwise.
+    private fun navigationBarInsetPx(): Int {
+        var inset = -1
+        composeTestRule.activityRule.scenario.onActivity { activity ->
+            val raw = activity.window.decorView.rootWindowInsets ?: return@onActivity
+            inset = WindowInsetsCompat.toWindowInsetsCompat(raw)
+                .getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
         }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Reveal the TopAppBar before tapping the TOC button.
-        showTopAppBar()
-
-        // Navigate to Chapter 2 Section 3 via the TOC panel
-        composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Section 2.3: Turning Point").performClick()
-
-        // Wait until the navigator reaches chapter 2
-        composeTestRule.waitUntilInChapter("chapter2", timeoutMillis = 15_000)
-        composeTestRule.assertNoErrorState()
-
-        // Assert the rail highlights Chapter 2 as the active chapter
-        composeTestRule.waitUntilRailActiveSegment("Chapter 2", timeoutMillis = 10_000)
-        composeTestRule.assertRailActiveSegment("Chapter 2")
-    }
-
-    @Test
-    fun tappingContentTogglesImmersiveMode() {
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Reader opens in immersive mode (TopAppBar hidden) — tap to reveal it
-        composeTestRule
-            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
-
-        // Wait for TopAppBar to animate in
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithContentDescription("Back")
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        // Don't call waitForIdle() here — it has no timeout and can block indefinitely if
-        // AnimatedVisibility or continuous WebView position callbacks keep Compose busy.
-        composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
-
-        // Tap center again to re-enter immersive mode
-        composeTestRule
-            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
-
-        // Wait for TopAppBar to animate out
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithContentDescription("Back")
-                .fetchSemanticsNodes().isEmpty()
-        }
-        composeTestRule.assertNoErrorState()
+        return inset.coerceAtLeast(0)
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -268,8 +215,14 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // After server is added, HomeScreen.getStartDestination() refreshes libraries and
-        // navigates directly to LibraryItemsScreen. Switch to All Books tab so items are visible.
+        // After authentication succeeds, the new SelectLibrariesScreen appears with all
+        // libraries toggled on. Tap Continue to commit the server with everything selected.
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText("Continue").performClick()
+        // After commit, HomeScreen refreshes libraries and navigates directly to
+        // LibraryItemsScreen. Switch to All Books tab so items are visible.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
         }

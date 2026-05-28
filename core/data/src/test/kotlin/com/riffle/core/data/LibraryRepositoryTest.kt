@@ -12,8 +12,10 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.EbookFormat
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.Server
@@ -47,8 +49,10 @@ class LibraryRepositoryTest {
         var activeServer: Server? = null
         override fun observeAll() = MutableStateFlow(listOfNotNull(activeServer))
         override suspend fun getActive() = activeServer
-        override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult =
-            AddServerResult.NetworkError(IOException())
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+            AuthenticateResult.NetworkError(IOException())
+        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+            CommitServerResult.Failure(IOException())
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
         override suspend fun getServerVersion(serverId: String): String? = null

@@ -1,7 +1,9 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryRefreshResult
@@ -252,8 +254,10 @@ class ToReadRepositoryTest {
 private class FakeServerRepository(private val activeServer: Server?) : ServerRepository {
     override fun observeAll() = MutableStateFlow(listOfNotNull(activeServer))
     override suspend fun getActive(): Server? = activeServer
-    override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult =
-        AddServerResult.NetworkError(IOException())
+    override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+        AuthenticateResult.NetworkError(IOException())
+    override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+        CommitServerResult.Failure(IOException())
     override suspend fun setActive(serverId: String) {}
     override suspend fun remove(serverId: String) {}
     override suspend fun getServerVersion(serverId: String): String? = null

@@ -1,6 +1,8 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
@@ -57,7 +59,9 @@ class ProgressSyncIntegrationTest {
             )
             override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
             override suspend fun getActive(): Server = activeServer
-            override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult =
+            override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+                throw UnsupportedOperationException()
+            override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
                 throw UnsupportedOperationException()
             override suspend fun setActive(serverId: String) = Unit
             override suspend fun remove(serverId: String) = Unit

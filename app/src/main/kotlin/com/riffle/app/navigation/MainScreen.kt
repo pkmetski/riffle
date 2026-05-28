@@ -6,12 +6,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
@@ -27,13 +29,17 @@ import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.feature.reader.EpubReaderScreen
 import com.riffle.app.feature.reader.PdfReaderScreen
 import com.riffle.app.feature.server.AddServerScreen
+import com.riffle.app.feature.server.SelectLibrariesScreen
+import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
 
 private const val HOME = "home"
+private const val SERVER_SETUP_GRAPH = "server_setup"
 private const val ADD_SERVER = "add_server"
+private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
@@ -55,7 +61,7 @@ fun MainScreen(
     val activeServer by viewModel.activeServer.collectAsState()
     val allServers by viewModel.allServers.collectAsState()
     val visibleLibraries by viewModel.visibleLibraries.collectAsState()
-    val serverVersion by viewModel.serverVersion.collectAsState()
+    val serverVersions by viewModel.serverVersions.collectAsState()
 
     val currentBackStack by navController.currentBackStackEntryAsState()
     val activeLibraryId = currentBackStack
@@ -80,8 +86,7 @@ fun MainScreen(
         allServers = allServers,
         visibleLibraries = visibleLibraries,
         activeLibraryId = activeLibraryId,
-        serverVersion = serverVersion,
-        onDrawerOpened = viewModel::onDrawerOpened,
+        serverVersions = serverVersions,
         onServerSelected = { server ->
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
@@ -121,14 +126,40 @@ fun MainScreen(
                     },
                 )
             }
-            composable(ADD_SERVER) {
-                AddServerScreen(
-                    onNavigateBack = {
-                        navController.navigate(HOME) {
-                            popUpTo(HOME) { inclusive = true }
-                        }
+            navigation(startDestination = ADD_SERVER, route = SERVER_SETUP_GRAPH) {
+                composable(ADD_SERVER) { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry(SERVER_SETUP_GRAPH)
                     }
-                )
+                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    AddServerScreen(
+                        onNavigateBack = {
+                            navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                        },
+                        onAuthenticated = { pending ->
+                            setupVm.pendingServer = pending
+                            navController.navigate(SELECT_LIBRARIES)
+                        },
+                    )
+                }
+                composable(SELECT_LIBRARIES) { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry(SERVER_SETUP_GRAPH)
+                    }
+                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    val pending = setupVm.pendingServer
+                    if (pending == null) {
+                        LaunchedEffect(Unit) { navController.popBackStack() }
+                    } else {
+                        SelectLibrariesScreen(
+                            pending = pending,
+                            onNavigateBack = { navController.popBackStack() },
+                            onContinueComplete = {
+                                navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                            },
+                        )
+                    }
+                }
             }
             composable(SETTINGS) {
                 SettingsScreen(

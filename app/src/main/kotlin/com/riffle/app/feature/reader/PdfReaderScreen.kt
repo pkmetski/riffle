@@ -12,7 +12,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -107,14 +106,14 @@ fun PdfReaderScreen(
     // TopAppBar floats as an overlay so its show/hide never resizes the PDF view —
     // same pattern as EpubReaderScreen.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
+        // Reader content is edge-to-edge: status-bar insets are consumed at the AndroidView
         // root (see ViewCompat.setOnApplyWindowInsetsListener in the PDF AndroidView factory)
-        // so they never reach Readium's PDF views. The floating TopAppBar carries its own
-        // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
+        // and the nav-bar inset is intentionally NOT applied, so the PDF view keeps the same
+        // height whether bars are visible or hidden. The floating TopAppBar carries its own
+        // TopAppBarDefaults.windowInsets to position itself below the status bar; the system
+        // nav bar overlays the bottom of the PDF view without reflowing it. See ADR 0017.
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
         ) {
             when (val s = state) {
                 ReaderState.Loading -> {

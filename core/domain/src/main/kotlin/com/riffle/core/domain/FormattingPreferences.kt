@@ -12,6 +12,6 @@ data class FormattingPreferences(
     val justifyText: Boolean = false,
 )
 
-enum class ReaderTheme { Light, Dark, Sepia }
+enum class ReaderTheme { Light, Dark, DarkDim, Sepia }
 enum class ReaderFontFamily { Serif, SansSerif, Monospace, Literata, Merriweather, OpenDyslexic }
 enum class ReaderOrientation { Horizontal, Vertical }

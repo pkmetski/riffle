@@ -2,6 +2,7 @@ package com.riffle.app.feature.navigation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
@@ -29,6 +30,7 @@ class NavigationDrawerViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
+    private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
     val allServers: StateFlow<List<Server>> = serverRepository.observeAll()
@@ -38,9 +40,9 @@ class NavigationDrawerViewModel @Inject constructor(
         .map { servers -> servers.firstOrNull { it.isActive } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val serverVersionCache = mutableMapOf<String, String?>()
-    private val _serverVersion = MutableStateFlow<String?>(null)
-    val serverVersion: StateFlow<String?> = _serverVersion.asStateFlow()
+    private val versionsCache = mutableMapOf<String, String>()
+    private val _serverVersions = MutableStateFlow<Map<String, String>>(emptyMap())
+    val serverVersions: StateFlow<Map<String, String>> = _serverVersions.asStateFlow()
 
     val visibleLibraries: StateFlow<List<Library>> = activeServer
         .filterNotNull()
@@ -67,9 +69,19 @@ class NavigationDrawerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            activeServer.collect { server ->
-                _serverVersion.value = serverVersionCache[server?.id]
-            }
+            // Re-attempt whenever the server list changes or connectivity flips.
+            // We don't gate on isOnline=true because LAN-only servers (e.g. self-hosted
+            // ABS on a local network) are reachable even when the OS reports no
+            // validated internet; getServerVersion() returns null on failure.
+            combine(allServers, connectivityObserver.isOnline) { servers, _ -> servers }
+                .collect { servers ->
+                    servers.forEach { server ->
+                        if (server.id in versionsCache) return@forEach
+                        val version = serverRepository.getServerVersion(server.id) ?: return@forEach
+                        versionsCache[server.id] = version
+                        _serverVersions.value = versionsCache.toMap()
+                    }
+                }
         }
         viewModelScope.launch {
             visibleLibraries.collect { visible ->
@@ -78,19 +90,6 @@ class NavigationDrawerViewModel @Inject constructor(
                     _redirectToLibrary.emit(visible.first())
                 }
             }
-        }
-    }
-
-    fun onDrawerOpened() {
-        val server = activeServer.value ?: return
-        if (server.id in serverVersionCache) {
-            _serverVersion.value = serverVersionCache[server.id]
-            return
-        }
-        viewModelScope.launch {
-            val version = serverRepository.getServerVersion(server.id)
-            if (version != null) serverVersionCache[server.id] = version
-            _serverVersion.value = version
         }
     }
 

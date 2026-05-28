@@ -10,10 +10,13 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.epub.css.ColCount
 import org.readium.r2.navigator.epub.css.RsProperties
+import org.readium.r2.navigator.preferences.Color
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.TextAlign
 import org.readium.r2.navigator.preferences.Theme
+
+private const val DARK_DIM_TEXT_COLOR: Int = 0xFFBBBBBB.toInt()
 
 fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
@@ -24,9 +27,11 @@ fun FormattingPreferences.toEpubPreferences(
         fontSize = fontSize.toDouble(),
         theme = when (theme) {
             ReaderTheme.Light -> Theme.LIGHT
-            ReaderTheme.Dark -> Theme.DARK
+            ReaderTheme.Dark, ReaderTheme.DarkDim -> Theme.DARK
             ReaderTheme.Sepia -> Theme.SEPIA
         },
+        // DarkDim is "dark with slightly muted body text" — same dark background, dimmer text.
+        textColor = if (theme == ReaderTheme.DarkDim) Color(DARK_DIM_TEXT_COLOR) else null,
         fontFamily = when (fontFamily) {
             ReaderFontFamily.Serif -> FontFamily("serif")
             ReaderFontFamily.SansSerif -> FontFamily("sans-serif")

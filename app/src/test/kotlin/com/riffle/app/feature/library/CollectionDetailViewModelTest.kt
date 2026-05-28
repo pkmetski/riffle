@@ -68,7 +68,9 @@ class CollectionDetailViewModelTest {
     private val noOpServerRepo = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Server? = null
-        override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) =
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) =
+            throw UnsupportedOperationException()
+        override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
