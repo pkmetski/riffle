@@ -1,20 +1,32 @@
 package com.riffle.core.data
 
+import com.riffle.core.database.LibraryDao
+import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.ServerDao
 import com.riffle.core.database.ServerEntity
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.domain.Library
+import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
+import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
+import com.riffle.core.network.NetworkCollectionResult
+import com.riffle.core.network.NetworkLibrariesResult
+import com.riffle.core.network.NetworkLibrary
+import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkLoginResult
+import com.riffle.core.network.NetworkSeriesResult
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,15 +36,15 @@ class ServerRepositoryTest {
         override suspend fun getServerInfo(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
     }
 
-    private val fakeTokenStorage = object : TokenStorage {
+    private fun fakeTokenStorage() = object : TokenStorage {
         val tokens = mutableMapOf<String, String>()
         override suspend fun saveToken(serverId: String, token: String) { tokens[serverId] = token }
         override suspend fun getToken(serverId: String) = tokens[serverId]
         override suspend fun deleteToken(serverId: String) { tokens.remove(serverId) }
     }
 
-    private fun fakeDao(vararg initial: ServerEntity): ServerDao = object : ServerDao {
-        val store = mutableListOf(*initial)
+    private class FakeServerDao(initial: List<ServerEntity>) : ServerDao {
+        val store = initial.toMutableList()
         override fun observeAll() = flowOf(store.toList())
         override suspend fun getActive() = store.firstOrNull { it.isActive }
         override suspend fun getById(id: String): ServerEntity? = store.firstOrNull { it.id == id }
@@ -49,68 +61,177 @@ class ServerRepositoryTest {
             return toInsert
         }
         override suspend fun deleteById(id: String) { store.removeAll { it.id == id } }
+        fun allCount(): Int = store.size
+    }
+
+    private fun fakeDao(vararg initial: ServerEntity): FakeServerDao = FakeServerDao(initial.toList())
+
+    private fun fakeLibraryDao() = object : LibraryDao {
+        val rows = mutableMapOf<String, MutableList<LibraryEntity>>()
+        override suspend fun replaceAllForServer(serverId: String, libraries: List<LibraryEntity>) {
+            rows[serverId] = libraries.toMutableList()
+        }
+        override suspend fun upsertAll(libraries: List<LibraryEntity>) {
+            libraries.forEach { rows.getOrPut(it.serverId) { mutableListOf() }.add(it) }
+        }
+        override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> =
+            flowOf(rows[serverId].orEmpty().toList())
+        override suspend fun deleteByServerId(serverId: String) { rows.remove(serverId) }
+        override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {
+            rows.values.forEach { list ->
+                list.replaceAll { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }
+            }
+        }
+        fun allEntities(): List<LibraryEntity> = rows.values.flatten()
+    }
+
+    private fun fakeVisibilityStore() = object : LibraryVisibilityPreferencesStore {
+        val hidden = mutableMapOf<String, MutableSet<String>>()
+        override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> =
+            flowOf(hidden[serverId].orEmpty())
+        override suspend fun hideLibrary(serverId: String, libraryId: String) {
+            hidden.getOrPut(serverId) { mutableSetOf() }.add(libraryId)
+        }
+        override suspend fun showLibrary(serverId: String, libraryId: String) {
+            hidden[serverId]?.remove(libraryId)
+        }
+    }
+
+    private fun libsApiReturning(result: NetworkLibrariesResult) = object : AbsLibraryApi {
+        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) = result
+        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkLibraryItemsResult =
+            throw NotImplementedError()
+        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkSeriesResult =
+            throw NotImplementedError()
+        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkCollectionResult =
+            throw NotImplementedError()
+    }
+
+    private val libsApiNotCalled = object : AbsLibraryApi {
+        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkLibrariesResult =
+            error("should not be called")
+        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkLibraryItemsResult =
+            error("should not be called")
+        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkSeriesResult =
+            error("should not be called")
+        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkCollectionResult =
+            error("should not be called")
     }
 
     @Test
-    fun `addServer success stores token and returns Success`() = runTest {
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid-1", "tok-xyz", username = "") }
-        val repo = ServerRepositoryImpl(fakeDao(), fakeTokenStorage, fakeApi, fakeServerInfoApi)
+    fun `authenticate success returns PendingServer with libraries and persists nothing`() = runTest {
+        val dao = fakeDao()
+        val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao()
+        val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid-1", "tok-xyz", "admin") }
+        val libsApi = libsApiReturning(
+            NetworkLibrariesResult.Success(
+                listOf(
+                    NetworkLibrary(id = "lib-1", name = "Books", mediaType = "book", audiobooksOnly = false),
+                    NetworkLibrary(id = "lib-2", name = "Audiobooks", mediaType = "book", audiobooksOnly = false),
+                    NetworkLibrary(id = "lib-3", name = "Podcasts", mediaType = "podcast", audiobooksOnly = false),
+                )
+            )
+        )
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApi, libDao, visibility)
         val url = ServerUrl.parse("https://abs.example.com")!!
-        val result = repo.addServer(url, "admin", "pass")
-        assertTrue(result is AddServerResult.Success)
-        assertEquals("tok-xyz", fakeTokenStorage.tokens.values.first())
+
+        val result = repo.authenticate(url, "admin", "pass", insecureAllowed = false)
+
+        assertTrue(result is AuthenticateResult.Success)
+        val pending = (result as AuthenticateResult.Success).pending
+        assertEquals("tok-xyz", pending.token)
+        assertEquals(listOf("lib-1", "lib-2"), pending.libraries.map { it.id }) // podcast filtered out
+        assertEquals(0, dao.allCount())
+        assertNull(tokens.getToken("any"))
+        assertTrue(libDao.allEntities().isEmpty())
     }
 
     @Test
-    fun `addServer wrong password returns WrongCredentials`() = runTest {
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("Invalid username or password") }
-        val repo = ServerRepositoryImpl(fakeDao(), fakeTokenStorage, fakeApi, fakeServerInfoApi)
+    fun `authenticate wrong credentials surfaces message and persists nothing`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("nope") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
+
+        assertTrue(result is AuthenticateResult.WrongCredentials)
+        assertEquals("nope", (result as AuthenticateResult.WrongCredentials).message)
+        assertEquals(0, dao.allCount())
+    }
+
+    @Test
+    fun `authenticate library fetch failure surfaces LibraryFetchFailed and persists nothing`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid", "tok", "u") }
+        val cause = RuntimeException("boom")
+        val libsApi = libsApiReturning(NetworkLibrariesResult.NetworkError(cause))
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApi, libDao, visibility)
+
+        val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
+
+        assertTrue(result is AuthenticateResult.LibraryFetchFailed)
+        assertSame(cause, (result as AuthenticateResult.LibraryFetchFailed).cause)
+        assertNull(tokens.getToken("any"))
+    }
+
+    @Test
+    fun `authenticate returns InsecureConnection when network signals self-signed`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val result = repo.authenticate(ServerUrl.parse("https://abs.example.com")!!, "admin", "pass", insecureAllowed = false)
+
+        assertTrue(result is AuthenticateResult.InsecureConnection)
+    }
+
+    @Test
+    fun `commit writes server token library cache and hidden ids together`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
         val url = ServerUrl.parse("https://abs.example.com")!!
-        val result = repo.addServer(url, "admin", "wrongpass")
-        assertTrue(result is AddServerResult.WrongCredentials)
+        val pending = PendingServer(
+            url = url, displayName = "abs.example.com",
+            username = "admin", userId = "uid-1", token = "tok-xyz",
+            insecureConnectionAllowed = false,
+            libraries = listOf(
+                Library("lib-1", "Books", "book", false),
+                Library("lib-2", "Audiobooks", "book", false),
+            ),
+        )
+
+        val result = repo.commit(pending, hiddenLibraryIds = setOf("lib-2"))
+
+        assertTrue(result is CommitServerResult.Success)
+        val server = (result as CommitServerResult.Success).server
+        assertEquals("abs.example.com", server.displayName)
+        assertTrue(server.isActive) // first server becomes active
+        assertEquals("tok-xyz", tokens.getToken(server.id))
+        assertEquals(2, libDao.allEntities().size)
+        assertEquals(setOf("lib-2"), visibility.hidden[server.id])
     }
 
     @Test
     fun `remove deletes server entity and token`() = runTest {
         val entity = ServerEntity("srv-1", "https://abs.example.com", "abs.example.com", true, false, username = "")
         val dao = fakeDao(entity)
-        fakeTokenStorage.tokens["srv-1"] = "tok"
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
-        val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi, fakeServerInfoApi)
+        val tokens = fakeTokenStorage()
+        tokens.tokens["srv-1"] = "tok"
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(
+            dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
+        )
         repo.remove("srv-1")
-        assertTrue("token not deleted", fakeTokenStorage.tokens.isEmpty())
+        assertTrue("token not deleted", tokens.tokens.isEmpty())
         assertNull("entity not deleted from store", dao.getActive())
-    }
-
-    @Test
-    fun `first added server is set as active`() = runTest {
-        val dao = fakeDao()
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid-1", "tok", username = "") }
-        val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi, fakeServerInfoApi)
-        val url = ServerUrl.parse("https://abs.example.com")!!
-        val result = repo.addServer(url, "admin", "pass")
-        assertTrue(result is AddServerResult.Success)
-        assertTrue("first server should be active", (result as AddServerResult.Success).server.isActive)
-    }
-
-    @Test
-    fun `second added server is not active`() = runTest {
-        val dao = fakeDao()
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid-1", "tok", username = "") }
-        val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi, fakeServerInfoApi)
-        repo.addServer(ServerUrl.parse("https://first.example.com")!!, "admin", "pass")
-        val result = repo.addServer(ServerUrl.parse("https://second.example.com")!!, "admin", "pass")
-        assertTrue(result is AddServerResult.Success)
-        assertFalse("second server must not be active", (result as AddServerResult.Success).server.isActive)
-    }
-
-    @Test
-    fun `addServer returns InsecureConnection when network signals self-signed`() = runTest {
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
-        val repo = ServerRepositoryImpl(fakeDao(), fakeTokenStorage, fakeApi, fakeServerInfoApi)
-        val url = ServerUrl.parse("https://abs.example.com")!!
-        val result = repo.addServer(url, "admin", "pass", insecureAllowed = false)
-        assertTrue(result is AddServerResult.InsecureConnection)
     }
 
     @Test
@@ -118,8 +239,10 @@ class ServerRepositoryTest {
         val e1 = ServerEntity("s1", "https://one.example.com", "one.example.com", true, false, username = "")
         val e2 = ServerEntity("s2", "https://two.example.com", "two.example.com", false, false, username = "")
         val dao = fakeDao(e1, e2)
-        val fakeApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
-        val repo = ServerRepositoryImpl(dao, fakeTokenStorage, fakeApi, fakeServerInfoApi)
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(
+            dao, fakeTokenStorage(), absApi, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
+        )
         repo.setActive("s2")
         assertEquals("s2", dao.getActive()?.id)
     }

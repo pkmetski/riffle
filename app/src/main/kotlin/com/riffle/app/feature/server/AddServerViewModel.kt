@@ -5,7 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
@@ -58,11 +59,21 @@ class AddServerViewModel @Inject constructor(
     private fun doLogin(serverUrl: ServerUrl, insecureAllowed: Boolean) {
         viewModelScope.launch {
             isLoading = true
-            when (val result = repository.addServer(serverUrl, username, password, insecureAllowed)) {
-                is AddServerResult.Success -> _navigateBack.send(Unit)
-                is AddServerResult.WrongCredentials -> error = result.message
-                is AddServerResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
-                is AddServerResult.InsecureConnection -> insecureWarning = result.type
+            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed)) {
+                is AuthenticateResult.Success -> {
+                    // Temporary: commit immediately with no hidden libraries. The library
+                    // selection step is introduced in a follow-up change.
+                    when (val commit = repository.commit(result.pending, emptySet())) {
+                        is CommitServerResult.Success -> _navigateBack.send(Unit)
+                        is CommitServerResult.Failure ->
+                            error = "Couldn't save server: ${commit.cause.message}"
+                    }
+                }
+                is AuthenticateResult.WrongCredentials -> error = result.message
+                is AuthenticateResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
+                is AuthenticateResult.LibraryFetchFailed ->
+                    error = "Connected, but couldn't load libraries: ${result.cause.message}"
+                is AuthenticateResult.InsecureConnection -> insecureWarning = result.type
             }
             isLoading = false
         }
