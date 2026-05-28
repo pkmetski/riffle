@@ -41,24 +41,24 @@ fun ChapterNavigationRail(
             .semantics { contentDescription = "Active rail segment: $activeTitle" }
             .pointerInput(segments) {
                 detectTapGestures { offset ->
-                    val idx = (offset.x / size.width * segments.size)
-                        .toInt()
-                        .coerceIn(0, segments.size - 1)
-                    onSegmentClick(segments[idx])
+                    val idx = railSegmentIndexAt(segments, offset.x, size.width.toFloat())
+                    if (idx in segments.indices) onSegmentClick(segments[idx])
                 }
             }
             .drawWithCache {
-                val n = segments.size
-                val segW = size.width / n
+                val bounds = railSegmentBounds(segments, size.width)
                 onDrawBehind {
                     drawRect(color = barColor)
-                    drawRect(
-                        color = activeColor,
-                        topLeft = Offset(activeIndex * segW, 0f),
-                        size = Size(segW, size.height),
-                    )
-                    for (i in 1 until n) {
-                        val x = segW * i
+                    if (activeIndex in bounds.indices) {
+                        val (ax, aw) = bounds[activeIndex]
+                        drawRect(
+                            color = activeColor,
+                            topLeft = Offset(ax, 0f),
+                            size = Size(aw, size.height),
+                        )
+                    }
+                    for (i in 1 until bounds.size) {
+                        val x = bounds[i].first
                         drawLine(
                             color = dividerColor,
                             start = Offset(x, 0f),
