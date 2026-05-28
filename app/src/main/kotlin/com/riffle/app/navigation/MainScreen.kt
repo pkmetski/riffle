@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
@@ -27,13 +28,17 @@ import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.feature.reader.EpubReaderScreen
 import com.riffle.app.feature.reader.PdfReaderScreen
 import com.riffle.app.feature.server.AddServerScreen
+import com.riffle.app.feature.server.SelectLibrariesScreen
+import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
 
 private const val HOME = "home"
+private const val SERVER_SETUP_GRAPH = "server_setup"
 private const val ADD_SERVER = "add_server"
+private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
@@ -121,14 +126,38 @@ fun MainScreen(
                     },
                 )
             }
-            composable(ADD_SERVER) {
-                AddServerScreen(
-                    onNavigateBack = {
-                        navController.navigate(HOME) {
-                            popUpTo(HOME) { inclusive = true }
-                        }
+            navigation(startDestination = ADD_SERVER, route = SERVER_SETUP_GRAPH) {
+                composable(ADD_SERVER) {
+                    val setupVm: ServerSetupViewModel = hiltViewModel(
+                        navController.getBackStackEntry(SERVER_SETUP_GRAPH)
+                    )
+                    AddServerScreen(
+                        onNavigateBack = {
+                            navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                        },
+                        onAuthenticated = { pending ->
+                            setupVm.pendingServer = pending
+                            navController.navigate(SELECT_LIBRARIES)
+                        },
+                    )
+                }
+                composable(SELECT_LIBRARIES) {
+                    val setupVm: ServerSetupViewModel = hiltViewModel(
+                        navController.getBackStackEntry(SERVER_SETUP_GRAPH)
+                    )
+                    val pending = setupVm.pendingServer
+                    if (pending == null) {
+                        LaunchedEffect(Unit) { navController.popBackStack() }
+                    } else {
+                        SelectLibrariesScreen(
+                            pending = pending,
+                            onNavigateBack = { navController.popBackStack() },
+                            onContinueComplete = {
+                                navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                            },
+                        )
                     }
-                )
+                }
             }
             composable(SETTINGS) {
                 SettingsScreen(

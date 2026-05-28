@@ -22,6 +22,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -60,18 +61,43 @@ class AddServerViewModelTest {
         libraries = listOf(Library("lib-1", "Books", "book", false)),
     )
 
-    private fun fakeRepo(
-        authResult: AuthenticateResult,
-        commitResult: CommitServerResult = CommitServerResult.Success(fakeServer()),
-    ): ServerRepository = object : ServerRepository {
+    private class RecordingRepository(
+        private val authResult: AuthenticateResult,
+        private val commitResult: CommitServerResult = CommitServerResult.Success(
+            Server(
+                id = "s1",
+                url = ServerUrl.parse("https://abs.example.com")!!,
+                displayName = "abs.example.com",
+                isActive = true,
+                insecureConnectionAllowed = false,
+                username = "",
+            )
+        ),
+    ) : ServerRepository {
+        var commitCallCount = 0
+        var lastInsecureAllowed: Boolean? = null
         override fun observeAll(): Flow<List<Server>> = emptyFlow()
         override suspend fun getActive(): Server? = null
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) = authResult
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>) = commitResult
+        override suspend fun authenticate(
+            url: ServerUrl,
+            username: String,
+            password: String,
+            insecureAllowed: Boolean,
+        ): AuthenticateResult {
+            lastInsecureAllowed = insecureAllowed
+            return authResult
+        }
+        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult {
+            commitCallCount += 1
+            return commitResult
+        }
         override suspend fun setActive(serverId: String) {}
         override suspend fun remove(serverId: String) {}
         override suspend fun getServerVersion(serverId: String): String? = null
     }
+
+    private fun fakeRepo(authResult: AuthenticateResult): ServerRepository =
+        RecordingRepository(authResult)
 
     @Test
     fun `onConnect with invalid url sets error`() = runTest {
@@ -96,15 +122,18 @@ class AddServerViewModelTest {
     }
 
     @Test
-    fun `onConnect success emits navigate back event`() = runTest {
-        val vm = AddServerViewModel(fakeRepo(AuthenticateResult.Success(fakePending())))
+    fun `onConnect success emits navigateToSelectLibraries with pending server and does not commit`() = runTest {
+        val pending = fakePending()
+        val repo = RecordingRepository(AuthenticateResult.Success(pending))
+        val vm = AddServerViewModel(repo)
         vm.url = "https://abs.example.com"
         vm.username = "admin"
         vm.password = "pass"
         vm.onConnect()
         testDispatcher.scheduler.advanceUntilIdle()
-        val event = vm.navigateBack.first()
-        assertNotNull(event)
+        val emitted = vm.navigateToSelectLibraries.first()
+        assertSame(pending, emitted)
+        assertEquals(0, repo.commitCallCount)
         assertNull(vm.error)
     }
 
@@ -141,26 +170,13 @@ class AddServerViewModelTest {
 
     @Test
     fun `onInsecureWarningAccepted calls authenticate with insecureAllowed true`() = runTest {
-        var capturedInsecure = false
-        val repo = object : ServerRepository {
-            override fun observeAll(): Flow<List<Server>> = emptyFlow()
-            override suspend fun getActive(): Server? = null
-            override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult {
-                capturedInsecure = insecureAllowed
-                return AuthenticateResult.Success(fakePending())
-            }
-            override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>) =
-                CommitServerResult.Success(fakeServer())
-            override suspend fun setActive(serverId: String) {}
-            override suspend fun remove(serverId: String) {}
-            override suspend fun getServerVersion(serverId: String): String? = null
-        }
+        val repo = RecordingRepository(AuthenticateResult.Success(fakePending()))
         val vm = AddServerViewModel(repo)
         vm.url = "http://abs.example.com"
         vm.username = "admin"
         vm.onInsecureWarningAccepted()
         testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue("insecureAllowed must be true", capturedInsecure)
+        assertTrue("insecureAllowed must be true", repo.lastInsecureAllowed == true)
     }
 
     @Test

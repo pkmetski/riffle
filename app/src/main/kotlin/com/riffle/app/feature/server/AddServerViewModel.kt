@@ -5,12 +5,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.BuildConfig
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
-import com.riffle.app.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -29,8 +29,8 @@ class AddServerViewModel @Inject constructor(
     var error by mutableStateOf<String?>(null)
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
 
-    private val _navigateBack = Channel<Unit>(Channel.CONFLATED)
-    val navigateBack = _navigateBack.receiveAsFlow()
+    private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
+    val navigateToSelectLibraries = _navigateToSelectLibraries.receiveAsFlow()
 
     fun onConnect() {
         error = null
@@ -43,32 +43,24 @@ class AddServerViewModel @Inject constructor(
             insecureWarning = InsecureConnectionType.HTTP
             return
         }
-        doLogin(serverUrl, insecureAllowed = false)
+        doAuthenticate(serverUrl, insecureAllowed = false)
     }
 
     fun onInsecureWarningAccepted() {
         insecureWarning = null
         val serverUrl = ServerUrl.parse(url.trim()) ?: return
-        doLogin(serverUrl, insecureAllowed = true)
+        doAuthenticate(serverUrl, insecureAllowed = true)
     }
 
     fun onInsecureWarningDismissed() {
         insecureWarning = null
     }
 
-    private fun doLogin(serverUrl: ServerUrl, insecureAllowed: Boolean) {
+    private fun doAuthenticate(serverUrl: ServerUrl, insecureAllowed: Boolean) {
         viewModelScope.launch {
             isLoading = true
             when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed)) {
-                is AuthenticateResult.Success -> {
-                    // Temporary: commit immediately with no hidden libraries. The library
-                    // selection step is introduced in a follow-up change.
-                    when (val commit = repository.commit(result.pending, emptySet())) {
-                        is CommitServerResult.Success -> _navigateBack.send(Unit)
-                        is CommitServerResult.Failure ->
-                            error = "Couldn't save server: ${commit.cause.message}"
-                    }
-                }
+                is AuthenticateResult.Success -> _navigateToSelectLibraries.send(result.pending)
                 is AuthenticateResult.WrongCredentials -> error = result.message
                 is AuthenticateResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
                 is AuthenticateResult.LibraryFetchFailed ->

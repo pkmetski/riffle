@@ -29,15 +29,17 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.domain.PendingServer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddServerScreen(
     onNavigateBack: () -> Unit,
+    onAuthenticated: (PendingServer) -> Unit,
     viewModel: AddServerViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(Unit) {
-        viewModel.navigateBack.collect { onNavigateBack() }
+        viewModel.navigateToSelectLibraries.collect { onAuthenticated(it) }
     }
 
     viewModel.insecureWarning?.let { type ->
