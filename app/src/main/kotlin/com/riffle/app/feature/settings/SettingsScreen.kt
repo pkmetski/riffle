@@ -59,6 +59,7 @@ fun SettingsScreen(
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val servers by viewModel.servers.collectAsState()
+    val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItems by viewModel.libraryUiItems.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -110,9 +111,22 @@ fun SettingsScreen(
                     state = dismissState,
                     backgroundContent = {},
                 ) {
+                    val username = server.username.takeIf { it.isNotEmpty() }
+                    val version = serverVersions[server.id]
+                    val subtitle = buildString {
+                        if (username != null) {
+                            append(username)
+                            append(" · ")
+                        }
+                        append(server.url.value)
+                        if (version != null) {
+                            append(" · ")
+                            append(version)
+                        }
+                    }
                     ListItem(
                         headlineContent = { Text(server.displayName) },
-                        supportingContent = { Text(server.url.value) },
+                        supportingContent = { Text(subtitle) },
                         trailingContent = if (server.isActive) {
                             { Text("Active", style = MaterialTheme.typography.labelSmall) }
                         } else null,

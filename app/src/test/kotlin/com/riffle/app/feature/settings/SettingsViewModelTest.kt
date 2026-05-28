@@ -1,7 +1,11 @@
 package com.riffle.app.feature.settings
 
-import com.riffle.core.domain.AddServerResult
+import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.PendingServer
+import java.io.IOException
 import com.riffle.core.domain.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.FormattingPreferences
@@ -86,8 +90,10 @@ class SettingsViewModelTest {
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = serversFlow
         override suspend fun getActive(): Server? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun addServer(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AddServerResult =
-            AddServerResult.WrongCredentials()
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+            AuthenticateResult.WrongCredentials()
+        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+            CommitServerResult.Failure(IOException())
         override suspend fun setActive(serverId: String) {
             serversFlow.update { list -> list.map { it.copy(isActive = it.id == serverId) } }
         }
@@ -129,6 +135,11 @@ class SettingsViewModelTest {
         }
     }
 
+    private val isOnlineFlow = MutableStateFlow(true)
+    private val fakeConnectivity = object : ConnectivityObserver {
+        override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
+    }
+
     private fun makeViewModel(report: CrashReport? = null) = SettingsViewModel(
         crashReportRepository = object : CrashReportRepository {
             override fun getLastCrashReport() = report
@@ -139,6 +150,7 @@ class SettingsViewModelTest {
         visibilityStore = fakeVisibilityStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        connectivityObserver = fakeConnectivity,
     )
 
     // --- existing crash report tests (unchanged) ---

@@ -26,9 +26,9 @@ fun ChapterNavigationRail(
 ) {
     if (segments.isEmpty()) return
 
-    val barColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
-    val activeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
-    val dividerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val barColor = MaterialTheme.colorScheme.surfaceVariant
+    val activeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+    val dividerColor = MaterialTheme.colorScheme.outline
     val cursorColor = MaterialTheme.colorScheme.primary
 
     val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""

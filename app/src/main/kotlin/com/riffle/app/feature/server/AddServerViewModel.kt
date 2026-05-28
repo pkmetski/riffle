@@ -5,11 +5,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.AddServerResult
+import com.riffle.app.BuildConfig
+import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
-import com.riffle.app.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -21,15 +22,41 @@ class AddServerViewModel @Inject constructor(
     private val repository: ServerRepository,
 ) : ViewModel() {
 
-    var url by mutableStateOf(BuildConfig.DEV_SERVER_URL)
+    var scheme by mutableStateOf(initialScheme(BuildConfig.DEV_SERVER_URL))
+        private set
+    var host by mutableStateOf(stripScheme(BuildConfig.DEV_SERVER_URL))
+        private set
+    val url: String get() = scheme + host
     var username by mutableStateOf(BuildConfig.DEV_USERNAME)
     var password by mutableStateOf(BuildConfig.DEV_PASSWORD)
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
 
-    private val _navigateBack = Channel<Unit>(Channel.CONFLATED)
-    val navigateBack = _navigateBack.receiveAsFlow()
+    private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
+    val navigateToSelectLibraries = _navigateToSelectLibraries.receiveAsFlow()
+
+    fun updateScheme(value: String) {
+        if (value == "http://" || value == "https://") scheme = value
+    }
+
+    fun updateHost(value: String) {
+        val lower = value.lowercase()
+        when {
+            lower.startsWith("https://") -> { scheme = "https://"; host = value.substring(8) }
+            lower.startsWith("http://") -> { scheme = "http://"; host = value.substring(7) }
+            else -> host = value
+        }
+    }
+
+    private fun initialScheme(devUrl: String): String =
+        if (devUrl.startsWith("http://")) "http://" else "https://"
+
+    private fun stripScheme(devUrl: String): String = when {
+        devUrl.startsWith("https://") -> devUrl.substring(8)
+        devUrl.startsWith("http://") -> devUrl.substring(7)
+        else -> devUrl
+    }
 
     fun onConnect() {
         error = null
@@ -42,27 +69,29 @@ class AddServerViewModel @Inject constructor(
             insecureWarning = InsecureConnectionType.HTTP
             return
         }
-        doLogin(serverUrl, insecureAllowed = false)
+        doAuthenticate(serverUrl, insecureAllowed = false)
     }
 
     fun onInsecureWarningAccepted() {
         insecureWarning = null
         val serverUrl = ServerUrl.parse(url.trim()) ?: return
-        doLogin(serverUrl, insecureAllowed = true)
+        doAuthenticate(serverUrl, insecureAllowed = true)
     }
 
     fun onInsecureWarningDismissed() {
         insecureWarning = null
     }
 
-    private fun doLogin(serverUrl: ServerUrl, insecureAllowed: Boolean) {
+    private fun doAuthenticate(serverUrl: ServerUrl, insecureAllowed: Boolean) {
         viewModelScope.launch {
             isLoading = true
-            when (val result = repository.addServer(serverUrl, username, password, insecureAllowed)) {
-                is AddServerResult.Success -> _navigateBack.send(Unit)
-                is AddServerResult.WrongCredentials -> error = result.message
-                is AddServerResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
-                is AddServerResult.InsecureConnection -> insecureWarning = result.type
+            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed)) {
+                is AuthenticateResult.Success -> _navigateToSelectLibraries.send(result.pending)
+                is AuthenticateResult.WrongCredentials -> error = result.message
+                is AuthenticateResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
+                is AuthenticateResult.LibraryFetchFailed ->
+                    error = "Connected, but couldn't load libraries: ${result.cause.message}"
+                is AuthenticateResult.InsecureConnection -> insecureWarning = result.type
             }
             isLoading = false
         }

@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerState
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +30,6 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,8 +56,7 @@ fun RiffleNavigationDrawer(
     allServers: List<Server>,
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
-    serverVersion: String?,
-    onDrawerOpened: () -> Unit,
+    serverVersions: Map<String, String>,
     onServerSelected: (Server) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
@@ -71,16 +68,11 @@ fun RiffleNavigationDrawer(
         gesturesEnabled = gesturesEnabled,
         drawerContent = {
             ModalDrawerSheet(modifier = Modifier.width(280.dp)) {
-                LaunchedEffect(drawerState.currentValue) {
-                    if (drawerState.currentValue == DrawerValue.Open) {
-                        onDrawerOpened()
-                    }
-                }
                 Column(modifier = Modifier.fillMaxHeight()) {
                     DrawerHeader(
                         activeServer = activeServer,
                         allServers = allServers,
-                        serverVersion = serverVersion,
+                        serverVersions = serverVersions,
                         onServerSelected = onServerSelected,
                     )
                     Column(
@@ -129,9 +121,10 @@ fun RiffleNavigationDrawer(
 private fun DrawerHeader(
     activeServer: Server?,
     allServers: List<Server>,
-    serverVersion: String?,
+    serverVersions: Map<String, String>,
     onServerSelected: (Server) -> Unit,
 ) {
+    val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }
     var headerWidth by remember { mutableStateOf(Dp.Unspecified) }
     val density = LocalDensity.current
@@ -160,8 +153,8 @@ private fun DrawerHeader(
             },
             supportingContent = {
                 val url = activeServer?.url?.value ?: ""
-                if (serverVersion != null) {
-                    Text("$url · $serverVersion")
+                if (activeVersion != null) {
+                    Text("$url · $activeVersion")
                 } else {
                     Text(url)
                 }
@@ -197,8 +190,9 @@ private fun DrawerHeader(
                             } else {
                                 Text(server.displayName)
                             }
+                            val version = serverVersions[server.id]
                             Text(
-                                text = server.url.value,
+                                text = if (version != null) "${server.url.value} · $version" else server.url.value,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
