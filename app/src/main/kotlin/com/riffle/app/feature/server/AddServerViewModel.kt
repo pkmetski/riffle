@@ -22,7 +22,11 @@ class AddServerViewModel @Inject constructor(
     private val repository: ServerRepository,
 ) : ViewModel() {
 
-    var url by mutableStateOf(BuildConfig.DEV_SERVER_URL)
+    var scheme by mutableStateOf(initialScheme(BuildConfig.DEV_SERVER_URL))
+        private set
+    var host by mutableStateOf(stripScheme(BuildConfig.DEV_SERVER_URL))
+        private set
+    val url: String get() = scheme + host
     var username by mutableStateOf(BuildConfig.DEV_USERNAME)
     var password by mutableStateOf(BuildConfig.DEV_PASSWORD)
     var isLoading by mutableStateOf(false)
@@ -31,6 +35,28 @@ class AddServerViewModel @Inject constructor(
 
     private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
     val navigateToSelectLibraries = _navigateToSelectLibraries.receiveAsFlow()
+
+    fun updateScheme(value: String) {
+        if (value == "http://" || value == "https://") scheme = value
+    }
+
+    fun updateHost(value: String) {
+        val lower = value.lowercase()
+        when {
+            lower.startsWith("https://") -> { scheme = "https://"; host = value.substring(8) }
+            lower.startsWith("http://") -> { scheme = "http://"; host = value.substring(7) }
+            else -> host = value
+        }
+    }
+
+    private fun initialScheme(devUrl: String): String =
+        if (devUrl.startsWith("http://")) "http://" else "https://"
+
+    private fun stripScheme(devUrl: String): String = when {
+        devUrl.startsWith("https://") -> devUrl.substring(8)
+        devUrl.startsWith("http://") -> devUrl.substring(7)
+        else -> devUrl
+    }
 
     fun onConnect() {
         error = null

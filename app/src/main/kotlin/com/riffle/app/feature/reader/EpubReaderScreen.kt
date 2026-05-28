@@ -7,13 +7,21 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -24,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -31,6 +40,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -58,6 +69,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -215,16 +227,6 @@ fun EpubReaderScreen(
                             onDismiss = viewModel::closeToc,
                         )
                     }
-                    if (formattingPrefs.showChapterMap) {
-                        // Rail state (cursorPosition changes at scroll framerate) is isolated
-                        // inside EpubChapterRailOverlay so EpubNavigatorView is not in the
-                        // same recomposition scope and does not recompose on every scroll event.
-                        EpubChapterRailOverlay(
-                            viewModel = viewModel,
-                            darkTheme = formattingPrefs.theme == ReaderTheme.Dark,
-                            modifier = Modifier.align(Alignment.BottomCenter),
-                        )
-                    }
                 }
                 is ReaderState.Error -> {
                     Text(
@@ -235,6 +237,18 @@ fun EpubReaderScreen(
                     )
                 }
             }
+        }
+
+        // Chapter rail lives in the outer (unpadded) Box so it remains anchored to the
+        // absolute screen bottom — the system nav bar overlays it without shifting it up.
+        // Rail state (cursorPosition at scroll framerate) is isolated inside the overlay so
+        // EpubNavigatorView does not recompose on every scroll event.
+        if (state is ReaderState.Ready && formattingPrefs.showChapterMap) {
+            EpubChapterRailOverlay(
+                viewModel = viewModel,
+                darkTheme = formattingPrefs.theme == ReaderTheme.Dark || formattingPrefs.theme == ReaderTheme.DarkDim,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
 
         AnimatedVisibility(
@@ -326,6 +340,8 @@ private fun BoxScope.EpubChapterRailOverlay(
 // Singleton so the EpubNavigatorFactory only creates one DataStore for formatting_preferences
 // per process — creating multiple instances triggers a DataStore "multiple active" crash.
 private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configuration() }
+
+private const val BOUNDARY_POLL_INTERVAL_MS = 120L
 
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
@@ -502,103 +518,186 @@ private fun EpubNavigatorView(
 
     val containerId = rememberSaveable { View.generateViewId() }
 
-    AndroidView(
-        factory = { ctx ->
-            ScrollBoundaryNavigationContainer(ctx).apply {
-                // Compose handles all inset-based padding (navigationBarsPadding on the outer
-                // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
-                // insets here prevents Readium's WebViews from applying status-bar padding,
-                // which on physical devices remains non-zero even after controller.hide().
-                ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
-                val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
-                addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-            }.also { containerRef.value = it }
-        },
-        update = { container ->
-            container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+    var pullActive by remember { mutableStateOf(false) }
+    var pullForward by remember { mutableStateOf(true) }
+    var pullProgress by remember { mutableFloatStateOf(0f) }
 
-            val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
-                ?: return@AndroidView
-            val fm = fragmentActivity.supportFragmentManager
-
-            // RS properties (colCount/colWidth) are baked into the fragment at creation time and
-            // cannot be changed via submitPreferences. Recreate the fragment whenever the
-            // double-page mode changes so the new RS config takes effect.
-            val isDoublePage = !isFixedLayout &&
-                formattingPrefs.orientation != ReaderOrientation.Vertical &&
-                formattingPrefs.doublePageSpread &&
-                isLandscape
-            val existingFrag = fragmentRef.value
-            if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
-                fm.beginTransaction().remove(existingFrag).commitNow()
-                fragmentRef.value = null
-                fragmentDoublePageHolder[0] = null
-            }
-
-            // After Activity recreation, the FragmentManager may have restored an
-            // EpubNavigatorFragment using the default factory (not EpubNavigatorFactory).
-            // Without the factory, the fragment's WebView cannot connect to the Readium
-            // streaming server. Remove any such stale fragment so the creation path below
-            // can recreate it properly with latestLocator() as the initial position.
-            if (fragmentRef.value == null) {
-                fm.findFragmentById(containerId)?.let { stale ->
-                    fm.beginTransaction().remove(stale).commitNow()
+    // Poll WebView scroll boundaries so ScrollBoundaryNavigationContainer can decide
+    // synchronously inside ACTION_MOVE whether the user is wedged against a chapter end.
+    // Readium's locator progression value is unreliable for this — it keeps emitting during
+    // touch even when scroll position hasn't moved, which broke the previous staleness check.
+    LaunchedEffect(fragmentRef.value, currentFormattingPrefs.orientation) {
+        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        if (currentFormattingPrefs.orientation != ReaderOrientation.Vertical) return@LaunchedEffect
+        while (true) {
+            val container = containerRef.value
+            if (container != null) {
+                withContext(Dispatchers.Main) {
+                    val atBottom = fragment.evaluateJavascript(
+                        "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
+                    )?.trim('"') == "true"
+                    val atTop = fragment.evaluateJavascript(
+                        "(window.scrollY <= 4).toString()"
+                    )?.trim('"') == "true"
+                    container.atForwardBoundary = atBottom
+                    container.atBackwardBoundary = atTop
                 }
             }
+            delay(BOUNDARY_POLL_INTERVAL_MS)
+        }
+    }
 
-            if (fm.findFragmentById(containerId) == null) {
-                val fragmentFactory = EpubNavigatorFactory(
-                    publication = state.publication,
-                    configuration = sharedEpubNavigatorConfig,
-                ).createFragmentFactory(
-                    initialLocator = latestLocator() ?: state.initialLocator,
-                    initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
-                    configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
-                    listener = fragmentListener,
-                )
-                fm.fragmentFactory = fragmentFactory
-                fm.beginTransaction()
-                    .add(containerId, EpubNavigatorFragment::class.java, null)
-                    .commitNow()
-                val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { ctx ->
+                ScrollBoundaryNavigationContainer(ctx).apply {
+                    // Compose handles all inset-based padding (navigationBarsPadding on the outer
+                    // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
+                    // insets here prevents Readium's WebViews from applying status-bar padding,
+                    // which on physical devices remains non-zero even after controller.hide().
+                    ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
+                    onPullStarted = { fwd ->
+                        pullForward = fwd
+                        pullProgress = 0f
+                        pullActive = true
+                    }
+                    onPullEnded = { pullActive = false }
+                    onPullProgress = { p -> pullProgress = p }
+                    val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
+                    addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                }.also { containerRef.value = it }
+            },
+            update = { container ->
+                container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+
+                val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
-                fragmentRef.value = fragment
-                fragmentDoublePageHolder[0] = isDoublePage
-                fragment.addInputListener(tapListener)
-                coroutineScope.launch {
-                    fragment.currentLocator.collect { locator ->
-                        container.currentProgression = locator.locations.progression?.toFloat() ?: 0f
-                        currentHrefHolder[0] = locator.href.toString()
-                        onPositionChanged(locator)
-                    }
-                }
-            }
+                val fm = fragmentActivity.supportFragmentManager
 
-            fragmentRef.value?.let { fragment ->
-                container.onNavigateForward = navigateForward@{
-                    val idx = state.publication.readingOrder
-                        .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
-                    if (idx < 0 || idx >= state.publication.readingOrder.size - 1) return@navigateForward
-                    fragment.goForward(animated = false)
+                // RS properties (colCount/colWidth) are baked into the fragment at creation time and
+                // cannot be changed via submitPreferences. Recreate the fragment whenever the
+                // double-page mode changes so the new RS config takes effect.
+                val isDoublePage = !isFixedLayout &&
+                    formattingPrefs.orientation != ReaderOrientation.Vertical &&
+                    formattingPrefs.doublePageSpread &&
+                    isLandscape
+                val existingFrag = fragmentRef.value
+                if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
+                    fm.beginTransaction().remove(existingFrag).commitNow()
+                    fragmentRef.value = null
+                    fragmentDoublePageHolder[0] = null
                 }
-                container.onNavigateBackward = navigateBackward@{
-                    val idx = state.publication.readingOrder
-                        .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
-                    if (idx <= 0) return@navigateBackward
-                    val prevLink = state.publication.readingOrder[idx - 1]
-                    val locator = Locator.fromJSON(
-                        JSONObject()
-                            .put("href", prevLink.href.toString())
-                            .put("type", "application/xhtml+xml")
-                            .put("locations", JSONObject().put("progression", 1.0))
-                    ) ?: return@navigateBackward
-                    coroutineScope.launch {
-                        fragment.go(locator, animated = false)
+
+                // After Activity recreation, the FragmentManager may have restored an
+                // EpubNavigatorFragment using the default factory (not EpubNavigatorFactory).
+                // Without the factory, the fragment's WebView cannot connect to the Readium
+                // streaming server. Remove any such stale fragment so the creation path below
+                // can recreate it properly with latestLocator() as the initial position.
+                if (fragmentRef.value == null) {
+                    fm.findFragmentById(containerId)?.let { stale ->
+                        fm.beginTransaction().remove(stale).commitNow()
                     }
                 }
-            }
-        },
-        modifier = modifier,
-    )
+
+                if (fm.findFragmentById(containerId) == null) {
+                    val fragmentFactory = EpubNavigatorFactory(
+                        publication = state.publication,
+                        configuration = sharedEpubNavigatorConfig,
+                    ).createFragmentFactory(
+                        initialLocator = latestLocator() ?: state.initialLocator,
+                        initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
+                        configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
+                        listener = fragmentListener,
+                    )
+                    fm.fragmentFactory = fragmentFactory
+                    fm.beginTransaction()
+                        .add(containerId, EpubNavigatorFragment::class.java, null)
+                        .commitNow()
+                    val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
+                        ?: return@AndroidView
+                    fragmentRef.value = fragment
+                    fragmentDoublePageHolder[0] = isDoublePage
+                    fragment.addInputListener(tapListener)
+                    coroutineScope.launch {
+                        fragment.currentLocator.collect { locator ->
+                            currentHrefHolder[0] = locator.href.toString()
+                            onPositionChanged(locator)
+                        }
+                    }
+                }
+
+                fragmentRef.value?.let { fragment ->
+                    container.onNavigateForward = navigateForward@{
+                        val idx = state.publication.readingOrder
+                            .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
+                        if (idx < 0 || idx >= state.publication.readingOrder.size - 1) return@navigateForward
+                        fragment.goForward(animated = false)
+                    }
+                    container.onNavigateBackward = navigateBackward@{
+                        val idx = state.publication.readingOrder
+                            .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
+                        if (idx <= 0) return@navigateBackward
+                        val prevLink = state.publication.readingOrder[idx - 1]
+                        val locator = Locator.fromJSON(
+                            JSONObject()
+                                .put("href", prevLink.href.toString())
+                                .put("type", "application/xhtml+xml")
+                                .put("locations", JSONObject().put("progression", 1.0))
+                        ) ?: return@navigateBackward
+                        coroutineScope.launch {
+                            fragment.go(locator, animated = false)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        AnimatedVisibility(
+            visible = pullActive,
+            enter = slideInVertically(initialOffsetY = { if (pullForward) it else -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { if (pullForward) it else -it }) + fadeOut(),
+            modifier = Modifier
+                .align(if (pullForward) Alignment.BottomCenter else Alignment.TopCenter)
+                .padding(
+                    // Clear the chapter rail (~24dp) for forward; the floating top app bar
+                    // is hidden during reading so a smaller top inset is enough.
+                    bottom = if (pullForward) 56.dp else 0.dp,
+                    top = if (pullForward) 0.dp else 56.dp,
+                ),
+        ) {
+            PullChip(forward = pullForward, progress = pullProgress)
+        }
+    }
+}
+
+@Composable
+private fun PullChip(forward: Boolean, progress: Float) {
+    // inverseSurface/inverseOnSurface is the same pair Material 3 uses for Snackbars — it's
+    // explicitly the "always contrasts with the page" pair, so the chip stays visible in
+    // light, dark, and sepia reader themes alike.
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shadowElevation = 6.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.inverseOnSurface,
+                trackColor = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.3f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (forward) "Next chapter" else "Previous chapter",
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+    }
 }
 

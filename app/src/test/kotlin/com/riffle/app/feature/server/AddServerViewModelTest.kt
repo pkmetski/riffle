@@ -100,20 +100,26 @@ class AddServerViewModelTest {
         RecordingRepository(authResult)
 
     @Test
-    fun `onConnect with invalid url sets error`() = runTest {
+    fun `updateHost auto-splits a pasted http url into scheme and host`() {
         val vm = AddServerViewModel(fakeRepo(AuthenticateResult.Success(fakePending())))
-        vm.url = "not-a-url"
-        vm.username = "admin"
-        vm.onConnect()
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertNotNull(vm.error)
-        assertNull(vm.insecureWarning)
+        vm.updateHost("http://abs.example.com")
+        assertEquals("http://", vm.scheme)
+        assertEquals("abs.example.com", vm.host)
+    }
+
+    @Test
+    fun `updateScheme ignores values that are not http or https`() {
+        val vm = AddServerViewModel(fakeRepo(AuthenticateResult.Success(fakePending())))
+        val before = vm.scheme
+        vm.updateScheme("ftp://")
+        assertEquals(before, vm.scheme)
     }
 
     @Test
     fun `onConnect with http url shows insecure warning`() = runTest {
         val vm = AddServerViewModel(fakeRepo(AuthenticateResult.Success(fakePending())))
-        vm.url = "http://abs.example.com"
+        vm.updateScheme("http://")
+        vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.onConnect()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -126,7 +132,7 @@ class AddServerViewModelTest {
         val pending = fakePending()
         val repo = RecordingRepository(AuthenticateResult.Success(pending))
         val vm = AddServerViewModel(repo)
-        vm.url = "https://abs.example.com"
+        vm.updateScheme("https://"); vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.password = "pass"
         vm.onConnect()
@@ -140,7 +146,7 @@ class AddServerViewModelTest {
     @Test
     fun `onConnect wrong credentials sets error`() = runTest {
         val vm = AddServerViewModel(fakeRepo(AuthenticateResult.WrongCredentials("Bad creds")))
-        vm.url = "https://abs.example.com"
+        vm.updateScheme("https://"); vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.password = "wrong"
         vm.onConnect()
@@ -151,7 +157,7 @@ class AddServerViewModelTest {
     @Test
     fun `onConnect network error sets connection-failed message`() = runTest {
         val vm = AddServerViewModel(fakeRepo(AuthenticateResult.NetworkError(Exception("timeout"))))
-        vm.url = "https://abs.example.com"
+        vm.updateScheme("https://"); vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.onConnect()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -161,7 +167,7 @@ class AddServerViewModelTest {
     @Test
     fun `onInsecureWarningDismissed clears warning`() = runTest {
         val vm = AddServerViewModel(fakeRepo(AuthenticateResult.Success(fakePending())))
-        vm.url = "http://abs.example.com"
+        vm.updateScheme("http://"); vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.onConnect()
         vm.onInsecureWarningDismissed()
@@ -172,7 +178,7 @@ class AddServerViewModelTest {
     fun `onInsecureWarningAccepted calls authenticate with insecureAllowed true`() = runTest {
         val repo = RecordingRepository(AuthenticateResult.Success(fakePending()))
         val vm = AddServerViewModel(repo)
-        vm.url = "http://abs.example.com"
+        vm.updateScheme("http://"); vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.onInsecureWarningAccepted()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -182,7 +188,7 @@ class AddServerViewModelTest {
     @Test
     fun `isLoading is false after login completes`() = runTest {
         val vm = AddServerViewModel(fakeRepo(AuthenticateResult.WrongCredentials("x")))
-        vm.url = "https://abs.example.com"
+        vm.updateScheme("https://"); vm.updateHost("abs.example.com")
         vm.username = "admin"
         vm.onConnect()
         testDispatcher.scheduler.advanceUntilIdle()

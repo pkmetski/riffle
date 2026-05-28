@@ -2,6 +2,7 @@ package com.riffle.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.FormattingPreferences
@@ -15,8 +16,10 @@ import com.riffle.core.domain.ServerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
@@ -36,6 +39,7 @@ class SettingsViewModel @Inject constructor(
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
+    private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
@@ -55,6 +59,26 @@ class SettingsViewModel @Inject constructor(
 
     val servers: StateFlow<List<Server>> = serverRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val versionsCache = mutableMapOf<String, String>()
+    private val _serverVersions = MutableStateFlow<Map<String, String>>(emptyMap())
+    val serverVersions: StateFlow<Map<String, String>> = _serverVersions.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            // Re-attempt whenever the server list changes or connectivity flips.
+            // See NavigationDrawerViewModel for why we don't gate on isOnline=true.
+            combine(servers, connectivityObserver.isOnline) { srvs, _ -> srvs }
+                .collect { srvs ->
+                    srvs.forEach { server ->
+                        if (server.id in versionsCache) return@forEach
+                        val version = serverRepository.getServerVersion(server.id) ?: return@forEach
+                        versionsCache[server.id] = version
+                        _serverVersions.value = versionsCache.toMap()
+                    }
+                }
+        }
+    }
 
     private val activeServer: StateFlow<Server?> = servers
         .map { it.firstOrNull { s -> s.isActive } }

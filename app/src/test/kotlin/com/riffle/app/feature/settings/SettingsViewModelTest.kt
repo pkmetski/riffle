@@ -3,6 +3,7 @@ package com.riffle.app.feature.settings
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingServer
 import java.io.IOException
 import com.riffle.core.domain.CrashReport
@@ -134,6 +135,11 @@ class SettingsViewModelTest {
         }
     }
 
+    private val isOnlineFlow = MutableStateFlow(true)
+    private val fakeConnectivity = object : ConnectivityObserver {
+        override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
+    }
+
     private fun makeViewModel(report: CrashReport? = null) = SettingsViewModel(
         crashReportRepository = object : CrashReportRepository {
             override fun getLastCrashReport() = report
@@ -144,6 +150,7 @@ class SettingsViewModelTest {
         visibilityStore = fakeVisibilityStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        connectivityObserver = fakeConnectivity,
     )
 
     // --- existing crash report tests (unchanged) ---

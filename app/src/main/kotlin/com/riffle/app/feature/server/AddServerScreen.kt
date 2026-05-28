@@ -1,20 +1,28 @@
 package com.riffle.app.feature.server
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -22,6 +30,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -69,15 +81,39 @@ fun AddServerScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(
-                value = viewModel.url,
-                onValueChange = { viewModel.url = it },
-                label = { Text("Server URL") },
-                placeholder = { Text("https://abs.example.com") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                singleLine = true,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                var schemeExpanded by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { schemeExpanded = true }) {
+                        Text(viewModel.scheme)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose scheme")
+                    }
+                    DropdownMenu(
+                        expanded = schemeExpanded,
+                        onDismissRequest = { schemeExpanded = false },
+                    ) {
+                        listOf("https://", "http://").forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    viewModel.updateScheme(option)
+                                    schemeExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = viewModel.host,
+                    onValueChange = { viewModel.updateHost(it) },
+                    label = { Text("Server URL") },
+                    placeholder = { Text("abs.example.com") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    singleLine = true,
+                )
+            }
             OutlinedTextField(
                 value = viewModel.username,
                 onValueChange = { viewModel.username = it },
@@ -103,7 +139,7 @@ fun AddServerScreen(
                 Button(
                     onClick = viewModel::onConnect,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = viewModel.url.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
+                    enabled = viewModel.host.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
                 ) {
                     Text("Connect")
                 }
