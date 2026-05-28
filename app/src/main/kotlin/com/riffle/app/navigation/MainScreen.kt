@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -126,10 +127,11 @@ fun MainScreen(
                 )
             }
             navigation(startDestination = ADD_SERVER, route = SERVER_SETUP_GRAPH) {
-                composable(ADD_SERVER) {
-                    val setupVm: ServerSetupViewModel = hiltViewModel(
+                composable(ADD_SERVER) { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry(SERVER_SETUP_GRAPH)
-                    )
+                    }
+                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
                     AddServerScreen(
                         onNavigateBack = {
                             navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
@@ -140,10 +142,11 @@ fun MainScreen(
                         },
                     )
                 }
-                composable(SELECT_LIBRARIES) {
-                    val setupVm: ServerSetupViewModel = hiltViewModel(
+                composable(SELECT_LIBRARIES) { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry(SERVER_SETUP_GRAPH)
-                    )
+                    }
+                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
                     val pending = setupVm.pendingServer
                     if (pending == null) {
                         LaunchedEffect(Unit) { navController.popBackStack() }
