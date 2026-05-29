@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Riffle" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Riffle" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Required on the AOSP Material parent so enableEdgeToEdge() can actually
+             control the system bar colors at runtime; without it the platform composites
+             its own opaque backgrounds. -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
 </resources>

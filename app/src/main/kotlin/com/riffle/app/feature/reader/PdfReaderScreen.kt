@@ -170,6 +170,7 @@ fun PdfReaderScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                colors = readerTopAppBarColors(),
             )
         }
     }
