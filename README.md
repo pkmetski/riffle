@@ -6,32 +6,32 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 
 ## Features
 
-- [x] Project scaffold & CI pipeline ([#3](https://github.com/pkmetski/riffle/issues/3))
-- [x] Server login & management ([#4](https://github.com/pkmetski/riffle/issues/4))
-- [x] Library browsing — flat Library Item list ([#5](https://github.com/pkmetski/riffle/issues/5))
-- [x] Series & Collections hierarchy ([#6](https://github.com/pkmetski/riffle/issues/6))
-- [x] EPUB reader — open & navigate ([#7](https://github.com/pkmetski/riffle/issues/7))
-- [ ] Autonomous Test Harness ([#8](https://github.com/pkmetski/riffle/issues/8))
-- [ ] PDF reader — open & navigate ([#9](https://github.com/pkmetski/riffle/issues/9))
-- [x] Reading Session & outbound Progress Sync ([#10](https://github.com/pkmetski/riffle/issues/10))
-- [x] Inbound Progress Sync & conflict resolution ([#11](https://github.com/pkmetski/riffle/issues/11))
-- [x] Offline Mode & Downloads ([#12](https://github.com/pkmetski/riffle/issues/12))
-- [x] EPUB Formatting Preferences ([#13](https://github.com/pkmetski/riffle/issues/13))
-- [ ] PDF Formatting Preferences ([#14](https://github.com/pkmetski/riffle/issues/14))
-- [x] Table of Contents navigation ([#15](https://github.com/pkmetski/riffle/issues/15))
-- [ ] Chapter Navigation Rail ([#16](https://github.com/pkmetski/riffle/issues/16))
-- [ ] EPUB Highlights & Notes ([#17](https://github.com/pkmetski/riffle/issues/17))
-- [ ] Bookmarks (EPUB & PDF) ([#18](https://github.com/pkmetski/riffle/issues/18))
-- [ ] Annotations panel ([#19](https://github.com/pkmetski/riffle/issues/19))
-- [ ] Reading Statistics screen ([#20](https://github.com/pkmetski/riffle/issues/20))
-- [x] Crash Reporter (ACRA) ([#21](https://github.com/pkmetski/riffle/issues/21))
-- [x] Screen Wake Lock ([#22](https://github.com/pkmetski/riffle/issues/22))
-- [x] Fullscreen reader mode ([#50](https://github.com/pkmetski/riffle/issues/50))
-- [x] Navigation Drawer UX — replaces server & library list screens ([#54](https://github.com/pkmetski/riffle/issues/54))
-- [x] Library screen redesign — Plex-style sections with cover grid ([#66](https://github.com/pkmetski/riffle/issues/66))
-- [x] Read/unread toggle ([#42](https://github.com/pkmetski/riffle/issues/42))
-- [x] Justify text toggle for EPUB reader ([#106](https://github.com/pkmetski/riffle/issues/106))
-- [x] Fully immersive mode — hide Android status bar ([#101](https://github.com/pkmetski/riffle/issues/101))
+- [x] Project scaffold & CI pipeline ([#3](https://codeberg.org/pkmetski/riffle/issues/3))
+- [x] Server login & management ([#4](https://codeberg.org/pkmetski/riffle/issues/4))
+- [x] Library browsing — flat Library Item list ([#5](https://codeberg.org/pkmetski/riffle/issues/5))
+- [x] Series & Collections hierarchy ([#6](https://codeberg.org/pkmetski/riffle/issues/6))
+- [x] EPUB reader — open & navigate ([#7](https://codeberg.org/pkmetski/riffle/issues/7))
+- [ ] Autonomous Test Harness ([#8](https://codeberg.org/pkmetski/riffle/issues/8))
+- [ ] PDF reader — open & navigate ([#9](https://codeberg.org/pkmetski/riffle/issues/9))
+- [x] Reading Session & outbound Progress Sync ([#10](https://codeberg.org/pkmetski/riffle/issues/10))
+- [x] Inbound Progress Sync & conflict resolution ([#11](https://codeberg.org/pkmetski/riffle/issues/11))
+- [x] Offline Mode & Downloads ([#12](https://codeberg.org/pkmetski/riffle/issues/12))
+- [x] EPUB Formatting Preferences ([#13](https://codeberg.org/pkmetski/riffle/issues/13))
+- [ ] PDF Formatting Preferences ([#14](https://codeberg.org/pkmetski/riffle/issues/14))
+- [x] Table of Contents navigation ([#15](https://codeberg.org/pkmetski/riffle/issues/15))
+- [ ] Chapter Navigation Rail ([#16](https://codeberg.org/pkmetski/riffle/issues/16))
+- [ ] EPUB Highlights & Notes ([#17](https://codeberg.org/pkmetski/riffle/issues/17))
+- [ ] Bookmarks (EPUB & PDF) ([#18](https://codeberg.org/pkmetski/riffle/issues/18))
+- [ ] Annotations panel ([#19](https://codeberg.org/pkmetski/riffle/issues/19))
+- [ ] Reading Statistics screen ([#20](https://codeberg.org/pkmetski/riffle/issues/20))
+- [x] Crash Reporter (ACRA) ([#21](https://codeberg.org/pkmetski/riffle/issues/21))
+- [x] Screen Wake Lock ([#22](https://codeberg.org/pkmetski/riffle/issues/22))
+- [x] Fullscreen reader mode ([#50](https://codeberg.org/pkmetski/riffle/issues/50))
+- [x] Navigation Drawer UX — replaces server & library list screens ([#54](https://codeberg.org/pkmetski/riffle/issues/54))
+- [x] Library screen redesign — Plex-style sections with cover grid ([#66](https://codeberg.org/pkmetski/riffle/issues/66))
+- [x] Read/unread toggle ([#42](https://codeberg.org/pkmetski/riffle/issues/42))
+- [x] Justify text toggle for EPUB reader ([#106](https://codeberg.org/pkmetski/riffle/issues/106))
+- [x] Fully immersive mode — hide Android status bar ([#101](https://codeberg.org/pkmetski/riffle/issues/101))
 - [x] "To Read" toggle on each book — per-Library ABS Collection
 
 ## Requirements
@@ -45,7 +45,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 |---------|--------|
 | Google Play Store | Planned |
 | F-Droid | Planned |
-| GitHub Releases | CI-built signed APK |
+| Codeberg Releases | CI-built signed APK |
 
 ## Architecture
 

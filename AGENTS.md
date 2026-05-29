@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues live in GitHub Issues (`github.com/pkmetski/riffle`). See `docs/agents/issue-tracker.md`.
+Issues live in Codeberg Issues (`codeberg.org/pkmetski/riffle`). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
