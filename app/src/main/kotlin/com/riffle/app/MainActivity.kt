@@ -1,9 +1,11 @@
 package com.riffle.app
 
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.Fragment
@@ -50,7 +52,20 @@ class MainActivity : FragmentActivity() {
             .stateIn(lifecycleScope, SharingStarted.Eagerly, true)
         invertVolumeKeys = volumeKeyPreferencesStore.invertVolumeKeys
             .stateIn(lifecycleScope, SharingStarted.Eagerly, false)
-        enableEdgeToEdge()
+        // Status bar fully transparent; navigation bar gets a light translucent scrim so the
+        // home/back/recents icons stay legible over reader content without producing a solid
+        // strip when Immersive mode exits. The OS contrast scrim is disabled so only our
+        // explicit alpha values apply.
+        val transparent = android.graphics.Color.TRANSPARENT
+        val navScrim = android.graphics.Color.argb(0x99, 0, 0, 0) // ~60% black
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(transparent, transparent),
+            navigationBarStyle = SystemBarStyle.auto(navScrim, navScrim),
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
         setContent {
             RiffleTheme {
                 MainScreen()

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -164,16 +163,18 @@ fun EpubReaderScreen(
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
+    //
+    // The WebView is intentionally NOT padded by navigationBarsPadding: with transparent
+    // system bars (see MainActivity.enableEdgeToEdge + themes.xml), the page extends edge
+    // to edge and the nav bar floats over the last sliver of content. Padding would carve
+    // out a solid strip behind the bar that doesn't blend with any reader theme — exactly
+    // the "white/black bar" the user reported when exiting Immersive mode.
     Box(modifier = Modifier.fillMaxSize()) {
-        // navigationBarsPadding only — status bar insets are consumed at the AndroidView
-        // root (see ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so
-        // they never reach Readium's WebViews. The floating TopAppBar carries its own
+        // Status bar insets are consumed at the AndroidView root (see
+        // ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so they never
+        // reach Readium's WebViews. The floating TopAppBar carries its own
         // TopAppBarDefaults.windowInsets to position itself below the status bar when visible.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding(),
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             when (val s = state) {
                 ReaderState.Loading -> {
                     CircularProgressIndicator(
@@ -288,6 +289,7 @@ fun EpubReaderScreen(
                             }
                         }
                     },
+                    colors = readerTopAppBarColors(),
                 )
             }
         }
@@ -315,6 +317,17 @@ fun EpubReaderScreen(
         }
     }
 }
+
+// Reader TopAppBar palette: ~60% black scrim matching the system nav bar so both bars
+// read as translucent overlays on the page rather than opaque chrome.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+    containerColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f),
+    titleContentColor = androidx.compose.ui.graphics.Color.White,
+    navigationIconContentColor = androidx.compose.ui.graphics.Color.White,
+    actionIconContentColor = androidx.compose.ui.graphics.Color.White,
+)
 
 // Isolated scope: cursorPosition updates only recompose this composable, not sibling EpubNavigatorView.
 @Composable

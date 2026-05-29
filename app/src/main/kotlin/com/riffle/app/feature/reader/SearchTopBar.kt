@@ -59,6 +59,7 @@ fun SearchTopBar(
 
     TopAppBar(
         windowInsets = TopAppBarDefaults.windowInsets,
+        colors = readerTopAppBarColors(),
         navigationIcon = {
             IconButton(onClick = onNavigateBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -68,7 +69,7 @@ fun SearchTopBar(
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Search in book…") },
+                placeholder = { Text("Search in book…", color = Color.White.copy(alpha = 0.6f)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {}),
@@ -77,6 +78,9 @@ fun SearchTopBar(
                     unfocusedContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.White,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +92,7 @@ fun SearchTopBar(
             Text(
                 text = countText,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.7f),
                 modifier = Modifier
                     .padding(end = 4.dp)
                     .testTag(SearchTopBarTags.COUNT),
