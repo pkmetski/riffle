@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Build Signed APK
@@ -22,6 +25,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Download Gradle wrapper jar
         run: |
@@ -30,6 +35,19 @@ jobs:
 
       - name: Download fonts
         run: make fonts
+
+      - name: Compute version from tag
+        id: ver
+        run: |
+          NAME="${GITHUB_REF_NAME#v}"
+          if ! [[ "$NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          IFS=. read -r MAJ MIN PAT <<<"$NAME"
+          CODE=$((10#$MAJ * 10000 + 10#$MIN * 100 + 10#$PAT))
+          echo "name=$NAME" >>"$GITHUB_OUTPUT"
+          echo "code=$CODE" >>"$GITHUB_OUTPUT"
 
       - name: Decode keystore
         env:
@@ -43,10 +61,41 @@ jobs:
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-        run: ./gradlew :app:assembleRelease -PversionName=${GITHUB_REF_NAME#v}
+        run: |
+          ./gradlew :app:assembleRelease \
+            -PversionName=${{ steps.ver.outputs.name }} \
+            -PversionCode=${{ steps.ver.outputs.code }}
+
+      - name: Verify APK is signed
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --verbose "$APK"
+
+      - name: Write F-Droid changelog
+        env:
+          NAME: ${{ steps.ver.outputs.name }}
+          CODE: ${{ steps.ver.outputs.code }}
+        run: |
+          DIR=fastlane/metadata/android/en-US/changelogs
+          mkdir -p "$DIR"
+          echo "Release v$NAME — see https://github.com/${{ github.repository }}/releases/tag/v$NAME" > "$DIR/$CODE.txt"
+
+      - name: Commit changelog back to main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout main
+          git add fastlane/metadata/android/en-US/changelogs/${{ steps.ver.outputs.code }}.txt
+          git commit -m "chore(fdroid): changelog for v${{ steps.ver.outputs.name }}" || echo "no change"
+          git push origin main
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f release.jks
