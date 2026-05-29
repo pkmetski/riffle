@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -100,6 +101,17 @@ fun RiffleNavigationDrawer(
                         icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                         selected = false,
                         onClick = onSettingsSelected,
+                    )
+                    val uriHandler = LocalUriHandler.current
+                    Text(
+                        text = "☕ Support on Ko-fi",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { uriHandler.openUri("https://ko-fi.com/pkmetski") }
+                            .padding(top = 8.dp, bottom = 2.dp),
+                        textAlign = TextAlign.Center,
                     )
                     Text(
                         text = "Riffle v${BuildConfig.VERSION_NAME}",
