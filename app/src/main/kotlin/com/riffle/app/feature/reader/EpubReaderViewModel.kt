@@ -45,6 +45,7 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.locateProgression
+import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
@@ -402,7 +403,16 @@ class EpubReaderViewModel @Inject constructor(
     val railSegments: StateFlow<List<RailSegment>> = state
         .map { s ->
             val ready = s as? ReaderState.Ready ?: return@map emptyList()
-            buildRailSegments(ready.publication.tableOfContents.toTocEntries(), ready.title)
+            val base = buildRailSegments(ready.publication.tableOfContents.toTocEntries(), ready.title)
+            val pub = ready.publication
+            val positions: List<List<Locator>> = try {
+                pub.positionsByReadingOrder()
+            } catch (_: Throwable) {
+                emptyList()
+            }
+            val spineHrefs = pub.readingOrder.map { it.url().toString() }
+            val positionCounts = positions.map { it.size }
+            weightSegmentsByChapterLength(base, spineHrefs, positionCounts)
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -413,16 +423,15 @@ class EpubReaderViewModel @Inject constructor(
         if (href == null) 0 else findActiveSegmentIndex(segments, href)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    // Cursor position within the rail (0..1). Derived from active segment + within-chapter
-    // progression so the cursor is always inside the highlighted (active) segment, regardless
-    // of whether chapter lengths match the equal-width segment layout.
+    // Cursor position within the rail (0..1). Active segment + within-chapter progression are
+    // mapped through cumulative segment weights so the cursor stays inside the highlighted
+    // (active) segment even when segments have unequal widths.
     val railCursorPosition: StateFlow<Float> = combine(
         activeRailSegmentIndex,
         railSegments,
         currentLocatorProgression,
     ) { activeIndex, segments, progression ->
-        if (segments.isEmpty()) 0f
-        else ((activeIndex + progression.coerceIn(0f, 1f)) / segments.size).coerceIn(0f, 1f)
+        weightedRailCursorPosition(activeIndex, segments, progression)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     fun openSearch() {

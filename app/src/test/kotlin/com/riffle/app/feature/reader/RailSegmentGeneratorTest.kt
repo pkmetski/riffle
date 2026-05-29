@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RailSegmentGeneratorTest {
@@ -260,5 +261,240 @@ class RailSegmentGeneratorTest {
         val segments = buildRailSegments(toc)
         assertEquals(1, segments.size)
         assertEquals(RailSegment("Only Chapter", "only.xhtml"), segments[0])
+    }
+
+    // ── weightSegmentsByChapterLength ─────────────────────────────────────
+
+    @Test
+    fun `weights match spine position counts for one-to-one mapping`() {
+        val segs = listOf(
+            RailSegment("A", "a.xhtml"),
+            RailSegment("B", "b.xhtml"),
+            RailSegment("C", "c.xhtml"),
+        )
+        val weighted = weightSegmentsByChapterLength(
+            segs,
+            spineHrefs = listOf("a.xhtml", "b.xhtml", "c.xhtml"),
+            positionCounts = listOf(10, 30, 60),
+        )
+        assertEquals(10f, weighted[0].weight, 0f)
+        assertEquals(30f, weighted[1].weight, 0f)
+        assertEquals(60f, weighted[2].weight, 0f)
+    }
+
+    @Test
+    fun `weights split equally when multiple segments share one spine resource`() {
+        val segs = listOf(
+            RailSegment("1.1", "chapter1.xhtml#s1"),
+            RailSegment("1.2", "chapter1.xhtml#s2"),
+            RailSegment("2", "chapter2.xhtml"),
+        )
+        val weighted = weightSegmentsByChapterLength(
+            segs,
+            spineHrefs = listOf("chapter1.xhtml", "chapter2.xhtml"),
+            positionCounts = listOf(40, 20),
+        )
+        assertEquals(20f, weighted[0].weight, 0f)
+        assertEquals(20f, weighted[1].weight, 0f)
+        assertEquals(20f, weighted[2].weight, 0f)
+    }
+
+    @Test
+    fun `segments without spine match fall back to weight 1`() {
+        val segs = listOf(
+            RailSegment("A", "a.xhtml"),
+            RailSegment("Unknown", "missing.xhtml"),
+        )
+        val weighted = weightSegmentsByChapterLength(
+            segs,
+            spineHrefs = listOf("a.xhtml"),
+            positionCounts = listOf(50),
+        )
+        assertEquals(50f, weighted[0].weight, 0f)
+        assertEquals(1f, weighted[1].weight, 0f)
+    }
+
+    @Test
+    fun `empty position list leaves weights at default 1`() {
+        val segs = listOf(RailSegment("A", "a.xhtml"), RailSegment("B", "b.xhtml"))
+        val weighted = weightSegmentsByChapterLength(
+            segs,
+            spineHrefs = listOf("a.xhtml", "b.xhtml"),
+            positionCounts = emptyList(),
+        )
+        assertEquals(1f, weighted[0].weight, 0f)
+        assertEquals(1f, weighted[1].weight, 0f)
+    }
+
+    // ── railSegmentBounds ─────────────────────────────────────────────────
+
+    @Test
+    fun `bounds widths are proportional to weights`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 10f),
+            RailSegment("B", "b", weight = 30f),
+            RailSegment("C", "c", weight = 60f),
+        )
+        val bounds = railSegmentBounds(segs, totalWidth = 1000f)
+        assertEquals(0f, bounds[0].first, 0.001f)
+        assertEquals(100f, bounds[0].second, 0.001f)
+        assertEquals(100f, bounds[1].first, 0.001f)
+        assertEquals(300f, bounds[1].second, 0.001f)
+        assertEquals(400f, bounds[2].first, 0.001f)
+        assertEquals(600f, bounds[2].second, 0.001f)
+    }
+
+    @Test
+    fun `bounds widths sum exactly to total width with no overlap or gap`() {
+        // Pathological weights designed to expose accumulated FP drift.
+        val segs = (1..17).map { RailSegment("c$it", "c$it.xhtml", weight = it.toFloat() * 1.7f) }
+        val total = 1080f
+        val bounds = railSegmentBounds(segs, totalWidth = total)
+        // Sum of widths == total (within fp tolerance)
+        val sumWidths = bounds.sumOf { it.second.toDouble() }
+        assertEquals(total.toDouble(), sumWidths, 0.0005)
+        // Adjacent segments touch exactly: bounds[i].end == bounds[i+1].start
+        for (i in 0 until bounds.size - 1) {
+            val endI = bounds[i].first + bounds[i].second
+            assertEquals("segment $i end != segment ${i + 1} start", bounds[i + 1].first, endI, 0f)
+        }
+        // First starts at 0, last ends at total.
+        assertEquals(0f, bounds.first().first, 0f)
+        assertEquals(total, bounds.last().first + bounds.last().second, 0.0005f)
+    }
+
+    @Test
+    fun `equal weights fall back when total weight is zero`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 0f),
+            RailSegment("B", "b", weight = 0f),
+        )
+        val bounds = railSegmentBounds(segs, totalWidth = 100f)
+        // With zero total, neutral fallback should still produce a valid layout summing to total.
+        val sum = bounds.sumOf { it.second.toDouble() }
+        assertEquals(100.0, sum, 0.0005)
+    }
+
+    @Test
+    fun `empty segments produces empty bounds`() {
+        assertEquals(emptyList<Pair<Float, Float>>(), railSegmentBounds(emptyList(), 1000f))
+    }
+
+    @Test
+    fun `zero or negative total width produces empty bounds`() {
+        val segs = listOf(RailSegment("A", "a"))
+        assertEquals(emptyList<Pair<Float, Float>>(), railSegmentBounds(segs, 0f))
+        assertEquals(emptyList<Pair<Float, Float>>(), railSegmentBounds(segs, -10f))
+    }
+
+    // ── weightedRailCursorPosition ────────────────────────────────────────
+
+    @Test
+    fun `cursor at progression 0 sits at active segment left edge`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 10f),
+            RailSegment("B", "b", weight = 30f),
+            RailSegment("C", "c", weight = 60f),
+        )
+        // Segment 1 ("B") covers [10/100, 40/100] = [0.1, 0.4]
+        assertEquals(0.1f, weightedRailCursorPosition(1, segs, 0f), 0.0001f)
+    }
+
+    @Test
+    fun `cursor at progression 1 sits at active segment right edge`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 10f),
+            RailSegment("B", "b", weight = 30f),
+            RailSegment("C", "c", weight = 60f),
+        )
+        assertEquals(0.4f, weightedRailCursorPosition(1, segs, 1f), 0.0001f)
+    }
+
+    @Test
+    fun `cursor at progression 0_5 sits at active segment midpoint`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 10f),
+            RailSegment("B", "b", weight = 30f),
+            RailSegment("C", "c", weight = 60f),
+        )
+        assertEquals(0.25f, weightedRailCursorPosition(1, segs, 0.5f), 0.0001f)
+    }
+
+    @Test
+    fun `cursor always stays within active segment bounds for any weights`() {
+        // Cover several weight distributions, including extreme imbalance.
+        val weightSets: List<List<Float>> = listOf(
+            listOf(1f, 1f, 1f, 1f),
+            listOf(1f, 50f, 1f, 50f),
+            listOf(100f, 1f, 100f, 1f),
+            listOf(7f, 13f, 23f, 41f, 59f),
+        )
+        for (weights in weightSets) {
+            val segs = weights.mapIndexed { i, w -> RailSegment("$i", "c$i.xhtml", weight = w) }
+            val bounds = railSegmentBounds(segs, totalWidth = 1f)
+            for (active in segs.indices) {
+                val (left, width) = bounds[active]
+                val right = left + width
+                for (p in listOf(0f, 0.001f, 0.25f, 0.5f, 0.75f, 0.999f, 1f)) {
+                    val cursor = weightedRailCursorPosition(active, segs, p)
+                    assertTrue(
+                        "weights=$weights active=$active p=$p cursor=$cursor not in [$left,$right]",
+                        cursor in left..right,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `cursor returns 0 for empty segments`() {
+        assertEquals(0f, weightedRailCursorPosition(0, emptyList(), 0.5f), 0f)
+    }
+
+    @Test
+    fun `cursor clamps out-of-range active index`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 10f),
+            RailSegment("B", "b", weight = 30f),
+        )
+        // activeIndex past end → clamped to last segment ("B" at [0.25, 1.0])
+        assertEquals(0.25f, weightedRailCursorPosition(99, segs, 0f), 0.0001f)
+        assertEquals(1.0f, weightedRailCursorPosition(99, segs, 1f), 0.0001f)
+        // activeIndex negative → clamped to first ("A" at [0.0, 0.25])
+        assertEquals(0f, weightedRailCursorPosition(-3, segs, 0f), 0.0001f)
+        assertEquals(0.25f, weightedRailCursorPosition(-3, segs, 1f), 0.0001f)
+    }
+
+    // ── railSegmentIndexAt (tap hit-test) ─────────────────────────────────
+
+    @Test
+    fun `tap hit-test returns segment containing the x position`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 10f),
+            RailSegment("B", "b", weight = 30f),
+            RailSegment("C", "c", weight = 60f),
+        )
+        // Width 100 → segment boundaries at 10, 40
+        assertEquals(0, railSegmentIndexAt(segs, 0f, 100f))
+        assertEquals(0, railSegmentIndexAt(segs, 9.99f, 100f))
+        assertEquals(1, railSegmentIndexAt(segs, 10.01f, 100f))
+        assertEquals(1, railSegmentIndexAt(segs, 39.99f, 100f))
+        assertEquals(2, railSegmentIndexAt(segs, 40.01f, 100f))
+        assertEquals(2, railSegmentIndexAt(segs, 100f, 100f))
+    }
+
+    @Test
+    fun `tap hit-test clamps out-of-range x to the nearest end`() {
+        val segs = listOf(
+            RailSegment("A", "a", weight = 1f),
+            RailSegment("B", "b", weight = 1f),
+        )
+        assertEquals(0, railSegmentIndexAt(segs, -50f, 100f))
+        assertEquals(1, railSegmentIndexAt(segs, 9999f, 100f))
+    }
+
+    @Test
+    fun `tap hit-test on empty segments returns -1`() {
+        assertEquals(-1, railSegmentIndexAt(emptyList(), 5f, 100f))
     }
 }
