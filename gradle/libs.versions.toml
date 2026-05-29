@@ -21,7 +21,7 @@ junitExt = "1.2.1"
 espressoCore = "3.7.0"
 androidxTest = "1.6.2"
 coroutines = "1.11.0"
-kotlinx-serialization = "1.7.3"
+kotlinx-serialization = "1.11.0"
 coil = "2.7.0"
 jsoup = "1.22.2"
 
