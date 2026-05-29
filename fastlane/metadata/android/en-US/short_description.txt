@@ -1,0 +1,1 @@
+A Readium-based EPUB and PDF reader that syncs with Audiobookshelf libraries.
