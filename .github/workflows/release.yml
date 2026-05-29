@@ -69,7 +69,8 @@ jobs:
       - name: Verify APK is signed
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --verbose "$APK"
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Write F-Droid changelog
         env:
