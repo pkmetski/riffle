@@ -2,37 +2,43 @@
 
 An Android ebook reader for [Audiobookshelf](https://www.audiobookshelf.org/) self-hosted servers.
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)
+
 Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync reading progress — all from a clean, privacy-respecting Android app.
 
 ## Features
 
-- [x] Project scaffold & CI pipeline ([#3](https://github.com/pkmetski/riffle/issues/3))
-- [x] Server login & management ([#4](https://github.com/pkmetski/riffle/issues/4))
-- [x] Library browsing — flat Library Item list ([#5](https://github.com/pkmetski/riffle/issues/5))
-- [x] Series & Collections hierarchy ([#6](https://github.com/pkmetski/riffle/issues/6))
-- [x] EPUB reader — open & navigate ([#7](https://github.com/pkmetski/riffle/issues/7))
-- [ ] Autonomous Test Harness ([#8](https://github.com/pkmetski/riffle/issues/8))
-- [ ] PDF reader — open & navigate ([#9](https://github.com/pkmetski/riffle/issues/9))
-- [x] Reading Session & outbound Progress Sync ([#10](https://github.com/pkmetski/riffle/issues/10))
-- [x] Inbound Progress Sync & conflict resolution ([#11](https://github.com/pkmetski/riffle/issues/11))
-- [x] Offline Mode & Downloads ([#12](https://github.com/pkmetski/riffle/issues/12))
-- [x] EPUB Formatting Preferences ([#13](https://github.com/pkmetski/riffle/issues/13))
-- [ ] PDF Formatting Preferences ([#14](https://github.com/pkmetski/riffle/issues/14))
-- [x] Table of Contents navigation ([#15](https://github.com/pkmetski/riffle/issues/15))
-- [ ] Chapter Navigation Rail ([#16](https://github.com/pkmetski/riffle/issues/16))
-- [ ] EPUB Highlights & Notes ([#17](https://github.com/pkmetski/riffle/issues/17))
-- [ ] Bookmarks (EPUB & PDF) ([#18](https://github.com/pkmetski/riffle/issues/18))
-- [ ] Annotations panel ([#19](https://github.com/pkmetski/riffle/issues/19))
-- [ ] Reading Statistics screen ([#20](https://github.com/pkmetski/riffle/issues/20))
-- [x] Crash Reporter (ACRA) ([#21](https://github.com/pkmetski/riffle/issues/21))
-- [x] Screen Wake Lock ([#22](https://github.com/pkmetski/riffle/issues/22))
-- [x] Fullscreen reader mode ([#50](https://github.com/pkmetski/riffle/issues/50))
-- [x] Navigation Drawer UX — replaces server & library list screens ([#54](https://github.com/pkmetski/riffle/issues/54))
-- [x] Library screen redesign — Plex-style sections with cover grid ([#66](https://github.com/pkmetski/riffle/issues/66))
-- [x] Read/unread toggle ([#42](https://github.com/pkmetski/riffle/issues/42))
-- [x] Justify text toggle for EPUB reader ([#106](https://github.com/pkmetski/riffle/issues/106))
-- [x] Fully immersive mode — hide Android status bar ([#101](https://github.com/pkmetski/riffle/issues/101))
-- [x] "To Read" toggle on each book — per-Library ABS Collection
+### Reading
+- EPUB and PDF readers
+- Table of Contents navigation
+- In-book text search
+- Chapter map progress indicator
+- Fullscreen immersive reading mode
+
+### Reading Display
+- Rich formatting controls (themes, fonts, sizing, spacing, margins, justification)
+- Paginated and continuous scroll modes, with landscape double-page spread
+- Per-book formatting overrides
+- Volume-key page navigation
+- Keep screen on
+
+### Library
+- Multi-server support with library visibility controls
+- Browse by Home, Series, Collections, and All Books
+- Plex-style cover grid with book details
+- Read/unread and "To Read" toggles
+- Full-text library search
+
+### Downloads & Offline
+- Download for offline reading, plus automatic caching on open
+- Downloads manager with bulk removal
+- Offline detection and seamless offline reading
+
+### Server & Sync
+- Audiobookshelf login with secure token storage and insecure-connection warnings
+- Bidirectional progress sync with last-update-wins conflict resolution
+- Periodic auto-sync and offline queueing
+- Reading session time tracking
 
 ## Requirements
 
@@ -45,7 +51,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 |---------|--------|
 | Google Play Store | Planned |
 | F-Droid | Planned |
-| GitHub Releases | CI-built signed APK |
+| Codeberg Releases | CI-built signed APK |
 
 ## Architecture
 
@@ -59,17 +65,10 @@ core/database/        # Android — Room database
 core/data/            # Android — repository implementations, Keystore token storage
 ```
 
-Key decisions:
-- **Domain and data layers** are pure Kotlin with no Android imports — KMP-ready
-- **Android Keystore** stores session tokens (never SharedPreferences or plain DataStore)
-- **ACRA** for crash reporting (no Firebase / Crashlytics)
-- See [`docs/adr/`](docs/adr/) for full architecture decision records
-
 ## Development
 
 ### Prerequisites
 
-- macOS with Homebrew (for bootstrap)
 - Android SDK (via Android Studio or `sdkmanager`)
 
 ### Bootstrap
