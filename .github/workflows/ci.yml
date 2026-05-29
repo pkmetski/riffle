@@ -26,7 +26,7 @@ jobs:
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
@@ -51,7 +51,7 @@ jobs:
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
@@ -83,7 +83,7 @@ jobs:
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
@@ -133,7 +133,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
@@ -171,7 +171,7 @@ jobs:
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: app/src/main/assets/fonts
           key: fonts-v1-${{ hashFiles('Makefile') }}
