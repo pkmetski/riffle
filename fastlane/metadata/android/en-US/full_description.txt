@@ -1,0 +1,10 @@
+Riffle is an Android reader for EPUB and PDF books served by an Audiobookshelf instance.
+
+Features:
+- Connects to your self-hosted Audiobookshelf server and browses its book libraries.
+- Streams or downloads books on demand.
+- Reading experience powered by Readium, including pagination, themes, and font controls.
+- Immersive reading mode with edge-tap and volume-key navigation.
+- Per-book reading position is preserved between sessions.
+
+Riffle is open source. Source code, issues, and releases live on GitHub.
