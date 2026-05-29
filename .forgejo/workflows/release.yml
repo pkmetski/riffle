@@ -23,13 +23,15 @@ jobs:
       - name: Setup Gradle
         uses: https://github.com/gradle/actions/setup-gradle@v4
 
+      - name: Setup Android SDK
+        uses: https://github.com/android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
+
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-
-      - name: Download fonts
-        run: make fonts
 
       - name: Decode keystore
         env:

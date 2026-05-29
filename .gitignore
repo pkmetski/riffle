@@ -23,10 +23,5 @@ gradle/gradle-daemon-jvm.properties
 *.jks
 *.keystore
 
-# Font binaries (downloaded via `make fonts`)
-# Committed intentionally — remove this line if fonts are committed to repo
-# app/src/main/assets/fonts/*.ttf
-# app/src/main/assets/fonts/*.otf
-
 # Superpowers brainstorm sessions
 .superpowers/

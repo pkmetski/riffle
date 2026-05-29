@@ -22,16 +22,13 @@ jobs:
       - uses: https://github.com/gradle/actions/setup-gradle@v4
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - uses: https://github.com/android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
-        with:
-          path: app/src/main/assets/fonts
-          key: fonts-v1-${{ hashFiles('Makefile') }}
-          restore-keys: fonts-v1-
-      - run: make fonts
       - run: ./gradlew assembleDebug
 
   lint:
@@ -47,16 +44,13 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
           cache-read-only: true
+      - uses: https://github.com/android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
-        with:
-          path: app/src/main/assets/fonts
-          key: fonts-v1-${{ hashFiles('Makefile') }}
-          restore-keys: fonts-v1-
-      - run: make fonts
       - run: ./gradlew lint
       - name: Upload lint reports
         if: always()
@@ -79,16 +73,13 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
           cache-read-only: true
+      - uses: https://github.com/android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
-        with:
-          path: app/src/main/assets/fonts
-          key: fonts-v1-${{ hashFiles('Makefile') }}
-          restore-keys: fonts-v1-
-      - run: make fonts
       - run: ./gradlew test
       - name: Upload test reports
         if: always()
@@ -113,16 +104,13 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
           cache-read-only: true
+      - uses: https://github.com/android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
       - name: Download Gradle wrapper jar
         run: |
           curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
             "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
-      - uses: actions/cache@v4
-        with:
-          path: app/src/main/assets/fonts
-          key: fonts-v1-${{ hashFiles('Makefile') }}
-          restore-keys: fonts-v1-
-      - run: make fonts
       - run: ./gradlew :core:data:testDebugUnitTest -PintegrationTests
       - name: Upload test reports
         if: always()

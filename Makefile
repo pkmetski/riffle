@@ -1,5 +1,4 @@
 .DEFAULT_GOAL := help
-FONTS_DIR := app/src/main/assets/fonts
 WRAPPER_JAR := gradle/wrapper/gradle-wrapper.jar
 GRADLE_VERSION := 9.4.1
 
@@ -26,7 +25,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: bootstrap
-bootstrap: deps wrapper fonts ## Full first-time setup (installs deps, wrapper, fonts)
+bootstrap: deps wrapper ## Full first-time setup (installs deps, wrapper)
 
 .PHONY: deps
 deps: ## Install missing system dependencies (Java, Gradle via Homebrew on macOS)
@@ -46,40 +45,6 @@ wrapper: ## Download Gradle wrapper jar
 		echo "Downloaded $(WRAPPER_JAR)"; \
 	else \
 		echo "$(WRAPPER_JAR) already present"; \
-	fi
-
-.PHONY: fonts
-fonts: ## Download bundled fonts (Literata, Merriweather, OpenDyslexic — SIL OFL)
-	@mkdir -p $(FONTS_DIR)
-	@echo "Downloading fonts..."
-	@# Literata (Google Fonts GitHub)
-	@if [ ! -f "$(FONTS_DIR)/Literata-Regular.ttf" ]; then \
-		curl -fsSL -o /tmp/literata.zip \
-			"https://fonts.google.com/download?family=Literata" && \
-		unzip -o /tmp/literata.zip "*/static/*.ttf" -d /tmp/literata_extracted && \
-		cp /tmp/literata_extracted/**/*.ttf $(FONTS_DIR)/ 2>/dev/null || \
-		find /tmp/literata_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
-		rm -rf /tmp/literata.zip /tmp/literata_extracted; \
-		echo "Literata downloaded"; \
-	fi
-	@# Merriweather (Google Fonts GitHub)
-	@if [ ! -f "$(FONTS_DIR)/Merriweather-Regular.ttf" ]; then \
-		curl -fsSL -o /tmp/merriweather.zip \
-			"https://fonts.google.com/download?family=Merriweather" && \
-		unzip -o /tmp/merriweather.zip "*.ttf" -d /tmp/merriweather_extracted && \
-		find /tmp/merriweather_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
-		rm -rf /tmp/merriweather.zip /tmp/merriweather_extracted; \
-		echo "Merriweather downloaded"; \
-	fi
-	@# OpenDyslexic (GitHub releases)
-	@if [ ! -f "$(FONTS_DIR)/OpenDyslexic-Regular.otf" ]; then \
-		curl -fsSL -o /tmp/opendyslexic.zip \
-			"https://github.com/antijingoist/opendyslexic/releases/latest/download/OpenDyslexic-Fonts.zip" && \
-		unzip -o /tmp/opendyslexic.zip "*.otf" "*.ttf" -d /tmp/od_extracted && \
-		find /tmp/od_extracted -name "*.otf" -exec cp {} $(FONTS_DIR)/ \; && \
-		find /tmp/od_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
-		rm -rf /tmp/opendyslexic.zip /tmp/od_extracted; \
-		echo "OpenDyslexic downloaded"; \
 	fi
 
 .PHONY: build
@@ -103,13 +68,13 @@ clean: ## Clean build outputs
 	./gradlew clean
 
 .PHONY: install
-install: wrapper fonts ## Build debug APK and install on connected device
+install: wrapper ## Build debug APK and install on connected device
 	./gradlew :app:installDebug
 
 AVD_NAME := Harness_Medium_Phone
 
 .PHONY: harness-test
-harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run harness tests, then shut it down
+harness-test: wrapper ## Boot "Harness Medium Phone" AVD, run harness tests, then shut it down
 	@AVD_CONFIG=$$HOME/.android/avd/$(AVD_NAME).avd/config.ini; \
 	echo "Ensuring AVD heap is 1024 MB (was: $$(grep vm.heapSize $$AVD_CONFIG))..."; \
 	sed -i '' 's/^vm\.heapSize=.*/vm.heapSize=1024/' "$$AVD_CONFIG"; \
