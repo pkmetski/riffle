@@ -51,35 +51,22 @@ wrapper: ## Download Gradle wrapper jar
 .PHONY: fonts
 fonts: ## Download bundled fonts (Literata, Merriweather, OpenDyslexic — SIL OFL)
 	@mkdir -p $(FONTS_DIR)
-	@echo "Downloading fonts..."
-	@# Literata (Google Fonts GitHub)
+	@# Literata + Merriweather: variable TTFs from google/fonts repo (single file covers all weights).
 	@if [ ! -f "$(FONTS_DIR)/Literata-Regular.ttf" ]; then \
-		curl -fsSL -o /tmp/literata.zip \
-			"https://fonts.google.com/download?family=Literata" && \
-		unzip -o /tmp/literata.zip "*/static/*.ttf" -d /tmp/literata_extracted && \
-		cp /tmp/literata_extracted/**/*.ttf $(FONTS_DIR)/ 2>/dev/null || \
-		find /tmp/literata_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
-		rm -rf /tmp/literata.zip /tmp/literata_extracted; \
-		echo "Literata downloaded"; \
+		echo "Downloading Literata..."; \
+		curl -fsSL -o "$(FONTS_DIR)/Literata-Regular.ttf" \
+			"https://github.com/google/fonts/raw/main/ofl/literata/Literata%5Bopsz%2Cwght%5D.ttf"; \
 	fi
-	@# Merriweather (Google Fonts GitHub)
 	@if [ ! -f "$(FONTS_DIR)/Merriweather-Regular.ttf" ]; then \
-		curl -fsSL -o /tmp/merriweather.zip \
-			"https://fonts.google.com/download?family=Merriweather" && \
-		unzip -o /tmp/merriweather.zip "*.ttf" -d /tmp/merriweather_extracted && \
-		find /tmp/merriweather_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
-		rm -rf /tmp/merriweather.zip /tmp/merriweather_extracted; \
-		echo "Merriweather downloaded"; \
+		echo "Downloading Merriweather..."; \
+		curl -fsSL -o "$(FONTS_DIR)/Merriweather-Regular.ttf" \
+			"https://github.com/google/fonts/raw/main/ofl/merriweather/Merriweather%5Bopsz%2Cwdth%2Cwght%5D.ttf"; \
 	fi
-	@# OpenDyslexic (GitHub releases)
+	@# OpenDyslexic: direct OTF from upstream repo (releases page has no assets).
 	@if [ ! -f "$(FONTS_DIR)/OpenDyslexic-Regular.otf" ]; then \
-		curl -fsSL -o /tmp/opendyslexic.zip \
-			"https://github.com/antijingoist/opendyslexic/releases/latest/download/OpenDyslexic-Fonts.zip" && \
-		unzip -o /tmp/opendyslexic.zip "*.otf" "*.ttf" -d /tmp/od_extracted && \
-		find /tmp/od_extracted -name "*.otf" -exec cp {} $(FONTS_DIR)/ \; && \
-		find /tmp/od_extracted -name "*.ttf" -exec cp {} $(FONTS_DIR)/ \;; \
-		rm -rf /tmp/opendyslexic.zip /tmp/od_extracted; \
-		echo "OpenDyslexic downloaded"; \
+		echo "Downloading OpenDyslexic..."; \
+		curl -fsSL -o "$(FONTS_DIR)/OpenDyslexic-Regular.otf" \
+			"https://github.com/antijingoist/opendyslexic/raw/main/compiled/OpenDyslexic-Regular.otf"; \
 	fi
 
 .PHONY: build

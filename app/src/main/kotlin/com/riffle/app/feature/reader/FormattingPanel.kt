@@ -1,8 +1,9 @@
 package com.riffle.app.feature.reader
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,11 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,9 +41,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.riffle.core.domain.FormattingPreferences
@@ -69,12 +74,12 @@ fun FormattingPanel(
     fullScreen: Boolean = false,
 ) {
     // Reader use: fixed half-height panel (not ModalBottomSheet) so scrolling stays inside
-    // the panel — the reader pane behind must stay visible to preview changes.
+    // the panel — the reader pane behind must stay visible and undimmed to preview changes.
     // Settings use: full-screen panel with no scrim and system back to dismiss.
     BackHandler(enabled = fullScreen, onBack = onDismiss)
     Box(modifier = Modifier.fillMaxSize()) {
         if (!fullScreen) {
-            // Dim scrim covering the top half — tap to dismiss.
+            // Transparent tap-catcher over the top half so tapping outside dismisses.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -82,8 +87,7 @@ fun FormattingPanel(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onDismiss,
-                    )
-                    .background(Color.Black.copy(alpha = 0.32f)),
+                    ),
             )
         }
         Surface(
@@ -135,46 +139,45 @@ fun FormattingPanel(
             Text("Theme", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReaderTheme.entries.forEach { theme ->
-                    val selected = prefs.theme == theme
-                    Button(
+                    val label = theme.displayName()
+                    FilterChip(
+                        selected = prefs.theme == theme,
                         onClick = { onPrefsChange(prefs.copy(theme = theme)) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                        modifier = Modifier.semantics { contentDescription = "${theme.name} theme" },
-                    ) { Text(theme.name) }
+                        label = { Text(label) },
+                        leadingIcon = { ThemeSwatch(theme) },
+                        modifier = Modifier.semantics { contentDescription = "$label theme" },
+                    )
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // Font family
+            // Font family — split into two rows: generic web fonts above, bundled book fonts
+            // below. Manual two-Row layout avoids FlowRow's compose-foundation version
+            // ABI skew (compile classpath 1.7.5 vs runtime 1.9.2 added an Alignment.Vertical
+            // parameter, causing NoSuchMethodError at runtime).
             Text("Font", style = MaterialTheme.typography.labelMedium)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-            ) {
-                ReaderFontFamily.entries.forEach { family ->
-                    val selected = prefs.fontFamily == family
-                    Button(
-                        onClick = { onPrefsChange(prefs.copy(fontFamily = family)) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                        modifier = Modifier.semantics { contentDescription = "${family.name} font" },
-                    ) { Text(family.name) }
-                }
+            val genericFonts = listOf(
+                ReaderFontFamily.Serif,
+                ReaderFontFamily.SansSerif,
+                ReaderFontFamily.Monospace,
+            )
+            val bundledFonts = listOf(
+                ReaderFontFamily.Literata,
+                ReaderFontFamily.Merriweather,
+                ReaderFontFamily.OpenDyslexic,
+            )
+            FontChipRow(genericFonts, prefs.fontFamily) {
+                onPrefsChange(prefs.copy(fontFamily = it))
+            }
+            Spacer(Modifier.height(4.dp))
+            FontChipRow(bundledFonts, prefs.fontFamily) {
+                onPrefsChange(prefs.copy(fontFamily = it))
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Justify text toggle
+            // Justify text — typography setting, grouped under Font.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -195,7 +198,7 @@ fun FormattingPanel(
             // Line spacing (Readium's effective range is 1.0–2.0)
             Text("Line spacing", style = MaterialTheme.typography.labelMedium)
             StepperRow(
-                label = "%.1f×".format(prefs.lineSpacing),
+                label = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(prefs.lineSpacing),
                 onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f).round1())) },
                 onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(2.0f).round1())) },
                 decrementDescription = "Decrease line spacing",
@@ -207,61 +210,62 @@ fun FormattingPanel(
             // Margins
             Text("Margins", style = MaterialTheme.typography.labelMedium)
             StepperRow(
-                label = "%.1f×".format(prefs.margins),
+                label = "${marginsWord(prefs.margins)} · %.1f×".format(prefs.margins),
                 onDecrement = { onPrefsChange(prefs.copy(margins = (prefs.margins - 0.1f).coerceAtLeast(0.2f).round1())) },
                 onIncrement = { onPrefsChange(prefs.copy(margins = (prefs.margins + 0.1f).coerceAtMost(3.0f).round1())) },
                 decrementDescription = "Decrease margins",
                 incrementDescription = "Increase margins",
             )
 
-            Spacer(Modifier.height(16.dp))
+            SectionDivider()
 
             // Reading orientation
             Text("Reading orientation", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReaderOrientation.entries.forEach { orientation ->
-                    val selected = prefs.orientation == orientation
                     val label = when (orientation) {
                         ReaderOrientation.Horizontal -> "Paginated"
                         ReaderOrientation.Vertical -> "Scroll"
                     }
-                    Button(
+                    FilterChip(
+                        selected = prefs.orientation == orientation,
                         onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
+                        label = { Text(label) },
+                        leadingIcon = { OrientationIcon(orientation) },
                         modifier = Modifier.semantics {
                             contentDescription = "$label reading orientation"
                         },
-                    ) { Text(label) }
-                }
-            }
-
-            if (prefs.orientation == ReaderOrientation.Horizontal) {
-                Spacer(Modifier.height(16.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        "Double page in landscape",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(
-                        checked = prefs.doublePageSpread,
-                        onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
                     )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Chapter Map toggle
+            // Double page in landscape: always shown so the layout stays stable; disabled
+            // (greyed out) in scroll mode where it has no effect.
+            val doublePageEnabled = prefs.orientation == ReaderOrientation.Horizontal
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (doublePageEnabled) 1f else 0.38f),
+            ) {
+                Text(
+                    "Double page in landscape",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.doublePageSpread,
+                    onCheckedChange = { onPrefsChange(prefs.copy(doublePageSpread = it)) },
+                    enabled = doublePageEnabled,
+                )
+            }
+
+            SectionDivider()
+
+            // Chapter Map toggle — per-book reading feature, grouped on its own so it
+            // doesn't get lumped in with Layout settings above.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -281,9 +285,7 @@ fun FormattingPanel(
             TextButton(
                 onClick = onReset,
                 enabled = hasBookOverrides,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .alpha(if (hasBookOverrides) 1f else 0f),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
                 Text("Reset to global defaults")
             }
@@ -386,22 +388,201 @@ private fun StepperRow(
     decrementDescription: String,
     incrementDescription: String,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        FilledTonalButton(
-            onClick = onDecrement,
-            modifier = Modifier.semantics { contentDescription = decrementDescription },
-        ) { Text("−") }
-        Spacer(Modifier.width(16.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(16.dp))
-        FilledTonalButton(
-            onClick = onIncrement,
-            modifier = Modifier.semantics { contentDescription = incrementDescription },
-        ) { Text("+") }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.height(48.dp),
+        ) {
+            IconButton(
+                onClick = onDecrement,
+                modifier = Modifier.semantics { contentDescription = decrementDescription },
+            ) { Text("−", style = MaterialTheme.typography.titleLarge) }
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = onIncrement,
+                modifier = Modifier.semantics { contentDescription = incrementDescription },
+            ) { Text("+", style = MaterialTheme.typography.titleLarge) }
+        }
     }
+}
+
+// Subtle group separator. Less visual weight than a full HorizontalDivider — uses the
+// outlineVariant colour so it reads as "section break" rather than "actionable boundary".
+// Kept thin to avoid bloating the panel given we already have several sections.
+@Composable
+private fun SectionDivider() {
+    Spacer(Modifier.height(20.dp))
+    HorizontalDivider(
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+    Spacer(Modifier.height(16.dp))
+}
+
+private fun ReaderTheme.displayName(): String = when (this) {
+    ReaderTheme.Light -> "Light"
+    ReaderTheme.Dark -> "Dark"
+    ReaderTheme.DarkDim -> "Dim"
+    ReaderTheme.Sepia -> "Sepia"
+}
+
+// Reader pane background/foreground colors for each theme — used to render a small
+// preview swatch on the corresponding FilterChip so users can pick a theme by sight
+// rather than reading the label. The dot is filled with the background and outlined
+// in the foreground so Dark vs Dark dim are visually distinct.
+private fun ReaderTheme.swatchBackground(): Color = when (this) {
+    ReaderTheme.Light -> Color(0xFFFFFFFF)
+    ReaderTheme.Dark -> Color(0xFF1A1A1A)
+    ReaderTheme.DarkDim -> Color(0xFF1A1A1A)
+    ReaderTheme.Sepia -> Color(0xFFF5E6CC)
+}
+
+private fun ReaderTheme.swatchForeground(): Color = when (this) {
+    ReaderTheme.Light -> Color(0xFF1A1A1A)
+    ReaderTheme.Dark -> Color(0xFFFFFFFF)
+    ReaderTheme.DarkDim -> Color(0xFFAAAAAA) // matches DARK_DIM_TEXT_COLOR in the mapper
+    ReaderTheme.Sepia -> Color(0xFF5C4A2E)
+}
+
+@Composable
+private fun ThemeSwatch(theme: ReaderTheme) {
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .background(theme.swatchBackground(), RoundedCornerShape(percent = 50))
+            .border(1.dp, theme.swatchForeground(), RoundedCornerShape(percent = 50)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "A",
+            color = theme.swatchForeground(),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
+private fun OrientationIcon(orientation: ReaderOrientation) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    when (orientation) {
+        ReaderOrientation.Horizontal -> {
+            // Two side-by-side rectangles — facing pages.
+            Canvas(modifier = Modifier.size(18.dp)) {
+                val w = size.width * 0.42f
+                val h = size.height * 0.85f
+                val gap = size.width * 0.06f
+                val topY = (size.height - h) / 2f
+                val leftX = (size.width - (2 * w + gap)) / 2f
+                drawRect(color, topLeft = Offset(leftX, topY), size = Size(w, h))
+                drawRect(color, topLeft = Offset(leftX + w + gap, topY), size = Size(w, h))
+            }
+        }
+        ReaderOrientation.Vertical -> {
+            // Three stacked horizontal lines — scrolling content.
+            Canvas(modifier = Modifier.size(18.dp)) {
+                val w = size.width * 0.82f
+                val h = size.height * 0.12f
+                val leftX = (size.width - w) / 2f
+                val totalH = h * 5  // 3 lines + 2 gaps of equal size
+                val startY = (size.height - totalH) / 2f
+                repeat(3) { i ->
+                    drawRect(color, topLeft = Offset(leftX, startY + i * 2 * h), size = Size(w, h))
+                }
+            }
+        }
+    }
+}
+
+private fun lineSpacingWord(value: Float): String = when {
+    value < 1.15f -> "Tight"
+    value < 1.35f -> "Compact"
+    value < 1.55f -> "Normal"
+    value < 1.75f -> "Comfortable"
+    value < 1.95f -> "Roomy"
+    else -> "Spacious"
+}
+
+private fun marginsWord(value: Float): String = when {
+    value < 0.5f -> "Edge"
+    value < 0.85f -> "Tight"
+    value < 1.25f -> "Normal"
+    value < 1.75f -> "Comfortable"
+    value < 2.35f -> "Roomy"
+    else -> "Wide"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FontChipRow(
+    fonts: List<ReaderFontFamily>,
+    selected: ReaderFontFamily,
+    onSelect: (ReaderFontFamily) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        fonts.forEach { family ->
+            val label = family.displayName()
+            FilterChip(
+                selected = selected == family,
+                onClick = { onSelect(family) },
+                label = {
+                    Text(
+                        label,
+                        fontFamily = family.previewFontFamily(),
+                    )
+                },
+                modifier = Modifier.semantics { contentDescription = "$label font" },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReaderFontFamily.previewFontFamily(): FontFamily? = when (this) {
+    ReaderFontFamily.Serif -> FontFamily.Serif
+    ReaderFontFamily.SansSerif -> FontFamily.SansSerif
+    ReaderFontFamily.Monospace -> FontFamily.Monospace
+    ReaderFontFamily.Literata -> rememberAssetFontFamily("Literata")
+    ReaderFontFamily.Merriweather -> rememberAssetFontFamily("Merriweather")
+    ReaderFontFamily.OpenDyslexic -> rememberAssetFontFamily("OpenDyslexic")
+}
+
+// Fonts are bundled as Android assets (loaded by Readium via CSS for the reader pane).
+// For the formatting panel chips we list assets/fonts/, find a matching Regular file
+// for the requested family, and build a Compose FontFamily. Returns null if assets are
+// missing (e.g. `make fonts` was not run) so the chip falls back to the default font.
+@Composable
+private fun rememberAssetFontFamily(familyPrefix: String): FontFamily? {
+    val assetManager = LocalContext.current.assets
+    return remember(familyPrefix) {
+        runCatching {
+            val files = assetManager.list("fonts").orEmpty()
+            val match = files.firstOrNull {
+                it.startsWith("$familyPrefix-Regular") && (it.endsWith(".ttf") || it.endsWith(".otf"))
+            } ?: files.firstOrNull {
+                it.startsWith(familyPrefix) && (it.endsWith(".ttf") || it.endsWith(".otf"))
+            } ?: return@runCatching null
+            FontFamily(Font(path = "fonts/$match", assetManager = assetManager))
+        }.getOrNull()
+    }
+}
+
+private fun ReaderFontFamily.displayName(): String = when (this) {
+    ReaderFontFamily.Serif -> "Serif"
+    ReaderFontFamily.SansSerif -> "Sans serif"
+    ReaderFontFamily.Monospace -> "Mono"
+    ReaderFontFamily.Literata -> "Literata"
+    ReaderFontFamily.Merriweather -> "Merriweather"
+    ReaderFontFamily.OpenDyslexic -> "Dyslexic"
 }
 
 private fun Float.round1() = (this * 10).roundToInt() / 10f

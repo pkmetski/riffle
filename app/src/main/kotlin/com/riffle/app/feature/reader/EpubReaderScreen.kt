@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -287,7 +287,12 @@ fun EpubReaderScreen(
                                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
                             }
                             IconButton(onClick = { showFormattingPanel = true }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Format")
+                                Text(
+                                    "Aa",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.semantics { contentDescription = "Format" },
+                                )
                             }
                         }
                     },
@@ -662,6 +667,7 @@ private fun EpubNavigatorView(
                         initialLocator = latestLocator() ?: state.initialLocator,
                         initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
                         configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout).apply {
+                            registerBundledFonts()
                             registerJavascriptInterface(FootnoteAnchorBridge.JS_NAME) { _ ->
                                 FootnoteAnchorBridge.bridge
                             }
