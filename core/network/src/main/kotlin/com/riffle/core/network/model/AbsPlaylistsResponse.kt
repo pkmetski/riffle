@@ -63,6 +63,7 @@ internal fun AbsPlaylistsResponse.AbsPlaylistDto.toNetworkPlaylist(): NetworkPla
         id = id,
         libraryId = libraryId,
         name = name,
+        bookIds = items.map { it.libraryItemId }.toSet(),
         items = items.mapNotNull { entry ->
             val li = entry.libraryItem ?: return@mapNotNull null
             val progress = li.userMediaProgress?.ebookProgress

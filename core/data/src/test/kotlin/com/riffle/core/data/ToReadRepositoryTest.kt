@@ -222,6 +222,7 @@ class ToReadRepositoryTest {
             id = it, libraryId = "lib-1", title = "T", author = "A",
             readingProgress = 0f, ebookFormat = EbookFormat.Epub,
         ) },
+        bookIds = itemIds.toSet(),
     )
 }
 
@@ -270,7 +271,7 @@ private open class FakeAbsApi(
         token: String, insecureAllowed: Boolean,
     ): NetworkPlaylistWriteResult {
         createCalls += Triple(libraryId, name, initialBookId)
-        return NetworkPlaylistWriteResult.Success(NetworkPlaylist("pl-new", libraryId, name, emptyList()))
+        return NetworkPlaylistWriteResult.Success(NetworkPlaylist("pl-new", libraryId, name, emptyList(), emptySet()))
     }
 
     override suspend fun addBookToPlaylist(

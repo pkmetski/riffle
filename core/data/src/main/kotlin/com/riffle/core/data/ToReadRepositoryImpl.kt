@@ -38,7 +38,7 @@ class ToReadRepositoryImpl @Inject constructor(
         val match = result.playlists.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
         val snapshot = ToReadSnapshot(
             playlistId = match?.id,
-            itemIds = match?.items?.map { it.id }?.toSet() ?: emptySet(),
+            itemIds = match?.bookIds ?: emptySet(),
         )
         cache.value = cache.value + (libraryId to snapshot)
         return true

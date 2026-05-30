@@ -64,6 +64,31 @@ class AbsApiClientPlaylistsTest {
     }
 
     @Test
+    fun `getPlaylists includes bookIds even when libraryItem expansion is null`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"results":[{
+                    "id":"pl-1","libraryId":"lib-1","name":"To Read","items":[
+                      {"libraryItemId":"item-1","libraryItem":{
+                        "id":"item-1","libraryId":"lib-1",
+                        "media":{"metadata":{"title":"Book","authorName":"A"}}
+                      }},
+                      {"libraryItemId":"item-2","libraryItem":null}
+                    ]
+                }]}""".trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val result = client.getPlaylists(baseUrl(), "lib-1", "tok", false)
+
+        assertTrue(result is NetworkPlaylistResult.Success)
+        val pl = (result as NetworkPlaylistResult.Success).playlists.single()
+        assertEquals(setOf("item-1", "item-2"), pl.bookIds)
+        assertEquals(listOf("item-1"), pl.items.map { it.id })
+        assertEquals(2, pl.bookCount)
+    }
+
+    @Test
     fun `createPlaylist posts libraryId name and initial item`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(

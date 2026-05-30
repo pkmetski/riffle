@@ -5,8 +5,9 @@ data class NetworkPlaylist(
     val libraryId: String,
     val name: String,
     val items: List<NetworkLibraryItem>,
+    val bookIds: Set<String>,
 ) {
-    val bookCount: Int get() = items.size
+    val bookCount: Int get() = bookIds.size
 }
 
 sealed class NetworkPlaylistResult {
