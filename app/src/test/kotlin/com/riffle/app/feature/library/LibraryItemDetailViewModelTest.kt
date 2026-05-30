@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -168,6 +169,10 @@ class LibraryItemDetailViewModelTest {
         val state = mutableSetOf<String>().also { it += initial }
         val addCalls = mutableListOf<Pair<String, String>>()
         val removeCalls = mutableListOf<Pair<String, String>>()
+
+        override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(state.toSet())
+
+        override suspend fun refresh(libraryId: String): Boolean = true
 
         override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
             libraryItemId in state
