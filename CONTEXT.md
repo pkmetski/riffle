@@ -23,15 +23,21 @@ A per-Server, user-managed set of hidden Libraries. Determines which Libraries a
 A named, ordered grouping of Library Items within a Library. Defined on the ABS server (e.g. "The Stormlight Archive").
 
 ### Collection
-A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential. One Collection per Library may be the **To Read** list.
+A user-defined, unordered grouping of Library Items within a Library. Distinct from Series — not necessarily sequential. Library-scoped on the ABS server: shared across all users with access to the Library.
+
+### Playlist
+A per-user, per-Library ordered list of Library Items on the ABS server. Unlike a Collection, a Playlist is scoped to `(userId, libraryId)` and is not visible to other users. Accepts any Library Item, including ebook-only items. **To Read** is backed by a Playlist (see [ADR 0019](adr/0019-to-read-as-playlist.md)).
 
 ### To Read
-A per-Library wishlist of Library Items the user intends to read. Implemented as a regular Collection named `To Read`, looked up by name and find-or-created on first use. Toggled via a bookmark icon on the Library Item Detail Screen (third 40dp circular icon in the action row, between mark-read and download). Filled bookmark = in the list, outline = not in the list.
+A per-user, per-Library wishlist of Library Items the user intends to read. Implemented as an ABS Playlist named `To Read`, looked up by name and find-or-created on first use (see [ADR 0019](adr/0019-to-read-as-playlist.md), which supersedes [ADR 0018](adr/0018-to-read-as-named-collection.md)). Toggled via a bookmark icon on the Library Item Detail Screen (third 40dp circular icon in the action row, between mark-read and download). Filled bookmark = in the list, outline = not in the list.
 
-Behaves like any other Collection — visible in the Collections Tab, editable from the ABS web UI, persists when empty. App-managed rules:
-- **Find-or-create by name.** If the user renames the collection on the server, the next toggle creates a new "To Read" collection; the renamed one is left alone.
-- **Per-Library, not global.** A user with multiple Libraries has one "To Read" collection per Library.
+Surfaced as a dedicated **To Read** tab in the library screen, positioned between Home and Series. The tab shows a grid of the user's queued Library Items; empty state reads "Nothing in To Read".
+
+App-managed rules:
+- **Find-or-create by name.** If the user renames the playlist on the server, the next toggle creates a new "To Read" playlist; the renamed one is left alone.
+- **Per-Library, not global.** A user with multiple Libraries has one "To Read" playlist per Library.
 - **Read transitions remove from To Read.** Any transition of a Library Item to the Read state — manual mark-read, or future auto-finish detection — removes the item from "To Read". The reverse is not enforced: toggling To Read on a Read book does not clear the Read flag (a legitimate re-read signal).
+- **Empty playlists are auto-deleted by ABS.** Removing the last item deletes the playlist server-side; the next add transparently creates a fresh one.
 - **Optimistic, no queueing.** Taps flip the icon immediately, fire the request, and revert with a snackbar on failure. Offline taps fail with a snackbar — there is no durable mutation queue (yet; see notes on a future unified sync mechanism).
 
 ### Library Item
