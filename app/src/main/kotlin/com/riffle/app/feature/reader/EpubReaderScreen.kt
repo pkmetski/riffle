@@ -270,7 +270,7 @@ fun EpubReaderScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text(title, style = MaterialTheme.typography.titleMedium) },
+                    title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
