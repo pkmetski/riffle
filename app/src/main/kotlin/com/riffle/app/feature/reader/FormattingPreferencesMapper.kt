@@ -71,6 +71,11 @@ fun FormattingPreferences.toFragmentConfiguration(
         doublePageSpread &&
         isLandscape
     return EpubNavigatorFragment.Configuration(
+        // Make our bundled font assets reachable to the WebView. Without this, the
+        // @font-face src URLs registered in registerBundledFonts() 404 and the WebView
+        // falls back to the default serif — Literata/Merriweather/OpenDyslexic would all
+        // render identically.
+        servedAssets = listOf("fonts/.*"),
         readiumCssRsProperties = if (isDoublePage) {
             RsProperties(
                 colCount = ColCount.TWO,
@@ -88,4 +93,20 @@ fun FormattingPreferences.toFragmentConfiguration(
         // own vertical content padding).
         shouldApplyInsetsPadding = false,
     )
+}
+
+// Registers @font-face declarations for the fonts bundled in assets/fonts/ so Readium's
+// WebView can actually load them. Kept out of toFragmentConfiguration() because the
+// underlying Url.fromDecodedPath() touches android.net.Uri, which is unmocked in JVM
+// unit tests.
+fun EpubNavigatorFragment.Configuration.registerBundledFonts() {
+    addFontFamilyDeclaration(FontFamily("Literata")) {
+        addFontFace { addSource("fonts/Literata-Regular.ttf") }
+    }
+    addFontFamilyDeclaration(FontFamily("Merriweather")) {
+        addFontFace { addSource("fonts/Merriweather-Regular.ttf") }
+    }
+    addFontFamilyDeclaration(FontFamily("OpenDyslexic")) {
+        addFontFace { addSource("fonts/OpenDyslexic-Regular.otf") }
+    }
 }
