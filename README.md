@@ -24,7 +24,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 
 ### Library
 - Multi-server support with library visibility controls
-- Browse by Home, Series, Collections, and All Books
+- Browse by Home, To Read, Series, Collections, and All Books
 - Plex-style cover grid with book details
 - Read/unread and "To Read" toggles
 - Full-text library search

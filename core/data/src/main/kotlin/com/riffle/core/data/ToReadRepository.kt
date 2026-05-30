@@ -1,26 +1,29 @@
 package com.riffle.core.data
 
-const val TO_READ_COLLECTION_NAME = "To Read"
+import kotlinx.coroutines.flow.Flow
+
+const val TO_READ_PLAYLIST_NAME = "To Read"
 
 /**
- * Manages the per-Library "To Read" Collection on the active ABS server.
+ * Manages the per-Library, per-User "To Read" Playlist on the active ABS server.
  *
- * The list is backed by a normal ABS Collection named [TO_READ_COLLECTION_NAME], looked
- * up by name and find-or-created on first use. See ADR 0018.
+ * Backed by a normal ABS Playlist named [TO_READ_PLAYLIST_NAME], looked up by name and
+ * find-or-created on first use. See ADR 0019.
+ *
+ * Playlists are scoped to (userId, libraryId) on the server, so each ABS account has its
+ * own independent To Read list.
+ *
+ * Cache: in-memory only. Call [refresh] once per library to populate before relying on
+ * [observeToReadItemIds] or [isInToRead] — typically from `LibraryItemsViewModel.init`.
  */
 interface ToReadRepository {
-    /** Returns true if [libraryItemId] is currently in the "To Read" collection of [libraryId]. */
+    /** Item-ids currently in the To Read playlist for [libraryId]. Empty before first refresh. */
+    fun observeToReadItemIds(libraryId: String): Flow<Set<String>>
+
+    /** Fetches the To Read playlist from the server and refreshes the in-memory cache. */
+    suspend fun refresh(libraryId: String): Boolean
+
     suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean
-
-    /**
-     * Adds [libraryItemId] to the "To Read" collection of [libraryId], creating the
-     * collection if it does not yet exist. Returns true on success.
-     */
     suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean
-
-    /**
-     * Removes [libraryItemId] from the "To Read" collection of [libraryId]. Returns true
-     * on success or if the collection / membership did not exist (a no-op success).
-     */
     suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean
 }

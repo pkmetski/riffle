@@ -1,6 +1,6 @@
 # ADR 0018 — "To Read" implemented as a name-matched ABS Collection
 
-**Status:** Accepted
+**Status:** Superseded by [ADR 0019](0019-to-read-as-playlist.md). The "library-scoped Collection" reasoning held, but the deeper premise — that ABS Collections are user-defined groupings — turned out to be wrong: Collections are library-global and shared across all users with library access. See ADR 0019 for the playlist-backed implementation.
 
 ## Context
 
