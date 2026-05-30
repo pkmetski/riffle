@@ -417,6 +417,23 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Injects the targeted typography overrides (see TypographyOverride.kt) into each newly
+    // loaded reflowable page. Required because some EPUBs use high-specificity publisher CSS
+    // (e.g. Safari Books Online's `#sbo-rt-content p { line-height: 125% }`) that beats
+    // Readium's own body-level user-property rules; without this injection, line-spacing /
+    // justify / fontFamily changes silently do nothing on those books. The injection JS is
+    // idempotent so repeated firings during reflow don't accumulate <style> tags.
+    val paginationListener = remember {
+        object : EpubNavigatorFragment.PaginationListener {
+            override fun onPageLoaded() {
+                val fragment = fragmentRef.value ?: return
+                coroutineScope.launch {
+                    fragment.evaluateJavascript(typographyOverrideInjectionJs())
+                }
+            }
+        }
+    }
+
     LaunchedEffect(onNavigationEvents) {
         onNavigationEvents.collect { link ->
             fragmentRef.value?.go(link)
@@ -621,6 +638,7 @@ private fun EpubNavigatorView(
                         initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
                         configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
                         listener = fragmentListener,
+                        paginationListener = paginationListener,
                     )
                     fm.fragmentFactory = fragmentFactory
                     fm.beginTransaction()
