@@ -2,6 +2,8 @@ package com.riffle.app.navigation
 
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,11 +54,17 @@ private const val PDF_READER = "pdf_reader/{itemId}"
 
 @Composable
 fun MainScreen(
+    windowSizeClass: WindowSizeClass,
     viewModel: NavigationDrawerViewModel = hiltViewModel(),
 ) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    // ADR 0019: Tablet Layout activates only on Expanded (≥ 840dp). Compact and Medium
+    // both render the phone UI. The threshold is evaluated at composition time so
+    // configuration changes (rotation, foldable unfold, ChromeOS resize, split-screen)
+    // re-evaluate automatically.
+    val usePermanentDrawer = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
 
     val activeServer by viewModel.activeServer.collectAsState()
     val allServers by viewModel.allServers.collectAsState()
@@ -82,6 +90,7 @@ fun MainScreen(
     RiffleNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = !isReaderRoute(currentRoute),
+        usePermanentDrawer = usePermanentDrawer,
         activeServer = activeServer,
         allServers = allServers,
         visibleLibraries = visibleLibraries,

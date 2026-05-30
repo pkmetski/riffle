@@ -28,6 +28,8 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,6 +55,7 @@ import com.riffle.core.domain.Server
 fun RiffleNavigationDrawer(
     drawerState: DrawerState,
     gesturesEnabled: Boolean = true,
+    usePermanentDrawer: Boolean = false,
     activeServer: Server?,
     allServers: List<Server>,
     visibleLibraries: List<Library>,
@@ -64,69 +67,107 @@ fun RiffleNavigationDrawer(
     onSettingsSelected: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = gesturesEnabled,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.width(280.dp)) {
-                Column(modifier = Modifier.fillMaxHeight()) {
-                    DrawerHeader(
-                        activeServer = activeServer,
-                        allServers = allServers,
-                        serverVersions = serverVersions,
-                        onServerSelected = onServerSelected,
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        visibleLibraries.forEach { library ->
-                            NavigationDrawerItem(
-                                label = { Text(library.name) },
-                                selected = library.id == activeLibraryId,
-                                onClick = { onLibrarySelected(library) },
-                            )
-                        }
-                    }
-                    HorizontalDivider()
-                    NavigationDrawerItem(
-                        label = { Text("Downloads") },
-                        icon = { Icon(Icons.Default.Download, contentDescription = null) },
-                        selected = false,
-                        onClick = onDownloadsSelected,
-                    )
-                    NavigationDrawerItem(
-                        label = { Text("Settings") },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        selected = false,
-                        onClick = onSettingsSelected,
-                    )
-                    val uriHandler = LocalUriHandler.current
-                    Text(
-                        text = "☕ Support on Ko-fi",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { uriHandler.openUri("https://ko-fi.com/pkmetski") }
-                            .padding(top = 8.dp, bottom = 2.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = "Riffle v${BuildConfig.VERSION_NAME}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp, top = 4.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                }
+    val sheetBody: @Composable () -> Unit = {
+        DrawerSheetContent(
+            activeServer = activeServer,
+            allServers = allServers,
+            visibleLibraries = visibleLibraries,
+            activeLibraryId = activeLibraryId,
+            serverVersions = serverVersions,
+            onServerSelected = onServerSelected,
+            onLibrarySelected = onLibrarySelected,
+            onDownloadsSelected = onDownloadsSelected,
+            onSettingsSelected = onSettingsSelected,
+        )
+    }
+
+    if (usePermanentDrawer) {
+        // ADR 0019: Tablet Layout (Expanded ≥ 840dp) replaces the modal drawer with a
+        // permanent drawer pinned to the leading edge — no hamburger, no scrim.
+        PermanentNavigationDrawer(
+            drawerContent = {
+                PermanentDrawerSheet(modifier = Modifier.width(280.dp)) { sheetBody() }
+            },
+            content = content,
+        )
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = gesturesEnabled,
+            drawerContent = {
+                ModalDrawerSheet(modifier = Modifier.width(280.dp)) { sheetBody() }
+            },
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun DrawerSheetContent(
+    activeServer: Server?,
+    allServers: List<Server>,
+    visibleLibraries: List<Library>,
+    activeLibraryId: String?,
+    serverVersions: Map<String, String>,
+    onServerSelected: (Server) -> Unit,
+    onLibrarySelected: (Library) -> Unit,
+    onDownloadsSelected: () -> Unit,
+    onSettingsSelected: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxHeight()) {
+        DrawerHeader(
+            activeServer = activeServer,
+            allServers = allServers,
+            serverVersions = serverVersions,
+            onServerSelected = onServerSelected,
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            visibleLibraries.forEach { library ->
+                NavigationDrawerItem(
+                    label = { Text(library.name) },
+                    selected = library.id == activeLibraryId,
+                    onClick = { onLibrarySelected(library) },
+                )
             }
-        },
-        content = content,
-    )
+        }
+        HorizontalDivider()
+        NavigationDrawerItem(
+            label = { Text("Downloads") },
+            icon = { Icon(Icons.Default.Download, contentDescription = null) },
+            selected = false,
+            onClick = onDownloadsSelected,
+        )
+        NavigationDrawerItem(
+            label = { Text("Settings") },
+            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+            selected = false,
+            onClick = onSettingsSelected,
+        )
+        val uriHandler = LocalUriHandler.current
+        Text(
+            text = "☕ Support on Ko-fi",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { uriHandler.openUri("https://ko-fi.com/pkmetski") }
+                .padding(top = 8.dp, bottom = 2.dp),
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "Riffle v${BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp, top = 4.dp),
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
