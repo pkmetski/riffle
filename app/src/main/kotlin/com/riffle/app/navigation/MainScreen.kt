@@ -142,6 +142,7 @@ fun MainScreen(
                     }
                     val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
                     AddServerScreen(
+                        windowSizeClass = windowSizeClass,
                         onNavigateBack = {
                             navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
                         },
@@ -162,6 +163,7 @@ fun MainScreen(
                     } else {
                         SelectLibrariesScreen(
                             pending = pending,
+                            windowSizeClass = windowSizeClass,
                             onNavigateBack = { navController.popBackStack() },
                             onContinueComplete = {
                                 navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
@@ -172,12 +174,14 @@ fun MainScreen(
             }
             composable(SETTINGS) {
                 SettingsScreen(
+                    windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddServer = { navController.navigate(ADD_SERVER) },
                 )
             }
             composable(DOWNLOADS) {
                 DownloadsScreen(
+                    windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     onItemSelected = { item ->
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
