@@ -209,7 +209,7 @@ fun FormattingPanel(
             StepperRow(
                 label = "%.1f×".format(prefs.margins),
                 onDecrement = { onPrefsChange(prefs.copy(margins = (prefs.margins - 0.1f).coerceAtLeast(0.2f).round1())) },
-                onIncrement = { onPrefsChange(prefs.copy(margins = (prefs.margins + 0.1f).coerceAtMost(2.0f).round1())) },
+                onIncrement = { onPrefsChange(prefs.copy(margins = (prefs.margins + 0.1f).coerceAtMost(3.0f).round1())) },
                 decrementDescription = "Decrease margins",
                 incrementDescription = "Increase margins",
             )

@@ -111,6 +111,42 @@ class TypographyOverrideWebViewTest {
         }
     }
 
+    // Margins override targets :root (not body) so every column in paginated mode gets equal
+    // top/bottom whitespace. Without --USER__pageMargins set the gate doesn't match and :root
+    // padding stays at the fixture default. With it set, padding-top/bottom should resolve to
+    // calc(--RS__pageGutter * --USER__pageMargins * 0.5). We simulate Readium's gutter with
+    // an explicit --RS__pageGutter on :root so the calc has a concrete value.
+    @Test
+    fun marginsOverrideAppliesVerticalPaddingToRootWhenUserVariableIsSet() {
+        withFixture(hostileSboFixture) { webView ->
+            webView.evalSync("document.documentElement.style.setProperty('--RS__pageGutter', '20px')")
+            webView.evalSync("document.documentElement.style.setProperty('--USER__pageMargins', '2')")
+            webView.evalSync(typographyOverrideInjectionJs())
+            val paddingTop = webView.evalSync(
+                "window.getComputedStyle(document.documentElement).paddingTop"
+            ).toCssPx()
+            val paddingBottom = webView.evalSync(
+                "window.getComputedStyle(document.documentElement).paddingBottom"
+            ).toCssPx()
+            // 20px gutter × 2 (pageMargins) × 0.5 (vertical ratio) = 20px expected on each side.
+            assertEquals("padding-top should reflect --USER__pageMargins × gutter × 0.5", 20.0, paddingTop, 0.5)
+            assertEquals("padding-bottom should reflect --USER__pageMargins × gutter × 0.5", 20.0, paddingBottom, 0.5)
+        }
+    }
+
+    @Test
+    fun marginsOverrideIsInertWhenUserVariableIsNotSet() {
+        withFixture(hostileSboFixture) { webView ->
+            webView.evalSync("document.documentElement.style.setProperty('--RS__pageGutter', '20px')")
+            webView.evalSync(typographyOverrideInjectionJs())
+            // No --USER__pageMargins → gate doesn't match → :root padding stays at fixture default (0).
+            val paddingTop = webView.evalSync(
+                "window.getComputedStyle(document.documentElement).paddingTop"
+            ).toCssPx()
+            assertEquals("padding-top must be untouched when user hasn't customised margins", 0.0, paddingTop, 0.5)
+        }
+    }
+
     @Test
     fun repeatedInjectionDoesNotAccumulateStyleElements() {
         withFixture(hostileSboFixture) { webView ->

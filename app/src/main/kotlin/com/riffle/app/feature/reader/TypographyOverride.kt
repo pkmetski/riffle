@@ -20,7 +20,8 @@ import com.riffle.core.domain.FormattingPreferences
  */
 internal data class TypographyOverride(
     val userPropertyName: String,
-    val cssProperty: String,
+    val cssProperties: List<String>,
+    val cssValue: String,
     val elements: String,
 )
 
@@ -32,22 +33,45 @@ internal data class TypographyOverride(
 internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
     "lineSpacing" to TypographyOverride(
         userPropertyName = "--USER__lineHeight",
-        cssProperty = "line-height",
+        cssProperties = listOf("line-height"),
+        cssValue = "var(--USER__lineHeight)",
         // Headings deliberately excluded — books style heading line-height tightly (often 1.0)
         // and forcing the body line-height onto them looks wrong.
         elements = "p, li, blockquote, dd, dt, figcaption",
     ),
     "justifyText" to TypographyOverride(
         userPropertyName = "--USER__textAlign",
-        cssProperty = "text-align",
+        cssProperties = listOf("text-align"),
+        cssValue = "var(--USER__textAlign)",
         elements = "p, li, blockquote, dd",
     ),
     "fontFamily" to TypographyOverride(
         userPropertyName = "--USER__fontFamily",
-        cssProperty = "font-family",
+        cssProperties = listOf("font-family"),
+        cssValue = "var(--USER__fontFamily)",
         // `pre`/`code`/`kbd`/`samp` deliberately excluded so monospace code keeps its font.
         // Headings included so picking a reading font feels consistent across body and titles.
         elements = "body, p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, figcaption",
+    ),
+    // Readium's built-in rule (`:root[style*="--USER__pageMargins"] body { padding: 0 X !important }`)
+    // applies user margins only to body's left/right. We add a top/bottom margin on every page
+    // by padding the multicol container itself — `:root` — not `body`. Padding on body would
+    // only show on the very first/last column because body is fragmented as a single block
+    // across columns; padding on `:root` shrinks the column height (since `:root` has
+    // `height: 100vh` + `box-sizing: border-box`), so every column gets equal top/bottom
+    // whitespace. The selector `:root[style*="--USER__pageMargins"]` has higher specificity
+    // (0,2,0) than Readium's `:root { padding: 0 !important }` (0,1,0), so our padding-top /
+    // padding-bottom longhands win regardless of source order. In scroll mode (`readium-scroll-on`)
+    // `:root` is `height: auto`, so this becomes whitespace at the start/end of each loaded
+    // resource — still the desired "margin" semantics.
+    "margins" to TypographyOverride(
+        userPropertyName = "--USER__pageMargins",
+        cssProperties = listOf("padding-top", "padding-bottom"),
+        // 0.5× of the horizontal gutter — book typography conventionally gives narrower
+        // top/bottom than side margins, and our reader already consumes vertical space with
+        // system insets, so a full 1× ratio would feel heavy.
+        cssValue = "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 0.5)",
+        elements = "",  // empty → rule targets `:root` itself, not a descendant
     ),
 )
 
@@ -58,7 +82,6 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
  */
 internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "fontSize" to "Applied via root-em multiplier; a per-element override would flatten the publisher's size hierarchy.",
-    "margins" to "Implemented by Readium as container width, not a CSS property on text elements.",
     "theme" to "Multi-property (background, text colour, link colour, image filters) — handled by Readium's theme stylesheet, not a single override.",
     "orientation" to "Layout/scroll mode, not a CSS property.",
     "doublePageSpread" to "Column-count layout mode, handled by RsProperties at fragment-creation time.",
@@ -79,12 +102,20 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
 internal fun typographyOverrideCss(): String =
     TYPOGRAPHY_OVERRIDES.values.joinToString("\n") { override ->
         val gate = """:root[style*="${override.userPropertyName}"]"""
-        val selectorList = override.elements
-            .split(",")
-            .joinToString(",\n") { "$gate ${it.trim()}" }
+        // Empty `elements` means the rule targets `:root` itself (used for margins, which
+        // pads the multicol container so every page gets top/bottom whitespace).
+        val selectorList = if (override.elements.isBlank()) {
+            gate
+        } else {
+            override.elements
+                .split(",")
+                .joinToString(",\n") { "$gate ${it.trim()}" }
+        }
+        val declarations = override.cssProperties
+            .joinToString("\n          ") { "$it: ${override.cssValue} !important;" }
         """
         $selectorList {
-          ${override.cssProperty}: var(${override.userPropertyName}) !important;
+          $declarations
         }
         """.trimIndent()
     }
