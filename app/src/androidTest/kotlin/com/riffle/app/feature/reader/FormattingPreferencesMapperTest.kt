@@ -44,7 +44,7 @@ class FormattingPreferencesMapperTest {
         val result = FormattingPreferences(theme = ReaderTheme.DarkDim).toEpubPreferences()
         assertEquals(Theme.DARK, result.theme)
         // Slightly dimmer than pure white — see DARK_DIM_TEXT_COLOR in FormattingPreferencesMapper.
-        assertEquals(0xFFBBBBBB.toInt(), result.textColor?.int)
+        assertEquals(0xFFAAAAAA.toInt(), result.textColor?.int)
     }
 
     @Test
@@ -53,10 +53,14 @@ class FormattingPreferencesMapperTest {
         assertEquals(Theme.SEPIA, result.theme)
     }
 
+    // Serif is the default ReaderFontFamily; mapping it to null leaves --USER__fontFamily
+    // unset on :root so the publisher's typography is preserved on books the user hasn't
+    // customized. See typographyOverrideCss() — the gate `:root[style*="--USER__fontFamily"]`
+    // requires the variable to be present for any override to apply.
     @Test
-    fun serifFontFamilyMapsToCssSerif() {
+    fun defaultSerifFontFamilyMapsToNullSoPublisherTypographyIsPreserved() {
         val result = FormattingPreferences(fontFamily = ReaderFontFamily.Serif).toEpubPreferences()
-        assertEquals("serif", result.fontFamily?.name)
+        assertNull(result.fontFamily)
     }
 
     @Test
@@ -90,9 +94,19 @@ class FormattingPreferencesMapperTest {
     }
 
     @Test
-    fun lineSpacingMapsToLineHeight() {
+    fun customLineSpacingMapsToLineHeight() {
         val result = FormattingPreferences(lineSpacing = 1.8f).toEpubPreferences()
         assertEquals(1.8, result.lineHeight!!, 0.001)
+    }
+
+    // Default lineSpacing must map to null so Readium leaves --USER__lineHeight unset on :root,
+    // which keeps the publisher's line-height intact on books the user hasn't customized.
+    // Without this, every book would have its publisher line-height overridden the moment our
+    // typography-override stylesheet is injected.
+    @Test
+    fun defaultLineSpacingMapsToNullLineHeight() {
+        val result = FormattingPreferences().toEpubPreferences()
+        assertNull(result.lineHeight)
     }
 
     @Test
@@ -160,10 +174,13 @@ class FormattingPreferencesMapperTest {
         assertEquals(org.readium.r2.navigator.preferences.TextAlign.JUSTIFY, result.textAlign)
     }
 
+    // Same null-gating rationale as defaultLineSpacingMapsToNullLineHeight: the default
+    // (unjustified) state must leave --USER__textAlign unset so the publisher's text alignment
+    // is preserved.
     @Test
-    fun justifyTextFalseMapsToTextAlignStart() {
+    fun justifyTextFalseMapsToNullTextAlign() {
         val result = FormattingPreferences(justifyText = false).toEpubPreferences()
-        assertEquals(org.readium.r2.navigator.preferences.TextAlign.START, result.textAlign)
+        assertNull(result.textAlign)
     }
 
 }

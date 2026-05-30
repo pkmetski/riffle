@@ -16,7 +16,7 @@ import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.TextAlign
 import org.readium.r2.navigator.preferences.Theme
 
-private const val DARK_DIM_TEXT_COLOR: Int = 0xFFBBBBBB.toInt()
+private const val DARK_DIM_TEXT_COLOR: Int = 0xFFAAAAAA.toInt()
 
 fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
@@ -32,18 +32,24 @@ fun FormattingPreferences.toEpubPreferences(
         },
         // DarkDim is "dark with slightly muted body text" — same dark background, dimmer text.
         textColor = if (theme == ReaderTheme.DarkDim) Color(DARK_DIM_TEXT_COLOR) else null,
+        // Null-gating: when the user value equals the default, pass null so Readium leaves
+        // the corresponding --USER__* CSS variable unset on :root. The typography-override
+        // stylesheet (see TypographyOverride.kt) is gated on the variable's presence, so an
+        // unset variable means the publisher's typography is preserved on uncustomised books.
+        // The moment the user nudges a setting away from default, the variable appears and
+        // both Readium's own rules and our targeted override start applying.
         fontFamily = when (fontFamily) {
-            ReaderFontFamily.Serif -> FontFamily("serif")
+            ReaderFontFamily.Serif -> null  // Serif is the default; see FormattingPreferences.DEFAULT_FONT_FAMILY
             ReaderFontFamily.SansSerif -> FontFamily("sans-serif")
             ReaderFontFamily.Monospace -> FontFamily("monospace")
             ReaderFontFamily.Literata -> FontFamily("Literata")
             ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
             ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
         },
-        textAlign = if (justifyText) TextAlign.JUSTIFY else TextAlign.START,
+        textAlign = if (justifyText) TextAlign.JUSTIFY else null,
         // lineHeight only takes effect when publisherStyles is off
         publisherStyles = false,
-        lineHeight = lineSpacing.toDouble(),
+        lineHeight = lineSpacing.toDouble().takeIf { lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING },
         pageMargins = margins.toDouble(),
         scroll = orientation == ReaderOrientation.Vertical,
         // Fixed-layout: spread controls two-page side-by-side rendering.
