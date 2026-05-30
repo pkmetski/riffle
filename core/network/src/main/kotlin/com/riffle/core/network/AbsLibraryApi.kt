@@ -69,6 +69,38 @@ interface AbsLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkCollectionWriteResult = throw UnsupportedOperationException("removeBookFromCollection not implemented")
 
+    suspend fun getPlaylists(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistResult = throw UnsupportedOperationException("getPlaylists not implemented")
+
+    suspend fun createPlaylist(
+        baseUrl: String,
+        libraryId: String,
+        name: String,
+        initialBookId: String?,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistWriteResult = throw UnsupportedOperationException("createPlaylist not implemented")
+
+    suspend fun addBookToPlaylist(
+        baseUrl: String,
+        playlistId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistWriteResult = throw UnsupportedOperationException("addBookToPlaylist not implemented")
+
+    suspend fun removeBookFromPlaylist(
+        baseUrl: String,
+        playlistId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistWriteResult = throw UnsupportedOperationException("removeBookFromPlaylist not implemented")
+
     suspend fun getItemEbookFileIno(
         baseUrl: String,
         itemId: String,
