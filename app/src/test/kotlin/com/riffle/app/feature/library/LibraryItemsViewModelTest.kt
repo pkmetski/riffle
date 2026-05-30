@@ -18,6 +18,7 @@ import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
+import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -120,6 +122,26 @@ class LibraryItemsViewModelTest {
         override val isOnline: StateFlow<Boolean> = state
     }
 
+    private class FakeToReadRepository(initial: Set<String> = emptySet()) : ToReadRepository {
+        val ids = MutableStateFlow(initial)
+        var refreshCount = 0
+        override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = ids
+        override suspend fun refresh(libraryId: String): Boolean {
+            refreshCount++
+            return true
+        }
+        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
+            libraryItemId in ids.value
+        override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
+            ids.value = ids.value + libraryItemId
+            return true
+        }
+        override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
+            ids.value = ids.value - libraryItemId
+            return true
+        }
+    }
+
     private fun makeViewModel(
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         epubRepository: EpubRepository = fakeEpubRepo(),
@@ -127,6 +149,7 @@ class LibraryItemsViewModelTest {
         libraryRepository: LibraryRepository = fakeRepo(),
         serverRepository: ServerRepository = fakeServerRepo(),
         tokenStorage: TokenStorage = fakeTokenStorage(),
+        toReadRepository: ToReadRepository = FakeToReadRepository(),
     ) = LibraryItemsViewModel(
         SavedStateHandle(mapOf("libraryId" to "lib-1")),
         libraryRepository,
@@ -135,6 +158,7 @@ class LibraryItemsViewModelTest {
         epubRepository,
         pdfRepository,
         connectivityObserver,
+        toReadRepository,
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
@@ -595,6 +619,66 @@ class LibraryItemsViewModelTest {
         recentlyAddedFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredRecentlyAdded.value)
+    }
+
+    // --- toReadItems ---
+
+    @Test
+    fun `toReadItems is the intersection of toReadItemIds and allBooks when online`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf("id-Dune", "id-Foundation"))
+        val vm = makeViewModel(toReadRepository = toRead)
+        backgroundScope.launch { vm.toReadItems.collect {} }
+        allBooksFlow.value = listOf(
+            item("Dune", "Frank Herbert"),
+            item("Foundation", "Isaac Asimov"),
+            item("1984", "George Orwell"),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov")),
+            vm.toReadItems.value,
+        )
+    }
+
+    @Test
+    fun `toReadItems when offline only includes available-offline items`() = runTest {
+        val toRead = FakeToReadRepository(initial = setOf("id-Dune", "id-Foundation"))
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+            toReadRepository = toRead,
+        )
+        backgroundScope.launch { vm.toReadItems.collect {} }
+        allBooksFlow.value = listOf(
+            item("Dune", "Frank Herbert"),
+            item("Foundation", "Isaac Asimov"),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.toReadItems.value)
+    }
+
+    @Test
+    fun `init calls toReadRepository refresh`() = runTest {
+        val toRead = FakeToReadRepository()
+        val vm = makeViewModel(toReadRepository = toRead)
+        backgroundScope.launch { vm.isLoading.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(toRead.refreshCount >= 1)
+    }
+
+    @Test
+    fun `toRead refresh failure does not flip the offline banner`() = runTest {
+        val toRead = object : ToReadRepository {
+            override fun observeToReadItemIds(libraryId: String) = MutableStateFlow<Set<String>>(emptySet())
+            override suspend fun refresh(libraryId: String): Boolean = false
+            override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
+            override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
+            override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
+        }
+        val vm = makeViewModel(toReadRepository = toRead)
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.isOffline.value)
     }
 
     @Test

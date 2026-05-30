@@ -169,13 +169,19 @@ class LibraryItemDetailViewModelTest {
         val state = mutableSetOf<String>().also { it += initial }
         val addCalls = mutableListOf<Pair<String, String>>()
         val removeCalls = mutableListOf<Pair<String, String>>()
+        val callLog = mutableListOf<String>()
 
         override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(state.toSet())
 
-        override suspend fun refresh(libraryId: String): Boolean = true
+        override suspend fun refresh(libraryId: String): Boolean {
+            callLog += "refresh"
+            return true
+        }
 
-        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean =
-            libraryItemId in state
+        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean {
+            callLog += "isInToRead"
+            return libraryItemId in state
+        }
 
         override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
             addCalls += libraryItemId to libraryId
@@ -299,6 +305,18 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(DownloadState.NotDownloaded, vm.downloadState.value)
+    }
+
+    @Test
+    fun `init refreshes To Read before reading isInToRead`() = runTest {
+        val toRead = FakeToReadRepository()
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val refreshIdx = toRead.callLog.indexOf("refresh")
+        val isInIdx = toRead.callLog.indexOf("isInToRead")
+        assertTrue("expected refresh before isInToRead, got ${toRead.callLog}", refreshIdx in 0 until isInIdx)
     }
 
     // --- toggleToRead tests ---

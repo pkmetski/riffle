@@ -15,6 +15,7 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.Series
+import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,6 +50,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
     private val connectivityObserver: ConnectivityObserver,
+    private val toReadRepository: ToReadRepository,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -96,6 +98,9 @@ class LibraryItemsViewModel @Inject constructor(
 
     private val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val toReadItemIds: StateFlow<Set<String>> = toReadRepository.observeToReadItemIds(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -156,6 +161,12 @@ class LibraryItemsViewModel @Inject constructor(
         if (offline) items.filter { isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val toReadItems: StateFlow<List<LibraryItem>> = combine(toReadItemIds, allBooks, isOffline) { ids, all, offline ->
+        val byId = all.associateBy { it.id }
+        val items = ids.mapNotNull { byId[it] }
+        if (offline) items.filter { isAvailableOffline(it) } else items
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     var authToken: String by mutableStateOf("")
         private set
 
@@ -166,6 +177,7 @@ class LibraryItemsViewModel @Inject constructor(
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
             val refreshJob = launch { refresh() }
+            launch { toReadRepository.refresh(libraryId) }
             // Unblock the UI as soon as we have something meaningful to show:
             // either Room returns cached data quickly, or we wait for the network
             // refresh to complete so an empty state is known to be genuine.
@@ -186,7 +198,10 @@ class LibraryItemsViewModel @Inject constructor(
             connectivityObserver.isOnline
                 .drop(1)
                 .filter { it }
-                .collect { refresh() }
+                .collect {
+                    refresh()
+                    toReadRepository.refresh(libraryId)
+                }
         }
     }
 
@@ -199,7 +214,10 @@ class LibraryItemsViewModel @Inject constructor(
             val itemsDeferred = async { libraryRepository.refreshLibraryItems(libraryId) }
             val seriesDeferred = async { libraryRepository.refreshSeries(libraryId) }
             val collectionsDeferred = async { libraryRepository.refreshCollections(libraryId) }
+            // ToRead refresh runs alongside but its failure must NOT flip the offline banner.
+            val toReadDeferred = async { toReadRepository.refresh(libraryId) }
             val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
+            toReadDeferred.await()
             _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
         }
     }

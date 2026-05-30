@@ -77,6 +77,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 val item = repository.getItem(itemId)
                 if (item != null) {
                     _downloadState.value = deriveDownloadState(item)
+                    toReadRepository.refresh(item.libraryId)
                     val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
                     LibraryItemDetailUiState.Ready(item = item, isInToRead = isInToRead)
                 } else {
