@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.FormattingPanel
+import com.riffle.app.ui.TabletContentWidthContainer
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
@@ -49,6 +51,7 @@ import java.util.Date
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddServer: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -86,150 +89,154 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
+        TabletContentWidthContainer(
+            windowSizeClass = windowSizeClass,
+            modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            Text(
-                text = "Servers",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            HorizontalDivider()
-            servers.forEach { server ->
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        if (value == SwipeToDismissBoxValue.EndToStart) {
-                            viewModel.removeServer(server.id)
-                            true
-                        } else false
-                    }
-                )
-                SwipeToDismissBox(
-                    state = dismissState,
-                    backgroundContent = {},
-                ) {
-                    val username = server.username.takeIf { it.isNotEmpty() }
-                    val version = serverVersions[server.id]
-                    val subtitle = buildString {
-                        if (username != null) {
-                            append(username)
-                            append(" · ")
-                        }
-                        append(server.url.value)
-                        if (version != null) {
-                            append(" · ")
-                            append(version)
-                        }
-                    }
-                    ListItem(
-                        headlineContent = { Text(server.displayName) },
-                        supportingContent = { Text(subtitle) },
-                        trailingContent = if (server.isActive) {
-                            { Text("Active", style = MaterialTheme.typography.labelSmall) }
-                        } else null,
-                    )
-                }
-            }
-            Button(
-                onClick = onNavigateToAddServer,
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
             ) {
-                Text("Add Server")
-            }
-            HorizontalDivider()
-
-            if (libraryItems.isNotEmpty()) {
-                val activeServerName = servers.firstOrNull { it.isActive }?.displayName ?: ""
                 Text(
-                    text = "Libraries — $activeServerName",
+                    text = "Servers",
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                libraryItems.forEach { item ->
+                servers.forEach { server ->
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                viewModel.removeServer(server.id)
+                                true
+                            } else false
+                        }
+                    )
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = {},
+                    ) {
+                        val username = server.username.takeIf { it.isNotEmpty() }
+                        val version = serverVersions[server.id]
+                        val subtitle = buildString {
+                            if (username != null) {
+                                append(username)
+                                append(" · ")
+                            }
+                            append(server.url.value)
+                            if (version != null) {
+                                append(" · ")
+                                append(version)
+                            }
+                        }
+                        ListItem(
+                            headlineContent = { Text(server.displayName) },
+                            supportingContent = { Text(subtitle) },
+                            trailingContent = if (server.isActive) {
+                                { Text("Active", style = MaterialTheme.typography.labelSmall) }
+                            } else null,
+                        )
+                    }
+                }
+                Button(
+                    onClick = onNavigateToAddServer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text("Add Server")
+                }
+                HorizontalDivider()
+
+                if (libraryItems.isNotEmpty()) {
+                    val activeServerName = servers.firstOrNull { it.isActive }?.displayName ?: ""
+                    Text(
+                        text = "Libraries — $activeServerName",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    HorizontalDivider()
+                    libraryItems.forEach { item ->
+                        ListItem(
+                            headlineContent = { Text(item.library.name) },
+                            trailingContent = {
+                                Switch(
+                                    checked = item.isVisible,
+                                    onCheckedChange = { visible ->
+                                        val serverId = servers.firstOrNull { it.isActive }?.id ?: return@Switch
+                                        viewModel.setLibraryVisible(serverId, item.library.id, visible)
+                                    },
+                                    enabled = item.switchEnabled,
+                                )
+                            },
+                        )
+                    }
+                    HorizontalDivider()
+                }
+
+                Text(
+                    text = "Reading",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                ListItem(
+                    modifier = Modifier.clickable { showFormattingPanel = true },
+                    headlineContent = { Text("Reading settings") },
+                    supportingContent = { Text("Font, theme, spacing, screen wake, volume keys") },
+                    trailingContent = {
+                        TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
+                    },
+                )
+                HorizontalDivider()
+
+                Text(
+                    text = "Crash reports",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                if (report == null) {
                     ListItem(
-                        headlineContent = { Text(item.library.name) },
+                        headlineContent = { Text("No crashes recorded") },
+                        supportingContent = { Text("The app has not crashed since installation") },
+                    )
+                } else {
+                    val timestamp = DateFormat.getDateTimeInstance().format(Date(report.timestampMillis))
+                    ListItem(
+                        headlineContent = { Text("Last crash") },
+                        supportingContent = { Text(timestamp) },
                         trailingContent = {
-                            Switch(
-                                checked = item.isVisible,
-                                onCheckedChange = { visible ->
-                                    val serverId = servers.firstOrNull { it.isActive }?.id ?: return@Switch
-                                    viewModel.setLibraryVisible(serverId, item.library.id, visible)
-                                },
-                                enabled = item.switchEnabled,
-                            )
+                            Row {
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        clipboard.setClipEntry(
+                                            ClipEntry(ClipData.newPlainText("crash report", report.content))
+                                        )
+                                    }
+                                }) {
+                                    Text("Copy")
+                                }
+                                TextButton(onClick = { expanded = !expanded }) {
+                                    Text(if (expanded) "Hide" else "Show")
+                                }
+                            }
                         },
                     )
+                    if (expanded) {
+                        Text(
+                            text = report.content,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .horizontalScroll(rememberScrollState()),
+                        )
+                    }
                 }
                 HorizontalDivider()
             }
-
-            Text(
-                text = "Reading",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            HorizontalDivider()
-            ListItem(
-                modifier = Modifier.clickable { showFormattingPanel = true },
-                headlineContent = { Text("Reading settings") },
-                supportingContent = { Text("Font, theme, spacing, screen wake, volume keys") },
-                trailingContent = {
-                    TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
-                },
-            )
-            HorizontalDivider()
-
-            Text(
-                text = "Crash reports",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            HorizontalDivider()
-            if (report == null) {
-                ListItem(
-                    headlineContent = { Text("No crashes recorded") },
-                    supportingContent = { Text("The app has not crashed since installation") },
-                )
-            } else {
-                val timestamp = DateFormat.getDateTimeInstance().format(Date(report.timestampMillis))
-                ListItem(
-                    headlineContent = { Text("Last crash") },
-                    supportingContent = { Text(timestamp) },
-                    trailingContent = {
-                        Row {
-                            TextButton(onClick = {
-                                scope.launch {
-                                    clipboard.setClipEntry(
-                                        ClipEntry(ClipData.newPlainText("crash report", report.content))
-                                    )
-                                }
-                            }) {
-                                Text("Copy")
-                            }
-                            TextButton(onClick = { expanded = !expanded }) {
-                                Text(if (expanded) "Hide" else "Show")
-                            }
-                        }
-                    },
-                )
-                if (expanded) {
-                    Text(
-                        text = report.content,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .horizontalScroll(rememberScrollState()),
-                    )
-                }
-            }
-            HorizontalDivider()
         }
     }
 
