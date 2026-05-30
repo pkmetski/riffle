@@ -5,6 +5,7 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsCreateCollectionRequest
+import com.riffle.core.network.model.AbsCreatePlaylistRequest
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
@@ -12,10 +13,13 @@ import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
 import com.riffle.core.network.model.AbsMeResponse
+import com.riffle.core.network.model.AbsPlaylistItemRequest
+import com.riffle.core.network.model.AbsPlaylistsResponse
 import com.riffle.core.network.model.AbsProgressResponse
 import com.riffle.core.network.model.AbsSeriesResponse
 import com.riffle.core.network.model.AbsServerInfoResponse
 import com.riffle.core.network.model.toNetworkCollection
+import com.riffle.core.network.model.toNetworkPlaylist
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -322,6 +326,108 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             NetworkCollectionWriteResult.Success(collection)
         } catch (e: IOException) {
             NetworkCollectionWriteResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getPlaylists(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/libraries/$libraryId/playlists?limit=500")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string() ?: return@withContext NetworkPlaylistResult.NetworkError(
+                IOException("Empty response body")
+            )
+            val parsed = json.decodeFromString<AbsPlaylistsResponse>(raw)
+            NetworkPlaylistResult.Success(parsed.results.map { it.toNetworkPlaylist() })
+        } catch (e: Exception) {
+            NetworkPlaylistResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun createPlaylist(
+        baseUrl: String,
+        libraryId: String,
+        name: String,
+        initialBookId: String?,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistWriteResult {
+        val payload = AbsCreatePlaylistRequest(
+            libraryId = libraryId,
+            name = name,
+            items = listOfNotNull(initialBookId?.let { AbsPlaylistItemRequest(it) }),
+        )
+        val body = json.encodeToString(AbsCreatePlaylistRequest.serializer(), payload)
+            .toRequestBody(jsonMediaType)
+        return executePlaylistWrite(
+            url = "$baseUrl/api/playlists",
+            token = token,
+            insecureAllowed = insecureAllowed,
+        ) { post(body) }
+    }
+
+    override suspend fun addBookToPlaylist(
+        baseUrl: String,
+        playlistId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistWriteResult {
+        val body = json.encodeToString(
+            AbsPlaylistItemRequest.serializer(),
+            AbsPlaylistItemRequest(libraryItemId),
+        ).toRequestBody(jsonMediaType)
+        return executePlaylistWrite(
+            url = "$baseUrl/api/playlists/$playlistId/item",
+            token = token,
+            insecureAllowed = insecureAllowed,
+        ) { post(body) }
+    }
+
+    override suspend fun removeBookFromPlaylist(
+        baseUrl: String,
+        playlistId: String,
+        libraryItemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaylistWriteResult = executePlaylistWrite(
+        url = "$baseUrl/api/playlists/$playlistId/item/$libraryItemId",
+        token = token,
+        insecureAllowed = insecureAllowed,
+    ) { delete() }
+
+    private suspend fun executePlaylistWrite(
+        url: String,
+        token: String,
+        insecureAllowed: Boolean,
+        buildRequest: Request.Builder.() -> Unit,
+    ): NetworkPlaylistWriteResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+            .apply { buildRequest() }
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                return@withContext NetworkPlaylistWriteResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val playlist = if (raw.isBlank()) null else
+                json.decodeFromString(AbsPlaylistsResponse.AbsPlaylistDto.serializer(), raw).toNetworkPlaylist()
+            NetworkPlaylistWriteResult.Success(playlist)
+        } catch (e: IOException) {
+            NetworkPlaylistWriteResult.NetworkError(e)
         }
     }
 
