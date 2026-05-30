@@ -2,7 +2,14 @@ package com.riffle.app.feature.reader
 
 fun buildRailSegments(tocEntries: List<TocEntry>, bookTitle: String = ""): List<RailSegment> {
     val bookTitleNorm = bookTitle.normalize()
-    return tocEntries.flatMap { expandIfRedundant(it, bookTitleNorm) }
+    val expanded = tocEntries.flatMap { expandIfRedundant(it, bookTitleNorm) }
+    // Collapse entries that point to the same spine resource via different fragments. The
+    // navigator's locator carries no fragment during natural reading, so only the first
+    // matching segment would ever become active; siblings would visually skip on chapter
+    // transitions. Keep the first occurrence per base href so the rail shows one segment
+    // per spine resource.
+    val seen = HashSet<String>(expanded.size)
+    return expanded.filter { seen.add(it.href.substringBefore('#')) }
 }
 
 private fun expandIfRedundant(entry: TocEntry, bookTitleNorm: String): List<RailSegment> {

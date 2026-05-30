@@ -213,6 +213,47 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
+    fun `top-level entries sharing a spine resource collapse to one segment`() {
+        // Regression: Asimov "Lucky Starr" books pair each chapter with a subtitle entry at
+        // the SAME TOC level, sharing the same spine resource via a fragment:
+        //   Chapter 1         → section4.xhtml
+        //   The Doomed Ship   → section4.xhtml#heading_id_3
+        // The fragment entry can never become the active segment (locator.href has no
+        // fragment during natural reading), so it visually "skips" when advancing chapters.
+        // The rail should show one segment per spine resource — keep the first, drop the rest.
+        val toc = listOf(
+            TocEntry("Chapter 1", "section4.xhtml"),
+            TocEntry("The Doomed Ship", "section4.xhtml#heading_id_3"),
+            TocEntry("Chapter 2", "section5.xhtml"),
+            TocEntry("Sub 2", "section5.xhtml#heading_id_3"),
+        )
+        assertEquals(
+            listOf(
+                RailSegment("Chapter 1", "section4.xhtml"),
+                RailSegment("Chapter 2", "section5.xhtml"),
+            ),
+            buildRailSegments(toc),
+        )
+    }
+
+    @Test
+    fun `fragment-only top-level entry is kept when no plain-href sibling exists`() {
+        // If the only entry pointing to a spine resource has a fragment, keep it — there's
+        // nothing to dedup it against, and dropping it would lose the resource entirely.
+        val toc = listOf(
+            TocEntry("Intro", "section1.xhtml#part1"),
+            TocEntry("Chapter 1", "section2.xhtml"),
+        )
+        assertEquals(
+            listOf(
+                RailSegment("Intro", "section1.xhtml#part1"),
+                RailSegment("Chapter 1", "section2.xhtml"),
+            ),
+            buildRailSegments(toc),
+        )
+    }
+
+    @Test
     fun `segments with duplicate titles but unique hrefs are all retained`() {
         val toc = listOf(
             TocEntry("EDDARD", "chapter_eddard1.xhtml"),
