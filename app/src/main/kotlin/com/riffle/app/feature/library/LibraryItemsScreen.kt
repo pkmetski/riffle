@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.GridView
@@ -109,6 +110,7 @@ fun LibraryItemsScreen(
     val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
     val series by viewModel.filteredSeries.collectAsState()
     val collections by viewModel.filteredCollections.collectAsState()
+    val toReadItems by viewModel.toReadItems.collectAsState()
     val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -178,20 +180,26 @@ fun LibraryItemsScreen(
                         onItemSelected = onItemSelected,
                         onSectionSeeMore = onSectionSeeMore,
                     )
-                    1 -> SeriesTabContent(
+                    1 -> ToReadTabContent(
+                        items = toReadItems,
+                        isLoading = isLoading,
+                        token = viewModel.authToken,
+                        onItemSelected = onItemSelected,
+                    )
+                    2 -> SeriesTabContent(
                         items = series,
                         isLoading = isLoading,
                         token = viewModel.authToken,
                         onSeriesSelected = onSeriesSelected,
                     )
-                    2 -> CollectionsTabContent(
+                    3 -> CollectionsTabContent(
                         items = collections,
                         isLoading = isLoading,
                         token = viewModel.authToken,
                         collectionCoverUrls = collectionCoverUrls,
                         onCollectionSelected = onCollectionSelected,
                     )
-                    3 -> AllBooksTabContent(
+                    4 -> AllBooksTabContent(
                         items = allBooks,
                         isLoading = isLoading,
                         token = viewModel.authToken,
@@ -816,16 +824,21 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         NavigationBarItem(
             selected = selectedTab == 1,
             onClick = { onTabSelected(1) },
-            icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
+            icon = { Icon(Icons.Filled.Bookmark, contentDescription = "To Read") },
         )
         NavigationBarItem(
             selected = selectedTab == 2,
             onClick = { onTabSelected(2) },
-            icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+            icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
         )
         NavigationBarItem(
             selected = selectedTab == 3,
             onClick = { onTabSelected(3) },
+            icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+        )
+        NavigationBarItem(
+            selected = selectedTab == 4,
+            onClick = { onTabSelected(4) },
             icon = { Icon(Icons.Filled.GridView, contentDescription = "All Books") },
         )
     }
@@ -961,6 +974,38 @@ private fun CollectionsTabContent(
                     token = token,
                     onClick = { onCollectionSelected(col) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToReadTabContent(
+    items: List<LibraryItem>,
+    isLoading: Boolean,
+    token: String,
+    onItemSelected: (LibraryItem) -> Unit,
+) {
+    if (isLoading) return
+    if (items.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Nothing in To Read")
+        }
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(
+            start = 12.dp, end = 12.dp, bottom = 16.dp,
+        ),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader("To Read (${items.size})")
+        }
+        items(items, key = { it.id }) { item ->
+            Box(modifier = Modifier.padding(4.dp)) {
+                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) })
             }
         }
     }
