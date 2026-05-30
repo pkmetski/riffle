@@ -74,7 +74,7 @@ class TypographyOverrideTest {
         val css = typographyOverrideCss()
         TYPOGRAPHY_OVERRIDES.values.forEach { override ->
             assertTrue(
-                "Override for ${override.cssProperty} must be gated on :root[style*=\"${override.userPropertyName}\"]",
+                "Override for ${override.cssProperties} must be gated on :root[style*=\"${override.userPropertyName}\"]",
                 css.contains(":root[style*=\"${override.userPropertyName}\"]"),
             )
         }
@@ -87,12 +87,35 @@ class TypographyOverrideTest {
     fun every_override_uses_important() {
         val css = typographyOverrideCss()
         TYPOGRAPHY_OVERRIDES.values.forEach { override ->
-            val rule = Regex("${Regex.escape(override.cssProperty)}:\\s*var\\(${Regex.escape(override.userPropertyName)}\\)\\s*!important")
-            assertNotNull(
-                "Override for ${override.cssProperty} must use !important to beat publisher rules without it",
-                rule.find(css),
-            )
+            override.cssProperties.forEach { property ->
+                val rule = Regex("${Regex.escape(property)}:\\s*${Regex.escape(override.cssValue)}\\s*!important")
+                assertNotNull(
+                    "Override for $property must use !important to beat publisher rules without it",
+                    rule.find(css),
+                )
+            }
         }
+    }
+
+    // Regression guard: an earlier attempt at applying margins to top/bottom set
+    // `elements = "body"`, which silently did nothing because CSS multicol fragments body as a
+    // single block — padding-top only shows on the first column, padding-bottom only on the
+    // last. The fix targets `:root` (the multicol container) so every page gets equal
+    // vertical whitespace. Encoding it as a test so a future refactor doesn't quietly regress.
+    @Test
+    fun margins_override_targets_root_not_a_descendant() {
+        val override = TYPOGRAPHY_OVERRIDES.getValue("margins")
+        assertEquals(
+            "Margins must pad :root (multicol container); padding on body wouldn't show per-page",
+            "", override.elements,
+        )
+        val css = typographyOverrideCss()
+        // The rule for margins must be exactly the gate selector with no descendant —
+        // i.e. `:root[style*="--USER__pageMargins"] {`, not `... body {` or similar.
+        assertTrue(
+            "Margins rule must be scoped to :root itself, not a descendant. CSS was:\n$css",
+            css.contains(":root[style*=\"--USER__pageMargins\"] {"),
+        )
     }
 
     // Injection JS must be idempotent — onPageLoaded fires more than once per page during
