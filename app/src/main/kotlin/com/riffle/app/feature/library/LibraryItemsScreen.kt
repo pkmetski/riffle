@@ -911,7 +911,7 @@ private fun SeriesTabContent(
         return
     }
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Adaptive(coverGridMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
@@ -944,7 +944,7 @@ private fun CollectionsTabContent(
         return
     }
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Adaptive(coverGridMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
@@ -981,7 +981,7 @@ private fun AllBooksTabContent(
         return
     }
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Adaptive(coverGridMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
