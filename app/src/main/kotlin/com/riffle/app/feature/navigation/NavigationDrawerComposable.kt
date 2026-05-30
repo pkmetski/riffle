@@ -105,7 +105,7 @@ fun RiffleNavigationDrawer(
                     val uriHandler = LocalUriHandler.current
                     Text(
                         text = "☕ Support on Ko-fi",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier
                             .fillMaxWidth()

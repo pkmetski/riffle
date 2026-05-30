@@ -8,6 +8,10 @@ import android.view.ViewGroup
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentFactory
@@ -17,6 +21,7 @@ import com.riffle.app.feature.reader.VolumeKeyEventHandler
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.navigation.MainScreen
+import com.riffle.app.ui.BottomNavBarScrim
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import dagger.hilt.android.AndroidEntryPoint
@@ -52,15 +57,16 @@ class MainActivity : FragmentActivity() {
             .stateIn(lifecycleScope, SharingStarted.Eagerly, true)
         invertVolumeKeys = volumeKeyPreferencesStore.invertVolumeKeys
             .stateIn(lifecycleScope, SharingStarted.Eagerly, false)
-        // Status bar fully transparent; navigation bar gets a light translucent scrim so the
-        // home/back/recents icons stay legible over reader content without producing a solid
-        // strip when Immersive mode exits. The OS contrast scrim is disabled so only our
-        // explicit alpha values apply.
+        // Both system bars are fully transparent at the OS level. The app draws its own
+        // scrim under the nav-bar inset area (BottomNavBarScrim, applied globally in
+        // setContent below) so the look is identical across gesture-nav devices (where
+        // Android forces navigationBarColor transparent regardless of what we pass) and
+        // 3-button-nav devices. The OS contrast scrim is disabled so it can't double up
+        // with the app-drawn scrim.
         val transparent = android.graphics.Color.TRANSPARENT
-        val navScrim = android.graphics.Color.argb(0x99, 0, 0, 0) // ~60% black
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(transparent, transparent),
-            navigationBarStyle = SystemBarStyle.auto(navScrim, navScrim),
+            navigationBarStyle = SystemBarStyle.auto(transparent, transparent),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
@@ -68,7 +74,10 @@ class MainActivity : FragmentActivity() {
         }
         setContent {
             RiffleTheme {
-                MainScreen()
+                Box(Modifier.fillMaxSize()) {
+                    MainScreen()
+                    BottomNavBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
+                }
             }
         }
     }

@@ -270,7 +270,7 @@ fun EpubReaderScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text(title, style = MaterialTheme.typography.titleMedium) },
+                    title = { AutoResizeText(title, style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -318,12 +318,12 @@ fun EpubReaderScreen(
     }
 }
 
-// Reader TopAppBar palette: ~60% black scrim matching the system nav bar so both bars
-// read as translucent overlays on the page rather than opaque chrome.
+// Reader TopAppBar palette: same translucent black as the global nav-bar scrim so both
+// bars read as a single translucent overlay on the page rather than opaque chrome.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-    containerColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f),
+    containerColor = com.riffle.app.ui.bottomBarScrimColor(),
     titleContentColor = androidx.compose.ui.graphics.Color.White,
     navigationIconContentColor = androidx.compose.ui.graphics.Color.White,
     actionIconContentColor = androidx.compose.ui.graphics.Color.White,
