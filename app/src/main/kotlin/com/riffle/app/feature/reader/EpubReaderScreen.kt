@@ -72,8 +72,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.HyperlinkNavigator
@@ -392,6 +394,10 @@ private fun EpubNavigatorView(
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
+    val currentPublication by rememberUpdatedState(state.publication)
+    // ConcurrentHashMap: writes happen on Dispatchers.IO from the locator
+    // coroutine; reads happen on the JS binder thread inside resolveAnchorTap.
+    val footnoteDocCache = remember { ConcurrentHashMap<String, Document>() }
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
@@ -402,6 +408,9 @@ private fun EpubNavigatorView(
     }
     val fragmentListener = remember {
         object : EpubNavigatorFragment.Listener {
+            // Kept as a safety net for EPUBs where Readium's own footnote
+            // detection succeeds; the primary path is the JS bridge below,
+            // because Readium 3.0.0's selector breaks on dotted IDs.
             override fun shouldFollowInternalLink(
                 link: Link,
                 context: HyperlinkNavigator.LinkContext?,
@@ -418,20 +427,36 @@ private fun EpubNavigatorView(
     }
 
     // Injects the targeted typography overrides (see TypographyOverride.kt) into each newly
-    // loaded reflowable page. Required because some EPUBs use high-specificity publisher CSS
-    // (e.g. Safari Books Online's `#sbo-rt-content p { line-height: 125% }`) that beats
-    // Readium's own body-level user-property rules; without this injection, line-spacing /
-    // justify / fontFamily changes silently do nothing on those books. The injection JS is
-    // idempotent so repeated firings during reflow don't accumulate <style> tags.
+    // loaded reflowable page, plus the footnote-anchor install script. Both are idempotent
+    // (typography deduplicates by <style> tag, footnote by window.__riffleFootnoteInstalled),
+    // so repeated firings during reflow are harmless.
     val paginationListener = remember {
         object : EpubNavigatorFragment.PaginationListener {
             override fun onPageLoaded() {
                 val fragment = fragmentRef.value ?: return
                 coroutineScope.launch {
                     fragment.evaluateJavascript(typographyOverrideInjectionJs())
+                    fragment.evaluateJavascript(FootnoteAnchorBridge.INSTALL_SCRIPT)
                 }
             }
         }
+    }
+
+    // Tap on an in-document anchor inside the WebView → look up the target in
+    // the cached spine doc; if it's a footnote, show the popup and tell JS to
+    // preventDefault. Otherwise return false and let the WebView scroll.
+    DisposableEffect(Unit) {
+        FootnoteAnchorBridge.setHandler { fragmentId ->
+            val text = FootnoteResolver.resolveAnchorTap(
+                currentHrefHolder[0], footnoteDocCache, fragmentId,
+            ) ?: return@setHandler false
+            // Called from the JS binder thread; hop to main for Compose state.
+            coroutineScope.launch(Dispatchers.Main) {
+                currentOnFootnoteTapped(text)
+            }
+            true
+        }
+        onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
     LaunchedEffect(onNavigationEvents) {
@@ -636,7 +661,11 @@ private fun EpubNavigatorView(
                     ).createFragmentFactory(
                         initialLocator = latestLocator() ?: state.initialLocator,
                         initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
-                        configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout),
+                        configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout).apply {
+                            registerJavascriptInterface(FootnoteAnchorBridge.JS_NAME) { _ ->
+                                FootnoteAnchorBridge.bridge
+                            }
+                        },
                         listener = fragmentListener,
                         paginationListener = paginationListener,
                     )
@@ -653,6 +682,16 @@ private fun EpubNavigatorView(
                         fragment.currentLocator.collect { locator ->
                             currentHrefHolder[0] = locator.href.toString()
                             onPositionChanged(locator)
+                            val key = locator.href.removeFragment().toString()
+                            if (key.isNotEmpty() && !footnoteDocCache.containsKey(key)) {
+                                launch(Dispatchers.IO) {
+                                    val bytes = currentPublication.get(locator.href.removeFragment())
+                                        ?.read()?.getOrNull() ?: return@launch
+                                    footnoteDocCache[key] = FootnoteResolver.parse(
+                                        String(bytes, Charsets.UTF_8)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
