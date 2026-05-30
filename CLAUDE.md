@@ -2,7 +2,7 @@
 
 ## Running harness tests
 
-Always run harness tests via `make harness-test`. Never call `./gradlew :app:connectedDebugAndroidTest` directly — it targets all connected devices and will interfere with the developer's physical device. The Makefile target boots the "Harness Medium Phone" AVD, runs tests against it exclusively, then shuts it down.
+Always run harness tests via `make harness-test` (phone-form-factor tests) or `make harness-test-tablet` (tests annotated with `@TabletLayout`). Never call `./gradlew :app:connectedDebugAndroidTest` directly — it targets all connected devices and will interfere with the developer's physical device. Each target boots its dedicated AVD ("Harness Medium Phone" or "Harness Medium Tablet"), runs its filtered test subset against it exclusively, then shuts it down. The two subsets are mutually exclusive, so tests never double-run across targets.
 
 ## Feature progress
 
