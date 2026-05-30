@@ -31,6 +31,8 @@ class StubAbsServer {
         const val TEST_SERIES_NAME = "Test Series"
         const val TEST_COLLECTION_ID = "collection-test-1"
         const val TEST_COLLECTION_NAME = "Test Collection"
+        const val TEST_PLAYLIST_ID = "playlist-test-1"
+        const val TEST_PLAYLIST_NAME = "To Read"
         const val TEST_STANDALONE_ITEM_ID = "item-test-2"
         const val TEST_STANDALONE_ITEM_TITLE = "Test EPUB Standalone"
         const val TEST_STANDALONE_FILE_INO = "ino-test-2"
@@ -68,6 +70,10 @@ class StubAbsServer {
             request.path == "/api/libraries/$TEST_LIBRARY_ID/items" -> libraryItemsResponse()
             request.path == "/api/libraries/$TEST_LIBRARY_ID/series?limit=500" -> seriesResponse()
             request.path == "/api/libraries/$TEST_LIBRARY_ID/collections?limit=500" -> collectionsResponse()
+            request.path == "/api/libraries/$TEST_LIBRARY_ID/playlists?limit=500" -> playlistsResponse()
+            request.path == "/api/playlists" && request.method == "POST" -> playlistCreateResponse(request)
+            request.path?.matches(Regex("/api/playlists/[^/]+/item")) == true && request.method == "POST" -> playlistItemAddResponse()
+            request.path?.matches(Regex("/api/playlists/[^/]+/item/[^/]+")) == true && request.method == "DELETE" -> playlistItemRemoveResponse()
             request.path == "/api/items/$TEST_ITEM_ID" -> itemResponse()
             request.path == "/api/items/$TEST_ITEM_ID/ebook/$TEST_FILE_INO" -> epubFileResponse()
             request.path == "/api/items/$TEST_STANDALONE_ITEM_ID" -> standaloneItemResponse()
@@ -159,6 +165,24 @@ class StubAbsServer {
         200,
         """{"results":[{"id":"$TEST_COLLECTION_ID","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_COLLECTION_NAME","books":[{"id":"$TEST_ITEM_ID","libraryId":"$TEST_LIBRARY_ID","media":{"metadata":{"title":"$TEST_ITEM_TITLE","authorName":"$TEST_ITEM_AUTHOR","genres":null},"ebookFormat":"epub","ebookFile":{"ino":"$TEST_FILE_INO"}},"userMediaProgress":null}]}]}"""
     )
+
+    private fun playlistsResponse() = json(
+        200,
+        """{"results":[]}"""
+    )
+
+    private fun playlistCreateResponse(request: RecordedRequest): MockResponse {
+        // Consume body to avoid leaving it on the wire; minimal valid playlist response.
+        request.body.readUtf8()
+        return json(
+            200,
+            """{"id":"playlist-new","libraryId":"$TEST_LIBRARY_ID","name":"$TEST_PLAYLIST_NAME","items":[]}"""
+        )
+    }
+
+    private fun playlistItemAddResponse() = json(200, "{}")
+
+    private fun playlistItemRemoveResponse() = json(200, "{}")
 
     private fun meResponse() = json(
         200,
