@@ -128,3 +128,9 @@ The third tab in the Library Tab Bar. Displays all Collections in the current Li
 
 ### All Books Tab
 The fourth tab in the Library Tab Bar. Displays every Library Item in the current Library as a full cover grid.
+
+### Tablet Layout
+The variant of the app's UI applied when the current window's width is in Material 3's **Expanded** size class (≥ 840dp). Compact (< 600dp) and Medium (600–839dp) windows continue to use the standard phone UI — so a phone in landscape, an unfolded foldable, and a small tablet in portrait all stay on the phone layout. The Tablet Layout differs from the phone layout in three places: the Navigation Drawer becomes a Permanent Navigation Drawer; the Library Item Detail Screen splits into a two-column layout (cover and action row in a fixed left pane, metadata and description in an independently scrolling right pane); and single-column list/form screens (Settings, Downloads Screen, AddServerScreen, Library Visibility Preferences) are width-capped and centred in the content pane. The Library Tab Bar remains pinned to the bottom, cover grids continue to use adaptive cell sizing (with a larger minimum cell size on Expanded), and the reader is unchanged. The layout switches reactively on configuration change — unfolding a foldable, resizing a ChromeOS window, or entering split-screen all re-evaluate the size class.
+
+### Permanent Navigation Drawer
+The Tablet Layout variant of the Navigation Drawer. Pinned to the leading edge of the window and always visible — there is no hamburger affordance and no scrim. Contents and ordering are identical to the modal Navigation Drawer used on phones: active Server header (tappable → Server Switcher), visible Libraries, Downloads, Settings.
