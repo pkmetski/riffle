@@ -264,6 +264,33 @@ class ServerRepositoryTest {
     }
 
     @Test
+    fun `commit Storyteller pending remaps hidden placeholder id to materialised library id`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val pending = PendingServer(
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            displayName = "media-server",
+            username = "plamen", userId = "", token = "tok-st",
+            insecureConnectionAllowed = false,
+            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            serverType = ServerType.STORYTELLER,
+        )
+
+        val result = repo.commit(
+            pending,
+            hiddenLibraryIds = setOf(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID),
+        )
+
+        assertTrue(result is CommitServerResult.Success)
+        val server = (result as CommitServerResult.Success).server
+        val materialisedId = ServerRepositoryImpl.readaloudLibraryId(server.id)
+        assertEquals(setOf(materialisedId), visibility.hidden[server.id])
+    }
+
+    @Test
     fun `commit Storyteller pending materialises Readaloud library with server-scoped id`() = runTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()

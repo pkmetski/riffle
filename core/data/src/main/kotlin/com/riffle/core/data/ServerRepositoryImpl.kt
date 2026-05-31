@@ -157,7 +157,13 @@ class ServerRepositoryImpl @Inject constructor(
                 )
             },
         )
-        hiddenLibraryIds.forEach { visibilityStore.hideLibrary(id, it) }
+        // Hidden ids arriving from the picker may still reference the synthetic placeholder
+        // for the Readaloud library; remap them to the materialised server-scoped id so the
+        // visibility preference attaches to the row that actually exists.
+        hiddenLibraryIds.forEach { hidden ->
+            val materialisedId = if (hidden == SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID) readaloudLibraryId(id) else hidden
+            visibilityStore.hideLibrary(id, materialisedId)
+        }
         CommitServerResult.Success(inserted.toDomain())
     } catch (t: Throwable) {
         CommitServerResult.Failure(t)
