@@ -52,6 +52,7 @@ class LibraryItemDetailTabletLayoutTest {
                 isInToRead = false,
                 token = "",
                 downloadState = DownloadState.NotDownloaded,
+                isReadaloud = false,
                 onReadItem = {},
                 onMarkAsRead = {},
                 onMarkAsUnread = {},
