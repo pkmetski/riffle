@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performTextReplacement
@@ -21,6 +22,7 @@ import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.domain.WakeLockPreferencesStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -77,9 +79,19 @@ class WakeLockHarnessTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Keep screen on").assertExists()
+        // "Keep screen on" sits at the bottom of the panel's verticalScroll column;
+        // scroll it on-screen so the click hits the toggleable Row instead of being
+        // swallowed by clipped/empty space.
+        composeTestRule.onNodeWithText("Keep screen on").performScrollTo()
         // Toggle the switch off (it's on by default)
         composeTestRule.onNodeWithText("Keep screen on").performClick()
         composeTestRule.waitForIdle()
+        // Compose's waitForIdle does not wait for the DataStore write fired by the toggle's
+        // viewModelScope.launch. Poll the store directly so the preference is verified
+        // persisted before we navigate away — otherwise the reader may read the stale `true`.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking { wakeLockPreferencesStore.keepScreenOn.first() } == false
+        }
 
         // Two back-presses: the first dismisses the full-screen panel (consumed by its
         // BackHandler), the second leaves Settings and returns to the library.
@@ -91,9 +103,14 @@ class WakeLockHarnessTest {
         openFirstBook()
 
         composeTestRule.assertNoErrorState()
-        composeTestRule
-            .onNode(hasTestTag(ReaderSemanticMatchers.TAG_READER_READY) and hasContentDescription("wake-lock:off", substring = true))
-            .assertExists()
+        // `keepScreenOn` is exposed via SharingStarted.Eagerly with an initial value of `true`,
+        // so `reader_ready` first paints with wake-lock:on and recomposes once the DataStore
+        // flow delivers the persisted `false`. Wait for that descriptor instead of asserting now.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule
+                .onAllNodes(hasTestTag(ReaderSemanticMatchers.TAG_READER_READY) and hasContentDescription("wake-lock:off", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     @Test
