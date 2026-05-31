@@ -88,11 +88,13 @@ class PdfRepositoryTest {
     }
 
     private class FakePdfPositionStore : ReadingPositionStore {
-        val store = mutableMapOf<String, String>()
-        override suspend fun save(itemId: String, cfi: String) { store[itemId] = cfi }
-        override suspend fun load(itemId: String): String? = store[itemId]
-        override suspend fun loadLocalUpdatedAt(itemId: String): Long = 0L
-        override suspend fun updateLocalTimestamp(itemId: String, millis: Long) = Unit
+        val store = mutableMapOf<Pair<String, String>, String>()
+        override suspend fun save(serverId: String, itemId: String, cfi: String) {
+            store[serverId to itemId] = cfi
+        }
+        override suspend fun load(serverId: String, itemId: String): String? = store[serverId to itemId]
+        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
+        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
     }
 
     private fun item(id: String = "item-1", ino: String? = "ino-42") = LibraryItem(
@@ -143,7 +145,7 @@ class PdfRepositoryTest {
     @Test
     fun `openPdf returns last saved reading position`() = runTest {
         cacheStore.save("item-1", pdfBytes.inputStream())
-        positionStore.save("item-1", """{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""")
+        positionStore.save("server-1", "item-1", """{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""")
         val result = repo.openPdf(item()) as PdfOpenResult.Success
         assertEquals("""{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""", result.lastPosition)
     }

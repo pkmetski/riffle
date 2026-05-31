@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.SessionPayload
@@ -22,29 +23,30 @@ class ReadingSessionRepositoryImpl @Inject constructor(
 ) : ReadingSessionRepository {
 
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult {
-        val (baseUrl, token) = resolveCredentials() ?: return SyncSessionResult.NetworkError(
+        val resolved = resolveServerAndToken() ?: return SyncSessionResult.NetworkError(
             IllegalStateException("No active server or token")
         )
-        return when (val r = api.syncEbookProgress(baseUrl, itemId, payload.toNetwork(), token, insecureAllowed())) {
+        val (server, token) = resolved
+        return when (val r = api.syncEbookProgress(server.url.value, itemId, payload.toNetwork(), token, server.insecureConnectionAllowed)) {
             is NetworkSyncSessionResult.Success -> SyncSessionResult.Success
             is NetworkSyncSessionResult.NetworkError -> SyncSessionResult.NetworkError(r.cause)
         }
     }
 
     override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult {
-        val (baseUrl, token) = resolveCredentials() ?: return ProgressSyncCycleResult.Offline
-        val insecure = insecureAllowed()
+        val resolved = resolveServerAndToken() ?: return ProgressSyncCycleResult.Offline
+        val (server, token) = resolved
 
-        val serverProgress = when (val r = api.getProgress(baseUrl, itemId, token, insecure)) {
+        val serverProgress = when (val r = api.getProgress(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
             is NetworkGetProgressResult.NetworkError -> return ProgressSyncCycleResult.Offline
             is NetworkGetProgressResult.Success -> r.progress
         }
 
-        val localUpdatedAt = positionStore.loadLocalUpdatedAt(itemId)
+        val localUpdatedAt = positionStore.loadLocalUpdatedAt(server.id, itemId)
 
         return when {
             serverProgress.lastUpdate > localUpdatedAt -> {
-                positionStore.updateLocalTimestamp(itemId, serverProgress.lastUpdate)
+                positionStore.updateLocalTimestamp(server.id, itemId, serverProgress.lastUpdate)
                 ProgressSyncCycleResult.ServerWins(
                     ServerProgress(
                         ebookLocation = serverProgress.ebookLocation,
@@ -54,10 +56,10 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 )
             }
             localUpdatedAt > serverProgress.lastUpdate -> {
-                val patchResult = api.syncEbookProgress(baseUrl, itemId, payload.toNetwork(), token, insecure)
+                val patchResult = api.syncEbookProgress(server.url.value, itemId, payload.toNetwork(), token, server.insecureConnectionAllowed)
                 if (patchResult is NetworkSyncSessionResult.Success) {
                     val ts = patchResult.lastUpdate.takeIf { it > 0L } ?: System.currentTimeMillis()
-                    positionStore.updateLocalTimestamp(itemId, ts)
+                    positionStore.updateLocalTimestamp(server.id, itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
             }
@@ -66,27 +68,25 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setProgress(itemId: String, progress: Float) {
-        val cfi = positionStore.load(itemId) ?: ""
-        // Bump before credential check: marks the record dirty so the sync cycle pushes it
-        // even if we have no server right now (offline / no active server).
-        positionStore.updateLocalTimestamp(itemId, System.currentTimeMillis())
-        val (baseUrl, token) = resolveCredentials() ?: return
+        val server = serverRepository.getActive() ?: return
+        val cfi = positionStore.load(server.id, itemId) ?: ""
+        // Bump before token check: marks the record dirty so the sync cycle pushes it
+        // even if the token is missing right now.
+        positionStore.updateLocalTimestamp(server.id, itemId, System.currentTimeMillis())
+        val token = tokenStorage.getToken(server.id) ?: return
         api.syncEbookProgress(
-            baseUrl, itemId,
+            server.url.value, itemId,
             NetworkEbookProgressPayload(cfi, progress),
-            token, insecureAllowed(),
+            token, server.insecureConnectionAllowed,
         )
         // PATCH failure intentionally ignored — next sync cycle will push
     }
 
-    private suspend fun resolveCredentials(): Pair<String, String>? {
+    private suspend fun resolveServerAndToken(): Pair<Server, String>? {
         val server = serverRepository.getActive() ?: return null
         val token = tokenStorage.getToken(server.id) ?: return null
-        return server.url.value to token
+        return server to token
     }
-
-    private suspend fun insecureAllowed(): Boolean =
-        serverRepository.getActive()?.insecureConnectionAllowed ?: false
 
     private fun SessionPayload.toNetwork() = NetworkEbookProgressPayload(
         ebookLocation = ebookLocation,

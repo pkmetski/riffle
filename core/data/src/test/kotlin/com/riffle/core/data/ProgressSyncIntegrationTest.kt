@@ -40,10 +40,10 @@ class ProgressSyncIntegrationTest {
 
     private class RecordingPositionStore(var localUpdatedAt: Long = 0L) : ReadingPositionStore {
         var updatedTimestamp: Long? = null
-        override suspend fun save(itemId: String, cfi: String) = Unit
-        override suspend fun load(itemId: String): String? = null
-        override suspend fun loadLocalUpdatedAt(itemId: String): Long = localUpdatedAt
-        override suspend fun updateLocalTimestamp(itemId: String, millis: Long) { updatedTimestamp = millis }
+        override suspend fun save(serverId: String, itemId: String, cfi: String) = Unit
+        override suspend fun load(serverId: String, itemId: String): String? = null
+        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
+        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) { updatedTimestamp = millis }
     }
 
     private fun buildRepo() = ReadingSessionRepositoryImpl(

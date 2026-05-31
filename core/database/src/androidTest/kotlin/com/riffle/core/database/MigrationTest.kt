@@ -478,6 +478,89 @@ class MigrationTest {
     }
 
     @Test
+    fun migration18To19_backfillsActiveServerIdAndCascadeDeletes() {
+        helper.createDatabase(TEST_DB, 18).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://localhost', 'Server 1', 1, 0, 'alice', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s2', 'http://other', 'Server 2', 0, 0, 'bob', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO reading_positions (itemId, cfi, localUpdatedAt) VALUES ('item-1', 'epubcfi(/6/4!/4/1:0)', 12345)"
+            )
+            db.execSQL(
+                "INSERT INTO reading_positions (itemId, cfi, localUpdatedAt) VALUES ('item-2', 'epubcfi(/6/8!/4/1:42)', 67890)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 19, true, RiffleDatabase.MIGRATION_18_19)
+
+        // Pre-existing rows are attributed to the active server.
+        db.query("SELECT serverId, itemId, cfi, localUpdatedAt FROM reading_positions ORDER BY itemId").use { cursor ->
+            assertEquals(2, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("item-1", cursor.getString(1))
+            assertEquals("epubcfi(/6/4!/4/1:0)", cursor.getString(2))
+            assertEquals(12345L, cursor.getLong(3))
+            cursor.moveToNext()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("item-2", cursor.getString(1))
+            assertEquals("epubcfi(/6/8!/4/1:42)", cursor.getString(2))
+            assertEquals(67890L, cursor.getLong(3))
+        }
+
+        // Different servers can now hold distinct positions for the same itemId.
+        db.execSQL(
+            "INSERT INTO reading_positions (serverId, itemId, cfi, localUpdatedAt) " +
+                "VALUES ('s2', 'item-1', 'epubcfi(/6/4!/4/1:999)', 99999)"
+        )
+        db.query("SELECT cfi FROM reading_positions WHERE serverId = 's1' AND itemId = 'item-1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("epubcfi(/6/4!/4/1:0)", cursor.getString(0))
+        }
+        db.query("SELECT cfi FROM reading_positions WHERE serverId = 's2' AND itemId = 'item-1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("epubcfi(/6/4!/4/1:999)", cursor.getString(0))
+        }
+
+        // FK cascade: deleting a server wipes that server's positions but leaves others untouched.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 's2'")
+        db.query("SELECT COUNT(*) FROM reading_positions WHERE serverId = 's2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM reading_positions WHERE serverId = 's1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(2, cursor.getInt(0))
+        }
+    }
+
+    @Test
+    fun migration18To19_dropsRowsWhenNoActiveServer() {
+        helper.createDatabase(TEST_DB, 18).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://localhost', 'Server 1', 0, 0, 'alice', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO reading_positions (itemId, cfi, localUpdatedAt) VALUES ('orphan', 'epubcfi(/6/4!/4/1:0)', 1)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 19, true, RiffleDatabase.MIGRATION_18_19)
+
+        db.query("SELECT COUNT(*) FROM reading_positions").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -486,7 +569,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 18, true,
+            TEST_DB, 19, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -504,6 +587,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_15_16,
             RiffleDatabase.MIGRATION_16_17,
             RiffleDatabase.MIGRATION_17_18,
+            RiffleDatabase.MIGRATION_18_19,
         )
 
         db.query("SELECT url, displayName, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

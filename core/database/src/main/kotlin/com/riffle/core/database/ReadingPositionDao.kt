@@ -11,9 +11,9 @@ interface ReadingPositionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: ReadingPositionEntity)
 
-    @Query("SELECT * FROM reading_positions WHERE itemId = :itemId LIMIT 1")
-    suspend fun getByItemId(itemId: String): ReadingPositionEntity?
+    @Query("SELECT * FROM reading_positions WHERE serverId = :serverId AND itemId = :itemId LIMIT 1")
+    suspend fun getByItemId(serverId: String, itemId: String): ReadingPositionEntity?
 
-    @Query("UPDATE reading_positions SET localUpdatedAt = :millis WHERE itemId = :itemId")
-    suspend fun updateLocalTimestamp(itemId: String, millis: Long)
+    @Query("UPDATE reading_positions SET localUpdatedAt = :millis WHERE serverId = :serverId AND itemId = :itemId")
+    suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long)
 }
