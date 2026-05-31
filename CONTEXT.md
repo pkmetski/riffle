@@ -5,10 +5,23 @@
 ## Terms
 
 ### Server
-A user-configured Audiobookshelf server instance (URL + credentials). Multiple Servers can be added; the user switches between them manually. All local data (Cache, Downloads, Annotations) is scoped to a Server.
+A user-configured remote content source (URL + credentials). Two types exist: **ABS Server** (an Audiobookshelf instance) and **Storyteller Server** (a Storyteller instance — see [Storyteller Server]). Multiple Servers of either type can be added; the user switches between them manually via the Server Switcher. All local data (Cache, Downloads, Annotations, progress) is scoped to a Server. The reading experience (formatting, themes, navigation, sync) is identical regardless of Server type — a book from Storyteller is read like any other book, with optional Readaloud controls if available.
+
+### Storyteller Server
+A user-configured [Storyteller](https://storyteller-platform.gitlab.io/storyteller) server instance — a self-hosted service that aligns ebooks and audiobooks to produce EPUB 3 files with Media Overlays (SMIL). Behaves as a peer to ABS Server: surfaces its own Libraries, Library Items, and metadata; participates in the Navigation Drawer and Server Switcher exactly like ABS.
+
+**Riffle uses Storyteller exclusively as a Readaloud provider.** A Library Item from a Storyteller Server is always a completed [Readaloud] — the aligned EPUB + audio output of the Storyteller pipeline. Plain ebooks and plain audiobooks are out of scope for the Storyteller integration: ABS already covers those formats, and ingesting bare Storyteller content would duplicate that role with a strictly weaker reading/listening experience. Storyteller content that is **not yet a completed Readaloud** (uploaded but unaligned, in-progress alignment, alignment failed) is filtered out at the network layer and never appears in the Readaloud Library.
+
+### Readaloud
+Storyteller's term for an aligned ebook+audiobook: an EPUB 3 with Media Overlays (SMIL) that map text fragments to audio timestamps. When a book is a Readaloud, the reader exposes audio playback controls and visibly highlights the text segment being read; the book remains fully readable without playback. Every Library Item from a Storyteller Server is a Readaloud intrinsically. For a Library Item from an ABS Server, Readaloud playback becomes available when a behind-the-scenes match to a Storyteller book exists — the matching itself is not surfaced as a user concept.
 
 ### Library
-A top-level collection on the connected ABS server. Riffle surfaces all Libraries whose `mediaType` is `book` (podcast libraries are excluded). Because ABS does not expose a reliable library-level signal to distinguish ebook libraries from audiobook libraries, all book Libraries are shown. The user decides which Libraries are visible in the navigation drawer via Library Visibility Preferences.
+A navigation surface in Riffle for a set of Library Items. Every Library is backed by exactly one Server. For an [ABS Server], Riffle exposes each of the server's book Libraries 1:1 (`mediaType=book`; podcast libraries excluded). For a [Storyteller Server] — which has no native library concept — Riffle exposes a single synthetic Library: the [Readaloud Library]. The user decides which Libraries are visible in the Navigation Drawer via Library Visibility Preferences.
+
+### Readaloud Library
+A synthetic Library that surfaces all Library Items on a Storyteller Server. Present whenever a Storyteller Server is configured. Every Library Item in the Readaloud Library is a [Readaloud] by definition. A Storyteller book that is also matched to an item on an ABS Server appears both here and in its ABS Library — same book, two entry points; the reader is identical from either side. Name shown to the user TBD ("Readalouds" is the working label).
+
+For a Storyteller book that is **Confirmed-matched** to an ABS Library Item, the per-book **display metadata** shown in the Readaloud Library — cover, title, author, description, published year, publisher, genres — is sourced from the linked ABS item, not from Storyteller. **Taxonomy** (Series, Collections) remains sourced from each Library's own backing Server: the Readaloud Library's Series and Collections Tabs are always Storyteller-defined, regardless of any cross-Server matches.
 
 ### Navigation Drawer
 The primary navigation surface. Contains: the active Server name in a header (tappable → Server Switcher dropdown), the server-ordered list of visible Libraries for the active Server, a Downloads entry, and a Settings entry — in that order. Replaces the standalone LibraryListScreen and ServerListScreen as the main navigation entry point. On a fresh install with no Servers configured, the app opens directly to AddServerScreen; after the first Server is added, it navigates to the first Library in the Library Visibility Preferences list.
@@ -71,13 +84,16 @@ A server-side record of a single continuous reading period. Opened via the ABS A
 Aggregated reading data fetched from the ABS server — time spent reading, books finished, current streaks. Populated by Reading Sessions pushed from the app.
 
 ### Progress Sync
-Bidirectional reconciliation of reading position between the app and the ABS server. Applies to all supported formats (EPUB, PDF, and any future formats).
+Reconciliation of reading position between the app and every remote position holder for the open book. Applies to all supported formats (EPUB, PDF, and any future formats).
 
-- **Cycle:** on every periodic tick (~30 seconds) and immediately on reader resume, the app runs a GET-then-maybe-PATCH cycle for the open book.
-- **Inbound check (GET first):** fetch server position and its `lastUpdate` timestamp via `GET /api/me/progress/:libraryItemId`. Compare against `localUpdatedAt` — the local timestamp updated on every position change (page turn, scroll), persisted to the local DB.
-- **Last-update-wins:** if `server.lastUpdate > localUpdatedAt`, jump the reader to the server's position silently and set `localUpdatedAt = server.lastUpdate`. If `localUpdatedAt >= server.lastUpdate`, PATCH local position to server.
-- **Offline behaviour:** if the GET fails (server unreachable), skip the entire cycle — no PATCH is attempted. `localUpdatedAt` continues to advance with page turns. When connectivity returns the next cycle runs normally; `localUpdatedAt` will be newer than the server's stale timestamp, so local position is pushed.
-- **No conflict prompt:** there is no user-facing conflict resolution UI. The last-update-wins rule is applied silently in all cases.
+For an ABS-only book the cycle has one remote (ABS ebook progress). For a matched book with [Readaloud] there are three remote position holders: **ABS ebook progress** (CFI), **ABS audiobook progress** (seconds offset), and **Storyteller position** (Readium Locator anchored to Storyteller's publication). All three are first-class peers — any of them can win an inbound jump, and a local change is pushed to all three. Three-peer sync runs regardless of which side the user opened the book from (ABS or Readaloud), once the small sync prerequisites (Storyteller EPUB bundle + cross-EPUB index) are cached. Readaloud audio playback remains an explicit Readaloud-side action with its own download.
+
+- **Cycle:** every ~30 s and immediately on reader resume, run a GET-then-maybe-PATCH cycle for every applicable remote.
+- **Unified canonical position:** the reader has a single canonical position with a single `localUpdatedAt`. Each remote position is convertible to and from the canonical reader position (audiobook seconds ↔ text via SMIL; ABS-EPUB CFI ↔ Storyteller-EPUB position via the cross-EPUB index; Storyteller position is native).
+- **Inbound (last-update-wins, single winner):** fetch all applicable remotes and their `lastUpdate` timestamps. Identify the absolute newest among `{localUpdatedAt, ...remotes}`. If a remote wins, jump the reader to its converted canonical position once and set `localUpdatedAt = winner.lastUpdate`.
+- **Outbound:** PATCH every remote that is now stale relative to the canonical position. For a matched book that is one cycle → three writes (ABS ebook, ABS audiobook, Storyteller).
+- **Per-target failure isolation:** failures are isolated per remote. A GET failure for one target skips that target's inbound check only; the other targets still proceed. A PATCH failure leaves that target stale for the next cycle.
+- **No conflict prompt:** the last-update-wins rule is applied silently in all cases.
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:
