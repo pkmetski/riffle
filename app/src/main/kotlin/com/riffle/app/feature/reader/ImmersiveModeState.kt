@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.os.SystemClock
 import androidx.activity.compose.LocalActivity
+import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.runtime.Composable
@@ -22,9 +23,32 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
+/**
+ * Thin abstraction over the system-bar controls used by [ImmersiveModeState].
+ *
+ * Exists so the state machine can be unit-tested without instantiating
+ * [WindowInsetsControllerCompat] (which requires an Android `Window`).
+ */
+internal interface SystemBarsController {
+    fun hide()
+    fun show()
+    fun setBehaviorDefault()
+}
+
+private class WindowInsetsBarsController(
+    private val delegate: WindowInsetsControllerCompat,
+) : SystemBarsController {
+    override fun hide() = delegate.hide(WindowInsetsCompat.Type.systemBars())
+    override fun show() = delegate.show(WindowInsetsCompat.Type.systemBars())
+    override fun setBehaviorDefault() {
+        delegate.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+    }
+}
+
 @Stable
-class ImmersiveModeState(
-    private val controller: WindowInsetsControllerCompat,
+class ImmersiveModeState internal constructor(
+    private val controller: SystemBarsController,
+    private val clock: () -> Long,
 ) {
     var isImmersive by mutableStateOf(false)
         internal set
@@ -46,12 +70,12 @@ class ImmersiveModeState(
     // auto-dismiss on page turns; the user must tap to re-enter immersive.
     fun toggle() {
         if (isImmersive) {
-            lastToggleMs = SystemClock.elapsedRealtime()
+            lastToggleMs = clock()
             // systemBarsHidden must be cleared before isImmersive so that any
             // dismissOverlay() call racing on the same frame cannot re-hide the bar.
             systemBarsHidden = false
             isImmersive = false
-            controller.show(WindowInsetsCompat.Type.systemBars())
+            controller.show()
             onUserImmersiveChanged?.invoke(false)
         } else {
             hide()
@@ -63,20 +87,25 @@ class ImmersiveModeState(
     // so position changes in normal (bars-visible) mode don't dismiss the overlay.
     // Suppressed for TOGGLE_COOLDOWN_MS after the user taps to reveal the bar.
     fun dismissOverlay() {
-        val now = SystemClock.elapsedRealtime()
+        val now = clock()
         if (systemBarsHidden && now - lastToggleMs > TOGGLE_COOLDOWN_MS) isImmersive = true
     }
 
-    internal fun hide() {
-        // Guard: only call controller.hide() if bars are not already hidden.
-        // On some API levels, calling hide() on already-hidden bars triggers a native crash
-        // in the WebView/Chromium renderer stack. The toggle() call-path can reach hide()
-        // while systemBarsHidden is true (user revealed TopAppBar then tapped again), so
-        // we must be idempotent here.
+    // Guard: only call controller.hide() if bars are not already hidden.
+    // On some API levels, calling hide() on already-hidden bars triggers a native crash
+    // in the WebView/Chromium renderer stack. The toggle() call-path can reach hide()
+    // while systemBarsHidden is true (user revealed TopAppBar then tapped again), so
+    // we must be idempotent here.
+    //
+    // Pass force = true when the tracked flag may be stale relative to the OS (e.g. after
+    // returning from sleep, where the system may have restored bars while we still believe
+    // them hidden). The flag is reset before the guard so controller.hide() actually runs.
+    internal fun hide(force: Boolean = false) {
+        if (force) systemBarsHidden = false
         if (!systemBarsHidden) {
             systemBarsHidden = true
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.setBehaviorDefault()
+            controller.hide()
         }
         isImmersive = true
     }
@@ -84,7 +113,7 @@ class ImmersiveModeState(
     internal fun show() {
         systemBarsHidden = false
         isImmersive = false
-        controller.show(WindowInsetsCompat.Type.systemBars())
+        controller.show()
     }
 
     // Called when the system restores bars externally (edge-swipe with BEHAVIOR_DEFAULT).
@@ -96,19 +125,32 @@ class ImmersiveModeState(
         isImmersive = false
     }
 
+    @VisibleForTesting
+    internal val systemBarsHiddenForTest: Boolean
+        get() = systemBarsHidden
+
     companion object {
         // After the user taps to reveal the TopAppBar, suppress auto-dismiss for this long
         // so that a locator event arriving in the same Compose frame doesn't immediately
         // undo the reveal before the enter animation can start.
         const val TOGGLE_COOLDOWN_MS = 500L
+
+        // After ON_RESUME, ignore a 0→positive topInset transition for this window.
+        // While the activity was paused, the system may have restored the bars on its own;
+        // that change should not be treated as an edge-swipe restore.
+        const val RESUME_SUPPRESSION_MS = 500L
     }
 }
 
 @Composable
 fun rememberImmersiveModeState(): ImmersiveModeState {
     val window = checkNotNull(LocalActivity.current).window
-    val controller = remember(window) { WindowInsetsControllerCompat(window, window.decorView) }
-    val state = remember(controller) { ImmersiveModeState(controller) }
+    val controller = remember(window) {
+        WindowInsetsBarsController(WindowInsetsControllerCompat(window, window.decorView))
+    }
+    val state = remember(controller) {
+        ImmersiveModeState(controller, clock = SystemClock::elapsedRealtime)
+    }
 
     // Persists across rotation. Default true = always enter immersive on first open.
     // Only updated by user-initiated toggle()s — NOT by onBarsRestoredExternally().
@@ -127,10 +169,19 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     // Re-enter immersive on resume from phone sleep if user hadn't explicitly turned it off.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentSavedIsImmersive by rememberUpdatedState(savedIsImmersive)
+    // Timestamp of the last ON_RESUME. Used to suppress the topInset watcher briefly so a
+    // system-initiated bar restore that happened during sleep isn't mistaken for an edge-swipe.
+    val lastResumeMs = remember { mutableStateOf(0L) }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && currentSavedIsImmersive) {
-                state.hide()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                lastResumeMs.value = SystemClock.elapsedRealtime()
+                if (currentSavedIsImmersive) {
+                    // During sleep the OS may have restored the system bars even though our
+                    // tracked flag still says hidden. force = true resyncs the flag so the
+                    // idempotency guard doesn't skip controller.hide() and leave the nav bar visible.
+                    state.hide(force = true)
+                }
             }
         }
         lifecycle.addObserver(observer)
@@ -150,7 +201,16 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     LaunchedEffect(topInset) {
         val wasHidden = prevTopInset.value == 0
         prevTopInset.value = topInset
-        if (topInset > 0 && wasHidden) state.onBarsRestoredExternally()
+        if (topInset > 0 && wasHidden) {
+            // Suppress within RESUME_SUPPRESSION_MS of ON_RESUME: the 0→positive transition
+            // came from the system restoring bars during sleep, not from an edge-swipe.
+            // The ON_RESUME observer already called hide() in that case if appropriate.
+            val now = SystemClock.elapsedRealtime()
+            if (lastResumeMs.value != 0L && now - lastResumeMs.value < ImmersiveModeState.RESUME_SUPPRESSION_MS) {
+                return@LaunchedEffect
+            }
+            state.onBarsRestoredExternally()
+        }
     }
 
     // Always restore system bars when the reader screen leaves the composition.
