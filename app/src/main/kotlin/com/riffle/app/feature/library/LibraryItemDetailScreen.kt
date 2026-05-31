@@ -145,6 +145,7 @@ fun LibraryItemDetailScreen(
                         isInToRead = state.isInToRead,
                         token = viewModel.authToken,
                         downloadState = downloadState,
+                        isReadaloud = state.isReadaloud,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
@@ -159,6 +160,7 @@ fun LibraryItemDetailScreen(
                         isInToRead = state.isInToRead,
                         token = viewModel.authToken,
                         downloadState = downloadState,
+                        isReadaloud = state.isReadaloud,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
@@ -203,6 +205,7 @@ private fun LibraryItemDetailContent(
     isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
+    isReadaloud: Boolean,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -238,6 +241,7 @@ private fun LibraryItemDetailContent(
             item = item,
             isInToRead = isInToRead,
             downloadState = downloadState,
+            isReadaloud = isReadaloud,
             onReadItem = onReadItem,
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
@@ -271,6 +275,7 @@ internal fun LibraryItemDetailContentTablet(
     isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
+    isReadaloud: Boolean,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -317,6 +322,7 @@ internal fun LibraryItemDetailContentTablet(
                 item = item,
                 isInToRead = isInToRead,
                 downloadState = downloadState,
+                isReadaloud = isReadaloud,
                 onReadItem = onReadItem,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
@@ -350,6 +356,7 @@ private fun ActionRow(
     item: LibraryItem,
     isInToRead: Boolean,
     downloadState: DownloadState,
+    isReadaloud: Boolean,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -363,27 +370,31 @@ private fun ActionRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Readaloud items: Read button stays present but disabled; reader-side bundle fetch
+            // is #35 and #37. Markers and downloads are hidden — they require those slices first.
             Button(
                 onClick = { onReadItem(item) },
-                enabled = downloadState !is DownloadState.InProgress,
+                enabled = !isReadaloud && downloadState !is DownloadState.InProgress,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Read")
+                Text(if (isReadaloud) "Read (coming soon)" else "Read")
             }
-            ReadToggleButton(
-                isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
-                onMarkAsRead = onMarkAsRead,
-                onMarkAsUnread = onMarkAsUnread,
-            )
-            ToReadToggleButton(
-                isInToRead = isInToRead,
-                onToggle = onToggleToRead,
-            )
-            DownloadButton(
-                state = downloadState,
-                onDownload = onDownload,
-                onRemove = onRemove,
-            )
+            if (!isReadaloud) {
+                ReadToggleButton(
+                    isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
+                    onMarkAsRead = onMarkAsRead,
+                    onMarkAsUnread = onMarkAsUnread,
+                )
+                ToReadToggleButton(
+                    isInToRead = isInToRead,
+                    onToggle = onToggleToRead,
+                )
+                DownloadButton(
+                    state = downloadState,
+                    onDownload = onDownload,
+                    onRemove = onRemove,
+                )
+            }
         }
     } else {
         Text(

@@ -203,16 +203,29 @@ class LibraryItemDetailViewModelTest {
         epubRepository: EpubRepository = FakeEpubRepository(),
         pdfRepository: PdfRepository = FakePdfRepository(),
         toReadRepo: ToReadRepository = FakeToReadRepository(),
+        serverRepository: ServerRepository = noOpServerRepo,
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         repository = repo,
-        serverRepository = noOpServerRepo,
+        serverRepository = serverRepository,
         tokenStorage = noOpTokenStorage,
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
     )
+
+    private fun serverRepoReturning(server: Server) = object : ServerRepository {
+        override fun observeAll(): Flow<List<Server>> = MutableStateFlow(listOf(server))
+        override suspend fun getActive(): Server? = server
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+            AuthenticateResult.WrongCredentials()
+        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+            CommitServerResult.Failure(IOException())
+        override suspend fun setActive(serverId: String) {}
+        override suspend fun remove(serverId: String) {}
+        override suspend fun getServerVersion(serverId: String): String? = null
+    }
 
     // --- existing uiState tests ---
 
@@ -416,5 +429,59 @@ class LibraryItemDetailViewModelTest {
 
         assertEquals(1.0f, (vm.uiState.value as Ready).item.readingProgress, 0.0001f)
         assertTrue((vm.uiState.value as Ready).isInToRead)
+    }
+
+    // --- Readaloud (Storyteller) detail mode ---
+
+    private fun storytellerServer() = Server(
+        id = "st-1",
+        url = com.riffle.core.domain.ServerUrl.parse("http://media-server:8001")!!,
+        displayName = "Storyteller",
+        isActive = true,
+        insecureConnectionAllowed = false,
+        username = "plamen",
+        serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+    )
+
+    private fun absServer() = Server(
+        id = "abs-1",
+        url = com.riffle.core.domain.ServerUrl.parse("http://media-server:13378")!!,
+        displayName = "ABS",
+        isActive = true,
+        insecureConnectionAllowed = false,
+        username = "plamen",
+        serverType = com.riffle.core.domain.ServerType.AUDIOBOOKSHELF,
+    )
+
+    @Test
+    fun `isReadaloud true when active server is Storyteller`() = runTest {
+        val vm = makeVm(repo = fakeRepo(knownItem), serverRepository = serverRepoReturning(storytellerServer()))
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue((vm.uiState.value as Ready).isReadaloud)
+    }
+
+    @Test
+    fun `isReadaloud false when active server is Audiobookshelf`() = runTest {
+        val vm = makeVm(repo = fakeRepo(knownItem), serverRepository = serverRepoReturning(absServer()))
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse((vm.uiState.value as Ready).isReadaloud)
+    }
+
+    @Test
+    fun `Readaloud detail does not invoke toReadRepository - no ABS-side playlists`() = runTest {
+        val toRead = FakeToReadRepository()
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            toReadRepo = toRead,
+            serverRepository = serverRepoReturning(storytellerServer()),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        // refresh and isInToRead both touch the ABS playlists API and would 404 against
+        // Storyteller — confirm both are skipped for Readaloud detail.
+        assertTrue("toReadRepository should not be called for Readaloud items, was: ${toRead.callLog}", toRead.callLog.isEmpty())
+        assertFalse((vm.uiState.value as Ready).isInToRead)
     }
 }
