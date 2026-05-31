@@ -16,9 +16,11 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -73,17 +75,37 @@ class SeriesDetailViewModel @Inject constructor(
                 .filter { it }
                 .collect { refresh() }
         }
+        // Retry while the last refresh failed AND the device is online (server unreachable on
+        // an otherwise-healthy network). When the device itself is offline we skip polling —
+        // the on-reconnect listener above already triggers a refresh when connectivity returns.
+        viewModelScope.launch {
+            combine(_refreshFailed, connectivityObserver.isOnline) { failed, online -> failed && online }
+                .collectLatest { shouldPoll ->
+                    if (shouldPoll) {
+                        while (true) {
+                            delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
+                            runRefresh()
+                        }
+                    }
+                }
+        }
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _refreshFailed.value = libraryRepository.refreshSeries(libraryId) is LibraryRefreshResult.NetworkError
-        }
+        viewModelScope.launch { runRefresh() }
+    }
+
+    private suspend fun runRefresh() {
+        _refreshFailed.value = libraryRepository.refreshSeries(libraryId) is LibraryRefreshResult.NetworkError
     }
 
     private fun isAvailableOffline(item: LibraryItem): Boolean = when (item.ebookFormat) {
         EbookFormat.Epub -> epubRepository.isDownloaded(item.id) || epubRepository.isCached(item.id)
         EbookFormat.Pdf -> pdfRepository.isDownloaded(item.id) || pdfRepository.isCached(item.id)
         else -> false
+    }
+
+    private companion object {
+        const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
     }
 }
