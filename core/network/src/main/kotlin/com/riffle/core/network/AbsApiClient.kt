@@ -564,16 +564,17 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         insecureAllowed: Boolean,
     ): String? = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        // `/status` is unauthenticated and returns `{ serverVersion, app, isInit, ... }`.
+        // The previously-targeted `/api/server-info` does not exist on ABS (404 even with auth).
         val request = Request.Builder()
-            .url("$baseUrl/api/server-info")
-            .addHeader("Authorization", "Bearer $token")
+            .url("$baseUrl/status")
             .get()
             .build()
         try {
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) return@withContext null
             val raw = response.body?.string() ?: return@withContext null
-            json.decodeFromString<AbsServerInfoResponse>(raw).version
+            json.decodeFromString<AbsServerInfoResponse>(raw).serverVersion
         } catch (_: Exception) {
             null
         }

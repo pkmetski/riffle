@@ -72,4 +72,27 @@ class AbsApiClientTest {
         val result = client.login("http://127.0.0.1:1", "admin", "pass", false)
         assertTrue(result is NetworkLoginResult.NetworkError)
     }
+
+    // ABS exposes its version on the unauthenticated /status endpoint as `serverVersion`.
+    // The /api/server-info path used previously does not exist (returns 404 even with a valid token).
+    @Test
+    fun `getServerInfo hits status and parses serverVersion`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"app":"audiobookshelf","serverVersion":"2.35.1","isInit":true,"language":"en-us"}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val version = client.getServerInfo(server.url("/").toString().trimEnd('/'), "tok", false)
+        assertEquals("2.35.1", version)
+        val request = server.takeRequest()
+        assertEquals("/status", request.path)
+    }
+
+    @Test
+    fun `getServerInfo returns null on 404`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+        val version = client.getServerInfo(server.url("/").toString().trimEnd('/'), "tok", false)
+        assertEquals(null, version)
+    }
 }
