@@ -111,7 +111,7 @@ class LibraryItemDetailViewModelTest {
     private val noOpServerRepo = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Server? = null
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.WrongCredentials()
         override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
             CommitServerResult.Failure(IOException())

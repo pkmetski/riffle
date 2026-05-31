@@ -84,7 +84,7 @@ class LibraryItemsViewModelTest {
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Server? = null
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) =
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
             throw UnsupportedOperationException()
         override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
@@ -565,7 +565,7 @@ class LibraryItemsViewModelTest {
             serverRepository = object : ServerRepository {
                 override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
                 override suspend fun getActive() = Server("srv-1", ServerUrl.parse("http://localhost")!!, "Test", true, false, "")
-                override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean) =
+                override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
                     throw UnsupportedOperationException()
                 override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
                     throw UnsupportedOperationException()
