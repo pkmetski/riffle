@@ -118,6 +118,34 @@ class TypographyOverrideTest {
         )
     }
 
+    // Regression guard: text-align is the one user property where ReadiumCSS's own rule uses
+    // `text-align: inherit !important` on `p, li, body` at specificity (0,2,4). With a single
+    // `[style*=…]` gate our rule lands at (0,1,2) and loses — so `p` inherits from its nearest
+    // div ancestor, and publisher CSS like Safari Books Online's
+    // `#sbo-rt-content div { text-align: left }` (1,0,1) wins on that div, leaving paragraphs
+    // wrapped in semantic divs (blockquotes, sidebars, list items, callouts) left-aligned even
+    // when the user has chosen justify. The bumped reps push us to (0,3,2) which beats Readium.
+    @Test
+    fun justify_text_override_has_enough_specificity_to_beat_readium_inherit_rule() {
+        val override = TYPOGRAPHY_OVERRIDES.getValue("justifyText")
+        assertTrue(
+            "justifyText must repeat its gate attribute selector at least 3 times to beat " +
+                "Readium's (0,2,4) `text-align: inherit !important` rule on p/li/body. " +
+                "Lowering this will silently regress justify on O'Reilly / Safari Books Online " +
+                "EPUBs and any publisher whose CSS sets text-align on div ancestors of p.",
+            override.gateAttrReps >= 3,
+        )
+        val css = typographyOverrideCss()
+        // The selector must contain three back-to-back [style*=…] attribute selectors on :root.
+        assertTrue(
+            "Generated CSS must contain :root[style*=\"--USER__textAlign\"][style*=\"--USER__textAlign\"][style*=\"--USER__textAlign\"]. CSS was:\n$css",
+            css.contains(
+                ":root" +
+                    "[style*=\"--USER__textAlign\"]".repeat(3),
+            ),
+        )
+    }
+
     // Injection JS must be idempotent — onPageLoaded fires more than once per page during
     // reflow, and naive injection would accumulate <style> tags.
     @Test

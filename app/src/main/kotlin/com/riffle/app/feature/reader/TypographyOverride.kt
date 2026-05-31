@@ -23,6 +23,11 @@ internal data class TypographyOverride(
     val cssProperties: List<String>,
     val cssValue: String,
     val elements: String,
+    // Number of times to repeat the `[style*="…"]` attribute selector on the `:root` gate.
+    // Each repetition adds (0,1,0) to specificity. Bump above 1 when Readium's own ReadiumCSS
+    // rule for the same property targets the element with higher specificity AND `!important`
+    // — in which case matching specificity is the only way to win the cascade.
+    val gateAttrReps: Int = 1,
 )
 
 /**
@@ -44,6 +49,14 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
         cssProperties = listOf("text-align"),
         cssValue = "var(--USER__textAlign)",
         elements = "p, li, blockquote, dd",
+        // Readium's after.css forces `text-align: inherit !important` on `p, li, body` with
+        // selector `:root[a][b] :not(blockquote):not(figcaption) p` (specificity 0,2,4). With
+        // a single `[style*=…]` we'd land at (0,1,2) and lose, leaving `p` inheriting from
+        // its nearest div ancestor — which for publisher CSS like Safari Books Online's
+        // `#sbo-rt-content div { text-align: left }` (1,0,1, non-important) breaks justify
+        // on everything wrapped in a semantic div (blockquotes, sidebars, list items,
+        // callouts). 3 attribute reps → (0,3,2), beating Readium on the second component.
+        gateAttrReps = 3,
     ),
     "fontFamily" to TypographyOverride(
         userPropertyName = "--USER__fontFamily",
@@ -101,7 +114,8 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
  */
 internal fun typographyOverrideCss(): String =
     TYPOGRAPHY_OVERRIDES.values.joinToString("\n") { override ->
-        val gate = """:root[style*="${override.userPropertyName}"]"""
+        val gate = """:root""" +
+            """[style*="${override.userPropertyName}"]""".repeat(override.gateAttrReps)
         // Empty `elements` means the rule targets `:root` itself (used for margins, which
         // pads the multicol container so every page gets top/bottom whitespace).
         val selectorList = if (override.elements.isBlank()) {
