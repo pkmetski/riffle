@@ -16,6 +16,7 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,6 +32,10 @@ sealed interface LibraryItemDetailUiState {
     data class Ready(
         val item: LibraryItem,
         val isInToRead: Boolean = false,
+        // True when the item belongs to a Storyteller-backed (Readaloud) Library. In this slice the
+        // Read button is disabled and the EPUB/audio downloads are hidden — reader-side bundle
+        // fetch lands in #35 and #37 per ADR 0020.
+        val isReadaloud: Boolean = false,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
 }
@@ -73,13 +78,14 @@ class LibraryItemDetailViewModel @Inject constructor(
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
+            val isReadaloud = server?.serverType == ServerType.STORYTELLER
             _uiState.value = try {
                 val item = repository.getItem(itemId)
                 if (item != null) {
                     _downloadState.value = deriveDownloadState(item)
-                    toReadRepository.refresh(item.libraryId)
-                    val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
-                    LibraryItemDetailUiState.Ready(item = item, isInToRead = isInToRead)
+                    if (!isReadaloud) toReadRepository.refresh(item.libraryId)
+                    val isInToRead = if (isReadaloud) false else toReadRepository.isInToRead(item.id, item.libraryId)
+                    LibraryItemDetailUiState.Ready(item = item, isInToRead = isInToRead, isReadaloud = isReadaloud)
                 } else {
                     LibraryItemDetailUiState.Error
                 }
