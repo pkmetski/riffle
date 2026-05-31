@@ -76,6 +76,9 @@ class LibraryRepositoryTest {
         override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> =
             roomData.getOrPut(serverId) { MutableStateFlow(emptyList()) }
 
+        override suspend fun libraryIdsForServer(serverId: String): List<String> =
+            roomData[serverId]?.value.orEmpty().map { it.id }
+
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {
             upserted.addAll(libraries)
             libraries.groupBy { it.serverId }.forEach { (serverId, items) ->
