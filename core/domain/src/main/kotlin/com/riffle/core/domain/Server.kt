@@ -7,4 +7,5 @@ data class Server(
     val isActive: Boolean,
     val insecureConnectionAllowed: Boolean,
     val username: String,
+    val serverType: ServerType = ServerType.AUDIOBOOKSHELF,
 )

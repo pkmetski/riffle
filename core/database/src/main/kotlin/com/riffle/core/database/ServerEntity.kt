@@ -11,4 +11,5 @@ data class ServerEntity(
     val isActive: Boolean,
     val insecureConnectionAllowed: Boolean,
     val username: String,
+    val serverType: String = "AUDIOBOOKSHELF",
 )

@@ -11,6 +11,7 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
@@ -89,6 +90,7 @@ class ServerRepositoryImpl @Inject constructor(
             isActive = false,                    // overridden inside transaction
             insecureConnectionAllowed = pending.insecureConnectionAllowed,
             username = pending.username,
+            serverType = pending.serverType.name,
         )
         val inserted = dao.upsertAsFirstIfNoActive(entity)
         tokenStorage.saveToken(id, pending.token)
@@ -145,6 +147,7 @@ class ServerRepositoryImpl @Inject constructor(
             isActive = isActive,
             insecureConnectionAllowed = insecureConnectionAllowed,
             username = username,
+            serverType = ServerType.fromStorageString(serverType),
         )
     }
 }

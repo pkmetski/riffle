@@ -444,6 +444,40 @@ class MigrationTest {
     }
 
     @Test
+    fun migration17To18() {
+        helper.createDatabase(TEST_DB, 17).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username) " +
+                    "VALUES ('s1', 'http://localhost', 'My Server', 1, 0, 'plamen')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 18, true, RiffleDatabase.MIGRATION_17_18)
+
+        // Existing rows default to AUDIOBOOKSHELF — backfills the only Server type that existed before this migration.
+        db.query("SELECT id, url, displayName, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("http://localhost", cursor.getString(1))
+            assertEquals("My Server", cursor.getString(2))
+            assertEquals("plamen", cursor.getString(3))
+            assertEquals("AUDIOBOOKSHELF", cursor.getString(4))
+        }
+
+        // New Storyteller rows can be inserted with the new value.
+        db.execSQL(
+            "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username, serverType) " +
+                "VALUES ('s2', 'http://media-server:8001', 'My Storyteller', 0, 0, 'plamen', 'STORYTELLER')"
+        )
+        db.query("SELECT serverType FROM servers WHERE id = 's2'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("STORYTELLER", cursor.getString(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -452,7 +486,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 17, true,
+            TEST_DB, 18, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -469,14 +503,16 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_14_15,
             RiffleDatabase.MIGRATION_15_16,
             RiffleDatabase.MIGRATION_16_17,
+            RiffleDatabase.MIGRATION_17_18,
         )
 
-        db.query("SELECT url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->
+        db.query("SELECT url, displayName, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("My Server", cursor.getString(1))
             assertEquals("", cursor.getString(2))
+            assertEquals("AUDIOBOOKSHELF", cursor.getString(3))
         }
     }
 }
