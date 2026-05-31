@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
+import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ServerDao
 import com.riffle.core.database.ServerEntity
 import com.riffle.core.domain.AuthenticateResult
@@ -34,6 +35,7 @@ class ServerRepositoryImpl @Inject constructor(
     private val serverInfoApi: AbsServerInfoApi,
     private val libraryApi: AbsLibraryApi,
     private val libraryDao: LibraryDao,
+    private val libraryItemDao: LibraryItemDao,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
 ) : ServerRepository {
 
@@ -174,6 +176,12 @@ class ServerRepositoryImpl @Inject constructor(
     }
 
     override suspend fun remove(serverId: String) {
+        // Cascade: clear per-library items + the libraries themselves + the token + the server row.
+        // For Storyteller servers this purges the synthetic Readaloud library and its books;
+        // for ABS servers it cleans up real libraries and their items. ReadaloudLinks cross-server
+        // cleanup belongs to #36 (matching slice) — until that lands the count of links is 0.
+        libraryDao.libraryIdsForServer(serverId).forEach { libraryItemDao.deleteByLibraryId(it) }
+        libraryDao.deleteByServerId(serverId)
         dao.deleteById(serverId)
         tokenStorage.deleteToken(serverId)
     }

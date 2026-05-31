@@ -79,6 +79,8 @@ class ServerRepositoryTest {
         }
         override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> =
             flowOf(rows[serverId].orEmpty().toList())
+        override suspend fun libraryIdsForServer(serverId: String): List<String> =
+            rows[serverId].orEmpty().map { it.id }
         override suspend fun deleteByServerId(serverId: String) { rows.remove(serverId) }
         override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {
             rows.values.forEach { list ->
@@ -98,6 +100,37 @@ class ServerRepositoryTest {
         override suspend fun showLibrary(serverId: String, libraryId: String) {
             hidden[serverId]?.remove(libraryId)
         }
+    }
+
+    private fun fakeLibraryItemDao() = object : com.riffle.core.database.LibraryItemDao {
+        val deletedLibraryIds = mutableListOf<String>()
+        private val rows = mutableMapOf<String, MutableList<com.riffle.core.database.LibraryItemEntity>>()
+        fun seed(libraryId: String, items: List<com.riffle.core.database.LibraryItemEntity>) {
+            rows[libraryId] = items.toMutableList()
+        }
+        fun itemsFor(libraryId: String): List<com.riffle.core.database.LibraryItemEntity> = rows[libraryId].orEmpty()
+        override fun observeByLibraryId(libraryId: String) =
+            flowOf(rows[libraryId].orEmpty().toList())
+        override fun observeUngroupedByLibraryId(libraryId: String) =
+            flowOf(rows[libraryId].orEmpty().toList())
+        override fun observeInProgress(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeFinished(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeRecentlyAdded(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeAllBooks(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override suspend fun getById(itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
+        override suspend fun upsertAll(items: List<com.riffle.core.database.LibraryItemEntity>) {
+            items.groupBy { it.libraryId }.forEach { (libraryId, entities) ->
+                rows.getOrPut(libraryId) { mutableListOf() }.addAll(entities)
+            }
+        }
+        override suspend fun deleteByLibraryId(libraryId: String) {
+            deletedLibraryIds += libraryId
+            rows.remove(libraryId)
+        }
+        override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
+        override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
+        override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
+        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
     }
 
     private val storytellerApiNotCalled = StorytellerApi { _, _, _, _ -> error("should not be called") }
@@ -140,7 +173,7 @@ class ServerRepositoryTest {
                 )
             )
         )
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility)
         val url = ServerUrl.parse("https://abs.example.com")!!
 
         val result = repo.authenticate(url, "admin", "pass", insecureAllowed = false)
@@ -159,7 +192,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("nope") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
 
@@ -175,7 +208,7 @@ class ServerRepositoryTest {
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid", "tok", "u") }
         val cause = RuntimeException("boom")
         val libsApi = libsApiReturning(NetworkLibrariesResult.NetworkError(cause))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility)
 
         val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
 
@@ -189,7 +222,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val result = repo.authenticate(ServerUrl.parse("https://abs.example.com")!!, "admin", "pass", insecureAllowed = false)
 
@@ -201,7 +234,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val url = ServerUrl.parse("https://abs.example.com")!!
         val pending = PendingServer(
@@ -231,7 +264,7 @@ class ServerRepositoryTest {
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
         val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.Success("tok-st"))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val result = repo.authenticate(
             ServerUrl.parse("http://media-server:8001")!!, "plamen", "pw", insecureAllowed = false,
@@ -253,7 +286,7 @@ class ServerRepositoryTest {
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
         val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.WrongCredentials("Incorrect username or password"))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val result = repo.authenticate(
             ServerUrl.parse("http://media-server:8001")!!, "plamen", "wrong", insecureAllowed = false,
@@ -268,7 +301,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -296,7 +329,7 @@ class ServerRepositoryTest {
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.Success("tok-st"))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val pendingA = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -346,7 +379,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -372,7 +405,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -398,11 +431,65 @@ class ServerRepositoryTest {
         tokens.tokens["srv-1"] = "tok"
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
         )
         repo.remove("srv-1")
         assertTrue("token not deleted", tokens.tokens.isEmpty())
         assertNull("entity not deleted from store", dao.getActive())
+    }
+
+    @Test
+    fun `remove cascades libraries and library_items for a Storyteller server`() = runTest {
+        val entity = ServerEntity("st-1", "http://media-server:8001", "media-server", true, false, username = "plamen", serverType = "STORYTELLER")
+        val dao = fakeDao(entity)
+        val tokens = fakeTokenStorage()
+        tokens.tokens["st-1"] = "tok-st"
+        val libDao = fakeLibraryDao()
+        val libraryId = ServerRepositoryImpl.readaloudLibraryId("st-1")
+        libDao.rows["st-1"] = mutableListOf(LibraryEntity(libraryId, "Readalouds", "readaloud", "st-1"))
+        val itemDao = fakeLibraryItemDao()
+        itemDao.seed(libraryId, listOf(
+            com.riffle.core.database.LibraryItemEntity("1385738337074647", libraryId, "The Martian", "Andy Weir", null, 0f),
+            com.riffle.core.database.LibraryItemEntity("99", libraryId, "Dune", "Frank Herbert", null, 0f),
+        ))
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore()
+        )
+
+        repo.remove("st-1")
+
+        assertEquals("server entity not deleted", 0, dao.allCount())
+        assertTrue("token not deleted", tokens.tokens.isEmpty())
+        assertTrue("library rows not cleared", libDao.allEntities().isEmpty())
+        assertTrue("library_items not deleted via deleteByLibraryId", itemDao.deletedLibraryIds.contains(libraryId))
+        assertTrue("library items remain after removal", itemDao.itemsFor(libraryId).isEmpty())
+    }
+
+    @Test
+    fun `remove cascades libraries and library_items for an ABS server`() = runTest {
+        val entity = ServerEntity("abs-1", "https://abs.example.com", "abs.example.com", true, false, username = "u")
+        val dao = fakeDao(entity)
+        val tokens = fakeTokenStorage()
+        tokens.tokens["abs-1"] = "tok"
+        val libDao = fakeLibraryDao()
+        libDao.rows["abs-1"] = mutableListOf(
+            LibraryEntity("lib-1", "Books", "book", "abs-1"),
+            LibraryEntity("lib-2", "Audiobooks", "book", "abs-1"),
+        )
+        val itemDao = fakeLibraryItemDao()
+        itemDao.seed("lib-1", listOf(com.riffle.core.database.LibraryItemEntity("i-1", "lib-1", "Dune", "Herbert", null, 0f)))
+        itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("i-2", "lib-2", "Foundation", "Asimov", null, 0f)))
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore()
+        )
+
+        repo.remove("abs-1")
+
+        assertEquals(0, dao.allCount())
+        assertTrue(libDao.allEntities().isEmpty())
+        assertEquals(setOf("lib-1", "lib-2"), itemDao.deletedLibraryIds.toSet())
     }
 
     @Test
@@ -412,7 +499,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(e1, e2)
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
+            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
         )
         repo.setActive("s2")
         assertEquals("s2", dao.getActive()?.id)

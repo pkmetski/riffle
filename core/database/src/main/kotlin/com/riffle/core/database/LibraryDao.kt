@@ -13,6 +13,9 @@ interface LibraryDao {
     @Query("SELECT * FROM libraries WHERE serverId = :serverId ORDER BY name ASC")
     fun observeByServerId(serverId: String): Flow<List<LibraryEntity>>
 
+    @Query("SELECT id FROM libraries WHERE serverId = :serverId")
+    suspend fun libraryIdsForServer(serverId: String): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(libraries: List<LibraryEntity>)
 
