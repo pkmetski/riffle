@@ -291,6 +291,57 @@ class ServerRepositoryTest {
     }
 
     @Test
+    fun `two Storyteller servers commit independently, each with their own Readaloud library row`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.Success("tok-st"))
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val pendingA = PendingServer(
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            displayName = "media-server",
+            username = "plamen", userId = "", token = "tok-A",
+            insecureConnectionAllowed = false,
+            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            serverType = ServerType.STORYTELLER,
+        )
+        val pendingB = PendingServer(
+            url = ServerUrl.parse("https://readalouds.example.com")!!,
+            displayName = "readalouds.example.com",
+            username = "plamen", userId = "", token = "tok-B",
+            insecureConnectionAllowed = false,
+            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            serverType = ServerType.STORYTELLER,
+        )
+
+        val resultA = repo.commit(pendingA, hiddenLibraryIds = emptySet())
+        val resultB = repo.commit(pendingB, hiddenLibraryIds = emptySet())
+
+        assertTrue(resultA is CommitServerResult.Success)
+        assertTrue(resultB is CommitServerResult.Success)
+        val serverA = (resultA as CommitServerResult.Success).server
+        val serverB = (resultB as CommitServerResult.Success).server
+
+        assertEquals(2, dao.allCount())
+        assertEquals(ServerType.STORYTELLER, serverA.serverType)
+        assertEquals(ServerType.STORYTELLER, serverB.serverType)
+        // Each server gets its own Readaloud library row with a distinct server-scoped id —
+        // the disambiguation requested in #34's acceptance criterion. The library name itself
+        // remains the working "Readalouds" label; the active-server context (drawer header /
+        // Server Switcher) surfaces which server you're viewing.
+        val libs = libDao.allEntities()
+        assertEquals(2, libs.size)
+        val libA = libs.single { it.serverId == serverA.id }
+        val libB = libs.single { it.serverId == serverB.id }
+        assertEquals(ServerRepositoryImpl.readaloudLibraryId(serverA.id), libA.id)
+        assertEquals(ServerRepositoryImpl.readaloudLibraryId(serverB.id), libB.id)
+        assertTrue("Readaloud library ids must be distinct across servers", libA.id != libB.id)
+        assertEquals("readaloud", libA.mediaType)
+        assertEquals("readaloud", libB.mediaType)
+    }
+
+    @Test
     fun `commit Storyteller pending materialises Readaloud library with server-scoped id`() = runTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
