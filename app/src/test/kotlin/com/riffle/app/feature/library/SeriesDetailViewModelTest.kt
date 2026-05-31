@@ -139,9 +139,12 @@ class SeriesDetailViewModelTest {
     @Test
     fun `polls every 10 seconds while refresh is failing`() = runTest {
         var refreshCount = 0
-        val vm = makeVm(countingRepo({ LibraryRefreshResult.NetworkError(RuntimeException("boom")) }) { refreshCount++ })
+        var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
+        val vm = makeVm(countingRepo({ result }) { refreshCount++ })
         backgroundScope.launch { vm.isOffline.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
+        // advanceUntilIdle() would hang here — once _refreshFailed is true the polling
+        // coroutine schedules an endless delay→refresh chain, so the scheduler is never idle.
+        testDispatcher.scheduler.runCurrent()
         assertEquals(true, vm.isOffline.value)
         val baseline = refreshCount
         testDispatcher.scheduler.advanceTimeBy(10_001)
@@ -150,6 +153,11 @@ class SeriesDetailViewModelTest {
         testDispatcher.scheduler.advanceTimeBy(10_000)
         testDispatcher.scheduler.runCurrent()
         assertEquals(baseline + 2, refreshCount)
+        // Stop polling before runTest tears down — its scheduler-drain step would otherwise
+        // chase the endless delay→refresh chain and time out.
+        result = LibraryRefreshResult.Success
+        testDispatcher.scheduler.advanceTimeBy(10_001)
+        testDispatcher.scheduler.runCurrent()
     }
 
     @Test
@@ -174,7 +182,7 @@ class SeriesDetailViewModelTest {
         var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
         val vm = makeVm(countingRepo({ result }) { refreshCount++ })
         backgroundScope.launch { vm.isOffline.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
+        testDispatcher.scheduler.runCurrent()
         assertEquals(true, vm.isOffline.value)
 
         result = LibraryRefreshResult.Success
