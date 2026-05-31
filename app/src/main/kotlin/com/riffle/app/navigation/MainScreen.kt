@@ -64,7 +64,7 @@ fun MainScreen(
     // both render the phone UI. The threshold is evaluated at composition time so
     // configuration changes (rotation, foldable unfold, ChromeOS resize, split-screen)
     // re-evaluate automatically.
-    val usePermanentDrawer = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
 
     val activeServer by viewModel.activeServer.collectAsState()
     val allServers by viewModel.allServers.collectAsState()
@@ -76,6 +76,10 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
+    val usePermanentDrawer = isExpanded
+    // Reader screens are immersive — collapse the permanent side panel so the book/PDF
+    // fills the width, matching the modal drawer's gesture suppression on phones.
+    val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
@@ -91,6 +95,7 @@ fun MainScreen(
         drawerState = drawerState,
         gesturesEnabled = !isReaderRoute(currentRoute),
         usePermanentDrawer = usePermanentDrawer,
+        hidePermanentDrawerPanel = hidePermanentDrawerPanel,
         activeServer = activeServer,
         allServers = allServers,
         visibleLibraries = visibleLibraries,
