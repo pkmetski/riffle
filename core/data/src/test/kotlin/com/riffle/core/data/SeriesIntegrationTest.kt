@@ -130,6 +130,7 @@ class SeriesIntegrationTest {
 
     private fun makeRepo(seriesDao: FakeSeriesDao = FakeSeriesDao()) = LibraryRepositoryImpl(
         api = AbsApiClient(OkHttpClient()),
+        storytellerApi = com.riffle.core.network.StorytellerApiClient(OkHttpClient()),
         libraryDao = FakeLibraryDao(),
         libraryItemDao = FakeLibraryItemDao(),
         seriesDao = seriesDao,

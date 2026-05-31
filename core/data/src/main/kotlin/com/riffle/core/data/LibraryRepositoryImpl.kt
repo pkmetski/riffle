@@ -20,13 +20,16 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkCollectionResult
 import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
+import com.riffle.core.network.NetworkStorytellerBooksResult
 import com.riffle.core.network.NetworkUserProgressResult
+import com.riffle.core.network.StorytellerLibraryApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -36,6 +39,7 @@ import javax.inject.Inject
 
 class LibraryRepositoryImpl @Inject constructor(
     private val api: AbsLibraryApi,
+    private val storytellerApi: StorytellerLibraryApi,
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
     private val seriesDao: SeriesDao,
@@ -118,6 +122,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        if (server.serverType == ServerType.STORYTELLER) {
+            return refreshStorytellerReadalouds(server, token, libraryId)
+        }
         val serverProgressMap = when (val r = api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed)) {
             is NetworkUserProgressResult.Success -> r.byItemId
             is NetworkUserProgressResult.NetworkError -> emptyMap()
@@ -165,6 +172,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        // Storyteller exposes no Series endpoint (ADR 0020); the tab is hidden for Storyteller
+        // libraries, but if this is called we no-op rather than try an unsupported call.
+        if (server.serverType == ServerType.STORYTELLER) return LibraryRefreshResult.Success
         return when (val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkSeriesResult.Success -> {
                 val seriesEntities = result.series.map { s ->
@@ -195,6 +205,8 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        // Storyteller exposes no Collections endpoint (ADR 0020); see refreshSeries for parity.
+        if (server.serverType == ServerType.STORYTELLER) return LibraryRefreshResult.Success
         return when (val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkCollectionResult.Success -> {
                 val collectionEntities = result.collections.map { c ->
@@ -215,6 +227,47 @@ class LibraryRepositoryImpl @Inject constructor(
             }
             is NetworkCollectionResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
         }
+    }
+
+    private suspend fun refreshStorytellerReadalouds(
+        server: com.riffle.core.domain.Server,
+        token: String,
+        libraryId: String,
+    ): LibraryRefreshResult = when (
+        val result = storytellerApi.listReadalouds(server.url.value, token, server.insecureConnectionAllowed)
+    ) {
+        is NetworkStorytellerBooksResult.Success -> {
+            val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
+            val localProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
+            val entities = result.books.map { book ->
+                val id = book.id.toString()
+                LibraryItemEntity(
+                    id = id,
+                    libraryId = libraryId,
+                    title = book.title,
+                    author = book.authors.joinToString(", "),
+                    coverUrl = storytellerApi.coverUrl(server.url.value, book.id),
+                    // Storyteller has a positions endpoint but reader-side bundle fetch and
+                    // progress sync come in later slices (#37/#38); for now seed with whatever
+                    // we've seen locally so the UI stays stable.
+                    readingProgress = localProgressMap[id] ?: 0f,
+                    // Readalouds are always EPUB 3 with media overlays.
+                    ebookFormat = EbookFormat.Epub.toStorageString(),
+                    ebookFileIno = null,
+                    description = null,
+                    seriesName = null,
+                    publishedYear = null,
+                    genres = "",
+                    publisher = null,
+                    lastOpenedAt = lastOpenedAtMap[id],
+                    addedAt = null,
+                )
+            }
+            libraryItemDao.replaceAllForLibrary(libraryId, entities)
+            libraryDao.setUnsupported(libraryId, false)
+            LibraryRefreshResult.Success
+        }
+        is NetworkStorytellerBooksResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
     }
 
     private fun mergeLastOpenedAt(local: Long?, server: Long?): Long? {
