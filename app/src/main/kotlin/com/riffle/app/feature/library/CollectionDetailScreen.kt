@@ -57,7 +57,7 @@ fun CollectionDetailScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
+                    columns = GridCells.Adaptive(coverGridMinCellSize()),
                     contentPadding = PaddingValues(
                         start = 12.dp,
                         end = 12.dp,
