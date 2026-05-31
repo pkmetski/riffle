@@ -23,6 +23,7 @@ class ReadingSessionControllerTest {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload) = syncResult
         override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
         override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
     @Test
@@ -38,6 +39,7 @@ class ReadingSessionControllerTest {
                 }
                 override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
                 override suspend fun setProgress(itemId: String, progress: Float) = Unit
+                override suspend fun touchOpenTimestamp(itemId: String) = Unit
             },
             scope,
         )
@@ -84,6 +86,7 @@ class ReadingSessionControllerTest {
                 }
                 override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
                 override suspend fun setProgress(itemId: String, progress: Float) = Unit
+                override suspend fun touchOpenTimestamp(itemId: String) = Unit
             },
             scope,
         )
