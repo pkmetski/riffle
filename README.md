@@ -1,10 +1,10 @@
 # Riffle
 
-An Android ebook reader for [Audiobookshelf](https://www.audiobookshelf.org/) self-hosted servers.
+An Android ebook reader for [Audiobookshelf](https://www.audiobookshelf.org/) and [Storyteller](https://storyteller-platform.gitlab.io/storyteller) self-hosted servers.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)
 
-Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync reading progress — all from a clean, privacy-respecting Android app.
+Riffle lets you browse your ebook library, read EPUB and PDF files, and sync reading progress — all from a clean, privacy-respecting Android app.
 
 ## Features
 
@@ -35,7 +35,8 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 - Offline detection and seamless offline reading
 
 ### Server & Sync
-- Audiobookshelf login with secure token storage and insecure-connection warnings
+- Audiobookshelf and Storyteller login with secure token storage and insecure-connection warnings
+- Storyteller Readaloud Library: browse every completed readaloud as a single library (reader-side narration playback is in progress)
 - Bidirectional progress sync with last-update-wins conflict resolution
 - Periodic auto-sync and offline queueing
 - Reading session time tracking
@@ -43,7 +44,7 @@ Riffle lets you browse your ABS ebook library, read EPUB and PDF files, and sync
 ## Requirements
 
 - Android 7.0 (API 24) or higher
-- A running [Audiobookshelf](https://www.audiobookshelf.org/) server
+- A running [Audiobookshelf](https://www.audiobookshelf.org/) or [Storyteller](https://storyteller-platform.gitlab.io/storyteller) server
 
 ## Distribution
 
