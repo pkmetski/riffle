@@ -38,7 +38,6 @@ class PermanentNavigationDrawerTest {
         val server = Server(
             id = "s1",
             url = ServerUrl.parse("http://example.com")!!,
-            displayName = "Example",
             isActive = true,
             insecureConnectionAllowed = false,
             username = "alice",
@@ -81,7 +80,6 @@ class PermanentNavigationDrawerTest {
         val server = Server(
             id = "s1",
             url = ServerUrl.parse("http://example.com")!!,
-            displayName = "Example",
             isActive = true,
             insecureConnectionAllowed = false,
             username = "alice",

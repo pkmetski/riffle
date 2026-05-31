@@ -7,7 +7,6 @@ import androidx.room.PrimaryKey
 data class ServerEntity(
     @PrimaryKey val id: String,
     val url: String,
-    val displayName: String,
     val isActive: Boolean,
     val insecureConnectionAllowed: Boolean,
     val username: String,

@@ -68,7 +68,6 @@ class EpubPositionIntegrationTest {
             val activeServer = Server(
                 id = "server-1",
                 url = ServerUrl.parse(server.url("/").toString().trimEnd('/'))!!,
-                displayName = "Test",
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = "",

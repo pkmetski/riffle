@@ -598,6 +598,41 @@ class MigrationTest {
     }
 
     @Test
+    fun migration20To21_dropsDisplayNameAndPreservesData() {
+        helper.createDatabase(TEST_DB, 20).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server:13378', 'media-server', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, displayName, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s2', 'http://media-server:8001', 'media-server', 0, 1, 'plamen', 'STORYTELLER')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 21, true, RiffleDatabase.MIGRATION_20_21)
+
+        // displayName column is gone; every other column survives unchanged.
+        db.query("SELECT id, url, isActive, insecureConnectionAllowed, username, serverType FROM servers ORDER BY id").use { cursor ->
+            assertEquals(2, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("http://media-server:13378", cursor.getString(1))
+            assertEquals(1, cursor.getInt(2))
+            assertEquals(0, cursor.getInt(3))
+            assertEquals("plamen", cursor.getString(4))
+            assertEquals("AUDIOBOOKSHELF", cursor.getString(5))
+            cursor.moveToNext()
+            assertEquals("s2", cursor.getString(0))
+            assertEquals("http://media-server:8001", cursor.getString(1))
+            assertEquals(0, cursor.getInt(2))
+            assertEquals(1, cursor.getInt(3))
+            assertEquals("plamen", cursor.getString(4))
+            assertEquals("STORYTELLER", cursor.getString(5))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -606,7 +641,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 20, true,
+            TEST_DB, 21, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -626,15 +661,15 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_17_18,
             RiffleDatabase.MIGRATION_18_19,
             RiffleDatabase.MIGRATION_19_20,
+            RiffleDatabase.MIGRATION_20_21,
         )
 
-        db.query("SELECT url, displayName, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
+        db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("http://localhost", cursor.getString(0))
-            assertEquals("My Server", cursor.getString(1))
-            assertEquals("", cursor.getString(2))
-            assertEquals("AUDIOBOOKSHELF", cursor.getString(3))
+            assertEquals("", cursor.getString(1))
+            assertEquals("AUDIOBOOKSHELF", cursor.getString(2))
         }
     }
 }

@@ -69,7 +69,6 @@ class SeriesIntegrationTest {
         fakeServerRepository.server = Server(
             id = "s1",
             url = ServerUrl.parse(serverUrl)!!,
-            displayName = "test",
             isActive = true,
             insecureConnectionAllowed = false,
             username = "",

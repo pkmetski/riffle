@@ -126,12 +126,12 @@ fun SettingsScreen(
                             }
                             append(server.url.value)
                             if (version != null) {
-                                append(" · ")
+                                append(" · v")
                                 append(version)
                             }
                         }
                         ListItem(
-                            headlineContent = { Text(server.displayName) },
+                            headlineContent = { Text(server.serverType.label) },
                             supportingContent = { Text(subtitle) },
                             trailingContent = if (server.isActive) {
                                 { Text("Active", style = MaterialTheme.typography.labelSmall) }
@@ -150,7 +150,7 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 if (libraryItems.isNotEmpty()) {
-                    val activeServerName = servers.firstOrNull { it.isActive }?.displayName ?: ""
+                    val activeServerName = servers.firstOrNull { it.isActive }?.serverType?.label ?: ""
                     Text(
                         text = "Libraries — $activeServerName",
                         style = MaterialTheme.typography.titleSmall,

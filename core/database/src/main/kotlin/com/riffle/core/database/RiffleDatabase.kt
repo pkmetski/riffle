@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -257,6 +257,31 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `book_formatting_preferences` ADD COLUMN `showCurrentChapterLabel` INTEGER DEFAULT NULL"
                 )
+            }
+        }
+
+        // Servers are now identified by their ServerType (Audiobookshelf / Storyteller) in the UI,
+        // so the URL-host-derived displayName column has no consumers. Drop it.
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `servers_new` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`url` TEXT NOT NULL, " +
+                        "`isActive` INTEGER NOT NULL, " +
+                        "`insecureConnectionAllowed` INTEGER NOT NULL, " +
+                        "`username` TEXT NOT NULL, " +
+                        "`serverType` TEXT NOT NULL DEFAULT 'AUDIOBOOKSHELF', " +
+                        "PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `servers_new` " +
+                        "(id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                        "SELECT id, url, isActive, insecureConnectionAllowed, username, serverType " +
+                        "FROM `servers`"
+                )
+                db.execSQL("DROP TABLE `servers`")
+                db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
             }
         }
     }

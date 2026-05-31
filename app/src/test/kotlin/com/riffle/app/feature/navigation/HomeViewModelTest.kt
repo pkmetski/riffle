@@ -33,7 +33,6 @@ class HomeViewModelTest {
     private fun server(id: String, active: Boolean = false) = Server(
         id = id,
         url = ServerUrl.parse("https://$id.example.com")!!,
-        displayName = id,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",

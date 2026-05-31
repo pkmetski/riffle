@@ -185,13 +185,18 @@ private fun DrawerHeader(
     var headerWidth by remember { mutableStateOf(Dp.Unspecified) }
     val density = LocalDensity.current
 
+    // Same product type appearing more than once forces the host to appear in the supporting
+    // line so users can tell the two instances apart. With a single instance the host is noise.
+    val activeNeedsHost = activeServer != null &&
+        allServers.count { it.serverType == activeServer.serverType } > 1
+
     Box(modifier = Modifier
         .fillMaxWidth()
         .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
     ) {
         ListItem(
             headlineContent = {
-                val name = activeServer?.displayName ?: "No server"
+                val name = activeServer?.serverType?.label ?: "No server"
                 val username = activeServer?.username?.takeIf { it.isNotEmpty() }
                 if (username != null) {
                     Text(
@@ -208,12 +213,12 @@ private fun DrawerHeader(
                 }
             },
             supportingContent = {
-                val url = activeServer?.url?.value ?: ""
-                if (activeVersion != null) {
-                    Text("$url · $activeVersion")
-                } else {
-                    Text(url)
-                }
+                val host = activeServer?.url?.authority().orEmpty()
+                val support = buildSupportingLine(
+                    host = if (activeNeedsHost) host else null,
+                    version = activeVersion,
+                )
+                if (support != null) Text(support)
             },
             trailingContent = {
                 Icon(
@@ -229,6 +234,7 @@ private fun DrawerHeader(
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
             allServers.forEach { server ->
+                val needsHost = allServers.count { it.serverType == server.serverType } > 1
                 DropdownMenuItem(
                     text = {
                         Column {
@@ -236,7 +242,7 @@ private fun DrawerHeader(
                             if (username != null) {
                                 Text(
                                     buildAnnotatedString {
-                                        append(server.displayName)
+                                        append(server.serverType.label)
                                         append(" ")
                                         withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                                             append("[$username]")
@@ -244,14 +250,19 @@ private fun DrawerHeader(
                                     }
                                 )
                             } else {
-                                Text(server.displayName)
+                                Text(server.serverType.label)
                             }
-                            val version = serverVersions[server.id]
-                            Text(
-                                text = if (version != null) "${server.url.value} · $version" else server.url.value,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            val support = buildSupportingLine(
+                                host = if (needsHost) server.url.authority() else null,
+                                version = serverVersions[server.id],
                             )
+                            if (support != null) {
+                                Text(
+                                    text = support,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     },
                     leadingIcon = {
@@ -268,5 +279,19 @@ private fun DrawerHeader(
                 )
             }
         }
+    }
+}
+
+/**
+ * Drawer supporting line: `host · version`, `host`, `version`, or null if nothing to show.
+ * Storyteller never has a version (the repository returns null for it).
+ */
+private fun buildSupportingLine(host: String?, version: String?): String? {
+    val v = version?.let { "v$it" }
+    return when {
+        host != null && v != null -> "$host · $v"
+        host != null -> host
+        v != null -> v
+        else -> null
     }
 }
