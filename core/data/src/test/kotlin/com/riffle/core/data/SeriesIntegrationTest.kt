@@ -136,7 +136,17 @@ class SeriesIntegrationTest {
         collectionDao = FakeCollectionDao(),
         serverRepository = fakeServerRepository,
         tokenStorage = fakeTokenStorage,
+        readingSessionRepository = NoopReadingSessionRepository,
     )
+
+    private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
+        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
+            com.riffle.core.domain.SyncSessionResult.Success
+        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
+            com.riffle.core.domain.ProgressSyncCycleResult.InSync
+        override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun touchOpenTimestamp(itemId: String) = Unit
+    }
 
     // JSON matching a real Audiobookshelf /api/libraries/{id}/series?minified=1 response
     private val oneSeriesJson = """

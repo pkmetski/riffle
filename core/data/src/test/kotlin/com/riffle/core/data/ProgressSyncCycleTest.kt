@@ -273,4 +273,42 @@ class ProgressSyncCycleTest {
         assertNotNull(positionStore.updatedTimestamp)
         assertTrue(positionStore.updatedTimestamp!! > 0L)
     }
+
+    // --- touchOpenTimestamp ---
+
+    @Test
+    fun `touchOpenTimestamp PATCHes back the server's current ebookLocation to bump lastUpdate without clobbering position`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 0L)
+        val recording = object : AbsSessionApi {
+            var patchPayload: NetworkEbookProgressPayload? = null
+            override suspend fun syncEbookProgress(
+                baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload,
+                token: String, insecureAllowed: Boolean,
+            ): NetworkSyncSessionResult {
+                patchPayload = payload
+                return NetworkSyncSessionResult.Success(7_777L)
+            }
+            override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
+                NetworkGetProgressResult.Success(NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
+        }
+
+        buildRepo(recording, positionStore).touchOpenTimestamp("item-1")
+
+        assertEquals("server-cfi", recording.patchPayload?.ebookLocation)
+        assertEquals(0.42f, recording.patchPayload?.ebookProgress)
+        assertEquals(7_777L, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `touchOpenTimestamp is a no-op when getProgress fails`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.NetworkError(IOException("offline")),
+        )
+
+        buildRepo(api, positionStore).touchOpenTimestamp("item-1")
+
+        assertEquals(0, api.patchCallCount)
+        assertEquals(null, positionStore.updatedTimestamp)
+    }
 }

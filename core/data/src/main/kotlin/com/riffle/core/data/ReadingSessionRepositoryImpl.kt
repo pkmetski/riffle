@@ -67,6 +67,27 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun touchOpenTimestamp(itemId: String) {
+        val resolved = resolveServerAndToken() ?: return
+        val (server, token) = resolved
+        val serverProgress = when (val r = api.getProgress(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
+            is NetworkGetProgressResult.Success -> r.progress
+            is NetworkGetProgressResult.NetworkError -> return
+        }
+        val patchResult = api.syncEbookProgress(
+            server.url.value, itemId,
+            NetworkEbookProgressPayload(
+                ebookLocation = serverProgress.ebookLocation,
+                ebookProgress = serverProgress.ebookProgress,
+            ),
+            token, server.insecureConnectionAllowed,
+        )
+        if (patchResult is NetworkSyncSessionResult.Success) {
+            val ts = patchResult.lastUpdate.takeIf { it > 0L } ?: System.currentTimeMillis()
+            positionStore.updateLocalTimestamp(server.id, itemId, ts)
+        }
+    }
+
     override suspend fun setProgress(itemId: String, progress: Float) {
         val server = serverRepository.getActive() ?: return
         val cfi = positionStore.load(server.id, itemId) ?: ""

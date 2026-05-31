@@ -1,7 +1,12 @@
 package com.riffle.core.network
 
+data class NetworkUserMediaProgress(
+    val ebookProgress: Float?,
+    val lastUpdate: Long?,
+)
+
 sealed class NetworkUserProgressResult {
-    data class Success(val progressByItemId: Map<String, Float>) : NetworkUserProgressResult()
+    data class Success(val byItemId: Map<String, NetworkUserMediaProgress>) : NetworkUserProgressResult()
     data class NetworkError(val cause: Throwable) : NetworkUserProgressResult()
 }
 
@@ -10,7 +15,7 @@ interface AbsLibraryApi {
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkUserProgressResult = NetworkUserProgressResult.Success(emptyMap())
+    ): NetworkUserProgressResult = NetworkUserProgressResult.Success(emptyMap<String, NetworkUserMediaProgress>())
 
     suspend fun getLibraries(
         baseUrl: String,

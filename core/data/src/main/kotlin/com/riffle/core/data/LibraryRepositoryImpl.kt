@@ -17,6 +17,7 @@ import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -41,6 +42,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val collectionDao: CollectionDao,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
+    private val readingSessionRepository: ReadingSessionRepository,
 ) : LibraryRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -88,6 +90,10 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override suspend fun markItemOpened(itemId: String) {
         libraryItemDao.updateLastOpenedAt(itemId, System.currentTimeMillis())
+        // Best-effort push so other devices see this open via mediaProgress.lastUpdate. Offline
+        // failures are intentionally swallowed — the local stamp lifts the server timestamp via
+        // max() on the next successful library refresh.
+        readingSessionRepository.touchOpenTimestamp(itemId)
     }
 
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {
@@ -113,7 +119,7 @@ class LibraryRepositoryImpl @Inject constructor(
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         val serverProgressMap = when (val r = api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed)) {
-            is NetworkUserProgressResult.Success -> r.progressByItemId
+            is NetworkUserProgressResult.Success -> r.byItemId
             is NetworkUserProgressResult.NetworkError -> emptyMap()
         }
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
@@ -124,13 +130,14 @@ class LibraryRepositoryImpl @Inject constructor(
                     .sortedByDescending { it.isSupported }
                     .distinctBy { it.title.trim().lowercase() }
                     .map { item ->
+                        val serverProgress = serverProgressMap[item.id]
                         LibraryItemEntity(
                             id = item.id,
                             libraryId = item.libraryId,
                             title = item.title,
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
-                            readingProgress = serverProgressMap[item.id] ?: item.readingProgress ?: localProgressMap[item.id] ?: 0f,
+                            readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: localProgressMap[item.id] ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             description = item.description,
@@ -138,7 +145,11 @@ class LibraryRepositoryImpl @Inject constructor(
                             publishedYear = item.publishedYear,
                             genres = item.genres.joinToString(","),
                             publisher = item.publisher,
-                            lastOpenedAt = lastOpenedAtMap[item.id],
+                            // Surface the most recent read activity across devices: pick whichever
+                            // of (local stamp, server's mediaProgress.lastUpdate) is later. Either
+                            // can lead — the local stamp wins between syncs on this device, the
+                            // server stamp wins once another device has read more recently.
+                            lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
                             addedAt = item.addedAt,
                         )
                     }
@@ -204,6 +215,13 @@ class LibraryRepositoryImpl @Inject constructor(
             }
             is NetworkCollectionResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
         }
+    }
+
+    private fun mergeLastOpenedAt(local: Long?, server: Long?): Long? {
+        val a = local ?: 0L
+        val b = server ?: 0L
+        val merged = maxOf(a, b)
+        return merged.takeIf { it > 0L }
     }
 
     private fun LibraryEntity.toDomain() = Library(id = id, name = name, mediaType = mediaType, isUnsupported = isUnsupported)
