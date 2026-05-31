@@ -56,6 +56,7 @@ fun RiffleNavigationDrawer(
     drawerState: DrawerState,
     gesturesEnabled: Boolean = true,
     usePermanentDrawer: Boolean = false,
+    hidePermanentDrawerPanel: Boolean = false,
     activeServer: Server?,
     allServers: List<Server>,
     visibleLibraries: List<Library>,
@@ -86,7 +87,9 @@ fun RiffleNavigationDrawer(
         // permanent drawer pinned to the leading edge — no hamburger, no scrim.
         PermanentNavigationDrawer(
             drawerContent = {
-                PermanentDrawerSheet(modifier = Modifier.width(280.dp)) { sheetBody() }
+                if (!hidePermanentDrawerPanel) {
+                    PermanentDrawerSheet(modifier = Modifier.width(280.dp)) { sheetBody() }
+                }
             },
             content = content,
         )
