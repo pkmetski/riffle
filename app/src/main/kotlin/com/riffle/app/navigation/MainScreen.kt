@@ -291,6 +291,7 @@ fun MainScreen(
                 )
             ) {
                 LibraryItemDetailScreen(
+                    windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
