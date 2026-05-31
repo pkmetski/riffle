@@ -26,13 +26,41 @@ private fun expandIfRedundant(entry: TocEntry, bookTitleNorm: String): List<Rail
 
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
-fun findActiveSegmentIndex(segments: List<RailSegment>, currentHref: String): Int {
+/**
+ * Resolve the rail segment that owns [currentHref].
+ *
+ * EPUB spines often contain resources with no TOC entry (separators, ornamental pages between
+ * parts). When the navigator emits a locator for such a resource, falling back to segment 0
+ * causes the chapter label to flicker to "Chapter 1" between adjacent chapters. Pass
+ * [spineHrefs] (the publication's reading order) so the fallback can pick the last segment
+ * whose spine position is at-or-before the current resource — the chapter the user is "inside"
+ * by spine order — instead of snapping to the book's first chapter.
+ */
+fun findActiveSegmentIndex(
+    segments: List<RailSegment>,
+    currentHref: String,
+    spineHrefs: List<String> = emptyList(),
+): Int {
     if (segments.isEmpty()) return 0
     val exact = segments.indexOfFirst { it.href == currentHref }
     if (exact >= 0) return exact
     val currentBase = currentHref.substringBefore('#')
     val baseMatch = segments.indexOfFirst { it.href.substringBefore('#') == currentBase }
-    return if (baseMatch >= 0) baseMatch else 0
+    if (baseMatch >= 0) return baseMatch
+    if (spineHrefs.isEmpty()) return 0
+    val spineBases = spineHrefs.map { it.substringBefore('#') }
+    val currentSpineIndex = spineBases.indexOf(currentBase)
+    if (currentSpineIndex < 0) return 0
+    var bestSegIdx = -1
+    var bestSpineIdx = -1
+    segments.forEachIndexed { i, seg ->
+        val segSpineIdx = spineBases.indexOf(seg.href.substringBefore('#'))
+        if (segSpineIdx in 0..currentSpineIndex && segSpineIdx > bestSpineIdx) {
+            bestSpineIdx = segSpineIdx
+            bestSegIdx = i
+        }
+    }
+    return if (bestSegIdx >= 0) bestSegIdx else 0
 }
 
 /**

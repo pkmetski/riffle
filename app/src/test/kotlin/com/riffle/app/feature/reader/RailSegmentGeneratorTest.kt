@@ -287,8 +287,41 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `returns 0 when href matches no segment`() {
+    fun `returns 0 when href matches no segment and no spine info`() {
         assertEquals(0, findActiveSegmentIndex(bookSegments, "unknown.xhtml"))
+    }
+
+    @Test
+    fun `unmatched href falls back to preceding chapter by spine order, not chapter 0`() {
+        // Spine has an intermezzo resource between chapter2 and chapter3 with no TOC entry.
+        // Without spine awareness the chapter label would flicker to "Chapter 1" when the
+        // navigator emits a locator for the intermezzo.
+        val spine = listOf(
+            "chapter1.xhtml",
+            "chapter2.xhtml",
+            "intermezzo.xhtml",
+            "chapter3.xhtml",
+        )
+        assertEquals(1, findActiveSegmentIndex(bookSegments, "intermezzo.xhtml", spine))
+    }
+
+    @Test
+    fun `unmatched href before first mapped segment returns 0`() {
+        // A pre-chapter1 resource (e.g. front-matter) with no TOC entry should map to 0.
+        val spine = listOf("frontmatter.xhtml", "chapter1.xhtml", "chapter2.xhtml", "chapter3.xhtml")
+        assertEquals(0, findActiveSegmentIndex(bookSegments, "frontmatter.xhtml", spine))
+    }
+
+    @Test
+    fun `unmatched href after last mapped segment returns last segment`() {
+        val spine = listOf("chapter1.xhtml", "chapter2.xhtml", "chapter3.xhtml", "appendix.xhtml")
+        assertEquals(2, findActiveSegmentIndex(bookSegments, "appendix.xhtml", spine))
+    }
+
+    @Test
+    fun `unmatched href not in spine returns 0`() {
+        val spine = listOf("chapter1.xhtml", "chapter2.xhtml", "chapter3.xhtml")
+        assertEquals(0, findActiveSegmentIndex(bookSegments, "unrelated.xhtml", spine))
     }
 
     @Test
