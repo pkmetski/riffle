@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,6 +34,8 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -53,9 +58,13 @@ import coil.request.ImageRequest
 import com.riffle.core.domain.LibraryItem
 import kotlinx.coroutines.launch
 
+const val LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG = "library_item_detail_left_pane"
+const val LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG = "library_item_detail_right_pane"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryItemDetailScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onReadItem: (LibraryItem) -> Unit,
     viewModel: LibraryItemDetailViewModel = hiltViewModel(),
@@ -115,31 +124,50 @@ fun LibraryItemDetailScreen(
             }
 
             is LibraryItemDetailUiState.Ready -> {
-                LibraryItemDetailContent(
-                    item = state.item,
-                    isInToRead = state.isInToRead,
-                    token = viewModel.authToken,
-                    downloadState = downloadState,
-                    onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
-                    onMarkAsRead = { viewModel.markAsRead() },
-                    onMarkAsUnread = { viewModel.markAsUnread() },
-                    onToggleToRead = { viewModel.toggleToRead() },
-                    onDownload = { viewModel.startDownload() },
-                    onRemove = {
-                        viewModel.removeDownload()
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "Download removed",
-                                actionLabel = "Undo",
-                                duration = SnackbarDuration.Short,
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                viewModel.startDownload()
-                            }
+                val onRemoveWithUndo: () -> Unit = {
+                    viewModel.removeDownload()
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Download removed",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Short,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.startDownload()
                         }
-                    },
-                    modifier = Modifier.padding(padding),
-                )
+                    }
+                }
+                val isExpanded =
+                    windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+                if (isExpanded) {
+                    LibraryItemDetailContentTablet(
+                        item = state.item,
+                        isInToRead = state.isInToRead,
+                        token = viewModel.authToken,
+                        downloadState = downloadState,
+                        onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                        onMarkAsRead = { viewModel.markAsRead() },
+                        onMarkAsUnread = { viewModel.markAsUnread() },
+                        onToggleToRead = { viewModel.toggleToRead() },
+                        onDownload = { viewModel.startDownload() },
+                        onRemove = onRemoveWithUndo,
+                        modifier = Modifier.padding(padding),
+                    )
+                } else {
+                    LibraryItemDetailContent(
+                        item = state.item,
+                        isInToRead = state.isInToRead,
+                        token = viewModel.authToken,
+                        downloadState = downloadState,
+                        onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                        onMarkAsRead = { viewModel.markAsRead() },
+                        onMarkAsUnread = { viewModel.markAsUnread() },
+                        onToggleToRead = { viewModel.toggleToRead() },
+                        onDownload = { viewModel.startDownload() },
+                        onRemove = onRemoveWithUndo,
+                        modifier = Modifier.padding(padding),
+                    )
+                }
             }
         }
     }
@@ -206,41 +234,17 @@ private fun LibraryItemDetailContent(
             )
         }
 
-        if (item.isSupported) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    onClick = { onReadItem(item) },
-                    enabled = downloadState !is DownloadState.InProgress,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Read")
-                }
-                ReadToggleButton(
-                    isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
-                    onMarkAsRead = onMarkAsRead,
-                    onMarkAsUnread = onMarkAsUnread,
-                )
-                ToReadToggleButton(
-                    isInToRead = isInToRead,
-                    onToggle = onToggleToRead,
-                )
-                DownloadButton(
-                    state = downloadState,
-                    onDownload = onDownload,
-                    onRemove = onRemove,
-                )
-            }
-        } else {
-            Text(
-                text = "No ebook file is available for this item on the server.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        ActionRow(
+            item = item,
+            isInToRead = isInToRead,
+            downloadState = downloadState,
+            onReadItem = onReadItem,
+            onMarkAsRead = onMarkAsRead,
+            onMarkAsUnread = onMarkAsUnread,
+            onToggleToRead = onToggleToRead,
+            onDownload = onDownload,
+            onRemove = onRemove,
+        )
 
         Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
         Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
@@ -250,33 +254,172 @@ private fun LibraryItemDetailContent(
         }
 
         if (item.readingProgress > 0f) {
-            Column {
-                LinearProgressIndicator(
-                    progress = { item.readingProgress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${(item.readingProgress * 100).toInt()}% read",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+            ReadingProgressIndicator(progress = item.readingProgress)
         }
 
         item.description?.takeIf { it.isNotBlank() }?.let { desc ->
             CollapsibleDescription(desc)
         }
 
-        val metadataItems = buildList {
-            item.publishedYear?.let { add("Published: $it") }
-            if (item.genres.isNotEmpty()) add("Genres: ${item.genres.joinToString(", ")}")
-            item.publisher?.let { add("Publisher: $it") }
+        MetadataLines(item = item)
+    }
+}
+
+@Composable
+internal fun LibraryItemDetailContentTablet(
+    item: LibraryItem,
+    isInToRead: Boolean,
+    token: String,
+    downloadState: DownloadState,
+    onReadItem: (LibraryItem) -> Unit,
+    onMarkAsRead: () -> Unit,
+    onMarkAsUnread: () -> Unit,
+    onToggleToRead: () -> Unit,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxSize(),
+    ) {
+        Column(
+            modifier = Modifier
+                .testTag(LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG)
+                .width(360.dp)
+                .fillMaxHeight()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item.coverUrl?.let { url ->
+                // The left pane is non-scrolling (CONTEXT.md / ADR 0020), so the cover
+                // must yield height to the action row. weight(fill = false) lets the
+                // cover claim its aspect-ratio preferred size when there's room, but
+                // shrink in landscape so the Read button stays visible.
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(url)
+                        .addHeader("Authorization", "Bearer $token")
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .aspectRatio(2f / 3f)
+                        .align(Alignment.CenterHorizontally),
+                )
+            }
+            Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
+            Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
+            if (item.readingProgress > 0f) {
+                ReadingProgressIndicator(progress = item.readingProgress)
+            }
+            ActionRow(
+                item = item,
+                isInToRead = isInToRead,
+                downloadState = downloadState,
+                onReadItem = onReadItem,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+                onToggleToRead = onToggleToRead,
+                onDownload = onDownload,
+                onRemove = onRemove,
+            )
         }
-        if (metadataItems.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                metadataItems.forEach { line ->
-                    Text(text = line, style = MaterialTheme.typography.bodyMedium)
-                }
+        Column(
+            modifier = Modifier
+                .testTag(LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG)
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                CollapsibleDescription(desc)
+            }
+            item.seriesName?.let { series ->
+                Text(text = series, style = MaterialTheme.typography.bodyLarge)
+            }
+            MetadataLines(item = item)
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(
+    item: LibraryItem,
+    isInToRead: Boolean,
+    downloadState: DownloadState,
+    onReadItem: (LibraryItem) -> Unit,
+    onMarkAsRead: () -> Unit,
+    onMarkAsUnread: () -> Unit,
+    onToggleToRead: () -> Unit,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    if (item.isSupported) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = { onReadItem(item) },
+                enabled = downloadState !is DownloadState.InProgress,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Read")
+            }
+            ReadToggleButton(
+                isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+            )
+            ToReadToggleButton(
+                isInToRead = isInToRead,
+                onToggle = onToggleToRead,
+            )
+            DownloadButton(
+                state = downloadState,
+                onDownload = onDownload,
+                onRemove = onRemove,
+            )
+        }
+    } else {
+        Text(
+            text = "No ebook file is available for this item on the server.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ReadingProgressIndicator(progress: Float) {
+    Column {
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "${(progress * 100).toInt()}% read",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+private fun MetadataLines(item: LibraryItem) {
+    val metadataItems = buildList {
+        item.publishedYear?.let { add("Published: $it") }
+        if (item.genres.isNotEmpty()) add("Genres: ${item.genres.joinToString(", ")}")
+        item.publisher?.let { add("Publisher: $it") }
+    }
+    if (metadataItems.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            metadataItems.forEach { line ->
+                Text(text = line, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
