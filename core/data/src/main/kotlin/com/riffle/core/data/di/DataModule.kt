@@ -39,6 +39,9 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
+import com.riffle.core.network.StorytellerApi
+import com.riffle.core.network.StorytellerApiClient
+import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
@@ -131,6 +134,14 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindStorytellerApi(impl: StorytellerApiClient): StorytellerApi
+
+    @Binds
+    @Singleton
+    abstract fun bindStorytellerLibraryApi(impl: StorytellerApiClient): StorytellerLibraryApi
+
+    @Binds
+    @Singleton
     abstract fun bindReadingPositionStore(impl: ReadingPositionStoreImpl): ReadingPositionStore
 
     @Binds
@@ -170,6 +181,11 @@ abstract class DataModule {
         @Singleton
         fun provideAbsApiClient(okHttpClient: OkHttpClient): AbsApiClient =
             AbsApiClient(okHttpClient)
+
+        @Provides
+        @Singleton
+        fun provideStorytellerApiClient(okHttpClient: OkHttpClient): StorytellerApiClient =
+            StorytellerApiClient(okHttpClient)
 
         @Provides
         @Singleton
