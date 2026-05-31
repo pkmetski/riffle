@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -211,6 +211,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `book_formatting_preferences` ADD COLUMN `showReadingProgressLabels` INTEGER DEFAULT NULL"
                 )
+            }
+        }
+
+        // Generalises Server beyond Audiobookshelf: a Server is now either ABS or Storyteller
+        // (ADR 0020). Existing rows backfill to AUDIOBOOKSHELF — the only Server type that existed
+        // before this migration.
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `servers` ADD COLUMN `serverType` TEXT NOT NULL DEFAULT 'AUDIOBOOKSHELF'")
             }
         }
     }
