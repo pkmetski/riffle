@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -57,9 +58,10 @@ class LibraryItemsViewModelTest {
     private val allBooksFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val collectionItemsByCollectionId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
+    private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
 
     private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
-        override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
+        override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = itemsFlow
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
@@ -802,5 +804,23 @@ class LibraryItemsViewModelTest {
         recentlyAddedFlow.value = (1..60).map { i -> item("Book $i", "Author") }
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(50, vm.filteredRecentlyAdded.value.size)
+    }
+
+    @Test
+    fun `isReadaloudLibrary true when the active library has mediaType readaloud`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.isReadaloudLibrary.collect {} }
+        librariesFlow.value = listOf(Library("lib-1", "Readalouds", "readaloud", false))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.isReadaloudLibrary.value)
+    }
+
+    @Test
+    fun `isReadaloudLibrary false for a standard ABS library`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.isReadaloudLibrary.collect {} }
+        librariesFlow.value = listOf(Library("lib-1", "Books", "book", false))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.isReadaloudLibrary.value)
     }
 }

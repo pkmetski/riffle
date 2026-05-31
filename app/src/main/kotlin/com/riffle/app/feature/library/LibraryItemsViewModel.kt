@@ -58,6 +58,13 @@ class LibraryItemsViewModel @Inject constructor(
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
+    // Readaloud Libraries (ADR 0020) collapse the Library Tab Bar to All Books only — Storyteller
+    // exposes no Series, Collections, or To Read source.
+    val isReadaloudLibrary: StateFlow<Boolean> = libraryRepository.observeLibraries()
+        .map { libs -> libs.firstOrNull { it.id == libraryId }?.mediaType == "readaloud" }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     val series: StateFlow<List<Series>> = libraryRepository.observeSeries(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
