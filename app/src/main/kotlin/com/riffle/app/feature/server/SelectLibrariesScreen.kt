@@ -22,6 +22,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -29,11 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.PendingServer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectLibrariesScreen(
+    windowSizeClass: WindowSizeClass,
     pending: PendingServer,
     onNavigateBack: () -> Unit,
     onContinueComplete: () -> Unit,
@@ -60,59 +63,64 @@ fun SelectLibrariesScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        if (viewModel.libraries.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    "This server doesn't expose any book libraries.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Button(onClick = onNavigateBack) { Text("Go back") }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-            ) {
-                Text(
-                    text = "Choose which libraries to show in Riffle. You can change this later in Settings.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                )
-
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(viewModel.libraries, key = { it.id }) { lib ->
-                        ListItem(
-                            headlineContent = { Text(lib.name) },
-                            trailingContent = {
-                                Switch(
-                                    checked = lib.id in viewModel.selectedIds,
-                                    onCheckedChange = { viewModel.toggle(lib.id) },
-                                )
-                            },
-                        )
-                        HorizontalDivider()
-                    }
-                }
-
+        TabletContentWidthContainer(
+            windowSizeClass = windowSizeClass,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
+            if (viewModel.libraries.isEmpty()) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (viewModel.selectedIds.isEmpty()) {
-                        Text(
-                            "Select at least one library",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    Text(
+                        "This server doesn't expose any book libraries.",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Button(onClick = onNavigateBack) { Text("Go back") }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Text(
+                        text = "Choose which libraries to show in Riffle. You can change this later in Settings.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                    )
+
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(viewModel.libraries, key = { it.id }) { lib ->
+                            ListItem(
+                                headlineContent = { Text(lib.name) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = lib.id in viewModel.selectedIds,
+                                        onCheckedChange = { viewModel.toggle(lib.id) },
+                                    )
+                                },
+                            )
+                            HorizontalDivider()
+                        }
                     }
-                    Button(
-                        onClick = viewModel::onContinue,
-                        enabled = viewModel.canContinue,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Continue") }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (viewModel.selectedIds.isEmpty()) {
+                            Text(
+                                "Select at least one library",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Button(
+                            onClick = viewModel::onContinue,
+                            enabled = viewModel.canContinue,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Continue") }
+                    }
                 }
             }
         }

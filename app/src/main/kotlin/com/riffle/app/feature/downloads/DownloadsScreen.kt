@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,11 +36,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.LibraryItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
     viewModel: DownloadsViewModel = hiltViewModel(),
@@ -76,50 +79,53 @@ fun DownloadsScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+        TabletContentWidthContainer(
+            windowSizeClass = windowSizeClass,
+            modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            item {
-                SectionHeader(
-                    title = "Downloaded",
-                    actionLabel = if (uiState.downloadedItems.isNotEmpty()) "Remove all" else null,
-                    onAction = { showRemoveAllDownloadsDialog = true },
-                )
-            }
-            if (uiState.downloadedItems.isEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 item {
-                    EmptySection("No downloaded books")
-                }
-            } else {
-                items(uiState.downloadedItems, key = { it.id }) { item ->
-                    LocalItemRow(
-                        item = item,
-                        pillColor = PillColor.Downloaded,
-                        onClick = { onItemSelected(item) },
+                    SectionHeader(
+                        title = "Downloaded",
+                        actionLabel = if (uiState.downloadedItems.isNotEmpty()) "Remove all" else null,
+                        onAction = { showRemoveAllDownloadsDialog = true },
                     )
                 }
-            }
+                if (uiState.downloadedItems.isEmpty()) {
+                    item {
+                        EmptySection("No downloaded books")
+                    }
+                } else {
+                    items(uiState.downloadedItems, key = { it.id }) { item ->
+                        LocalItemRow(
+                            item = item,
+                            pillColor = PillColor.Downloaded,
+                            onClick = { onItemSelected(item) },
+                        )
+                    }
+                }
 
-            item {
-                SectionHeader(
-                    title = "Cached",
-                    actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
-                    onAction = { viewModel.clearAllCached() },
-                )
-            }
-            if (uiState.cachedItems.isEmpty()) {
                 item {
-                    EmptySection("No cached books")
-                }
-            } else {
-                items(uiState.cachedItems, key = { it.id }) { item ->
-                    LocalItemRow(
-                        item = item,
-                        pillColor = PillColor.Cached,
-                        onClick = { onItemSelected(item) },
+                    SectionHeader(
+                        title = "Cached",
+                        actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
+                        onAction = { viewModel.clearAllCached() },
                     )
+                }
+                if (uiState.cachedItems.isEmpty()) {
+                    item {
+                        EmptySection("No cached books")
+                    }
+                } else {
+                    items(uiState.cachedItems, key = { it.id }) { item ->
+                        LocalItemRow(
+                            item = item,
+                            pillColor = PillColor.Cached,
+                            onClick = { onItemSelected(item) },
+                        )
+                    }
                 }
             }
         }

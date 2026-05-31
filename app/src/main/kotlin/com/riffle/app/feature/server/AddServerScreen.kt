@@ -28,6 +28,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,12 +41,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingServer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddServerScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onAuthenticated: (PendingServer) -> Unit,
     viewModel: AddServerViewModel = hiltViewModel(),
@@ -74,74 +77,78 @@ fun AddServerScreen(
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        TabletContentWidthContainer(
+            windowSizeClass = windowSizeClass,
+            modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                var schemeExpanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(onClick = { schemeExpanded = true }) {
-                        Text(viewModel.scheme)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose scheme")
-                    }
-                    DropdownMenu(
-                        expanded = schemeExpanded,
-                        onDismissRequest = { schemeExpanded = false },
-                    ) {
-                        listOf("https://", "http://").forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    viewModel.updateScheme(option)
-                                    schemeExpanded = false
-                                },
-                            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    var schemeExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { schemeExpanded = true }) {
+                            Text(viewModel.scheme)
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose scheme")
+                        }
+                        DropdownMenu(
+                            expanded = schemeExpanded,
+                            onDismissRequest = { schemeExpanded = false },
+                        ) {
+                            listOf("https://", "http://").forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        viewModel.updateScheme(option)
+                                        schemeExpanded = false
+                                    },
+                                )
+                            }
                         }
                     }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedTextField(
+                        value = viewModel.host,
+                        onValueChange = { viewModel.updateHost(it) },
+                        label = { Text("Server URL") },
+                        placeholder = { Text("abs.example.com") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        singleLine = true,
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
                 OutlinedTextField(
-                    value = viewModel.host,
-                    onValueChange = { viewModel.updateHost(it) },
-                    label = { Text("Server URL") },
-                    placeholder = { Text("abs.example.com") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    value = viewModel.username,
+                    onValueChange = { viewModel.username = it },
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-            }
-            OutlinedTextField(
-                value = viewModel.username,
-                onValueChange = { viewModel.username = it },
-                label = { Text("Username") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = viewModel.password,
-                onValueChange = { viewModel.password = it },
-                label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-            )
-            viewModel.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-            if (viewModel.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            } else {
-                Button(
-                    onClick = viewModel::onConnect,
+                OutlinedTextField(
+                    value = viewModel.password,
+                    onValueChange = { viewModel.password = it },
+                    label = { Text("Password") },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = viewModel.host.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
-                ) {
-                    Text("Connect")
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    singleLine = true,
+                )
+                viewModel.error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                if (viewModel.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                } else {
+                    Button(
+                        onClick = viewModel::onConnect,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = viewModel.host.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
+                    ) {
+                        Text("Connect")
+                    }
                 }
             }
         }
