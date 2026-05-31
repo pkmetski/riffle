@@ -128,9 +128,12 @@ class TypographyOverrideWebViewTest {
             val paddingBottom = webView.evalSync(
                 "window.getComputedStyle(document.documentElement).paddingBottom"
             ).toCssPx()
-            // 20px gutter × 2 (pageMargins) × 0.5 (vertical ratio) = 20px expected on each side.
+            // Top is 0.5× the horizontal gutter (narrower than sides — conventional book
+            // typography); bottom is 1.0× so the chapter-rail overlay has breathing room above
+            // the running text. See TypographyOverride.kt "margins" entry.
+            // 20px gutter × 2 (pageMargins) × 0.5 = 20px top; × 1.0 = 40px bottom.
             assertEquals("padding-top should reflect --USER__pageMargins × gutter × 0.5", 20.0, paddingTop, 0.5)
-            assertEquals("padding-bottom should reflect --USER__pageMargins × gutter × 0.5", 20.0, paddingBottom, 0.5)
+            assertEquals("padding-bottom should reflect --USER__pageMargins × gutter × 1.0", 40.0, paddingBottom, 0.5)
         }
     }
 

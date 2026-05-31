@@ -9,6 +9,7 @@ data class FormattingPreferences(
     val orientation: ReaderOrientation = DEFAULT_ORIENTATION,
     val showChapterMap: Boolean = DEFAULT_SHOW_CHAPTER_MAP,
     val showReadingProgressLabels: Boolean = DEFAULT_SHOW_READING_PROGRESS_LABELS,
+    val showCurrentChapterLabel: Boolean = DEFAULT_SHOW_CURRENT_CHAPTER_LABEL,
     val doublePageSpread: Boolean = DEFAULT_DOUBLE_PAGE_SPREAD,
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
 ) {
@@ -17,7 +18,8 @@ data class FormattingPreferences(
         const val DEFAULT_LINE_SPACING: Float = 1.2f
         const val DEFAULT_MARGINS: Float = 1.0f
         const val DEFAULT_SHOW_CHAPTER_MAP: Boolean = true
-        const val DEFAULT_SHOW_READING_PROGRESS_LABELS: Boolean = true
+        const val DEFAULT_SHOW_READING_PROGRESS_LABELS: Boolean = false
+        const val DEFAULT_SHOW_CURRENT_CHAPTER_LABEL: Boolean = false
         const val DEFAULT_DOUBLE_PAGE_SPREAD: Boolean = false
         const val DEFAULT_JUSTIFY_TEXT: Boolean = false
         val DEFAULT_THEME: ReaderTheme = ReaderTheme.Light

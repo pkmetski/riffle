@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -296,6 +298,21 @@ fun FormattingPanel(
                 )
             }
 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Current chapter label",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.showCurrentChapterLabel,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) },
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             TextButton(
                 onClick = onReset,
@@ -329,7 +346,11 @@ fun FormattingPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onKeepScreenOnChange(!keepScreenOn) },
+                    .toggleable(
+                        value = keepScreenOn,
+                        role = Role.Switch,
+                        onValueChange = onKeepScreenOnChange,
+                    ),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Keep screen on", style = MaterialTheme.typography.bodyLarge)
@@ -339,7 +360,7 @@ fun FormattingPanel(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(checked = keepScreenOn, onCheckedChange = onKeepScreenOnChange)
+                Switch(checked = keepScreenOn, onCheckedChange = null)
             }
 
             Spacer(Modifier.height(4.dp))
@@ -348,7 +369,11 @@ fun FormattingPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onVolumeKeyNavigationEnabledChange(!volumeKeyNavigationEnabled) },
+                    .toggleable(
+                        value = volumeKeyNavigationEnabled,
+                        role = Role.Switch,
+                        onValueChange = onVolumeKeyNavigationEnabledChange,
+                    ),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Volume key navigation", style = MaterialTheme.typography.bodyLarge)
@@ -358,10 +383,7 @@ fun FormattingPanel(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
-                    checked = volumeKeyNavigationEnabled,
-                    onCheckedChange = onVolumeKeyNavigationEnabledChange,
-                )
+                Switch(checked = volumeKeyNavigationEnabled, onCheckedChange = null)
             }
 
             Spacer(Modifier.height(4.dp))

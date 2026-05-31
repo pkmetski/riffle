@@ -56,7 +56,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -251,12 +254,17 @@ fun EpubReaderScreen(
         // Rail state (cursorPosition at scroll framerate) is isolated inside the overlay so
         // EpubNavigatorView does not recompose on every scroll event.
         if (state is ReaderState.Ready &&
-            (formattingPrefs.showChapterMap || formattingPrefs.showReadingProgressLabels)
+            (
+                formattingPrefs.showChapterMap ||
+                    formattingPrefs.showReadingProgressLabels ||
+                    formattingPrefs.showCurrentChapterLabel
+                )
         ) {
             EpubChapterRailOverlay(
                 viewModel = viewModel,
                 showRail = formattingPrefs.showChapterMap,
-                showLabels = formattingPrefs.showReadingProgressLabels,
+                showProgressLabels = formattingPrefs.showReadingProgressLabels,
+                showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
                 readerTheme = formattingPrefs.theme,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -349,7 +357,8 @@ internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefau
 private fun BoxScope.EpubChapterRailOverlay(
     viewModel: EpubReaderViewModel,
     showRail: Boolean,
-    showLabels: Boolean,
+    showProgressLabels: Boolean,
+    showChapterNameLabel: Boolean,
     readerTheme: ReaderTheme,
     modifier: Modifier = Modifier,
 ) {
@@ -366,12 +375,15 @@ private fun BoxScope.EpubChapterRailOverlay(
                 .fillMaxWidth()
                 .background(readerTheme.palette.background),
         ) {
-            if (showLabels) {
+            if (showProgressLabels || showChapterNameLabel) {
                 ReadingProgressLabels(
                     activeChapterIndex = activeRailSegmentIndex,
                     chapterCount = railSegments.size,
+                    activeChapterTitle = railSegments.getOrNull(activeRailSegmentIndex)?.title.orEmpty(),
                     totalProgress = cursorPosition,
                     readerTheme = readerTheme,
+                    showCountAndPercent = showProgressLabels,
+                    showChapterName = showChapterNameLabel,
                 )
             }
             if (showRail) {
@@ -404,10 +416,13 @@ private fun readerThemeLabelColor(theme: ReaderTheme): Color {
 private fun ReadingProgressLabels(
     activeChapterIndex: Int,
     chapterCount: Int,
+    activeChapterTitle: String,
     totalProgress: Float,
     readerTheme: ReaderTheme,
+    showCountAndPercent: Boolean,
+    showChapterName: Boolean,
 ) {
-    val chapterText = if (chapterCount > 0) {
+    val chapterCountText = if (chapterCount > 0) {
         "Chapter ${(activeChapterIndex + 1).coerceAtMost(chapterCount)} of $chapterCount"
     } else {
         ""
@@ -421,23 +436,47 @@ private fun ReadingProgressLabels(
             .testTag("reading_progress_labels"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = chapterText,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier
-                .weight(1f)
-                .testTag("reading_progress_chapter")
-                .semantics { contentDescription = "Reading progress: $chapterText" },
-        )
-        Text(
-            text = pctText,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier
-                .testTag("reading_progress_percent")
-                .semantics { contentDescription = "Total progress: $pctText" },
-        )
+        if (showCountAndPercent) {
+            Text(
+                text = chapterCountText,
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor,
+                textAlign = TextAlign.Start,
+                maxLines = 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("reading_progress_chapter")
+                    .semantics { contentDescription = "Reading progress: $chapterCountText" },
+            )
+        }
+        if (showChapterName) {
+            Text(
+                text = activeChapterTitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor,
+                textAlign = TextAlign.Center,
+                fontStyle = FontStyle.Italic,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(2f)
+                    .testTag("reading_progress_chapter_name")
+                    .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
+            )
+        }
+        if (showCountAndPercent) {
+            Text(
+                text = pctText,
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("reading_progress_percent")
+                    .semantics { contentDescription = "Total progress: $pctText" },
+            )
+        }
     }
 }
 

@@ -102,6 +102,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "doublePageSpread" to "Column-count layout mode, handled by RsProperties at fragment-creation time.",
     "showChapterMap" to "UI affordance outside the reader content; no CSS implication.",
     "showReadingProgressLabels" to "UI affordance outside the reader content; no CSS implication.",
+    "showCurrentChapterLabel" to "UI affordance outside the reader content; no CSS implication.",
 )
 
 /**

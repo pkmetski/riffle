@@ -31,6 +31,15 @@ class BookFormattingOverridesTest {
         assertTrue(BookFormattingOverrides().isEmpty)
         assertFalse(BookFormattingOverrides(fontSize = 1.3f).isEmpty)
         assertFalse(BookFormattingOverrides(justifyText = true).isEmpty)
+        assertFalse(BookFormattingOverrides(showCurrentChapterLabel = true).isEmpty)
+    }
+
+    @Test
+    fun `applyTo threads showCurrentChapterLabel`() {
+        val effective = BookFormattingOverrides(showCurrentChapterLabel = true).applyTo(global)
+        assertTrue(effective.showCurrentChapterLabel)
+        // Untouched on the global side stays false (the default).
+        assertFalse(BookFormattingOverrides().applyTo(global).showCurrentChapterLabel)
     }
 
     @Test

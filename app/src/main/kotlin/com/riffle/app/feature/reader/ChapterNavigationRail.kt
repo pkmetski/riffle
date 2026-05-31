@@ -29,7 +29,9 @@ fun ChapterNavigationRail(
 
     val barColor = MaterialTheme.colorScheme.surfaceVariant
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-    val dividerColor = MaterialTheme.colorScheme.outline
+    // Foreground (onSurface) instead of `outline` so dividers read as crisp chapter
+    // boundaries on top of the filled track, not as soft chrome.
+    val dividerColor = MaterialTheme.colorScheme.onSurface
     val activeOutlineColor = MaterialTheme.colorScheme.primary
     val cursorColor = MaterialTheme.colorScheme.primary
 
@@ -39,7 +41,7 @@ fun ChapterNavigationRail(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(8.dp)
+            .height(5.dp)
             .testTag("chapter_navigation_rail")
             .semantics { contentDescription = "Active rail segment: $activeTitle" }
             .pointerInput(segments) {
