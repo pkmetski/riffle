@@ -19,6 +19,8 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLoginResult
+import com.riffle.core.network.NetworkStorytellerLoginResult
+import com.riffle.core.network.StorytellerApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -28,6 +30,7 @@ class ServerRepositoryImpl @Inject constructor(
     private val dao: ServerDao,
     private val tokenStorage: TokenStorage,
     private val absApiClient: AbsApi,
+    private val storytellerApi: StorytellerApi,
     private val serverInfoApi: AbsServerInfoApi,
     private val libraryApi: AbsLibraryApi,
     private val libraryDao: LibraryDao,
@@ -40,6 +43,17 @@ class ServerRepositoryImpl @Inject constructor(
     override suspend fun getActive(): Server? = dao.getActive()?.toDomain()
 
     override suspend fun authenticate(
+        url: ServerUrl,
+        username: String,
+        password: String,
+        insecureAllowed: Boolean,
+        serverType: ServerType,
+    ): AuthenticateResult = when (serverType) {
+        ServerType.AUDIOBOOKSHELF -> authenticateAbs(url, username, password, insecureAllowed)
+        ServerType.STORYTELLER -> authenticateStoryteller(url, username, password, insecureAllowed)
+    }
+
+    private suspend fun authenticateAbs(
         url: ServerUrl,
         username: String,
         password: String,
@@ -78,6 +92,42 @@ class ServerRepositoryImpl @Inject constructor(
         }
     }
 
+    private suspend fun authenticateStoryteller(
+        url: ServerUrl,
+        username: String,
+        password: String,
+        insecureAllowed: Boolean,
+    ): AuthenticateResult = when (val result = storytellerApi.login(url.value, username, password, insecureAllowed)) {
+        is NetworkStorytellerLoginResult.WrongCredentials -> AuthenticateResult.WrongCredentials(result.message)
+        is NetworkStorytellerLoginResult.NetworkError -> AuthenticateResult.NetworkError(result.cause)
+        is NetworkStorytellerLoginResult.InsecureConnection -> AuthenticateResult.InsecureConnection(result.type)
+        is NetworkStorytellerLoginResult.Success -> AuthenticateResult.Success(
+            PendingServer(
+                url = url,
+                displayName = displayNameFrom(url.value),
+                username = username,
+                userId = "", // Storyteller's auth response doesn't expose a user id; identity is the username + token.
+                token = result.token,
+                insecureConnectionAllowed = insecureAllowed,
+                libraries = listOf(syntheticReadaloudLibrary()),
+                serverType = ServerType.STORYTELLER,
+            )
+        )
+    }
+
+    /**
+     * Storyteller has no Library concept on the server — Riffle synthesizes one local Library
+     * to host every readaloud (ADR 0020). The id is generated per-server at commit time; see
+     * [commit].
+     */
+    private fun syntheticReadaloudLibrary(): Library =
+        Library(
+            id = SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID,
+            name = "Readalouds",
+            mediaType = READALOUD_MEDIA_TYPE,
+            isUnsupported = false,
+        )
+
     override suspend fun commit(
         pending: PendingServer,
         hiddenLibraryIds: Set<String>,
@@ -98,7 +148,9 @@ class ServerRepositoryImpl @Inject constructor(
             serverId = id,
             libraries = pending.libraries.map {
                 LibraryEntity(
-                    id = it.id,
+                    // Materialise the synthetic Readaloud library with a server-scoped id so multiple
+                    // Storyteller Servers can coexist (each contributes its own Readaloud Library).
+                    id = if (it.id == SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID) readaloudLibraryId(id) else it.id,
                     name = it.name,
                     mediaType = it.mediaType,
                     serverId = id,
@@ -128,6 +180,12 @@ class ServerRepositoryImpl @Inject constructor(
             token = token,
             insecureAllowed = server.insecureConnectionAllowed,
         )
+    }
+
+    companion object {
+        const val SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID = "readaloud:pending"
+        const val READALOUD_MEDIA_TYPE = "readaloud"
+        fun readaloudLibraryId(serverId: String): String = "readaloud:$serverId"
     }
 
     private fun displayNameFrom(url: String): String =

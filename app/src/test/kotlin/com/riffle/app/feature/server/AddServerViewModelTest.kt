@@ -76,6 +76,7 @@ class AddServerViewModelTest {
     ) : ServerRepository {
         var commitCallCount = 0
         var lastInsecureAllowed: Boolean? = null
+        var lastServerType: com.riffle.core.domain.ServerType? = null
         override fun observeAll(): Flow<List<Server>> = emptyFlow()
         override suspend fun getActive(): Server? = null
         override suspend fun authenticate(
@@ -83,8 +84,10 @@ class AddServerViewModelTest {
             username: String,
             password: String,
             insecureAllowed: Boolean,
+            serverType: com.riffle.core.domain.ServerType,
         ): AuthenticateResult {
             lastInsecureAllowed = insecureAllowed
+            lastServerType = serverType
             return authResult
         }
         override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult {

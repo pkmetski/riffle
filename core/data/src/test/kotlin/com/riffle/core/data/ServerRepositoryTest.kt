@@ -10,6 +10,7 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
@@ -21,6 +22,8 @@ import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkLoginResult
 import com.riffle.core.network.NetworkSeriesResult
+import com.riffle.core.network.NetworkStorytellerLoginResult
+import com.riffle.core.network.StorytellerApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -97,6 +100,9 @@ class ServerRepositoryTest {
         }
     }
 
+    private val storytellerApiNotCalled = StorytellerApi { _, _, _, _ -> error("should not be called") }
+    private fun storytellerApiReturning(result: NetworkStorytellerLoginResult) = StorytellerApi { _, _, _, _ -> result }
+
     private fun libsApiReturning(result: NetworkLibrariesResult) = object : AbsLibraryApi {
         override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) = result
         override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkLibraryItemsResult =
@@ -134,7 +140,7 @@ class ServerRepositoryTest {
                 )
             )
         )
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApi, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, visibility)
         val url = ServerUrl.parse("https://abs.example.com")!!
 
         val result = repo.authenticate(url, "admin", "pass", insecureAllowed = false)
@@ -153,7 +159,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("nope") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
 
         val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
 
@@ -169,7 +175,7 @@ class ServerRepositoryTest {
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid", "tok", "u") }
         val cause = RuntimeException("boom")
         val libsApi = libsApiReturning(NetworkLibrariesResult.NetworkError(cause))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApi, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, visibility)
 
         val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
 
@@ -183,7 +189,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
 
         val result = repo.authenticate(ServerUrl.parse("https://abs.example.com")!!, "admin", "pass", insecureAllowed = false)
 
@@ -195,7 +201,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
 
         val url = ServerUrl.parse("https://abs.example.com")!!
         val pending = PendingServer(
@@ -220,11 +226,75 @@ class ServerRepositoryTest {
     }
 
     @Test
+    fun `authenticate STORYTELLER returns PendingServer with synthetic Readaloud library and serverType STORYTELLER`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
+        val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.Success("tok-st"))
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val result = repo.authenticate(
+            ServerUrl.parse("http://media-server:8001")!!, "plamen", "pw", insecureAllowed = false,
+            serverType = ServerType.STORYTELLER,
+        )
+
+        assertTrue(result is AuthenticateResult.Success)
+        val pending = (result as AuthenticateResult.Success).pending
+        assertEquals("tok-st", pending.token)
+        assertEquals(ServerType.STORYTELLER, pending.serverType)
+        assertEquals(1, pending.libraries.size)
+        assertEquals("readaloud", pending.libraries.single().mediaType)
+        assertEquals(0, dao.allCount())
+    }
+
+    @Test
+    fun `authenticate STORYTELLER wrong credentials surfaces WrongCredentials`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
+        val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.WrongCredentials("Incorrect username or password"))
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val result = repo.authenticate(
+            ServerUrl.parse("http://media-server:8001")!!, "plamen", "wrong", insecureAllowed = false,
+            serverType = ServerType.STORYTELLER,
+        )
+
+        assertTrue(result is AuthenticateResult.WrongCredentials)
+    }
+
+    @Test
+    fun `commit Storyteller pending materialises Readaloud library with server-scoped id`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val pending = PendingServer(
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            displayName = "media-server",
+            username = "plamen", userId = "", token = "tok-st",
+            insecureConnectionAllowed = false,
+            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            serverType = ServerType.STORYTELLER,
+        )
+
+        val result = repo.commit(pending, hiddenLibraryIds = emptySet())
+
+        assertTrue(result is CommitServerResult.Success)
+        val server = (result as CommitServerResult.Success).server
+        val lib = libDao.allEntities().single()
+        assertEquals(ServerRepositoryImpl.readaloudLibraryId(server.id), lib.id)
+        assertEquals("readaloud", lib.mediaType)
+        assertEquals(server.id, lib.serverId)
+    }
+
+    @Test
     fun `commit persists serverType STORYTELLER and round-trips it`() = runTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -250,7 +320,7 @@ class ServerRepositoryTest {
         tokens.tokens["srv-1"] = "tok"
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
         )
         repo.remove("srv-1")
         assertTrue("token not deleted", tokens.tokens.isEmpty())
@@ -264,7 +334,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(e1, e2)
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, fakeTokenStorage(), absApi, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
+            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeVisibilityStore()
         )
         repo.setActive("s2")
         assertEquals("s2", dao.getActive()?.id)

@@ -49,7 +49,7 @@ class LibraryRepositoryTest {
         var activeServer: Server? = null
         override fun observeAll() = MutableStateFlow(listOfNotNull(activeServer))
         override suspend fun getActive() = activeServer
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.NetworkError(IOException())
         override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
             CommitServerResult.Failure(IOException())

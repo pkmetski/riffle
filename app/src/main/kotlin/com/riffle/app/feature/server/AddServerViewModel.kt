@@ -10,6 +10,7 @@ import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -22,6 +23,8 @@ class AddServerViewModel @Inject constructor(
     private val repository: ServerRepository,
 ) : ViewModel() {
 
+    var serverType by mutableStateOf(ServerType.AUDIOBOOKSHELF)
+        private set
     var scheme by mutableStateOf(initialScheme(BuildConfig.DEV_SERVER_URL))
         private set
     var host by mutableStateOf(stripScheme(BuildConfig.DEV_SERVER_URL))
@@ -35,6 +38,13 @@ class AddServerViewModel @Inject constructor(
 
     private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
     val navigateToSelectLibraries = _navigateToSelectLibraries.receiveAsFlow()
+
+    fun updateServerType(type: ServerType) {
+        if (serverType != type) {
+            serverType = type
+            error = null
+        }
+    }
 
     fun updateScheme(value: String) {
         if (value == "http://" || value == "https://") scheme = value
@@ -85,7 +95,7 @@ class AddServerViewModel @Inject constructor(
     private fun doAuthenticate(serverUrl: ServerUrl, insecureAllowed: Boolean) {
         viewModelScope.launch {
             isLoading = true
-            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed)) {
+            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
                 is AuthenticateResult.Success -> _navigateToSelectLibraries.send(result.pending)
                 is AuthenticateResult.WrongCredentials -> error = result.message
                 is AuthenticateResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
