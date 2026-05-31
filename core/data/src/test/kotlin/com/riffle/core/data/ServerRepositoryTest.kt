@@ -220,6 +220,29 @@ class ServerRepositoryTest {
     }
 
     @Test
+    fun `commit persists serverType STORYTELLER and round-trips it`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, fakeServerInfoApi, libsApiNotCalled, libDao, visibility)
+
+        val pending = PendingServer(
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            displayName = "media-server",
+            username = "plamen", userId = "uid-1", token = "tok-st",
+            insecureConnectionAllowed = false,
+            libraries = emptyList(),
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+        )
+
+        val result = repo.commit(pending, hiddenLibraryIds = emptySet())
+
+        assertTrue(result is CommitServerResult.Success)
+        val server = (result as CommitServerResult.Success).server
+        assertEquals(com.riffle.core.domain.ServerType.STORYTELLER, server.serverType)
+    }
+
+    @Test
     fun `remove deletes server entity and token`() = runTest {
         val entity = ServerEntity("srv-1", "https://abs.example.com", "abs.example.com", true, false, username = "")
         val dao = fakeDao(entity)

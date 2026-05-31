@@ -13,4 +13,5 @@ data class PendingServer(
     val token: String,
     val insecureConnectionAllowed: Boolean,
     val libraries: List<Library>,
+    val serverType: ServerType = ServerType.AUDIOBOOKSHELF,
 )
