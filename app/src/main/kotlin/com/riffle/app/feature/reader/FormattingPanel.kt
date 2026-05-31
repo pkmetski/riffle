@@ -271,13 +271,28 @@ fun FormattingPanel(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    "Chapter Map",
+                    "Chapter map",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
                 Switch(
                     checked = prefs.showChapterMap,
                     onCheckedChange = { onPrefsChange(prefs.copy(showChapterMap = it)) },
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Reading progress labels",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.showReadingProgressLabels,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) },
                 )
             }
 
@@ -440,19 +455,11 @@ private fun ReaderTheme.displayName(): String = when (this) {
 // preview swatch on the corresponding FilterChip so users can pick a theme by sight
 // rather than reading the label. The dot is filled with the background and outlined
 // in the foreground so Dark vs Dark dim are visually distinct.
-private fun ReaderTheme.swatchBackground(): Color = when (this) {
-    ReaderTheme.Light -> Color(0xFFFFFFFF)
-    ReaderTheme.Dark -> Color(0xFF1A1A1A)
-    ReaderTheme.DarkDim -> Color(0xFF1A1A1A)
-    ReaderTheme.Sepia -> Color(0xFFF5E6CC)
-}
+// Palette comes from ReaderThemePalette so this stays in lock-step with the chapter-rail
+// overlay backdrop and (transitively) Readium's actual page rendering.
+private fun ReaderTheme.swatchBackground(): Color = palette.background
 
-private fun ReaderTheme.swatchForeground(): Color = when (this) {
-    ReaderTheme.Light -> Color(0xFF1A1A1A)
-    ReaderTheme.Dark -> Color(0xFFFFFFFF)
-    ReaderTheme.DarkDim -> Color(0xFFAAAAAA) // matches DARK_DIM_TEXT_COLOR in the mapper
-    ReaderTheme.Sepia -> Color(0xFF5C4A2E)
-}
+private fun ReaderTheme.swatchForeground(): Color = palette.foreground
 
 @Composable
 private fun ThemeSwatch(theme: ReaderTheme) {

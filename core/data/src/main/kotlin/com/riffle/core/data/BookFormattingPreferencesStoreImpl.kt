@@ -23,6 +23,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
             margins = entity.margins,
             orientation = entity.orientation?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() },
             showChapterMap = entity.showChapterMap,
+            showReadingProgressLabels = entity.showReadingProgressLabels,
             doublePageSpread = entity.doublePageSpread,
             justifyText = entity.justifyText,
         )
@@ -43,6 +44,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
                 margins = overrides.margins,
                 orientation = overrides.orientation?.name,
                 showChapterMap = overrides.showChapterMap,
+                showReadingProgressLabels = overrides.showReadingProgressLabels,
                 doublePageSpread = overrides.doublePageSpread,
                 justifyText = overrides.justifyText,
             )

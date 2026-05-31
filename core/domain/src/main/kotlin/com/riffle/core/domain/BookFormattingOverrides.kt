@@ -8,6 +8,7 @@ data class BookFormattingOverrides(
     val margins: Float? = null,
     val orientation: ReaderOrientation? = null,
     val showChapterMap: Boolean? = null,
+    val showReadingProgressLabels: Boolean? = null,
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
 ) {
@@ -19,6 +20,7 @@ data class BookFormattingOverrides(
             margins == null &&
             orientation == null &&
             showChapterMap == null &&
+            showReadingProgressLabels == null &&
             doublePageSpread == null &&
             justifyText == null
 
@@ -30,6 +32,7 @@ data class BookFormattingOverrides(
         margins = margins ?: global.margins,
         orientation = orientation ?: global.orientation,
         showChapterMap = showChapterMap ?: global.showChapterMap,
+        showReadingProgressLabels = showReadingProgressLabels ?: global.showReadingProgressLabels,
         doublePageSpread = doublePageSpread ?: global.doublePageSpread,
         justifyText = justifyText ?: global.justifyText,
     )
@@ -47,6 +50,7 @@ data class BookFormattingOverrides(
         margins = if (new.margins != previous.margins) new.margins else margins,
         orientation = if (new.orientation != previous.orientation) new.orientation else orientation,
         showChapterMap = if (new.showChapterMap != previous.showChapterMap) new.showChapterMap else showChapterMap,
+        showReadingProgressLabels = if (new.showReadingProgressLabels != previous.showReadingProgressLabels) new.showReadingProgressLabels else showReadingProgressLabels,
         doublePageSpread = if (new.doublePageSpread != previous.doublePageSpread) new.doublePageSpread else doublePageSpread,
         justifyText = if (new.justifyText != previous.justifyText) new.justifyText else justifyText,
     )

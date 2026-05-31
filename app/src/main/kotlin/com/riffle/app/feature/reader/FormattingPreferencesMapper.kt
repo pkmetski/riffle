@@ -2,6 +2,7 @@
 
 package com.riffle.app.feature.reader
 
+import androidx.compose.ui.graphics.toArgb
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
@@ -16,7 +17,8 @@ import org.readium.r2.navigator.preferences.Spread
 import org.readium.r2.navigator.preferences.TextAlign
 import org.readium.r2.navigator.preferences.Theme
 
-private const val DARK_DIM_TEXT_COLOR: Int = 0xFFAAAAAA.toInt()
+// Single source: ReaderThemePalette.DARK_DIM_TEXT (Compose Color) → Readium Color (ARGB int).
+private val DARK_DIM_TEXT_COLOR: Int = DARK_DIM_TEXT.toArgb()
 
 fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
