@@ -145,6 +145,22 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getLibraryItems returns NetworkError on 404 with plain-text body`() = runTest {
+        // ABS returns plain text "Library not found" with HTTP 404 when a stale/removed library
+        // id is queried. Parsing that body as JSON used to crash the app on the library screen.
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(404)
+                .setBody("Library not found")
+                .addHeader("Content-Type", "text/plain")
+        )
+        val result = client.getLibraryItems(
+            server.url("/").toString().trimEnd('/'), "lib-gone", "tok", false
+        )
+        assertTrue(result is NetworkLibraryItemsResult.NetworkError)
+    }
+
+    @Test
     fun `getLibraryItems parses addedAt timestamp`() = runTest {
         server.enqueue(
             MockResponse()
