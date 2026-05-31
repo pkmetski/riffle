@@ -681,6 +681,115 @@ class LibraryItemsViewModelTest {
         assertEquals(false, vm.isOffline.value)
     }
 
+    // --- periodic retry while refresh is failing ---
+
+    private fun countingRepo(
+        refreshResult: () -> LibraryRefreshResult,
+        onRefreshCall: () -> Unit = {},
+    ): LibraryRepository = object : LibraryRepository {
+        override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
+        override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
+        override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = itemsFlow
+        override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
+        override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = finishedFlow
+        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = recentlyAddedFlow
+        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
+        override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
+        override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
+        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
+            seriesItemsBySeriesId.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
+        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
+            collectionItemsByCollectionId.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
+        override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun markItemOpened(itemId: String) {}
+        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
+        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
+            onRefreshCall(); return refreshResult()
+        }
+        override suspend fun refreshSeries(libraryId: String) = refreshResult()
+        override suspend fun refreshCollections(libraryId: String) = refreshResult()
+    }
+
+    @Test
+    fun `does not poll while refresh keeps succeeding`() = runTest {
+        var refreshCount = 0
+        val vm = makeViewModel(
+            libraryRepository = countingRepo({ LibraryRefreshResult.Success }) { refreshCount++ },
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        val baseline = refreshCount
+        // Idle for far longer than the retry interval — no extra refreshes should fire.
+        testDispatcher.scheduler.advanceTimeBy(60_000)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(baseline, refreshCount)
+    }
+
+    @Test
+    fun `polls every 10 seconds while refresh is failing`() = runTest {
+        var refreshCount = 0
+        var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
+        val vm = makeViewModel(
+            libraryRepository = countingRepo({ result }) { refreshCount++ },
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        // advanceUntilIdle() would hang here — once _refreshFailed is true the polling
+        // coroutine schedules an endless delay→refresh chain, so the scheduler is never idle.
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(true, vm.isOffline.value)
+        val baseline = refreshCount
+        testDispatcher.scheduler.advanceTimeBy(10_001)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(baseline + 1, refreshCount)
+        testDispatcher.scheduler.advanceTimeBy(10_000)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(baseline + 2, refreshCount)
+        // Stop polling before runTest tears down — its scheduler-drain step would otherwise
+        // chase the endless delay→refresh chain and time out.
+        result = LibraryRefreshResult.Success
+        testDispatcher.scheduler.advanceTimeBy(10_001)
+        testDispatcher.scheduler.runCurrent()
+    }
+
+    @Test
+    fun `does not poll while device is offline`() = runTest {
+        var refreshCount = 0
+        val vm = makeViewModel(
+            libraryRepository = countingRepo({ LibraryRefreshResult.NetworkError(RuntimeException("boom")) }) { refreshCount++ },
+            connectivityObserver = FakeConnectivityObserver(online = false),
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.isOffline.value)
+        val baseline = refreshCount
+        testDispatcher.scheduler.advanceTimeBy(60_000)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(baseline, refreshCount)
+    }
+
+    @Test
+    fun `polling stops once a retry succeeds`() = runTest {
+        var refreshCount = 0
+        var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
+        val vm = makeViewModel(
+            libraryRepository = countingRepo({ result }) { refreshCount++ },
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(true, vm.isOffline.value)
+
+        result = LibraryRefreshResult.Success
+        testDispatcher.scheduler.advanceTimeBy(10_001)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(false, vm.isOffline.value)
+
+        val countAfterRecovery = refreshCount
+        testDispatcher.scheduler.advanceTimeBy(60_000)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(countAfterRecovery, refreshCount)
+    }
+
     @Test
     fun `filteredRecentlyAdded when offline cap still applies after filtering`() = runTest {
         val downloadedIds = (1..60).map { "id-Book $it" }.toSet()

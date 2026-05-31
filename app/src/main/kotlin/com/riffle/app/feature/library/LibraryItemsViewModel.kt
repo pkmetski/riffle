@@ -21,11 +21,14 @@ import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -203,6 +206,23 @@ class LibraryItemsViewModel @Inject constructor(
                     toReadRepository.refresh(libraryId)
                 }
         }
+        // While a refresh is failing AND the device is online (i.e. server unreachable on an
+        // otherwise-healthy network), retry periodically so the banner clears on its own once
+        // the server returns. We do NOT poll when the device itself is offline — the
+        // on-reconnect listener above already triggers a refresh when connectivity returns —
+        // and we do NOT poll in the healthy state, since stale data on screen is still
+        // accurate until the user next interacts.
+        viewModelScope.launch {
+            combine(_refreshFailed, connectivityObserver.isOnline) { failed, online -> failed && online }
+                .collectLatest { shouldPoll ->
+                    if (shouldPoll) {
+                        while (true) {
+                            delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
+                            runRefresh()
+                        }
+                    }
+                }
+        }
     }
 
     fun onSearchQueryChange(query: String) {
@@ -210,16 +230,18 @@ class LibraryItemsViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            val itemsDeferred = async { libraryRepository.refreshLibraryItems(libraryId) }
-            val seriesDeferred = async { libraryRepository.refreshSeries(libraryId) }
-            val collectionsDeferred = async { libraryRepository.refreshCollections(libraryId) }
-            // ToRead refresh runs alongside but its failure must NOT flip the offline banner.
-            val toReadDeferred = async { toReadRepository.refresh(libraryId) }
-            val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
-            toReadDeferred.await()
-            _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
-        }
+        viewModelScope.launch { runRefresh() }
+    }
+
+    private suspend fun runRefresh() = coroutineScope {
+        val itemsDeferred = async { libraryRepository.refreshLibraryItems(libraryId) }
+        val seriesDeferred = async { libraryRepository.refreshSeries(libraryId) }
+        val collectionsDeferred = async { libraryRepository.refreshCollections(libraryId) }
+        // ToRead refresh runs alongside but its failure must NOT flip the offline banner.
+        val toReadDeferred = async { toReadRepository.refresh(libraryId) }
+        val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
+        toReadDeferred.await()
+        _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
     }
 
     private fun filterCollectionsOffline(collections: List<Collection>, offline: Boolean): Flow<List<Collection>> {
@@ -244,5 +266,9 @@ class LibraryItemsViewModel @Inject constructor(
         EbookFormat.Epub -> epubRepository.isDownloaded(item.id) || epubRepository.isCached(item.id)
         EbookFormat.Pdf -> pdfRepository.isDownloaded(item.id) || pdfRepository.isCached(item.id)
         else -> false
+    }
+
+    private companion object {
+        const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
     }
 }
