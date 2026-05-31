@@ -154,6 +154,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
         try {
             val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.body?.close()
+                return@withContext NetworkLibraryItemsResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
             val raw = response.body?.string() ?: return@withContext NetworkLibraryItemsResult.NetworkError(
                 IOException("Empty response body")
             )
@@ -177,7 +181,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     addedAt = dto.addedAt,
                 )
             })
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             NetworkLibraryItemsResult.NetworkError(e)
         }
     }
