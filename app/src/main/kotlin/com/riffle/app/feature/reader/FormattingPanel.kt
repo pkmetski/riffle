@@ -296,6 +296,21 @@ fun FormattingPanel(
                 )
             }
 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Current chapter label",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.showCurrentChapterLabel,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) },
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             TextButton(
                 onClick = onReset,
