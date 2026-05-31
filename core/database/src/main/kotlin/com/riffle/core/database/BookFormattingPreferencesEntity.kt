@@ -13,6 +13,7 @@ data class BookFormattingPreferencesEntity(
     val margins: Float? = null,
     val orientation: String? = null,
     val showChapterMap: Boolean? = null,
+    val showReadingProgressLabels: Boolean? = null,
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
 )

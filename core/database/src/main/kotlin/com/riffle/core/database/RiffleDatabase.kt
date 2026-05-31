@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -203,6 +203,14 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE `book_formatting_preferences`")
                 db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `book_formatting_preferences` ADD COLUMN `showReadingProgressLabels` INTEGER DEFAULT NULL"
+                )
             }
         }
     }

@@ -12,11 +12,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -246,10 +250,14 @@ fun EpubReaderScreen(
         // absolute screen bottom — the system nav bar overlays it without shifting it up.
         // Rail state (cursorPosition at scroll framerate) is isolated inside the overlay so
         // EpubNavigatorView does not recompose on every scroll event.
-        if (state is ReaderState.Ready && formattingPrefs.showChapterMap) {
+        if (state is ReaderState.Ready &&
+            (formattingPrefs.showChapterMap || formattingPrefs.showReadingProgressLabels)
+        ) {
             EpubChapterRailOverlay(
                 viewModel = viewModel,
-                darkTheme = formattingPrefs.theme == ReaderTheme.Dark || formattingPrefs.theme == ReaderTheme.DarkDim,
+                showRail = formattingPrefs.showChapterMap,
+                showLabels = formattingPrefs.showReadingProgressLabels,
+                readerTheme = formattingPrefs.theme,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -340,19 +348,95 @@ internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefau
 @Composable
 private fun BoxScope.EpubChapterRailOverlay(
     viewModel: EpubReaderViewModel,
-    darkTheme: Boolean,
+    showRail: Boolean,
+    showLabels: Boolean,
+    readerTheme: ReaderTheme,
     modifier: Modifier = Modifier,
 ) {
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
-        ChapterNavigationRail(
-            segments = railSegments,
-            activeIndex = activeRailSegmentIndex,
-            cursorPosition = cursorPosition,
-            onSegmentClick = viewModel::navigateToSegment,
-            modifier = modifier,
+        // Backdrop is the exact reader-theme page colour so the strip reads as page margin,
+        // not chrome — no visible band, and prose flowing behind the overlay is cleanly
+        // occluded instead of bleeding through the labels.
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(readerTheme.palette.background),
+        ) {
+            if (showLabels) {
+                ReadingProgressLabels(
+                    activeChapterIndex = activeRailSegmentIndex,
+                    chapterCount = railSegments.size,
+                    totalProgress = cursorPosition,
+                    readerTheme = readerTheme,
+                )
+            }
+            if (showRail) {
+                ChapterNavigationRail(
+                    segments = railSegments,
+                    activeIndex = activeRailSegmentIndex,
+                    cursorPosition = cursorPosition,
+                    onSegmentClick = viewModel::navigateToSegment,
+                )
+            }
+        }
+    }
+}
+
+// Reader-theme-paired label colour: page foreground at reduced alpha so the labels read
+// as continuation of the page, not chrome — and don't compete with actual body text.
+// Per-theme alpha because the same alpha across themes reads as different "loudness" depending
+// on the foreground/background contrast.
+private fun readerThemeLabelColor(theme: ReaderTheme): Color {
+    val alpha = when (theme) {
+        ReaderTheme.Light -> 0.65f
+        ReaderTheme.Dark -> 0.65f
+        ReaderTheme.DarkDim -> 0.85f
+        ReaderTheme.Sepia -> 0.70f
+    }
+    return theme.palette.foreground.copy(alpha = alpha)
+}
+
+@Composable
+private fun ReadingProgressLabels(
+    activeChapterIndex: Int,
+    chapterCount: Int,
+    totalProgress: Float,
+    readerTheme: ReaderTheme,
+) {
+    val chapterText = if (chapterCount > 0) {
+        "Chapter ${(activeChapterIndex + 1).coerceAtMost(chapterCount)} of $chapterCount"
+    } else {
+        ""
+    }
+    val pctText = "%.1f%%".format(totalProgress.coerceIn(0f, 1f) * 100f)
+    val textColor = readerThemeLabelColor(readerTheme)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .testTag("reading_progress_labels"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = chapterText,
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor,
+            modifier = Modifier
+                .weight(1f)
+                .testTag("reading_progress_chapter")
+                .semantics { contentDescription = "Reading progress: $chapterText" },
+        )
+        Text(
+            text = pctText,
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor,
+            modifier = Modifier
+                .testTag("reading_progress_percent")
+                .semantics { contentDescription = "Total progress: $pctText" },
         )
     }
 }

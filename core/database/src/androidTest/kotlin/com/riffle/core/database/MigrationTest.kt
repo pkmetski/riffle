@@ -407,6 +407,43 @@ class MigrationTest {
     }
 
     @Test
+    fun migration16To17() {
+        helper.createDatabase(TEST_DB, 16).use { db ->
+            // Existing row with sparse overrides — only showChapterMap is set.
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, doublePageSpread, justifyText) " +
+                    "VALUES ('item1', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 17, true, RiffleDatabase.MIGRATION_16_17)
+
+        // Pre-existing data preserved; new column defaults to NULL = follow global.
+        db.query(
+            "SELECT itemId, showChapterMap, showReadingProgressLabels FROM book_formatting_preferences WHERE itemId = 'item1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1))
+            assertTrue("showReadingProgressLabels should be null for legacy rows", cursor.isNull(2))
+        }
+
+        // New writes can populate the new column.
+        db.execSQL(
+            "INSERT INTO book_formatting_preferences (itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, showReadingProgressLabels, doublePageSpread, justifyText) " +
+                "VALUES ('item2', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL)"
+        )
+        db.query(
+            "SELECT showReadingProgressLabels FROM book_formatting_preferences WHERE itemId = 'item2'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -415,7 +452,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 16, true,
+            TEST_DB, 17, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -431,6 +468,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_13_14,
             RiffleDatabase.MIGRATION_14_15,
             RiffleDatabase.MIGRATION_15_16,
+            RiffleDatabase.MIGRATION_16_17,
         )
 
         db.query("SELECT url, displayName, username FROM servers WHERE id = 's1'").use { cursor ->

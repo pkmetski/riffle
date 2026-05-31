@@ -20,8 +20,9 @@ import com.riffle.core.domain.FormattingPreferences
  */
 internal data class TypographyOverride(
     val userPropertyName: String,
-    val cssProperties: List<String>,
-    val cssValue: String,
+    // Each (property, value) pair becomes one CSS declaration with !important. List of pairs
+    // (not Map) because order matters in CSS and a property could appear twice if ever needed.
+    val declarations: List<Pair<String, String>>,
     val elements: String,
 )
 
@@ -33,22 +34,19 @@ internal data class TypographyOverride(
 internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
     "lineSpacing" to TypographyOverride(
         userPropertyName = "--USER__lineHeight",
-        cssProperties = listOf("line-height"),
-        cssValue = "var(--USER__lineHeight)",
+        declarations = listOf("line-height" to "var(--USER__lineHeight)"),
         // Headings deliberately excluded — books style heading line-height tightly (often 1.0)
         // and forcing the body line-height onto them looks wrong.
         elements = "p, li, blockquote, dd, dt, figcaption",
     ),
     "justifyText" to TypographyOverride(
         userPropertyName = "--USER__textAlign",
-        cssProperties = listOf("text-align"),
-        cssValue = "var(--USER__textAlign)",
+        declarations = listOf("text-align" to "var(--USER__textAlign)"),
         elements = "p, li, blockquote, dd",
     ),
     "fontFamily" to TypographyOverride(
         userPropertyName = "--USER__fontFamily",
-        cssProperties = listOf("font-family"),
-        cssValue = "var(--USER__fontFamily)",
+        declarations = listOf("font-family" to "var(--USER__fontFamily)"),
         // `pre`/`code`/`kbd`/`samp` deliberately excluded so monospace code keeps its font.
         // Headings included so picking a reading font feels consistent across body and titles.
         elements = "body, p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, figcaption",
@@ -64,13 +62,17 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
     // padding-bottom longhands win regardless of source order. In scroll mode (`readium-scroll-on`)
     // `:root` is `height: auto`, so this becomes whitespace at the start/end of each loaded
     // resource — still the desired "margin" semantics.
+    //
+    // Top stays at 0.5× the horizontal gutter (narrower than sides — conventional book
+    // typography). Bottom is 1.0× so the chapter-rail overlay has clear breathing room above
+    // the running text. Both scale with --USER__pageMargins, so cranking up margins keeps the
+    // top/bottom ratio constant.
     "margins" to TypographyOverride(
         userPropertyName = "--USER__pageMargins",
-        cssProperties = listOf("padding-top", "padding-bottom"),
-        // 0.5× of the horizontal gutter — book typography conventionally gives narrower
-        // top/bottom than side margins, and our reader already consumes vertical space with
-        // system insets, so a full 1× ratio would feel heavy.
-        cssValue = "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 0.5)",
+        declarations = listOf(
+            "padding-top" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 0.5)",
+            "padding-bottom" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 1.0)",
+        ),
         elements = "",  // empty → rule targets `:root` itself, not a descendant
     ),
 )
@@ -86,6 +88,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "orientation" to "Layout/scroll mode, not a CSS property.",
     "doublePageSpread" to "Column-count layout mode, handled by RsProperties at fragment-creation time.",
     "showChapterMap" to "UI affordance outside the reader content; no CSS implication.",
+    "showReadingProgressLabels" to "UI affordance outside the reader content; no CSS implication.",
 )
 
 /**
@@ -111,8 +114,8 @@ internal fun typographyOverrideCss(): String =
                 .split(",")
                 .joinToString(",\n") { "$gate ${it.trim()}" }
         }
-        val declarations = override.cssProperties
-            .joinToString("\n          ") { "$it: ${override.cssValue} !important;" }
+        val declarations = override.declarations
+            .joinToString("\n          ") { (prop, value) -> "$prop: $value !important;" }
         """
         $selectorList {
           $declarations

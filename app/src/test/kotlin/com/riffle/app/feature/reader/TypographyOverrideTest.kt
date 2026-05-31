@@ -73,8 +73,9 @@ class TypographyOverrideTest {
     fun every_override_rule_is_gated_on_root_style_variable_presence() {
         val css = typographyOverrideCss()
         TYPOGRAPHY_OVERRIDES.values.forEach { override ->
+            val props = override.declarations.joinToString(", ") { it.first }
             assertTrue(
-                "Override for ${override.cssProperties} must be gated on :root[style*=\"${override.userPropertyName}\"]",
+                "Override for $props must be gated on :root[style*=\"${override.userPropertyName}\"]",
                 css.contains(":root[style*=\"${override.userPropertyName}\"]"),
             )
         }
@@ -87,8 +88,8 @@ class TypographyOverrideTest {
     fun every_override_uses_important() {
         val css = typographyOverrideCss()
         TYPOGRAPHY_OVERRIDES.values.forEach { override ->
-            override.cssProperties.forEach { property ->
-                val rule = Regex("${Regex.escape(property)}:\\s*${Regex.escape(override.cssValue)}\\s*!important")
+            override.declarations.forEach { (property, value) ->
+                val rule = Regex("${Regex.escape(property)}:\\s*${Regex.escape(value)}\\s*!important")
                 assertNotNull(
                     "Override for $property must use !important to beat publisher rules without it",
                     rule.find(css),

@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -27,16 +28,18 @@ fun ChapterNavigationRail(
     if (segments.isEmpty()) return
 
     val barColor = MaterialTheme.colorScheme.surfaceVariant
-    val activeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+    val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
     val dividerColor = MaterialTheme.colorScheme.outline
+    val activeOutlineColor = MaterialTheme.colorScheme.primary
     val cursorColor = MaterialTheme.colorScheme.primary
 
     val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
+    val clampedCursor = cursorPosition.coerceIn(0f, 1f)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(6.dp)
+            .height(8.dp)
             .testTag("chapter_navigation_rail")
             .semantics { contentDescription = "Active rail segment: $activeTitle" }
             .pointerInput(segments) {
@@ -48,15 +51,20 @@ fun ChapterNavigationRail(
             .drawWithCache {
                 val bounds = railSegmentBounds(segments, size.width)
                 onDrawBehind {
+                    // 1. Empty track.
                     drawRect(color = barColor)
-                    if (activeIndex in bounds.indices) {
-                        val (ax, aw) = bounds[activeIndex]
+
+                    // 2. Continuous progress underlay up to the cursor.
+                    val fillWidth = clampedCursor * size.width
+                    if (fillWidth > 0f) {
                         drawRect(
-                            color = activeColor,
-                            topLeft = Offset(ax, 0f),
-                            size = Size(aw, size.height),
+                            color = fillColor,
+                            topLeft = Offset(0f, 0f),
+                            size = Size(fillWidth, size.height),
                         )
                     }
+
+                    // 3. Chapter dividers (skip index 0 which is the start of the bar).
                     for (i in 1 until bounds.size) {
                         val x = bounds[i].first
                         drawLine(
@@ -66,7 +74,24 @@ fun ChapterNavigationRail(
                             strokeWidth = 1.dp.toPx(),
                         )
                     }
-                    val cx = cursorPosition.coerceIn(0f, 1f) * size.width
+
+                    // 4. Active-chapter outline.
+                    if (activeIndex in bounds.indices) {
+                        val (ax, aw) = bounds[activeIndex]
+                        val stroke = 1.5.dp.toPx()
+                        drawRect(
+                            color = activeOutlineColor,
+                            topLeft = Offset(ax + stroke / 2f, stroke / 2f),
+                            size = Size(
+                                width = (aw - stroke).coerceAtLeast(0f),
+                                height = (size.height - stroke).coerceAtLeast(0f),
+                            ),
+                            style = Stroke(width = stroke),
+                        )
+                    }
+
+                    // 5. Cursor.
+                    val cx = clampedCursor * size.width
                     drawLine(
                         color = cursorColor,
                         start = Offset(cx, 0f),
