@@ -64,7 +64,7 @@ class ProgressSyncCycleTest {
                 val server = Server("s1", ServerUrl.parse("http://localhost")!!, "T", true, false, "")
                 override fun observeAll(): Flow<List<Server>> = flowOf(listOf(server))
                 override suspend fun getActive(): Server = server
-                override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult = throw UnsupportedOperationException()
+                override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult = throw UnsupportedOperationException()
                 override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult = throw UnsupportedOperationException()
                 override suspend fun setActive(serverId: String) = Unit
                 override suspend fun remove(serverId: String) = Unit

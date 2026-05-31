@@ -25,6 +25,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -44,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.ServerType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +91,15 @@ fun AddServerScreen(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                ServerTypePicker(
+                    selected = viewModel.serverType,
+                    onSelected = viewModel::updateServerType,
+                )
+                Text(
+                    text = serverTypeHelpText(viewModel.serverType),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     var schemeExpanded by remember { mutableStateOf(false) }
                     Box {
@@ -153,6 +166,33 @@ fun AddServerScreen(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServerTypePicker(
+    selected: ServerType,
+    onSelected: (ServerType) -> Unit,
+) {
+    val options = listOf(ServerType.AUDIOBOOKSHELF to "Audiobookshelf", ServerType.STORYTELLER to "Storyteller")
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (type, label) ->
+            SegmentedButton(
+                selected = type == selected,
+                onClick = { onSelected(type) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+            ) {
+                Text(label)
+            }
+        }
+    }
+}
+
+private fun serverTypeHelpText(type: ServerType): String = when (type) {
+    ServerType.AUDIOBOOKSHELF ->
+        "Audiobookshelf hosts your ebooks and audiobooks. Riffle reads ebooks from ABS; audio playback is handled by the official Audiobookshelf app."
+    ServerType.STORYTELLER ->
+        "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle surfaces every completed readaloud from this server as a Readaloud Library."
 }
 
 @Composable

@@ -229,7 +229,7 @@ class ToReadRepositoryTest {
 private class FakeServerRepository(private val activeServer: Server?) : ServerRepository {
     override fun observeAll() = MutableStateFlow(listOfNotNull(activeServer))
     override suspend fun getActive(): Server? = activeServer
-    override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean): AuthenticateResult =
+    override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
         AuthenticateResult.NetworkError(IOException())
     override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
         CommitServerResult.Failure(IOException())

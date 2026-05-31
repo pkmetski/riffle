@@ -23,6 +23,7 @@ interface ServerRepository {
         username: String,
         password: String,
         insecureAllowed: Boolean = false,
+        serverType: ServerType = ServerType.AUDIOBOOKSHELF,
     ): AuthenticateResult
     suspend fun commit(
         pending: PendingServer,
