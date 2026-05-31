@@ -40,10 +40,10 @@ class ProgressSyncIntegrationTest {
 
     private class RecordingPositionStore(var localUpdatedAt: Long = 0L) : ReadingPositionStore {
         var updatedTimestamp: Long? = null
-        override suspend fun save(itemId: String, cfi: String) = Unit
-        override suspend fun load(itemId: String): String? = null
-        override suspend fun loadLocalUpdatedAt(itemId: String): Long = localUpdatedAt
-        override suspend fun updateLocalTimestamp(itemId: String, millis: Long) { updatedTimestamp = millis }
+        override suspend fun save(serverId: String, itemId: String, cfi: String) = Unit
+        override suspend fun load(serverId: String, itemId: String): String? = null
+        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
+        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) { updatedTimestamp = millis }
     }
 
     private fun buildRepo() = ReadingSessionRepositoryImpl(
@@ -217,5 +217,37 @@ class ProgressSyncIntegrationTest {
         buildRepo().runSyncCycle("item-1", payload)
 
         assertEquals(3100L, positionStore.updatedTimestamp)
+    }
+
+    // --- touchOpenTimestamp end-to-end (GET → PATCH-same-content → server bumps lastUpdate) ---
+
+    @Test
+    fun `touchOpenTimestamp PATCHes back the server's existing ebookLocation verbatim`() = runTest {
+        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/2/1:0)","ebookProgress":0.42,"lastUpdate":1000}"""))
+        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/2/1:0)","lastUpdate":9999}"""))
+
+        buildRepo().touchOpenTimestamp("item-1")
+
+        assertEquals(2, server.requestCount)
+        val getReq = server.takeRequest()
+        assertEquals("GET", getReq.method)
+        assertEquals("/api/me/progress/item-1", getReq.path)
+        val patchReq = server.takeRequest()
+        assertEquals("PATCH", patchReq.method)
+        assertEquals("/api/me/progress/item-1", patchReq.path)
+        val body = patchReq.body.readUtf8()
+        assertTrue("ebookLocation must be echoed verbatim: $body", body.contains("\"ebookLocation\":\"epubcfi(/6/8!/4/2/1:0)\""))
+        assertTrue("ebookProgress must be echoed verbatim: $body", body.contains("\"ebookProgress\":0.42"))
+        assertEquals(9999L, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `touchOpenTimestamp is a no-op when GET fails`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("oops"))
+
+        buildRepo().touchOpenTimestamp("item-1")
+
+        assertEquals(1, server.requestCount)
+        assertEquals(null, positionStore.updatedTimestamp)
     }
 }

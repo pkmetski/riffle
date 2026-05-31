@@ -159,6 +159,7 @@ class LibraryItemDetailViewModelTest {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
         override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
         override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
     private class FakeToReadRepository(

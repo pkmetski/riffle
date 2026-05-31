@@ -169,4 +169,51 @@ class AbsApiClientLibraryTest {
         val success = result as NetworkLibraryItemsResult.Success
         assertNull(success.items[0].addedAt)
     }
+
+    // --- /api/me mediaProgress.lastUpdate (drives cross-device "In Progress" sort) ---
+
+    @Test
+    fun `getUserProgress parses lastUpdate from real-shaped mediaProgress entries`() = runTest {
+        // Body modelled on a real ABS /api/me response — extra fields ignored, lastUpdate captured.
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"mediaProgress":[
+                        {"id":"p1","userId":"u","libraryItemId":"item-1","mediaItemType":"book",
+                         "progress":0.0,"ebookProgress":0.015625,"isFinished":false,
+                         "lastUpdate":1780170049396,"startedAt":1779780482497},
+                        {"id":"p2","userId":"u","libraryItemId":"item-2","mediaItemType":"book",
+                         "progress":0.0,"ebookProgress":0.5,"isFinished":false,
+                         "lastUpdate":1779642817411}
+                    ]}""".trimIndent()
+                )
+        )
+
+        val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
+
+        assertTrue(result is NetworkUserProgressResult.Success)
+        val byItemId = (result as NetworkUserProgressResult.Success).byItemId
+        assertEquals(2, byItemId.size)
+        assertEquals(1_780_170_049_396L, byItemId["item-1"]?.lastUpdate)
+        assertEquals(0.015625f, byItemId["item-1"]?.ebookProgress)
+        assertEquals(1_779_642_817_411L, byItemId["item-2"]?.lastUpdate)
+    }
+
+    @Test
+    fun `getUserProgress yields null lastUpdate when field is absent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""{"mediaProgress":[{"libraryItemId":"item-1","ebookProgress":0.25}]}""")
+        )
+
+        val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
+
+        val byItemId = (result as NetworkUserProgressResult.Success).byItemId
+        assertNull(byItemId["item-1"]?.lastUpdate)
+        assertEquals(0.25f, byItemId["item-1"]?.ebookProgress)
+    }
 }

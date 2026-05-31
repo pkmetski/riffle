@@ -23,6 +23,8 @@ class PdfRepositoryImpl(
 ) : PdfRepository {
 
     override suspend fun openPdf(item: LibraryItem): PdfOpenResult {
+        val activeServer = serverRepository.getActive()
+            ?: return PdfOpenResult.NetworkError(IllegalStateException("No active server"))
         val local = (downloadsStore.get(item.id) ?: cacheStore.get(item.id))?.takeIf { it.isValidPdf() }
         if (local == null) {
             cacheStore.delete(item.id)
@@ -30,24 +32,22 @@ class PdfRepositoryImpl(
         val pdfFile = if (local != null) {
             local
         } else {
-            val server = serverRepository.getActive()
-                ?: return PdfOpenResult.NetworkError(IllegalStateException("No active server"))
-            val token = tokenStorage.getToken(server.id)
+            val token = tokenStorage.getToken(activeServer.id)
                 ?: return PdfOpenResult.NetworkError(IllegalStateException("No token for server"))
             val ino = item.ebookFileIno ?: run {
-                when (val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
+                when (val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
                     is NetworkItemEbookInoResult.Success -> r.ino
                     is NetworkItemEbookInoResult.NetworkError -> return PdfOpenResult.NetworkError(r.cause)
                 }
             }
-            when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
+            when (val result = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)) {
                 is NetworkEpubDownloadResult.Success -> result.body.use { body ->
                     cacheStore.save(item.id, body.byteStream())
                 }
                 is NetworkEpubDownloadResult.NetworkError -> return PdfOpenResult.NetworkError(result.cause)
             }
         }
-        val lastPosition = positionStore.load(item.id)
+        val lastPosition = positionStore.load(activeServer.id, item.id)
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = lastPosition)
     }
 
@@ -87,7 +87,8 @@ class PdfRepositoryImpl(
     override fun isCached(itemId: String): Boolean = cacheStore.get(itemId) != null
 
     override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {
-        positionStore.save(itemId, locatorJson)
+        val serverId = serverRepository.getActive()?.id ?: return
+        positionStore.save(serverId, itemId, locatorJson)
     }
 }
 

@@ -62,10 +62,10 @@ class ReadingSessionIntegrationTest {
             override suspend fun deleteToken(serverId: String) = Unit
         },
         positionStore = object : ReadingPositionStore {
-            override suspend fun save(itemId: String, cfi: String) = Unit
-            override suspend fun load(itemId: String): String? = null
-            override suspend fun loadLocalUpdatedAt(itemId: String): Long = 0L
-            override suspend fun updateLocalTimestamp(itemId: String, millis: Long) = Unit
+            override suspend fun save(serverId: String, itemId: String, cfi: String) = Unit
+            override suspend fun load(serverId: String, itemId: String): String? = null
+            override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
+            override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
         },
     )
 

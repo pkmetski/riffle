@@ -22,28 +22,28 @@ class EpubRepositoryImpl(
 ) : EpubRepository {
 
     override suspend fun openEpub(item: LibraryItem): EpubOpenResult {
+        val activeServer = serverRepository.getActive()
+            ?: return EpubOpenResult.NetworkError(IllegalStateException("No active server"))
         val local = downloadsStore.get(item.id) ?: cacheStore.get(item.id)
         val epubFile = if (local != null) {
             local
         } else {
-            val server = serverRepository.getActive()
-                ?: return EpubOpenResult.NetworkError(IllegalStateException("No active server"))
-            val token = tokenStorage.getToken(server.id)
+            val token = tokenStorage.getToken(activeServer.id)
                 ?: return EpubOpenResult.NetworkError(IllegalStateException("No token for server"))
             val ino = item.ebookFileIno ?: run {
-                when (val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
+                when (val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
                     is NetworkItemEbookInoResult.Success -> r.ino
                     is NetworkItemEbookInoResult.NetworkError -> return EpubOpenResult.NetworkError(r.cause)
                 }
             }
-            when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
+            when (val result = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)) {
                 is NetworkEpubDownloadResult.Success -> result.body.use { body ->
                     cacheStore.save(item.id, body.byteStream())
                 }
                 is NetworkEpubDownloadResult.NetworkError -> return EpubOpenResult.NetworkError(result.cause)
             }
         }
-        val lastPosition = positionStore.load(item.id)
+        val lastPosition = positionStore.load(activeServer.id, item.id)
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
     }
 
@@ -83,6 +83,7 @@ class EpubRepositoryImpl(
     override fun isCached(itemId: String): Boolean = cacheStore.get(itemId) != null
 
     override suspend fun saveReadingPosition(itemId: String, cfi: String) {
-        positionStore.save(itemId, cfi)
+        val serverId = serverRepository.getActive()?.id ?: return
+        positionStore.save(serverId, itemId, cfi)
     }
 }

@@ -229,7 +229,30 @@ class LibraryRepositoryTest {
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
                 NetworkCollectionResult.Success(emptyList())
         },
-    ) = LibraryRepositoryImpl(api, libraryDao, libraryItemDao, seriesDao, collectionDao, fakeServerRepository, fakeTokenStorage)
+        readingSessionRepository: com.riffle.core.domain.ReadingSessionRepository = NoopReadingSessionRepository,
+    ) = LibraryRepositoryImpl(
+        api, libraryDao, libraryItemDao, seriesDao, collectionDao,
+        fakeServerRepository, fakeTokenStorage, readingSessionRepository,
+    )
+
+    private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
+        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
+            com.riffle.core.domain.SyncSessionResult.Success
+        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
+            com.riffle.core.domain.ProgressSyncCycleResult.InSync
+        override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun touchOpenTimestamp(itemId: String) = Unit
+    }
+
+    private class RecordingReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
+        val touchedItemIds = mutableListOf<String>()
+        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
+            com.riffle.core.domain.SyncSessionResult.Success
+        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
+            com.riffle.core.domain.ProgressSyncCycleResult.InSync
+        override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun touchOpenTimestamp(itemId: String) { touchedItemIds += itemId }
+    }
 
     private fun activeServer(id: String = "s1") = Server(
         id = id,
@@ -375,6 +398,71 @@ class LibraryRepositoryTest {
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
         assertEquals(2, dao.upserted.size)
+    }
+
+    @Test
+    fun `refreshLibraryItems lifts lastOpenedAt from server mediaProgress when newer than local`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 1_000L),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                com.riffle.core.network.NetworkUserProgressResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.4f, lastUpdate = 5_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(5_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
+    }
+
+    @Test
+    fun `refreshLibraryItems keeps local lastOpenedAt when newer than server mediaProgress`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 9_000L),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                com.riffle.core.network.NetworkUserProgressResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.4f, lastUpdate = 1_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.4f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(9_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
+    }
+
+    @Test
+    fun `markItemOpened pushes touchOpenTimestamp to the session repository`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val session = RecordingReadingSessionRepository()
+        makeRepo(readingSessionRepository = session).markItemOpened("item-42")
+        assertEquals(listOf("item-42"), session.touchedItemIds)
     }
 
     @Test

@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -176,9 +176,6 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Make all non-PK columns nullable so a per-book row can store sparse overrides — null
-        // on a column means "follow the global setting." Existing rows are preserved verbatim,
-        // which keeps customised books behaving the same; only new writes use the sparse form.
         val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -220,6 +217,38 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `servers` ADD COLUMN `serverType` TEXT NOT NULL DEFAULT 'AUDIOBOOKSHELF'")
+            }
+        }
+
+        // Scope reading_positions by serverId so the same itemId can hold distinct positions
+        // for different ABS accounts (or different servers). Rows from the previous schema are
+        // backfilled to the currently-active server when one exists; if there's no active server
+        // we drop the rows — they can't be attributed to any user, and the next sync will refetch.
+        // The new FK to servers(id) cascade-deletes positions when a server is removed.
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val activeServerId: String? = db.query("SELECT id FROM servers WHERE isActive = 1 LIMIT 1").use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `reading_positions_new` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`cfi` TEXT NOT NULL, " +
+                        "`localUpdatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`serverId`, `itemId`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                if (activeServerId != null) {
+                    db.execSQL(
+                        "INSERT INTO `reading_positions_new` (serverId, itemId, cfi, localUpdatedAt) " +
+                            "SELECT ?, itemId, cfi, localUpdatedAt FROM `reading_positions`",
+                        arrayOf<Any>(activeServerId),
+                    )
+                }
+                db.execSQL("DROP TABLE `reading_positions`")
+                db.execSQL("ALTER TABLE `reading_positions_new` RENAME TO `reading_positions`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reading_positions_serverId` ON `reading_positions` (`serverId`)")
             }
         }
     }
