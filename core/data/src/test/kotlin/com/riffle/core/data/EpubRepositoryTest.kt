@@ -289,7 +289,7 @@ class EpubRepositoryTest {
             serverRepository = fakeServerRepositoryForServer(
                 Server(
                     id = "st-srv", url = ServerUrl.parse("http://st.example")!!,
-                    displayName = "St", isActive = true, insecureConnectionAllowed = false,
+                    isActive = true, insecureConnectionAllowed = false,
                     username = "x", serverType = ServerType.STORYTELLER,
                 ),
             ),
@@ -322,7 +322,7 @@ class EpubRepositoryTest {
             serverRepository = fakeServerRepositoryForServer(
                 Server(
                     id = "st-srv", url = ServerUrl.parse("http://st.example")!!,
-                    displayName = "St", isActive = true, insecureConnectionAllowed = false,
+                    isActive = true, insecureConnectionAllowed = false,
                     username = "x", serverType = ServerType.STORYTELLER,
                 ),
             ),
@@ -360,7 +360,6 @@ class EpubRepositoryTest {
         val storytellerServer = Server(
             id = "st-srv",
             url = ServerUrl.parse("http://st.example")!!,
-            displayName = "St",
             isActive = true,
             insecureConnectionAllowed = false,
             username = "x",
