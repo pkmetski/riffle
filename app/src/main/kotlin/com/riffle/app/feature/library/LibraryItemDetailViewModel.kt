@@ -208,7 +208,9 @@ class LibraryItemDetailViewModel @Inject constructor(
         val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
         val footer = current.readaloudFooter as? ReadaloudFooterState.ReadaloudLinkedToAbs ?: return
         viewModelScope.launch {
-            readaloudLinkRepository.unlink(footer.storytellerServerId, footer.storytellerBookId)
+            // Readaloud-side unlink drops every ABS row paired with this readaloud (each
+            // ABS slot has its own row under the ABS-keyed schema).
+            readaloudLinkRepository.unlinkStorytellerBook(footer.storytellerServerId, footer.storytellerBookId)
             _uiState.value = current.copy(readaloudFooter = null)
         }
     }
@@ -220,8 +222,18 @@ class LibraryItemDetailViewModel @Inject constructor(
     ): ReadaloudFooterState? {
         if (serverId == null) return null
         return if (isReadaloud) {
-            val link = readaloudLinkRepository.findByStorytellerBook(serverId, item.id) ?: return null
-            val absItem = repository.getItem(link.absLibraryItemId) ?: return null
+            // A readaloud can have multiple ABS rows (ebook + audiobook stub). Pick the
+            // preferred one for the footer display — ebook formats win over unsupported
+            // audiobook stubs.
+            val links = readaloudLinkRepository.findByStorytellerBook(serverId, item.id)
+            if (links.isEmpty()) return null
+            val absItems = links.mapNotNull { link ->
+                repository.getItem(link.absLibraryItemId)?.let { it to link }
+            }
+            val preferred = absItems
+                .sortedBy { (absItem, _) -> if (absItem.ebookFormat == EbookFormat.Unsupported) 1 else 0 }
+                .firstOrNull() ?: return null
+            val (absItem, link) = preferred
             val absLibrary = repository.getLibrary(absItem.libraryId)
             ReadaloudFooterState.ReadaloudLinkedToAbs(
                 absTitle = absItem.title,

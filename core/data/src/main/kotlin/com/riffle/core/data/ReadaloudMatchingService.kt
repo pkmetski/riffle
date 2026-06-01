@@ -4,7 +4,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
-import com.riffle.core.domain.MatchResult
+import com.riffle.core.domain.Confirmed
 import com.riffle.core.domain.MatchableAbsItem
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
@@ -15,13 +15,14 @@ import javax.inject.Singleton
 /**
  * Drives the Storyteller↔ABS auto-matcher and persists results into [ReadaloudLinkDao].
  *
- * Strategy: for every refresh that could change either side's content (Storyteller library
- * refresh, ABS library refresh, Server add) we re-reconcile the link set globally. Library
- * sizes are bounded and the matcher is cheap; the per-tier incremental optimisation
- * mentioned in ADR 0021 ("only new/changed books") is deferred until we hit a real cost.
+ * Schema is ABS-keyed (one row per ABS Library Item), so a Storyteller readaloud that
+ * matches both an ebook entry and an audiobook stub in two different ABS libraries
+ * produces two rows. Each ABS slot is independently sticky on [ReadaloudLinkEntity.userConfirmed].
  *
- * Sticky behaviour: rows with [ReadaloudLinkEntity.userConfirmed] = true are never touched
- * by the auto-matcher — per ADR 0021 that's reserved for the review-queue UI slice.
+ * The reconciler:
+ *  - writes/refreshes one row per (readaloud, ABS candidate) the matcher confirms,
+ *  - preserves any pre-existing user-Confirmed row (never overwrites or deletes it),
+ *  - sweeps auto-Confirmed rows whose ABS slot no longer survives the current pass.
  */
 @Singleton
 class ReadaloudMatchingService(
@@ -37,55 +38,59 @@ class ReadaloudMatchingService(
     suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
         val absItems = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
-        if (storytellerBooks.isEmpty() || absItems.isEmpty()) {
-            // Nothing to match against on one side — drop any stale auto-links.
-            removeStaleAutoLinks(emptySet())
-            return
-        }
 
         val candidates = absItems.map { it.toAbsCandidate() }
         val now = clock()
-        val freshAutoLinks = mutableSetOf<Pair<String, String>>()
+        // Track every ABS PK the current pass auto-Confirmed. Used to sweep stale rows.
+        val freshAutoSlots = mutableSetOf<Pair<String, String>>()
 
         for (book in storytellerBooks) {
-            val existing = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
-            if (existing?.userConfirmed == true) {
-                freshAutoLinks += book.serverId to book.itemId
-                continue
-            }
-
-            when (val result = ReadaloudMatcher.match(book.toStorytellerBook(), candidates)) {
-                is MatchResult.Confirmed -> {
-                    readaloudLinkDao.upsert(
-                        ReadaloudLinkEntity(
-                            storytellerServerId = book.serverId,
-                            storytellerBookId = book.itemId,
-                            absServerId = result.absServerUuid,
-                            absLibraryItemId = result.absLibraryItemId,
-                            state = ReadaloudLinkEntity.STATE_CONFIRMED,
-                            userConfirmed = false,
-                            createdAt = existing?.createdAt ?: now,
-                            updatedAt = now,
-                        )
-                    )
-                    freshAutoLinks += book.serverId to book.itemId
-                }
-                MatchResult.Unmatched -> {
-                    if (existing != null && !existing.userConfirmed) {
-                        readaloudLinkDao.deleteByStorytellerBook(book.serverId, book.itemId)
+            val matches = ReadaloudMatcher.match(book.toStorytellerBook(), candidates)
+            for (match in matches) {
+                val slot = match.absServerUuid to match.absLibraryItemId
+                val existing = readaloudLinkDao.findByAbsItem(match.absServerUuid, match.absLibraryItemId)
+                if (existing?.userConfirmed == true) {
+                    // Sticky: the user owns this slot. The auto-matcher must not touch it,
+                    // even if it'd now point somewhere else. Mark fresh only when the
+                    // user-confirmed row already points to the matcher's verdict, so the
+                    // sweep below doesn't wipe an unrelated user choice.
+                    if (existing.storytellerServerId == book.serverId && existing.storytellerBookId == book.itemId) {
+                        freshAutoSlots += slot
                     }
+                    continue
                 }
+                readaloudLinkDao.upsert(
+                    ReadaloudLinkEntity(
+                        absServerId = match.absServerUuid,
+                        absLibraryItemId = match.absLibraryItemId,
+                        storytellerServerId = book.serverId,
+                        storytellerBookId = book.itemId,
+                        state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                        userConfirmed = false,
+                        createdAt = existing?.createdAt ?: now,
+                        updatedAt = now,
+                    )
+                )
+                freshAutoSlots += slot
             }
         }
 
-        removeStaleAutoLinks(freshAutoLinks)
+        sweepStaleAutoLinks(freshAutoSlots)
     }
 
-    private suspend fun removeStaleAutoLinks(freshKeys: Set<Pair<String, String>>) {
-        // No-op for now: rows for Storyteller books that no longer exist will be
-        // FK-cascaded when their Storyteller Server is removed, and a book disappearing
-        // from a library refresh is rare and handled by the next reconcile when the user
-        // re-adds it. Keeping this hook so future incremental refinements have a seam.
+    /**
+     * Delete any auto-Confirmed row whose ABS slot didn't survive the current pass — its
+     * matcher verdict has moved or evaporated. User-Confirmed rows are skipped.
+     */
+    private suspend fun sweepStaleAutoLinks(freshAutoSlots: Set<Pair<String, String>>) {
+        val all = readaloudLinkDao.allRows()
+        for (row in all) {
+            if (row.userConfirmed) continue
+            val slot = row.absServerId to row.absLibraryItemId
+            if (slot !in freshAutoSlots) {
+                readaloudLinkDao.deleteByAbsItem(row.absServerId, row.absLibraryItemId)
+            }
+        }
     }
 
     private fun MatchableItemRow.toStorytellerBook() = MatchableStorytellerBook(

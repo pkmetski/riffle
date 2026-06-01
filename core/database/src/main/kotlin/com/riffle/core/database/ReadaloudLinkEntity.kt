@@ -5,11 +5,14 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 /**
- * One-to-one link between a Storyteller readaloud and an ABS Library Item.
+ * Link from an ABS Library Item to its Storyteller readaloud counterpart (ADR 0021).
  *
- * The issue spec refers to "storytellerBookUuid", but a Storyteller book has no globally
- * unique uuid in Riffle — its identity is (Storyteller server, book id). We therefore store
- * both parts explicitly and use them as the composite primary key.
+ * Multiplicity rationale: an ABS book has at most one readaloud — there's one narration per
+ * conceptual work. A readaloud can point at *many* ABS items though, because the same
+ * conceptual book often lives in two ABS libraries simultaneously (a Books-library ebook
+ * and an Audiobooks-library audiobook stub of the same title+author). The primary key is
+ * therefore the ABS side; the (storytellerServerId, storytellerBookId) pair is indexed but
+ * not unique.
  *
  * Both server columns FK-cascade to `servers.id` so the row disappears automatically when
  * either side's Server is removed.
@@ -19,7 +22,7 @@ import androidx.room.Index
  */
 @Entity(
     tableName = "readaloud_links",
-    primaryKeys = ["storytellerServerId", "storytellerBookId"],
+    primaryKeys = ["absServerId", "absLibraryItemId"],
     foreignKeys = [
         ForeignKey(
             entity = ServerEntity::class,
@@ -35,16 +38,15 @@ import androidx.room.Index
         ),
     ],
     indices = [
-        Index(value = ["absServerId", "absLibraryItemId"]),
+        Index(value = ["storytellerServerId", "storytellerBookId"]),
         Index(value = ["storytellerServerId"]),
-        Index(value = ["absServerId"]),
     ],
 )
 data class ReadaloudLinkEntity(
-    val storytellerServerId: String,
-    val storytellerBookId: String,
     val absServerId: String,
     val absLibraryItemId: String,
+    val storytellerServerId: String,
+    val storytellerBookId: String,
     val state: String = STATE_CONFIRMED,
     val userConfirmed: Boolean,
     val createdAt: Long,

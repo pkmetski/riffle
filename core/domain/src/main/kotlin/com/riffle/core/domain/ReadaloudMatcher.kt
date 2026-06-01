@@ -17,27 +17,31 @@ data class MatchableAbsItem(
     val asin: String? = null,
 )
 
-sealed interface MatchResult {
-    data class Confirmed(val absServerUuid: String, val absLibraryItemId: String) : MatchResult
-    data object Unmatched : MatchResult
-}
+data class Confirmed(val absServerUuid: String, val absLibraryItemId: String)
 
 object ReadaloudMatcher {
 
-    fun match(book: MatchableStorytellerBook, candidates: List<MatchableAbsItem>): MatchResult {
+    /**
+     * Returns every ABS candidate the readaloud should link to. Tier 1 (identifier match)
+     * takes precedence: if any candidate matches by ISBN/ASIN, only those candidates are
+     * returned and Tier 2 is skipped. Tier 2 (normalised title + author with subset
+     * overlap on author tokens) is the fallback when no identifier matches.
+     *
+     * Multiple matches are expected and valid — `readaloud_links` is keyed by ABS item,
+     * so a single readaloud legitimately links to both an ebook entry in a Books library
+     * and an audiobook stub in an Audiobooks library when they share the same metadata.
+     */
+    fun match(book: MatchableStorytellerBook, candidates: List<MatchableAbsItem>): List<Confirmed> {
         val identifierHits = candidates.filter { identifierMatches(book, it) }
-        if (identifierHits.isNotEmpty()) {
-            return identifierHits.singleOrNull()?.confirmed() ?: MatchResult.Unmatched
-        }
+        if (identifierHits.isNotEmpty()) return identifierHits.map { it.confirmed() }
 
         val bookTitle = normaliseTitle(book.title)
         val bookAuthorTokens = authorTokens(book.author)
-        if (bookTitle.isEmpty() || bookAuthorTokens.isEmpty()) return MatchResult.Unmatched
+        if (bookTitle.isEmpty() || bookAuthorTokens.isEmpty()) return emptyList()
 
-        val titleAuthorHits = candidates.filter {
-            normaliseTitle(it.title) == bookTitle && authorsOverlap(bookAuthorTokens, authorTokens(it.author))
-        }
-        return titleAuthorHits.singleOrNull()?.confirmed() ?: MatchResult.Unmatched
+        return candidates
+            .filter { normaliseTitle(it.title) == bookTitle && authorsOverlap(bookAuthorTokens, authorTokens(it.author)) }
+            .map { it.confirmed() }
     }
 
     /**
@@ -62,7 +66,7 @@ object ReadaloudMatcher {
         return false
     }
 
-    private fun MatchableAbsItem.confirmed() = MatchResult.Confirmed(serverUuid, libraryItemId)
+    private fun MatchableAbsItem.confirmed() = Confirmed(serverUuid, libraryItemId)
 
     private fun normaliseIsbn(raw: String?): String? {
         if (raw == null) return null

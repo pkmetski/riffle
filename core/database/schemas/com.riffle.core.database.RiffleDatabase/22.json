@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 22,
-    "identityHash": "bb4a298f0c7fc64af321ea0763fb1594",
+    "identityHash": "c9796da35cd9d6c5a60b0d1cf629b1eb",
     "entities": [
       {
         "tableName": "servers",
@@ -457,20 +457,8 @@
       },
       {
         "tableName": "readaloud_links",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`storytellerServerId` TEXT NOT NULL, `storytellerBookId` TEXT NOT NULL, `absServerId` TEXT NOT NULL, `absLibraryItemId` TEXT NOT NULL, `state` TEXT NOT NULL, `userConfirmed` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`storytellerServerId`, `storytellerBookId`), FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`absServerId` TEXT NOT NULL, `absLibraryItemId` TEXT NOT NULL, `storytellerServerId` TEXT NOT NULL, `storytellerBookId` TEXT NOT NULL, `state` TEXT NOT NULL, `userConfirmed` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`absServerId`, `absLibraryItemId`), FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
-          {
-            "fieldPath": "storytellerServerId",
-            "columnName": "storytellerServerId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "storytellerBookId",
-            "columnName": "storytellerBookId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
           {
             "fieldPath": "absServerId",
             "columnName": "absServerId",
@@ -480,6 +468,18 @@
           {
             "fieldPath": "absLibraryItemId",
             "columnName": "absLibraryItemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storytellerServerId",
+            "columnName": "storytellerServerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storytellerBookId",
+            "columnName": "storytellerBookId",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -511,20 +511,20 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "storytellerServerId",
-            "storytellerBookId"
+            "absServerId",
+            "absLibraryItemId"
           ]
         },
         "indices": [
           {
-            "name": "index_readaloud_links_absServerId_absLibraryItemId",
+            "name": "index_readaloud_links_storytellerServerId_storytellerBookId",
             "unique": false,
             "columnNames": [
-              "absServerId",
-              "absLibraryItemId"
+              "storytellerServerId",
+              "storytellerBookId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId_absLibraryItemId` ON `${TABLE_NAME}` (`absServerId`, `absLibraryItemId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId_storytellerBookId` ON `${TABLE_NAME}` (`storytellerServerId`, `storytellerBookId`)"
           },
           {
             "name": "index_readaloud_links_storytellerServerId",
@@ -534,15 +534,6 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` ON `${TABLE_NAME}` (`storytellerServerId`)"
-          },
-          {
-            "name": "index_readaloud_links_absServerId",
-            "unique": false,
-            "columnNames": [
-              "absServerId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId` ON `${TABLE_NAME}` (`absServerId`)"
           }
         ],
         "foreignKeys": [
@@ -573,7 +564,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bb4a298f0c7fc64af321ea0763fb1594')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c9796da35cd9d6c5a60b0d1cf629b1eb')"
     ]
   }
 }

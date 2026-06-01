@@ -76,21 +76,16 @@ interface LibraryItemDao {
     /**
      * All library items whose owning Library lives on a Server of the given [serverType].
      * Used by the Storyteller↔ABS matcher to enumerate candidates across every configured
-     * Server of a side.
-     *
-     * Items with `ebookFormat = 'unsupported'` are excluded: a real ABS library may contain
-     * audiobook-only entries with no readable ebook file. Those entries collide on
-     * normalised title+author with the real ebook entry in a sibling Books library and
-     * would demote every such pairing to Unmatched. Cross-server progress sync requires
-     * a readable ebook on both sides anyway, so an unsupported entry has no business
-     * being a candidate.
+     * Server of a side. No format filter — `readaloud_links` is now keyed by ABS item, so
+     * an audiobook-stub entry coexisting with an ebook entry produces two link rows
+     * rather than a Tier 2 collision.
      */
     @Query(
         "SELECT li.id AS itemId, lib.serverId AS serverId, li.title, li.author, li.isbn, li.asin " +
             "FROM library_items li " +
             "JOIN libraries lib ON li.libraryId = lib.id " +
             "JOIN servers s ON lib.serverId = s.id " +
-            "WHERE s.serverType = :serverType AND li.ebookFormat != 'unsupported'"
+            "WHERE s.serverType = :serverType"
     )
     suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow>
 }

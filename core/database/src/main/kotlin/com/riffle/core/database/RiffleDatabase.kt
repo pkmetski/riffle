@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookFormattingPreferencesEntity::class,
         ReadaloudLinkEntity::class,
     ],
-    version = 23,
+    version = 24,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -287,38 +287,37 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ReadaloudLink table from ADR 0021: one row per Confirmed Storyteller↔ABS pairing.
-        // FK-cascade to servers(id) on both sides so the row disappears when either side's
-        // Server is removed (issue #36's "Server removal cascade clears ReadaloudLink rows").
+        // ReadaloudLink table from ADR 0021. ABS-side primary key reflects the natural
+        // multiplicity: each ABS item has at most one readaloud, but a single readaloud
+        // can be referenced from many ABS items (the same conceptual book lives as both
+        // an ebook in a Books library and an audiobook stub in an Audiobooks library).
+        // FK-cascade on both server columns realises "Server removal cascade clears
+        // ReadaloudLink rows" from the acceptance criteria.
         val MIGRATION_21_22 = object : Migration(21, 22) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `readaloud_links` (" +
-                        "`storytellerServerId` TEXT NOT NULL, " +
-                        "`storytellerBookId` TEXT NOT NULL, " +
                         "`absServerId` TEXT NOT NULL, " +
                         "`absLibraryItemId` TEXT NOT NULL, " +
+                        "`storytellerServerId` TEXT NOT NULL, " +
+                        "`storytellerBookId` TEXT NOT NULL, " +
                         "`state` TEXT NOT NULL DEFAULT 'CONFIRMED', " +
                         "`userConfirmed` INTEGER NOT NULL, " +
                         "`createdAt` INTEGER NOT NULL, " +
                         "`updatedAt` INTEGER NOT NULL, " +
-                        "PRIMARY KEY(`storytellerServerId`, `storytellerBookId`), " +
+                        "PRIMARY KEY(`absServerId`, `absLibraryItemId`), " +
                         "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
                         "ON UPDATE NO ACTION ON DELETE CASCADE, " +
                         "FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) " +
                         "ON UPDATE NO ACTION ON DELETE CASCADE)"
                 )
                 db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId_absLibraryItemId` " +
-                        "ON `readaloud_links` (`absServerId`, `absLibraryItemId`)"
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId_storytellerBookId` " +
+                        "ON `readaloud_links` (`storytellerServerId`, `storytellerBookId`)"
                 )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` " +
                         "ON `readaloud_links` (`storytellerServerId`)"
-                )
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId` " +
-                        "ON `readaloud_links` (`absServerId`)"
                 )
             }
         }
@@ -330,6 +329,43 @@ abstract class RiffleDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `isbn` TEXT")
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `asin` TEXT")
+            }
+        }
+
+        // Rebuild readaloud_links with the ABS-keyed schema. An earlier branch of #36
+        // briefly shipped a Storyteller-keyed PK that forced a Tier 2 collision whenever
+        // the same conceptual book had both an ebook entry and an audiobook stub on
+        // ABS; the ABS-keyed schema allows one row per ABS slot, so each entry gets
+        // its own link to the readaloud. The table is dropped and recreated — at this
+        // point only auto-Confirmed rows exist (Pending/manual aren't shipped yet) so a
+        // wipe is the simplest path; the matcher repopulates on next library refresh.
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `readaloud_links`")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `readaloud_links` (" +
+                        "`absServerId` TEXT NOT NULL, " +
+                        "`absLibraryItemId` TEXT NOT NULL, " +
+                        "`storytellerServerId` TEXT NOT NULL, " +
+                        "`storytellerBookId` TEXT NOT NULL, " +
+                        "`state` TEXT NOT NULL DEFAULT 'CONFIRMED', " +
+                        "`userConfirmed` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`absServerId`, `absLibraryItemId`), " +
+                        "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId_storytellerBookId` " +
+                        "ON `readaloud_links` (`storytellerServerId`, `storytellerBookId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` " +
+                        "ON `readaloud_links` (`storytellerServerId`)"
+                )
             }
         }
     }

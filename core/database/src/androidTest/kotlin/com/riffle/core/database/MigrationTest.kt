@@ -633,7 +633,7 @@ class MigrationTest {
     }
 
     @Test
-    fun migration21To22_addsReadaloudLinksWithServerCascade() {
+    fun migration21To22_addsReadaloudLinksKeyedByAbsItemWithCascade() {
         helper.createDatabase(TEST_DB, 21).use { db ->
             // Two servers — one Storyteller, one ABS — that the link will reference.
             db.execSQL(
@@ -654,44 +654,42 @@ class MigrationTest {
             assertEquals(0, cursor.getInt(0))
         }
 
-        // Insert a Confirmed auto-link (userConfirmed = false in this slice).
+        // Insert a Confirmed auto-link.
         db.execSQL(
             "INSERT INTO readaloud_links " +
-                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt) " +
-                "VALUES ('st1', 'book-42', 'abs1', 'item-xyz', 'CONFIRMED', 0, 1000, 1000)"
+                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 0, 1000, 1000)"
         )
-        db.query(
-            "SELECT storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt " +
-                "FROM readaloud_links WHERE storytellerServerId = 'st1' AND storytellerBookId = 'book-42'"
-        ).use { cursor ->
-            assertEquals(1, cursor.count)
+
+        // Insert a second row for the same Storyteller readaloud pointing at a different
+        // ABS item — represents the audiobook stub in an Audiobooks library.
+        db.execSQL(
+            "INSERT INTO readaloud_links " +
+                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('abs1', 'item-audio', 'st1', 'book-42', 'CONFIRMED', 0, 1100, 1100)"
+        )
+
+        // The Storyteller readaloud now legitimately has two rows.
+        db.query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerBookId = 'book-42'").use { cursor ->
             cursor.moveToFirst()
-            assertEquals("st1", cursor.getString(0))
-            assertEquals("book-42", cursor.getString(1))
-            assertEquals("abs1", cursor.getString(2))
-            assertEquals("item-xyz", cursor.getString(3))
-            assertEquals("CONFIRMED", cursor.getString(4))
-            assertEquals(0, cursor.getInt(5))
-            assertEquals(1000L, cursor.getLong(6))
-            assertEquals(1000L, cursor.getLong(7))
+            assertEquals(2, cursor.getInt(0))
         }
 
-        // Composite PK: same Storyteller (server, book) can hold only one link.
-        // REPLACE-conflict semantics — re-inserting the same key updates in place.
+        // Primary key is the ABS side: same (absServerId, absLibraryItemId) collides via REPLACE.
         db.execSQL(
             "INSERT OR REPLACE INTO readaloud_links " +
-                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt) " +
-                "VALUES ('st1', 'book-42', 'abs1', 'item-other', 'CONFIRMED', 1, 1000, 2000)"
+                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 1, 1000, 2000)"
         )
-        db.query("SELECT absLibraryItemId, userConfirmed, updatedAt FROM readaloud_links WHERE storytellerBookId = 'book-42'").use { cursor ->
+        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
-            assertEquals("item-other", cursor.getString(0))
+            assertEquals("book-42", cursor.getString(0))
             assertEquals(1, cursor.getInt(1))
             assertEquals(2000L, cursor.getLong(2))
         }
 
-        // FK cascade: deleting the ABS server wipes the link.
+        // FK cascade: deleting the ABS server wipes every row referencing it.
         db.execSQL("PRAGMA foreign_keys = ON")
         db.execSQL("DELETE FROM servers WHERE id = 'abs1'")
         db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
@@ -706,8 +704,8 @@ class MigrationTest {
         )
         db.execSQL(
             "INSERT INTO readaloud_links " +
-                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt) " +
-                "VALUES ('st1', 'book-99', 'abs2', 'item-1', 'CONFIRMED', 0, 5000, 5000)"
+                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('abs2', 'item-1', 'st1', 'book-99', 'CONFIRMED', 0, 5000, 5000)"
         )
         db.execSQL("DELETE FROM servers WHERE id = 'st1'")
         db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
@@ -758,7 +756,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 23, true,
+            TEST_DB, 24, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -781,6 +779,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_20_21,
             RiffleDatabase.MIGRATION_21_22,
             RiffleDatabase.MIGRATION_22_23,
+            RiffleDatabase.MIGRATION_23_24,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

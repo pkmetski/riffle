@@ -6,8 +6,18 @@ interface ReadaloudLinkRepository {
     fun observeAll(): Flow<List<ReadaloudLink>>
     fun observeLinkedAbsItemIds(): Flow<Set<String>>
     fun observeLinkedStorytellerBookIds(): Flow<Set<String>>
-    suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): ReadaloudLink?
+
+    /** Unique by ABS PK. */
     suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink?
-    suspend fun unlink(storytellerServerId: String, storytellerBookId: String)
+
+    /** A readaloud can link to many ABS items (ebook + audiobook stub in different libraries). */
+    suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLink>
+
+    /** Unlink one specific ABS row. */
+    suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String)
+
+    /** Unlink every ABS row paired with this readaloud — invoked from the Readaloud-side footer. */
+    suspend fun unlinkStorytellerBook(storytellerServerId: String, storytellerBookId: String)
+
     suspend fun countForServer(serverId: String): Int
 }
