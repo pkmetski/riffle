@@ -37,7 +37,7 @@ Riffle lets you browse your ebook library, read EPUB and PDF files, and sync rea
 
 ### Server & Sync
 - Audiobookshelf and Storyteller login with secure token storage and insecure-connection warnings
-- Storyteller Readaloud Library: browse every completed readaloud as a single library (reader-side narration playback is in progress)
+- Storyteller Readaloud Library: browse every completed readaloud as a single library, with full EPUB reading in the standard Riffle reader (narration playback is in progress)
 - Bidirectional progress sync with last-update-wins conflict resolution
 - Periodic auto-sync and offline queueing
 - Reading session time tracking
