@@ -46,7 +46,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LibraryItemsViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val libraryRepository: LibraryRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
@@ -115,8 +115,9 @@ class LibraryItemsViewModel @Inject constructor(
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    // Backed by SavedStateHandle so the query survives both book-detail round-trips and process
+    // death (issue #60).
+    val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")
 
     private val _refreshFailed = MutableStateFlow(false)
 
@@ -233,7 +234,7 @@ class LibraryItemsViewModel @Inject constructor(
     }
 
     fun onSearchQueryChange(query: String) {
-        _searchQuery.value = query
+        savedStateHandle[KEY_SEARCH_QUERY] = query
     }
 
     fun refresh() {
@@ -277,5 +278,6 @@ class LibraryItemsViewModel @Inject constructor(
 
     private companion object {
         const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
+        const val KEY_SEARCH_QUERY = "searchQuery"
     }
 }
