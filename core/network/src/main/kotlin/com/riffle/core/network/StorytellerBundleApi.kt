@@ -47,7 +47,12 @@ class StorytellerBundleApiImpl(
     // Bundles can be hundreds of MB; the default 10s read timeout times out mid-stream
     // on anything but the smallest aligned EPUBs. readTimeout(0) = no idle-read timeout
     // (the connection itself still has connect/call timeouts).
-    private val downloadClient: OkHttpClient = client.newBuilder()
+    //
+    // Storyteller also takes 1.5–5 s to answer HEAD on /synced (it appears to compute
+    // the resource lazily), so the same extended client is used for the probe — otherwise
+    // probing larger or cold books trips the default 10 s read timeout before the size
+    // gate has a chance to refuse the download.
+    private val bundleClient: OkHttpClient = client.newBuilder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .callTimeout(0, TimeUnit.MILLISECONDS)
@@ -59,7 +64,7 @@ class StorytellerBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkStorytellerBundleResult = withContext(Dispatchers.IO) {
-        val effectiveClient = if (insecureAllowed) downloadClient.trustAllCerts() else downloadClient
+        val effectiveClient = if (insecureAllowed) bundleClient.trustAllCerts() else bundleClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
             .addHeader("Authorization", "Bearer $token")
@@ -86,7 +91,7 @@ class StorytellerBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkStorytellerBundleSizeResult = withContext(Dispatchers.IO) {
-        val effectiveClient = if (insecureAllowed) client.trustAllCerts() else client
+        val effectiveClient = if (insecureAllowed) bundleClient.trustAllCerts() else bundleClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
             .head()
