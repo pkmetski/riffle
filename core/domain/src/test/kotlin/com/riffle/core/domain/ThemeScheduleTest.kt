@@ -68,10 +68,10 @@ class ThemeScheduleTest {
     }
 
     @Test
-    fun `default schedule has 07-00 21-00 Light Dark`() {
+    fun `default schedule has 07-00 20-00 Light Dark`() {
         val d = ThemeSchedule()
         assertEquals(LocalTime.of(7, 0), d.dayStart)
-        assertEquals(LocalTime.of(21, 0), d.nightStart)
+        assertEquals(LocalTime.of(20, 0), d.nightStart)
         assertEquals(ReaderTheme.Light, d.dayTheme)
         assertEquals(ReaderTheme.Dark, d.nightTheme)
     }

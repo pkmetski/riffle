@@ -67,7 +67,7 @@ data class ThemeSchedule(
 
     companion object {
         val DEFAULT_DAY_START: LocalTime = LocalTime.of(7, 0)
-        val DEFAULT_NIGHT_START: LocalTime = LocalTime.of(21, 0)
+        val DEFAULT_NIGHT_START: LocalTime = LocalTime.of(20, 0)
         val DEFAULT_DAY_THEME: ReaderTheme = ReaderTheme.Light
         val DEFAULT_NIGHT_THEME: ReaderTheme = ReaderTheme.Dark
     }

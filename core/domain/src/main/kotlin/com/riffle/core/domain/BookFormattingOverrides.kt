@@ -38,6 +38,10 @@ data class BookFormattingOverrides(
         showCurrentChapterLabel = showCurrentChapterLabel ?: global.showCurrentChapterLabel,
         doublePageSpread = doublePageSpread ?: global.doublePageSpread,
         justifyText = justifyText ?: global.justifyText,
+        // themeSchedule is intentionally global-only (no per-book override). Threading
+        // global through keeps the in-reader Auto resolution honouring the user's
+        // configured day/night times instead of silently falling back to defaults.
+        themeSchedule = global.themeSchedule,
     )
 
     // Treat each field the user just changed (new != previously-effective) as an explicit book
