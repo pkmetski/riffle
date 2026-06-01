@@ -39,10 +39,12 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.data.EpubBundleFetcher
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
+import com.riffle.core.network.StorytellerBundleApiImpl
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
@@ -225,14 +227,30 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient): StorytellerBundleApiImpl =
+            StorytellerBundleApiImpl(okHttpClient)
+
+        @Provides
+        @Singleton
+        fun provideEpubBundleFetcher(
+            @ApplicationContext context: Context,
+            bundleApi: StorytellerBundleApiImpl,
+        ): EpubBundleFetcher = EpubBundleFetcher(
+            api = bundleApi,
+            workingDirProvider = { context.cacheDir.resolve("epub-bundles").also { it.mkdirs() } },
+        )
+
+        @Provides
+        @Singleton
         fun provideEpubRepository(
             api: AbsLibraryApi,
+            bundleFetcher: EpubBundleFetcher,
             @EpubCacheStore cacheStore: LocalStore,
             @EpubDownloadsStore downloadsStore: LocalStore,
             positionStore: ReadingPositionStore,
             serverRepository: ServerRepository,
             tokenStorage: TokenStorage,
-        ): EpubRepository = EpubRepositoryImpl(api, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+        ): EpubRepository = EpubRepositoryImpl(api, bundleFetcher, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
 
         @Provides
         @Singleton

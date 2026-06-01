@@ -7,13 +7,18 @@ import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
+import com.riffle.core.network.NetworkStorytellerBundleResult
+import com.riffle.core.network.StorytellerBundleApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
@@ -48,6 +53,10 @@ class EpubRepositoryTest {
         positionStore = FakePositionStore()
         repo = EpubRepositoryImpl(
             api = AbsApiClient(OkHttpClient()),
+            bundleFetcher = EpubBundleFetcher(
+                api = StorytellerBundleApi { _, _, _, _ -> error("ABS test should not call bundle fetcher") },
+                workingDirProvider = { tmp.newFolder("unused-${System.nanoTime()}") },
+            ),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,
@@ -69,6 +78,18 @@ class EpubRepositoryTest {
             insecureConnectionAllowed = false,
             username = "",
         )
+        override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
+        override suspend fun getActive(): Server = activeServer
+        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
+            throw UnsupportedOperationException()
+        override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
+            throw UnsupportedOperationException()
+        override suspend fun setActive(serverId: String) = Unit
+        override suspend fun remove(serverId: String) = Unit
+        override suspend fun getServerVersion(serverId: String): String? = null
+    }
+
+    private fun fakeServerRepositoryForServer(activeServer: Server): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
         override suspend fun getActive(): Server = activeServer
         override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
@@ -236,5 +257,54 @@ class EpubRepositoryTest {
         assertTrue(result is EpubDownloadResult.Success)
         assertTrue(downloadsStore.get("item-1") != null)
         assertNull(cacheStore.get("item-1"))
+    }
+
+    // --- Storyteller ---
+
+    @Test
+    fun `openEpub for Storyteller server uses bundle fetcher and caches extracted epub`() = runTest {
+        val epubContent = "STORY EPUB".toByteArray()
+        val bundleBytes = java.io.ByteArrayOutputStream().also { baos ->
+            java.util.zip.ZipOutputStream(baos).use { zip ->
+                zip.putNextEntry(java.util.zip.ZipEntry("book.epub"))
+                zip.write(epubContent)
+                zip.closeEntry()
+            }
+        }.toByteArray()
+
+        val bundleApi = StorytellerBundleApi { _, bookId, token, _ ->
+            assertEquals("42", bookId)
+            assertEquals("st-token", token)
+            NetworkStorytellerBundleResult.Success(
+                bundleBytes.toResponseBody("application/zip".toMediaType()),
+            )
+        }
+        val fetcher = EpubBundleFetcher(bundleApi, workingDirProvider = { tmp.newFolder("wd-${System.nanoTime()}") })
+        val storytellerCache = LocalStoreImpl(tmp.newFolder("st-cache"), ".epub")
+        val storytellerDownloads = LocalStoreImpl(tmp.newFolder("st-dl"), ".epub")
+        val storytellerServer = Server(
+            id = "st-srv",
+            url = ServerUrl.parse("http://st.example")!!,
+            displayName = "St",
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "x",
+            serverType = ServerType.STORYTELLER,
+        )
+        val storytellerRepo = EpubRepositoryImpl(
+            api = AbsApiClient(OkHttpClient()),
+            bundleFetcher = fetcher,
+            cacheStore = storytellerCache,
+            downloadsStore = storytellerDownloads,
+            positionStore = FakePositionStore(),
+            serverRepository = fakeServerRepositoryForServer(storytellerServer),
+            tokenStorage = fakeTokenStorage("st-token"),
+        )
+
+        val result = storytellerRepo.openEpub(item(id = "42", ino = null))
+
+        assertTrue("Expected Success but got $result", result is EpubOpenResult.Success)
+        val cached = storytellerCache.get("42")
+        assertEquals(epubContent.toList(), cached!!.readBytes().toList())
     }
 }
