@@ -8,12 +8,18 @@ import okhttp3.ResponseBody
 import java.io.IOException
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 sealed interface NetworkStorytellerBundleResult {
     data class Success(val body: ResponseBody) : NetworkStorytellerBundleResult
     data class NetworkError(val cause: Throwable) : NetworkStorytellerBundleResult
+}
+
+sealed interface NetworkStorytellerBundleSizeResult {
+    data class Success(val sizeBytes: Long) : NetworkStorytellerBundleSizeResult
+    data class NetworkError(val cause: Throwable) : NetworkStorytellerBundleSizeResult
 }
 
 fun interface StorytellerBundleApi {
@@ -25,9 +31,27 @@ fun interface StorytellerBundleApi {
     ): NetworkStorytellerBundleResult
 }
 
+fun interface StorytellerBundleProbeApi {
+    suspend fun probeBundleSize(
+        baseUrl: String,
+        bookId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkStorytellerBundleSizeResult
+}
+
 class StorytellerBundleApiImpl(
     private val client: OkHttpClient,
-) : StorytellerBundleApi {
+) : StorytellerBundleApi, StorytellerBundleProbeApi {
+
+    // Bundles can be hundreds of MB; the default 10s read timeout times out mid-stream
+    // on anything but the smallest aligned EPUBs. readTimeout(0) = no idle-read timeout
+    // (the connection itself still has connect/call timeouts).
+    private val downloadClient: OkHttpClient = client.newBuilder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
 
     override suspend fun downloadBundle(
         baseUrl: String,
@@ -35,7 +59,7 @@ class StorytellerBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkStorytellerBundleResult = withContext(Dispatchers.IO) {
-        val effectiveClient = if (insecureAllowed) client.trustAllCerts() else client
+        val effectiveClient = if (insecureAllowed) downloadClient.trustAllCerts() else downloadClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
             .addHeader("Authorization", "Bearer $token")
@@ -53,6 +77,36 @@ class StorytellerBundleApiImpl(
             }
         } catch (e: IOException) {
             NetworkStorytellerBundleResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun probeBundleSize(
+        baseUrl: String,
+        bookId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkStorytellerBundleSizeResult = withContext(Dispatchers.IO) {
+        val effectiveClient = if (insecureAllowed) client.trustAllCerts() else client
+        val request = Request.Builder()
+            .url("$baseUrl/api/books/$bookId/synced")
+            .head()
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+        try {
+            effectiveClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext NetworkStorytellerBundleSizeResult.NetworkError(
+                        IOException("HTTP ${response.code}")
+                    )
+                }
+                val length = response.header("Content-Length")?.toLongOrNull()
+                    ?: return@withContext NetworkStorytellerBundleSizeResult.NetworkError(
+                        IOException("Missing Content-Length")
+                    )
+                NetworkStorytellerBundleSizeResult.Success(length)
+            }
+        } catch (e: IOException) {
+            NetworkStorytellerBundleSizeResult.NetworkError(e)
         }
     }
 

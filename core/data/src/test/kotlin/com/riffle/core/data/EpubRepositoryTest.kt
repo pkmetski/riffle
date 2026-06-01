@@ -12,7 +12,9 @@ import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.NetworkStorytellerBundleResult
+import com.riffle.core.network.NetworkStorytellerBundleSizeResult
 import com.riffle.core.network.StorytellerBundleApi
+import com.riffle.core.network.StorytellerBundleProbeApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -57,6 +59,7 @@ class EpubRepositoryTest {
                 api = StorytellerBundleApi { _, _, _, _ -> error("ABS test should not call bundle fetcher") },
                 workingDirProvider = { tmp.newFolder("unused-${System.nanoTime()}") },
             ),
+            bundleProbe = StorytellerBundleProbeApi { _, _, _, _ -> error("ABS test should not probe bundle size") },
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,
@@ -283,6 +286,7 @@ class EpubRepositoryTest {
         val storytellerRepo = EpubRepositoryImpl(
             api = AbsApiClient(OkHttpClient()),
             bundleFetcher = fetcher,
+            bundleProbe = StorytellerBundleProbeApi { _, _, _, _ -> error("downloadEpub must not probe size") },
             cacheStore = cache,
             downloadsStore = downloads,
             positionStore = FakePositionStore(),
@@ -316,6 +320,7 @@ class EpubRepositoryTest {
         val storytellerRepo = EpubRepositoryImpl(
             api = AbsApiClient(OkHttpClient()),
             bundleFetcher = fetcher,
+            bundleProbe = StorytellerBundleProbeApi { _, _, _, _ -> error("cache-promote must not probe size") },
             cacheStore = cache,
             downloadsStore = downloads,
             positionStore = FakePositionStore(),
@@ -368,6 +373,9 @@ class EpubRepositoryTest {
         val storytellerRepo = EpubRepositoryImpl(
             api = AbsApiClient(OkHttpClient()),
             bundleFetcher = fetcher,
+            bundleProbe = StorytellerBundleProbeApi { _, _, _, _ ->
+                NetworkStorytellerBundleSizeResult.Success(sizeBytes = 1_000_000L)
+            },
             cacheStore = storytellerCache,
             downloadsStore = storytellerDownloads,
             positionStore = FakePositionStore(),
@@ -380,5 +388,39 @@ class EpubRepositoryTest {
         assertTrue("Expected Success but got $result", result is EpubOpenResult.Success)
         val cached = storytellerCache.get("42")
         assertEquals(epubContent.toList(), cached!!.readBytes().toList())
+    }
+
+    @Test
+    fun `openEpub for Storyteller server returns BundleTooLarge when bundle exceeds threshold`() = runTest {
+        val cache = LocalStoreImpl(tmp.newFolder("st-cache-large"), ".epub")
+        val downloads = LocalStoreImpl(tmp.newFolder("st-dl-large"), ".epub")
+        val tooBig = EpubRepositoryImpl.MAX_STORYTELLER_IMPLICIT_CACHE_BYTES + 1
+        val storytellerRepo = EpubRepositoryImpl(
+            api = AbsApiClient(OkHttpClient()),
+            bundleFetcher = EpubBundleFetcher(
+                api = StorytellerBundleApi { _, _, _, _ -> error("openEpub must not fetch when bundle is too large") },
+                workingDirProvider = { tmp.newFolder("wd-large-${System.nanoTime()}") },
+            ),
+            bundleProbe = StorytellerBundleProbeApi { _, _, _, _ ->
+                NetworkStorytellerBundleSizeResult.Success(tooBig)
+            },
+            cacheStore = cache,
+            downloadsStore = downloads,
+            positionStore = FakePositionStore(),
+            serverRepository = fakeServerRepositoryForServer(
+                Server(
+                    id = "st-srv", url = ServerUrl.parse("http://st.example")!!,
+                    isActive = true, insecureConnectionAllowed = false,
+                    username = "x", serverType = ServerType.STORYTELLER,
+                ),
+            ),
+            tokenStorage = fakeTokenStorage("st-token"),
+        )
+
+        val result = storytellerRepo.openEpub(item(id = "99", ino = null))
+
+        assertTrue("Expected BundleTooLarge but got $result", result is EpubOpenResult.BundleTooLarge)
+        assertEquals(tooBig, (result as EpubOpenResult.BundleTooLarge).sizeBytes)
+        assertEquals(null, cache.get("99"))
     }
 }

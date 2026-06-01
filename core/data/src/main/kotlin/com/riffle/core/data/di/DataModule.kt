@@ -245,12 +245,13 @@ abstract class DataModule {
         fun provideEpubRepository(
             api: AbsLibraryApi,
             bundleFetcher: EpubBundleFetcher,
+            bundleProbe: StorytellerBundleApiImpl,
             @EpubCacheStore cacheStore: LocalStore,
             @EpubDownloadsStore downloadsStore: LocalStore,
             positionStore: ReadingPositionStore,
             serverRepository: ServerRepository,
             tokenStorage: TokenStorage,
-        ): EpubRepository = EpubRepositoryImpl(api, bundleFetcher, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+        ): EpubRepository = EpubRepositoryImpl(api, bundleFetcher, bundleProbe, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
 
         @Provides
         @Singleton

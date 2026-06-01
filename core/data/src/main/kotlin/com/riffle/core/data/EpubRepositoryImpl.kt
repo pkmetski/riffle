@@ -12,10 +12,13 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkEpubDownloadResult
 import com.riffle.core.network.NetworkItemEbookInoResult
+import com.riffle.core.network.NetworkStorytellerBundleSizeResult
+import com.riffle.core.network.StorytellerBundleProbeApi
 
 class EpubRepositoryImpl(
     private val api: AbsLibraryApi,
     private val bundleFetcher: EpubBundleFetcher,
+    private val bundleProbe: StorytellerBundleProbeApi,
     private val cacheStore: LocalStore,
     private val downloadsStore: LocalStore,
     private val positionStore: ReadingPositionStore,
@@ -48,6 +51,18 @@ class EpubRepositoryImpl(
                     }
                 }
                 ServerType.STORYTELLER -> {
+                    // Storyteller's only EPUB endpoint serves the media-aligned bundle (hundreds
+                    // of MB for any book with audio). Probe Content-Length first; refuse implicit
+                    // cache-on-open above MAX_STORYTELLER_IMPLICIT_CACHE_BYTES so we never silently
+                    // burn the user's data. Explicit downloadEpub bypasses this — the user opted in.
+                    when (val probe = bundleProbe.probeBundleSize(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
+                        is NetworkStorytellerBundleSizeResult.Success ->
+                            if (probe.sizeBytes > MAX_STORYTELLER_IMPLICIT_CACHE_BYTES) {
+                                return EpubOpenResult.BundleTooLarge(probe.sizeBytes)
+                            }
+                        is NetworkStorytellerBundleSizeResult.NetworkError ->
+                            return EpubOpenResult.NetworkError(probe.cause)
+                    }
                     when (val r = bundleFetcher.fetch(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
                         is EpubBundleFetcher.Result.Success -> {
                             try {
@@ -63,6 +78,13 @@ class EpubRepositoryImpl(
         }
         val lastPosition = positionStore.load(activeServer.id, item.id)
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
+    }
+
+    companion object {
+        // 50 MB threshold for implicit cache-on-open of Storyteller bundles. Plain ABS EPUBs
+        // are typically <10 MB; small Storyteller bundles fit; multi-hundred-MB media bundles
+        // require the user to tap Download explicitly.
+        internal const val MAX_STORYTELLER_IMPLICIT_CACHE_BYTES = 50L * 1024 * 1024
     }
 
     override suspend fun downloadEpub(item: LibraryItem): EpubDownloadResult {
