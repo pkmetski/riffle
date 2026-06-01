@@ -79,6 +79,9 @@ class LibraryRepositoryTest {
         override suspend fun libraryIdsForServer(serverId: String): List<String> =
             roomData[serverId]?.value.orEmpty().map { it.id }
 
+        override suspend fun getById(libraryId: String): LibraryEntity? =
+            roomData.values.flatMap { it.value }.firstOrNull { it.id == libraryId }
+
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {
             upserted.addAll(libraries)
             libraries.groupBy { it.serverId }.forEach { (serverId, items) ->

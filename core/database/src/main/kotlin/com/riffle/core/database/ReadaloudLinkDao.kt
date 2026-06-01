@@ -24,6 +24,14 @@ interface ReadaloudLinkDao {
     @Query("SELECT * FROM readaloud_links")
     fun observeAll(): Flow<List<ReadaloudLinkEntity>>
 
+    /** Set of ABS Library Item ids that currently have any link — drives the ABS-side grid badge. */
+    @Query("SELECT absLibraryItemId FROM readaloud_links")
+    fun observeLinkedAbsItemIds(): Flow<List<String>>
+
+    /** Set of Storyteller book ids with a link — drives the Readaloud-side footer state. */
+    @Query("SELECT storytellerBookId FROM readaloud_links")
+    fun observeLinkedStorytellerBookIds(): Flow<List<String>>
+
     @Query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerServerId = :serverId OR absServerId = :serverId")
     suspend fun countForServer(serverId: String): Int
 

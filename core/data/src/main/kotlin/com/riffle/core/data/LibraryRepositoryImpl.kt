@@ -93,6 +93,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getItem(itemId: String): LibraryItem? =
         libraryItemDao.getById(itemId)?.toDomain()
 
+    override suspend fun getLibrary(libraryId: String): Library? =
+        libraryDao.getById(libraryId)?.toDomain()
+
     override suspend fun markItemOpened(itemId: String) {
         libraryItemDao.updateLastOpenedAt(itemId, System.currentTimeMillis())
         // Best-effort push so other devices see this open via mediaProgress.lastUpdate. Offline

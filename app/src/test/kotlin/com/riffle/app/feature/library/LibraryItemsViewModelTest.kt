@@ -75,6 +75,7 @@ class LibraryItemsViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
             collectionItemsByCollectionId.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
         override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries() = LibraryRefreshResult.Success
@@ -153,6 +154,7 @@ class LibraryItemsViewModelTest {
         tokenStorage: TokenStorage = fakeTokenStorage(),
         toReadRepository: ToReadRepository = FakeToReadRepository(),
         savedStateHandle: SavedStateHandle = SavedStateHandle(mapOf("libraryId" to "lib-1")),
+        readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
     ) = LibraryItemsViewModel(
         savedStateHandle,
         libraryRepository,
@@ -162,6 +164,7 @@ class LibraryItemsViewModelTest {
         pdfRepository,
         connectivityObserver,
         toReadRepository,
+        readaloudLinkRepository,
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
@@ -704,6 +707,7 @@ class LibraryItemsViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
             collectionItemsByCollectionId.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
         override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries() = LibraryRefreshResult.Success

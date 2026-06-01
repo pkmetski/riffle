@@ -227,6 +227,8 @@ class ReadaloudMatchingServiceTest {
             store.values.firstOrNull { it.absServerId == absServerId && it.absLibraryItemId == absLibraryItemId }
 
         override fun observeAll(): Flow<List<ReadaloudLinkEntity>> = flowOf(store.values.toList())
+        override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
+        override fun observeLinkedStorytellerBookIds(): Flow<List<String>> = flowOf(store.values.map { it.storytellerBookId })
 
         override suspend fun countForServer(serverId: String): Int =
             store.values.count { it.storytellerServerId == serverId || it.absServerId == serverId }

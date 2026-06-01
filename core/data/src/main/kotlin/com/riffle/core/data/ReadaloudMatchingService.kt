@@ -24,11 +24,15 @@ import javax.inject.Singleton
  * by the auto-matcher — per ADR 0021 that's reserved for the review-queue UI slice.
  */
 @Singleton
-class ReadaloudMatchingService @Inject constructor(
+class ReadaloudMatchingService(
     private val libraryItemDao: LibraryItemDao,
     private val readaloudLinkDao: ReadaloudLinkDao,
-    private val clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long,
 ) {
+    @Inject constructor(
+        libraryItemDao: LibraryItemDao,
+        readaloudLinkDao: ReadaloudLinkDao,
+    ) : this(libraryItemDao, readaloudLinkDao, System::currentTimeMillis)
 
     suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)

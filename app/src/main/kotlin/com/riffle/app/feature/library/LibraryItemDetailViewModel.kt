@@ -36,8 +36,27 @@ sealed interface LibraryItemDetailUiState {
         // Read button is disabled and the EPUB/audio downloads are hidden — reader-side bundle
         // fetch lands in #35 and #37 per ADR 0020.
         val isReadaloud: Boolean = false,
+        // Surfaced as the Readaloud-side / ABS-side footer per ADR 0021 when the matcher has
+        // produced a Confirmed link.
+        val readaloudFooter: ReadaloudFooterState? = null,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
+}
+
+sealed interface ReadaloudFooterState {
+    /** Shown on the ABS-side detail. Tapping navigates to the Readaloud item's detail screen. */
+    data class AbsHasReadaloud(
+        val readaloudLibraryName: String,
+        val readaloudItemId: String,
+    ) : ReadaloudFooterState
+
+    /** Shown on the Readaloud-side detail. Includes an unlink action. */
+    data class ReadaloudLinkedToAbs(
+        val absTitle: String,
+        val absLibraryName: String,
+        val storytellerServerId: String,
+        val storytellerBookId: String,
+    ) : ReadaloudFooterState
 }
 
 sealed interface DownloadState {
@@ -56,6 +75,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val pdfRepository: PdfRepository,
     private val sessionRepository: ReadingSessionRepository,
     private val toReadRepository: ToReadRepository,
+    private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -85,7 +105,13 @@ class LibraryItemDetailViewModel @Inject constructor(
                     _downloadState.value = deriveDownloadState(item)
                     if (!isReadaloud) toReadRepository.refresh(item.libraryId)
                     val isInToRead = if (isReadaloud) false else toReadRepository.isInToRead(item.id, item.libraryId)
-                    LibraryItemDetailUiState.Ready(item = item, isInToRead = isInToRead, isReadaloud = isReadaloud)
+                    val footer = resolveReadaloudFooter(item, isReadaloud, server?.id)
+                    LibraryItemDetailUiState.Ready(
+                        item = item,
+                        isInToRead = isInToRead,
+                        isReadaloud = isReadaloud,
+                        readaloudFooter = footer,
+                    )
                 } else {
                     LibraryItemDetailUiState.Error
                 }
@@ -175,6 +201,42 @@ class LibraryItemDetailViewModel @Inject constructor(
                 else -> {}
             }
             _downloadState.value = DownloadState.NotDownloaded
+        }
+    }
+
+    fun unlinkFromAbs() {
+        val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val footer = current.readaloudFooter as? ReadaloudFooterState.ReadaloudLinkedToAbs ?: return
+        viewModelScope.launch {
+            readaloudLinkRepository.unlink(footer.storytellerServerId, footer.storytellerBookId)
+            _uiState.value = current.copy(readaloudFooter = null)
+        }
+    }
+
+    private suspend fun resolveReadaloudFooter(
+        item: LibraryItem,
+        isReadaloud: Boolean,
+        serverId: String?,
+    ): ReadaloudFooterState? {
+        if (serverId == null) return null
+        return if (isReadaloud) {
+            val link = readaloudLinkRepository.findByStorytellerBook(serverId, item.id) ?: return null
+            val absItem = repository.getItem(link.absLibraryItemId) ?: return null
+            val absLibrary = repository.getLibrary(absItem.libraryId)
+            ReadaloudFooterState.ReadaloudLinkedToAbs(
+                absTitle = absItem.title,
+                absLibraryName = absLibrary?.name ?: absItem.libraryId,
+                storytellerServerId = link.storytellerServerId,
+                storytellerBookId = link.storytellerBookId,
+            )
+        } else {
+            val link = readaloudLinkRepository.findByAbsItem(serverId, item.id) ?: return null
+            val readaloudItem = repository.getItem(link.storytellerBookId) ?: return null
+            val readaloudLibrary = repository.getLibrary(readaloudItem.libraryId)
+            ReadaloudFooterState.AbsHasReadaloud(
+                readaloudLibraryName = readaloudLibrary?.name ?: readaloudItem.libraryId,
+                readaloudItemId = link.storytellerBookId,
+            )
         }
     }
 

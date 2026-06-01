@@ -72,6 +72,7 @@ class HomeViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries(): LibraryRefreshResult { onRefresh(); return refreshResult }
