@@ -28,9 +28,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -146,10 +150,15 @@ fun FormattingPanel(
 
             Spacer(Modifier.height(16.dp))
 
-            // Theme
+            // Theme — five chips don't fit on one row on a phone. Manual two-row split
+            // (concretes on top, Auto below) instead of FlowRow due to the
+            // compose-foundation ABI skew documented under "Font" below.
             Text("Theme", style = MaterialTheme.typography.labelMedium)
+            val concreteThemes = listOf(
+                ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReaderTheme.entries.forEach { theme ->
+                concreteThemes.forEach { theme ->
                     val label = theme.displayName()
                     FilterChip(
                         selected = prefs.theme == theme,
@@ -160,9 +169,24 @@ fun FormattingPanel(
                     )
                 }
             }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val label = ReaderTheme.Auto.displayName()
+                FilterChip(
+                    selected = prefs.theme == ReaderTheme.Auto,
+                    onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
+                    label = { Text(label) },
+                    leadingIcon = { ThemeSwatch(ReaderTheme.Auto, prefs.themeSchedule) },
+                    modifier = Modifier.semantics { contentDescription = "$label theme" },
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
 
+            // Auto schedule (day/night times + themes) is global-only — editable in
+            // Settings (fullScreen), not in the in-reader per-book panel. The in-reader
+            // panel can pick Auto as a per-book theme; the times it follows are whatever
+            // the user configured globally.
             if (fullScreen && prefs.theme == ReaderTheme.Auto) {
                 AutoScheduleControls(
                     schedule = prefs.themeSchedule,
@@ -678,14 +702,16 @@ private fun AutoScheduleControls(
         )
         Spacer(Modifier.height(12.dp))
         Text("Day theme", style = MaterialTheme.typography.labelMedium)
-        ConcreteThemeChipRow(
+        ConcreteThemeDropdown(
             selected = schedule.dayTheme,
+            fieldContentDescription = "Day theme",
             onSelect = { onScheduleChange(schedule.copy(dayTheme = it)) },
         )
         Spacer(Modifier.height(8.dp))
         Text("Night theme", style = MaterialTheme.typography.labelMedium)
-        ConcreteThemeChipRow(
+        ConcreteThemeDropdown(
             selected = schedule.nightTheme,
+            fieldContentDescription = "Night theme",
             onSelect = { onScheduleChange(schedule.copy(nightTheme = it)) },
         )
     }
@@ -693,23 +719,46 @@ private fun AutoScheduleControls(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConcreteThemeChipRow(
+private fun ConcreteThemeDropdown(
     selected: ReaderTheme,
+    fieldContentDescription: String,
     onSelect: (ReaderTheme) -> Unit,
 ) {
     val concretes = listOf(
         ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia,
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        concretes.forEach { theme ->
-            val label = theme.displayName()
-            FilterChip(
-                selected = selected == theme,
-                onClick = { onSelect(theme) },
-                label = { Text(label) },
-                leadingIcon = { ConcreteThemeSwatch(theme) },
-                modifier = Modifier.semantics { contentDescription = "$label theme" },
-            )
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selected.displayName(),
+            onValueChange = {},
+            readOnly = true,
+            leadingIcon = { ConcreteThemeSwatch(selected) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+                .semantics { contentDescription = fieldContentDescription },
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            concretes.forEach { theme ->
+                val label = theme.displayName()
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { ConcreteThemeSwatch(theme) },
+                    onClick = {
+                        onSelect(theme)
+                        expanded = false
+                    },
+                    modifier = Modifier.semantics { contentDescription = "$label theme" },
+                )
+            }
         }
     }
 }
