@@ -291,7 +291,7 @@ private fun ReadaloudFooter(state: ReadaloudFooterState, onUnlink: () -> Unit) {
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             Icon(
                 imageVector = Icons.Filled.Headphones,
@@ -300,16 +300,25 @@ private fun ReadaloudFooter(state: ReadaloudFooterState, onUnlink: () -> Unit) {
                 modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = when (state) {
-                    is ReadaloudFooterState.AbsHasReadaloud ->
-                        "Readaloud available — open from ${state.readaloudLibraryName}"
-                    is ReadaloudFooterState.ReadaloudLinkedToAbs ->
-                        "Linked to: ${state.absTitle} · ${state.absLibraryName}"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                when (state) {
+                    is ReadaloudFooterState.AbsHasReadaloud -> {
+                        Text(
+                            text = "Readaloud available — open from ${state.readaloudLibraryName}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    is ReadaloudFooterState.ReadaloudLinkedToAbs -> {
+                        Text(text = "Linked to:", style = MaterialTheme.typography.bodyMedium)
+                        state.targets.forEach { target ->
+                            Text(
+                                text = "• ${target.absTitle} · ${target.absLibraryName}",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
             if (state is ReadaloudFooterState.ReadaloudLinkedToAbs) {
                 IconButton(onClick = onUnlink) {
                     Icon(

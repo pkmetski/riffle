@@ -50,13 +50,18 @@ sealed interface ReadaloudFooterState {
         val readaloudItemId: String,
     ) : ReadaloudFooterState
 
-    /** Shown on the Readaloud-side detail. Includes an unlink action. */
+    /**
+     * Shown on the Readaloud-side detail. Lists every ABS counterpart since a readaloud can
+     * legitimately link to multiple ABS items (e.g. ebook + audiobook stub). Unlink drops
+     * every row paired with this readaloud.
+     */
     data class ReadaloudLinkedToAbs(
-        val absTitle: String,
-        val absLibraryName: String,
+        val targets: List<AbsTarget>,
         val storytellerServerId: String,
         val storytellerBookId: String,
-    ) : ReadaloudFooterState
+    ) : ReadaloudFooterState {
+        data class AbsTarget(val absTitle: String, val absLibraryName: String)
+    }
 }
 
 sealed interface DownloadState {
@@ -222,24 +227,31 @@ class LibraryItemDetailViewModel @Inject constructor(
     ): ReadaloudFooterState? {
         if (serverId == null) return null
         return if (isReadaloud) {
-            // A readaloud can have multiple ABS rows (ebook + audiobook stub). Pick the
-            // preferred one for the footer display — ebook formats win over unsupported
-            // audiobook stubs.
+            // A readaloud can have multiple ABS rows (ebook + audiobook stub). Surface
+            // every counterpart, ebooks first so the most useful target leads the list.
             val links = readaloudLinkRepository.findByStorytellerBook(serverId, item.id)
             if (links.isEmpty()) return null
-            val absItems = links.mapNotNull { link ->
-                repository.getItem(link.absLibraryItemId)?.let { it to link }
-            }
-            val preferred = absItems
-                .sortedBy { (absItem, _) -> if (absItem.ebookFormat == EbookFormat.Unsupported) 1 else 0 }
-                .firstOrNull() ?: return null
-            val (absItem, link) = preferred
-            val absLibrary = repository.getLibrary(absItem.libraryId)
+            val targets = links
+                .mapNotNull { link ->
+                    val absItem = repository.getItem(link.absLibraryItemId) ?: return@mapNotNull null
+                    val library = repository.getLibrary(absItem.libraryId)
+                    absItem to ReadaloudFooterState.ReadaloudLinkedToAbs.AbsTarget(
+                        absTitle = absItem.title,
+                        absLibraryName = library?.name ?: absItem.libraryId,
+                    )
+                }
+                .sortedWith(
+                    compareBy(
+                        { if (it.first.ebookFormat == EbookFormat.Unsupported) 1 else 0 },
+                        { it.second.absLibraryName },
+                    )
+                )
+                .map { it.second }
+            if (targets.isEmpty()) return null
             ReadaloudFooterState.ReadaloudLinkedToAbs(
-                absTitle = absItem.title,
-                absLibraryName = absLibrary?.name ?: absItem.libraryId,
-                storytellerServerId = link.storytellerServerId,
-                storytellerBookId = link.storytellerBookId,
+                targets = targets,
+                storytellerServerId = serverId,
+                storytellerBookId = item.id,
             )
         } else {
             val link = readaloudLinkRepository.findByAbsItem(serverId, item.id) ?: return null
