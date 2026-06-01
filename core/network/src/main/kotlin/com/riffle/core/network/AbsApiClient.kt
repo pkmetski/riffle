@@ -179,6 +179,8 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     genres = dto.media.metadata.genres,
                     publisher = dto.media.metadata.publisher,
                     addedAt = dto.addedAt,
+                    isbn = dto.media.metadata.isbn,
+                    asin = dto.media.metadata.asin,
                 )
             })
         } catch (e: Exception) {

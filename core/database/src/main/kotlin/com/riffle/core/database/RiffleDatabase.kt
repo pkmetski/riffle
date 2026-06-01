@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookFormattingPreferencesEntity::class,
         ReadaloudLinkEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -320,6 +320,16 @@ abstract class RiffleDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId` " +
                         "ON `readaloud_links` (`absServerId`)"
                 )
+            }
+        }
+
+        // Identifier columns on library_items so the Storyteller↔ABS matcher (issue #36)
+        // can run Tier 1 (ISBN/ASIN) without joining a separate metadata table. Default NULL
+        // because existing rows pre-date the metadata being surfaced.
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `isbn` TEXT")
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `asin` TEXT")
             }
         }
     }

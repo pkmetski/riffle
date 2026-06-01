@@ -158,6 +158,8 @@ class LibraryRepositoryImpl @Inject constructor(
                             // server stamp wins once another device has read more recently.
                             lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
                             addedAt = item.addedAt,
+                            isbn = item.isbn,
+                            asin = item.asin,
                         )
                     }
                 libraryItemDao.replaceAllForLibrary(libraryId, entities)
@@ -261,6 +263,8 @@ class LibraryRepositoryImpl @Inject constructor(
                     publisher = null,
                     lastOpenedAt = lastOpenedAtMap[id],
                     addedAt = null,
+                    isbn = book.isbn,
+                    asin = book.asin,
                 )
             }
             libraryItemDao.replaceAllForLibrary(libraryId, entities)
@@ -297,6 +301,8 @@ class LibraryRepositoryImpl @Inject constructor(
         publisher = publisher,
         lastOpenedAt = lastOpenedAt,
         addedAt = addedAt,
+        isbn = isbn,
+        asin = asin,
     )
 
     private fun SeriesEntity.toDomain() = Series(

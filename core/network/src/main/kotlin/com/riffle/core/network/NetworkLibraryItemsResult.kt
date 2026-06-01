@@ -16,6 +16,8 @@ data class NetworkLibraryItem(
     val genres: List<String> = emptyList(),
     val publisher: String? = null,
     val addedAt: Long? = null,
+    val isbn: String? = null,
+    val asin: String? = null,
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }

@@ -20,4 +20,6 @@ data class LibraryItemEntity(
     val publisher: String? = null,
     val lastOpenedAt: Long? = null,
     val addedAt: Long? = null,
+    val isbn: String? = null,
+    val asin: String? = null,
 )

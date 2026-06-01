@@ -717,6 +717,39 @@ class MigrationTest {
     }
 
     @Test
+    fun migration22To23_addsIsbnAndAsinColumns() {
+        helper.createDatabase(TEST_DB, 22).use { db ->
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt) " +
+                    "VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL, NULL)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 23, true, RiffleDatabase.MIGRATION_22_23)
+
+        // Pre-existing row preserved; new columns default to NULL.
+        db.query("SELECT id, title, isbn, asin FROM library_items WHERE id = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertEquals("Dune", cursor.getString(1))
+            assertNull(cursor.getString(2))
+            assertNull(cursor.getString(3))
+        }
+
+        // New writes can populate the new columns.
+        db.execSQL(
+            "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt, isbn, asin) " +
+                "VALUES ('item2', 'lib1', 'Atomic Habits', 'James Clear', NULL, 0.0, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL, NULL, '9780735211292', 'B07D23CFGR')"
+        )
+        db.query("SELECT isbn, asin FROM library_items WHERE id = 'item2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("9780735211292", cursor.getString(0))
+            assertEquals("B07D23CFGR", cursor.getString(1))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -725,7 +758,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 22, true,
+            TEST_DB, 23, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -747,6 +780,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_19_20,
             RiffleDatabase.MIGRATION_20_21,
             RiffleDatabase.MIGRATION_21_22,
+            RiffleDatabase.MIGRATION_22_23,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
