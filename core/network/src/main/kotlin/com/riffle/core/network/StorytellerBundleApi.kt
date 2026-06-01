@@ -16,7 +16,7 @@ sealed interface NetworkStorytellerBundleResult {
     data class NetworkError(val cause: Throwable) : NetworkStorytellerBundleResult
 }
 
-interface StorytellerBundleApi {
+fun interface StorytellerBundleApi {
     suspend fun downloadBundle(
         baseUrl: String,
         bookId: String,
