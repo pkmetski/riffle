@@ -37,6 +37,7 @@ class ProgressSyncCycleTest {
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
             updatedServerId = serverId
             updatedTimestamp = millis
+            localUpdatedAt = millis
         }
     }
 
@@ -277,7 +278,7 @@ class ProgressSyncCycleTest {
     // --- touchOpenTimestamp ---
 
     @Test
-    fun `touchOpenTimestamp PATCHes back the server's current ebookLocation to bump lastUpdate without clobbering position`() = runTest {
+    fun `touchOpenTimestamp PATCHes back the server's current ebookLocation without writing local timestamp`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val recording = object : AbsSessionApi {
             var patchPayload: NetworkEbookProgressPayload? = null
@@ -296,7 +297,35 @@ class ProgressSyncCycleTest {
 
         assertEquals("server-cfi", recording.patchPayload?.ebookLocation)
         assertEquals(0.42f, recording.patchPayload?.ebookProgress)
-        assertEquals(7_777L, positionStore.updatedTimestamp)
+        // Local timestamps stay untouched — this is what allows the next sync cycle to
+        // recognise the server as the source of truth and pull the saved position.
+        assertEquals(null, positionStore.updatedTimestamp)
+        assertEquals(0L, positionStore.localUpdatedAt)
+    }
+
+    @Test
+    fun `touchOpenTimestamp leaves localUpdatedAt untouched so the next sync cycle pulls server progress`() = runTest {
+        // Regression: touchOpenTimestamp used to bump local's updatedAt to the server's new
+        // lastUpdate without writing the server's cfi/progress locally. The empty local cfi
+        // + matching timestamp made the next runSyncCycle return InSync — the reader opened
+        // at page 1 and any subsequent local save overwrote the real server position.
+        // The contract is now: touchOpenTimestamp doesn't touch local timestamps, so the
+        // first sync cycle after it sees server > local and ServerWins fires, restoring the
+        // saved position.
+        val positionStore = FakePositionStore(localUpdatedAt = 0L)
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.Success(
+                NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L)
+            ),
+            patchResult = NetworkSyncSessionResult.Success(7_777L),
+        )
+        val repo = buildRepo(api, positionStore)
+
+        repo.touchOpenTimestamp("item-1")
+        val result = repo.runSyncCycle("item-1", payload = SessionPayload("", 0f))
+
+        assertTrue(result is ProgressSyncCycleResult.ServerWins)
+        assertEquals("server-cfi", (result as ProgressSyncCycleResult.ServerWins).serverProgress.ebookLocation)
     }
 
     @Test
