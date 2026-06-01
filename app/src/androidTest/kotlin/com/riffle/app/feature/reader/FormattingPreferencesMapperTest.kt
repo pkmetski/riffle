@@ -53,6 +53,14 @@ class FormattingPreferencesMapperTest {
         assertEquals(Theme.SEPIA, result.theme)
     }
 
+    @Test
+    fun autoThemeMapsToLIGHTAsDefensiveFallback() {
+        // Reader VM resolves Auto before calling the mapper; this verifies the
+        // fallback path the mapper provides for exhaustiveness.
+        val result = FormattingPreferences(theme = ReaderTheme.Auto).toEpubPreferences()
+        assertEquals(Theme.LIGHT, result.theme)
+    }
+
     // Serif is the default ReaderFontFamily; mapping it to null leaves --USER__fontFamily
     // unset on :root so the publisher's typography is preserved on books the user hasn't
     // customized. See typographyOverrideCss() — the gate `:root[style*="--USER__fontFamily"]`
