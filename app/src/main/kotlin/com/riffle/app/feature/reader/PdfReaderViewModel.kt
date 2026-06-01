@@ -4,32 +4,20 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.BookFormattingOverrides
-import com.riffle.core.domain.BookFormattingPreferencesStore
-import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfOpenResult
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -60,9 +48,6 @@ class PdfReaderViewModel @Inject constructor(
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val readingSessionRepository: ReadingSessionRepository,
     private val volumeNavigationController: VolumeNavigationController,
-    private val formattingPreferencesStore: FormattingPreferencesStore,
-    private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
-    private val timeProvider: TimeProvider,
     private val readerStateHolder: ReaderStateHolder,
 ) : AndroidViewModel(application) {
 
@@ -73,21 +58,6 @@ class PdfReaderViewModel @Inject constructor(
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
-
-    private val _bookOverrides = MutableStateFlow(BookFormattingOverrides())
-    private val _formattingPreferences = MutableStateFlow(FormattingPreferences())
-    val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
-
-    private val scheduleTicks = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1).apply {
-        tryEmit(Unit)
-    }
-
-    val effectiveFormattingPreferences: StateFlow<FormattingPreferences> = combine(
-        _formattingPreferences,
-        scheduleTicks,
-    ) { prefs, _ -> prefs.withResolvedTheme(timeProvider.nowLocalTime()) }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, FormattingPreferences())
 
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
@@ -115,50 +85,12 @@ class PdfReaderViewModel @Inject constructor(
     private var initialLocatorSeen = false
 
     init {
-        viewModelScope.launch {
-            loadFormattingPreferences()
-            openBook()
-        }
-        viewModelScope.launch {
-            combine(
-                formattingPreferencesStore.preferences,
-                _bookOverrides,
-            ) { global, overrides -> overrides.applyTo(global) }
-                .collect { _formattingPreferences.value = it }
-        }
-        viewModelScope.launch {
-            _formattingPreferences
-                .map { it.themeSchedule to (it.theme == ReaderTheme.Auto) }
-                .distinctUntilChanged()
-                .collectLatest { (schedule, autoActive) ->
-                    if (!autoActive) return@collectLatest
-                    // Degenerate schedule (equal day/night times) collapses to always-day —
-                    // no boundary will ever arrive. Park until cancelled instead of spinning.
-                    if (schedule.dayStart == schedule.nightStart) {
-                        awaitCancellation()
-                    }
-                    while (true) {
-                        val now = timeProvider.nowLocalTime()
-                        val next = schedule.nextBoundaryAfter(now)
-                        val delayMs = (((next.toSecondOfDay() - now.toSecondOfDay() + 24 * 3600) % (24 * 3600)) * 1000L)
-                            .coerceAtLeast(1_000L)
-                        delay(delayMs)
-                        scheduleTicks.tryEmit(Unit)
-                    }
-                }
-        }
+        viewModelScope.launch { openBook() }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverLocationToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
             }
         }
-    }
-
-    private suspend fun loadFormattingPreferences() {
-        val overrides = bookFormattingPreferencesStore.load(itemId)
-        val global = formattingPreferencesStore.preferences.first()
-        _bookOverrides.value = overrides
-        _formattingPreferences.value = overrides.applyTo(global)
     }
 
     private suspend fun openBook() {

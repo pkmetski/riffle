@@ -26,37 +26,38 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import java.time.LocalTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -64,13 +65,13 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
-import androidx.compose.ui.graphics.drawscope.clipPath
 import com.riffle.core.domain.ThemeSchedule
+import java.time.LocalTime
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -542,14 +543,17 @@ private fun ConcreteThemeSwatch(theme: ReaderTheme) {
 private fun AutoThemeSwatch(schedule: ThemeSchedule) {
     val day = schedule.dayTheme.palette
     val night = schedule.nightTheme.palette
+    val shape = RoundedCornerShape(percent = 50)
     Box(
         modifier = Modifier
             .size(18.dp)
-            .background(day.background, RoundedCornerShape(percent = 50))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(percent = 50)),
+            .clip(shape)
+            .background(day.background, shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline, shape),
         contentAlignment = Alignment.Center,
     ) {
-        // Bottom-right half painted in the night background, clipped to the circle.
+        // Bottom-right half painted in the night background. The parent clip keeps the
+        // canvas inside the rounded shape so the night fill never bleeds past the border.
         Canvas(modifier = Modifier.size(18.dp)) {
             val path = androidx.compose.ui.graphics.Path().apply {
                 moveTo(size.width, 0f)

@@ -99,5 +99,9 @@ class FormattingPreferencesStoreImpl @Inject constructor(
 }
 
 private fun LocalTime.toMinuteOfDay(): Int = hour * 60 + minute
-private fun minuteOfDayToLocalTime(value: Int): LocalTime =
-    LocalTime.of((value / 60).coerceIn(0, 23), (value % 60).coerceIn(0, 59))
+private fun minuteOfDayToLocalTime(value: Int): LocalTime {
+    // Clamp to the valid 24h range first so values like 1440 (24:00) don't silently
+    // round-trip to 00:00 via the modulo on the next line.
+    val clamped = value.coerceIn(0, 24 * 60 - 1)
+    return LocalTime.of(clamped / 60, clamped % 60)
+}
