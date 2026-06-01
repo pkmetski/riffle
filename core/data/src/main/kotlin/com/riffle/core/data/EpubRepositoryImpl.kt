@@ -77,18 +77,35 @@ class EpubRepositoryImpl(
             ?: return EpubDownloadResult.NetworkError(IllegalStateException("No active server"))
         val token = tokenStorage.getToken(server.id)
             ?: return EpubDownloadResult.NetworkError(IllegalStateException("No token for server"))
-        val ino = item.ebookFileIno ?: run {
-            when (val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
-                is NetworkItemEbookInoResult.Success -> r.ino
-                is NetworkItemEbookInoResult.NetworkError -> return EpubDownloadResult.NetworkError(r.cause)
+        return when (server.serverType) {
+            ServerType.STORYTELLER -> {
+                when (val r = bundleFetcher.fetch(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
+                    is EpubBundleFetcher.Result.Success -> {
+                        try {
+                            r.epubFile.inputStream().use { downloadsStore.save(item.id, it) }
+                        } finally {
+                            r.epubFile.delete()
+                        }
+                        EpubDownloadResult.Success
+                    }
+                    is EpubBundleFetcher.Result.NetworkError -> EpubDownloadResult.NetworkError(r.cause)
+                }
             }
-        }
-        return when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
-            is NetworkEpubDownloadResult.Success -> {
-                result.body.use { body -> downloadsStore.save(item.id, body.byteStream()) }
-                EpubDownloadResult.Success
+            ServerType.AUDIOBOOKSHELF -> {
+                val ino = item.ebookFileIno ?: run {
+                    when (val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
+                        is NetworkItemEbookInoResult.Success -> r.ino
+                        is NetworkItemEbookInoResult.NetworkError -> return EpubDownloadResult.NetworkError(r.cause)
+                    }
+                }
+                when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
+                    is NetworkEpubDownloadResult.Success -> {
+                        result.body.use { body -> downloadsStore.save(item.id, body.byteStream()) }
+                        EpubDownloadResult.Success
+                    }
+                    is NetworkEpubDownloadResult.NetworkError -> EpubDownloadResult.NetworkError(result.cause)
+                }
             }
-            is NetworkEpubDownloadResult.NetworkError -> EpubDownloadResult.NetworkError(result.cause)
         }
     }
 

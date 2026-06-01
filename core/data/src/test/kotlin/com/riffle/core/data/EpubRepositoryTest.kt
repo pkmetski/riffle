@@ -263,6 +263,80 @@ class EpubRepositoryTest {
     // --- Storyteller ---
 
     @Test
+    fun `downloadEpub for Storyteller server saves to downloads store`() = runTest {
+        val epubBytes = "STORY DL".toByteArray()
+        val bundleBytes = java.io.ByteArrayOutputStream().also { baos ->
+            java.util.zip.ZipOutputStream(baos).use { zip ->
+                zip.putNextEntry(java.util.zip.ZipEntry("book.epub"))
+                zip.write(epubBytes); zip.closeEntry()
+            }
+        }.toByteArray()
+
+        val bundleApi = StorytellerBundleApi { _, _, _, _ ->
+            NetworkStorytellerBundleResult.Success(
+                bundleBytes.toResponseBody("application/zip".toMediaType()),
+            )
+        }
+        val fetcher = EpubBundleFetcher(bundleApi, workingDirProvider = { tmp.newFolder("wd-${System.nanoTime()}") })
+        val cache = LocalStoreImpl(tmp.newFolder("st-cache-dl"), ".epub")
+        val downloads = LocalStoreImpl(tmp.newFolder("st-dl-dl"), ".epub")
+        val storytellerRepo = EpubRepositoryImpl(
+            api = AbsApiClient(OkHttpClient()),
+            bundleFetcher = fetcher,
+            cacheStore = cache,
+            downloadsStore = downloads,
+            positionStore = FakePositionStore(),
+            serverRepository = fakeServerRepositoryForServer(
+                Server(
+                    id = "st-srv", url = ServerUrl.parse("http://st.example")!!,
+                    displayName = "St", isActive = true, insecureConnectionAllowed = false,
+                    username = "x", serverType = ServerType.STORYTELLER,
+                ),
+            ),
+            tokenStorage = fakeTokenStorage("st-token"),
+        )
+
+        val result = storytellerRepo.downloadEpub(item(id = "77", ino = null))
+
+        assertEquals(EpubDownloadResult.Success, result)
+        assertEquals(epubBytes.toList(), downloads.get("77")!!.readBytes().toList())
+    }
+
+    @Test
+    fun `downloadEpub for Storyteller server promotes cache without calling fetcher`() = runTest {
+        val cache = LocalStoreImpl(tmp.newFolder("st-cache-promote"), ".epub")
+        cache.save("77", "CACHED".byteInputStream())
+        val downloads = LocalStoreImpl(tmp.newFolder("st-dl-promote"), ".epub")
+
+        val bundleApi = StorytellerBundleApi { _, _, _, _ ->
+            error("Should not be called when already cached")
+        }
+        val fetcher = EpubBundleFetcher(bundleApi, workingDirProvider = { tmp.newFolder("wd-promote-${System.nanoTime()}") })
+
+        val storytellerRepo = EpubRepositoryImpl(
+            api = AbsApiClient(OkHttpClient()),
+            bundleFetcher = fetcher,
+            cacheStore = cache,
+            downloadsStore = downloads,
+            positionStore = FakePositionStore(),
+            serverRepository = fakeServerRepositoryForServer(
+                Server(
+                    id = "st-srv", url = ServerUrl.parse("http://st.example")!!,
+                    displayName = "St", isActive = true, insecureConnectionAllowed = false,
+                    username = "x", serverType = ServerType.STORYTELLER,
+                ),
+            ),
+            tokenStorage = fakeTokenStorage("st-token"),
+        )
+
+        val result = storytellerRepo.downloadEpub(item(id = "77", ino = null))
+
+        assertEquals(EpubDownloadResult.Success, result)
+        assertEquals("CACHED", downloads.get("77")!!.readText())
+        assertEquals(null, cache.get("77"))
+    }
+
+    @Test
     fun `openEpub for Storyteller server uses bundle fetcher and caches extracted epub`() = runTest {
         val epubContent = "STORY EPUB".toByteArray()
         val bundleBytes = java.io.ByteArrayOutputStream().also { baos ->
