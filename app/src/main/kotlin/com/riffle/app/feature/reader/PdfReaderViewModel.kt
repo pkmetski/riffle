@@ -19,6 +19,7 @@ import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -131,6 +132,11 @@ class PdfReaderViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collectLatest { (schedule, autoActive) ->
                     if (!autoActive) return@collectLatest
+                    // Degenerate schedule (equal day/night times) collapses to always-day —
+                    // no boundary will ever arrive. Park until cancelled instead of spinning.
+                    if (schedule.dayStart == schedule.nightStart) {
+                        awaitCancellation()
+                    }
                     while (true) {
                         val now = timeProvider.nowLocalTime()
                         val next = schedule.nextBoundaryAfter(now)

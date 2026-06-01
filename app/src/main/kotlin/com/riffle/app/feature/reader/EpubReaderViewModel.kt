@@ -23,6 +23,7 @@ import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -213,6 +214,12 @@ class EpubReaderViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collectLatest { (schedule, autoActive) ->
                     if (!autoActive) return@collectLatest
+                    // Degenerate schedule (equal day/night times) collapses to always-day —
+                    // no boundary will ever arrive. Park until cancelled (the schedule
+                    // changes) instead of spinning at 1 Hz against the 1_000L floor.
+                    if (schedule.dayStart == schedule.nightStart) {
+                        awaitCancellation()
+                    }
                     while (true) {
                         val now = timeProvider.nowLocalTime()
                         val next = schedule.nextBoundaryAfter(now)

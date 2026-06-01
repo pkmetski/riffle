@@ -181,7 +181,7 @@ class EpubReaderViewModelTest {
             while (true) {
                 val next = schedule.nextBoundaryAfter(fakeNow)
                 val delayMs = ((next.toSecondOfDay() - fakeNow.toSecondOfDay() + 24 * 3600) % (24 * 3600)) * 1000L
-                delay(delayMs.coerceAtLeast(1L))
+                delay(delayMs.coerceAtLeast(1_000L))
                 fakeNow = next
                 emitted += schedule.resolve(fakeNow)
             }
