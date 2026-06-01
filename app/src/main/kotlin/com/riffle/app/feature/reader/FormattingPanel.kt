@@ -39,8 +39,15 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import java.time.LocalTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -155,6 +162,14 @@ fun FormattingPanel(
             }
 
             Spacer(Modifier.height(16.dp))
+
+            if (fullScreen && prefs.theme == ReaderTheme.Auto) {
+                AutoScheduleControls(
+                    schedule = prefs.themeSchedule,
+                    onScheduleChange = { onPrefsChange(prefs.copy(themeSchedule = it)) },
+                )
+                Spacer(Modifier.height(16.dp))
+            }
 
             // Font family — split into two rows: generic web fonts above, bundled book fonts
             // below. Manual two-Row layout avoids FlowRow's compose-foundation version
@@ -640,3 +655,109 @@ private fun ReaderFontFamily.displayName(): String = when (this) {
 }
 
 private fun Float.round1() = (this * 10).roundToInt() / 10f
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AutoScheduleControls(
+    schedule: ThemeSchedule,
+    onScheduleChange: (ThemeSchedule) -> Unit,
+) {
+    Column {
+        Text("Day starts at", style = MaterialTheme.typography.labelMedium)
+        TimeField(
+            time = schedule.dayStart,
+            contentDescription = "Day start time",
+            onTimeChange = { onScheduleChange(schedule.copy(dayStart = it)) },
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Night starts at", style = MaterialTheme.typography.labelMedium)
+        TimeField(
+            time = schedule.nightStart,
+            contentDescription = "Night start time",
+            onTimeChange = { onScheduleChange(schedule.copy(nightStart = it)) },
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Day theme", style = MaterialTheme.typography.labelMedium)
+        ConcreteThemeChipRow(
+            selected = schedule.dayTheme,
+            onSelect = { onScheduleChange(schedule.copy(dayTheme = it)) },
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Night theme", style = MaterialTheme.typography.labelMedium)
+        ConcreteThemeChipRow(
+            selected = schedule.nightTheme,
+            onSelect = { onScheduleChange(schedule.copy(nightTheme = it)) },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConcreteThemeChipRow(
+    selected: ReaderTheme,
+    onSelect: (ReaderTheme) -> Unit,
+) {
+    val concretes = listOf(
+        ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        concretes.forEach { theme ->
+            val label = theme.displayName()
+            FilterChip(
+                selected = selected == theme,
+                onClick = { onSelect(theme) },
+                label = { Text(label) },
+                leadingIcon = { ConcreteThemeSwatch(theme) },
+                modifier = Modifier.semantics { contentDescription = "$label theme" },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeField(
+    time: LocalTime,
+    contentDescription: String,
+    onTimeChange: (LocalTime) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val label = "%02d:%02d".format(time.hour, time.minute)
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showPicker = true }
+            .semantics { this.contentDescription = contentDescription },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.height(48.dp).fillMaxWidth(),
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+    if (showPicker) {
+        val state = rememberTimePickerState(
+            initialHour = time.hour,
+            initialMinute = time.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onTimeChange(LocalTime.of(state.hour, state.minute))
+                    showPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+            },
+            text = { TimePicker(state = state) },
+        )
+    }
+}
