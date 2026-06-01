@@ -97,8 +97,14 @@ For an ABS-only book the cycle has one remote (ABS ebook progress). For a matche
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:
-- **EPUB:** font size, theme (Light / Dark / Sepia), font family (system fonts + Literata, Merriweather, OpenDyslexic), justify text (on/off toggle, default off), line spacing, margins, reading orientation (paginated / continuous scroll).
-- **PDF:** theme (as colour filter), scroll direction (paged / continuous), zoom persistence.
+- **EPUB:** font size, theme (Light / Dark / Sepia / [Auto Theme]), font family (system fonts + Literata, Merriweather, OpenDyslexic), justify text (on/off toggle, default off), line spacing, margins, reading orientation (paginated / continuous scroll).
+- **PDF:** theme (as colour filter, same value set as EPUB including [Auto Theme]), scroll direction (paged / continuous), zoom persistence.
+
+### Auto Theme
+A theme value that sits alongside Light, Dark, DarkDim, and Sepia in the [Formatting Preferences] theme picker. Selected like any other theme — globally as the default or per-book as an override — but resolves at render-time to one of the four concrete themes according to the [Theme Schedule]. The chip in the formatting panel uses a split day/night swatch (half day-theme background, half night-theme background) so the user can see which two palettes the schedule will alternate between. A book pinned to a concrete theme is unaffected by the schedule; a book pinned to Auto follows it.
+
+### Theme Schedule
+A global, user-configured pair of clock times and theme picks that drive the [Auto Theme]. Four fields: **day-start**, **night-start**, **day-theme**, **night-theme**. The two theme picks are restricted to the four concrete themes (Light, Dark, DarkDim, Sepia) — Auto cannot nest inside Auto. Interpreted on the device's local clock as two arcs on a 24-hour circle: the night arc runs clockwise from night-start to day-start and may cross midnight. If day-start equals night-start, the schedule degenerates to always-day. Defaults on first opt-in: 07:00, 21:00, Light, Dark. Applies uniformly to EPUB and PDF reading. Boundary crossings during an open reading session repaint live — a timer fires at the next boundary and the navigator reapplies preferences without the user closing the book. The four fields are editable only on the full-screen Settings panel; the in-reader formatting panel just shows the Auto chip as a selectable theme. See [ADR 0022](adr/0022-auto-reader-theme-clock-scheduled-fifth-enum.md).
 
 ### EPUB CFI
 An EPUB Canonical Fragment Identifier — a string of the form `epubcfi(/6/N!<docPath>)` that pinpoints an exact location within an EPUB chapter. The spine step (`/6/N`) identifies the chapter; the document path after `!` identifies a node and character offset within that chapter's HTML. Two CFI dialects exist in practice: Readium emits XPath-style node addresses; epub.js (ABS's web reader) emits character-count-based addresses. The two are structurally incompatible. See ADR 0013.

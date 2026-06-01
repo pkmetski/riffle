@@ -3,6 +3,8 @@
 package com.riffle.app.di
 
 import android.content.Context
+import com.riffle.app.feature.reader.SystemTimeProvider
+import com.riffle.app.feature.reader.TimeProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,6 +31,10 @@ object AppModule {
         @ApplicationContext context: Context,
         httpClient: DefaultHttpClient
     ): AssetRetriever = AssetRetriever(context.contentResolver, httpClient)
+
+    @Provides
+    @Singleton
+    fun provideTimeProvider(impl: SystemTimeProvider): TimeProvider = impl
 
     @Provides
     @Singleton

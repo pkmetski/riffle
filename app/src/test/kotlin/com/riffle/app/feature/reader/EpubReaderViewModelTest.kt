@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.withResolvedTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -161,6 +162,78 @@ class EpubReaderViewModelTest {
 
         advanceTimeBy(250)
         assertEquals(1, searchCallCount)
+    }
+
+    // EpubReaderViewModel is an AndroidViewModel and can't be instantiated here, so this
+    // mirrors its boundary loop with virtual time — but routes resolution through the
+    // production withResolvedTheme() so the test exercises real domain code, not just
+    // ThemeSchedule.resolve in isolation.
+    @Test
+    fun `Auto prefs flip at each schedule boundary across a 24h cycle`() = runTest {
+        val schedule = com.riffle.core.domain.ThemeSchedule(
+            dayStart = java.time.LocalTime.of(7, 0),
+            nightStart = java.time.LocalTime.of(21, 0),
+            dayTheme = com.riffle.core.domain.ReaderTheme.Light,
+            nightTheme = com.riffle.core.domain.ReaderTheme.Dark,
+        )
+        val prefs = com.riffle.core.domain.FormattingPreferences(
+            theme = com.riffle.core.domain.ReaderTheme.Auto,
+            themeSchedule = schedule,
+        )
+        var fakeNow = java.time.LocalTime.of(20, 59)
+        val emitted = mutableListOf<com.riffle.core.domain.ReaderTheme>()
+
+        backgroundScope.launch {
+            emitted += prefs.withResolvedTheme(fakeNow).theme
+            while (true) {
+                val next = schedule.nextBoundaryAfter(fakeNow)
+                val delayMs = ((next.toSecondOfDay() - fakeNow.toSecondOfDay() + 24 * 3600) % (24 * 3600)) * 1000L
+                delay(delayMs.coerceAtLeast(1_000L))
+                fakeNow = next
+                emitted += prefs.withResolvedTheme(fakeNow).theme
+            }
+        }
+
+        // 20:59 → 21:00 (60s) flips to Dark; 21:00 → 07:00 (10h) flips back to Light.
+        advanceTimeBy(60_000 + 1)
+        assertEquals(
+            listOf(
+                com.riffle.core.domain.ReaderTheme.Light,
+                com.riffle.core.domain.ReaderTheme.Dark,
+            ),
+            emitted,
+        )
+        advanceTimeBy(10 * 3600 * 1000L)
+        assertEquals(
+            listOf(
+                com.riffle.core.domain.ReaderTheme.Light,
+                com.riffle.core.domain.ReaderTheme.Dark,
+                com.riffle.core.domain.ReaderTheme.Light,
+            ),
+            emitted,
+        )
+    }
+
+    // Regression for the EpubReaderViewModel's `if (schedule.dayStart == schedule.nightStart)
+    // awaitCancellation()` guard: a degenerate schedule must not emit any boundary tick.
+    @Test
+    fun `degenerate schedule (equal day-and-night) emits no boundary ticks`() = runTest {
+        val degenerate = com.riffle.core.domain.ThemeSchedule(
+            dayStart = java.time.LocalTime.of(8, 0),
+            nightStart = java.time.LocalTime.of(8, 0),
+        )
+        var tickCount = 0
+        backgroundScope.launch {
+            if (degenerate.dayStart == degenerate.nightStart) {
+                kotlinx.coroutines.awaitCancellation()
+            }
+            while (true) {
+                delay(1_000L)
+                tickCount++
+            }
+        }
+        advanceTimeBy(24 * 3600 * 1000L)
+        assertEquals(0, tickCount)
     }
 }
 

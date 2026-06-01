@@ -26,26 +26,38 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -53,11 +65,13 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.ThemeSchedule
+import java.time.LocalTime
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,22 +151,50 @@ fun FormattingPanel(
 
             Spacer(Modifier.height(16.dp))
 
-            // Theme
+            // Theme — five chips don't fit on one row on a phone. Manual two-row split
+            // (concretes on top, Auto below) instead of FlowRow due to the
+            // compose-foundation ABI skew documented under "Font" below.
             Text("Theme", style = MaterialTheme.typography.labelMedium)
+            val concreteThemes = listOf(
+                ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReaderTheme.entries.forEach { theme ->
+                concreteThemes.forEach { theme ->
                     val label = theme.displayName()
                     FilterChip(
                         selected = prefs.theme == theme,
                         onClick = { onPrefsChange(prefs.copy(theme = theme)) },
                         label = { Text(label) },
-                        leadingIcon = { ThemeSwatch(theme) },
+                        leadingIcon = { ThemeSwatch(theme, prefs.themeSchedule) },
                         modifier = Modifier.semantics { contentDescription = "$label theme" },
                     )
                 }
             }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val label = ReaderTheme.Auto.displayName()
+                FilterChip(
+                    selected = prefs.theme == ReaderTheme.Auto,
+                    onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
+                    label = { Text(label) },
+                    leadingIcon = { ThemeSwatch(ReaderTheme.Auto, prefs.themeSchedule) },
+                    modifier = Modifier.semantics { contentDescription = "$label theme" },
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
+
+            // Auto schedule (day/night times + themes) is global-only — editable in
+            // Settings (fullScreen), not in the in-reader per-book panel. The in-reader
+            // panel can pick Auto as a per-book theme; the times it follows are whatever
+            // the user configured globally.
+            if (fullScreen && prefs.theme == ReaderTheme.Auto) {
+                AutoScheduleControls(
+                    schedule = prefs.themeSchedule,
+                    onScheduleChange = { onPrefsChange(prefs.copy(themeSchedule = it)) },
+                )
+                Spacer(Modifier.height(16.dp))
+            }
 
             // Font family — split into two rows: generic web fonts above, bundled book fonts
             // below. Manual two-Row layout avoids FlowRow's compose-foundation version
@@ -471,32 +513,58 @@ private fun ReaderTheme.displayName(): String = when (this) {
     ReaderTheme.Dark -> "Dark"
     ReaderTheme.DarkDim -> "Dim"
     ReaderTheme.Sepia -> "Sepia"
+    ReaderTheme.Auto -> "Auto"
 }
 
-// Reader pane background/foreground colors for each theme — used to render a small
-// preview swatch on the corresponding FilterChip so users can pick a theme by sight
-// rather than reading the label. The dot is filled with the background and outlined
-// in the foreground so Dark vs Dark dim are visually distinct.
-// Palette comes from ReaderThemePalette so this stays in lock-step with the chapter-rail
-// overlay backdrop and (transitively) Readium's actual page rendering.
-private fun ReaderTheme.swatchBackground(): Color = palette.background
-
-private fun ReaderTheme.swatchForeground(): Color = palette.foreground
+@Composable
+private fun ThemeSwatch(theme: ReaderTheme, schedule: ThemeSchedule) {
+    if (theme == ReaderTheme.Auto) {
+        AutoThemeSwatch(schedule)
+    } else {
+        ConcreteThemeSwatch(theme)
+    }
+}
 
 @Composable
-private fun ThemeSwatch(theme: ReaderTheme) {
+private fun ConcreteThemeSwatch(theme: ReaderTheme) {
+    val palette = theme.palette
     Box(
         modifier = Modifier
             .size(18.dp)
-            .background(theme.swatchBackground(), RoundedCornerShape(percent = 50))
-            .border(1.dp, theme.swatchForeground(), RoundedCornerShape(percent = 50)),
+            .background(palette.background, RoundedCornerShape(percent = 50))
+            .border(1.dp, palette.foreground, RoundedCornerShape(percent = 50)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            "A",
-            color = theme.swatchForeground(),
-            style = MaterialTheme.typography.labelSmall,
-        )
+        Text("A", color = palette.foreground, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun AutoThemeSwatch(schedule: ThemeSchedule) {
+    val day = schedule.dayTheme.palette
+    val night = schedule.nightTheme.palette
+    val shape = RoundedCornerShape(percent = 50)
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .clip(shape)
+            .background(day.background, shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Bottom-right half painted in the night background. The parent clip keeps the
+        // canvas inside the rounded shape so the night fill never bleeds past the border.
+        Canvas(modifier = Modifier.size(18.dp)) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width, 0f)
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            clipPath(path) {
+                drawCircle(color = night.background, radius = size.minDimension / 2f)
+            }
+        }
     }
 }
 
@@ -615,3 +683,134 @@ private fun ReaderFontFamily.displayName(): String = when (this) {
 }
 
 private fun Float.round1() = (this * 10).roundToInt() / 10f
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AutoScheduleControls(
+    schedule: ThemeSchedule,
+    onScheduleChange: (ThemeSchedule) -> Unit,
+) {
+    Column {
+        Text("Day starts at", style = MaterialTheme.typography.labelMedium)
+        TimeField(
+            time = schedule.dayStart,
+            contentDescription = "Day start time",
+            onTimeChange = { onScheduleChange(schedule.copy(dayStart = it)) },
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Night starts at", style = MaterialTheme.typography.labelMedium)
+        TimeField(
+            time = schedule.nightStart,
+            contentDescription = "Night start time",
+            onTimeChange = { onScheduleChange(schedule.copy(nightStart = it)) },
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Day theme", style = MaterialTheme.typography.labelMedium)
+        ConcreteThemeDropdown(
+            selected = schedule.dayTheme,
+            fieldContentDescription = "Day theme",
+            onSelect = { onScheduleChange(schedule.copy(dayTheme = it)) },
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Night theme", style = MaterialTheme.typography.labelMedium)
+        ConcreteThemeDropdown(
+            selected = schedule.nightTheme,
+            fieldContentDescription = "Night theme",
+            onSelect = { onScheduleChange(schedule.copy(nightTheme = it)) },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConcreteThemeDropdown(
+    selected: ReaderTheme,
+    fieldContentDescription: String,
+    onSelect: (ReaderTheme) -> Unit,
+) {
+    val concretes = listOf(
+        ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia,
+    )
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selected.displayName(),
+            onValueChange = {},
+            readOnly = true,
+            leadingIcon = { ConcreteThemeSwatch(selected) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+                .semantics { contentDescription = fieldContentDescription },
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            concretes.forEach { theme ->
+                val label = theme.displayName()
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { ConcreteThemeSwatch(theme) },
+                    onClick = {
+                        onSelect(theme)
+                        expanded = false
+                    },
+                    modifier = Modifier.semantics { contentDescription = "$label theme" },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeField(
+    time: LocalTime,
+    contentDescription: String,
+    onTimeChange: (LocalTime) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val label = "%02d:%02d".format(time.hour, time.minute)
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showPicker = true }
+            .semantics { this.contentDescription = contentDescription },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.height(48.dp).fillMaxWidth(),
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+    if (showPicker) {
+        val state = rememberTimePickerState(
+            initialHour = time.hour,
+            initialMinute = time.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onTimeChange(LocalTime.of(state.hour, state.minute))
+                    showPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+            },
+            text = { TimePicker(state = state) },
+        )
+    }
+}

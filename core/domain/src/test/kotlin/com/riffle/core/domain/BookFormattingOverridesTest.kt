@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalTime
 
 class BookFormattingOverridesTest {
 
@@ -78,6 +79,20 @@ class BookFormattingOverridesTest {
         val updated = existing.withChanges(previous, new)
         assertEquals(ReaderTheme.Dark, updated.theme) // preserved
         assertEquals(1.6f, updated.fontSize) // newly recorded
+    }
+
+    @Test
+    fun `applyTo always threads global themeSchedule (no per-book override)`() {
+        val customSchedule = ThemeSchedule(
+            dayStart = LocalTime.of(6, 30),
+            nightStart = LocalTime.of(19, 45),
+            dayTheme = ReaderTheme.Sepia,
+            nightTheme = ReaderTheme.DarkDim,
+        )
+        val globalWithSchedule = global.copy(themeSchedule = customSchedule)
+        val effective = BookFormattingOverrides(theme = ReaderTheme.Auto)
+            .applyTo(globalWithSchedule)
+        assertEquals(customSchedule, effective.themeSchedule)
     }
 
     @Test

@@ -16,11 +16,14 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -32,8 +35,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -81,6 +86,7 @@ class EpubReaderViewModel @Inject constructor(
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val volumeNavigationController: VolumeNavigationController,
+    private val timeProvider: TimeProvider,
     private val readerStateHolder: ReaderStateHolder,
 ) : AndroidViewModel(application) {
 
@@ -142,6 +148,22 @@ class EpubReaderViewModel @Inject constructor(
     private val _formattingPreferences = MutableStateFlow(FormattingPreferences())
     val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
 
+    // Ticks emitted at each ThemeSchedule boundary so the resolved theme can flip live
+    // during a reading session. Re-armed whenever the schedule changes.
+    private val scheduleTicks = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1).apply {
+        tryEmit(Unit) // prime the combine() below so it emits immediately on collection
+    }
+
+    // The user's pick with `theme` replaced by the resolver's concrete value when the
+    // pick is Auto. Every downstream consumer (Readium navigator submitPreferences,
+    // chapter rail backdrop, palette) reads this — they stay ignorant of Auto.
+    val effectiveFormattingPreferences: StateFlow<FormattingPreferences> = combine(
+        _formattingPreferences,
+        scheduleTicks,
+    ) { prefs, _ -> prefs.withResolvedTheme(timeProvider.nowLocalTime()) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FormattingPreferences())
+
     private val _hasBookOverrides = MutableStateFlow(false)
     val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
 
@@ -185,6 +207,30 @@ class EpubReaderViewModel @Inject constructor(
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
             }
+        }
+        viewModelScope.launch {
+            _formattingPreferences
+                .map { it.themeSchedule to (it.theme == ReaderTheme.Auto) }
+                .distinctUntilChanged()
+                .collectLatest { (schedule, autoActive) ->
+                    if (!autoActive) return@collectLatest
+                    // Degenerate schedule (equal day/night times) collapses to always-day —
+                    // no boundary will ever arrive. Park until cancelled (the schedule
+                    // changes) instead of spinning at 1 Hz against the 1_000L floor.
+                    if (schedule.dayStart == schedule.nightStart) {
+                        awaitCancellation()
+                    }
+                    while (true) {
+                        val now = timeProvider.nowLocalTime()
+                        val next = schedule.nextBoundaryAfter(now)
+                        val nowSec = now.toSecondOfDay().toLong()
+                        val nextSec = next.toSecondOfDay().toLong()
+                        val delayMs = (((nextSec - nowSec + 24 * 3600) % (24 * 3600)) * 1000L)
+                            .coerceAtLeast(1_000L)
+                        delay(delayMs)
+                        scheduleTicks.tryEmit(Unit)
+                    }
+                }
         }
         @OptIn(FlowPreview::class)
         viewModelScope.launch {

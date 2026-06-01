@@ -31,6 +31,10 @@ fun FormattingPreferences.toEpubPreferences(
             ReaderTheme.Light -> Theme.LIGHT
             ReaderTheme.Dark, ReaderTheme.DarkDim -> Theme.DARK
             ReaderTheme.Sepia -> Theme.SEPIA
+            // Auto should be resolved to a concrete theme upstream by the reader VM
+            // (via FormattingPreferences.withResolvedTheme). If it reaches here we
+            // fall back to LIGHT rather than crashing.
+            ReaderTheme.Auto -> Theme.LIGHT
         },
         // DarkDim is "dark with slightly muted body text" — same dark background, dimmer text.
         textColor = if (theme == ReaderTheme.DarkDim) Color(DARK_DIM_TEXT_COLOR) else null,

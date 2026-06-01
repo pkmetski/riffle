@@ -17,6 +17,7 @@ Riffle lets you browse your ebook library, read EPUB and PDF files, and sync rea
 
 ### Reading Display
 - Rich formatting controls (themes, fonts, sizing, spacing, margins, justification)
+- Auto theme that switches between configured day and night themes on a global clock schedule
 - Paginated and continuous scroll modes, with landscape double-page spread
 - Per-book formatting overrides
 - Volume-key page navigation

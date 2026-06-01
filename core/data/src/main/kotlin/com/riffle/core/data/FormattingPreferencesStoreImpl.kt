@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.data.di.FormattingPreferencesDataStore
 import com.riffle.core.domain.FormattingPreferences
@@ -12,8 +13,10 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.ThemeSchedule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalTime
 import javax.inject.Inject
 
 class FormattingPreferencesStoreImpl @Inject constructor(
@@ -39,6 +42,20 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             showCurrentChapterLabel = prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] ?: false,
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
             justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
+            themeSchedule = ThemeSchedule(
+                dayStart = prefs[KEY_SCHEDULE_DAY_START]?.let(::minuteOfDayToLocalTime)
+                    ?: ThemeSchedule.DEFAULT_DAY_START,
+                nightStart = prefs[KEY_SCHEDULE_NIGHT_START]?.let(::minuteOfDayToLocalTime)
+                    ?: ThemeSchedule.DEFAULT_NIGHT_START,
+                dayTheme = prefs[KEY_SCHEDULE_DAY_THEME]
+                    ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                    ?.takeIf { it != ReaderTheme.Auto }
+                    ?: ThemeSchedule.DEFAULT_DAY_THEME,
+                nightTheme = prefs[KEY_SCHEDULE_NIGHT_THEME]
+                    ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
+                    ?.takeIf { it != ReaderTheme.Auto }
+                    ?: ThemeSchedule.DEFAULT_NIGHT_THEME,
+            ),
         )
     }
 
@@ -55,6 +72,10 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] = preferences.showCurrentChapterLabel
             prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
             prefs[KEY_JUSTIFY_TEXT] = preferences.justifyText
+            prefs[KEY_SCHEDULE_DAY_START] = preferences.themeSchedule.dayStart.toMinuteOfDay()
+            prefs[KEY_SCHEDULE_NIGHT_START] = preferences.themeSchedule.nightStart.toMinuteOfDay()
+            prefs[KEY_SCHEDULE_DAY_THEME] = preferences.themeSchedule.dayTheme.name
+            prefs[KEY_SCHEDULE_NIGHT_THEME] = preferences.themeSchedule.nightTheme.name
         }
     }
 
@@ -70,5 +91,17 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_SHOW_CURRENT_CHAPTER_LABEL = booleanPreferencesKey("show_current_chapter_label")
         val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
         val KEY_JUSTIFY_TEXT = booleanPreferencesKey("justify_text")
+        val KEY_SCHEDULE_DAY_START = intPreferencesKey("theme_schedule_day_start_minute_of_day")
+        val KEY_SCHEDULE_NIGHT_START = intPreferencesKey("theme_schedule_night_start_minute_of_day")
+        val KEY_SCHEDULE_DAY_THEME = stringPreferencesKey("theme_schedule_day_theme")
+        val KEY_SCHEDULE_NIGHT_THEME = stringPreferencesKey("theme_schedule_night_theme")
     }
+}
+
+private fun LocalTime.toMinuteOfDay(): Int = hour * 60 + minute
+private fun minuteOfDayToLocalTime(value: Int): LocalTime {
+    // Clamp to the valid 24h range first so values like 1440 (24:00) don't silently
+    // round-trip to 00:00 via the modulo on the next line.
+    val clamped = value.coerceIn(0, 24 * 60 - 1)
+    return LocalTime.of(clamped / 60, clamped % 60)
 }
