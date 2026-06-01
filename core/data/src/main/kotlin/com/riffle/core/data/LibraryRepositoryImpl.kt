@@ -47,6 +47,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val readingSessionRepository: ReadingSessionRepository,
+    private val readaloudMatchingService: ReadaloudMatchingService,
 ) : LibraryRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -165,6 +166,7 @@ class LibraryRepositoryImpl @Inject constructor(
                 libraryItemDao.replaceAllForLibrary(libraryId, entities)
                 val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                 libraryDao.setUnsupported(libraryId, isUnsupported)
+                readaloudMatchingService.reconcileLinks()
                 LibraryRefreshResult.Success
             }
             is NetworkLibraryItemsResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
@@ -269,6 +271,7 @@ class LibraryRepositoryImpl @Inject constructor(
             }
             libraryItemDao.replaceAllForLibrary(libraryId, entities)
             libraryDao.setUnsupported(libraryId, false)
+            readaloudMatchingService.reconcileLinks()
             LibraryRefreshResult.Success
         }
         is NetworkStorytellerBooksResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)

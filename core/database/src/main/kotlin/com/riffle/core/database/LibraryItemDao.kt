@@ -72,7 +72,29 @@ interface LibraryItemDao {
 
     @Query("SELECT id, readingProgress FROM library_items WHERE libraryId = :libraryId AND readingProgress > 0.0")
     suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow>
+
+    /**
+     * All library items whose owning Library lives on a Server of the given [serverType].
+     * Used by the Storyteller↔ABS matcher to enumerate candidates across every configured
+     * Server of a side.
+     */
+    @Query(
+        "SELECT li.id AS itemId, lib.serverId AS serverId, li.title, li.author, li.isbn, li.asin " +
+            "FROM library_items li " +
+            "JOIN libraries lib ON li.libraryId = lib.id " +
+            "JOIN servers s ON lib.serverId = s.id " +
+            "WHERE s.serverType = :serverType"
+    )
+    suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow>
 }
 
 data class LastOpenedAtRow(val id: String, val lastOpenedAt: Long)
 data class ReadingProgressRow(val id: String, val readingProgress: Float)
+data class MatchableItemRow(
+    val itemId: String,
+    val serverId: String,
+    val title: String,
+    val author: String,
+    val isbn: String?,
+    val asin: String?,
+)
