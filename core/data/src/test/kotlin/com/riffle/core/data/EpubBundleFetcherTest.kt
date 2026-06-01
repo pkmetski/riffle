@@ -59,5 +59,6 @@ class EpubBundleFetcherTest {
         val result = fetcher.fetch("http://stub", "42", "tkn", false)
 
         assertTrue(result is EpubBundleFetcher.Result.NetworkError)
+        assertEquals("boom", (result as EpubBundleFetcher.Result.NetworkError).cause.message)
     }
 }

@@ -24,6 +24,9 @@ class EpubBundleFetcher(
             try {
                 val epub = EpubBundleExtractor.extractEpub(body.byteStream(), workingDirProvider())
                 Result.Success(epub)
+            // Extraction failures (bad zip, missing .epub entry, disk-full) are folded into
+            // NetworkError because EpubOpenResult / EpubDownloadResult expose only one
+            // failure variant anyway; the user-facing distinction would be lost downstream.
             } catch (e: Throwable) {
                 Result.NetworkError(e)
             }
