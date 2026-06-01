@@ -14,6 +14,7 @@ data class FormattingPreferences(
     val showCurrentChapterLabel: Boolean = DEFAULT_SHOW_CURRENT_CHAPTER_LABEL,
     val doublePageSpread: Boolean = DEFAULT_DOUBLE_PAGE_SPREAD,
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
+    val themeSchedule: ThemeSchedule = ThemeSchedule(),
 ) {
     companion object {
         const val DEFAULT_FONT_SIZE: Float = 1.0f
@@ -71,3 +72,10 @@ data class ThemeSchedule(
         val DEFAULT_NIGHT_THEME: ReaderTheme = ReaderTheme.Dark
     }
 }
+
+// Returns a copy with `theme` replaced by the schedule-resolved concrete theme when
+// the user picked Auto. For any non-Auto theme this is a no-op identity. Reader VMs
+// run this at render-time so every downstream consumer (Readium mapper, palette,
+// chapter-rail backdrop) keeps reading `prefs.theme` and stays ignorant of Auto.
+fun FormattingPreferences.withResolvedTheme(now: LocalTime): FormattingPreferences =
+    if (theme == ReaderTheme.Auto) copy(theme = themeSchedule.resolve(now)) else this
