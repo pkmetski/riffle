@@ -5,6 +5,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.ThemeSchedule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -14,6 +15,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FormattingPreferencesStoreTest {
@@ -83,5 +85,30 @@ class FormattingPreferencesStoreTest {
         val store = buildStore()
         store.update(FormattingPreferences(justifyText = false))
         assertEquals(false, store.preferences.first().justifyText)
+    }
+
+    @Test
+    fun `saved themeSchedule round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        val schedule = ThemeSchedule(
+            dayStart = LocalTime.of(6, 30),
+            nightStart = LocalTime.of(19, 45),
+            dayTheme = ReaderTheme.Sepia,
+            nightTheme = ReaderTheme.DarkDim,
+        )
+        store.update(FormattingPreferences(themeSchedule = schedule))
+        assertEquals(schedule, store.preferences.first().themeSchedule)
+    }
+
+    @Test
+    fun `themeSchedule defaults are returned for empty DataStore`() = testScope.runTest {
+        assertEquals(ThemeSchedule(), buildStore().preferences.first().themeSchedule)
+    }
+
+    @Test
+    fun `Auto theme round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(theme = ReaderTheme.Auto))
+        assertEquals(ReaderTheme.Auto, store.preferences.first().theme)
     }
 }
