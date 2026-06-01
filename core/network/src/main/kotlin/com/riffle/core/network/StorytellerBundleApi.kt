@@ -38,7 +38,7 @@ class StorytellerBundleApiImpl(
         val effectiveClient = if (insecureAllowed) client.trustAllCerts() else client
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
-            .header("Authorization", "Bearer $token")
+            .addHeader("Authorization", "Bearer $token")
             .build()
         try {
             val response = effectiveClient.newCall(request).execute()

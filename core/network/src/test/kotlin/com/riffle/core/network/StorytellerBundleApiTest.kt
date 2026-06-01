@@ -9,23 +9,25 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 
 class StorytellerBundleApiTest {
 
     private lateinit var server: MockWebServer
     private lateinit var api: StorytellerBundleApi
 
-    @Before fun setUp() {
+    @Before
+    fun setUp() {
         server = MockWebServer().also { it.start() }
         api = StorytellerBundleApiImpl(OkHttpClient())
     }
 
-    @After fun tearDown() {
+    @After
+    fun tearDown() {
         server.shutdown()
     }
 
-    @Test fun downloadBundle_callsExpectedPath_withBearerAuth() = runBlocking {
+    @Test fun downloadBundle_callsExpectedPath_withBearerAuth() = runTest {
         val bytes = ByteArray(64) { it.toByte() }
         server.enqueue(MockResponse().setBody(Buffer().write(bytes)))
 
@@ -44,7 +46,7 @@ class StorytellerBundleApiTest {
         assertEquals(bytes.toList(), readBytes.toList())
     }
 
-    @Test fun downloadBundle_nonSuccess_returnsNetworkError() = runBlocking {
+    @Test fun downloadBundle_nonSuccess_returnsNetworkError() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
 
         val result = api.downloadBundle(
