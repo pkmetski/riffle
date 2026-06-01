@@ -206,7 +206,7 @@ class LibraryItemDetailViewModel @Inject constructor(
         val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
         _downloadState.value = DownloadState.InProgress
         viewModelScope.launch {
-            _downloadState.value = when (item.ebookFormat) {
+            val newDownloadState = when (item.ebookFormat) {
                 EbookFormat.Epub -> when (epubRepository.downloadEpub(item)) {
                     EpubDownloadResult.Success, EpubDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
                     is EpubDownloadResult.NetworkError -> DownloadState.NotDownloaded
@@ -216,6 +216,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                     is PdfDownloadResult.NetworkError -> DownloadState.NotDownloaded
                 }
                 else -> DownloadState.NotDownloaded
+            }
+            _downloadState.value = newDownloadState
+            if (newDownloadState == DownloadState.Downloaded) {
+                refreshCacheState()
             }
         }
     }
@@ -228,6 +232,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 else -> {}
             }
             _downloadState.value = DownloadState.NotDownloaded
+            refreshCacheState()
         }
     }
 
@@ -284,6 +289,12 @@ class LibraryItemDetailViewModel @Inject constructor(
                 readaloudItemId = link.storytellerBookId,
             )
         }
+    }
+
+    private fun refreshCacheState() {
+        val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val refreshed = epubRepository.isCached(itemId) || epubRepository.isDownloaded(itemId)
+        _uiState.value = current.copy(isCachedOrDownloaded = refreshed)
     }
 
     private fun deriveDownloadState(item: LibraryItem): DownloadState {

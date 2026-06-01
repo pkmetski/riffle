@@ -589,4 +589,40 @@ class LibraryItemDetailViewModelTest {
 
         assertTrue((vm.uiState.value as Ready).isOffline)
     }
+
+    // --- isCachedOrDownloaded refresh after download/remove (#35) ---
+
+    @Test
+    fun `Ready isCachedOrDownloaded refreshes after startDownload succeeds`() = runTest {
+        val fakeEpub = FakeEpubRepository() // not downloaded initially
+        val vm = makeVm(repo = fakeRepo(knownItem), epubRepository = fakeEpub)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val before = vm.uiState.value as Ready
+        assertFalse(before.isCachedOrDownloaded)
+
+        vm.startDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val after = vm.uiState.value as Ready
+        assertTrue(after.isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `Ready isCachedOrDownloaded refreshes after removeDownload`() = runTest {
+        val fakeEpub = FakeEpubRepository(initialDownloaded = true)
+        val vm = makeVm(repo = fakeRepo(knownItem), epubRepository = fakeEpub)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val before = vm.uiState.value as Ready
+        assertTrue(before.isCachedOrDownloaded)
+
+        vm.removeDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val after = vm.uiState.value as Ready
+        assertFalse(after.isCachedOrDownloaded)
+    }
 }
