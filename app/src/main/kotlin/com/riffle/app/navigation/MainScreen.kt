@@ -155,6 +155,9 @@ fun MainScreen(
                             setupVm.pendingServer = pending
                             navController.navigate(SELECT_LIBRARIES)
                         },
+                        onAutoCompleted = {
+                            navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                        },
                     )
                 }
                 composable(SELECT_LIBRARIES) { backStackEntry ->

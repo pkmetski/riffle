@@ -130,11 +130,7 @@ class EpubFootnoteHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // SelectLibrariesScreen appears with all libraries toggled on; tap Continue to commit.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Continue").performClick()
+        // Single-library servers skip SelectLibrariesScreen: commit happens automatically.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithText("All Books").fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithText(StubAbsServer.TEST_FOOTNOTE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()

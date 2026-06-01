@@ -147,13 +147,8 @@ class PdfHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // SelectLibrariesScreen appears with all libraries toggled on; tap Continue to commit.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Continue").performClick()
-        // After server is added, HomeScreen.getStartDestination() refreshes libraries and
-        // navigates directly to LibraryItemsScreen. Switch to All Books tab so items are visible.
+        // Single-library servers skip SelectLibrariesScreen: commit happens automatically and
+        // HomeScreen navigates directly to LibraryItemsScreen. Switch to All Books tab so items are visible.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
         }

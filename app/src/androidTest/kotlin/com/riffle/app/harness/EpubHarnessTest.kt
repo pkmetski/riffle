@@ -215,14 +215,8 @@ class EpubHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // After authentication succeeds, the new SelectLibrariesScreen appears with all
-        // libraries toggled on. Tap Continue to commit the server with everything selected.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Continue").performClick()
-        // After commit, HomeScreen refreshes libraries and navigates directly to
-        // LibraryItemsScreen. Switch to All Books tab so items are visible.
+        // Single-library servers skip SelectLibrariesScreen: commit happens automatically and
+        // HomeScreen navigates directly to LibraryItemsScreen. Switch to All Books tab so items are visible.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
         }

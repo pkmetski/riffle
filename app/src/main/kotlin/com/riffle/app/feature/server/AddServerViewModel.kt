@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
 import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.ServerRepository
@@ -38,6 +39,9 @@ class AddServerViewModel @Inject constructor(
 
     private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
     val navigateToSelectLibraries = _navigateToSelectLibraries.receiveAsFlow()
+
+    private val _navigateHome = Channel<Unit>(Channel.CONFLATED)
+    val navigateHome = _navigateHome.receiveAsFlow()
 
     fun updateServerType(type: ServerType) {
         if (serverType != type) {
@@ -96,7 +100,18 @@ class AddServerViewModel @Inject constructor(
         viewModelScope.launch {
             isLoading = true
             when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
-                is AuthenticateResult.Success -> _navigateToSelectLibraries.send(result.pending)
+                is AuthenticateResult.Success -> {
+                    val pending = result.pending
+                    if (pending.libraries.size == 1) {
+                        when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
+                            is CommitServerResult.Success -> _navigateHome.send(Unit)
+                            is CommitServerResult.Failure ->
+                                error = "Couldn't save server: ${c.cause.message}"
+                        }
+                    } else {
+                        _navigateToSelectLibraries.send(pending)
+                    }
+                }
                 is AuthenticateResult.WrongCredentials -> error = result.message
                 is AuthenticateResult.NetworkError -> error = "Connection failed: ${result.cause.message}"
                 is AuthenticateResult.LibraryFetchFailed ->
