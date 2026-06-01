@@ -289,6 +289,12 @@ class EpubReaderViewModel @Inject constructor(
             }
             is EpubOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
             EpubOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
+            is EpubOpenResult.BundleTooLarge -> {
+                val mb = (result.sizeBytes + 512 * 1024) / (1024 * 1024)
+                _state.value = ReaderState.Error(
+                    "This book is ${mb} MB — too large to open on the fly.\n\nGo back and tap Download to read it.",
+                )
+            }
         }
     }
 

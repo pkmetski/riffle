@@ -119,6 +119,12 @@ fun EpubReaderScreen(
     var showFormattingPanel by remember { mutableStateOf(false) }
     val immersiveState = rememberImmersiveModeState()
 
+    // Error state never loads a WebView, so immersive's auto-hide path is never reached.
+    // Force-show system bars + TopAppBar so the Back button is reachable.
+    LaunchedEffect(state) {
+        if (state is ReaderState.Error) immersiveState.show()
+    }
+
     // Close reading session when screen is disposed (navigation away)
     DisposableEffect(viewModel) {
         onDispose { viewModel.onReaderClosed() }

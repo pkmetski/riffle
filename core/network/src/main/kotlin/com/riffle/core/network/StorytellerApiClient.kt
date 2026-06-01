@@ -39,17 +39,18 @@ class StorytellerApiClient(
             .post(body)
             .build()
         try {
-            val response = client.newCall(request).execute()
-            when (response.code) {
-                200 -> {
-                    val raw = response.body?.string() ?: return@withContext NetworkStorytellerLoginResult.NetworkError(
-                        IOException("Empty response body")
-                    )
-                    val parsed = json.decodeFromString<StorytellerLoginResponse>(raw)
-                    NetworkStorytellerLoginResult.Success(parsed.accessToken)
+            client.newCall(request).execute().use { response ->
+                when (response.code) {
+                    200 -> {
+                        val raw = response.body?.string() ?: return@withContext NetworkStorytellerLoginResult.NetworkError(
+                            IOException("Empty response body")
+                        )
+                        val parsed = json.decodeFromString<StorytellerLoginResponse>(raw)
+                        NetworkStorytellerLoginResult.Success(parsed.accessToken)
+                    }
+                    400, 401, 405 -> NetworkStorytellerLoginResult.WrongCredentials("Invalid username or password")
+                    else -> NetworkStorytellerLoginResult.NetworkError(IOException("Unexpected HTTP ${response.code}"))
                 }
-                400, 401, 405 -> NetworkStorytellerLoginResult.WrongCredentials("Invalid username or password")
-                else -> NetworkStorytellerLoginResult.NetworkError(IOException("Unexpected HTTP ${response.code}"))
             }
         } catch (e: SSLHandshakeException) {
             NetworkStorytellerLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
@@ -70,12 +71,12 @@ class StorytellerApiClient(
             .get()
             .build()
         try {
-            val response = client.newCall(request).execute()
-            response.body?.close()
-            when (response.code) {
-                in 200..299 -> NetworkStorytellerValidateResult.Valid
-                401, 403 -> NetworkStorytellerValidateResult.Invalid
-                else -> NetworkStorytellerValidateResult.NetworkError(IOException("Unexpected HTTP ${response.code}"))
+            client.newCall(request).execute().use { response ->
+                when (response.code) {
+                    in 200..299 -> NetworkStorytellerValidateResult.Valid
+                    401, 403 -> NetworkStorytellerValidateResult.Invalid
+                    else -> NetworkStorytellerValidateResult.NetworkError(IOException("Unexpected HTTP ${response.code}"))
+                }
             }
         } catch (e: IOException) {
             NetworkStorytellerValidateResult.NetworkError(e)
@@ -95,15 +96,16 @@ class StorytellerApiClient(
             .get()
             .build()
         try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext NetworkStorytellerBooksResult.NetworkError(IOException("HTTP ${response.code}"))
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext NetworkStorytellerBooksResult.NetworkError(IOException("HTTP ${response.code}"))
+                }
+                val raw = response.body?.string() ?: return@withContext NetworkStorytellerBooksResult.NetworkError(
+                    IOException("Empty response body")
+                )
+                val parsed = json.decodeFromString<List<StorytellerBookResponse>>(raw)
+                NetworkStorytellerBooksResult.Success(parsed.map { it.toNetwork() })
             }
-            val raw = response.body?.string() ?: return@withContext NetworkStorytellerBooksResult.NetworkError(
-                IOException("Empty response body")
-            )
-            val parsed = json.decodeFromString<List<StorytellerBookResponse>>(raw)
-            NetworkStorytellerBooksResult.Success(parsed.map { it.toNetwork() })
         } catch (e: IOException) {
             NetworkStorytellerBooksResult.NetworkError(e)
         }
@@ -122,17 +124,18 @@ class StorytellerApiClient(
             .get()
             .build()
         try {
-            val response = client.newCall(request).execute()
-            when (response.code) {
-                in 200..299 -> {
-                    val raw = response.body?.string() ?: return@withContext NetworkStorytellerBookResult.NetworkError(
-                        IOException("Empty response body")
-                    )
-                    val parsed = json.decodeFromString<StorytellerBookResponse>(raw)
-                    NetworkStorytellerBookResult.Success(parsed.toNetwork())
+            client.newCall(request).execute().use { response ->
+                when (response.code) {
+                    in 200..299 -> {
+                        val raw = response.body?.string() ?: return@withContext NetworkStorytellerBookResult.NetworkError(
+                            IOException("Empty response body")
+                        )
+                        val parsed = json.decodeFromString<StorytellerBookResponse>(raw)
+                        NetworkStorytellerBookResult.Success(parsed.toNetwork())
+                    }
+                    404 -> NetworkStorytellerBookResult.NotFound(bookId)
+                    else -> NetworkStorytellerBookResult.NetworkError(IOException("HTTP ${response.code}"))
                 }
-                404 -> NetworkStorytellerBookResult.NotFound(bookId)
-                else -> NetworkStorytellerBookResult.NetworkError(IOException("HTTP ${response.code}"))
             }
         } catch (e: IOException) {
             NetworkStorytellerBookResult.NetworkError(e)

@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -38,7 +39,10 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
@@ -152,6 +156,8 @@ fun LibraryItemDetailScreen(
                         downloadState = downloadState,
                         isReadaloud = state.isReadaloud,
                         readaloudFooter = state.readaloudFooter,
+                        isCachedOrDownloaded = state.isCachedOrDownloaded,
+                        isOffline = state.isOffline,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
@@ -169,6 +175,8 @@ fun LibraryItemDetailScreen(
                         downloadState = downloadState,
                         isReadaloud = state.isReadaloud,
                         readaloudFooter = state.readaloudFooter,
+                        isCachedOrDownloaded = state.isCachedOrDownloaded,
+                        isOffline = state.isOffline,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
@@ -216,6 +224,8 @@ private fun LibraryItemDetailContent(
     downloadState: DownloadState,
     isReadaloud: Boolean,
     readaloudFooter: ReadaloudFooterState?,
+    isCachedOrDownloaded: Boolean,
+    isOffline: Boolean,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -253,6 +263,8 @@ private fun LibraryItemDetailContent(
             isInToRead = isInToRead,
             downloadState = downloadState,
             isReadaloud = isReadaloud,
+            isCachedOrDownloaded = isCachedOrDownloaded,
+            isOffline = isOffline,
             onReadItem = onReadItem,
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
@@ -339,6 +351,8 @@ internal fun LibraryItemDetailContentTablet(
     downloadState: DownloadState,
     isReadaloud: Boolean,
     readaloudFooter: ReadaloudFooterState?,
+    isCachedOrDownloaded: Boolean,
+    isOffline: Boolean,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -387,6 +401,8 @@ internal fun LibraryItemDetailContentTablet(
                 isInToRead = isInToRead,
                 downloadState = downloadState,
                 isReadaloud = isReadaloud,
+                isCachedOrDownloaded = isCachedOrDownloaded,
+                isOffline = isOffline,
                 onReadItem = onReadItem,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
@@ -416,12 +432,15 @@ internal fun LibraryItemDetailContentTablet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActionRow(
     item: LibraryItem,
     isInToRead: Boolean,
     downloadState: DownloadState,
     isReadaloud: Boolean,
+    isCachedOrDownloaded: Boolean,
+    isOffline: Boolean,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -435,14 +454,30 @@ private fun ActionRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Readaloud items: Read button stays present but disabled; reader-side bundle fetch
-            // is #35 and #37. Markers and downloads are hidden — they require those slices first.
-            Button(
-                onClick = { onReadItem(item) },
-                enabled = !isReadaloud && downloadState !is DownloadState.InProgress,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(if (isReadaloud) "Read (coming soon)" else "Read")
+            val readDisabledByOffline = isReadaloud && isOffline && !isCachedOrDownloaded
+            if (readDisabledByOffline) {
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text("Connect to download book") } },
+                    state = rememberTooltipState(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Read")
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { onReadItem(item) },
+                    enabled = downloadState !is DownloadState.InProgress,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Read")
+                }
             }
             if (!isReadaloud) {
                 ReadToggleButton(
@@ -454,12 +489,12 @@ private fun ActionRow(
                     isInToRead = isInToRead,
                     onToggle = onToggleToRead,
                 )
-                DownloadButton(
-                    state = downloadState,
-                    onDownload = onDownload,
-                    onRemove = onRemove,
-                )
             }
+            DownloadButton(
+                state = downloadState,
+                onDownload = onDownload,
+                onRemove = onRemove,
+            )
         }
     } else {
         Text(

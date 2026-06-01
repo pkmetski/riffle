@@ -6,6 +6,7 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingServer
 import java.io.IOException
 import com.riffle.core.domain.EbookFormat
@@ -33,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -131,6 +133,7 @@ class LibraryItemDetailViewModelTest {
     private class FakeEpubRepository(
         var downloadResult: EpubDownloadResult = EpubDownloadResult.Success,
         private val initialDownloaded: Boolean = false,
+        private val cachedIds: Set<String> = emptySet(),
     ) : EpubRepository {
         private var downloaded = initialDownloaded
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = throw UnsupportedOperationException()
@@ -140,8 +143,13 @@ class LibraryItemDetailViewModelTest {
         }
         override suspend fun removeDownload(itemId: String) { downloaded = false }
         override fun isDownloaded(itemId: String): Boolean = downloaded
-        override fun isCached(itemId: String): Boolean = false
+        override fun isCached(itemId: String): Boolean = itemId in cachedIds
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+    }
+
+    private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
+        val state = MutableStateFlow(online)
+        override val isOnline: StateFlow<Boolean> = state
     }
 
     private class FakePdfRepository : PdfRepository {
@@ -206,6 +214,7 @@ class LibraryItemDetailViewModelTest {
         pdfRepository: PdfRepository = FakePdfRepository(),
         toReadRepo: ToReadRepository = FakeToReadRepository(),
         serverRepository: ServerRepository = noOpServerRepo,
+        connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         repository = repo,
@@ -216,6 +225,7 @@ class LibraryItemDetailViewModelTest {
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
+        connectivityObserver = connectivityObserver,
     )
 
     private fun serverRepoReturning(server: Server) = object : ServerRepository {
@@ -484,5 +494,135 @@ class LibraryItemDetailViewModelTest {
         // Storyteller — confirm both are skipped for Readaloud detail.
         assertTrue("toReadRepository should not be called for Readaloud items, was: ${toRead.callLog}", toRead.callLog.isEmpty())
         assertFalse((vm.uiState.value as Ready).isInToRead)
+    }
+
+    // --- Ready.isCachedOrDownloaded / Ready.isOffline for Storyteller items ---
+
+    @Test
+    fun `Ready state exposes isCachedOrDownloaded true when epub is cached`() = runTest {
+        val fakeEpub = FakeEpubRepository(cachedIds = setOf(knownItem.id))
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            epubRepository = fakeEpub,
+            serverRepository = serverRepoReturning(storytellerServer()),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.uiState.value as Ready
+        assertTrue(state.isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `Ready state exposes isCachedOrDownloaded true when epub is downloaded`() = runTest {
+        val fakeEpub = FakeEpubRepository(initialDownloaded = true)
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            epubRepository = fakeEpub,
+            serverRepository = serverRepoReturning(storytellerServer()),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.uiState.value as Ready
+        assertTrue(state.isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `Ready state exposes isCachedOrDownloaded false when epub is neither cached nor downloaded`() = runTest {
+        val fakeEpub = FakeEpubRepository()
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            epubRepository = fakeEpub,
+            serverRepository = serverRepoReturning(storytellerServer()),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.uiState.value as Ready
+        assertFalse(state.isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `Ready state exposes isOffline false when device is online`() = runTest {
+        val connectivity = FakeConnectivityObserver(online = true)
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            serverRepository = serverRepoReturning(storytellerServer()),
+            connectivityObserver = connectivity,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse((vm.uiState.value as Ready).isOffline)
+    }
+
+    @Test
+    fun `Ready state exposes isOffline true when device is offline`() = runTest {
+        val connectivity = FakeConnectivityObserver(online = false)
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            serverRepository = serverRepoReturning(storytellerServer()),
+            connectivityObserver = connectivity,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue((vm.uiState.value as Ready).isOffline)
+    }
+
+    @Test
+    fun `isOffline in Ready state updates reactively when connectivity changes`() = runTest {
+        val connectivity = FakeConnectivityObserver(online = true)
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            serverRepository = serverRepoReturning(storytellerServer()),
+            connectivityObserver = connectivity,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse((vm.uiState.value as Ready).isOffline)
+
+        connectivity.state.value = false
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue((vm.uiState.value as Ready).isOffline)
+    }
+
+    // --- isCachedOrDownloaded refresh after download/remove (#35) ---
+
+    @Test
+    fun `Ready isCachedOrDownloaded refreshes after startDownload succeeds`() = runTest {
+        val fakeEpub = FakeEpubRepository() // not downloaded initially
+        val vm = makeVm(repo = fakeRepo(knownItem), epubRepository = fakeEpub)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val before = vm.uiState.value as Ready
+        assertFalse(before.isCachedOrDownloaded)
+
+        vm.startDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val after = vm.uiState.value as Ready
+        assertTrue(after.isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `Ready isCachedOrDownloaded refreshes after removeDownload`() = runTest {
+        val fakeEpub = FakeEpubRepository(initialDownloaded = true)
+        val vm = makeVm(repo = fakeRepo(knownItem), epubRepository = fakeEpub)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val before = vm.uiState.value as Ready
+        assertTrue(before.isCachedOrDownloaded)
+
+        vm.removeDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val after = vm.uiState.value as Ready
+        assertFalse(after.isCachedOrDownloaded)
     }
 }
