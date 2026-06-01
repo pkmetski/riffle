@@ -45,6 +45,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_17_18,
                 RiffleDatabase.MIGRATION_18_19,
                 RiffleDatabase.MIGRATION_19_20,
+                RiffleDatabase.MIGRATION_20_21,
             )
             .build()
 

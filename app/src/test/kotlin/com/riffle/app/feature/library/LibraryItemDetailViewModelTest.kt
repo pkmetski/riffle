@@ -436,7 +436,6 @@ class LibraryItemDetailViewModelTest {
     private fun storytellerServer() = Server(
         id = "st-1",
         url = com.riffle.core.domain.ServerUrl.parse("http://media-server:8001")!!,
-        displayName = "Storyteller",
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",
@@ -446,7 +445,6 @@ class LibraryItemDetailViewModelTest {
     private fun absServer() = Server(
         id = "abs-1",
         url = com.riffle.core.domain.ServerUrl.parse("http://media-server:13378")!!,
-        displayName = "ABS",
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",

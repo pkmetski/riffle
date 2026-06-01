@@ -271,7 +271,6 @@ class LibraryRepositoryTest {
     private fun activeServer(id: String = "s1") = Server(
         id = id,
         url = ServerUrl.parse("https://abs.example.com")!!,
-        displayName = "abs",
         isActive = true,
         insecureConnectionAllowed = false,
         username = "",
@@ -807,7 +806,6 @@ class LibraryRepositoryTest {
     private fun storytellerServer() = Server(
         id = "st-1",
         url = ServerUrl.parse("http://media-server:8001")!!,
-        displayName = "media-server",
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",

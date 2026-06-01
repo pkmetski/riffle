@@ -30,7 +30,6 @@ class ToReadRepositoryTest {
     private val activeServer = Server(
         id = "s1",
         url = ServerUrl.parse("http://abs.local")!!,
-        displayName = "ABS",
         isActive = true,
         insecureConnectionAllowed = false,
         username = "u",

@@ -238,7 +238,7 @@ class ServerRepositoryTest {
 
         val url = ServerUrl.parse("https://abs.example.com")!!
         val pending = PendingServer(
-            url = url, displayName = "abs.example.com",
+            url = url,
             username = "admin", userId = "uid-1", token = "tok-xyz",
             insecureConnectionAllowed = false,
             libraries = listOf(
@@ -251,7 +251,7 @@ class ServerRepositoryTest {
 
         assertTrue(result is CommitServerResult.Success)
         val server = (result as CommitServerResult.Success).server
-        assertEquals("abs.example.com", server.displayName)
+        assertEquals(url, server.url)
         assertTrue(server.isActive) // first server becomes active
         assertEquals("tok-xyz", tokens.getToken(server.id))
         assertEquals(2, libDao.allEntities().size)
@@ -305,7 +305,6 @@ class ServerRepositoryTest {
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            displayName = "media-server",
             username = "plamen", userId = "", token = "tok-st",
             insecureConnectionAllowed = false,
             libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
@@ -333,7 +332,6 @@ class ServerRepositoryTest {
 
         val pendingA = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            displayName = "media-server",
             username = "plamen", userId = "", token = "tok-A",
             insecureConnectionAllowed = false,
             libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
@@ -341,7 +339,6 @@ class ServerRepositoryTest {
         )
         val pendingB = PendingServer(
             url = ServerUrl.parse("https://readalouds.example.com")!!,
-            displayName = "readalouds.example.com",
             username = "plamen", userId = "", token = "tok-B",
             insecureConnectionAllowed = false,
             libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
@@ -383,7 +380,6 @@ class ServerRepositoryTest {
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            displayName = "media-server",
             username = "plamen", userId = "", token = "tok-st",
             insecureConnectionAllowed = false,
             libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
@@ -409,7 +405,6 @@ class ServerRepositoryTest {
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            displayName = "media-server",
             username = "plamen", userId = "uid-1", token = "tok-st",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
@@ -425,7 +420,7 @@ class ServerRepositoryTest {
 
     @Test
     fun `remove deletes server entity and token`() = runTest {
-        val entity = ServerEntity("srv-1", "https://abs.example.com", "abs.example.com", true, false, username = "")
+        val entity = ServerEntity("srv-1", "https://abs.example.com", true, false, username = "")
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage()
         tokens.tokens["srv-1"] = "tok"
@@ -440,7 +435,7 @@ class ServerRepositoryTest {
 
     @Test
     fun `remove cascades libraries and library_items for a Storyteller server`() = runTest {
-        val entity = ServerEntity("st-1", "http://media-server:8001", "media-server", true, false, username = "plamen", serverType = "STORYTELLER")
+        val entity = ServerEntity("st-1", "http://media-server:8001", true, false, username = "plamen", serverType = "STORYTELLER")
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage()
         tokens.tokens["st-1"] = "tok-st"
@@ -468,7 +463,7 @@ class ServerRepositoryTest {
 
     @Test
     fun `remove cascades libraries and library_items for an ABS server`() = runTest {
-        val entity = ServerEntity("abs-1", "https://abs.example.com", "abs.example.com", true, false, username = "u")
+        val entity = ServerEntity("abs-1", "https://abs.example.com", true, false, username = "u")
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage()
         tokens.tokens["abs-1"] = "tok"
@@ -494,8 +489,8 @@ class ServerRepositoryTest {
 
     @Test
     fun `setActive changes active server`() = runTest {
-        val e1 = ServerEntity("s1", "https://one.example.com", "one.example.com", true, false, username = "")
-        val e2 = ServerEntity("s2", "https://two.example.com", "two.example.com", false, false, username = "")
+        val e1 = ServerEntity("s1", "https://one.example.com", true, false, username = "")
+        val e2 = ServerEntity("s2", "https://two.example.com", false, false, username = "")
         val dao = fakeDao(e1, e2)
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(

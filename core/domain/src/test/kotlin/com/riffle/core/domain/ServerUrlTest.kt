@@ -57,6 +57,26 @@ class ServerUrlTest {
     }
 
     @Test
+    fun `authority returns host for url without port`() {
+        assertEquals("abs.example.com", ServerUrl.parse("https://abs.example.com")!!.authority())
+    }
+
+    @Test
+    fun `authority returns host and port when port is present`() {
+        assertEquals("media-server:13378", ServerUrl.parse("http://media-server:13378")!!.authority())
+    }
+
+    @Test
+    fun `authority strips path`() {
+        assertEquals("abs.example.com", ServerUrl.parse("https://abs.example.com/audiobookshelf")!!.authority())
+    }
+
+    @Test
+    fun `authority handles ipv4 with port`() {
+        assertEquals("192.168.1.100:13378", ServerUrl.parse("http://192.168.1.100:13378")!!.authority())
+    }
+
+    @Test
     fun `two equal urls are equal`() {
         val a = ServerUrl.parse("https://abs.example.com")
         val b = ServerUrl.parse("https://abs.example.com")

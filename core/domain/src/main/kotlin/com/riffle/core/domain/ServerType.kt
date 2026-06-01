@@ -1,8 +1,8 @@
 package com.riffle.core.domain
 
-enum class ServerType {
-    AUDIOBOOKSHELF,
-    STORYTELLER,
+enum class ServerType(val label: String) {
+    AUDIOBOOKSHELF("Audiobookshelf"),
+    STORYTELLER("Storyteller"),
     ;
 
     companion object {

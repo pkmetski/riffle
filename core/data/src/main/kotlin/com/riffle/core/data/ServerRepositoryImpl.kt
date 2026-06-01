@@ -72,7 +72,6 @@ class ServerRepositoryImpl @Inject constructor(
                     is NetworkLibrariesResult.Success -> AuthenticateResult.Success(
                         PendingServer(
                             url = url,
-                            displayName = displayNameFrom(url.value),
                             username = loginResult.username,
                             userId = loginResult.userId,
                             token = loginResult.token,
@@ -106,7 +105,6 @@ class ServerRepositoryImpl @Inject constructor(
         is NetworkStorytellerLoginResult.Success -> AuthenticateResult.Success(
             PendingServer(
                 url = url,
-                displayName = displayNameFrom(url.value),
                 username = username,
                 userId = "", // Storyteller's auth response doesn't expose a user id; identity is the username + token.
                 token = result.token,
@@ -138,7 +136,6 @@ class ServerRepositoryImpl @Inject constructor(
         val entity = ServerEntity(
             id = id,
             url = pending.url.value,
-            displayName = pending.displayName,
             isActive = false,                    // overridden inside transaction
             insecureConnectionAllowed = pending.insecureConnectionAllowed,
             username = pending.username,
@@ -188,6 +185,8 @@ class ServerRepositoryImpl @Inject constructor(
 
     override suspend fun getServerVersion(serverId: String): String? {
         val server = dao.getById(serverId)?.toDomain() ?: return null
+        // Storyteller exposes no /server-info endpoint; the UI deliberately shows no version for it.
+        if (server.serverType == ServerType.STORYTELLER) return null
         val token = tokenStorage.getToken(serverId) ?: return null
         return serverInfoApi.getServerInfo(
             baseUrl = server.url.value,
@@ -202,20 +201,12 @@ class ServerRepositoryImpl @Inject constructor(
         fun readaloudLibraryId(serverId: String): String = "readaloud:$serverId"
     }
 
-    private fun displayNameFrom(url: String): String =
-        try {
-            java.net.URI(url).host ?: url.substringAfter("://").substringBefore("/")
-        } catch (_: Exception) {
-            url.substringAfter("://").substringBefore("/")
-        }
-
     private fun ServerEntity.toDomain(): Server {
         val parsedUrl = ServerUrl.parse(url)
             ?: ServerUrl.parse("https://invalid.example.com")!!
         return Server(
             id = id,
             url = parsedUrl,
-            displayName = displayName,
             isActive = isActive,
             insecureConnectionAllowed = insecureConnectionAllowed,
             username = username,

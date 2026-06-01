@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ServerDao {
 
-    @Query("SELECT * FROM servers ORDER BY isActive DESC, displayName ASC")
+    @Query("SELECT * FROM servers ORDER BY isActive DESC, serverType ASC, username ASC, url ASC")
     fun observeAll(): Flow<List<ServerEntity>>
 
     @Query("SELECT * FROM servers WHERE isActive = 1 LIMIT 1")

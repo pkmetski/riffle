@@ -65,7 +65,6 @@ class PdfRepositoryTest {
         val activeServer = Server(
             id = "server-1",
             url = ServerUrl.parse(baseUrl)!!,
-            displayName = "Test",
             isActive = true,
             insecureConnectionAllowed = false,
             username = "",

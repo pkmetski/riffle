@@ -45,7 +45,6 @@ class AddServerViewModelTest {
     private fun fakeServer() = Server(
         id = "s1",
         url = ServerUrl.parse("https://abs.example.com")!!,
-        displayName = "abs.example.com",
         isActive = true,
         insecureConnectionAllowed = false,
         username = "",
@@ -53,7 +52,6 @@ class AddServerViewModelTest {
 
     private fun fakePending() = PendingServer(
         url = ServerUrl.parse("https://abs.example.com")!!,
-        displayName = "abs.example.com",
         username = "admin",
         userId = "uid",
         token = "tok",
@@ -67,7 +65,6 @@ class AddServerViewModelTest {
             Server(
                 id = "s1",
                 url = ServerUrl.parse("https://abs.example.com")!!,
-                displayName = "abs.example.com",
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = "",

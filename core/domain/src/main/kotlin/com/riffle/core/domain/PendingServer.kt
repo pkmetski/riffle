@@ -7,7 +7,6 @@ package com.riffle.core.domain
  */
 data class PendingServer(
     val url: ServerUrl,
-    val displayName: String,
     val username: String,
     val userId: String,
     val token: String,
