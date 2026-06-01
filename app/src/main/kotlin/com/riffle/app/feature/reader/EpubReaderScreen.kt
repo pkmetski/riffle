@@ -408,6 +408,8 @@ private fun readerThemeLabelColor(theme: ReaderTheme): Color {
         ReaderTheme.Dark -> 0.65f
         ReaderTheme.DarkDim -> 0.85f
         ReaderTheme.Sepia -> 0.70f
+        // Auto resolves upstream; treat as Light if it slips through.
+        ReaderTheme.Auto -> 0.65f
     }
     return theme.palette.foreground.copy(alpha = alpha)
 }

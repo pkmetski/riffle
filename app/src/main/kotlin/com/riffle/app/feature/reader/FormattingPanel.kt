@@ -471,6 +471,7 @@ private fun ReaderTheme.displayName(): String = when (this) {
     ReaderTheme.Dark -> "Dark"
     ReaderTheme.DarkDim -> "Dim"
     ReaderTheme.Sepia -> "Sepia"
+    ReaderTheme.Auto -> "Auto"
 }
 
 // Reader pane background/foreground colors for each theme — used to render a small

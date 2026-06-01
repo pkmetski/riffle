@@ -41,4 +41,12 @@ val ReaderTheme.palette: ReaderThemePalette
             background = Color(0xFFFAF4E8),
             foreground = Color(0xFF121212),
         )
+        // Defensive: Auto must be resolved to a concrete theme via
+        // FormattingPreferences.withResolvedTheme() before reaching this palette.
+        // We fall back to Light so a missed resolution doesn't crash the reader,
+        // but every production call site should resolve first.
+        ReaderTheme.Auto -> ReaderThemePalette(
+            background = Color(0xFFFFFFFF),
+            foreground = Color(0xFF121212),
+        )
     }
