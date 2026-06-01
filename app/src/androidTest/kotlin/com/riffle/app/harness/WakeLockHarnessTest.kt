@@ -135,11 +135,7 @@ class WakeLockHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // SelectLibrariesScreen appears with all libraries toggled on; tap Continue to commit.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Continue").performClick()
+        // Single-library servers skip SelectLibrariesScreen: commit happens automatically.
         // Switch to All Books tab so items are visible.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
@@ -171,11 +167,7 @@ class WakeLockHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // SelectLibrariesScreen appears with all libraries toggled on; tap Continue to commit.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Continue").performClick()
+        // Single-library servers skip SelectLibrariesScreen: commit happens automatically.
         // Switch to All Books tab so items are visible.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
@@ -207,11 +199,7 @@ class WakeLockHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-        // SelectLibrariesScreen appears with all libraries toggled on; tap Continue to commit.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText("Continue").performClick()
+        // Single-library servers skip SelectLibrariesScreen: commit happens automatically.
         // Switch to All Books tab so items are visible.
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()

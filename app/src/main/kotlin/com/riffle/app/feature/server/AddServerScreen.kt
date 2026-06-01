@@ -55,10 +55,14 @@ fun AddServerScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onAuthenticated: (PendingServer) -> Unit,
+    onAutoCompleted: () -> Unit,
     viewModel: AddServerViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(Unit) {
         viewModel.navigateToSelectLibraries.collect { onAuthenticated(it) }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.navigateHome.collect { onAutoCompleted() }
     }
 
     viewModel.insecureWarning?.let { type ->

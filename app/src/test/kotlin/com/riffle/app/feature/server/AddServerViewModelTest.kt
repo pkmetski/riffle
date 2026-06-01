@@ -50,14 +50,22 @@ class AddServerViewModelTest {
         username = "",
     )
 
-    private fun fakePending() = PendingServer(
+    private fun fakePending(
+        libraries: List<Library> = listOf(
+            Library("lib-1", "Books", "book", false),
+            Library("lib-2", "Comics", "book", false),
+        ),
+    ) = PendingServer(
         url = ServerUrl.parse("https://abs.example.com")!!,
         username = "admin",
         userId = "uid",
         token = "tok",
         insecureConnectionAllowed = false,
-        libraries = listOf(Library("lib-1", "Books", "book", false)),
+        libraries = libraries,
     )
+
+    private fun singleLibraryPending() =
+        fakePending(libraries = listOf(Library("lib-1", "Books", "book", false)))
 
     private class RecordingRepository(
         private val authResult: AuthenticateResult,
@@ -141,6 +149,40 @@ class AddServerViewModelTest {
         assertSame(pending, emitted)
         assertEquals(0, repo.commitCallCount)
         assertNull(vm.error)
+    }
+
+    @Test
+    fun `onConnect success with single library auto-commits and emits navigateHome`() = runTest {
+        val pending = singleLibraryPending()
+        val repo = RecordingRepository(AuthenticateResult.Success(pending))
+        val vm = AddServerViewModel(repo)
+        vm.updateScheme("https://"); vm.updateHost("abs.example.com")
+        vm.username = "admin"
+        vm.password = "pass"
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.navigateHome.first()
+        assertEquals(1, repo.commitCallCount)
+        assertNull(vm.error)
+    }
+
+    @Test
+    fun `onConnect success with single library surfaces commit failure as error`() = runTest {
+        val pending = singleLibraryPending()
+        val repo = RecordingRepository(
+            authResult = AuthenticateResult.Success(pending),
+            commitResult = CommitServerResult.Failure(RuntimeException("disk full")),
+        )
+        val vm = AddServerViewModel(repo)
+        vm.updateScheme("https://"); vm.updateHost("abs.example.com")
+        vm.username = "admin"
+        vm.password = "pass"
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, repo.commitCallCount)
+        assertNotNull(vm.error)
+        assertTrue(vm.error?.contains("disk full") == true)
+        assertFalse(vm.isLoading)
     }
 
     @Test
