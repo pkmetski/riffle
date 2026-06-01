@@ -633,6 +633,90 @@ class MigrationTest {
     }
 
     @Test
+    fun migration21To22_addsReadaloudLinksWithServerCascade() {
+        helper.createDatabase(TEST_DB, 21).use { db ->
+            // Two servers — one Storyteller, one ABS — that the link will reference.
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('st1', 'http://media-server:8001', 0, 0, 'plamen', 'STORYTELLER')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('abs1', 'http://media-server:13378', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 22, true, RiffleDatabase.MIGRATION_21_22)
+
+        // New table starts empty.
+        db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // Insert a Confirmed auto-link (userConfirmed = false in this slice).
+        db.execSQL(
+            "INSERT INTO readaloud_links " +
+                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('st1', 'book-42', 'abs1', 'item-xyz', 'CONFIRMED', 0, 1000, 1000)"
+        )
+        db.query(
+            "SELECT storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt " +
+                "FROM readaloud_links WHERE storytellerServerId = 'st1' AND storytellerBookId = 'book-42'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("st1", cursor.getString(0))
+            assertEquals("book-42", cursor.getString(1))
+            assertEquals("abs1", cursor.getString(2))
+            assertEquals("item-xyz", cursor.getString(3))
+            assertEquals("CONFIRMED", cursor.getString(4))
+            assertEquals(0, cursor.getInt(5))
+            assertEquals(1000L, cursor.getLong(6))
+            assertEquals(1000L, cursor.getLong(7))
+        }
+
+        // Composite PK: same Storyteller (server, book) can hold only one link.
+        // REPLACE-conflict semantics — re-inserting the same key updates in place.
+        db.execSQL(
+            "INSERT OR REPLACE INTO readaloud_links " +
+                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('st1', 'book-42', 'abs1', 'item-other', 'CONFIRMED', 1, 1000, 2000)"
+        )
+        db.query("SELECT absLibraryItemId, userConfirmed, updatedAt FROM readaloud_links WHERE storytellerBookId = 'book-42'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item-other", cursor.getString(0))
+            assertEquals(1, cursor.getInt(1))
+            assertEquals(2000L, cursor.getLong(2))
+        }
+
+        // FK cascade: deleting the ABS server wipes the link.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 'abs1'")
+        db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // And cascade on the Storyteller side too.
+        db.execSQL(
+            "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                "VALUES ('abs2', 'http://other:13378', 0, 0, 'plamen', 'AUDIOBOOKSHELF')"
+        )
+        db.execSQL(
+            "INSERT INTO readaloud_links " +
+                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, state, userConfirmed, createdAt, updatedAt) " +
+                "VALUES ('st1', 'book-99', 'abs2', 'item-1', 'CONFIRMED', 0, 5000, 5000)"
+        )
+        db.execSQL("DELETE FROM servers WHERE id = 'st1'")
+        db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -641,7 +725,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 21, true,
+            TEST_DB, 22, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -662,6 +746,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_18_19,
             RiffleDatabase.MIGRATION_19_20,
             RiffleDatabase.MIGRATION_20_21,
+            RiffleDatabase.MIGRATION_21_22,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

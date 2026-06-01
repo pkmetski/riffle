@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CollectionItemEntity::class,
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
+        ReadaloudLinkEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun collectionDao(): CollectionDao
     abstract fun readingPositionDao(): ReadingPositionDao
     abstract fun bookFormattingPreferencesDao(): BookFormattingPreferencesDao
+    abstract fun readaloudLinkDao(): ReadaloudLinkDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -282,6 +284,42 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE `servers`")
                 db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
+            }
+        }
+
+        // ReadaloudLink table from ADR 0021: one row per Confirmed Storyteller↔ABS pairing.
+        // FK-cascade to servers(id) on both sides so the row disappears when either side's
+        // Server is removed (issue #36's "Server removal cascade clears ReadaloudLink rows").
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `readaloud_links` (" +
+                        "`storytellerServerId` TEXT NOT NULL, " +
+                        "`storytellerBookId` TEXT NOT NULL, " +
+                        "`absServerId` TEXT NOT NULL, " +
+                        "`absLibraryItemId` TEXT NOT NULL, " +
+                        "`state` TEXT NOT NULL DEFAULT 'CONFIRMED', " +
+                        "`userConfirmed` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`storytellerServerId`, `storytellerBookId`), " +
+                        "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId_absLibraryItemId` " +
+                        "ON `readaloud_links` (`absServerId`, `absLibraryItemId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` " +
+                        "ON `readaloud_links` (`storytellerServerId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_absServerId` " +
+                        "ON `readaloud_links` (`absServerId`)"
+                )
             }
         }
     }
