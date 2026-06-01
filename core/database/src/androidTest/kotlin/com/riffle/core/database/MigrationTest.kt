@@ -633,8 +633,13 @@ class MigrationTest {
     }
 
     @Test
-    fun migration21To22_addsReadaloudLinksKeyedByAbsItemWithCascade() {
+    fun migration21To22_addsIsbnAsinAndReadaloudLinksKeyedByAbsItem() {
         helper.createDatabase(TEST_DB, 21).use { db ->
+            // Pre-existing library_item row that must survive the isbn/asin column add.
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt) " +
+                    "VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL, NULL)"
+            )
             // Two servers — one Storyteller, one ABS — that the link will reference.
             db.execSQL(
                 "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
@@ -648,28 +653,42 @@ class MigrationTest {
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 22, true, RiffleDatabase.MIGRATION_21_22)
 
-        // New table starts empty.
+        // isbn/asin columns default to NULL on pre-existing rows.
+        db.query("SELECT id, isbn, asin FROM library_items WHERE id = 'item1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("item1", cursor.getString(0))
+            assertNull(cursor.getString(1))
+            assertNull(cursor.getString(2))
+        }
+        // New writes can populate them.
+        db.execSQL(
+            "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt, isbn, asin) " +
+                "VALUES ('item2', 'lib1', 'Atomic Habits', 'James Clear', NULL, 0.0, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL, NULL, '9780735211292', 'B07D23CFGR')"
+        )
+        db.query("SELECT isbn, asin FROM library_items WHERE id = 'item2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("9780735211292", cursor.getString(0))
+            assertEquals("B07D23CFGR", cursor.getString(1))
+        }
+
+        // readaloud_links starts empty.
         db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
             cursor.moveToFirst()
             assertEquals(0, cursor.getInt(0))
         }
 
-        // Insert a Confirmed auto-link.
+        // A readaloud can hold multiple ABS-side rows — ebook entry + audiobook stub.
         db.execSQL(
             "INSERT INTO readaloud_links " +
                 "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 0, 1000, 1000)"
         )
-
-        // Insert a second row for the same Storyteller readaloud pointing at a different
-        // ABS item — represents the audiobook stub in an Audiobooks library.
         db.execSQL(
             "INSERT INTO readaloud_links " +
                 "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-audio', 'st1', 'book-42', 'CONFIRMED', 0, 1100, 1100)"
         )
-
-        // The Storyteller readaloud now legitimately has two rows.
         db.query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerBookId = 'book-42'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(2, cursor.getInt(0))
@@ -689,7 +708,7 @@ class MigrationTest {
             assertEquals(2000L, cursor.getLong(2))
         }
 
-        // FK cascade: deleting the ABS server wipes every row referencing it.
+        // FK cascade on the ABS side.
         db.execSQL("PRAGMA foreign_keys = ON")
         db.execSQL("DELETE FROM servers WHERE id = 'abs1'")
         db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
@@ -697,7 +716,7 @@ class MigrationTest {
             assertEquals(0, cursor.getInt(0))
         }
 
-        // And cascade on the Storyteller side too.
+        // FK cascade on the Storyteller side.
         db.execSQL(
             "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
                 "VALUES ('abs2', 'http://other:13378', 0, 0, 'plamen', 'AUDIOBOOKSHELF')"
@@ -715,39 +734,6 @@ class MigrationTest {
     }
 
     @Test
-    fun migration22To23_addsIsbnAndAsinColumns() {
-        helper.createDatabase(TEST_DB, 22).use { db ->
-            db.execSQL(
-                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt) " +
-                    "VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL, NULL)"
-            )
-        }
-
-        val db = helper.runMigrationsAndValidate(TEST_DB, 23, true, RiffleDatabase.MIGRATION_22_23)
-
-        // Pre-existing row preserved; new columns default to NULL.
-        db.query("SELECT id, title, isbn, asin FROM library_items WHERE id = 'item1'").use { cursor ->
-            assertEquals(1, cursor.count)
-            cursor.moveToFirst()
-            assertEquals("item1", cursor.getString(0))
-            assertEquals("Dune", cursor.getString(1))
-            assertNull(cursor.getString(2))
-            assertNull(cursor.getString(3))
-        }
-
-        // New writes can populate the new columns.
-        db.execSQL(
-            "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt, isbn, asin) " +
-                "VALUES ('item2', 'lib1', 'Atomic Habits', 'James Clear', NULL, 0.0, NULL, 'epub', NULL, NULL, NULL, '', NULL, NULL, NULL, '9780735211292', 'B07D23CFGR')"
-        )
-        db.query("SELECT isbn, asin FROM library_items WHERE id = 'item2'").use { cursor ->
-            cursor.moveToFirst()
-            assertEquals("9780735211292", cursor.getString(0))
-            assertEquals("B07D23CFGR", cursor.getString(1))
-        }
-    }
-
-    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -756,7 +742,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 24, true,
+            TEST_DB, 22, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -778,8 +764,6 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_19_20,
             RiffleDatabase.MIGRATION_20_21,
             RiffleDatabase.MIGRATION_21_22,
-            RiffleDatabase.MIGRATION_22_23,
-            RiffleDatabase.MIGRATION_23_24,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

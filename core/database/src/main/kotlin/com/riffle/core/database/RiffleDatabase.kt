@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookFormattingPreferencesEntity::class,
         ReadaloudLinkEntity::class,
     ],
-    version = 24,
+    version = 22,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -287,61 +287,20 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ReadaloudLink table from ADR 0021. ABS-side primary key reflects the natural
-        // multiplicity: each ABS item has at most one readaloud, but a single readaloud
-        // can be referenced from many ABS items (the same conceptual book lives as both
-        // an ebook in a Books library and an audiobook stub in an Audiobooks library).
-        // FK-cascade on both server columns realises "Server removal cascade clears
-        // ReadaloudLink rows" from the acceptance criteria.
+        // Storyteller↔ABS matching (issue #36, ADR 0021). Two coupled changes:
+        //
+        // 1. `library_items` gains `isbn`/`asin` columns so the matcher can run Tier 1
+        //    (exact identifier match) without joining a separate metadata table.
+        // 2. New `readaloud_links` table records Confirmed pairings. The ABS-side PK
+        //    reflects the natural multiplicity — each ABS item has at most one readaloud,
+        //    but a single readaloud can be referenced from many ABS items (the same
+        //    conceptual book regularly lives as both an ebook in a Books library and an
+        //    audiobook stub in an Audiobooks library). FK-cascade on both server columns
+        //    realises "Server removal cascade clears ReadaloudLink rows" from the AC.
         val MIGRATION_21_22 = object : Migration(21, 22) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `readaloud_links` (" +
-                        "`absServerId` TEXT NOT NULL, " +
-                        "`absLibraryItemId` TEXT NOT NULL, " +
-                        "`storytellerServerId` TEXT NOT NULL, " +
-                        "`storytellerBookId` TEXT NOT NULL, " +
-                        "`state` TEXT NOT NULL DEFAULT 'CONFIRMED', " +
-                        "`userConfirmed` INTEGER NOT NULL, " +
-                        "`createdAt` INTEGER NOT NULL, " +
-                        "`updatedAt` INTEGER NOT NULL, " +
-                        "PRIMARY KEY(`absServerId`, `absLibraryItemId`), " +
-                        "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
-                        "ON UPDATE NO ACTION ON DELETE CASCADE, " +
-                        "FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) " +
-                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
-                )
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId_storytellerBookId` " +
-                        "ON `readaloud_links` (`storytellerServerId`, `storytellerBookId`)"
-                )
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` " +
-                        "ON `readaloud_links` (`storytellerServerId`)"
-                )
-            }
-        }
-
-        // Identifier columns on library_items so the Storyteller↔ABS matcher (issue #36)
-        // can run Tier 1 (ISBN/ASIN) without joining a separate metadata table. Default NULL
-        // because existing rows pre-date the metadata being surfaced.
-        val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `isbn` TEXT")
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `asin` TEXT")
-            }
-        }
-
-        // Rebuild readaloud_links with the ABS-keyed schema. An earlier branch of #36
-        // briefly shipped a Storyteller-keyed PK that forced a Tier 2 collision whenever
-        // the same conceptual book had both an ebook entry and an audiobook stub on
-        // ABS; the ABS-keyed schema allows one row per ABS slot, so each entry gets
-        // its own link to the readaloud. The table is dropped and recreated — at this
-        // point only auto-Confirmed rows exist (Pending/manual aren't shipped yet) so a
-        // wipe is the simplest path; the matcher repopulates on next library refresh.
-        val MIGRATION_23_24 = object : Migration(23, 24) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP TABLE IF EXISTS `readaloud_links`")
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `readaloud_links` (" +
                         "`absServerId` TEXT NOT NULL, " +
