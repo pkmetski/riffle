@@ -50,9 +50,11 @@ class EpubRepositoryImpl(
                 ServerType.STORYTELLER -> {
                     when (val r = bundleFetcher.fetch(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
                         is EpubBundleFetcher.Result.Success -> {
-                            val cached = r.epubFile.inputStream().use { cacheStore.save(item.id, it) }
-                            r.epubFile.delete()
-                            cached
+                            try {
+                                r.epubFile.inputStream().use { cacheStore.save(item.id, it) }
+                            } finally {
+                                r.epubFile.delete()
+                            }
                         }
                         is EpubBundleFetcher.Result.NetworkError -> return EpubOpenResult.NetworkError(r.cause)
                     }

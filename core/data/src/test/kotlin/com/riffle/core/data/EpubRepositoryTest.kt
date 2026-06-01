@@ -77,6 +77,7 @@ class EpubRepositoryTest {
             isActive = true,
             insecureConnectionAllowed = false,
             username = "",
+            serverType = ServerType.AUDIOBOOKSHELF,
         )
         override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
         override suspend fun getActive(): Server = activeServer
