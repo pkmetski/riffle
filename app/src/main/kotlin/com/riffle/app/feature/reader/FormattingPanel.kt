@@ -58,6 +58,8 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
+import androidx.compose.ui.graphics.drawscope.clipPath
+import com.riffle.core.domain.ThemeSchedule
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,7 +148,7 @@ fun FormattingPanel(
                         selected = prefs.theme == theme,
                         onClick = { onPrefsChange(prefs.copy(theme = theme)) },
                         label = { Text(label) },
-                        leadingIcon = { ThemeSwatch(theme) },
+                        leadingIcon = { ThemeSwatch(theme, prefs.themeSchedule) },
                         modifier = Modifier.semantics { contentDescription = "$label theme" },
                     )
                 }
@@ -474,30 +476,52 @@ private fun ReaderTheme.displayName(): String = when (this) {
     ReaderTheme.Auto -> "Auto"
 }
 
-// Reader pane background/foreground colors for each theme — used to render a small
-// preview swatch on the corresponding FilterChip so users can pick a theme by sight
-// rather than reading the label. The dot is filled with the background and outlined
-// in the foreground so Dark vs Dark dim are visually distinct.
-// Palette comes from ReaderThemePalette so this stays in lock-step with the chapter-rail
-// overlay backdrop and (transitively) Readium's actual page rendering.
-private fun ReaderTheme.swatchBackground(): Color = palette.background
-
-private fun ReaderTheme.swatchForeground(): Color = palette.foreground
+@Composable
+private fun ThemeSwatch(theme: ReaderTheme, schedule: ThemeSchedule) {
+    if (theme == ReaderTheme.Auto) {
+        AutoThemeSwatch(schedule)
+    } else {
+        ConcreteThemeSwatch(theme)
+    }
+}
 
 @Composable
-private fun ThemeSwatch(theme: ReaderTheme) {
+private fun ConcreteThemeSwatch(theme: ReaderTheme) {
+    val palette = theme.palette
     Box(
         modifier = Modifier
             .size(18.dp)
-            .background(theme.swatchBackground(), RoundedCornerShape(percent = 50))
-            .border(1.dp, theme.swatchForeground(), RoundedCornerShape(percent = 50)),
+            .background(palette.background, RoundedCornerShape(percent = 50))
+            .border(1.dp, palette.foreground, RoundedCornerShape(percent = 50)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            "A",
-            color = theme.swatchForeground(),
-            style = MaterialTheme.typography.labelSmall,
-        )
+        Text("A", color = palette.foreground, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun AutoThemeSwatch(schedule: ThemeSchedule) {
+    val day = schedule.dayTheme.palette
+    val night = schedule.nightTheme.palette
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .background(day.background, RoundedCornerShape(percent = 50))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(percent = 50)),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Bottom-right half painted in the night background, clipped to the circle.
+        Canvas(modifier = Modifier.size(18.dp)) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width, 0f)
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            clipPath(path) {
+                drawCircle(color = night.background, radius = size.minDimension / 2f)
+            }
+        }
     }
 }
 
