@@ -152,8 +152,9 @@ class LibraryItemsViewModelTest {
         serverRepository: ServerRepository = fakeServerRepo(),
         tokenStorage: TokenStorage = fakeTokenStorage(),
         toReadRepository: ToReadRepository = FakeToReadRepository(),
+        savedStateHandle: SavedStateHandle = SavedStateHandle(mapOf("libraryId" to "lib-1")),
     ) = LibraryItemsViewModel(
-        SavedStateHandle(mapOf("libraryId" to "lib-1")),
+        savedStateHandle,
         libraryRepository,
         serverRepository,
         tokenStorage,
@@ -822,5 +823,26 @@ class LibraryItemsViewModelTest {
         librariesFlow.value = listOf(Library("lib-1", "Books", "book", false))
         testDispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.isReadaloudLibrary.value)
+    }
+
+    // --- searchQuery persistence (issue #60) ---
+
+    @Test
+    fun `searchQuery is restored from SavedStateHandle on construction`() = runTest {
+        val handle = SavedStateHandle(mapOf("libraryId" to "lib-1", "searchQuery" to "dune"))
+        val vm = makeViewModel(savedStateHandle = handle)
+        backgroundScope.launch { vm.searchQuery.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("dune", vm.searchQuery.value)
+    }
+
+    @Test
+    fun `onSearchQueryChange writes through to SavedStateHandle`() = runTest {
+        val handle = SavedStateHandle(mapOf("libraryId" to "lib-1"))
+        val vm = makeViewModel(savedStateHandle = handle)
+        backgroundScope.launch { vm.searchQuery.collect {} }
+        vm.onSearchQueryChange("foundation")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("foundation", handle.get<String>("searchQuery"))
     }
 }

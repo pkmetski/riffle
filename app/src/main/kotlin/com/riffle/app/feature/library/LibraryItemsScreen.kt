@@ -1,6 +1,8 @@
 package com.riffle.app.feature.library
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -100,6 +102,9 @@ fun LibraryItemsScreen(
     onCollectionSelected: (Collection) -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
+    // When the navigation drawer is open, its own BackHandler must take Back so it can close
+    // itself. We disable our layered Back in that case (issue #60).
+    backEnabled: Boolean = true,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -131,11 +136,26 @@ fun LibraryItemsScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()
-                viewModel.onSearchQueryChange("")
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Layered Back (issue #60): clear an active search first, then drop back to the Home tab,
+    // and only exit the app from a clean Home state. Without this the drawer's own BackHandler
+    // can intercept Back if the drawer is still in its closing animation.
+    val activity = LocalActivity.current
+    BackHandler(enabled = backEnabled) {
+        when (libraryBackAction(searchQuery, selectedTab)) {
+            LibraryBackAction.ClearSearch -> {
+                viewModel.onSearchQueryChange("")
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+            }
+            LibraryBackAction.ResetToHomeTab -> { selectedTab = 0 }
+            LibraryBackAction.Exit -> activity?.finish()
+        }
     }
 
     Scaffold(

@@ -1,5 +1,6 @@
 package com.riffle.app.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -80,6 +81,13 @@ fun MainScreen(
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.
     val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
+
+    // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
+    // drawer is open we add one here. Registered above the NavHost so screen-level handlers
+    // (e.g. LibraryItemsScreen) don't override it.
+    BackHandler(enabled = !usePermanentDrawer && drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
@@ -209,9 +217,14 @@ fun MainScreen(
                     backStackEntry.arguments?.getString("libraryName") ?: "",
                     "UTF-8"
                 )
+                // Force the drawer fully closed when the library destination first composes.
+                // Without this its closing animation can race a Back press and the drawer's
+                // own BackHandler captures it instead of exiting the app (issue #60).
+                LaunchedEffect(Unit) { drawerState.close() }
                 LibraryItemsScreen(
                     libraryName = libraryName,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
+                    backEnabled = !drawerState.isOpen,
                     onSeriesSelected = { series ->
                         val encodedName = URLEncoder.encode(series.name, "UTF-8")
                         navController.navigate("series_detail/$libraryId/${series.id}/$encodedName")
