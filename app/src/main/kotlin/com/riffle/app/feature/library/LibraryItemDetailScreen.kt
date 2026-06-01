@@ -14,11 +14,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +35,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -146,12 +151,14 @@ fun LibraryItemDetailScreen(
                         token = viewModel.authToken,
                         downloadState = downloadState,
                         isReadaloud = state.isReadaloud,
+                        readaloudFooter = state.readaloudFooter,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemoveWithUndo,
+                        onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         modifier = Modifier.padding(padding),
                     )
                 } else {
@@ -161,12 +168,14 @@ fun LibraryItemDetailScreen(
                         token = viewModel.authToken,
                         downloadState = downloadState,
                         isReadaloud = state.isReadaloud,
+                        readaloudFooter = state.readaloudFooter,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemoveWithUndo,
+                        onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -206,12 +215,14 @@ private fun LibraryItemDetailContent(
     token: String,
     downloadState: DownloadState,
     isReadaloud: Boolean,
+    readaloudFooter: ReadaloudFooterState?,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
+    onUnlinkReadaloud: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -266,6 +277,57 @@ private fun LibraryItemDetailContent(
         }
 
         MetadataLines(item = item)
+
+        readaloudFooter?.let { ReadaloudFooter(state = it, onUnlink = onUnlinkReadaloud) }
+    }
+}
+
+@Composable
+private fun ReadaloudFooter(state: ReadaloudFooterState, onUnlink: () -> Unit) {
+    Surface(
+        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Headphones,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                when (state) {
+                    is ReadaloudFooterState.AbsHasReadaloud -> {
+                        Text(
+                            text = "Readaloud available — open from ${state.readaloudLibraryName}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    is ReadaloudFooterState.ReadaloudLinkedToAbs -> {
+                        Text(text = "Linked to:", style = MaterialTheme.typography.bodyMedium)
+                        state.targets.forEach { target ->
+                            Text(
+                                text = "• ${target.absTitle} · ${target.absLibraryName}",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
+            if (state is ReadaloudFooterState.ReadaloudLinkedToAbs) {
+                IconButton(onClick = onUnlink) {
+                    Icon(
+                        imageVector = Icons.Filled.LinkOff,
+                        contentDescription = "Unlink",
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -276,12 +338,14 @@ internal fun LibraryItemDetailContentTablet(
     token: String,
     downloadState: DownloadState,
     isReadaloud: Boolean,
+    readaloudFooter: ReadaloudFooterState?,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
+    onUnlinkReadaloud: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -347,6 +411,7 @@ internal fun LibraryItemDetailContentTablet(
                 Text(text = series, style = MaterialTheme.typography.bodyLarge)
             }
             MetadataLines(item = item)
+            readaloudFooter?.let { ReadaloudFooter(state = it, onUnlink = onUnlinkReadaloud) }
         }
     }
 }

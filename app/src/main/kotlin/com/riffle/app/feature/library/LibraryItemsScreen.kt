@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
@@ -120,6 +121,7 @@ fun LibraryItemsScreen(
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isReadaloudLibrary by viewModel.isReadaloudLibrary.collectAsState()
+    val linkedItemIds by viewModel.linkedItemIds.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -191,6 +193,7 @@ fun LibraryItemsScreen(
                     onSeriesSelected = onSeriesSelected,
                     onCollectionSelected = onCollectionSelected,
                     onItemSelected = onItemSelected,
+                    linkedItemIds = linkedItemIds,
                 )
             } else if (isReadaloudLibrary) {
                 // Readaloud Library: only the All Books tab exists, rendered directly.
@@ -253,6 +256,7 @@ private fun SearchResultsContent(
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
+    linkedItemIds: Set<String> = emptySet(),
 ) {
     val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() && filteredItems.isEmpty()
     if (allEmpty) {
@@ -281,7 +285,12 @@ private fun SearchResultsContent(
         if (filteredItems.isNotEmpty()) {
             item { SectionHeader("Books") }
             items(filteredItems, key = { "item_${it.id}" }) { item ->
-                LibraryItemCard(item = item, token = token, onClick = { onItemSelected(item) })
+                LibraryItemCard(
+                    item = item,
+                    token = token,
+                    onClick = { onItemSelected(item) },
+                    hasReadaloudLink = item.id in linkedItemIds,
+                )
             }
         }
     }
@@ -761,7 +770,12 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-internal fun LibraryItemCard(item: LibraryItem, token: String, onClick: (() -> Unit)? = null) {
+internal fun LibraryItemCard(
+    item: LibraryItem,
+    token: String,
+    onClick: (() -> Unit)? = null,
+    hasReadaloudLink: Boolean = false,
+) {
     val alpha = if (!item.isSupported) 0.38f else 1f
     Surface(
         modifier = if (onClick != null)
@@ -799,7 +813,20 @@ internal fun LibraryItemCard(item: LibraryItem, token: String, onClick: (() -> U
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (hasReadaloudLink) {
+                            // Glyph badge per #36: signals an ABS book has a Confirmed-matched
+                            // Storyteller readaloud, or a Readaloud book is paired with an ABS item.
+                            Icon(
+                                imageVector = Icons.Filled.Headphones,
+                                contentDescription = "Has matching readaloud",
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                         if (!item.isSupported) {
                             Text(
                                 text = "Not supported",

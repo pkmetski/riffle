@@ -81,6 +81,8 @@ class ServerRepositoryTest {
             flowOf(rows[serverId].orEmpty().toList())
         override suspend fun libraryIdsForServer(serverId: String): List<String> =
             rows[serverId].orEmpty().map { it.id }
+        override suspend fun getById(libraryId: String): LibraryEntity? =
+            rows.values.flatten().firstOrNull { it.id == libraryId }
         override suspend fun deleteByServerId(serverId: String) { rows.remove(serverId) }
         override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {
             rows.values.forEach { list ->
@@ -131,6 +133,7 @@ class ServerRepositoryTest {
         override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+        override suspend fun listMatchableByServerType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
     }
 
     private val storytellerApiNotCalled = StorytellerApi { _, _, _, _ -> error("should not be called") }

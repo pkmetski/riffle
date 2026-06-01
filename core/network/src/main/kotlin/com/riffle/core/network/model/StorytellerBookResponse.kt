@@ -9,6 +9,10 @@ data class StorytellerBookResponse(
     val title: String,
     val authors: List<StorytellerAuthorResponse> = emptyList(),
     @SerialName("processing_status") val processingStatus: StorytellerProcessingStatusResponse? = null,
+    // Identifiers — surfaced when Storyteller's metadata exposes them; nullable so
+    // the matcher's Tier 1 simply falls through to Tier 2 when absent.
+    val isbn: String? = null,
+    val asin: String? = null,
 )
 
 @Serializable

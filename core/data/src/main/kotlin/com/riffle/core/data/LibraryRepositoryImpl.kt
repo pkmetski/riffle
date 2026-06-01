@@ -47,6 +47,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val readingSessionRepository: ReadingSessionRepository,
+    private val readaloudMatchingService: ReadaloudMatchingService,
 ) : LibraryRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -91,6 +92,9 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override suspend fun getItem(itemId: String): LibraryItem? =
         libraryItemDao.getById(itemId)?.toDomain()
+
+    override suspend fun getLibrary(libraryId: String): Library? =
+        libraryDao.getById(libraryId)?.toDomain()
 
     override suspend fun markItemOpened(itemId: String) {
         libraryItemDao.updateLastOpenedAt(itemId, System.currentTimeMillis())
@@ -158,11 +162,14 @@ class LibraryRepositoryImpl @Inject constructor(
                             // server stamp wins once another device has read more recently.
                             lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
                             addedAt = item.addedAt,
+                            isbn = item.isbn,
+                            asin = item.asin,
                         )
                     }
                 libraryItemDao.replaceAllForLibrary(libraryId, entities)
                 val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                 libraryDao.setUnsupported(libraryId, isUnsupported)
+                readaloudMatchingService.reconcileLinks()
                 LibraryRefreshResult.Success
             }
             is NetworkLibraryItemsResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
@@ -261,10 +268,13 @@ class LibraryRepositoryImpl @Inject constructor(
                     publisher = null,
                     lastOpenedAt = lastOpenedAtMap[id],
                     addedAt = null,
+                    isbn = book.isbn,
+                    asin = book.asin,
                 )
             }
             libraryItemDao.replaceAllForLibrary(libraryId, entities)
             libraryDao.setUnsupported(libraryId, false)
+            readaloudMatchingService.reconcileLinks()
             LibraryRefreshResult.Success
         }
         is NetworkStorytellerBooksResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
@@ -297,6 +307,8 @@ class LibraryRepositoryImpl @Inject constructor(
         publisher = publisher,
         lastOpenedAt = lastOpenedAt,
         addedAt = addedAt,
+        isbn = isbn,
+        asin = asin,
     )
 
     private fun SeriesEntity.toDomain() = Series(

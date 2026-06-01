@@ -98,6 +98,7 @@ class SeriesIntegrationTest {
     private class FakeLibraryDao : LibraryDao {
         override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> = MutableStateFlow(emptyList())
         override suspend fun libraryIdsForServer(serverId: String): List<String> = emptyList()
+        override suspend fun getById(libraryId: String): LibraryEntity? = null
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {}
         override suspend fun deleteByServerId(serverId: String) {}
         override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {}
@@ -117,6 +118,7 @@ class SeriesIntegrationTest {
         override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+        override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
     }
 
     private class FakeCollectionDao : CollectionDao {
@@ -138,6 +140,7 @@ class SeriesIntegrationTest {
         serverRepository = fakeServerRepository,
         tokenStorage = fakeTokenStorage,
         readingSessionRepository = NoopReadingSessionRepository,
+        readaloudMatchingService = ReadaloudMatchingService(FakeLibraryItemDao(), NoopReadaloudLinkDao),
     )
 
     private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {

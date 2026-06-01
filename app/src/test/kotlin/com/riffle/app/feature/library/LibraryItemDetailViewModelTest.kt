@@ -79,6 +79,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = item
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
@@ -100,6 +101,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = throw RuntimeException("DB unavailable")
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
@@ -213,6 +215,7 @@ class LibraryItemDetailViewModelTest {
         pdfRepository = pdfRepository,
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
+        readaloudLinkRepository = NoopReadaloudLinkRepository,
     )
 
     private fun serverRepoReturning(server: Server) = object : ServerRepository {

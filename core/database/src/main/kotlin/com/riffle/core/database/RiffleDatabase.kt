@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CollectionItemEntity::class,
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
+        ReadaloudLinkEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun collectionDao(): CollectionDao
     abstract fun readingPositionDao(): ReadingPositionDao
     abstract fun bookFormattingPreferencesDao(): BookFormattingPreferencesDao
+    abstract fun readaloudLinkDao(): ReadaloudLinkDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -282,6 +284,47 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE `servers`")
                 db.execSQL("ALTER TABLE `servers_new` RENAME TO `servers`")
+            }
+        }
+
+        // Storyteller↔ABS matching (issue #36, ADR 0021). Two coupled changes:
+        //
+        // 1. `library_items` gains `isbn`/`asin` columns so the matcher can run Tier 1
+        //    (exact identifier match) without joining a separate metadata table.
+        // 2. New `readaloud_links` table records Confirmed pairings. The ABS-side PK
+        //    reflects the natural multiplicity — each ABS item has at most one readaloud,
+        //    but a single readaloud can be referenced from many ABS items (the same
+        //    conceptual book regularly lives as both an ebook in a Books library and an
+        //    audiobook stub in an Audiobooks library). FK-cascade on both server columns
+        //    realises "Server removal cascade clears ReadaloudLink rows" from the AC.
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `isbn` TEXT")
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `asin` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `readaloud_links` (" +
+                        "`absServerId` TEXT NOT NULL, " +
+                        "`absLibraryItemId` TEXT NOT NULL, " +
+                        "`storytellerServerId` TEXT NOT NULL, " +
+                        "`storytellerBookId` TEXT NOT NULL, " +
+                        "`state` TEXT NOT NULL DEFAULT 'CONFIRMED', " +
+                        "`userConfirmed` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`absServerId`, `absLibraryItemId`), " +
+                        "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId_storytellerBookId` " +
+                        "ON `readaloud_links` (`storytellerServerId`, `storytellerBookId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` " +
+                        "ON `readaloud_links` (`storytellerServerId`)"
+                )
             }
         }
     }

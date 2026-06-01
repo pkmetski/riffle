@@ -54,6 +54,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val pdfRepository: PdfRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val toReadRepository: ToReadRepository,
+    private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -110,6 +111,18 @@ class LibraryItemsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val toReadItemIds: StateFlow<Set<String>> = toReadRepository.observeToReadItemIds(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /**
+     * Set of items in this library that have a Readaloud↔ABS link — drives the small
+     * headphone badge on each LibraryItemCard. For an ABS Library the set is keyed by
+     * ABS Library Item id; for a Readaloud Library it's keyed by Storyteller book id.
+     */
+    val linkedItemIds: StateFlow<Set<String>> = isReadaloudLibrary
+        .flatMapLatest { isReadaloud ->
+            if (isReadaloud) readaloudLinkRepository.observeLinkedStorytellerBookIds()
+            else readaloudLinkRepository.observeLinkedAbsItemIds()
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)

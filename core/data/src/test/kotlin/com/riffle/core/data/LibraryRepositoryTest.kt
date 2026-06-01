@@ -79,6 +79,9 @@ class LibraryRepositoryTest {
         override suspend fun libraryIdsForServer(serverId: String): List<String> =
             roomData[serverId]?.value.orEmpty().map { it.id }
 
+        override suspend fun getById(libraryId: String): LibraryEntity? =
+            roomData.values.flatMap { it.value }.firstOrNull { it.id == libraryId }
+
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {
             upserted.addAll(libraries)
             libraries.groupBy { it.serverId }.forEach { (serverId, items) ->
@@ -147,6 +150,8 @@ class LibraryRepositoryTest {
                 ?: emptyList()
 
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+
+        override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
     }
 
     private class FakeSeriesDao : SeriesDao {
@@ -235,8 +240,11 @@ class LibraryRepositoryTest {
         readingSessionRepository: com.riffle.core.domain.ReadingSessionRepository = NoopReadingSessionRepository,
     ) = LibraryRepositoryImpl(
         api, storytellerApiNotCalled, libraryDao, libraryItemDao, seriesDao, collectionDao,
-        fakeServerRepository, fakeTokenStorage, readingSessionRepository,
+        fakeServerRepository, fakeTokenStorage, readingSessionRepository, noopMatchingService(libraryItemDao),
     )
+
+    private fun noopMatchingService(itemDao: FakeLibraryItemDao): ReadaloudMatchingService =
+        ReadaloudMatchingService(itemDao, NoopReadaloudLinkDao)
 
     private val storytellerApiNotCalled = object : com.riffle.core.network.StorytellerLibraryApi {
         override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean) =
@@ -859,6 +867,7 @@ class LibraryRepositoryTest {
                 serverRepository = fakeServerRepository,
                 tokenStorage = fakeTokenStorage,
                 readingSessionRepository = NoopReadingSessionRepository,
+                readaloudMatchingService = noopMatchingService(itemDao),
             ).refreshLibraryItems("readaloud:st-1")
         }
 

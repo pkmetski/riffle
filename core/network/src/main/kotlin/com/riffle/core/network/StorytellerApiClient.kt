@@ -147,6 +147,8 @@ class StorytellerApiClient(
             id = id,
             title = title,
             authors = authors.map { it.name },
+            isbn = isbn,
+            asin = asin,
         )
 
     private fun OkHttpClient.trustAllCerts(): OkHttpClient {
