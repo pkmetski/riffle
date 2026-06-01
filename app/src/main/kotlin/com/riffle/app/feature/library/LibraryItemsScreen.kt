@@ -1,8 +1,8 @@
 package com.riffle.app.feature.library
 
-import android.app.Activity
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -145,7 +145,7 @@ fun LibraryItemsScreen(
     // Layered Back (issue #60): clear an active search first, then drop back to the Home tab,
     // and only exit the app from a clean Home state. Without this the drawer's own BackHandler
     // can intercept Back if the drawer is still in its closing animation.
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
     BackHandler(enabled = backEnabled) {
         when (libraryBackAction(searchQuery, selectedTab)) {
             LibraryBackAction.ClearSearch -> {
