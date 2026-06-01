@@ -14,7 +14,12 @@ object EpubBundleExtractor {
             while (entry != null) {
                 if (!entry.isDirectory && entry.name.endsWith(".epub", ignoreCase = true)) {
                     val out = File.createTempFile("storyteller-", ".epub", workingDir)
-                    out.outputStream().use { zis.copyTo(it) }
+                    try {
+                        out.outputStream().use { zis.copyTo(it) }
+                    } catch (e: Throwable) {
+                        out.delete()
+                        throw e
+                    }
                     return out
                 }
                 entry = zis.nextEntry
