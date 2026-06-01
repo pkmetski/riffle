@@ -10,9 +10,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.ByteArrayOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 class EpubBundleFetcherTest {
 
@@ -20,19 +17,13 @@ class EpubBundleFetcherTest {
     val tmp = TemporaryFolder()
 
     @Test
-    fun fetch_returnsExtractedEpubFile() = runTest {
+    fun fetch_writesResponseBodyToTempFile() = runTest {
         val epubBytes = "EPUB PAYLOAD".toByteArray()
-        val bundleBytes = ByteArrayOutputStream().also { baos ->
-            ZipOutputStream(baos).use { zip ->
-                zip.putNextEntry(ZipEntry("book.epub")); zip.write(epubBytes); zip.closeEntry()
-            }
-        }.toByteArray()
-
         val api = StorytellerBundleApi { _, bookId, token, _ ->
             assertEquals("42", bookId)
             assertEquals("tkn", token)
             NetworkStorytellerBundleResult.Success(
-                bundleBytes.toResponseBody("application/zip".toMediaType()),
+                epubBytes.toResponseBody("application/epub+zip".toMediaType()),
             )
         }
         val fetcher = EpubBundleFetcher(api, workingDirProvider = { tmp.root })

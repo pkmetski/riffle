@@ -16,10 +16,14 @@ class EpubBundleFetcher(
         data class NetworkError(val cause: Throwable) : Result
     }
 
-    // Streaming + zip-decoding + disk writing the bundle is mostly I/O with bursts of
-    // CPU work and can run for tens of seconds on multi-hundred-MB books. Callers reach
-    // this from viewModelScope (Main); wrapping the body in Dispatchers.IO keeps Main
-    // free so the detail screen doesn't ANR while the download is in flight.
+    // Streams /api/books/{id}/synced into a temp file in workingDirProvider().
+    //
+    // Despite the endpoint's "synced" name, the response IS the EPUB 3 file (with
+    // Media Overlay .smil entries inside, per EPUB 3 spec) — not an outer archive
+    // that needs unpacking. We stream the body straight to disk.
+    //
+    // I/O runs on Dispatchers.IO so the multi-hundred-MB stream + write doesn't
+    // block the caller's thread (typically viewModelScope on Main).
     suspend fun fetch(
         baseUrl: String,
         bookId: String,
@@ -27,14 +31,17 @@ class EpubBundleFetcher(
         insecureAllowed: Boolean,
     ): Result = withContext(Dispatchers.IO) {
         when (val r = api.downloadBundle(baseUrl, bookId, token, insecureAllowed)) {
-            is NetworkStorytellerBundleResult.Success -> r.body.use { body ->
+            is NetworkStorytellerBundleResult.Success -> {
+                val workingDir = workingDirProvider()
+                if (!workingDir.exists()) workingDir.mkdirs()
+                val out = File.createTempFile("storyteller-", ".epub", workingDir)
                 try {
-                    val epub = EpubBundleExtractor.extractEpub(body.byteStream(), workingDirProvider())
-                    Result.Success(epub)
-                // Extraction failures (bad zip, missing .epub entry, disk-full) are folded into
-                // NetworkError because EpubOpenResult / EpubDownloadResult expose only one
-                // failure variant anyway; the user-facing distinction would be lost downstream.
+                    r.body.use { body ->
+                        out.outputStream().use { sink -> body.byteStream().copyTo(sink) }
+                    }
+                    Result.Success(out)
                 } catch (e: Throwable) {
+                    out.delete()
                     Result.NetworkError(e)
                 }
             }

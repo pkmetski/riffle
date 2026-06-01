@@ -268,16 +268,10 @@ class EpubRepositoryTest {
     @Test
     fun `downloadEpub for Storyteller server saves to downloads store`() = runTest {
         val epubBytes = "STORY DL".toByteArray()
-        val bundleBytes = java.io.ByteArrayOutputStream().also { baos ->
-            java.util.zip.ZipOutputStream(baos).use { zip ->
-                zip.putNextEntry(java.util.zip.ZipEntry("book.epub"))
-                zip.write(epubBytes); zip.closeEntry()
-            }
-        }.toByteArray()
 
         val bundleApi = StorytellerBundleApi { _, _, _, _ ->
             NetworkStorytellerBundleResult.Success(
-                bundleBytes.toResponseBody("application/zip".toMediaType()),
+                epubBytes.toResponseBody("application/epub+zip".toMediaType()),
             )
         }
         val fetcher = EpubBundleFetcher(bundleApi, workingDirProvider = { tmp.newFolder("wd-${System.nanoTime()}") })
@@ -342,21 +336,14 @@ class EpubRepositoryTest {
     }
 
     @Test
-    fun `openEpub for Storyteller server uses bundle fetcher and caches extracted epub`() = runTest {
+    fun `openEpub for Storyteller server fetches bundle and caches epub bytes`() = runTest {
         val epubContent = "STORY EPUB".toByteArray()
-        val bundleBytes = java.io.ByteArrayOutputStream().also { baos ->
-            java.util.zip.ZipOutputStream(baos).use { zip ->
-                zip.putNextEntry(java.util.zip.ZipEntry("book.epub"))
-                zip.write(epubContent)
-                zip.closeEntry()
-            }
-        }.toByteArray()
 
         val bundleApi = StorytellerBundleApi { _, bookId, token, _ ->
             assertEquals("42", bookId)
             assertEquals("st-token", token)
             NetworkStorytellerBundleResult.Success(
-                bundleBytes.toResponseBody("application/zip".toMediaType()),
+                epubContent.toResponseBody("application/epub+zip".toMediaType()),
             )
         }
         val fetcher = EpubBundleFetcher(bundleApi, workingDirProvider = { tmp.newFolder("wd-${System.nanoTime()}") })
