@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
@@ -24,6 +25,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -32,13 +36,17 @@ sealed interface LibraryItemDetailUiState {
     data class Ready(
         val item: LibraryItem,
         val isInToRead: Boolean = false,
-        // True when the item belongs to a Storyteller-backed (Readaloud) Library. In this slice the
-        // Read button is disabled and the EPUB/audio downloads are hidden — reader-side bundle
-        // fetch lands in #35 and #37 per ADR 0020.
+        // True when the item belongs to a Storyteller-backed (Readaloud) Library.
         val isReadaloud: Boolean = false,
         // Surfaced as the Readaloud-side / ABS-side footer per ADR 0021 when the matcher has
         // produced a Confirmed link.
         val readaloudFooter: ReadaloudFooterState? = null,
+        // True when the epub is available locally (cached or downloaded). Used by the UI to decide
+        // whether to disable the Read button when offline (#35).
+        val isCachedOrDownloaded: Boolean = false,
+        // True when the device is currently offline. Reactive — updated via combine with
+        // ConnectivityObserver.isOnline in the ViewModel.
+        val isOffline: Boolean = false,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
 }
@@ -81,6 +89,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val sessionRepository: ReadingSessionRepository,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
+    private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -111,11 +120,14 @@ class LibraryItemDetailViewModel @Inject constructor(
                     if (!isReadaloud) toReadRepository.refresh(item.libraryId)
                     val isInToRead = if (isReadaloud) false else toReadRepository.isInToRead(item.id, item.libraryId)
                     val footer = resolveReadaloudFooter(item, isReadaloud, server?.id)
+                    val isCachedOrDownloaded = epubRepository.isCached(item.id) || epubRepository.isDownloaded(item.id)
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         isInToRead = isInToRead,
                         isReadaloud = isReadaloud,
                         readaloudFooter = footer,
+                        isCachedOrDownloaded = isCachedOrDownloaded,
+                        isOffline = !connectivityObserver.isOnline.value,
                     )
                 } else {
                     LibraryItemDetailUiState.Error
@@ -124,6 +136,16 @@ class LibraryItemDetailViewModel @Inject constructor(
                 LibraryItemDetailUiState.Error
             }
         }
+
+        // Reactively update isOffline in Ready state when connectivity changes.
+        connectivityObserver.isOnline
+            .onEach { online ->
+                val current = _uiState.value
+                if (current is LibraryItemDetailUiState.Ready) {
+                    _uiState.value = current.copy(isOffline = !online)
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     fun markOpened() {
