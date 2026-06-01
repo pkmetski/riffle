@@ -74,7 +74,14 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             is NetworkGetProgressResult.Success -> r.progress
             is NetworkGetProgressResult.NetworkError -> return
         }
-        val patchResult = api.syncEbookProgress(
+        // Deliberately do NOT bump positionStore.localUpdatedAt here. Matching the server's
+        // post-PATCH lastUpdate without also writing the server's cfi locally would create a
+        // "local in sync but cfi empty" state: the next runSyncCycle would see equal stamps
+        // and return InSync, the reader would open at page 1, and the next local save would
+        // PATCH first-page state over the real server position. Leaving local untouched lets
+        // the first runSyncCycle after this call see server > local and trigger ServerWins,
+        // restoring the saved position to the navigator.
+        api.syncEbookProgress(
             server.url.value, itemId,
             NetworkEbookProgressPayload(
                 ebookLocation = serverProgress.ebookLocation,
@@ -82,10 +89,6 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             ),
             token, server.insecureConnectionAllowed,
         )
-        if (patchResult is NetworkSyncSessionResult.Success) {
-            val ts = patchResult.lastUpdate.takeIf { it > 0L } ?: System.currentTimeMillis()
-            positionStore.updateLocalTimestamp(server.id, itemId, ts)
-        }
     }
 
     override suspend fun setProgress(itemId: String, progress: Float) {

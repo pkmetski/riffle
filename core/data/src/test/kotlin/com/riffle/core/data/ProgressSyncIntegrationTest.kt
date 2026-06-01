@@ -237,7 +237,10 @@ class ProgressSyncIntegrationTest {
         val body = patchReq.body.readUtf8()
         assertTrue("ebookLocation must be echoed verbatim: $body", body.contains("\"ebookLocation\":\"epubcfi(/6/8!/4/2/1:0)\""))
         assertTrue("ebookProgress must be echoed verbatim: $body", body.contains("\"ebookProgress\":0.42"))
-        assertEquals(9999L, positionStore.updatedTimestamp)
+        // The PATCH bumps the server's lastUpdate. We deliberately do not echo that timestamp
+        // into the local store — leaving local stale guarantees the next runSyncCycle sees
+        // server > local, fires ServerWins, and restores the saved position to the navigator.
+        assertEquals(null, positionStore.updatedTimestamp)
     }
 
     @Test
