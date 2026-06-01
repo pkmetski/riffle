@@ -31,13 +31,25 @@ object ReadaloudMatcher {
         }
 
         val bookTitle = normaliseTitle(book.title)
-        val bookAuthor = normaliseAuthor(book.author)
-        if (bookTitle.isEmpty() || bookAuthor.isEmpty()) return MatchResult.Unmatched
+        val bookAuthorTokens = authorTokens(book.author)
+        if (bookTitle.isEmpty() || bookAuthorTokens.isEmpty()) return MatchResult.Unmatched
 
         val titleAuthorHits = candidates.filter {
-            normaliseTitle(it.title) == bookTitle && normaliseAuthor(it.author) == bookAuthor
+            normaliseTitle(it.title) == bookTitle && authorsOverlap(bookAuthorTokens, authorTokens(it.author))
         }
         return titleAuthorHits.singleOrNull()?.confirmed() ?: MatchResult.Unmatched
+    }
+
+    /**
+     * "Author A matches Author B" iff one side's token set is a non-empty subset of the
+     * other's. Reason: Storyteller's OPF-derived `authors` array indiscriminately tags
+     * narrators and co-authors with `role:"aut"`, so the Storyteller side typically lists
+     * more contributors than the curated ABS side. Subset captures "ABS primary author
+     * appears in the Storyteller author list" without rejecting on cardinality drift.
+     */
+    private fun authorsOverlap(a: Set<String>, b: Set<String>): Boolean {
+        if (a.isEmpty() || b.isEmpty()) return false
+        return a.containsAll(b) || b.containsAll(a)
     }
 
     private fun identifierMatches(book: MatchableStorytellerBook, abs: MatchableAbsItem): Boolean {
@@ -66,24 +78,40 @@ object ReadaloudMatcher {
         return stripped.ifEmpty { null }?.uppercase()
     }
 
-    private fun normaliseTitle(raw: String): String =
+    private fun normaliseTitle(raw: String): String {
+        // Strip subtitle: anything after the first `:` or em-dash. Storyteller derives titles
+        // from the EPUB OPF and keeps the "A Novel"-style subtitle; ABS users curate it out.
+        // Comparing only the head pairs the empirical reality without sacrificing safety —
+        // when the head alone collides across distinct ABS items, the collision rule
+        // demotes to Unmatched.
+        val head = raw.split(':', '—').first()
+        val tokens = head.lowercase()
+            .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
+            .joinToString("")
+            .split(Regex("\\s+"))
+            .filter { it.isNotEmpty() }
+        // Drop a leading article ("the", "a", "an"). Library cataloguing convention drops
+        // it; OPF metadata usually keeps it. Only the very first token is touched so that
+        // "A Brief History of Time" doesn't become "Brief History of Time" by mistake when
+        // the indefinite article is title-internal — it isn't, here, but the token-level
+        // restriction guards against false trims like "The The" → "" pathologies.
+        val deArticled = if (tokens.firstOrNull() in LEADING_ARTICLES) tokens.drop(1) else tokens
+        return deArticled.joinToString(" ")
+    }
+
+    private val LEADING_ARTICLES = setOf("the", "a", "an")
+
+    /**
+     * Token set for an author string, used by [authorsOverlap]. "Smith, John" and "John Smith"
+     * produce the same set, which is how the spec's name-order equivalence is satisfied. Any
+     * non-alphanumeric character is treated as a separator so OPF-junk like "Andy Weir;"
+     * collapses to {andy, weir}.
+     */
+    private fun authorTokens(raw: String): Set<String> =
         raw.lowercase()
             .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
             .joinToString("")
             .split(Regex("\\s+"))
             .filter { it.isNotEmpty() }
-            .joinToString(" ")
-
-    /**
-     * Normalises an author string so "Smith, John" and "John Smith" compare equal.
-     * Strategy: split on commas/whitespace, drop punctuation, sort the tokens.
-     */
-    private fun normaliseAuthor(raw: String): String =
-        raw.lowercase()
-            .map { if (it.isLetterOrDigit() || it.isWhitespace() || it == ',') it else ' ' }
-            .joinToString("")
-            .split(Regex("[\\s,]+"))
-            .filter { it.isNotEmpty() }
-            .sorted()
-            .joinToString(" ")
+            .toSet()
 }

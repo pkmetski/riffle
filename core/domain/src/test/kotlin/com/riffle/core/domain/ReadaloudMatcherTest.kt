@@ -122,6 +122,90 @@ class ReadaloudMatcherTest {
     }
 
     @Test
+    fun `subtitle after colon is stripped before title comparison`() {
+        // Real-world case: Storyteller takes its title from the EPUB OPF and keeps the
+        // "A Novel"-style subtitle; ABS users almost always curate that out.
+        val book = storytellerBook(title = "The Martian: A Novel", author = "Andy Weir")
+        val abs = absItem(title = "The Martian", author = "Andy Weir")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Confirmed("abs-1", "item-1"), result)
+    }
+
+    @Test
+    fun `subtitle after em-dash is stripped before title comparison`() {
+        val book = storytellerBook(title = "Project Hail Mary — A Novel", author = "Andy Weir")
+        val abs = absItem(title = "Project Hail Mary", author = "Andy Weir")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Confirmed("abs-1", "item-1"), result)
+    }
+
+    @Test
+    fun `leading article on one side does not block title match`() {
+        // Library cataloguing convention drops leading "The"/"A"/"An"; OPF metadata usually
+        // keeps it. Real-world Storyteller "The Dragons of Eden" must pair with ABS-curated
+        // "Dragons of Eden".
+        val book = storytellerBook(title = "The Dragons of Eden", author = "Carl Sagan")
+        val abs = absItem(title = "Dragons of Eden", author = "Carl Sagan")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Confirmed("abs-1", "item-1"), result)
+    }
+
+    @Test
+    fun `Storyteller multi-author list still matches single-author ABS`() {
+        // Storyteller's OPF-derived authors include narrators and foreword authors,
+        // tagged role:"aut" indiscriminately. The matcher treats the ABS side's primary
+        // author as a subset of the Storyteller side and Confirms.
+        val book = storytellerBook(
+            title = "The Dragons of Eden",
+            author = "Carl Sagan, JD Jackson, Ann Druyan",
+        )
+        val abs = absItem(title = "The Dragons of Eden", author = "Carl Sagan")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Confirmed("abs-1", "item-1"), result)
+    }
+
+    @Test
+    fun `Storyteller duplicated-author OPF still matches single-author ABS`() {
+        // Real-world data quality: Storyteller exports both "Andy Weir" and "Andy Weir;"
+        // when the EPUB OPF has two <dc:creator> entries. After punctuation stripping
+        // the token sets are equal.
+        val book = storytellerBook(title = "Project Hail Mary", author = "Andy Weir, Andy Weir;")
+        val abs = absItem(title = "Project Hail Mary", author = "Andy Weir")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Confirmed("abs-1", "item-1"), result)
+    }
+
+    @Test
+    fun `subset match still rejects when no author token overlaps`() {
+        val book = storytellerBook(title = "The Same Title", author = "Carl Sagan, JD Jackson")
+        val abs = absItem(title = "The Same Title", author = "Someone Else")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Unmatched, result)
+    }
+
+    @Test
+    fun `empty author on one side cannot satisfy subset rule`() {
+        val book = storytellerBook(title = "X", author = "")
+        val abs = absItem(title = "X", author = "Anyone")
+
+        val result = ReadaloudMatcher.match(book, listOf(abs))
+
+        assertEquals(MatchResult.Unmatched, result)
+    }
+
+    @Test
     fun `differing author rules out title-only match`() {
         val book = storytellerBook(title = "Atomic Habits", author = "James Clear")
         val abs = absItem(title = "Atomic Habits", author = "Someone Else")
