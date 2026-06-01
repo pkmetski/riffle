@@ -103,6 +103,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "showChapterMap" to "UI affordance outside the reader content; no CSS implication.",
     "showReadingProgressLabels" to "UI affordance outside the reader content; no CSS implication.",
     "showCurrentChapterLabel" to "UI affordance outside the reader content; no CSS implication.",
+    "themeSchedule" to "Schedule metadata used to derive the resolved theme at runtime; has no direct CSS implication.",
 )
 
 /**

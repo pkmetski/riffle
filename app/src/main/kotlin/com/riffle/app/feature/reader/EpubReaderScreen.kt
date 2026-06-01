@@ -104,7 +104,12 @@ fun EpubReaderScreen(
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val formattingPrefs by viewModel.formattingPreferences.collectAsState()
+    // Raw user-picked prefs — feeds the FormattingPanel chip selection (so Auto stays
+    // highlighted even though the page renders in the resolved palette).
+    val pickedPrefs by viewModel.formattingPreferences.collectAsState()
+    // Resolved prefs — `theme` is always concrete. Feeds Readium, the chapter rail
+    // backdrop, and any palette consumer.
+    val formattingPrefs by viewModel.effectiveFormattingPreferences.collectAsState()
     val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
@@ -319,7 +324,7 @@ fun EpubReaderScreen(
 
         if (showFormattingPanel) {
             FormattingPanel(
-                prefs = formattingPrefs,
+                prefs = pickedPrefs,
                 hasBookOverrides = hasBookOverrides,
                 onPrefsChange = { viewModel.updateFormatting(it) },
                 onReset = { viewModel.resetToGlobalDefaults() },

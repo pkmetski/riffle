@@ -162,6 +162,41 @@ class EpubReaderViewModelTest {
         advanceTimeBy(250)
         assertEquals(1, searchCallCount)
     }
+
+    // Mirrors EpubReaderViewModel's schedule-driven boundary timer using virtual time
+    // (the same pattern as `periodic sync timer fires once after one interval`).
+    @Test
+    fun `effective theme flips at the schedule boundary`() = runTest {
+        val schedule = com.riffle.core.domain.ThemeSchedule(
+            dayStart = java.time.LocalTime.of(7, 0),
+            nightStart = java.time.LocalTime.of(21, 0),
+            dayTheme = com.riffle.core.domain.ReaderTheme.Light,
+            nightTheme = com.riffle.core.domain.ReaderTheme.Dark,
+        )
+        var fakeNow = java.time.LocalTime.of(20, 59)
+        val emitted = mutableListOf<com.riffle.core.domain.ReaderTheme>()
+
+        backgroundScope.launch {
+            emitted += schedule.resolve(fakeNow)
+            while (true) {
+                val next = schedule.nextBoundaryAfter(fakeNow)
+                val delayMs = ((next.toSecondOfDay() - fakeNow.toSecondOfDay() + 24 * 3600) % (24 * 3600)) * 1000L
+                delay(delayMs.coerceAtLeast(1L))
+                fakeNow = next
+                emitted += schedule.resolve(fakeNow)
+            }
+        }
+
+        // 20:59 → 21:00 is 60s; advance just past it.
+        advanceTimeBy(60_000 + 1)
+        assertEquals(
+            listOf(
+                com.riffle.core.domain.ReaderTheme.Light,
+                com.riffle.core.domain.ReaderTheme.Dark,
+            ),
+            emitted,
+        )
+    }
 }
 
 /**
