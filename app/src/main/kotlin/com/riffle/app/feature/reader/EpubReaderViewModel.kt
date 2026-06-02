@@ -25,6 +25,7 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
@@ -103,7 +104,7 @@ class EpubReaderViewModel @Inject constructor(
     private val playerCoordinator: PlayerCoordinator,
     private val storytellerSyncController: StorytellerPositionSyncController,
     private val serverRepository: ServerRepository,
-    private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
+    private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
@@ -944,6 +945,8 @@ class EpubReaderViewModel @Inject constructor(
             _downloadProgress.value = null
             when (result) {
                 com.riffle.core.domain.AudioDownloadResult.Success -> {
+                    // Bundle now present: keep the control visible and enable it.
+                    _readaloudVisible.value = true
                     _readaloudAvailable.value = true
                     readaloudAudioRepository.bundleFile(audioBookId)?.let { ensurePreparedAndPlay(it) }
                 }
