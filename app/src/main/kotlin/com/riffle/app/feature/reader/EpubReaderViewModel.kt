@@ -905,6 +905,9 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             ensureOpened(bundle) ?: return@launch
+            // Starting here counts as the session's first play, so a later pause/resume stays put
+            // rather than re-seeking to the reader position.
+            readaloudStarted = true
             playerCoordinator.playFromHere(fragmentRef)
         }
     }

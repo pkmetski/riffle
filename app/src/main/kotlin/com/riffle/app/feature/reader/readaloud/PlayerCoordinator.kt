@@ -81,9 +81,18 @@ class PlayerCoordinator @Inject constructor(
         controller.prepare(bundleFile, track)
     }
 
+    /**
+     * "Play from here" from the text-selection menu. [fragmentRef] is the selection's
+     * "href#fragmentId" (or a bare "href" when the selection carries no fragment). Resolves exactly
+     * like [playFromReaderPosition] — the selected sentence if it maps to a narrated clip, else the
+     * chapter's first clip, else the nearest narrated clip after it — so a free-text selection (which
+     * rarely lands on a SMIL boundary) starts on the page the user is reading rather than silently
+     * restarting the whole book.
+     */
     fun playFromHere(fragmentRef: String) {
-        lastAdvancedIndex = -1
-        controller.playFromFragment(fragmentRef)
+        val href = fragmentRef.substringBefore('#')
+        val fragmentId = fragmentRef.substringAfter('#', "").ifEmpty { null }
+        playFromReaderPosition(href, fragmentId)
     }
 
     /**

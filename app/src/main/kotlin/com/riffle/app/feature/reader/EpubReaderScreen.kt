@@ -620,28 +620,61 @@ private fun EpubNavigatorView(
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentPublication by rememberUpdatedState(state.publication)
 
-    // "Play from here" is added to the WebView text-selection action bar via Readium's
-    // selectionActionModeCallback hook (the only supported way to customise the selection menu in
-    // 3.0.0). On click we read currentSelection() and derive a SMIL fragment ref from the selection
-    // locator. Limitation: a free-text selection rarely lands exactly on a SMIL <par> boundary, so
-    // we use the selection's first fragment id (locations.fragments) when present, falling back to
-    // the bare href; ReadaloudTrack.clipForFragment then matches the nearest narrated clip it can.
+    // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
+    // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
+    // menu). So besides our "Play from here"/"Highlight" items we must re-add the standard
+    // Copy / Search / Share actions the user expects, driven off the current selection's text.
+    //
+    // "Play from here": on click we read currentSelection() and derive a SMIL fragment ref. A
+    // free-text selection rarely lands exactly on a SMIL <par> boundary, so we pass the selection's
+    // first fragment id (locations.fragments) when present, else the bare href; the player resolves
+    // the nearest narrated clip at/after that position (never restarting the book).
     val playFromHereMenuId = remember { View.generateViewId() }
-    // "Highlight" is added to the same Readium selection action bar (ADR 0024). Gated on
-    // annotationsAvailable so it never shows on a Storyteller-only book / the Readaloud side.
+    // "Highlight" is gated on annotationsAvailable so it never shows on a Storyteller-only book.
     val highlightMenuId = remember { View.generateViewId() }
+    val copyMenuId = remember { View.generateViewId() }
+    val searchMenuId = remember { View.generateViewId() }
+    val shareMenuId = remember { View.generateViewId() }
     val playFromHereActionMode = remember {
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
-                if (currentAnnotationsAvailable) menu.add(0, highlightMenuId, 0, "Highlight")
-                menu.add(0, playFromHereMenuId, 0, "Play from here")
+                menu.add(0, copyMenuId, 0, android.R.string.copy)
+                if (currentAnnotationsAvailable) menu.add(0, highlightMenuId, 1, "Highlight")
+                menu.add(0, playFromHereMenuId, 2, "Play from here")
+                menu.add(0, searchMenuId, 3, "Search")
+                menu.add(0, shareMenuId, 4, "Share")
                 return true
             }
 
             override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
 
+            /** Runs [block] with the current selection's plain text, then clears the selection. */
+            private fun withSelectionText(block: (String) -> Unit) {
+                val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator ?: return
+                coroutineScope.launch {
+                    val selection = selectable.currentSelection() ?: return@launch
+                    selection.locator.text.highlight?.takeIf { it.isNotBlank() }?.let(block)
+                    selectable.clearSelection()
+                }
+            }
+
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
+                    copyMenuId -> withSelectionText { text ->
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Riffle", text))
+                    }
+                    searchMenuId -> withSelectionText { text ->
+                        val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
+                            .putExtra(android.app.SearchManager.QUERY, text)
+                        if (intent.resolveActivity(context.packageManager) != null) context.startActivity(intent)
+                    }
+                    shareMenuId -> withSelectionText { text ->
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                            .setType("text/plain")
+                            .putExtra(android.content.Intent.EXTRA_TEXT, text)
+                        context.startActivity(android.content.Intent.createChooser(send, null))
+                    }
                     highlightMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
                             ?: return false
@@ -650,8 +683,6 @@ private fun EpubNavigatorView(
                             currentOnHighlight(selection.locator)
                             selectable.clearSelection()
                         }
-                        mode.finish()
-                        return true
                     }
                     playFromHereMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
@@ -664,11 +695,11 @@ private fun EpubNavigatorView(
                             currentOnPlayFromHere(ref)
                             selectable.clearSelection()
                         }
-                        mode.finish()
-                        return true
                     }
                     else -> return false
                 }
+                mode.finish()
+                return true
             }
 
             override fun onDestroyActionMode(mode: android.view.ActionMode) {}
