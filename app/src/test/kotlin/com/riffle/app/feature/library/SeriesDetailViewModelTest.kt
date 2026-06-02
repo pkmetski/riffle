@@ -49,6 +49,7 @@ class SeriesDetailViewModelTest {
         onRefreshCall: () -> Unit = {},
     ): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
+        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())

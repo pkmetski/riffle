@@ -75,6 +75,7 @@ class NavigationDrawerViewModelTest {
 
     private fun fakeLibraryRepo(): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
+        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())

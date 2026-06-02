@@ -10,6 +10,10 @@ sealed class LibraryRefreshResult {
 
 interface LibraryRepository {
     fun observeLibraries(): Flow<List<Library>>
+
+    /** Libraries for a specific server (active or not). Reads the local DB; does not hit the network. */
+    fun observeLibraries(serverId: String): Flow<List<Library>>
+
     fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>>

@@ -75,18 +75,19 @@ class ServerSettingsExpansionTest {
     }
 
     @Test
-    fun inactiveAbsServerShowsActivateNote() {
+    fun inactiveAbsServerStillShowsItsLibraries() {
         composeTestRule.setContent {
             ServerSettingsExpansion(
                 server = server(ServerType.AUDIOBOOKSHELF, active = false),
-                libraryItems = emptyList(),
+                libraryItems = listOf(libraryItem("Fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
                 onOpenReadaloudMatches = {},
             )
         }
 
-        composeTestRule.onNodeWithText("Activate this server to manage its libraries.").assertIsDisplayed()
+        // No activation required — a non-active server manages its own libraries.
+        composeTestRule.onNodeWithText("Fiction").assertIsDisplayed()
     }
 
     @Test

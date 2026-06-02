@@ -78,7 +78,7 @@ fun SettingsScreen(
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val servers by viewModel.servers.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
-    val libraryItems by viewModel.libraryUiItems.collectAsState()
+    val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val storytellerServers by viewModel.storytellerServers.collectAsState()
     val audioCacheCaps by viewModel.audioCacheCaps.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -176,7 +176,7 @@ fun SettingsScreen(
                             AnimatedVisibility(visible = isExpanded) {
                                 ServerSettingsExpansion(
                                     server = server,
-                                    libraryItems = libraryItems,
+                                    libraryItems = libraryItemsByServer[server.id].orEmpty(),
                                     summary = readaloudSummaries[server.id],
                                     onSetLibraryVisible = { libraryId, visible ->
                                         viewModel.setLibraryVisible(server.id, libraryId, visible)
@@ -340,12 +340,10 @@ internal fun ServerSettingsExpansion(
         when (server.serverType) {
             ServerType.AUDIOBOOKSHELF -> {
                 ExpansionHeader("Enabled libraries")
-                when {
-                    !server.isActive ->
-                        ExpansionNote("Activate this server to manage its libraries.")
-                    libraryItems.isEmpty() ->
-                        ExpansionNote("No libraries found.")
-                    else -> libraryItems.forEach { item ->
+                if (libraryItems.isEmpty()) {
+                    ExpansionNote("No libraries found.")
+                } else {
+                    libraryItems.forEach { item ->
                         ListItem(
                             colors = transparentColors,
                             modifier = Modifier.padding(start = 24.dp),

@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -131,29 +130,40 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private val activeServer: StateFlow<Server?> = servers
-        .map { it.firstOrNull { s -> s.isActive } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val absServers: StateFlow<List<Server>> = servers
+        .map { list -> list.filter { it.serverType == ServerType.AUDIOBOOKSHELF } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val libraryUiItems: StateFlow<List<LibraryUiItem>> = activeServer
-        .filterNotNull()
-        .flatMapLatest { server ->
-            combine(
-                libraryRepository.observeLibraries(),
-                visibilityStore.hiddenLibraryIds(server.id),
-            ) { libraries, hiddenIds ->
-                val visibleCount = libraries.count { it.id !in hiddenIds }
-                libraries.map { lib ->
-                    val isVisible = lib.id !in hiddenIds
-                    LibraryUiItem(
-                        library = lib,
-                        isVisible = isVisible,
-                        switchEnabled = !isVisible || visibleCount > 1,
-                    )
-                }
+    /**
+     * Library visibility items for each Audiobookshelf server, keyed by server id. Libraries are
+     * read from the local DB per server, so a server need not be active to manage its libraries.
+     */
+    val libraryUiItemsByServer: StateFlow<Map<String, List<LibraryUiItem>>> = absServers
+        .flatMapLatest { list ->
+            if (list.isEmpty()) {
+                MutableStateFlow(emptyMap<String, List<LibraryUiItem>>())
+            } else {
+                combine(
+                    list.map { server ->
+                        combine(
+                            libraryRepository.observeLibraries(server.id),
+                            visibilityStore.hiddenLibraryIds(server.id),
+                        ) { libraries, hiddenIds ->
+                            val visibleCount = libraries.count { it.id !in hiddenIds }
+                            server.id to libraries.map { lib ->
+                                val isVisible = lib.id !in hiddenIds
+                                LibraryUiItem(
+                                    library = lib,
+                                    isVisible = isVisible,
+                                    switchEnabled = !isVisible || visibleCount > 1,
+                                )
+                            }
+                        }
+                    }
+                ) { pairs -> pairs.toMap() }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _navigationEvents = Channel<SettingsNavEvent>(Channel.CONFLATED)
     val navigationEvents = _navigationEvents.receiveAsFlow()

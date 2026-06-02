@@ -116,6 +116,7 @@ class SettingsViewModelTest {
 
     private fun fakeLibraryRepo(): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
+        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -269,7 +270,7 @@ class SettingsViewModelTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.setLibraryVisible(serverId = "srv-1", libraryId = "lib-1", visible = false)
@@ -285,7 +286,7 @@ class SettingsViewModelTest {
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.setLibraryVisible(serverId = "srv-1", libraryId = "lib-1", visible = true)
@@ -301,10 +302,10 @@ class SettingsViewModelTest {
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))  // only lib-1 is visible
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val items = vm.libraryUiItems.value
+        val items = vm.libraryUiItemsByServer.value["srv-1"].orEmpty()
         val lib1Item = items.first { it.library.id == "lib-1" }
         val lib2Item = items.first { it.library.id == "lib-2" }
         assertFalse("lib-1 is the sole visible library, its switch must be disabled", lib1Item.switchEnabled)
@@ -317,11 +318,27 @@ class SettingsViewModelTest {
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         // nothing hidden — both visible
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItems.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val items = vm.libraryUiItems.value
+        val items = vm.libraryUiItemsByServer.value["srv-1"].orEmpty()
         assertTrue(items.all { it.switchEnabled })
+    }
+
+    @Test
+    fun `libraryUiItemsByServer exposes libraries for a non-active ABS server`() = runTest {
+        serversFlow.value = listOf(
+            server("srv-active", active = true),
+            server("srv-other", active = false),
+        )
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // The non-active server still has manageable library items — no activation required.
+        val items = vm.libraryUiItemsByServer.value["srv-other"].orEmpty()
+        assertEquals(2, items.size)
     }
 
     // --- readaloud matches summary ---
