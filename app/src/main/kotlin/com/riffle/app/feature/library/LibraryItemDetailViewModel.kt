@@ -52,12 +52,6 @@ sealed interface LibraryItemDetailUiState {
 }
 
 sealed interface ReadaloudFooterState {
-    /** Shown on the ABS-side detail. Tapping navigates to the Readaloud item's detail screen. */
-    data class AbsHasReadaloud(
-        val readaloudLibraryName: String,
-        val readaloudItemId: String,
-    ) : ReadaloudFooterState
-
     /**
      * Shown on the Readaloud-side detail. Lists every ABS counterpart since a readaloud can
      * legitimately link to multiple ABS items (e.g. ebook + audiobook stub). Unlink drops

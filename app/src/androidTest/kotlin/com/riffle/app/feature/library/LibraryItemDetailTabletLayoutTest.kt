@@ -56,6 +56,7 @@ class LibraryItemDetailTabletLayoutTest {
                 readaloudFooter = null,
                 isCachedOrDownloaded = false,
                 isOffline = false,
+                readaloudDownloadState = null,
                 onReadItem = {},
                 onMarkAsRead = {},
                 onMarkAsUnread = {},

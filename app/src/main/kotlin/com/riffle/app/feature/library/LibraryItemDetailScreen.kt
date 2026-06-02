@@ -21,8 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.ui.res.painterResource
+import com.riffle.app.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,6 +82,7 @@ fun LibraryItemDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
+    val readaloudDownloadState by viewModel.readaloudDownloadState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -158,6 +160,7 @@ fun LibraryItemDetailScreen(
                         readaloudFooter = state.readaloudFooter,
                         isCachedOrDownloaded = state.isCachedOrDownloaded,
                         isOffline = state.isOffline,
+                        readaloudDownloadState = readaloudDownloadState,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
@@ -167,6 +170,8 @@ fun LibraryItemDetailScreen(
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         onReviewReadaloud = onReviewReadaloud,
                         onPairReadaloud = onPairReadaloud,
+                        onDownloadReadaloud = viewModel::onDownloadReadaloud,
+                        onRemoveReadaloud = viewModel::onRemoveReadaloud,
                         modifier = Modifier.padding(padding),
                     )
                 } else {
@@ -179,6 +184,7 @@ fun LibraryItemDetailScreen(
                         readaloudFooter = state.readaloudFooter,
                         isCachedOrDownloaded = state.isCachedOrDownloaded,
                         isOffline = state.isOffline,
+                        readaloudDownloadState = readaloudDownloadState,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
@@ -188,6 +194,8 @@ fun LibraryItemDetailScreen(
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         onReviewReadaloud = onReviewReadaloud,
                         onPairReadaloud = onPairReadaloud,
+                        onDownloadReadaloud = viewModel::onDownloadReadaloud,
+                        onRemoveReadaloud = viewModel::onRemoveReadaloud,
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -230,6 +238,7 @@ private fun LibraryItemDetailContent(
     readaloudFooter: ReadaloudFooterState?,
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
+    readaloudDownloadState: DownloadState?,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -239,6 +248,8 @@ private fun LibraryItemDetailContent(
     onUnlinkReadaloud: () -> Unit,
     onReviewReadaloud: (String) -> Unit = {},
     onPairReadaloud: (String, String) -> Unit = { _, _ -> },
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -271,15 +282,33 @@ private fun LibraryItemDetailContent(
             isReadaloud = isReadaloud,
             isCachedOrDownloaded = isCachedOrDownloaded,
             isOffline = isOffline,
+            readaloudDownloadState = readaloudDownloadState,
             onReadItem = onReadItem,
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
             onToggleToRead = onToggleToRead,
             onDownload = onDownload,
             onRemove = onRemove,
+            onDownloadReadaloud = onDownloadReadaloud,
+            onRemoveReadaloud = onRemoveReadaloud,
         )
 
-        Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (readaloudDownloadState != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    painter = painterResource(R.drawable.ic_readaloud),
+                    contentDescription = "Has readaloud (synced narration)",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
         Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
 
         item.seriesName?.let { series ->
@@ -337,7 +366,7 @@ private fun ReadaloudFooter(
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
-                imageVector = Icons.Filled.Headphones,
+                painter = painterResource(R.drawable.ic_readaloud),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.size(20.dp),
@@ -345,12 +374,6 @@ private fun ReadaloudFooter(
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 when (state) {
-                    is ReadaloudFooterState.AbsHasReadaloud -> {
-                        Text(
-                            text = "Readaloud available — open from ${state.readaloudLibraryName}",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
                     is ReadaloudFooterState.ReadaloudLinkedToAbs -> {
                         Text(text = "Linked to:", style = MaterialTheme.typography.bodyMedium)
                         state.targets.forEach { target ->
@@ -396,6 +419,7 @@ internal fun LibraryItemDetailContentTablet(
     readaloudFooter: ReadaloudFooterState?,
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
+    readaloudDownloadState: DownloadState?,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -405,6 +429,8 @@ internal fun LibraryItemDetailContentTablet(
     onUnlinkReadaloud: () -> Unit,
     onReviewReadaloud: (String) -> Unit = {},
     onPairReadaloud: (String, String) -> Unit = { _, _ -> },
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -436,7 +462,22 @@ internal fun LibraryItemDetailContentTablet(
                         .align(Alignment.CenterHorizontally),
                 )
             }
-            Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (readaloudDownloadState != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_readaloud),
+                        contentDescription = "Has readaloud (synced narration)",
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
             Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress)
@@ -448,12 +489,15 @@ internal fun LibraryItemDetailContentTablet(
                 isReadaloud = isReadaloud,
                 isCachedOrDownloaded = isCachedOrDownloaded,
                 isOffline = isOffline,
+                readaloudDownloadState = readaloudDownloadState,
                 onReadItem = onReadItem,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
                 onToggleToRead = onToggleToRead,
                 onDownload = onDownload,
                 onRemove = onRemove,
+                onDownloadReadaloud = onDownloadReadaloud,
+                onRemoveReadaloud = onRemoveReadaloud,
             )
         }
         Column(
@@ -493,12 +537,15 @@ private fun ActionRow(
     isReadaloud: Boolean,
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
+    readaloudDownloadState: DownloadState?,
     onReadItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
 ) {
     if (item.isSupported) {
         Row(
@@ -553,6 +600,14 @@ private fun ActionRow(
                 onDownload = onDownload,
                 onRemove = onRemove,
             )
+            if (readaloudDownloadState != null) {
+                ReadaloudDownloadButton(
+                    state = readaloudDownloadState,
+                    onDownload = onDownloadReadaloud,
+                    onRemove = onRemoveReadaloud,
+                    enabled = !(isOffline && readaloudDownloadState == DownloadState.NotDownloaded),
+                )
+            }
         }
     } else {
         Text(
