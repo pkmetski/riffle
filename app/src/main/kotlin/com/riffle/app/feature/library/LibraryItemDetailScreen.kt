@@ -202,13 +202,6 @@ fun LibraryItemDetailScreen(
                         modifier = Modifier.padding(padding),
                     )
                 }
-
-                ReadaloudAudioDialogs(
-                    state = audioDownloadState,
-                    onConfirmDownload = { wifiOnly -> viewModel.confirmDownloadAudio(wifiOnly) },
-                    onConfirmRemove = { viewModel.confirmRemoveAudio() },
-                    onDismiss = { viewModel.dismissAudioDownloadDialog() },
-                )
             }
         }
     }
@@ -532,18 +525,17 @@ private fun ActionRow(
                     onToggle = onToggleToRead,
                 )
             }
+            // For a Storyteller (Readaloud) book the synced bundle is BOTH the EPUB and the audio
+            // source (ADR 0023), so the single DownloadButton already downloads/removes the audio.
+            // A separate readaloud download/remove control here would be redundant and, worse, would
+            // delete the very bundle the reader is using — so it is intentionally absent. Listening
+            // happens in the reader (its headphones action); proactively fetching the audio for a
+            // matched ABS book is the next slice's concern.
             DownloadButton(
                 state = downloadState,
                 onDownload = onDownload,
                 onRemove = onRemove,
             )
-            if (readaloudApplicable) {
-                ReadaloudAudioButton(
-                    state = audioDownloadState,
-                    onDownload = onDownloadReadaloudAudio,
-                    onRemove = onRemoveReadaloudAudio,
-                )
-            }
         }
     } else {
         Text(
@@ -552,130 +544,6 @@ private fun ActionRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
-
-/**
- * Second download action in the action row: downloads the Readaloud audio (the Storyteller synced
- * bundle, ADR 0023), distinct from the EPUB [DownloadButton]. The headphones icon signals "audio".
- */
-@Composable
-private fun ReadaloudAudioButton(
-    state: AudioDownloadState,
-    onDownload: () -> Unit,
-    onRemove: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val size = 40.dp
-    when (state) {
-        is AudioDownloadState.Probing, is AudioDownloadState.InProgress -> {
-            Box(
-                modifier = modifier.size(size),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(size))
-            }
-        }
-        is AudioDownloadState.Downloaded -> {
-            Box(
-                modifier = modifier
-                    .size(size)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .clickable(onClick = onRemove),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Headphones,
-                    contentDescription = "Remove readaloud audio",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-        else -> {
-            // NotDownloaded / Confirming / ConfirmingRemove / Error all present the affordance to
-            // (re)start a download; dialogs handle the confirm/remove flows.
-            Box(
-                modifier = modifier
-                    .size(size)
-                    .clip(CircleShape)
-                    .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    .clickable(onClick = onDownload),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Headphones,
-                    contentDescription = "Download readaloud audio",
-                    tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-    }
-}
-
-/** Renders the confirm-download and confirm-remove dialogs for the Readaloud audio bundle. */
-@Composable
-private fun ReadaloudAudioDialogs(
-    state: AudioDownloadState,
-    onConfirmDownload: (wifiOnly: Boolean) -> Unit,
-    onConfirmRemove: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    when (state) {
-        is AudioDownloadState.Confirming -> {
-            var wifiOnly by remember { mutableStateOf(true) }
-            val sizeLabel = state.sizeBytes?.let { formatBytes(it) } ?: "unknown size"
-            AlertDialog(
-                onDismissRequest = onDismiss,
-                title = { Text("Download readaloud audio ($sizeLabel)") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Download the readaloud audio for offline listening.")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text("Wi-Fi only")
-                            Switch(checked = wifiOnly, onCheckedChange = { wifiOnly = it })
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { onConfirmDownload(wifiOnly) }) { Text("Download") }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                },
-            )
-        }
-        is AudioDownloadState.ConfirmingRemove -> {
-            AlertDialog(
-                onDismissRequest = onDismiss,
-                title = { Text("Remove readaloud audio") },
-                text = { Text("This will free ${formatBytes(state.sizeBytes)}.") },
-                confirmButton = {
-                    TextButton(onClick = onConfirmRemove) { Text("Remove") }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                },
-            )
-        }
-        else -> Unit
-    }
-}
-
-/** Human-readable byte size, e.g. "1.2 GB" / "340 MB" / "512 KB". */
-private fun formatBytes(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val kb = bytes / 1024.0
-    if (kb < 1024) return "${kb.toInt()} KB"
-    val mb = kb / 1024.0
-    if (mb < 1024) return if (mb < 10) String.format("%.1f MB", mb) else "${mb.toInt()} MB"
-    val gb = mb / 1024.0
-    return String.format("%.1f GB", gb)
 }
 
 @Composable
