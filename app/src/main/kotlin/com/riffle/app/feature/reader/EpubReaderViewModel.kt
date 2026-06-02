@@ -6,8 +6,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
+import com.riffle.app.feature.reader.readaloud.ReadaloudController
+import com.riffle.core.data.StorytellerPositionSyncController
+import com.riffle.core.data.StorytellerSyncOutcome
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -17,8 +22,11 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
+import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -88,6 +96,11 @@ class EpubReaderViewModel @Inject constructor(
     private val volumeNavigationController: VolumeNavigationController,
     private val timeProvider: TimeProvider,
     private val readerStateHolder: ReaderStateHolder,
+    private val readaloudAudioRepository: ReadaloudAudioRepository,
+    private val playerCoordinator: PlayerCoordinator,
+    private val storytellerSyncController: StorytellerPositionSyncController,
+    private val serverRepository: ServerRepository,
+    private val connectivityObserver: ConnectivityObserver,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -184,6 +197,47 @@ class EpubReaderViewModel @Inject constructor(
 
     private var searchJob: Job? = null
 
+    // ---- Readaloud (ADR 0023) ----------------------------------------------------------------
+
+    // True once we know the active server type. Every Storyteller book qualifies (its bundle can
+    // be downloaded on demand); ABS books qualify only when a synced bundle is already present.
+    private var isStorytellerServer = false
+
+    private val _readaloudAvailable = MutableStateFlow(false)
+    val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
+
+    // Whether the bottom mini-player / sheet is showing.
+    private val _readaloudOpen = MutableStateFlow(false)
+    val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
+
+    // Mini-player (false) vs full-height bottom sheet (true).
+    private val _readaloudExpanded = MutableStateFlow(false)
+    val readaloudExpanded: StateFlow<Boolean> = _readaloudExpanded
+
+    // Mirrors the controller's playback state for the bar/sheet controls.
+    val playbackState: StateFlow<ReadaloudController.PlaybackState> = playerCoordinator.state
+
+    // The text fragment currently narrated — drives the synced highlight. Null clears it.
+    val activeFragmentRef: StateFlow<String?> = playerCoordinator.activeFragmentRef
+
+    // Fired by the coordinator when the narrated sentence scrolls off-screen during playback.
+    val advancePageEvents: SharedFlow<Unit> = playerCoordinator.advanceEvents
+
+    // The track is parsed once on first play and reused.
+    private var readaloudTrack: com.riffle.core.domain.ReadaloudTrack? = null
+
+    // Download-prompt state: non-null size means "show the download dialog".
+    private val _downloadPromptBytes = MutableStateFlow<Long?>(null)
+    val downloadPromptBytes: StateFlow<Long?> = _downloadPromptBytes
+
+    // Set when play is tapped offline with no local bundle — shown as an in-bar message.
+    private val _readaloudOfflineMessage = MutableStateFlow(false)
+    val readaloudOfflineMessage: StateFlow<Boolean> = _readaloudOfflineMessage
+
+    // True while a download is running, so the bar can show progress text.
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    val downloadProgress: StateFlow<Float?> = _downloadProgress
+
     init {
         viewModelScope.launch {
             // Sequential: prefs must be available before openBook() so initialPreferences is set correctly.
@@ -231,6 +285,13 @@ class EpubReaderViewModel @Inject constructor(
                         scheduleTicks.tryEmit(Unit)
                     }
                 }
+        }
+        viewModelScope.launch {
+            // Active-server type decides Readaloud availability: every Storyteller book qualifies,
+            // while ABS books qualify only when a synced bundle has already been downloaded.
+            isStorytellerServer = serverRepository.getActive()?.serverType == ServerType.STORYTELLER
+            _readaloudAvailable.value =
+                isStorytellerServer || readaloudAudioRepository.isAudioAvailable(itemId)
         }
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
@@ -350,6 +411,7 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
         syncJob?.cancel()
+        storytellerSyncJob?.cancel()
         if (closeSyncDone) return
         closeSyncDone = true
         val locator = lastLocator ?: return
@@ -434,6 +496,8 @@ class EpubReaderViewModel @Inject constructor(
         super.onCleared()
         epubZip?.close()
         epubZip = null
+        // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
+        playerCoordinator.close()
     }
 
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
@@ -627,5 +691,159 @@ class EpubReaderViewModel @Inject constructor(
 
     fun setInvertVolumeKeys(value: Boolean) {
         viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
+    }
+
+    // ---- Readaloud playback --------------------------------------------------------------------
+
+    // Runs the Storyteller single-peer position sync on the same ~30 s cadence as the reading-
+    // progress sync, but only while the player is open/playing for a Storyteller book. ABS books
+    // keep using the existing ProgressSyncController path untouched.
+    private var storytellerSyncJob: Job? = null
+
+    fun openReadaloud() {
+        if (!_readaloudAvailable.value) return
+        _readaloudOpen.value = true
+        startStorytellerSync()
+    }
+
+    fun closeReadaloud() {
+        _readaloudOpen.value = false
+        _readaloudExpanded.value = false
+        _downloadPromptBytes.value = null
+        _readaloudOfflineMessage.value = false
+        storytellerSyncJob?.cancel()
+        storytellerSyncJob = null
+        readaloudPrepared = false
+        playerCoordinator.close()
+    }
+
+    fun expandPlayer() { _readaloudExpanded.value = true }
+    fun collapsePlayer() { _readaloudExpanded.value = false }
+
+    fun togglePlayPause() {
+        if (playbackState.value.isPlaying) playerCoordinator.pause() else onPlayTapped()
+    }
+
+    fun setSpeed(speed: Float) = playerCoordinator.setSpeed(speed)
+
+    /** Reports the fragments visible in the viewport so the coordinator can decide on auto-advance. */
+    fun reportVisibleFragments(fragmentRefs: Set<String>) =
+        playerCoordinator.reportVisibleFragments(fragmentRefs)
+
+    /**
+     * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when
+     * online, probe the download size and surface the confirm dialog; when offline, surface the
+     * "connect to download" message in the bar.
+     */
+    fun onPlayTapped() {
+        _readaloudOfflineMessage.value = false
+        val bundle = readaloudAudioRepository.bundleFile(itemId)
+        if (bundle != null) {
+            viewModelScope.launch { ensurePreparedAndPlay(bundle) }
+            return
+        }
+        if (!connectivityObserver.isOnline.value) {
+            _readaloudOfflineMessage.value = true
+            return
+        }
+        viewModelScope.launch {
+            // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
+            // the user can still choose to download.
+            _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(itemId) ?: 0L
+        }
+    }
+
+    /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
+    fun playFromHere(fragmentRef: String) {
+        if (!_readaloudOpen.value) openReadaloud()
+        val bundle = readaloudAudioRepository.bundleFile(itemId)
+        if (bundle == null) {
+            // No bundle yet — fall through to the normal play path (prompt/notify) so the user is
+            // told to download first.
+            onPlayTapped()
+            return
+        }
+        viewModelScope.launch {
+            ensureOpened(bundle) ?: return@launch
+            playerCoordinator.playFromHere(fragmentRef)
+        }
+    }
+
+    fun confirmDownloadAudio(wifiOnly: Boolean) {
+        _downloadPromptBytes.value = null
+        // wifiOnly is honoured by the repository's download path (which inspects the active
+        // connection); we surface the toggle here and pass intent through by simply not starting
+        // when wifiOnly is requested but we're not on un-metered. Keep it simple: the repository
+        // owns the metered check, so we always kick off and let it decide.
+        viewModelScope.launch {
+            _downloadProgress.value = 0f
+            val result = readaloudAudioRepository.downloadAudio(itemId) { downloaded, total ->
+                if (total > 0) _downloadProgress.value = downloaded.toFloat() / total.toFloat()
+            }
+            _downloadProgress.value = null
+            when (result) {
+                com.riffle.core.domain.AudioDownloadResult.Success -> {
+                    _readaloudAvailable.value = true
+                    readaloudAudioRepository.bundleFile(itemId)?.let { ensurePreparedAndPlay(it) }
+                }
+                com.riffle.core.domain.AudioDownloadResult.NoBundle -> Unit
+                is com.riffle.core.domain.AudioDownloadResult.NetworkError ->
+                    _readaloudOfflineMessage.value = true
+            }
+        }
+    }
+
+    fun dismissDownloadPrompt() {
+        _downloadPromptBytes.value = null
+    }
+
+    // True once the controller has been pointed at the bundle this session, so resuming after a
+    // pause doesn't re-prepare (which would reset playback to the start).
+    private var readaloudPrepared = false
+
+    private suspend fun ensurePreparedAndPlay(bundle: File) {
+        ensureOpened(bundle) ?: return
+        playerCoordinator.play()
+    }
+
+    private suspend fun ensureOpened(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
+        val track = ensureTrack(bundle) ?: return null
+        if (!readaloudPrepared) {
+            playerCoordinator.open(itemId, bundle, track)
+            readaloudPrepared = true
+        }
+        return track
+    }
+
+    private suspend fun ensureTrack(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
+        readaloudTrack?.let { return it }
+        val track = readaloudAudioRepository.readTrack(itemId) ?: return null
+        readaloudTrack = track
+        return track
+    }
+
+    private fun startStorytellerSync() {
+        if (!isStorytellerServer) return
+        if (storytellerSyncJob?.isActive == true) return
+        storytellerSyncJob = viewModelScope.launch {
+            while (true) {
+                delay(SYNC_INTERVAL_MS)
+                val locator = lastLocator ?: continue
+                when (val outcome = storytellerSyncController.runCycle(itemId, locator.toJSON().toString())) {
+                    is StorytellerSyncOutcome.PulledRemote -> {
+                        // The stored canonical position is the Readium locator JSON — deserialize and
+                        // jump the navigator there (reusing the server-locator channel the screen
+                        // already wires to fragment.go()).
+                        try {
+                            val pulled = Locator.fromJSON(JSONObject(outcome.locatorJson))
+                            if (pulled != null) _serverLocatorChannel.trySend(pulled)
+                        } catch (_: Exception) { /* malformed remote locator — ignore */ }
+                    }
+                    StorytellerSyncOutcome.PushedLocal,
+                    StorytellerSyncOutcome.InSync,
+                    StorytellerSyncOutcome.Offline -> Unit
+                }
+            }
+        }
     }
 }

@@ -2,6 +2,8 @@ package com.riffle.app.feature.library
 
 import android.content.res.Configuration
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,11 +20,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +41,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipBox
@@ -55,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +86,7 @@ fun LibraryItemDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
+    val audioDownloadState by viewModel.audioDownloadState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -154,6 +161,8 @@ fun LibraryItemDetailScreen(
                         isInToRead = state.isInToRead,
                         token = viewModel.authToken,
                         downloadState = downloadState,
+                        audioDownloadState = audioDownloadState,
+                        readaloudApplicable = state.isReadaloud,
                         isReadaloud = state.isReadaloud,
                         readaloudFooter = state.readaloudFooter,
                         isCachedOrDownloaded = state.isCachedOrDownloaded,
@@ -164,6 +173,8 @@ fun LibraryItemDetailScreen(
                         onToggleToRead = { viewModel.toggleToRead() },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemoveWithUndo,
+                        onDownloadReadaloudAudio = { viewModel.onDownloadReadaloudAudioClicked() },
+                        onRemoveReadaloudAudio = { viewModel.onRemoveReadaloudAudioClicked() },
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         modifier = Modifier.padding(padding),
                     )
@@ -173,6 +184,8 @@ fun LibraryItemDetailScreen(
                         isInToRead = state.isInToRead,
                         token = viewModel.authToken,
                         downloadState = downloadState,
+                        audioDownloadState = audioDownloadState,
+                        readaloudApplicable = state.isReadaloud,
                         isReadaloud = state.isReadaloud,
                         readaloudFooter = state.readaloudFooter,
                         isCachedOrDownloaded = state.isCachedOrDownloaded,
@@ -183,10 +196,19 @@ fun LibraryItemDetailScreen(
                         onToggleToRead = { viewModel.toggleToRead() },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemoveWithUndo,
+                        onDownloadReadaloudAudio = { viewModel.onDownloadReadaloudAudioClicked() },
+                        onRemoveReadaloudAudio = { viewModel.onRemoveReadaloudAudioClicked() },
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         modifier = Modifier.padding(padding),
                     )
                 }
+
+                ReadaloudAudioDialogs(
+                    state = audioDownloadState,
+                    onConfirmDownload = { wifiOnly -> viewModel.confirmDownloadAudio(wifiOnly) },
+                    onConfirmRemove = { viewModel.confirmRemoveAudio() },
+                    onDismiss = { viewModel.dismissAudioDownloadDialog() },
+                )
             }
         }
     }
@@ -222,6 +244,8 @@ private fun LibraryItemDetailContent(
     isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
+    audioDownloadState: AudioDownloadState,
+    readaloudApplicable: Boolean,
     isReadaloud: Boolean,
     readaloudFooter: ReadaloudFooterState?,
     isCachedOrDownloaded: Boolean,
@@ -232,6 +256,8 @@ private fun LibraryItemDetailContent(
     onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
+    onDownloadReadaloudAudio: () -> Unit,
+    onRemoveReadaloudAudio: () -> Unit,
     onUnlinkReadaloud: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -262,6 +288,8 @@ private fun LibraryItemDetailContent(
             item = item,
             isInToRead = isInToRead,
             downloadState = downloadState,
+            audioDownloadState = audioDownloadState,
+            readaloudApplicable = readaloudApplicable,
             isReadaloud = isReadaloud,
             isCachedOrDownloaded = isCachedOrDownloaded,
             isOffline = isOffline,
@@ -271,6 +299,8 @@ private fun LibraryItemDetailContent(
             onToggleToRead = onToggleToRead,
             onDownload = onDownload,
             onRemove = onRemove,
+            onDownloadReadaloudAudio = onDownloadReadaloudAudio,
+            onRemoveReadaloudAudio = onRemoveReadaloudAudio,
         )
 
         Text(text = item.title, style = MaterialTheme.typography.headlineMedium)
@@ -361,6 +391,10 @@ internal fun LibraryItemDetailContentTablet(
     onRemove: () -> Unit,
     onUnlinkReadaloud: () -> Unit,
     modifier: Modifier = Modifier,
+    audioDownloadState: AudioDownloadState = AudioDownloadState.NotDownloaded,
+    readaloudApplicable: Boolean = false,
+    onDownloadReadaloudAudio: () -> Unit = {},
+    onRemoveReadaloudAudio: () -> Unit = {},
 ) {
     Row(
         modifier = modifier.fillMaxSize(),
@@ -400,6 +434,8 @@ internal fun LibraryItemDetailContentTablet(
                 item = item,
                 isInToRead = isInToRead,
                 downloadState = downloadState,
+                audioDownloadState = audioDownloadState,
+                readaloudApplicable = readaloudApplicable,
                 isReadaloud = isReadaloud,
                 isCachedOrDownloaded = isCachedOrDownloaded,
                 isOffline = isOffline,
@@ -409,6 +445,8 @@ internal fun LibraryItemDetailContentTablet(
                 onToggleToRead = onToggleToRead,
                 onDownload = onDownload,
                 onRemove = onRemove,
+                onDownloadReadaloudAudio = onDownloadReadaloudAudio,
+                onRemoveReadaloudAudio = onRemoveReadaloudAudio,
             )
         }
         Column(
@@ -438,6 +476,8 @@ private fun ActionRow(
     item: LibraryItem,
     isInToRead: Boolean,
     downloadState: DownloadState,
+    audioDownloadState: AudioDownloadState,
+    readaloudApplicable: Boolean,
     isReadaloud: Boolean,
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
@@ -447,6 +487,8 @@ private fun ActionRow(
     onToggleToRead: () -> Unit,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
+    onDownloadReadaloudAudio: () -> Unit,
+    onRemoveReadaloudAudio: () -> Unit,
 ) {
     if (item.isSupported) {
         Row(
@@ -495,6 +537,13 @@ private fun ActionRow(
                 onDownload = onDownload,
                 onRemove = onRemove,
             )
+            if (readaloudApplicable) {
+                ReadaloudAudioButton(
+                    state = audioDownloadState,
+                    onDownload = onDownloadReadaloudAudio,
+                    onRemove = onRemoveReadaloudAudio,
+                )
+            }
         }
     } else {
         Text(
@@ -503,6 +552,130 @@ private fun ActionRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/**
+ * Second download action in the action row: downloads the Readaloud audio (the Storyteller synced
+ * bundle, ADR 0023), distinct from the EPUB [DownloadButton]. The headphones icon signals "audio".
+ */
+@Composable
+private fun ReadaloudAudioButton(
+    state: AudioDownloadState,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val size = 40.dp
+    when (state) {
+        is AudioDownloadState.Probing, is AudioDownloadState.InProgress -> {
+            Box(
+                modifier = modifier.size(size),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(size))
+            }
+        }
+        is AudioDownloadState.Downloaded -> {
+            Box(
+                modifier = modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Headphones,
+                    contentDescription = "Remove readaloud audio",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        else -> {
+            // NotDownloaded / Confirming / ConfirmingRemove / Error all present the affordance to
+            // (re)start a download; dialogs handle the confirm/remove flows.
+            Box(
+                modifier = modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                    .clickable(onClick = onDownload),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Headphones,
+                    contentDescription = "Download readaloud audio",
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Renders the confirm-download and confirm-remove dialogs for the Readaloud audio bundle. */
+@Composable
+private fun ReadaloudAudioDialogs(
+    state: AudioDownloadState,
+    onConfirmDownload: (wifiOnly: Boolean) -> Unit,
+    onConfirmRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    when (state) {
+        is AudioDownloadState.Confirming -> {
+            var wifiOnly by remember { mutableStateOf(true) }
+            val sizeLabel = state.sizeBytes?.let { formatBytes(it) } ?: "unknown size"
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("Download readaloud audio ($sizeLabel)") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Download the readaloud audio for offline listening.")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text("Wi-Fi only")
+                            Switch(checked = wifiOnly, onCheckedChange = { wifiOnly = it })
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { onConfirmDownload(wifiOnly) }) { Text("Download") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                },
+            )
+        }
+        is AudioDownloadState.ConfirmingRemove -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("Remove readaloud audio") },
+                text = { Text("This will free ${formatBytes(state.sizeBytes)}.") },
+                confirmButton = {
+                    TextButton(onClick = onConfirmRemove) { Text("Remove") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                },
+            )
+        }
+        else -> Unit
+    }
+}
+
+/** Human-readable byte size, e.g. "1.2 GB" / "340 MB" / "512 KB". */
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return "${kb.toInt()} KB"
+    val mb = kb / 1024.0
+    if (mb < 1024) return if (mb < 10) String.format("%.1f MB", mb) else "${mb.toInt()} MB"
+    val gb = mb / 1024.0
+    return String.format("%.1f GB", gb)
 }
 
 @Composable

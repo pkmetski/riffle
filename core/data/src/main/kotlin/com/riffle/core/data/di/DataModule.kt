@@ -11,6 +11,7 @@ import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
+import com.riffle.core.data.AudioCachePreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.PdfRepositoryImpl
@@ -22,6 +23,7 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
+import com.riffle.core.domain.AudioCachePreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReportRepository
@@ -40,6 +42,13 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.EpubBundleFetcher
+import com.riffle.core.data.AudiobookBundleDownloader
+import com.riffle.core.data.ReadaloudAudioRepositoryImpl
+import com.riffle.core.data.StorytellerPositionSyncController
+import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.network.AudiobookBundleApiImpl
+import com.riffle.core.network.StorytellerPositionApi
+import com.riffle.core.network.StorytellerPositionApiImpl
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApi
@@ -71,6 +80,10 @@ annotation class FormattingPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LibraryVisibilityPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AudioCachePreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -170,6 +183,10 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindAudioCachePreferencesStore(impl: AudioCachePreferencesStoreImpl): AudioCachePreferencesStore
+
+    @Binds
+    @Singleton
     abstract fun bindWakeLockPreferencesStore(impl: WakeLockPreferencesStoreImpl): WakeLockPreferencesStore
 
     @Binds
@@ -242,6 +259,60 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
+            AudiobookBundleApiImpl(okHttpClient)
+
+        @Provides
+        @Singleton
+        fun provideAudiobookBundleDownloader(
+            @ApplicationContext context: Context,
+            api: AudiobookBundleApiImpl,
+        ): AudiobookBundleDownloader = AudiobookBundleDownloader(
+            api = api,
+            // Write into the same Downloads EPUB store the reader reads from — the synced bundle is
+            // both the EPUB and the audio source (ADR 0023), so they share one file.
+            targetFileProvider = { id ->
+                context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }.resolve("$id.epub")
+            },
+        )
+
+        @Provides
+        @Singleton
+        fun provideStorytellerPositionApi(okHttpClient: OkHttpClient): StorytellerPositionApi =
+            StorytellerPositionApiImpl(okHttpClient)
+
+        @Provides
+        @Singleton
+        fun provideStorytellerPositionSyncController(
+            api: StorytellerPositionApi,
+            positionStore: ReadingPositionStore,
+            serverRepository: ServerRepository,
+            tokenStorage: TokenStorage,
+        ): StorytellerPositionSyncController =
+            StorytellerPositionSyncController(api, positionStore, serverRepository, tokenStorage)
+
+        @Provides
+        @Singleton
+        fun provideReadaloudAudioRepository(
+            downloader: AudiobookBundleDownloader,
+            bundleProbe: StorytellerBundleApiImpl,
+            @EpubCacheStore cacheStore: LocalStore,
+            @EpubDownloadsStore downloadsStore: LocalStore,
+            serverRepository: ServerRepository,
+            tokenStorage: TokenStorage,
+            cachePreferences: AudioCachePreferencesStore,
+        ): ReadaloudAudioRepository = ReadaloudAudioRepositoryImpl(
+            downloader = downloader,
+            bundleProbe = bundleProbe,
+            cacheStore = cacheStore,
+            downloadsStore = downloadsStore,
+            serverRepository = serverRepository,
+            tokenStorage = tokenStorage,
+            cachePreferences = cachePreferences,
+        )
+
+        @Provides
+        @Singleton
         fun provideEpubRepository(
             api: AbsLibraryApi,
             bundleFetcher: EpubBundleFetcher,
@@ -286,6 +357,13 @@ abstract class DataModule {
         fun provideLibraryVisibilityPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.libraryVisibilityPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @AudioCachePreferencesDataStore
+        fun provideAudioCachePreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.audioCachePreferencesDataStore
 
         @Provides
         @Singleton
