@@ -35,7 +35,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -135,17 +134,16 @@ fun LibraryItemDetailScreen(
             }
 
             is LibraryItemDetailUiState.Ready -> {
-                val onRemoveWithUndo: () -> Unit = {
+                // Removal is immediate with no Undo: for a Storyteller bundle, re-downloading on
+                // Undo silently re-pulls hundreds of MB — the exact data burn the explicit-download
+                // model exists to prevent. Re-downloading is a deliberate Download tap (ADR 0024).
+                val onRemove: () -> Unit = {
                     viewModel.removeDownload()
                     scope.launch {
-                        val result = snackbarHostState.showSnackbar(
+                        snackbarHostState.showSnackbar(
                             message = "Download removed",
-                            actionLabel = "Undo",
                             duration = SnackbarDuration.Short,
                         )
-                        if (result == SnackbarResult.ActionPerformed) {
-                            viewModel.startDownload()
-                        }
                     }
                 }
                 val isExpanded =
@@ -165,7 +163,7 @@ fun LibraryItemDetailScreen(
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
                         onDownload = { viewModel.startDownload() },
-                        onRemove = onRemoveWithUndo,
+                        onRemove = onRemove,
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         onReviewReadaloud = onReviewReadaloud,
                         onPairReadaloud = onPairReadaloud,
@@ -186,7 +184,7 @@ fun LibraryItemDetailScreen(
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
                         onDownload = { viewModel.startDownload() },
-                        onRemove = onRemoveWithUndo,
+                        onRemove = onRemove,
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
                         onReviewReadaloud = onReviewReadaloud,
                         onPairReadaloud = onPairReadaloud,

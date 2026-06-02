@@ -11,8 +11,8 @@ sealed interface AudioDownloadResult {
 /**
  * Manages the Readaloud audio bundle (the Storyteller synced EPUB — ADR 0023) for the reader: its
  * local presence, its parsed Media Overlay [ReadaloudTrack], download (with progress) into the
- * permanent Downloads area, removal, and LRU eviction of the auto-cached area against the
- * per-server cap.
+ * permanent Downloads area, and removal. The auto-cached area is OS-managed; Riffle keeps no
+ * cache-size cap (ADR 0024).
  */
 interface ReadaloudAudioRepository {
     /** True when the synced bundle is present locally (Downloads or Cache). */
@@ -32,7 +32,4 @@ interface ReadaloudAudioRepository {
 
     /** Removes the downloaded bundle; returns the number of bytes freed. */
     suspend fun removeAudio(itemId: String): Long
-
-    /** Evicts least-recently-used cached bundles for the active server until under its cap. */
-    suspend fun enforceCacheCap()
 }
