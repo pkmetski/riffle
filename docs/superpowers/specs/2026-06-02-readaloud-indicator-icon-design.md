@@ -59,10 +59,16 @@ Interactive prototype (icon candidates + placement, served locally during design
 ## Placement & style (chosen)
 
 - **Badge style:** icon dot (circular dark scrim + white glyph). Not the pill+label.
-- **Corner:** top-right.
-- Cover overlay sits in the existing top-end overlay area of `BookCoverTile`, where the
-  "C"/"D" cache/download badges already render. Scrim ≈ 28dp, glyph ≈ 16–17dp, for
-  contrast over arbitrary cover art.
+- **Corner:** top-right, **alone**. The existing "C"/"D" cache/download badges are
+  **removed from grid covers for now** (product decision), so the readaloud icon is the
+  only thing in that corner.
+- Scrim ≈ 28dp, glyph ≈ 16–17dp, for contrast over arbitrary cover art.
+
+Note on the removal: "C"/"D" are storage-state badges (Cached = pulled to evictable
+cache by opening; Downloaded = explicitly saved, permanent). They convey *do I have this
+on-device*, which is unrelated to readaloud. Dropping them is intentional and scoped
+"for now" — the rendering is small and easy to restore. Cache/download **behavior** is
+unchanged; only the on-cover badges are hidden.
 
 ## Components & changes
 
@@ -85,19 +91,19 @@ Drop the now-unused `Icons.Filled.Headphones` imports.
 - Thread `linkedItemIds` from the screen → `CoverGrid` → `BookCoverTile`
   (`hasReadaloudLink = item.id in linkedItemIds`), mirroring how `LibraryItemCard`
   already does it at `LibraryItemsScreen.kt:292`.
-- When true, render the icon dot at `Alignment.TopEnd`. Decide ordering relative to the
-  existing C/D badges (readaloud icon first / leftmost is the likely choice so it's not
-  pushed off-row).
+- When true, render the icon dot at `Alignment.TopEnd`.
+- **Remove the existing "C"/"D" badges** from that top-end `Row`
+  (`LibraryItemsScreen.kt:447–456`) so the readaloud icon sits alone in the corner.
+  Leave `item.isCached` / `item.isDownloaded` on the model untouched — this is purely a
+  rendering removal.
 
-### 4. Audiobook recognizability (verify-first prerequisite)
-The indicator is driven by `readaloudLinkRepository.observeLinkedAbsItemIds()`. Audiobook
-items only appear if the matcher actually creates a `ReadaloudLink` for the audiobook
-ABS item (one Storyteller book can match multiple ABS items — ebook + audiobook).
-
-- **Verify** whether audiobook ABS items currently get linked.
-- If they do, no extra work — the new overlay covers them automatically.
-- If they don't, linking audiobook items becomes a prerequisite task (matching layer),
-  otherwise audiobooks can never show the mark regardless of UI.
+### 4. Audiobook recognizability (no extra work needed)
+Confirmed: audiobook ABS items already get linked (visible in the Storyteller section of
+global settings). The DAO query backing the indicator is
+`SELECT absLibraryItemId FROM readaloud_links` (`ReadaloudLinkDao.observeLinkedAbsItemIds`)
+— it returns **every** linked ABS item id regardless of media type, so audiobook items
+flow into `linkedItemIds` and the new cover overlay covers them automatically. No
+matching-layer change required.
 
 Audiobook items are **indicator-only**: they have no EPUB to render, so the reader
 top-bar control does not apply to them — the cover overlay and detail indicator do.
@@ -110,7 +116,8 @@ narration)"*, at every call site. The cover overlay carries the same description
 ## Testing
 
 - **Grid overlay:** a matched **ebook** shows the icon top-right; a matched
-  **audiobook** shows it; an **unmatched** item shows nothing.
+  **audiobook** shows it; an **unmatched** item shows nothing. **No "C"/"D" badges**
+  render on grid covers anymore.
 - **Detail:** matched item shows the new icon (not headphones).
 - **Reader:** top-bar readaloud control renders the new icon; existing readaloud
   open/play tests still pass.
@@ -121,8 +128,5 @@ narration)"*, at every call site. The cover overlay carries the same description
 
 ## Open items to confirm during planning
 
-1. Audiobook linking (section 4) — verify before assuming the overlay "just works" for
-   audiobooks.
-2. Exact resource module location for the shared drawable (app vs. a core/ui module),
+1. Exact resource module location for the shared drawable (app vs. a core/ui module),
    following existing icon-resource conventions.
-3. Final ordering of the readaloud dot vs. C/D badges in the top-end overlay row.
