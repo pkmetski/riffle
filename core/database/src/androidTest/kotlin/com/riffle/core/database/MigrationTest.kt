@@ -823,6 +823,74 @@ class MigrationTest {
         }
     }
 
+
+    @Test
+    fun migration23To24_addsCrossEpubIndexCacheTable() {
+        helper.createDatabase(TEST_DB, 23).use { db ->
+            // A pre-existing readaloud_links row that must survive the new table being added.
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('st1', 'http://media-server:8001', 0, 0, 'plamen', 'STORYTELLER')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('abs1', 'http://media-server:13378', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO readaloud_links " +
+                    "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                    "VALUES ('abs1', 'item1', 'st1', 'book-1', 'CONFIRMED', 0, 1000, 1000)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 24, true, RiffleDatabase.MIGRATION_23_24)
+
+        // Pre-existing data survives.
+        db.query("SELECT COUNT(*) FROM readaloud_links").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+
+        // New cache table exists and starts empty.
+        db.query("SELECT COUNT(*) FROM cross_epub_index").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // A row keyed by both checksums round-trips.
+        db.execSQL(
+            "INSERT INTO cross_epub_index (absEpubChecksum, storytellerEpubChecksum, perChapterMapsBlob, builtAt) " +
+                "VALUES ('absChk', 'stChk', '[{\"absChars\":12,\"storytellerChars\":12}]', 5000)"
+        )
+        db.query("SELECT perChapterMapsBlob, builtAt FROM cross_epub_index WHERE absEpubChecksum = 'absChk' AND storytellerEpubChecksum = 'stChk'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("[{\"absChars\":12,\"storytellerChars\":12}]", cursor.getString(0))
+            assertEquals(5000L, cursor.getLong(1))
+        }
+
+        // A different checksum on either side is a distinct row (invalidation = keyed miss).
+        db.execSQL(
+            "INSERT INTO cross_epub_index (absEpubChecksum, storytellerEpubChecksum, perChapterMapsBlob, builtAt) " +
+                "VALUES ('absChk2', 'stChk', '[]', 6000)"
+        )
+        db.query("SELECT COUNT(*) FROM cross_epub_index").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(2, cursor.getInt(0))
+        }
+
+        // Same composite key collides via REPLACE.
+        db.execSQL(
+            "INSERT OR REPLACE INTO cross_epub_index (absEpubChecksum, storytellerEpubChecksum, perChapterMapsBlob, builtAt) " +
+                "VALUES ('absChk', 'stChk', '[]', 9000)"
+        )
+        db.query("SELECT builtAt FROM cross_epub_index WHERE absEpubChecksum = 'absChk' AND storytellerEpubChecksum = 'stChk'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(9000L, cursor.getLong(0))
+        }
+    }
+
     @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
@@ -832,7 +900,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 23, true,
+            TEST_DB, 24, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -855,6 +923,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_20_21,
             RiffleDatabase.MIGRATION_21_22,
             RiffleDatabase.MIGRATION_22_23,
+            RiffleDatabase.MIGRATION_23_24,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
@@ -866,3 +935,4 @@ class MigrationTest {
         }
     }
 }
+

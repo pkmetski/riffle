@@ -44,6 +44,8 @@ class ServerRepositoryImpl @Inject constructor(
 
     override suspend fun getActive(): Server? = dao.getActive()?.toDomain()
 
+    override suspend fun getById(serverId: String): Server? = dao.getById(serverId)?.toDomain()
+
     override suspend fun authenticate(
         url: ServerUrl,
         username: String,

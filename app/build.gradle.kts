@@ -100,6 +100,8 @@ dependencies {
 
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
+    // Three-peer reader sync constructs SyncRemotes over the position APIs directly (issue #38).
+    implementation(project(":core:network"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

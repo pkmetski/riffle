@@ -5,9 +5,17 @@ data class NetworkEbookProgressPayload(
     val ebookProgress: Float,
 )
 
+data class NetworkAudiobookProgressPayload(
+    val currentTime: Double,
+    val duration: Double,
+)
+
 data class NetworkServerProgress(
     val ebookLocation: String,
     val ebookProgress: Float = 0f,
+    // Audiobook progress from the same ABS media-progress record.
+    val currentTime: Double = 0.0,
+    val duration: Double = 0.0,
     val lastUpdate: Long,
 )
 
@@ -26,6 +34,14 @@ interface AbsSessionApi {
         baseUrl: String,
         libraryItemId: String,
         payload: NetworkEbookProgressPayload,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkSyncSessionResult
+
+    suspend fun syncAudiobookProgress(
+        baseUrl: String,
+        libraryItemId: String,
+        payload: NetworkAudiobookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
     ): NetworkSyncSessionResult

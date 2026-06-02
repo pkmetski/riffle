@@ -11,6 +11,7 @@ import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.MatchOutcome
 import com.riffle.core.domain.MatchableAbsItem
+import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
 import com.riffle.core.domain.ServerType
@@ -40,14 +41,18 @@ class ReadaloudMatchingService(
     private val readaloudLinkDao: ReadaloudLinkDao,
     private val readaloudCandidateDao: ReadaloudCandidateDao,
     private val readaloudDismissalDao: ReadaloudDismissalDao,
-    private val clock: () -> Long,
+    private val clock: () -> Long = System::currentTimeMillis,
+    // Eager cross-EPUB index build on Confirm (ADR 0019/0021). Optional so unit tests of the
+    // matcher run without the I/O-heavy builder; wired in production via DI.
+    private val indexBuilder: CrossEpubIndexBuilderService? = null,
 ) {
     @Inject constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
         readaloudCandidateDao: ReadaloudCandidateDao,
         readaloudDismissalDao: ReadaloudDismissalDao,
-    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
+        indexBuilder: CrossEpubIndexBuilderService,
+    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis, indexBuilder)
 
     suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
@@ -127,6 +132,28 @@ class ReadaloudMatchingService(
         readaloudCandidateDao.clearAll()
         if (freshCandidates.isNotEmpty()) readaloudCandidateDao.upsertAll(freshCandidates)
         backfillReadaloudMetadata(storytellerBooks)
+        enqueueIndexBuilds()
+    }
+
+    /**
+     * Kick off a background cross-EPUB index build for every surviving Confirmed link. Each
+     * build is idempotent (skipped once the index for the current EPUB checksums exists), so
+     * re-running on every refresh just retries any link whose prerequisites weren't available
+     * at Confirm time — the opportunistic rebuild from ADR 0019.
+     */
+    private suspend fun enqueueIndexBuilds() {
+        val builder = indexBuilder ?: return
+        for (row in readaloudLinkDao.allRows()) {
+            builder.enqueueBuild(
+                ReadaloudLink(
+                    storytellerServerId = row.storytellerServerId,
+                    storytellerBookId = row.storytellerBookId,
+                    absServerId = row.absServerId,
+                    absLibraryItemId = row.absLibraryItemId,
+                    userConfirmed = row.userConfirmed,
+                )
+            )
+        }
     }
 
     /**

@@ -19,8 +19,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadaloudLinkEntity::class,
         ReadaloudCandidateEntity::class,
         ReadaloudDismissalEntity::class,
+        CrossEpubIndexEntity::class,
     ],
-    version = 23,
+    version = 24,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -34,6 +35,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun readaloudLinkDao(): ReadaloudLinkDao
     abstract fun readaloudCandidateDao(): ReadaloudCandidateDao
     abstract fun readaloudDismissalDao(): ReadaloudDismissalDao
+    abstract fun crossEpubIndexDao(): CrossEpubIndexDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -369,6 +371,23 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "PRIMARY KEY(`storytellerServerId`, `storytellerBookId`, `absServerId`, `absLibraryItemId`), " +
                         "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
                         "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+            }
+        }
+
+        // Cross-EPUB character-position index cache (issue #38, ADR 0019). A standalone
+        // local cache table keyed by the two source EPUBs' checksums — no foreign keys,
+        // since a row is invalidated by a checksum change (keyed-lookup miss), not by any
+        // Server lifecycle event.
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `cross_epub_index` (" +
+                        "`absEpubChecksum` TEXT NOT NULL, " +
+                        "`storytellerEpubChecksum` TEXT NOT NULL, " +
+                        "`perChapterMapsBlob` TEXT NOT NULL, " +
+                        "`builtAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`absEpubChecksum`, `storytellerEpubChecksum`))"
                 )
             }
         }

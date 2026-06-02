@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.riffle.core.data.di.DatabaseModule
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
+import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudCandidateDao
@@ -82,4 +83,8 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideReadaloudDismissalDao(db: RiffleDatabase): ReadaloudDismissalDao = db.readaloudDismissalDao()
+
+    @Provides
+    @Singleton
+    fun provideCrossEpubIndexDao(db: RiffleDatabase): CrossEpubIndexDao = db.crossEpubIndexDao()
 }

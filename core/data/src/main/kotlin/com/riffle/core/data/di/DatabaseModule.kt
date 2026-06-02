@@ -6,6 +6,7 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
@@ -51,6 +52,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_20_21,
                 RiffleDatabase.MIGRATION_21_22,
                 RiffleDatabase.MIGRATION_22_23,
+                RiffleDatabase.MIGRATION_23_24,
             )
             .build()
 
@@ -93,4 +95,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideReadaloudDismissalDao(db: RiffleDatabase): ReadaloudDismissalDao = db.readaloudDismissalDao()
+
+    @Provides
+    @Singleton
+    fun provideCrossEpubIndexDao(db: RiffleDatabase): CrossEpubIndexDao = db.crossEpubIndexDao()
 }

@@ -27,6 +27,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -101,6 +102,8 @@ class EpubReaderViewModel @Inject constructor(
     private val storytellerSyncController: StorytellerPositionSyncController,
     private val serverRepository: ServerRepository,
     private val connectivityObserver: ConnectivityObserver,
+    private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
+    private val readingPositionStore: ReadingPositionStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -136,6 +139,11 @@ class EpubReaderViewModel @Inject constructor(
     private val chapterHtmlCache = mutableMapOf<Int, String>()
     private var syncJob: Job? = null
     private var closeSyncDone = false
+    // Non-null once a matched book's three-peer prerequisites are cached: the unified cycle then
+    // replaces the single-peer ABS/Storyteller paths. [threePeerServerId] is the active server
+    // (the displayed side) that keys the canonical localUpdatedAt.
+    private var threePeer: ThreePeerReaderSyncCoordinator? = null
+    private var threePeerServerId: String? = null
     // True after the navigator emits its first locator (the restored position on open).
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
@@ -342,9 +350,18 @@ class EpubReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
+                // A matched book with cached prerequisites runs the three-peer cycle instead of
+                // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
+                threePeer = runCatching { threePeerSyncFactory.createIfApplicable(itemId) }.getOrNull()
+                threePeerServerId = serverRepository.getActive()?.id
+
                 // Sync immediately while localUpdatedAt is still the genuine stored value —
                 // before the navigator restore emits and would stamp localUpdatedAt = now.
-                progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
+                if (threePeer != null) {
+                    runThreePeerCycle(locator)
+                } else {
+                    progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
+                }
 
                 startPeriodicSync()
             }
@@ -372,7 +389,30 @@ class EpubReaderViewModel @Inject constructor(
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
         viewModelScope.launch {
-            progressSyncController.sync(itemId, locator.toPayload())
+            if (threePeer != null) runThreePeerCycle(locator)
+            else progressSyncController.sync(itemId, locator.toPayload())
+        }
+    }
+
+    /**
+     * One unified three-peer reconciliation cycle (ADR 0019). The canonical position is the
+     * displayed-EPUB Locator; a remote win jumps the reader via the same channel the Storyteller
+     * path uses, and the winning timestamp is persisted as the canonical localUpdatedAt so the
+     * next cycle doesn't re-pull. Any failure is isolated to this cycle.
+     */
+    private suspend fun runThreePeerCycle(locator: Locator?) {
+        val coordinator = threePeer ?: return
+        val serverId = threePeerServerId ?: return
+        val locJson = (locator ?: lastLocator)?.toJSON()?.toString() ?: return
+        val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
+        val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull() ?: return
+        result.jumpLocatorJson?.let { json ->
+            try {
+                Locator.fromJSON(JSONObject(json))?.let { _serverLocatorChannel.trySend(it) }
+            } catch (_: Exception) { /* malformed jump locator — skip */ }
+        }
+        if (result.canonicalLastUpdate > localUpdatedAt) {
+            readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
         }
     }
 
@@ -418,7 +458,8 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
-            progressSyncController.sync(itemId, payload)
+            if (threePeer != null) runThreePeerCycle(locator)
+            else progressSyncController.sync(itemId, payload)
         }
     }
 
@@ -849,6 +890,8 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun startStorytellerSync() {
         if (!isStorytellerServer) return
+        // Three-peer reconciles Storyteller itself; don't also run the single-peer Storyteller loop.
+        if (threePeer != null) return
         if (storytellerSyncJob?.isActive == true) return
         storytellerSyncJob = viewModelScope.launch {
             while (true) {
