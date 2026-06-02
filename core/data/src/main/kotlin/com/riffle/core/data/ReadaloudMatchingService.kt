@@ -5,6 +5,7 @@ import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.Confirmed
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.MatchableAbsItem
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
@@ -76,6 +77,40 @@ class ReadaloudMatchingService(
         }
 
         sweepStaleAutoLinks(freshAutoSlots)
+        backfillReadaloudMetadata(storytellerBooks)
+    }
+
+    /**
+     * Borrow the ABS-only metadata fields (description, publishedYear, publisher, genres) onto
+     * each Storyteller readaloud from its Confirmed-linked ABS Library Item (#65). A readaloud
+     * with no surviving link is cleared back to its own empty values so no stale ABS data
+     * lingers. Title/author/cover come from Storyteller's own API and are left untouched.
+     */
+    private suspend fun backfillReadaloudMetadata(storytellerBooks: List<MatchableItemRow>) {
+        for (book in storytellerBooks) {
+            // A readaloud can link to several ABS items (an ebook plus an audiobook stub of the
+            // same work). Borrow from the ebook — the supported format with the richer metadata —
+            // before any unsupported stub, then settle ties by libraryId for a stable choice.
+            val abs = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
+                .mapNotNull { libraryItemDao.getById(it.absLibraryItemId) }
+                .sortedWith(
+                    compareBy(
+                        { if (it.ebookFormat == EbookFormat.Unsupported.toStorageString()) 1 else 0 },
+                        { it.libraryId },
+                    )
+                )
+                .firstOrNull()
+            libraryItemDao.updateReadaloudMetadata(
+                itemId = book.itemId,
+                // Overwrite the (possibly duplicated/malformed) Storyteller author when linked;
+                // null leaves it untouched so an unlinked readaloud keeps its own author.
+                author = abs?.author,
+                description = abs?.description,
+                publishedYear = abs?.publishedYear,
+                publisher = abs?.publisher,
+                genres = abs?.genres ?: "",
+            )
+        }
     }
 
     /**

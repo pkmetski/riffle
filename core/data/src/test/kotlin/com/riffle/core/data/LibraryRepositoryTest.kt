@@ -151,6 +151,28 @@ class LibraryRepositoryTest {
 
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
 
+        override suspend fun updateReadaloudMetadata(
+            itemId: String,
+            author: String?,
+            description: String?,
+            publishedYear: String?,
+            publisher: String?,
+            genres: String,
+        ) {
+            val entity = roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId } ?: return
+            val updated = entity.copy(
+                author = author ?: entity.author,
+                description = description,
+                publishedYear = publishedYear,
+                publisher = publisher,
+                genres = genres,
+            )
+            roomData[entity.libraryId]?.let { flow ->
+                flow.value = flow.value.map { if (it.id == itemId) updated else it }
+            }
+            upserted += updated
+        }
+
         override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
     }
 

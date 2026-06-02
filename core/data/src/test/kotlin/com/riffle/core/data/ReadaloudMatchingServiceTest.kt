@@ -163,6 +163,105 @@ class ReadaloudMatchingServiceTest {
         assertTrue(b.upserts.isEmpty())
     }
 
+    @Test
+    fun `Confirmed link backfills ABS metadata onto the Storyteller item`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780261103573")),
+            entities = listOf(
+                absEntity(
+                    "ebook",
+                    description = "An epic tale",
+                    publishedYear = "1965",
+                    publisher = "Chilton",
+                    genres = "Sci-Fi,Adventure",
+                ),
+            ),
+        )
+        val links = RecordingReadaloudLinkDao()
+
+        ReadaloudMatchingService(items, links).reconcileLinks()
+
+        val update = items.metadataUpdates.single { it.itemId == "42" }
+        assertEquals("An epic tale", update.description)
+        assertEquals("1965", update.publishedYear)
+        assertEquals("Chilton", update.publisher)
+        assertEquals("Sci-Fi,Adventure", update.genres)
+    }
+
+    @Test
+    fun `Storyteller item with no link is cleared to empty metadata`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "Dune", author = "Frank Herbert")),
+            abs = listOf(row("abs-9", "unrelated", title = "Atomic Habits", author = "James Clear")),
+        )
+        val links = RecordingReadaloudLinkDao()
+
+        ReadaloudMatchingService(items, links).reconcileLinks()
+
+        val update = items.metadataUpdates.single { it.itemId == "42" }
+        assertEquals(null, update.description)
+        assertEquals(null, update.publishedYear)
+        assertEquals(null, update.publisher)
+        assertEquals("", update.genres)
+    }
+
+    @Test
+    fun `Confirmed link overwrites the Storyteller author with the ABS author`() = runTest {
+        // Storyteller's API can return a duplicated/malformed author (e.g. "Andy Weir, Andy Weir;").
+        // The clean ABS author should win for matched books.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "Project Hail Mary", author = "Andy Weir, Andy Weir;", isbn = "9780593135204")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780593135204")),
+            entities = listOf(absEntity("ebook", author = "Andy Weir")),
+        )
+        val links = RecordingReadaloudLinkDao()
+
+        ReadaloudMatchingService(items, links).reconcileLinks()
+
+        assertEquals("Andy Weir", items.metadataUpdates.single { it.itemId == "42" }.author)
+    }
+
+    @Test
+    fun `Storyteller item with no link keeps its own author`() = runTest {
+        // A null author in the update means COALESCE leaves the existing (Storyteller) author intact.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "Dune", author = "Frank Herbert")),
+            abs = listOf(row("abs-9", "unrelated", title = "Atomic Habits", author = "James Clear")),
+        )
+        val links = RecordingReadaloudLinkDao()
+
+        ReadaloudMatchingService(items, links).reconcileLinks()
+
+        assertEquals(null, items.metadataUpdates.single { it.itemId == "42" }.author)
+    }
+
+    @Test
+    fun `metadata is borrowed from the ebook counterpart, not the audiobook stub`() = runTest {
+        // The Martian scenario: a readaloud links to both an ebook (rich metadata) and an
+        // audiobook stub (unsupported format). The displayed metadata should come from the ebook.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "The Martian", author = "Andy Weir")),
+            abs = listOf(
+                // Audiobook stub listed first so a naive first-match would pick it.
+                row("abs-1", "audio-stub", title = "The Martian", author = "Andy Weir"),
+                row("abs-1", "books-ebook", title = "The Martian", author = "Andy Weir"),
+            ),
+            entities = listOf(
+                absEntity("audio-stub", description = "stub", publisher = "Audio Co", ebookFormat = "unsupported"),
+                absEntity("books-ebook", description = "the real synopsis", publisher = "Crown", genres = "Sci-Fi", ebookFormat = "epub"),
+            ),
+        )
+        val links = RecordingReadaloudLinkDao()
+
+        ReadaloudMatchingService(items, links).reconcileLinks()
+
+        val update = items.metadataUpdates.single { it.itemId == "42" }
+        assertEquals("the real synopsis", update.description)
+        assertEquals("Crown", update.publisher)
+        assertEquals("Sci-Fi", update.genres)
+    }
+
     private fun row(
         serverId: String,
         itemId: String,
@@ -172,10 +271,45 @@ class ReadaloudMatchingServiceTest {
         asin: String? = null,
     ) = MatchableItemRow(itemId, serverId, title, author, isbn, asin)
 
+    private fun absEntity(
+        itemId: String,
+        author: String = "Author",
+        description: String? = null,
+        publishedYear: String? = null,
+        publisher: String? = null,
+        genres: String = "",
+        ebookFormat: String = "epub",
+    ) = LibraryItemEntity(
+        id = itemId,
+        libraryId = "$itemId-lib",
+        title = "Title",
+        author = author,
+        coverUrl = null,
+        readingProgress = 0f,
+        ebookFormat = ebookFormat,
+        description = description,
+        publishedYear = publishedYear,
+        publisher = publisher,
+        genres = genres,
+    )
+
+    data class MetadataUpdate(
+        val itemId: String,
+        val author: String?,
+        val description: String?,
+        val publishedYear: String?,
+        val publisher: String?,
+        val genres: String,
+    )
+
     private class StubLibraryItemDao(
         private val storyteller: List<MatchableItemRow>,
         private val abs: List<MatchableItemRow>,
+        entities: List<LibraryItemEntity> = emptyList(),
     ) : LibraryItemDao {
+        private val byId = entities.associateBy { it.id }
+        val metadataUpdates = mutableListOf<MetadataUpdate>()
+
         override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> = when (serverType) {
             "STORYTELLER" -> storyteller
             "AUDIOBOOKSHELF" -> abs
@@ -188,10 +322,20 @@ class ReadaloudMatchingServiceTest {
         override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
-        override suspend fun getById(itemId: String): LibraryItemEntity? = null
+        override suspend fun getById(itemId: String): LibraryItemEntity? = byId[itemId]
         override suspend fun deleteByLibraryId(libraryId: String) = Unit
         override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) = Unit
         override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
+        override suspend fun updateReadaloudMetadata(
+            itemId: String,
+            author: String?,
+            description: String?,
+            publishedYear: String?,
+            publisher: String?,
+            genres: String,
+        ) {
+            metadataUpdates += MetadataUpdate(itemId, author, description, publishedYear, publisher, genres)
+        }
         override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
     }
