@@ -1,0 +1,53 @@
+package com.riffle.core.domain
+
+/** The locally-cached materials needed to build a cross-EPUB index for one matched book. */
+data class CrossEpubBuildInputs(
+    val absEpubBytes: ByteArray,
+    val storytellerEpubBytes: ByteArray,
+    val absChaptersHtml: List<String>,
+    val storytellerChaptersHtml: List<String>,
+)
+
+/** Persistence port for the cross-EPUB index cache (backed by the `cross_epub_index` table). */
+interface CrossEpubIndexStore {
+    suspend fun exists(absChecksum: String, storytellerChecksum: String): Boolean
+    suspend fun put(absChecksum: String, storytellerChecksum: String, blob: String, builtAt: Long)
+    /** Load the cached index for the current checksums, or `null` on a miss (rebuild needed). */
+    suspend fun load(absChecksum: String, storytellerChecksum: String): CrossEpubIndex? = null
+}
+
+sealed interface CrossEpubIndexBuildOutcome {
+    /** Both EPUBs were present and the index was built and persisted under their checksums. */
+    data class Built(val absChecksum: String, val storytellerChecksum: String) : CrossEpubIndexBuildOutcome
+    /** A row for the current checksums already existed — nothing rebuilt. */
+    data object AlreadyBuilt : CrossEpubIndexBuildOutcome
+    /** A prerequisite EPUB couldn't be obtained; the book degrades to single-peer until it lands. */
+    data object Deferred : CrossEpubIndexBuildOutcome
+}
+
+/**
+ * Builds and persists the cross-EPUB index for a Confirmed [ReadaloudLink] (ADR 0019/0021):
+ * eagerly on Confirm, and opportunistically on the first sync cycle that needs it if the
+ * eager build was deferred. [loadInputs] ensures both EPUBs are cached (fetching the
+ * Storyteller bundle and/or ABS EPUB as needed — never the audiobook bundle) and returns
+ * the build materials, or `null` when a prerequisite can't be obtained. A missing
+ * prerequisite defers rather than persisting a partial index, so a sync cycle never gets a
+ * wrong cross-domain mapping — only a deferred one.
+ */
+class CrossEpubIndexService(
+    private val loadInputs: suspend (ReadaloudLink) -> CrossEpubBuildInputs?,
+    private val store: CrossEpubIndexStore,
+    private val clock: () -> Long,
+) {
+    suspend fun buildOnConfirm(link: ReadaloudLink): CrossEpubIndexBuildOutcome {
+        val inputs = loadInputs(link) ?: return CrossEpubIndexBuildOutcome.Deferred
+
+        val absChecksum = EpubChecksum.of(inputs.absEpubBytes)
+        val storytellerChecksum = EpubChecksum.of(inputs.storytellerEpubBytes)
+        if (store.exists(absChecksum, storytellerChecksum)) return CrossEpubIndexBuildOutcome.AlreadyBuilt
+
+        val index = CrossEpubIndexBuilder.build(inputs.absChaptersHtml, inputs.storytellerChaptersHtml)
+        store.put(absChecksum, storytellerChecksum, CrossEpubIndexSerializer.encode(index), clock())
+        return CrossEpubIndexBuildOutcome.Built(absChecksum, storytellerChecksum)
+    }
+}

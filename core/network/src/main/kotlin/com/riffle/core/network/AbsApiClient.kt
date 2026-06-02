@@ -6,6 +6,7 @@ import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsCreateCollectionRequest
 import com.riffle.core.network.model.AbsCreatePlaylistRequest
+import com.riffle.core.network.model.AbsAudiobookProgressRequest
 import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
@@ -527,6 +528,34 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun syncAudiobookProgress(
+        baseUrl: String,
+        libraryItemId: String,
+        payload: NetworkAudiobookProgressPayload,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkSyncSessionResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val body = json.encodeToString(AbsAudiobookProgressRequest(payload.currentTime, payload.duration))
+            .toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/me/progress/$libraryItemId")
+            .addHeader("Authorization", "Bearer $token")
+            .patch(body)
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val lastUpdate = response.body?.string()
+                    ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
+                    ?.lastUpdate ?: 0L
+                NetworkSyncSessionResult.Success(lastUpdate)
+            } else NetworkSyncSessionResult.NetworkError(IOException("HTTP ${response.code}"))
+        } catch (e: IOException) {
+            NetworkSyncSessionResult.NetworkError(e)
+        }
+    }
+
     override suspend fun getProgress(
         baseUrl: String,
         libraryItemId: String,
@@ -548,10 +577,16 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 )
                 val parsed = json.decodeFromString<AbsProgressResponse>(raw)
                 NetworkGetProgressResult.Success(
-                    NetworkServerProgress(parsed.ebookLocation, parsed.ebookProgress, parsed.lastUpdate)
+                    NetworkServerProgress(
+                        ebookLocation = parsed.ebookLocation,
+                        ebookProgress = parsed.ebookProgress,
+                        currentTime = parsed.currentTime,
+                        duration = parsed.duration,
+                        lastUpdate = parsed.lastUpdate,
+                    )
                 )
             } else if (response.code == 404) {
-                NetworkGetProgressResult.Success(NetworkServerProgress("", 0f, 0L))
+                NetworkGetProgressResult.Success(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
             } else {
                 NetworkGetProgressResult.NetworkError(IOException("HTTP ${response.code}"))
             }

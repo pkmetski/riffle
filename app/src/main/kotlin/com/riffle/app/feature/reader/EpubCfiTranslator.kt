@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.EpubTextChars
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -115,13 +116,9 @@ internal fun walkCfiSteps(root: Element, steps: List<Int>): Node? {
 
 // ── Character counting ────────────────────────────────────────────────────────
 
-internal fun countBodyChars(body: Element): Long = countNodeChars(body)
-
-private fun countNodeChars(node: Node): Long = when (node) {
-    is TextNode -> if (node.wholeText.isNotBlank()) node.wholeText.length.toLong() else 0L
-    is Element -> node.childNodes().sumOf { countNodeChars(it) }
-    else -> 0L
-}
+// Single source of truth for the readable-character definition, shared with the
+// cross-EPUB index (ADR 0019) via core/domain.
+internal fun countBodyChars(body: Element): Long = EpubTextChars.countReadableChars(body)
 
 internal fun countCharsBefore(body: Element, target: TextNode, offsetInTarget: Int): Long {
     var count = 0L

@@ -11,6 +11,7 @@ import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
@@ -53,6 +54,10 @@ class ProgressSyncCycleTest {
             patchCallCount++
             return patchResult
         }
+        override suspend fun syncAudiobookProgress(
+            baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload,
+            token: String, insecureAllowed: Boolean,
+        ): NetworkSyncSessionResult = patchResult
         override suspend fun getProgress(
             baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
         ): NetworkGetProgressResult = getResult
@@ -289,6 +294,10 @@ class ProgressSyncCycleTest {
                 patchPayload = payload
                 return NetworkSyncSessionResult.Success(7_777L)
             }
+            override suspend fun syncAudiobookProgress(
+                baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload,
+                token: String, insecureAllowed: Boolean,
+            ) = NetworkSyncSessionResult.Success(0L)
             override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
                 NetworkGetProgressResult.Success(NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
         }

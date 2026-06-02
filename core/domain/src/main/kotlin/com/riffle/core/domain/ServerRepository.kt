@@ -18,6 +18,8 @@ sealed class CommitServerResult {
 interface ServerRepository {
     fun observeAll(): Flow<List<Server>>
     suspend fun getActive(): Server?
+    /** Resolve a specific server by id (e.g. the ABS and Storyteller sides of a matched book). */
+    suspend fun getById(serverId: String): Server? = null
     suspend fun authenticate(
         url: ServerUrl,
         username: String,

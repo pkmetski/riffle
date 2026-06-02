@@ -15,6 +15,7 @@ import com.riffle.core.data.AudioCachePreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.PdfRepositoryImpl
+import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
@@ -35,6 +36,7 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadingPositionStore
@@ -166,6 +168,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindStorytellerLibraryApi(impl: StorytellerApiClient): StorytellerLibraryApi
+
+    @Binds
+    @Singleton
+    abstract fun bindCrossEpubIndexStore(impl: CrossEpubIndexStoreImpl): CrossEpubIndexStore
 
     @Binds
     @Singleton

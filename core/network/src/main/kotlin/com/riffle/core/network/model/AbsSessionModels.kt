@@ -7,3 +7,9 @@ internal data class AbsEbookProgressRequest(
     val ebookLocation: String,
     val ebookProgress: Float,
 )
+
+@Serializable
+internal data class AbsAudiobookProgressRequest(
+    val currentTime: Double,
+    val duration: Double,
+)
