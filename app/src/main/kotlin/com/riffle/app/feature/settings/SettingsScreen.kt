@@ -1,6 +1,9 @@
 package com.riffle.app.feature.settings
 
 import android.content.ClipData
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -22,6 +25,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
@@ -36,11 +40,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
@@ -49,6 +56,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.FormattingPanel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.AudioCachePreferencesStore
+import com.riffle.core.domain.Server
+import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
@@ -69,11 +78,13 @@ fun SettingsScreen(
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val servers by viewModel.servers.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
-    val libraryItems by viewModel.libraryUiItems.collectAsState()
+    val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val storytellerServers by viewModel.storytellerServers.collectAsState()
     val audioCacheCaps by viewModel.audioCacheCaps.collectAsState()
+    val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     var expanded by remember { mutableStateOf(false) }
     var showFormattingPanel by remember { mutableStateOf(false) }
 
@@ -126,26 +137,54 @@ fun SettingsScreen(
                         state = dismissState,
                         backgroundContent = {},
                     ) {
-                        val username = server.username.takeIf { it.isNotEmpty() }
-                        val version = serverVersions[server.id]
-                        val subtitle = buildString {
-                            if (username != null) {
-                                append(username)
-                                append(" · ")
+                        Column {
+                            val isExpanded = expandedServers[server.id] == true
+                            val username = server.username.takeIf { it.isNotEmpty() }
+                            val version = serverVersions[server.id]
+                            val subtitle = buildString {
+                                if (username != null) {
+                                    append(username)
+                                    append(" · ")
+                                }
+                                append(server.url.value)
+                                if (version != null) {
+                                    append(" · v")
+                                    append(version)
+                                }
                             }
-                            append(server.url.value)
-                            if (version != null) {
-                                append(" · v")
-                                append(version)
+                            val chevronRotation by animateFloatAsState(
+                                targetValue = if (isExpanded) 90f else 0f,
+                                label = "chevron",
+                            )
+                            ListItem(
+                                modifier = Modifier.clickable {
+                                    expandedServers[server.id] = !isExpanded
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                        modifier = Modifier.rotate(chevronRotation),
+                                    )
+                                },
+                                headlineContent = { Text(server.serverType.label) },
+                                supportingContent = { Text(subtitle) },
+                                trailingContent = if (server.isActive) {
+                                    { Text("Active", style = MaterialTheme.typography.labelSmall) }
+                                } else null,
+                            )
+                            AnimatedVisibility(visible = isExpanded) {
+                                ServerSettingsExpansion(
+                                    server = server,
+                                    libraryItems = libraryItemsByServer[server.id].orEmpty(),
+                                    summary = readaloudSummaries[server.id],
+                                    onSetLibraryVisible = { libraryId, visible ->
+                                        viewModel.setLibraryVisible(server.id, libraryId, visible)
+                                    },
+                                    onOpenReadaloudMatches = { viewModel.openReadaloudMatches(server.id) },
+                                )
                             }
                         }
-                        ListItem(
-                            headlineContent = { Text(server.serverType.label) },
-                            supportingContent = { Text(subtitle) },
-                            trailingContent = if (server.isActive) {
-                                { Text("Active", style = MaterialTheme.typography.labelSmall) }
-                            } else null,
-                        )
                     }
                 }
                 Button(
@@ -157,32 +196,6 @@ fun SettingsScreen(
                     Text("Add Server")
                 }
                 HorizontalDivider()
-
-                if (libraryItems.isNotEmpty()) {
-                    val activeServerName = servers.firstOrNull { it.isActive }?.serverType?.label ?: ""
-                    Text(
-                        text = "Libraries — $activeServerName",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    HorizontalDivider()
-                    libraryItems.forEach { item ->
-                        ListItem(
-                            headlineContent = { Text(item.library.name) },
-                            trailingContent = {
-                                Switch(
-                                    checked = item.isVisible,
-                                    onCheckedChange = { visible ->
-                                        val serverId = servers.firstOrNull { it.isActive }?.id ?: return@Switch
-                                        viewModel.setLibraryVisible(serverId, item.library.id, visible)
-                                    },
-                                    enabled = item.switchEnabled,
-                                )
-                            },
-                        )
-                    }
-                    HorizontalDivider()
-                }
 
                 if (storytellerServers.isNotEmpty()) {
                     Text(
@@ -218,29 +231,6 @@ fun SettingsScreen(
                                     }
                                 }
                             },
-                        )
-                    }
-                    HorizontalDivider()
-                }
-
-                if (storytellerServers.isNotEmpty()) {
-                    Text(
-                        text = "Readaloud matches",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    HorizontalDivider()
-                    storytellerServers.forEach { server ->
-                        ListItem(
-                            headlineContent = { Text(server.name) },
-                            supportingContent = { Text("Review and pair Storyteller readalouds with ABS books") },
-                            trailingContent = {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                )
-                            },
-                            modifier = Modifier.clickable { viewModel.openReadaloudMatches(server.id) },
                         )
                     }
                     HorizontalDivider()
@@ -327,6 +317,91 @@ fun SettingsScreen(
             fullScreen = true,
         )
     }
+}
+
+/**
+ * The settings revealed when a server row is expanded: ABS servers show their library visibility
+ * switches; Storyteller servers show a readaloud-matches summary that opens the full matches screen.
+ */
+@Composable
+internal fun ServerSettingsExpansion(
+    server: Server,
+    libraryItems: List<LibraryUiItem>,
+    summary: ReadaloudMatchSummary?,
+    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
+    onOpenReadaloudMatches: () -> Unit,
+) {
+    val transparentColors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+    ) {
+        when (server.serverType) {
+            ServerType.AUDIOBOOKSHELF -> {
+                ExpansionHeader("Enabled libraries")
+                if (libraryItems.isEmpty()) {
+                    ExpansionNote("No libraries found.")
+                } else {
+                    libraryItems.forEach { item ->
+                        ListItem(
+                            colors = transparentColors,
+                            modifier = Modifier.padding(start = 24.dp),
+                            headlineContent = { Text(item.library.name) },
+                            trailingContent = {
+                                Switch(
+                                    checked = item.isVisible,
+                                    onCheckedChange = { visible -> onSetLibraryVisible(item.library.id, visible) },
+                                    enabled = item.switchEnabled,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+            ServerType.STORYTELLER -> {
+                ExpansionHeader("Readaloud matches")
+                val counts = summary ?: ReadaloudMatchSummary(0, 0, 0)
+                ListItem(
+                    colors = transparentColors,
+                    modifier = Modifier
+                        .padding(start = 24.dp)
+                        .clickable { onOpenReadaloudMatches() },
+                    headlineContent = { Text("Review & pair readalouds") },
+                    supportingContent = {
+                        Text(
+                            "${counts.confirmedCount} confirmed · " +
+                                "${counts.pendingCount} pending review · " +
+                                "${counts.unmatchedCount} unmatched",
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpansionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun ExpansionNote(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+    )
 }
 
 private const val GIB: Long = 1024L * 1024 * 1024

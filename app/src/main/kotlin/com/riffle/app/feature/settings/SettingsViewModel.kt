@@ -11,6 +11,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -44,6 +44,7 @@ class SettingsViewModel @Inject constructor(
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val audioCachePreferencesStore: AudioCachePreferencesStore,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
+    private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -88,6 +89,27 @@ class SettingsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** Readaloud-matches counts (confirmed / pending / unmatched) for each Storyteller server. */
+    val readaloudSummaries: StateFlow<Map<String, ReadaloudMatchSummary>> = storytellerServers
+        .flatMapLatest { items ->
+            if (items.isEmpty()) {
+                MutableStateFlow(emptyMap<String, ReadaloudMatchSummary>())
+            } else {
+                combine(
+                    items.map { item ->
+                        readaloudReviewRepository.observeReview(item.id).map { review ->
+                            item.id to ReadaloudMatchSummary(
+                                confirmedCount = review.confirmed.size,
+                                pendingCount = review.pending.size,
+                                unmatchedCount = review.unmatched.size,
+                            )
+                        }
+                    }
+                ) { pairs -> pairs.toMap() }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     private val versionsCache = mutableMapOf<String, String>()
     private val _serverVersions = MutableStateFlow<Map<String, String>>(emptyMap())
     val serverVersions: StateFlow<Map<String, String>> = _serverVersions.asStateFlow()
@@ -108,29 +130,40 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private val activeServer: StateFlow<Server?> = servers
-        .map { it.firstOrNull { s -> s.isActive } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val absServers: StateFlow<List<Server>> = servers
+        .map { list -> list.filter { it.serverType == ServerType.AUDIOBOOKSHELF } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val libraryUiItems: StateFlow<List<LibraryUiItem>> = activeServer
-        .filterNotNull()
-        .flatMapLatest { server ->
-            combine(
-                libraryRepository.observeLibraries(),
-                visibilityStore.hiddenLibraryIds(server.id),
-            ) { libraries, hiddenIds ->
-                val visibleCount = libraries.count { it.id !in hiddenIds }
-                libraries.map { lib ->
-                    val isVisible = lib.id !in hiddenIds
-                    LibraryUiItem(
-                        library = lib,
-                        isVisible = isVisible,
-                        switchEnabled = !isVisible || visibleCount > 1,
-                    )
-                }
+    /**
+     * Library visibility items for each Audiobookshelf server, keyed by server id. Libraries are
+     * read from the local DB per server, so a server need not be active to manage its libraries.
+     */
+    val libraryUiItemsByServer: StateFlow<Map<String, List<LibraryUiItem>>> = absServers
+        .flatMapLatest { list ->
+            if (list.isEmpty()) {
+                MutableStateFlow(emptyMap<String, List<LibraryUiItem>>())
+            } else {
+                combine(
+                    list.map { server ->
+                        combine(
+                            libraryRepository.observeLibraries(server.id),
+                            visibilityStore.hiddenLibraryIds(server.id),
+                        ) { libraries, hiddenIds ->
+                            val visibleCount = libraries.count { it.id !in hiddenIds }
+                            server.id to libraries.map { lib ->
+                                val isVisible = lib.id !in hiddenIds
+                                LibraryUiItem(
+                                    library = lib,
+                                    isVisible = isVisible,
+                                    switchEnabled = !isVisible || visibleCount > 1,
+                                )
+                            }
+                        }
+                    }
+                ) { pairs -> pairs.toMap() }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _navigationEvents = Channel<SettingsNavEvent>(Channel.CONFLATED)
     val navigationEvents = _navigationEvents.receiveAsFlow()
@@ -193,4 +226,11 @@ class SettingsViewModel @Inject constructor(
 data class StorytellerServerUiItem(
     val id: String,
     val name: String,
+)
+
+/** Counts shown in a Storyteller server's expanded "Readaloud matches" summary. */
+data class ReadaloudMatchSummary(
+    val confirmedCount: Int,
+    val pendingCount: Int,
+    val unmatchedCount: Int,
 )
