@@ -96,7 +96,6 @@ class SettingsViewModelTest {
     private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
-    private val activeServerId get() = serversFlow.value.firstOrNull { it.isActive }?.id
 
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = serversFlow
