@@ -897,52 +897,42 @@ private fun EpubNavigatorView(
         hasHighlightDecorations.value = true
     }
 
-    // ---- Auto-page-turn --------------------------------------------------------------------
-    // When the coordinator signals the narrated sentence has scrolled off-screen, advance using
-    // the same navigation calls the volume-key path uses (goForward for paginated, scroll-to-
-    // bottom for continuous). Approximation note: Readium 3.0.0 has no API to enumerate the
-    // fragment refs actually rendered in the viewport, so we report a coarse visible set built
-    // from the current locator's href below; the coordinator treats the active sentence as
-    // off-screen once it moves past that set.
-    LaunchedEffect(advancePageEvents) {
-        advancePageEvents.collect {
-            val fragment = fragmentRef.value ?: return@collect
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical) {
-                // Continuous: scroll down by a viewport height.
-                launch {
-                    fragment.evaluateJavascript(
-                        "window.scrollBy(0, window.innerHeight * 0.9);"
-                    )
-                }
-            } else {
-                fragment.goForward(animated = false)
-            }
-        }
-    }
-
-    // Feed the coordinator a coarse visible-fragment set. Readium 3.0.0 does not expose the exact
-    // fragment refs rendered in the viewport, so we approximate by snapshotting the fragment that
-    // was active at the moment the page last settled (the locator href changed). While playback
-    // stays on that page the snapshot is the "visible" set; once the active clip's document index
-    // climbs past it, AutoPageTurnRule fires an advance. This is intentionally conservative — it
-    // advances when audio moves beyond where the page settled, not mid-sentence.
-    val pageSettledFragment = remember { mutableStateOf<String?>(null) }
-    val currentActiveFragmentRef by rememberUpdatedState(activeFragmentRef)
-    // Snapshot whenever the locator href changes (a new page/chapter has rendered).
-    LaunchedEffect(fragmentRef.value) {
+    // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
+    // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence).
+    // When the newly-active sentence is no longer in the viewport we navigate to it so the page
+    // follows the highlight. Readium 3.0.0 can't enumerate visible fragments, so we ask the WebView
+    // for the element's on-screen rect and navigate ONLY when it is actually off the current page —
+    // this is what stops the old index-heuristic from page-turning on every sentence (which dragged
+    // the page sideways). getElementById returns null when the sentence is in another chapter's
+    // document, which also reads as off-screen, so cross-chapter follow falls out for free. Works
+    // for both paginated (horizontal) and continuous (vertical) layouts.
+    LaunchedEffect(activeFragmentRef) {
+        val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
-        var lastHref: String? = null
-        fragment.currentLocator.collect { locator ->
-            val href = locator.href.toString()
-            if (href != lastHref) {
-                lastHref = href
-                pageSettledFragment.value = currentActiveFragmentRef
-            }
-        }
-    }
-    LaunchedEffect(pageSettledFragment.value) {
-        val ref = pageSettledFragment.value
-        onReportVisibleFragments(if (ref != null) setOf(ref) else emptySet())
+        val hashIdx = ref.indexOf('#')
+        if (hashIdx < 0) return@LaunchedEffect
+        val fragId = ref.substring(hashIdx + 1)
+        val onScreen = fragment.evaluateJavascript(
+            """
+            (function(){
+              var e=document.getElementById(${JSONObject.quote(fragId)});
+              if(!e) return "off";
+              var r=e.getBoundingClientRect();
+              return (r.left < window.innerWidth && r.right > 0 && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
+            })()
+            """.trimIndent(),
+        )?.trim('"')
+        if (onScreen == "on") return@LaunchedEffect
+        val locatorJson = JSONObject()
+            .put("href", ref.substring(0, hashIdx))
+            .put("type", "application/xhtml+xml")
+            .put(
+                "locations",
+                JSONObject()
+                    .put("fragments", org.json.JSONArray().put(fragId))
+                    .put("cssSelector", "#$fragId"),
+            )
+        Locator.fromJSON(locatorJson)?.let { fragment.go(it, animated = false) }
     }
 
     LaunchedEffect(volumeNavEvents) {
