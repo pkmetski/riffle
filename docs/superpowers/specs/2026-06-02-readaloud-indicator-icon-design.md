@@ -136,12 +136,18 @@ glyph. It **downloads the Storyteller bundle** (synced EPUB + audio) for the mat
 item — the work the existing code comment at `LibraryItemDetailScreen.kt:545–550`
 explicitly deferred to "the next slice."
 
+**Visual (chosen):** the circle's main icon is the **download arrow**
+(`Icons.Default.ArrowDownward`, same as the ebook button) with the **readaloud glyph as a
+small badge** in the bottom-right corner — so it reads clearly as *download* while the
+badge marks it as the *readaloud* one (distinguishing it from the adjacent ebook
+download). The badge glyph is sized generously (not a tiny dot) for legibility.
+
 Behavior **mirrors the existing `DownloadButton`** exactly:
 
-- **NotDownloaded:** outlined circle, new glyph (outline tint), tap → download.
+- **NotDownloaded:** outlined circle, arrow + readaloud-glyph badge, tap → download.
 - **InProgress:** circular progress indicator.
-- **Downloaded:** filled (`primaryContainer`) circle, new glyph, **tap → remove** the
-  bundle. (Second-tap-removes, same as the ebook button.)
+- **Downloaded:** filled (`primaryContainer`) circle, **tap → remove** the bundle
+  (second-tap-removes, same as the ebook button).
 - **No size** is shown.
 - **Offline/metered:** reuse the existing readaloud handling — disabled with the
   "Connect to download readaloud audio" affordance when there's no usable connection.
