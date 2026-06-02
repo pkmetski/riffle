@@ -2,10 +2,13 @@ package com.riffle.app.feature.reader.readaloud
 
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 /**
  * Foreground [MediaSessionService] that plays Readaloud audio. Media3 supplies the media
@@ -34,7 +37,33 @@ class AudioPlayerService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .setMediaSourceFactory(ProgressiveMediaSource.Factory(SharedBundle.dataSourceFactory()))
             .build()
-        mediaSession = MediaSession.Builder(this, player).build()
+        mediaSession = MediaSession.Builder(this, player)
+            .setCallback(MediaItemUriRestoringCallback)
+            .build()
+    }
+
+    /**
+     * Media3 strips a [MediaItem]'s playback URI (`localConfiguration`) when a `MediaController`
+     * sends items across the session Binder — only `mediaId` + metadata survive. Without restoring
+     * the URI here the player receives unplayable items and stays silent. [ReadaloudController] sets
+     * each `mediaId` to the audio resource's zip-entry path, so we rebuild the `zipaudio://` URI
+     * from it (see [ZipAudioDataSource]).
+     */
+    private object MediaItemUriRestoringCallback : MediaSession.Callback {
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>,
+        ): ListenableFuture<MutableList<MediaItem>> {
+            val restored = mediaItems.map { item ->
+                if (item.localConfiguration != null || item.mediaId.isEmpty()) {
+                    item
+                } else {
+                    item.buildUpon().setUri(ZipAudioDataSource.uriFor(item.mediaId)).build()
+                }
+            }.toMutableList()
+            return Futures.immediateFuture(restored)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession

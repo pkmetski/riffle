@@ -60,11 +60,11 @@ fun ReadaloudMiniPlayer(
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // inverseSurface/onInverseSurface keeps the bar legible over any reader theme — same pair the
-    // PullChip uses.
+    // surfaceVariant/onSurfaceVariant matches the ChapterNavigationRail track that sits directly
+    // below, so the player and rail read as one continuous, theme-following surface.
     Surface(
-        color = MaterialTheme.colorScheme.inverseSurface,
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier
             .fillMaxWidth()
             .testTag("readaloud_mini_player"),
@@ -104,7 +104,7 @@ fun ReadaloudMiniPlayer(
                 TextButton(onClick = onCycleSpeed, modifier = Modifier.testTag("readaloud_speed")) {
                     Text(
                         speedLabel(speed),
-                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
