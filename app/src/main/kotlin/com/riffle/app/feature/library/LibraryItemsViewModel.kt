@@ -115,7 +115,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     /**
      * Set of items in this library that have a Readaloud↔ABS link — drives the small
-     * headphone badge on each LibraryItemCard. For an ABS Library the set is keyed by
+     * readaloud badge on each LibraryItemCard. For an ABS Library the set is keyed by
      * ABS Library Item id; for a Readaloud Library it's keyed by Storyteller book id.
      */
     val linkedItemIds: StateFlow<Set<String>> = isReadaloudLibrary

@@ -904,6 +904,9 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            // NOTE: probe/download here use the ACTIVE server. This path is only reachable for
+            // Storyteller books (active server == Storyteller) or already-downloaded matched ABS
+            // books (control is disabled until the bundle exists), so audioBookId resolves correctly.
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
             // the user can still choose to download.
             _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioBookId) ?: 0L

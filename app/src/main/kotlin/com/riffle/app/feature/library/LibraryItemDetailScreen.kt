@@ -590,23 +590,36 @@ private fun ActionRow(
                 )
             }
             // For a Storyteller (Readaloud) book the synced bundle is BOTH the EPUB and the audio
-            // source (ADR 0023), so the single DownloadButton already downloads/removes the audio.
-            // A separate readaloud download/remove control here would be redundant and, worse, would
-            // delete the very bundle the reader is using — so it is intentionally absent. Listening
-            // happens in the reader (its headphones action); proactively fetching the audio for a
-            // matched ABS book is the next slice's concern.
+            // source (ADR 0023), so this single DownloadButton already downloads/removes the audio.
+            // A matched ABS item instead gets the separate ReadaloudDownloadButton below, which
+            // fetches the Storyteller bundle (keyed by the linked Storyteller book id).
             DownloadButton(
                 state = downloadState,
                 onDownload = onDownload,
                 onRemove = onRemove,
             )
             if (readaloudDownloadState != null) {
-                ReadaloudDownloadButton(
-                    state = readaloudDownloadState,
-                    onDownload = onDownloadReadaloud,
-                    onRemove = onRemoveReadaloud,
-                    enabled = !(isOffline && readaloudDownloadState == DownloadState.NotDownloaded),
-                )
+                val readaloudOfflineBlocked = isOffline && readaloudDownloadState == DownloadState.NotDownloaded
+                if (readaloudOfflineBlocked) {
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = { PlainTooltip { Text("Connect to download readaloud audio") } },
+                        state = rememberTooltipState(),
+                    ) {
+                        ReadaloudDownloadButton(
+                            state = readaloudDownloadState,
+                            onDownload = onDownloadReadaloud,
+                            onRemove = onRemoveReadaloud,
+                            enabled = false,
+                        )
+                    }
+                } else {
+                    ReadaloudDownloadButton(
+                        state = readaloudDownloadState,
+                        onDownload = onDownloadReadaloud,
+                        onRemove = onRemoveReadaloud,
+                    )
+                }
             }
         }
     } else {
