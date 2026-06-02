@@ -6,11 +6,13 @@ import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
+import com.riffle.core.data.DeviceIdStoreImpl
 import com.riffle.core.data.DownloadsRepositoryImpl
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
+import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.AudioCachePreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
@@ -25,10 +27,12 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
+import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudioCachePreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReportRepository
+import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferencesStore
@@ -96,6 +100,10 @@ annotation class WakeLockPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class VolumeKeyPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DeviceIdDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -208,6 +216,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindConnectivityObserver(impl: ConnectivityObserverImpl): ConnectivityObserver
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceIdStore(impl: DeviceIdStoreImpl): DeviceIdStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAnnotationStore(impl: AnnotationStoreImpl): AnnotationStore
 
     companion object {
         @Provides
@@ -390,5 +406,12 @@ abstract class DataModule {
         fun provideVolumeKeyPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.volumeKeyPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @DeviceIdDataStore
+        fun provideDeviceIdDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.deviceIdDataStore
     }
 }

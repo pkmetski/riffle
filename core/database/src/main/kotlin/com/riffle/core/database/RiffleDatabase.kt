@@ -20,8 +20,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadaloudCandidateEntity::class,
         ReadaloudDismissalEntity::class,
         CrossEpubIndexEntity::class,
+        AnnotationEntity::class,
     ],
-    version = 24,
+    version = 25,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -36,6 +37,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun readaloudCandidateDao(): ReadaloudCandidateDao
     abstract fun readaloudDismissalDao(): ReadaloudDismissalDao
     abstract fun crossEpubIndexDao(): CrossEpubIndexDao
+    abstract fun annotationDao(): AnnotationDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -388,6 +390,41 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "`perChapterMapsBlob` TEXT NOT NULL, " +
                         "`builtAt` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`absEpubChecksum`, `storytellerEpubChecksum`))"
+                )
+            }
+        }
+
+        // 24 → 25: the sync-ready Annotations store (ADR 0024 / 0025). One table carries every
+        // field the future W3C format + per-device-file merge needs — stable UUID identity,
+        // origin/last-modified device ids, a `deleted` tombstone, the CFI range anchor, colour
+        // token, nullable note, and the snippet + chapter href fallback. Scoped to the ABS
+        // Library Item (serverId + itemId); FK-cascade on serverId clears rows when the server
+        // is removed. v1 writes locally only — no sync target reads any of it yet.
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `annotations` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`type` TEXT NOT NULL, " +
+                        "`cfi` TEXT NOT NULL, " +
+                        "`color` TEXT NOT NULL, " +
+                        "`note` TEXT, " +
+                        "`textSnippet` TEXT NOT NULL, " +
+                        "`chapterHref` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, " +
+                        "`originDeviceId` TEXT NOT NULL, " +
+                        "`lastModifiedByDeviceId` TEXT NOT NULL, " +
+                        "`deleted` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_annotations_serverId_itemId` " +
+                        "ON `annotations` (`serverId`, `itemId`)"
                 )
             }
         }

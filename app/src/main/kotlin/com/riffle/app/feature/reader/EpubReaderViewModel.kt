@@ -10,6 +10,8 @@ import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome
+import com.riffle.core.domain.Annotation
+import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
@@ -104,6 +106,7 @@ class EpubReaderViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
+    private val annotationStore: AnnotationStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -211,6 +214,24 @@ class EpubReaderViewModel @Inject constructor(
     // be downloaded on demand); ABS books qualify only when a synced bundle is already present.
     private var isStorytellerServer = false
 
+    // ---- Annotations (ADR 0024 / 0025) -------------------------------------------------------
+
+    // The ABS server hosting this item; annotations key on it together with itemId. Resolved once
+    // the active server is known. Null on the Storyteller-only / Readaloud side, where annotations
+    // are absent.
+    private var annotationServerId: String? = null
+
+    // Highlights exist only while reading the ABS side. False on a Storyteller-only book — the
+    // "Highlight" affordance must not appear there (ADR 0024).
+    private val _annotationsAvailable = MutableStateFlow(false)
+    val annotationsAvailable: StateFlow<Boolean> = _annotationsAvailable
+
+    /** A persisted highlight reconstructed into a renderable Readium locator + colour token. */
+    data class HighlightRender(val id: String, val locator: Locator, val color: String)
+
+    private val _highlightRenders = MutableStateFlow<List<HighlightRender>>(emptyList())
+    val highlightRenders: StateFlow<List<HighlightRender>> = _highlightRenders
+
     private val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
 
@@ -297,9 +318,17 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             // Active-server type decides Readaloud availability: every Storyteller book qualifies,
             // while ABS books qualify only when a synced bundle has already been downloaded.
-            isStorytellerServer = serverRepository.getActive()?.serverType == ServerType.STORYTELLER
+            val activeServer = serverRepository.getActive()
+            isStorytellerServer = activeServer?.serverType == ServerType.STORYTELLER
             _readaloudAvailable.value =
                 isStorytellerServer || readaloudAudioRepository.isAudioAvailable(itemId)
+
+            // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
+            if (!isStorytellerServer && activeServer != null) {
+                annotationServerId = activeServer.id
+                _annotationsAvailable.value = true
+                observeHighlights(activeServer.id)
+            }
         }
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
@@ -511,6 +540,73 @@ class EpubReaderViewModel @Inject constructor(
         // Fallback: no usable CFI — navigate via book-wide progress float
         val progress = serverProgress.ebookProgress.toDouble().coerceIn(0.0, 1.0)
         return if (progress > 0.0) pub.locateProgression(progress) else null
+    }
+
+    // ---- Annotations -------------------------------------------------------------------------
+
+    // Keeps highlightRenders in sync with the store. Re-runs when the book finishes opening
+    // (state → Ready) so persisted highlights re-render on reopen, and whenever the set changes.
+    private fun observeHighlights(serverId: String) {
+        viewModelScope.launch {
+            combine(
+                annotationStore.observeHighlights(serverId, itemId),
+                state,
+            ) { annotations, st -> annotations to (st is ReaderState.Ready) }
+                .collect { (annotations, ready) ->
+                    _highlightRenders.value =
+                        if (!ready) emptyList() else annotations.mapNotNull { annotationToRender(it) }
+                }
+        }
+    }
+
+    // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
+    // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
+    fun createHighlight(selectionLocator: Locator) {
+        val serverId = annotationServerId ?: return
+        viewModelScope.launch {
+            val pub = publication ?: return@launch
+            val snippet = selectionLocator.text.highlight?.takeIf { it.isNotBlank() } ?: return@launch
+            val href = selectionLocator.href.toString()
+            val spineIndex = pub.readingOrder.indexOfFirst {
+                normalizeEpubHref(it.href.toString()) == normalizeEpubHref(href)
+            }
+            if (spineIndex < 0) return@launch
+            val spineStep = (spineIndex + 1) * 2
+            val html = readChapterHtml(spineIndex) ?: return@launch
+            val progression = selectionLocator.locations.progression ?: 0.0
+            val cfiRange = buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
+                ?: return@launch
+            annotationStore.createHighlight(
+                serverId = serverId,
+                itemId = itemId,
+                cfi = cfiRange,
+                textSnippet = snippet,
+                chapterHref = href,
+            )
+            // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
+        }
+    }
+
+    // Reconstruct a persisted highlight into a renderable Readium locator. The CFI start re-anchors
+    // the within-chapter position; the text snippet lets Readium's decorator locate the range.
+    private suspend fun annotationToRender(a: Annotation): HighlightRender? {
+        val pub = publication ?: return null
+        val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return null
+        val link = pub.readingOrder.getOrNull(spineIndex) ?: return null
+        val html = readChapterHtml(spineIndex) ?: return null
+        val progression = highlightStartProgression(a.cfi, html) ?: return null
+        val locator = try {
+            Locator.fromJSON(
+                JSONObject()
+                    .put("href", link.href.toString())
+                    .put("type", "application/xhtml+xml")
+                    .put("locations", JSONObject().put("progression", progression))
+                    .put("text", JSONObject().put("highlight", a.textSnippet)),
+            )
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        return HighlightRender(a.id, locator, a.color)
     }
 
     private suspend fun readChapterHtml(spineIndex: Int): String? {
