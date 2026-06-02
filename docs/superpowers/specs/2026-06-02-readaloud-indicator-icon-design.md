@@ -83,7 +83,8 @@ the same source.
 
 ### 2. Replace existing headphones usages
 - `LibraryItemsScreen.kt:824` — list-row readaloud badge → new icon (straight swap).
-- `EpubReaderScreen.kt:394` — reader top-bar readaloud control → new icon (straight swap).
+- `EpubReaderScreen.kt:394` — reader top-bar readaloud control → new icon. (Also gains the
+  enable/disable behavior in §6 — not just an icon swap.)
 - `LibraryItemDetailScreen.kt:340` — this headphones lives inside `ReadaloudFooter`, which
   is being restructured (see §5). It disappears with the footer; the detail's new indicator
   icon is added near the title instead.
@@ -188,6 +189,27 @@ Wiring (planning to detail):
 - `LibraryItemDetailViewModel` exposes: is-matched (+ resolved link), readaloud download
   state, and `onDownloadReadaloud` / `onRemoveReadaloud`.
 
+### 6. Reader control: disable until downloaded (no error)
+
+For a **matched ABS book**, the reader top-bar readaloud control is **always shown** but:
+
+- **Enabled** only when the bundle is downloaded (`isAudioAvailable(link.storytellerBookId)`,
+  per §5's keying).
+- **Disabled** (greyed, not pressable) when the bundle is not downloaded. Pressing it does
+  **nothing** — **no error, no message, no download prompt**. The user gets the bundle via
+  the detail-screen download button (§5b); once downloaded, the control enables.
+
+Scope:
+- **Unmatched ABS book** — no readaloud control at all (unchanged; there is no readaloud).
+- **Storyteller (Readaloud) book** — unchanged: control stays available with its existing
+  download-on-play behavior; the disable rule does not apply.
+
+Note this changes the ABS path from today's "hidden unless `isAudioAvailable(absItemId)`"
+(which was effectively never true, since the bundle is keyed by Storyteller book id — see
+§5) to "shown when matched, enabled when the Storyteller-keyed bundle is present." The
+reader VM's `readaloudAvailable`/enabled signal must become matched-aware and keyed by the
+linked Storyteller book id.
+
 ## Accessibility
 
 `contentDescription` updated to convey the concept, e.g. *"Has readaloud (synced
@@ -207,8 +229,10 @@ narration)"*, at every call site. The cover overlay carries the same description
 - **Shared-bundle reflection:** a bundle downloaded from the **Storyteller library**
   shows as **Downloaded** on the ABS button (and vice-versa); **removing from either**
   side frees the one shared file (keyed by Storyteller book id).
-- **Reader:** top-bar readaloud control renders the new icon; existing readaloud
-  open/play tests still pass.
+- **Reader:** top-bar readaloud control renders the new icon. For a **matched ABS book**:
+  control is **disabled** (not pressable, no error/message) when the bundle isn't
+  downloaded, and **enables** once it is. Unmatched ABS book → no control. Storyteller
+  book → unchanged. Existing readaloud open/play tests still pass.
 - **Drawable:** the vector inflates without error and is legible at 16–17dp
   (manual/screenshot check).
 - Follow the project's harness-test conventions (`make harness-test` /
