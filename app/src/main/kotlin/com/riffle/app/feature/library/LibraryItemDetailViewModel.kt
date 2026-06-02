@@ -90,6 +90,9 @@ sealed interface DownloadState {
     data object Downloaded : DownloadState
 }
 
+internal fun readaloudDownloadStateFor(bundlePresent: Boolean): DownloadState =
+    if (bundlePresent) DownloadState.Downloaded else DownloadState.NotDownloaded
+
 @HiltViewModel
 class LibraryItemDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -102,6 +105,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val readaloudReviewRepository: com.riffle.core.domain.ReadaloudReviewRepository,
+    private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -115,6 +119,10 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private val _snackbarEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarEvents: SharedFlow<String> = _snackbarEvents.asSharedFlow()
+
+    private var readaloudLink: com.riffle.core.domain.ReadaloudLink? = null
+    private val _readaloudDownloadState = MutableStateFlow<DownloadState?>(null)
+    val readaloudDownloadState: StateFlow<DownloadState?> = _readaloudDownloadState
 
     var authToken: String by mutableStateOf("")
         private set
@@ -132,6 +140,15 @@ class LibraryItemDetailViewModel @Inject constructor(
                     _downloadState.value = deriveDownloadState(item)
                     if (!isReadaloud) toReadRepository.refresh(item.libraryId)
                     val isInToRead = if (isReadaloud) false else toReadRepository.isInToRead(item.id, item.libraryId)
+                    val link = if (!isReadaloud && server?.id != null) {
+                        readaloudLinkRepository.findByAbsItem(server.id, item.id)
+                    } else {
+                        null
+                    }
+                    readaloudLink = link
+                    _readaloudDownloadState.value = link?.let {
+                        readaloudDownloadStateFor(readaloudAudioRepository.isAudioAvailable(it.storytellerBookId))
+                    }
                     val footer = resolveReadaloudFooter(item, isReadaloud, server?.id)
                     val isCachedOrDownloaded = epubRepository.isCached(item.id) || epubRepository.isDownloaded(item.id)
                     LibraryItemDetailUiState.Ready(
@@ -268,6 +285,28 @@ class LibraryItemDetailViewModel @Inject constructor(
         }
     }
 
+    fun onDownloadReadaloud() {
+        val link = readaloudLink ?: return
+        if (_readaloudDownloadState.value == DownloadState.InProgress) return
+        _readaloudDownloadState.value = DownloadState.InProgress
+        viewModelScope.launch {
+            val result = readaloudAudioRepository.downloadAudio(
+                link.storytellerBookId, link.storytellerServerId,
+            ) { _, _ -> }
+            _readaloudDownloadState.value = readaloudDownloadStateFor(
+                result is com.riffle.core.domain.AudioDownloadResult.Success,
+            )
+        }
+    }
+
+    fun onRemoveReadaloud() {
+        val link = readaloudLink ?: return
+        viewModelScope.launch {
+            readaloudAudioRepository.removeAudio(link.storytellerBookId)
+            _readaloudDownloadState.value = DownloadState.NotDownloaded
+        }
+    }
+
     private suspend fun resolveReadaloudFooter(
         item: LibraryItem,
         isReadaloud: Boolean,
@@ -310,13 +349,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 storytellerBookId = item.id,
             )
         } else {
-            val link = readaloudLinkRepository.findByAbsItem(serverId, item.id) ?: return null
-            val readaloudItem = repository.getItem(link.storytellerBookId) ?: return null
-            val readaloudLibrary = repository.getLibrary(readaloudItem.libraryId)
-            ReadaloudFooterState.AbsHasReadaloud(
-                readaloudLibraryName = readaloudLibrary?.name ?: readaloudItem.libraryId,
-                readaloudItemId = link.storytellerBookId,
-            )
+            return null
         }
     }
 
