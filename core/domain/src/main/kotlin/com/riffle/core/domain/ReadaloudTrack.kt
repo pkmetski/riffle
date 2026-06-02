@@ -28,4 +28,19 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
     /** Document-order index of a fragment, or -1 if absent. */
     fun indexOfFragment(textFragmentRef: String): Int =
         indexByFragment[textFragmentRef] ?: -1
+
+    /**
+     * The clip to start narration from for a reader position given by its chapter [href] and
+     * optional [fragmentId]. Prefers an exact "href#fragmentId" match (the sentence under the
+     * reader's cursor); otherwise falls back to the first clip of that chapter so playback at
+     * least begins on the page the user is reading rather than at the start of the book. Leading
+     * slashes are ignored so Readium's "/text/x" and SMIL's "text/x" hrefs reconcile.
+     */
+    fun resolveStartClip(href: String, fragmentId: String?): MediaOverlayClip? {
+        val target = href.trimStart('/')
+        if (fragmentId != null) {
+            clips.firstOrNull { it.textFragmentRef.trimStart('/') == "$target#$fragmentId" }?.let { return it }
+        }
+        return clips.firstOrNull { it.textFragmentRef.substringBefore('#').trimStart('/') == target }
+    }
 }

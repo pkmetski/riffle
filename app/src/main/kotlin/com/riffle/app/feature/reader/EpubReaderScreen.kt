@@ -288,29 +288,27 @@ fun EpubReaderScreen(
         if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
             Column(modifier = Modifier.align(Alignment.BottomCenter)) {
                 if (readaloudOpen) {
-                    // Resolve the player's surfaceVariant in the same reader-theme-scoped
-                    // RiffleTheme the ChapterNavigationRail uses, so the player and the rail
-                    // track reference the identical colour and read as one continuous surface.
-                    val readerThemeForPlayer = formattingPrefs.theme
-                    val playerDarkTheme = readerThemeForPlayer == ReaderTheme.Dark ||
-                        readerThemeForPlayer == ReaderTheme.DarkDim
-                    RiffleTheme(darkTheme = playerDarkTheme) {
-                        ReadaloudMiniPlayer(
-                            isPlaying = playbackState.isPlaying,
-                            speed = playbackState.speed,
-                            offlineMessage = readaloudOfflineMessage,
-                            downloadProgress = downloadProgress,
-                            onPlayPause = viewModel::togglePlayPause,
-                            onCycleSpeed = {
-                                // Cycle 0.75× → 1× → 1.25× → 1.5× → 2× → 0.75×.
-                                val speeds = com.riffle.app.feature.reader.readaloud.ReadaloudController.SPEEDS
-                                val idx = speeds.indexOfFirst { kotlin.math.abs(it - playbackState.speed) < 0.001f }
-                                viewModel.setSpeed(if (idx < 0) 1f else speeds[(idx + 1) % speeds.size])
-                            },
-                            onClose = viewModel::closeReadaloud,
-                            onExpand = viewModel::expandPlayer,
-                        )
-                    }
+                    // Reference the reader-theme palette so the player matches the chapter-rail
+                    // overlay backdrop (which paints readerTheme.palette.background) and the two
+                    // read as one continuous, theme-following strip.
+                    val readerPalette = formattingPrefs.theme.palette
+                    ReadaloudMiniPlayer(
+                        isPlaying = playbackState.isPlaying,
+                        speed = playbackState.speed,
+                        offlineMessage = readaloudOfflineMessage,
+                        downloadProgress = downloadProgress,
+                        containerColor = readerPalette.background,
+                        contentColor = readerPalette.foreground,
+                        onPlayPause = viewModel::togglePlayPause,
+                        onCycleSpeed = {
+                            // Cycle 0.75× → 1× → 1.25× → 1.5× → 2× → 0.75×.
+                            val speeds = com.riffle.app.feature.reader.readaloud.ReadaloudController.SPEEDS
+                            val idx = speeds.indexOfFirst { kotlin.math.abs(it - playbackState.speed) < 0.001f }
+                            viewModel.setSpeed(if (idx < 0) 1f else speeds[(idx + 1) % speeds.size])
+                        },
+                        onClose = viewModel::closeReadaloud,
+                        onExpand = viewModel::expandPlayer,
+                    )
                 }
                 if (showRailOverlay) {
                     EpubChapterRailOverlay(

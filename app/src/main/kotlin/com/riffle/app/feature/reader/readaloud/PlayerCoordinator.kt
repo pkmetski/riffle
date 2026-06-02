@@ -85,6 +85,21 @@ class PlayerCoordinator @Inject constructor(
         controller.playFromFragment(fragmentRef)
     }
 
+    /**
+     * Starts playback at the reader's current position: the sentence under the cursor ([fragmentId])
+     * if it maps to a clip, else the first clip of [href]'s chapter. Falls back to plain play (book
+     * start) only when the position can't be resolved at all.
+     */
+    fun playFromReaderPosition(href: String, fragmentId: String?) {
+        lastAdvancedIndex = -1
+        val clip = track?.resolveStartClip(href, fragmentId)
+        if (clip != null) {
+            controller.playFromFragment(clip.textFragmentRef)
+        } else {
+            controller.play()
+        }
+    }
+
     fun play() = controller.play()
 
     fun pause() = controller.pause()

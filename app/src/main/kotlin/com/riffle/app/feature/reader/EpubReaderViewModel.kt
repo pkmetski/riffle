@@ -714,6 +714,7 @@ class EpubReaderViewModel @Inject constructor(
         storytellerSyncJob?.cancel()
         storytellerSyncJob = null
         readaloudPrepared = false
+        readaloudStarted = false
         playerCoordinator.close()
     }
 
@@ -801,9 +802,29 @@ class EpubReaderViewModel @Inject constructor(
     // pause doesn't re-prepare (which would reset playback to the start).
     private var readaloudPrepared = false
 
+    // True once playback has been started this session, so the first play seeks to the reader's
+    // position while a later resume-after-pause stays where it was.
+    private var readaloudStarted = false
+
     private suspend fun ensurePreparedAndPlay(bundle: File) {
         ensureOpened(bundle) ?: return
-        playerCoordinator.play()
+        if (!readaloudStarted) {
+            // First play of this session: start narration from the reader's current position (the
+            // spec requires this), not the beginning of the book. Resuming after a pause keeps its
+            // place via the plain play() branch below.
+            readaloudStarted = true
+            val loc = lastLocator
+            if (loc != null) {
+                playerCoordinator.playFromReaderPosition(
+                    href = loc.href.toString(),
+                    fragmentId = loc.locations.fragments.firstOrNull(),
+                )
+            } else {
+                playerCoordinator.play()
+            }
+        } else {
+            playerCoordinator.play()
+        }
     }
 
     private suspend fun ensureOpened(bundle: File): com.riffle.core.domain.ReadaloudTrack? {

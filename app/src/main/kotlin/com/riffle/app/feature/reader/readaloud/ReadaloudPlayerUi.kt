@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -54,17 +55,20 @@ fun ReadaloudMiniPlayer(
     speed: Float,
     offlineMessage: Boolean,
     downloadProgress: Float?,
+    containerColor: Color,
+    contentColor: Color,
     onPlayPause: () -> Unit,
     onCycleSpeed: () -> Unit,
     onClose: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // surfaceVariant/onSurfaceVariant matches the ChapterNavigationRail track that sits directly
-    // below, so the player and rail read as one continuous, theme-following surface.
+    // Colours come from the reader-theme palette (the same page colour the chapter-rail overlay
+    // paints as its backdrop), so the player, the progress labels, and the rail read as one
+    // continuous, theme-following strip rather than separate chrome.
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = containerColor,
+        contentColor = contentColor,
         modifier = modifier
             .fillMaxWidth()
             .testTag("readaloud_mini_player"),
@@ -104,7 +108,7 @@ fun ReadaloudMiniPlayer(
                 TextButton(onClick = onCycleSpeed, modifier = Modifier.testTag("readaloud_speed")) {
                     Text(
                         speedLabel(speed),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = contentColor,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }

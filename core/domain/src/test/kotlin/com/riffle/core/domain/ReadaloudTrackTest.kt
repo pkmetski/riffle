@@ -43,4 +43,32 @@ class ReadaloudTrackTest {
         assertEquals(2, track.indexOfFragment("c1#s3"))
         assertEquals(-1, track.indexOfFragment("nope#x"))
     }
+
+    private val chapterClips = listOf(
+        MediaOverlayClip("text/c1.html#s1", "c1.mp3", 0.0, 2.0),
+        MediaOverlayClip("text/c1.html#s2", "c1.mp3", 2.0, 5.0),
+        MediaOverlayClip("text/c2.html#s1", "c2.mp3", 0.0, 4.0),
+    )
+    private val chapterTrack = ReadaloudTrack(chapterClips)
+
+    @Test
+    fun `resolveStartClip prefers an exact fragment match`() {
+        assertEquals(chapterClips[1], chapterTrack.resolveStartClip("text/c1.html", "s2"))
+    }
+
+    @Test
+    fun `resolveStartClip ignores leading slash differences`() {
+        assertEquals(chapterClips[1], chapterTrack.resolveStartClip("/text/c1.html", "s2"))
+    }
+
+    @Test
+    fun `resolveStartClip falls back to first clip of the chapter when fragment is absent or unmatched`() {
+        assertEquals(chapterClips[0], chapterTrack.resolveStartClip("text/c1.html", null))
+        assertEquals(chapterClips[2], chapterTrack.resolveStartClip("text/c2.html", "unknown"))
+    }
+
+    @Test
+    fun `resolveStartClip returns null for an unknown chapter`() {
+        assertEquals(null, chapterTrack.resolveStartClip("text/c9.html", null))
+    }
 }
