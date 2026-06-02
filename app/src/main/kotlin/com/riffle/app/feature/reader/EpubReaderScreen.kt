@@ -856,7 +856,7 @@ private fun EpubNavigatorView(
             locator = locator,
             style = Decoration.Style.Highlight(
                 tint = android.graphics.Color.parseColor("#FF7DD3FC"),
-                isActive = true,
+                isActive = false,
             ),
         )
         withContext(Dispatchers.Main) {
@@ -894,39 +894,47 @@ private fun EpubNavigatorView(
     }
 
     // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
-    // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence).
-    // When the newly-active sentence isn't cleanly on the current page we navigate to it so the page
-    // follows the highlight. Readium 3.0.0 can't enumerate visible fragments, so we ask the WebView
-    // for the element's on-screen rect.
+    // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence); the
+    // page should follow the narrated sentence. Readium 3.0.0 can't enumerate visible fragments, so
+    // we ask the WebView for the element's on-screen rect and act per layout:
     //
-    // "on" requires the sentence to be FULLY within the page horizontally (within a tolerance) — not
-    // just partly visible. The reader can rest at a fractional page offset (e.g. a restored mid-page
-    // position), showing a clipped column plus a sliver of the next; a sentence in that sliver is
-    // "partly visible" but the page is misaligned. Requiring full horizontal containment makes us
-    // snap in those cases instead of leaving the page dragged sideways. Vertical clipping is fine —
-    // a long sentence may exceed the column height. Because we only ever rest on an aligned page, the
-    // saved reading position stays aligned too. A missing element (sentence in another chapter's
-    // document) also reads as off, so cross-chapter follow falls out for free.
+    //  - Scroll (Vertical) mode — the document overflows the viewport, so we scroll it to KEEP THE
+    //    SENTENCE CENTERED, the natural karaoke-follow.
+    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized (nothing to scroll), so we
+    //    can't centre; instead we snap to the sentence's page when it isn't cleanly on the current
+    //    one. "on" requires FULL horizontal containment (within a tolerance): a reader resting at a
+    //    fractional page offset shows a clipped column plus a sliver of the next, and a sentence in
+    //    that sliver is "partly visible" but misaligned — requiring full containment snaps it instead
+    //    of leaving the page dragged sideways. go(locator) lands on a page boundary (aligned), which
+    //    also corrects the fractional offset; because we only rest on an aligned page, the saved
+    //    position stays aligned too.
+    //
+    // A missing element (sentence in another chapter's document) reads as off → go(locator) jumps
+    // chapters, so cross-chapter follow falls out for free in both modes.
     LaunchedEffect(activeFragmentRef) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         val hashIdx = ref.indexOf('#')
         if (hashIdx < 0) return@LaunchedEffect
         val fragId = ref.substring(hashIdx + 1)
-        val onScreen = fragment.evaluateJavascript(
+        val where = fragment.evaluateJavascript(
             """
             (function(){
               var e=document.getElementById(${JSONObject.quote(fragId)});
               if(!e) return "off";
               var r=e.getBoundingClientRect();
+              var se=document.scrollingElement||document.documentElement;
+              if(se && se.scrollHeight > window.innerHeight + 4){
+                var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
+                if(Math.abs(delta) > 8) window.scrollBy(0, delta);
+                return "on";
+              }
               var TOL=24;
               return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
             })()
             """.trimIndent(),
         )?.trim('"')
-        if (onScreen != "off") return@LaunchedEffect
-        // Snap to the sentence's page. go(locator) lands on a page boundary (aligned), which also
-        // corrects a pre-existing fractional offset, and resolves a sentence in another chapter.
+        if (where != "off") return@LaunchedEffect
         val locatorJson = JSONObject()
             .put("href", ref.substring(0, hashIdx))
             .put("type", "application/xhtml+xml")
