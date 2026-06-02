@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
@@ -87,8 +86,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.app.R
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.Series
@@ -821,8 +822,8 @@ internal fun LibraryItemCard(
                             // Glyph badge per #36: signals an ABS book has a Confirmed-matched
                             // Storyteller readaloud, or a Readaloud book is paired with an ABS item.
                             Icon(
-                                imageVector = Icons.Filled.Headphones,
-                                contentDescription = "Has matching readaloud",
+                                painter = painterResource(R.drawable.ic_readaloud),
+                                contentDescription = "Has readaloud (synced narration)",
                                 tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(16.dp),
                             )
