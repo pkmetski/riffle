@@ -157,14 +157,36 @@ Visibility: only for ABS items with a confirmed `ReadaloudLink`. Not shown on St
 (EPUB + audio), per the `:545–550` comment; a second control there would delete the bundle
 the reader uses.
 
+**Critical: key off the Storyteller book id, not the ABS item id.**
+The readaloud bundle is stored under the **Storyteller book id** and fetched from the
+**Storyteller server** — not the ABS item id / ABS server. Evidence:
+`ThreePeerReaderSyncFactory.kt:63` reads the cached bundle via
+`cachedBytes(link.storytellerBookId)`; `ReadaloudAudioRepositoryImpl.downloadAudio`
+fetches from `serverRepository.getActive()` and stores by the passed `itemId`.
+
+Therefore the ABS-side button MUST resolve the book's `ReadaloudLink` and operate on the
+**linked Storyteller identity**:
+
+- **Downloaded state** = `isAudioAvailable(link.storytellerBookId)`.
+- **Download** = fetch the bundle from the **linked Storyteller server** (by
+  `link.storytellerBookId`), not the active ABS server. (Today's `downloadAudio`/
+  `probeSizeBytes` use the *active* server; planning must add/route a path that takes the
+  linked Storyteller server + token explicitly, since the active server here is ABS.)
+- **Remove** = `removeAudio(link.storytellerBookId)`.
+
+Consequence (intended): the ABS button and the Storyteller-library control share **one
+bundle** keyed by Storyteller book id. A bundle already downloaded from the Storyteller
+library shows as **Downloaded** on the ABS button; downloading from the ABS button shows
+up on the Storyteller side; **removing from either frees the single shared file** (call
+this out in tests).
+
 Wiring (planning to detail):
 - A readaloud `DownloadState` (NotDownloaded / InProgress / Downloaded) for the matched
-  ABS item, backed by `ReadaloudAudioRepository.isAudioAvailable(itemId)` plus a
-  download/remove action. The download/probe path already exists in
-  `EpubReaderViewModel.onPlayTapped` (`probeSizeBytes` + bundle download) and
-  `ReadaloudAudioRepository` — reuse it from `LibraryItemDetailViewModel`.
-- `LibraryItemDetailViewModel` exposes: is-matched, readaloud download state, and
-  `onDownloadReadaloud` / `onRemoveReadaloud`.
+  ABS item, keyed by `link.storytellerBookId` as above. Reuse the existing
+  `ReadaloudAudioRepository` download/probe/remove logic (also used by
+  `EpubReaderViewModel.onPlayTapped`) rather than duplicating it.
+- `LibraryItemDetailViewModel` exposes: is-matched (+ resolved link), readaloud download
+  state, and `onDownloadReadaloud` / `onRemoveReadaloud`.
 
 ## Accessibility
 
@@ -182,6 +204,9 @@ narration)"*, at every call site. The cover overlay carries the same description
   states (NotDownloaded / InProgress / Downloaded); tap downloads, second tap removes;
   disabled with the offline affordance when there's no connection. Not shown on
   Storyteller (Readaloud library) items.
+- **Shared-bundle reflection:** a bundle downloaded from the **Storyteller library**
+  shows as **Downloaded** on the ABS button (and vice-versa); **removing from either**
+  side frees the one shared file (keyed by Storyteller book id).
 - **Reader:** top-bar readaloud control renders the new icon; existing readaloud
   open/play tests still pass.
 - **Drawable:** the vector inflates without error and is legible at 16–17dp
