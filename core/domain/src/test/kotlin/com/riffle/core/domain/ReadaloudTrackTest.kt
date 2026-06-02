@@ -38,12 +38,6 @@ class ReadaloudTrackTest {
         assertNull(track.clipForFragment("nope#x"))
     }
 
-    @Test
-    fun `indexOfFragment supports ordering decisions`() {
-        assertEquals(2, track.indexOfFragment("c1#s3"))
-        assertEquals(-1, track.indexOfFragment("nope#x"))
-    }
-
     private val chapterClips = listOf(
         MediaOverlayClip("text/c1.html#s1", "c1.mp3", 0.0, 2.0),
         MediaOverlayClip("text/c1.html#s2", "c1.mp3", 2.0, 5.0),

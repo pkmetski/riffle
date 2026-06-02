@@ -242,8 +242,6 @@ fun EpubReaderScreen(
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
-                        advancePageEvents = viewModel.advancePageEvents,
-                        onReportVisibleFragments = viewModel::reportVisibleFragments,
                         onPlayFromHere = viewModel::playFromHere,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -588,8 +586,6 @@ private fun EpubNavigatorView(
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: String) -> Unit,
     activeFragmentRef: String?,
-    advancePageEvents: Flow<Unit>,
-    onReportVisibleFragments: (Set<String>) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -899,13 +895,18 @@ private fun EpubNavigatorView(
 
     // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
     // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence).
-    // When the newly-active sentence is no longer in the viewport we navigate to it so the page
+    // When the newly-active sentence isn't cleanly on the current page we navigate to it so the page
     // follows the highlight. Readium 3.0.0 can't enumerate visible fragments, so we ask the WebView
-    // for the element's on-screen rect and navigate ONLY when it is actually off the current page —
-    // this is what stops the old index-heuristic from page-turning on every sentence (which dragged
-    // the page sideways). getElementById returns null when the sentence is in another chapter's
-    // document, which also reads as off-screen, so cross-chapter follow falls out for free. Works
-    // for both paginated (horizontal) and continuous (vertical) layouts.
+    // for the element's on-screen rect.
+    //
+    // "on" requires the sentence to be FULLY within the page horizontally (within a tolerance) — not
+    // just partly visible. The reader can rest at a fractional page offset (e.g. a restored mid-page
+    // position), showing a clipped column plus a sliver of the next; a sentence in that sliver is
+    // "partly visible" but the page is misaligned. Requiring full horizontal containment makes us
+    // snap in those cases instead of leaving the page dragged sideways. Vertical clipping is fine —
+    // a long sentence may exceed the column height. Because we only ever rest on an aligned page, the
+    // saved reading position stays aligned too. A missing element (sentence in another chapter's
+    // document) also reads as off, so cross-chapter follow falls out for free.
     LaunchedEffect(activeFragmentRef) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
@@ -918,11 +919,14 @@ private fun EpubNavigatorView(
               var e=document.getElementById(${JSONObject.quote(fragId)});
               if(!e) return "off";
               var r=e.getBoundingClientRect();
-              return (r.left < window.innerWidth && r.right > 0 && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
+              var TOL=24;
+              return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
             })()
             """.trimIndent(),
         )?.trim('"')
-        if (onScreen == "on") return@LaunchedEffect
+        if (onScreen != "off") return@LaunchedEffect
+        // Snap to the sentence's page. go(locator) lands on a page boundary (aligned), which also
+        // corrects a pre-existing fractional offset, and resolves a sentence in another chapter.
         val locatorJson = JSONObject()
             .put("href", ref.substring(0, hashIdx))
             .put("type", "application/xhtml+xml")

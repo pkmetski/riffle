@@ -249,9 +249,6 @@ class EpubReaderViewModel @Inject constructor(
     // The text fragment currently narrated — drives the synced highlight. Null clears it.
     val activeFragmentRef: StateFlow<String?> = playerCoordinator.activeFragmentRef
 
-    // Fired by the coordinator when the narrated sentence scrolls off-screen during playback.
-    val advancePageEvents: SharedFlow<Unit> = playerCoordinator.advanceEvents
-
     // The track is parsed once on first play and reused.
     private var readaloudTrack: com.riffle.core.domain.ReadaloudTrack? = null
 
@@ -865,10 +862,6 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun setSpeed(speed: Float) = playerCoordinator.setSpeed(speed)
-
-    /** Reports the fragments visible in the viewport so the coordinator can decide on auto-advance. */
-    fun reportVisibleFragments(fragmentRefs: Set<String>) =
-        playerCoordinator.reportVisibleFragments(fragmentRefs)
 
     /**
      * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when

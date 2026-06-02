@@ -2,9 +2,9 @@ package com.riffle.core.domain
 
 /**
  * The ordered Media Overlay timeline for a Readaloud, built from every `.smil` entry in the
- * Storyteller EPUB bundle (concatenated in spine order). Maps freely between the three things
- * the player and reader need to relate: a playback position `(audioSrc, sec)`, a text fragment
- * reference, and the document-order index used for [AutoPageTurnRule] decisions.
+ * Storyteller EPUB bundle (concatenated in spine order). Relates the things the player and reader
+ * need: a playback position `(audioSrc, sec)`, a text fragment reference, and the clip to start
+ * narration from for a given reader position.
  */
 class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
 
@@ -24,10 +24,6 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
     /** The clip for a text fragment — the seek target when the user picks "Play from here". */
     fun clipForFragment(textFragmentRef: String): MediaOverlayClip? =
         indexByFragment[textFragmentRef]?.let { clips[it] }
-
-    /** Document-order index of a fragment, or -1 if absent. */
-    fun indexOfFragment(textFragmentRef: String): Int =
-        indexByFragment[textFragmentRef] ?: -1
 
     /**
      * The clip to start narration from for a reader position given by its chapter [href] and
