@@ -11,10 +11,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class DownloadsUiState(
-    val downloadedItems: List<LibraryItem> = emptyList(),
-    val cachedItems: List<LibraryItem> = emptyList(),
+/** A locally-available item paired with the on-disk size of its file. */
+data class LocalItemUi(
+    val item: LibraryItem,
+    val sizeBytes: Long,
 )
+
+data class DownloadsUiState(
+    val downloadedItems: List<LocalItemUi> = emptyList(),
+    val cachedItems: List<LocalItemUi> = emptyList(),
+) {
+    val downloadedTotalBytes: Long get() = downloadedItems.sumOf { it.sizeBytes }
+    val cachedTotalBytes: Long get() = cachedItems.sumOf { it.sizeBytes }
+}
 
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
@@ -34,10 +43,28 @@ class DownloadsViewModel @Inject constructor(
             val downloadedIds = downloadsRepository.getDownloadedItemIds()
             val cachedIds = downloadsRepository.getCachedItemIds()
 
-            val downloadedItems = downloadedIds.mapNotNull { libraryRepository.getItem(it) }
-            val cachedItems = cachedIds.mapNotNull { libraryRepository.getItem(it) }
+            val downloadedItems = downloadedIds.mapNotNull { id ->
+                libraryRepository.getItem(id)?.let { LocalItemUi(it, downloadsRepository.sizeOf(id)) }
+            }
+            val cachedItems = cachedIds.mapNotNull { id ->
+                libraryRepository.getItem(id)?.let { LocalItemUi(it, downloadsRepository.sizeOf(id)) }
+            }
 
             _uiState.value = DownloadsUiState(downloadedItems = downloadedItems, cachedItems = cachedItems)
+        }
+    }
+
+    fun removeDownloadedItem(itemId: String) {
+        viewModelScope.launch {
+            downloadsRepository.removeDownload(itemId)
+            load()
+        }
+    }
+
+    fun removeCachedItem(itemId: String) {
+        viewModelScope.launch {
+            downloadsRepository.removeCached(itemId)
+            load()
         }
     }
 

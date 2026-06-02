@@ -2,7 +2,6 @@ package com.riffle.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.AudioCachePreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReport
 import com.riffle.core.domain.CrashReportRepository
@@ -10,7 +9,6 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
-import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
@@ -42,8 +40,6 @@ class SettingsViewModel @Inject constructor(
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
-    private val audioCachePreferencesStore: AudioCachePreferencesStore,
-    private val readaloudAudioRepository: ReadaloudAudioRepository,
     private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
@@ -66,39 +62,21 @@ class SettingsViewModel @Inject constructor(
     val servers: StateFlow<List<Server>> = serverRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Configured Storyteller servers (id + display name), for the Audio cache section. */
-    val storytellerServers: StateFlow<List<StorytellerServerUiItem>> = servers
-        .map { list ->
-            list.filter { it.serverType == ServerType.STORYTELLER }
-                .map { StorytellerServerUiItem(id = it.id, name = it.serverType.label) }
-        }
+    /** Ids of the configured Storyteller servers, feeding the per-server readaloud summaries. */
+    private val storytellerServerIds: StateFlow<List<String>> = servers
+        .map { list -> list.filter { it.serverType == ServerType.STORYTELLER }.map { it.id } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Current audio-cache cap (bytes) for each Storyteller server, keyed by server id. */
-    val audioCacheCaps: StateFlow<Map<String, Long>> = storytellerServers
-        .flatMapLatest { items ->
-            if (items.isEmpty()) {
-                MutableStateFlow(emptyMap<String, Long>())
-            } else {
-                combine(
-                    items.map { item ->
-                        audioCachePreferencesStore.capBytes(item.id).map { item.id to it }
-                    }
-                ) { pairs -> pairs.toMap() }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
-
     /** Readaloud-matches counts (confirmed / pending / unmatched) for each Storyteller server. */
-    val readaloudSummaries: StateFlow<Map<String, ReadaloudMatchSummary>> = storytellerServers
-        .flatMapLatest { items ->
-            if (items.isEmpty()) {
+    val readaloudSummaries: StateFlow<Map<String, ReadaloudMatchSummary>> = storytellerServerIds
+        .flatMapLatest { ids ->
+            if (ids.isEmpty()) {
                 MutableStateFlow(emptyMap<String, ReadaloudMatchSummary>())
             } else {
                 combine(
-                    items.map { item ->
-                        readaloudReviewRepository.observeReview(item.id).map { review ->
-                            item.id to ReadaloudMatchSummary(
+                    ids.map { id ->
+                        readaloudReviewRepository.observeReview(id).map { review ->
+                            id to ReadaloudMatchSummary(
                                 confirmedCount = review.confirmed.size,
                                 pendingCount = review.pending.size,
                                 unmatchedCount = review.unmatched.size,
@@ -184,14 +162,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
     }
 
-    fun setAudioCacheCap(serverId: String, capBytes: Long) {
-        viewModelScope.launch {
-            audioCachePreferencesStore.setCapBytes(serverId, capBytes)
-            // Shed any now-over-cap cached bundles right away.
-            readaloudAudioRepository.enforceCacheCap()
-        }
-    }
-
     fun removeServer(serverId: String) {
         viewModelScope.launch {
             val current = servers.value
@@ -221,12 +191,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 }
-
-/** A configured Storyteller server shown in the Audio cache settings section. */
-data class StorytellerServerUiItem(
-    val id: String,
-    val name: String,
-)
 
 /** Counts shown in a Storyteller server's expanded "Readaloud matches" summary. */
 data class ReadaloudMatchSummary(

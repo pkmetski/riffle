@@ -20,6 +20,20 @@ class DownloadsRepositoryImpl(
             .filter { it !in downloadedIds }
     }
 
+    override fun sizeOf(itemId: String): Long =
+        listOf(epubDownloadsStore, pdfDownloadsStore, epubCacheStore, pdfCacheStore)
+            .sumOf { it.get(itemId)?.length() ?: 0L }
+
+    override suspend fun removeDownload(itemId: String) {
+        epubDownloadsStore.delete(itemId)
+        pdfDownloadsStore.delete(itemId)
+    }
+
+    override suspend fun removeCached(itemId: String) {
+        epubCacheStore.delete(itemId)
+        pdfCacheStore.delete(itemId)
+    }
+
     override suspend fun removeAllDownloads() {
         epubDownloadsStore.clear()
         pdfDownloadsStore.clear()

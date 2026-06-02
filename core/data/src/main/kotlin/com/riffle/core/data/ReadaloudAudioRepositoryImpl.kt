@@ -1,10 +1,7 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AudioCachePreferencesStore
 import com.riffle.core.domain.AudioDownloadResult
-import com.riffle.core.domain.CachedBundle
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.LruCacheEvictor
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ServerRepository
@@ -12,7 +9,6 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkStorytellerBundleSizeResult
 import com.riffle.core.network.StorytellerBundleProbeApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -23,7 +19,6 @@ class ReadaloudAudioRepositoryImpl(
     private val downloadsStore: LocalStore,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
-    private val cachePreferences: AudioCachePreferencesStore,
 ) : ReadaloudAudioRepository {
 
     override fun isAudioAvailable(itemId: String): Boolean = bundleFile(itemId) != null
@@ -67,15 +62,5 @@ class ReadaloudAudioRepositoryImpl(
         downloadsStore.delete(itemId)
         cacheStore.delete(itemId)
         freed
-    }
-
-    override suspend fun enforceCacheCap() = withContext(Dispatchers.IO) {
-        val server = serverRepository.getActive() ?: return@withContext
-        val cap = cachePreferences.capBytes(server.id).first()
-        val cached = cacheStore.listItemIds().mapNotNull { id ->
-            val f = cacheStore.get(id) ?: return@mapNotNull null
-            CachedBundle(key = id, sizeBytes = f.length(), lastAccessedAtMillis = f.lastModified())
-        }
-        LruCacheEvictor.selectForEviction(cached, cap).forEach { cacheStore.delete(it) }
     }
 }

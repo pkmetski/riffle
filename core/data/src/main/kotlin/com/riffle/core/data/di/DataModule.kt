@@ -13,7 +13,6 @@ import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
-import com.riffle.core.data.AudioCachePreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.PdfRepositoryImpl
@@ -28,7 +27,6 @@ import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.AudioCachePreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReportRepository
@@ -88,10 +86,6 @@ annotation class FormattingPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LibraryVisibilityPreferencesDataStore
-
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class AudioCachePreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -200,10 +194,6 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindLibraryVisibilityPreferencesStore(impl: LibraryVisibilityPreferencesStoreImpl): LibraryVisibilityPreferencesStore
-
-    @Binds
-    @Singleton
-    abstract fun bindAudioCachePreferencesStore(impl: AudioCachePreferencesStoreImpl): AudioCachePreferencesStore
 
     @Binds
     @Singleton
@@ -328,7 +318,6 @@ abstract class DataModule {
             @EpubDownloadsStore downloadsStore: LocalStore,
             serverRepository: ServerRepository,
             tokenStorage: TokenStorage,
-            cachePreferences: AudioCachePreferencesStore,
         ): ReadaloudAudioRepository = ReadaloudAudioRepositoryImpl(
             downloader = downloader,
             bundleProbe = bundleProbe,
@@ -336,7 +325,6 @@ abstract class DataModule {
             downloadsStore = downloadsStore,
             serverRepository = serverRepository,
             tokenStorage = tokenStorage,
-            cachePreferences = cachePreferences,
         )
 
         @Provides
@@ -386,12 +374,6 @@ abstract class DataModule {
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.libraryVisibilityPreferencesDataStore
 
-        @Provides
-        @Singleton
-        @AudioCachePreferencesDataStore
-        fun provideAudioCachePreferencesDataStore(
-            @ApplicationContext context: Context
-        ): DataStore<Preferences> = context.audioCachePreferencesDataStore
 
         @Provides
         @Singleton

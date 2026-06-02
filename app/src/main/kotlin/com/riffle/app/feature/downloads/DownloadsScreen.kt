@@ -1,5 +1,6 @@
 package com.riffle.app.feature.downloads
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.LibraryItem
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +92,7 @@ fun DownloadsScreen(
                 item {
                     SectionHeader(
                         title = "Downloaded",
+                        totalLabel = if (uiState.downloadedItems.isNotEmpty()) formatBytes(uiState.downloadedTotalBytes) else null,
                         actionLabel = if (uiState.downloadedItems.isNotEmpty()) "Remove all" else null,
                         onAction = { showRemoveAllDownloadsDialog = true },
                     )
@@ -98,11 +102,12 @@ fun DownloadsScreen(
                         EmptySection("No downloaded books")
                     }
                 } else {
-                    items(uiState.downloadedItems, key = { it.id }) { item ->
+                    items(uiState.downloadedItems, key = { it.item.id }) { entry ->
                         LocalItemRow(
-                            item = item,
+                            entry = entry,
                             pillColor = PillColor.Downloaded,
-                            onClick = { onItemSelected(item) },
+                            onClick = { onItemSelected(entry.item) },
+                            onRemove = { viewModel.removeDownloadedItem(entry.item.id) },
                         )
                     }
                 }
@@ -110,6 +115,7 @@ fun DownloadsScreen(
                 item {
                     SectionHeader(
                         title = "Cached",
+                        totalLabel = if (uiState.cachedItems.isNotEmpty()) formatBytes(uiState.cachedTotalBytes) else null,
                         actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
                         onAction = { viewModel.clearAllCached() },
                     )
@@ -119,11 +125,12 @@ fun DownloadsScreen(
                         EmptySection("No cached books")
                     }
                 } else {
-                    items(uiState.cachedItems, key = { it.id }) { item ->
+                    items(uiState.cachedItems, key = { it.item.id }) { entry ->
                         LocalItemRow(
-                            item = item,
+                            entry = entry,
                             pillColor = PillColor.Cached,
-                            onClick = { onItemSelected(item) },
+                            onClick = { onItemSelected(entry.item) },
+                            onRemove = { viewModel.removeCachedItem(entry.item.id) },
                         )
                     }
                 }
@@ -133,14 +140,17 @@ fun DownloadsScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String, actionLabel: String?, onAction: () -> Unit) {
+private fun SectionHeader(title: String, totalLabel: String?, actionLabel: String?, onAction: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = title, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = if (totalLabel != null) "$title · $totalLabel" else title,
+            style = MaterialTheme.typography.titleMedium,
+        )
         Spacer(modifier = Modifier.weight(1f))
         if (actionLabel != null) {
             TextButton(onClick = onAction) { Text(actionLabel) }
@@ -167,9 +177,10 @@ private enum class PillColor { Downloaded, Cached }
 
 @Composable
 private fun LocalItemRow(
-    item: LibraryItem,
+    entry: LocalItemUi,
     pillColor: PillColor,
     onClick: () -> Unit,
+    onRemove: () -> Unit,
 ) {
     val containerColor = when (pillColor) {
         PillColor.Downloaded -> MaterialTheme.colorScheme.primary
@@ -200,13 +211,45 @@ private fun LocalItemRow(
             }
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = item.title, style = MaterialTheme.typography.bodyLarge)
+        Column(modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onClick)
+        ) {
+            Text(text = entry.item.title, style = MaterialTheme.typography.bodyLarge)
             Text(
-                text = item.author,
+                text = entry.item.author,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = formatBytes(entry.sizeBytes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Remove ${entry.item.title}",
+            )
+        }
+    }
+}
+
+/** Renders a byte count as a compact human-readable size (e.g. "312 MB", "1.2 GB"). */
+internal fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val units = listOf("KB", "MB", "GB", "TB")
+    var value = bytes.toDouble() / 1024
+    var unitIndex = 0
+    while (value >= 1024 && unitIndex < units.lastIndex) {
+        value /= 1024
+        unitIndex++
+    }
+    return if (value >= 100) {
+        String.format(Locale.US, "%.0f %s", value, units[unitIndex])
+    } else {
+        String.format(Locale.US, "%.1f %s", value, units[unitIndex])
     }
 }
