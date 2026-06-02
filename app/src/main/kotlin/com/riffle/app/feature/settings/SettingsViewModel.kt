@@ -175,6 +175,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun openReadaloudMatches(serverId: String) {
+        viewModelScope.launch {
+            _navigationEvents.send(SettingsNavEvent.NavigateToReadaloudMatches(serverId))
+        }
+    }
+
     fun setLibraryVisible(serverId: String, libraryId: String, visible: Boolean) {
         viewModelScope.launch {
             if (visible) visibilityStore.showLibrary(serverId, libraryId)

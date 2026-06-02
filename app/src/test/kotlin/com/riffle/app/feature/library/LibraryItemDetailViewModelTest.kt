@@ -225,6 +225,7 @@ class LibraryItemDetailViewModelTest {
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
+        readaloudReviewRepository = NoopReadaloudReviewRepository,
         connectivityObserver = connectivityObserver,
     )
 

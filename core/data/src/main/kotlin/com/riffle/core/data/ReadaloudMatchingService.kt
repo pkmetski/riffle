@@ -2,10 +2,14 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.MatchableItemRow
+import com.riffle.core.database.ReadaloudCandidateDao
+import com.riffle.core.database.ReadaloudCandidateEntity
+import com.riffle.core.database.ReadaloudDismissalDao
+import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
-import com.riffle.core.domain.Confirmed
 import com.riffle.core.domain.EbookFormat
+import com.riffle.core.domain.MatchOutcome
 import com.riffle.core.domain.MatchableAbsItem
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
@@ -14,27 +18,36 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Drives the Storyteller↔ABS auto-matcher and persists results into [ReadaloudLinkDao].
+ * Drives the Storyteller↔ABS auto-matcher ([ReadaloudMatcher]) and persists its verdicts, per
+ * the full ADR 0021 ladder:
  *
- * Schema is ABS-keyed (one row per ABS Library Item), so a Storyteller readaloud that
- * matches both an ebook entry and an audiobook stub in two different ABS libraries
- * produces two rows. Each ABS slot is independently sticky on [ReadaloudLinkEntity.userConfirmed].
+ *  - **Confirmed** (Tier 1/2) → one [ReadaloudLinkEntity] per ABS slot. Schema is ABS-keyed, so
+ *    a readaloud matching both an ebook entry and an audiobook stub produces two rows. Each slot
+ *    is independently sticky on [ReadaloudLinkEntity.userConfirmed].
+ *  - **Pending Review** (Tier 3) → one [ReadaloudCandidateEntity] per surviving fuzzy candidate.
+ *  - **Unmatched** (Tier 4) → nothing persisted.
  *
- * The reconciler:
- *  - writes/refreshes one row per (readaloud, ABS candidate) the matcher confirms,
- *  - preserves any pre-existing user-Confirmed row (never overwrites or deletes it),
- *  - sweeps auto-Confirmed rows whose ABS slot no longer survives the current pass.
+ * User decisions are sticky and never re-evaluated:
+ *  - A readaloud with any user-Confirmed link is left entirely alone (no re-match, no candidates).
+ *  - A per-book "No match — don't ask again" ([ReadaloudDismissalEntity.SCOPE_BOOK]) keeps the
+ *    book Unmatched — the matcher never proposes candidates for it.
+ *  - A per-candidate dismissal ([ReadaloudDismissalEntity.SCOPE_CANDIDATE]) drops that one pair
+ *    from Pending Review on every subsequent run.
  */
 @Singleton
 class ReadaloudMatchingService(
     private val libraryItemDao: LibraryItemDao,
     private val readaloudLinkDao: ReadaloudLinkDao,
+    private val readaloudCandidateDao: ReadaloudCandidateDao,
+    private val readaloudDismissalDao: ReadaloudDismissalDao,
     private val clock: () -> Long,
 ) {
     @Inject constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
-    ) : this(libraryItemDao, readaloudLinkDao, System::currentTimeMillis)
+        readaloudCandidateDao: ReadaloudCandidateDao,
+        readaloudDismissalDao: ReadaloudDismissalDao,
+    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
 
     suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
@@ -42,41 +55,77 @@ class ReadaloudMatchingService(
 
         val candidates = absItems.map { it.toAbsCandidate() }
         val now = clock()
-        // Track every ABS PK the current pass auto-Confirmed. Used to sweep stale rows.
+        // Track every ABS PK the current pass auto-Confirmed (or a sticky user slot), to sweep
+        // stale rows. Fresh Pending-Review candidate rows are collected then written wholesale.
         val freshAutoSlots = mutableSetOf<Pair<String, String>>()
+        val freshCandidates = mutableListOf<ReadaloudCandidateEntity>()
 
         for (book in storytellerBooks) {
-            val matches = ReadaloudMatcher.match(book.toStorytellerBook(), candidates)
-            for (match in matches) {
-                val slot = match.absServerUuid to match.absLibraryItemId
-                val existing = readaloudLinkDao.findByAbsItem(match.absServerUuid, match.absLibraryItemId)
-                if (existing?.userConfirmed == true) {
-                    // Sticky: the user owns this slot. The auto-matcher must not touch it,
-                    // even if it'd now point somewhere else. Mark fresh only when the
-                    // user-confirmed row already points to the matcher's verdict, so the
-                    // sweep below doesn't wipe an unrelated user choice.
-                    if (existing.storytellerServerId == book.serverId && existing.storytellerBookId == book.itemId) {
-                        freshAutoSlots += slot
+            val existingLinks = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
+            // Sticky: a user-Confirmed readaloud is left untouched — no re-match, no candidates.
+            // Keep its slots fresh so the stale sweep below doesn't delete them.
+            if (existingLinks.any { it.userConfirmed }) {
+                existingLinks.filter { it.userConfirmed }
+                    .forEach { freshAutoSlots += it.absServerId to it.absLibraryItemId }
+                continue
+            }
+            // Sticky: "No match — don't ask again" keeps the book Unmatched forever.
+            if (readaloudDismissalDao.isBookDismissed(book.serverId, book.itemId)) continue
+
+            when (val outcome = ReadaloudMatcher.match(book.toStorytellerBook(), candidates)) {
+                is MatchOutcome.Confirmed -> outcome.links.forEach { match ->
+                    val slot = match.absServerUuid to match.absLibraryItemId
+                    val existing = readaloudLinkDao.findByAbsItem(match.absServerUuid, match.absLibraryItemId)
+                    if (existing?.userConfirmed == true) {
+                        // The user owns this ABS slot; never overwrite it. Only mark it fresh when
+                        // it already points at this book, so an unrelated user choice isn't swept.
+                        if (existing.storytellerServerId == book.serverId && existing.storytellerBookId == book.itemId) {
+                            freshAutoSlots += slot
+                        }
+                        return@forEach
                     }
-                    continue
-                }
-                readaloudLinkDao.upsert(
-                    ReadaloudLinkEntity(
-                        absServerId = match.absServerUuid,
-                        absLibraryItemId = match.absLibraryItemId,
-                        storytellerServerId = book.serverId,
-                        storytellerBookId = book.itemId,
-                        state = ReadaloudLinkEntity.STATE_CONFIRMED,
-                        userConfirmed = false,
-                        createdAt = existing?.createdAt ?: now,
-                        updatedAt = now,
+                    readaloudLinkDao.upsert(
+                        ReadaloudLinkEntity(
+                            absServerId = match.absServerUuid,
+                            absLibraryItemId = match.absLibraryItemId,
+                            storytellerServerId = book.serverId,
+                            storytellerBookId = book.itemId,
+                            state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                            userConfirmed = false,
+                            createdAt = existing?.createdAt ?: now,
+                            updatedAt = now,
+                        )
                     )
-                )
-                freshAutoSlots += slot
+                    freshAutoSlots += slot
+                }
+
+                is MatchOutcome.PendingReview -> {
+                    val dismissedPairs = readaloudDismissalDao
+                        .findByStorytellerBook(book.serverId, book.itemId)
+                        .filter { it.scope == ReadaloudDismissalEntity.SCOPE_CANDIDATE }
+                        .map { it.absServerId to it.absLibraryItemId }
+                        .toSet()
+                    outcome.candidates
+                        .filter { (it.absServerUuid to it.absLibraryItemId) !in dismissedPairs }
+                        .forEach {
+                            freshCandidates += ReadaloudCandidateEntity(
+                                storytellerServerId = book.serverId,
+                                storytellerBookId = book.itemId,
+                                absServerId = it.absServerUuid,
+                                absLibraryItemId = it.absLibraryItemId,
+                                score = it.score,
+                            )
+                        }
+                }
+
+                MatchOutcome.Unmatched -> Unit
             }
         }
 
         sweepStaleAutoLinks(freshAutoSlots)
+        // The candidate table is fully regenerated each pass (reconcile sees every book/item).
+        readaloudCandidateDao.clearAll()
+        if (freshCandidates.isNotEmpty()) readaloudCandidateDao.upsertAll(freshCandidates)
         backfillReadaloudMetadata(storytellerBooks)
     }
 

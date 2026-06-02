@@ -35,6 +35,7 @@ import com.riffle.app.feature.server.AddServerScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
+import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -44,6 +45,7 @@ private const val SERVER_SETUP_GRAPH = "server_setup"
 private const val ADD_SERVER = "add_server"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
+private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
@@ -193,6 +195,24 @@ fun MainScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddServer = { navController.navigate(ADD_SERVER) },
+                    onNavigateToReadaloudMatches = { serverId ->
+                        val encoded = URLEncoder.encode(serverId, "UTF-8")
+                        navController.navigate("readaloud_matches/$encoded")
+                    },
+                )
+            }
+            composable(
+                route = READALOUD_MATCHES,
+                arguments = listOf(
+                    navArgument("serverId") { type = NavType.StringType },
+                    navArgument("pairBookId") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
+            ) {
+                ReadaloudMatchesScreen(
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(DOWNLOADS) {
@@ -316,6 +336,15 @@ fun MainScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
+                    },
+                    onReviewReadaloud = { serverId ->
+                        val encoded = URLEncoder.encode(serverId, "UTF-8")
+                        navController.navigate("readaloud_matches/$encoded")
+                    },
+                    onPairReadaloud = { serverId, bookId ->
+                        val encodedServer = URLEncoder.encode(serverId, "UTF-8")
+                        val encodedBook = URLEncoder.encode(bookId, "UTF-8")
+                        navController.navigate("readaloud_matches/$encodedServer?pairBookId=$encodedBook")
                     },
                 )
             }

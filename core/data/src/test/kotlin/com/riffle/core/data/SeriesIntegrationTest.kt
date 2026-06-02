@@ -141,7 +141,7 @@ class SeriesIntegrationTest {
         serverRepository = fakeServerRepository,
         tokenStorage = fakeTokenStorage,
         readingSessionRepository = NoopReadingSessionRepository,
-        readaloudMatchingService = ReadaloudMatchingService(FakeLibraryItemDao(), NoopReadaloudLinkDao),
+        readaloudMatchingService = ReadaloudMatchingService(FakeLibraryItemDao(), NoopReadaloudLinkDao, NoopReadaloudCandidateDao, NoopReadaloudDismissalDao),
     )
 
     private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {

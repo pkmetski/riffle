@@ -17,31 +17,83 @@ data class MatchableAbsItem(
     val asin: String? = null,
 )
 
+/** An ABS slot the readaloud is auto-linked to (Tier 1/2). */
 data class Confirmed(val absServerUuid: String, val absLibraryItemId: String)
+
+/** A Tier 3 fuzzy candidate surfaced for user review, with its combined similarity [score]. */
+data class ScoredCandidate(
+    val absServerUuid: String,
+    val absLibraryItemId: String,
+    val score: Double,
+)
+
+/**
+ * The match state of a single Storyteller readaloud against the configured ABS Library Items,
+ * per [ADR 0021]. Exactly one of these is produced for each readaloud per matcher run.
+ */
+sealed interface MatchOutcome {
+    /**
+     * Tier 1 (identifier) or Tier 2 (normalised title + author) produced one or more
+     * high-confidence ABS slots. Multiplicity is preserved: a readaloud legitimately links to
+     * every ABS item sharing its metadata (e.g. an ebook entry plus an audiobook stub).
+     */
+    data class Confirmed(val links: List<com.riffle.core.domain.Confirmed>) : MatchOutcome
+
+    /** Tier 3: fuzzy candidates above threshold the user must choose between (or reject). */
+    data class PendingReview(val candidates: List<ScoredCandidate>) : MatchOutcome
+
+    /** Tier 4: no plausible ABS candidate. Available for manual pairing. */
+    data object Unmatched : MatchOutcome
+}
 
 object ReadaloudMatcher {
 
+    /** Minimum token-set similarity (on both title and author) for a Tier 3 fuzzy candidate. */
+    const val FUZZY_THRESHOLD = 0.85
+
     /**
-     * Returns every ABS candidate the readaloud should link to. Tier 1 (identifier match)
-     * takes precedence: if any candidate matches by ISBN/ASIN, only those candidates are
-     * returned and Tier 2 is skipped. Tier 2 (normalised title + author with subset
-     * overlap on author tokens) is the fallback when no identifier matches.
+     * Classifies a readaloud against [candidates], evaluated strongest tier first:
      *
-     * Multiple matches are expected and valid — `readaloud_links` is keyed by ABS item,
-     * so a single readaloud legitimately links to both an ebook entry in a Books library
-     * and an audiobook stub in an Audiobooks library when they share the same metadata.
+     *  - **Tier 1 (identifier)** — any candidate matching by normalised ISBN/ASIN. If present,
+     *    only identifier hits are returned and weaker tiers are skipped.
+     *  - **Tier 2 (normalised title + author)** — exact normalised title with author token
+     *    subset overlap. Tiers 1 and 2 both produce [MatchOutcome.Confirmed] and preserve
+     *    multiplicity (`readaloud_links` is ABS-keyed, so one readaloud may link to several
+     *    ABS items that share its metadata).
+     *  - **Tier 3 (fuzzy)** — Sørensen–Dice token-set similarity ≥ [FUZZY_THRESHOLD] on both
+     *    title and author. Every above-threshold candidate is surfaced together as
+     *    [MatchOutcome.PendingReview] for the user to resolve.
+     *  - **Tier 4** — nothing plausible → [MatchOutcome.Unmatched].
      */
-    fun match(book: MatchableStorytellerBook, candidates: List<MatchableAbsItem>): List<Confirmed> {
+    fun match(book: MatchableStorytellerBook, candidates: List<MatchableAbsItem>): MatchOutcome {
         val identifierHits = candidates.filter { identifierMatches(book, it) }
-        if (identifierHits.isNotEmpty()) return identifierHits.map { it.confirmed() }
+        if (identifierHits.isNotEmpty()) {
+            return MatchOutcome.Confirmed(identifierHits.map { it.confirmed() })
+        }
 
         val bookTitle = normaliseTitle(book.title)
+        val bookTitleTokens = titleTokens(book.title)
         val bookAuthorTokens = authorTokens(book.author)
-        if (bookTitle.isEmpty() || bookAuthorTokens.isEmpty()) return emptyList()
+        if (bookTitle.isEmpty() || bookAuthorTokens.isEmpty()) return MatchOutcome.Unmatched
 
-        return candidates
-            .filter { normaliseTitle(it.title) == bookTitle && authorsOverlap(bookAuthorTokens, authorTokens(it.author)) }
-            .map { it.confirmed() }
+        val titleAuthorHits = candidates.filter {
+            normaliseTitle(it.title) == bookTitle &&
+                authorsOverlap(bookAuthorTokens, authorTokens(it.author))
+        }
+        if (titleAuthorHits.isNotEmpty()) {
+            return MatchOutcome.Confirmed(titleAuthorHits.map { it.confirmed() })
+        }
+
+        val fuzzy = candidates.mapNotNull { candidate ->
+            val titleSim = diceSimilarity(bookTitleTokens, titleTokens(candidate.title))
+            val authorSim = diceSimilarity(bookAuthorTokens, authorTokens(candidate.author))
+            if (titleSim >= FUZZY_THRESHOLD && authorSim >= FUZZY_THRESHOLD) {
+                ScoredCandidate(candidate.serverUuid, candidate.libraryItemId, (titleSim + authorSim) / 2.0)
+            } else {
+                null
+            }
+        }
+        return if (fuzzy.isNotEmpty()) MatchOutcome.PendingReview(fuzzy) else MatchOutcome.Unmatched
     }
 
     /**
@@ -54,6 +106,18 @@ object ReadaloudMatcher {
     private fun authorsOverlap(a: Set<String>, b: Set<String>): Boolean {
         if (a.isEmpty() || b.isEmpty()) return false
         return a.containsAll(b) || b.containsAll(a)
+    }
+
+    /**
+     * Sørensen–Dice coefficient over two token sets: `2·|A∩B| / (|A|+|B|)`. Chosen over Jaccard
+     * because it is more forgiving of a single differing token in a multi-token title/author,
+     * which is precisely the imperfect-metadata case Tier 3 exists to surface. Returns 0 when
+     * either side is empty so an empty title/author can never clear the threshold.
+     */
+    private fun diceSimilarity(a: Set<String>, b: Set<String>): Double {
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        val intersection = a.count { it in b }
+        return (2.0 * intersection) / (a.size + b.size)
     }
 
     private fun identifierMatches(book: MatchableStorytellerBook, abs: MatchableAbsItem): Boolean {
@@ -82,25 +146,26 @@ object ReadaloudMatcher {
         return stripped.ifEmpty { null }?.uppercase()
     }
 
-    private fun normaliseTitle(raw: String): String {
-        // Strip subtitle: anything after the first `:` or em-dash. Storyteller derives titles
-        // from the EPUB OPF and keeps the "A Novel"-style subtitle; ABS users curate it out.
-        // Comparing only the head pairs the empirical reality without sacrificing safety —
-        // when the head alone collides across distinct ABS items, the collision rule
-        // demotes to Unmatched.
+    /**
+     * Ordered, normalised title used for Tier 2 exact comparison. Strips the subtitle (anything
+     * after the first `:` or em-dash — Storyteller keeps the OPF "A Novel"-style subtitle that ABS
+     * users curate out), lowercases, strips punctuation, and drops a single leading article.
+     */
+    private fun normaliseTitle(raw: String): String = titleTokenList(raw).joinToString(" ")
+
+    /** Token set form of [normaliseTitle], used for Tier 3 token-set similarity. */
+    private fun titleTokens(raw: String): Set<String> = titleTokenList(raw).toSet()
+
+    private fun titleTokenList(raw: String): List<String> {
         val head = raw.split(':', '—').first()
         val tokens = head.lowercase()
             .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
             .joinToString("")
             .split(Regex("\\s+"))
             .filter { it.isNotEmpty() }
-        // Drop a leading article ("the", "a", "an"). Library cataloguing convention drops
-        // it; OPF metadata usually keeps it. Only the very first token is touched so that
-        // "A Brief History of Time" doesn't become "Brief History of Time" by mistake when
-        // the indefinite article is title-internal — it isn't, here, but the token-level
-        // restriction guards against false trims like "The The" → "" pathologies.
-        val deArticled = if (tokens.firstOrNull() in LEADING_ARTICLES) tokens.drop(1) else tokens
-        return deArticled.joinToString(" ")
+        // Drop a leading article only from the very first token, so a title-internal article
+        // (or a "The The" pathology) is never trimmed by mistake.
+        return if (tokens.firstOrNull() in LEADING_ARTICLES) tokens.drop(1) else tokens
     }
 
     private val LEADING_ARTICLES = setOf("the", "a", "an")

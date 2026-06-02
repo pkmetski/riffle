@@ -18,6 +18,7 @@ gradle/gradle-daemon-jvm.properties
 # Generated files
 **/build/
 **/.gradle/
+.kotlin/
 
 # Keystore files
 *.jks

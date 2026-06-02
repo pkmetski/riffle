@@ -17,8 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadingPositionEntity::class,
         BookFormattingPreferencesEntity::class,
         ReadaloudLinkEntity::class,
+        ReadaloudCandidateEntity::class,
+        ReadaloudDismissalEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -30,6 +32,8 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun readingPositionDao(): ReadingPositionDao
     abstract fun bookFormattingPreferencesDao(): BookFormattingPreferencesDao
     abstract fun readaloudLinkDao(): ReadaloudLinkDao
+    abstract fun readaloudCandidateDao(): ReadaloudCandidateDao
+    abstract fun readaloudDismissalDao(): ReadaloudDismissalDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -324,6 +328,47 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerServerId` " +
                         "ON `readaloud_links` (`storytellerServerId`)"
+                )
+            }
+        }
+
+        // Completes the ADR 0021 match ladder (issue #39). Two new tables back the review queue:
+        //
+        // 1. `readaloud_candidates` records Tier 3 fuzzy candidates awaiting user review — one
+        //    row per (readaloud, ABS item) pair with the matcher's similarity score. Both
+        //    server columns FK-cascade so candidates clear when either Server is removed.
+        // 2. `readaloud_dismissals` records sticky user decisions: a per-book "don't ask again"
+        //    (BOOK scope, empty ABS ids) and per-candidate dismissals (CANDIDATE scope). Only
+        //    the Storyteller server FK-cascades; the ABS id is a sentinel for book scope.
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `readaloud_candidates` (" +
+                        "`storytellerServerId` TEXT NOT NULL, " +
+                        "`storytellerBookId` TEXT NOT NULL, " +
+                        "`absServerId` TEXT NOT NULL, " +
+                        "`absLibraryItemId` TEXT NOT NULL, " +
+                        "`score` REAL NOT NULL, " +
+                        "PRIMARY KEY(`storytellerServerId`, `storytellerBookId`, `absServerId`, `absLibraryItemId`), " +
+                        "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_candidates_absServerId` " +
+                        "ON `readaloud_candidates` (`absServerId`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `readaloud_dismissals` (" +
+                        "`storytellerServerId` TEXT NOT NULL, " +
+                        "`storytellerBookId` TEXT NOT NULL, " +
+                        "`scope` TEXT NOT NULL, " +
+                        "`absServerId` TEXT NOT NULL, " +
+                        "`absLibraryItemId` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`storytellerServerId`, `storytellerBookId`, `absServerId`, `absLibraryItemId`), " +
+                        "FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
                 )
             }
         }

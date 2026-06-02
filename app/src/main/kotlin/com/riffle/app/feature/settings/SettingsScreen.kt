@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,6 +59,7 @@ fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddServer: () -> Unit,
+    onNavigateToReadaloudMatches: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val report = viewModel.lastCrashReport
@@ -79,6 +81,7 @@ fun SettingsScreen(
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 is SettingsNavEvent.NavigateToAddServer -> onNavigateToAddServer()
+                is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.serverId)
             }
         }
     }
@@ -215,6 +218,29 @@ fun SettingsScreen(
                                     }
                                 }
                             },
+                        )
+                    }
+                    HorizontalDivider()
+                }
+
+                if (storytellerServers.isNotEmpty()) {
+                    Text(
+                        text = "Readaloud matches",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    HorizontalDivider()
+                    storytellerServers.forEach { server ->
+                        ListItem(
+                            headlineContent = { Text(server.name) },
+                            supportingContent = { Text("Review and pair Storyteller readalouds with ABS books") },
+                            trailingContent = {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                )
+                            },
+                            modifier = Modifier.clickable { viewModel.openReadaloudMatches(server.id) },
                         )
                     }
                     HorizontalDivider()
