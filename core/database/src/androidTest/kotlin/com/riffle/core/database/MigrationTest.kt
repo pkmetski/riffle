@@ -734,6 +734,96 @@ class MigrationTest {
     }
 
     @Test
+    fun migration22To23_addsReadaloudCandidatesAndDismissals() {
+        helper.createDatabase(TEST_DB, 22).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('st1', 'http://media-server:8001', 0, 0, 'plamen', 'STORYTELLER')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('abs1', 'http://media-server:13378', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+            // A pre-existing readaloud_link must survive untouched.
+            db.execSQL(
+                "INSERT INTO readaloud_links " +
+                    "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                    "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 1, 1000, 1000)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 23, true, RiffleDatabase.MIGRATION_22_23)
+
+        // Both new tables start empty.
+        db.query("SELECT COUNT(*) FROM readaloud_candidates").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM readaloud_dismissals").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        // The pre-existing link is preserved across the migration.
+        db.query("SELECT userConfirmed FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+
+        // Candidates can be written with a score; PK is the full (readaloud, ABS item) pair.
+        db.execSQL(
+            "INSERT INTO readaloud_candidates " +
+                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, score) " +
+                "VALUES ('st1', 'book-7', 'abs1', 'cand-a', 0.91)"
+        )
+        db.execSQL(
+            "INSERT INTO readaloud_candidates " +
+                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, score) " +
+                "VALUES ('st1', 'book-7', 'abs1', 'cand-b', 0.88)"
+        )
+        db.query("SELECT score FROM readaloud_candidates WHERE storytellerBookId = 'book-7' AND absLibraryItemId = 'cand-a'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(0.91, cursor.getDouble(0), 0.0001)
+        }
+        db.query("SELECT COUNT(*) FROM readaloud_candidates WHERE storytellerBookId = 'book-7'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(2, cursor.getInt(0))
+        }
+
+        // Dismissals: a per-book "don't ask again" (empty ABS ids) and a per-candidate dismissal
+        // coexist for the same book because the ABS ids are part of the key.
+        db.execSQL(
+            "INSERT INTO readaloud_dismissals " +
+                "(storytellerServerId, storytellerBookId, scope, absServerId, absLibraryItemId) " +
+                "VALUES ('st1', 'book-9', 'BOOK', '', '')"
+        )
+        db.execSQL(
+            "INSERT INTO readaloud_dismissals " +
+                "(storytellerServerId, storytellerBookId, scope, absServerId, absLibraryItemId) " +
+                "VALUES ('st1', 'book-9', 'CANDIDATE', 'abs1', 'cand-x')"
+        )
+        db.query("SELECT COUNT(*) FROM readaloud_dismissals WHERE storytellerBookId = 'book-9'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(2, cursor.getInt(0))
+        }
+
+        // FK cascade clears candidates when the ABS server is removed.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 'abs1'")
+        db.query("SELECT COUNT(*) FROM readaloud_candidates").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        // Removing the Storyteller server cascades candidates and dismissals away.
+        db.execSQL("DELETE FROM servers WHERE id = 'st1'")
+        db.query("SELECT COUNT(*) FROM readaloud_dismissals").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -742,7 +832,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 22, true,
+            TEST_DB, 23, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -764,6 +854,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_19_20,
             RiffleDatabase.MIGRATION_20_21,
             RiffleDatabase.MIGRATION_21_22,
+            RiffleDatabase.MIGRATION_22_23,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

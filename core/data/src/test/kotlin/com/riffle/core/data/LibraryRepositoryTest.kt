@@ -266,7 +266,7 @@ class LibraryRepositoryTest {
     )
 
     private fun noopMatchingService(itemDao: FakeLibraryItemDao): ReadaloudMatchingService =
-        ReadaloudMatchingService(itemDao, NoopReadaloudLinkDao)
+        ReadaloudMatchingService(itemDao, NoopReadaloudLinkDao, NoopReadaloudCandidateDao, NoopReadaloudDismissalDao)
 
     private val storytellerApiNotCalled = object : com.riffle.core.network.StorytellerLibraryApi {
         override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean) =

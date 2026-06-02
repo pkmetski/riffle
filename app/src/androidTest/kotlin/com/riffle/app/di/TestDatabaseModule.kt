@@ -7,6 +7,8 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.ReadaloudCandidateDao
+import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
@@ -72,4 +74,12 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideReadaloudLinkDao(db: RiffleDatabase): ReadaloudLinkDao = db.readaloudLinkDao()
+
+    @Provides
+    @Singleton
+    fun provideReadaloudCandidateDao(db: RiffleDatabase): ReadaloudCandidateDao = db.readaloudCandidateDao()
+
+    @Provides
+    @Singleton
+    fun provideReadaloudDismissalDao(db: RiffleDatabase): ReadaloudDismissalDao = db.readaloudDismissalDao()
 }

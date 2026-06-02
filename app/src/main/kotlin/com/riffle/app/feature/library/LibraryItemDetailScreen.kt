@@ -76,6 +76,8 @@ fun LibraryItemDetailScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onReadItem: (LibraryItem) -> Unit,
+    onReviewReadaloud: (String) -> Unit = {},
+    onPairReadaloud: (String, String) -> Unit = { _, _ -> },
     viewModel: LibraryItemDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -165,6 +167,8 @@ fun LibraryItemDetailScreen(
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemoveWithUndo,
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
+                        onReviewReadaloud = onReviewReadaloud,
+                        onPairReadaloud = onPairReadaloud,
                         modifier = Modifier.padding(padding),
                     )
                 } else {
@@ -184,6 +188,8 @@ fun LibraryItemDetailScreen(
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemoveWithUndo,
                         onUnlinkReadaloud = { viewModel.unlinkFromAbs() },
+                        onReviewReadaloud = onReviewReadaloud,
+                        onPairReadaloud = onPairReadaloud,
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -233,6 +239,8 @@ private fun LibraryItemDetailContent(
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onUnlinkReadaloud: () -> Unit,
+    onReviewReadaloud: (String) -> Unit = {},
+    onPairReadaloud: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -290,16 +298,41 @@ private fun LibraryItemDetailContent(
 
         MetadataLines(item = item)
 
-        readaloudFooter?.let { ReadaloudFooter(state = it, onUnlink = onUnlinkReadaloud) }
+        readaloudFooter?.let {
+            ReadaloudFooter(
+                state = it,
+                onUnlink = onUnlinkReadaloud,
+                onReviewReadaloud = onReviewReadaloud,
+                onPairReadaloud = onPairReadaloud,
+            )
+        }
     }
 }
 
 @Composable
-private fun ReadaloudFooter(state: ReadaloudFooterState, onUnlink: () -> Unit) {
+private fun ReadaloudFooter(
+    state: ReadaloudFooterState,
+    onUnlink: () -> Unit,
+    onReviewReadaloud: (String) -> Unit = {},
+    onPairReadaloud: (String, String) -> Unit = { _, _ -> },
+) {
+    // Tap-navigation targets per ADR 0021: Pending Review opens the review queue; Unmatched opens
+    // the manual-pair picker for this book.
+    val rowClick: (() -> Unit)? = when (state) {
+        is ReadaloudFooterState.ReadaloudPendingReview -> {
+            { onReviewReadaloud(state.storytellerServerId) }
+        }
+        is ReadaloudFooterState.ReadaloudUnmatched -> {
+            { onPairReadaloud(state.storytellerServerId, state.storytellerBookId) }
+        }
+        else -> null
+    }
     Surface(
         tonalElevation = 1.dp,
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (rowClick != null) Modifier.clickable(onClick = rowClick) else Modifier),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -328,6 +361,18 @@ private fun ReadaloudFooter(state: ReadaloudFooterState, onUnlink: () -> Unit) {
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
+                    }
+                    is ReadaloudFooterState.ReadaloudPendingReview -> {
+                        Text(
+                            text = "Possible matches — Review",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    is ReadaloudFooterState.ReadaloudUnmatched -> {
+                        Text(
+                            text = "Not linked to an ABS book — Pair manually",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
             }
@@ -360,6 +405,8 @@ internal fun LibraryItemDetailContentTablet(
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onUnlinkReadaloud: () -> Unit,
+    onReviewReadaloud: (String) -> Unit = {},
+    onPairReadaloud: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -427,7 +474,14 @@ internal fun LibraryItemDetailContentTablet(
                 Text(text = series, style = MaterialTheme.typography.bodyLarge)
             }
             MetadataLines(item = item)
-            readaloudFooter?.let { ReadaloudFooter(state = it, onUnlink = onUnlinkReadaloud) }
+            readaloudFooter?.let {
+                ReadaloudFooter(
+                    state = it,
+                    onUnlink = onUnlinkReadaloud,
+                    onReviewReadaloud = onReviewReadaloud,
+                    onPairReadaloud = onPairReadaloud,
+                )
+            }
         }
     }
 }

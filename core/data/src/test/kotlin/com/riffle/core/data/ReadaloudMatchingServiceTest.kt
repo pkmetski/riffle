@@ -4,6 +4,10 @@ import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.MatchableItemRow
+import com.riffle.core.database.ReadaloudCandidateDao
+import com.riffle.core.database.ReadaloudCandidateEntity
+import com.riffle.core.database.ReadaloudDismissalDao
+import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.database.ReadingProgressRow
@@ -28,7 +32,7 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links, clock = { 12345L }).reconcileLinks()
+        service(items, links, clock = { 12345L }).reconcileLinks()
 
         assertEquals(2, links.upserts.size)
         val keys = links.upserts.map { it.absServerId to it.absLibraryItemId }.toSet()
@@ -54,7 +58,7 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         assertEquals(2, links.upserts.size)
         val keys = links.upserts.map { it.absServerId to it.absLibraryItemId }.toSet()
@@ -81,7 +85,7 @@ class ReadaloudMatchingServiceTest {
             )
         }
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         assertTrue("userConfirmed row stays untouched", links.upserts.isEmpty())
         assertTrue("userConfirmed row not deleted", links.deletions.isEmpty())
@@ -107,7 +111,7 @@ class ReadaloudMatchingServiceTest {
             )
         }
 
-        ReadaloudMatchingService(items, links, clock = { 500L }).reconcileLinks()
+        service(items, links, clock = { 500L }).reconcileLinks()
 
         // The old auto row gets swept; the new ABS slot is upserted.
         assertEquals(1, links.upserts.size)
@@ -137,7 +141,7 @@ class ReadaloudMatchingServiceTest {
             )
         }
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         assertTrue(links.upserts.isEmpty())
         assertEquals(listOf("abs-1" to "old"), links.deletions)
@@ -156,8 +160,8 @@ class ReadaloudMatchingServiceTest {
         val a = RecordingReadaloudLinkDao()
         val b = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(noSt, a).reconcileLinks()
-        ReadaloudMatchingService(noAbs, b).reconcileLinks()
+        service(noSt, a).reconcileLinks()
+        service(noAbs, b).reconcileLinks()
 
         assertTrue(a.upserts.isEmpty())
         assertTrue(b.upserts.isEmpty())
@@ -180,7 +184,7 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         val update = items.metadataUpdates.single { it.itemId == "42" }
         assertEquals("An epic tale", update.description)
@@ -197,7 +201,7 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         val update = items.metadataUpdates.single { it.itemId == "42" }
         assertEquals(null, update.description)
@@ -217,7 +221,7 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         assertEquals("Andy Weir", items.metadataUpdates.single { it.itemId == "42" }.author)
     }
@@ -231,7 +235,7 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         assertEquals(null, items.metadataUpdates.single { it.itemId == "42" }.author)
     }
@@ -254,13 +258,125 @@ class ReadaloudMatchingServiceTest {
         )
         val links = RecordingReadaloudLinkDao()
 
-        ReadaloudMatchingService(items, links).reconcileLinks()
+        service(items, links).reconcileLinks()
 
         val update = items.metadataUpdates.single { it.itemId == "42" }
         assertEquals("the real synopsis", update.description)
         assertEquals("Crown", update.publisher)
         assertEquals("Sci-Fi", update.genres)
     }
+
+    // ---- Tier 3 / Pending Review + sticky decisions ---------------------------------------
+
+    @Test
+    fun `Tier 3 fuzzy match writes Pending-Review candidates with scores and no link`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "The Hitchhikers Guide to the Galaxy Part One", author = "Douglas Adams")),
+            abs = listOf(row("abs-1", "cand", title = "The Hitchhikers Guide to the Galaxy Part Two", author = "Douglas Adams")),
+        )
+        val links = RecordingReadaloudLinkDao()
+        val candidates = RecordingReadaloudCandidateDao()
+
+        service(items, links, candidates = candidates).reconcileLinks()
+
+        assertTrue("fuzzy match must not auto-confirm a link", links.upserts.isEmpty())
+        val c = candidates.rows.single()
+        assertEquals("st-1", c.storytellerServerId)
+        assertEquals("42", c.storytellerBookId)
+        assertEquals("abs-1", c.absServerId)
+        assertEquals("cand", c.absLibraryItemId)
+        assertTrue("score ${c.score} should be >= threshold", c.score >= 0.85)
+    }
+
+    @Test
+    fun `per-book don't-ask-again keeps the book Unmatched with no candidates`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "The Hitchhikers Guide to the Galaxy Part One", author = "Douglas Adams")),
+            abs = listOf(row("abs-1", "cand", title = "The Hitchhikers Guide to the Galaxy Part Two", author = "Douglas Adams")),
+        )
+        val links = RecordingReadaloudLinkDao()
+        val candidates = RecordingReadaloudCandidateDao()
+        val dismissals = RecordingReadaloudDismissalDao().apply { seedBookDismissal("st-1", "42") }
+
+        service(items, links, candidates = candidates, dismissals = dismissals).reconcileLinks()
+
+        assertTrue(candidates.rows.isEmpty())
+        assertTrue(links.upserts.isEmpty())
+    }
+
+    @Test
+    fun `dismissed candidate is filtered out of Pending Review but others remain`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "The Hitchhikers Guide to the Galaxy Part One", author = "Douglas Adams")),
+            abs = listOf(
+                row("abs-1", "cand-a", title = "The Hitchhikers Guide to the Galaxy Part Two", author = "Douglas Adams"),
+                row("abs-1", "cand-b", title = "The Hitchhikers Guide to the Galaxy Part Three", author = "Douglas Adams"),
+            ),
+        )
+        val links = RecordingReadaloudLinkDao()
+        val candidates = RecordingReadaloudCandidateDao()
+        val dismissals = RecordingReadaloudDismissalDao().apply {
+            seedCandidateDismissal("st-1", "42", "abs-1", "cand-a")
+        }
+
+        service(items, links, candidates = candidates, dismissals = dismissals).reconcileLinks()
+
+        assertEquals(setOf("cand-b"), candidates.rows.map { it.absLibraryItemId }.toSet())
+    }
+
+    @Test
+    fun `user-Confirmed book is not re-evaluated into Pending Review`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "The Hitchhikers Guide to the Galaxy Part One", author = "Douglas Adams")),
+            abs = listOf(row("abs-1", "fuzzy", title = "The Hitchhikers Guide to the Galaxy Part Two", author = "Douglas Adams")),
+        )
+        val links = RecordingReadaloudLinkDao().apply {
+            seed(
+                ReadaloudLinkEntity(
+                    absServerId = "abs-1",
+                    absLibraryItemId = "user-pick",
+                    storytellerServerId = "st-1",
+                    storytellerBookId = "42",
+                    state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                    userConfirmed = true,
+                    createdAt = 1L, updatedAt = 1L,
+                ),
+            )
+        }
+        val candidates = RecordingReadaloudCandidateDao()
+
+        service(items, links, candidates = candidates).reconcileLinks()
+
+        assertTrue("no candidates for an already user-confirmed book", candidates.rows.isEmpty())
+        assertTrue("user link untouched", links.upserts.isEmpty())
+        assertTrue("user link not swept", links.deletions.isEmpty())
+    }
+
+    @Test
+    fun `stale candidates are cleared every pass`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "Dune", author = "Frank Herbert")),
+            abs = listOf(row("abs-9", "unrelated", title = "Atomic Habits", author = "James Clear")),
+        )
+        val links = RecordingReadaloudLinkDao()
+        val candidates = RecordingReadaloudCandidateDao().apply {
+            // A candidate left over from a previous pass that no longer fuzzy-matches.
+            seed(ReadaloudCandidateEntity("st-1", "42", "abs-9", "stale", 0.9))
+        }
+
+        service(items, links, candidates = candidates).reconcileLinks()
+
+        assertTrue("stale candidate must be cleared", candidates.rows.isEmpty())
+        assertTrue(candidates.clearAllCalled)
+    }
+
+    private fun service(
+        items: StubLibraryItemDao,
+        links: RecordingReadaloudLinkDao,
+        candidates: RecordingReadaloudCandidateDao = RecordingReadaloudCandidateDao(),
+        dismissals: RecordingReadaloudDismissalDao = RecordingReadaloudDismissalDao(),
+        clock: () -> Long = { 0L },
+    ) = ReadaloudMatchingService(items, links, candidates, dismissals, clock)
 
     private fun row(
         serverId: String,
@@ -371,6 +487,67 @@ class ReadaloudMatchingServiceTest {
             val toRemove = store.filterValues { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }.keys
             deletions += toRemove
             toRemove.forEach { store.remove(it) }
+        }
+    }
+
+    private class RecordingReadaloudCandidateDao : ReadaloudCandidateDao {
+        private val store = mutableListOf<ReadaloudCandidateEntity>()
+        var clearAllCalled = false
+            private set
+
+        /** Final persisted candidate state after a reconcile pass. */
+        val rows: List<ReadaloudCandidateEntity> get() = store.toList()
+
+        fun seed(entity: ReadaloudCandidateEntity) { store += entity }
+
+        override suspend fun upsert(entity: ReadaloudCandidateEntity) { store += entity }
+        override suspend fun upsertAll(entities: List<ReadaloudCandidateEntity>) { store += entities }
+        override suspend fun allRows(): List<ReadaloudCandidateEntity> = store.toList()
+        override suspend fun clearAll() { clearAllCalled = true; store.clear() }
+        override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(store.toList())
+        override fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>> =
+            flowOf(store.filter { it.storytellerServerId == storytellerServerId })
+        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudCandidateEntity> =
+            store.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
+            store.removeAll { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        }
+        override suspend fun deleteCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) {
+            store.removeAll {
+                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
+                    it.absServerId == absServerId && it.absLibraryItemId == absLibraryItemId
+            }
+        }
+    }
+
+    private class RecordingReadaloudDismissalDao : ReadaloudDismissalDao {
+        private val store = mutableListOf<ReadaloudDismissalEntity>()
+
+        fun seedBookDismissal(storytellerServerId: String, storytellerBookId: String) {
+            store += ReadaloudDismissalEntity(storytellerServerId, storytellerBookId, ReadaloudDismissalEntity.SCOPE_BOOK)
+        }
+
+        fun seedCandidateDismissal(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) {
+            store += ReadaloudDismissalEntity(
+                storytellerServerId, storytellerBookId, ReadaloudDismissalEntity.SCOPE_CANDIDATE, absServerId, absLibraryItemId,
+            )
+        }
+
+        override suspend fun upsert(entity: ReadaloudDismissalEntity) { store += entity }
+        override suspend fun allRows(): List<ReadaloudDismissalEntity> = store.toList()
+        override fun observeAll(): Flow<List<ReadaloudDismissalEntity>> = flowOf(store.toList())
+        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudDismissalEntity> =
+            store.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        override suspend fun isBookDismissed(storytellerServerId: String, storytellerBookId: String): Boolean =
+            store.any {
+                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
+                    it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
+            }
+        override suspend fun clearBookDismissal(storytellerServerId: String, storytellerBookId: String) {
+            store.removeAll {
+                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
+                    it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
+            }
         }
     }
 }
