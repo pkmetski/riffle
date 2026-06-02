@@ -112,14 +112,22 @@ An EPUB Canonical Fragment Identifier — a string of the form `epubcfi(/6/N!<do
 ### EPUB CFI Translator
 The layer (`EpubCfiTranslator`) responsible for converting between Readium's native position representation and the character-count-based EPUB CFI format used by ABS/epub.js. All `ebookLocation` values crossing the Riffle↔ABS API boundary — in both directions — must pass through this translator. Inbound: server CFI → within-chapter progression → Readium Locator. Outbound: Readium within-chapter progression → CFI doc path → full CFI string. `ebookProgress` (book-wide float) is a separate display field and does not go through the translator. See ADR 0013.
 
+### Annotation
+Umbrella term for the three user-authored marks attached to a Library Item: [Highlight], [Note], and [Bookmark]. All three share one storage model and one [Annotation Sync] format. Each carries a stable client-generated ID, creation and last-modified timestamps, and a device-origin tag, and anchors to an **EPUB CFI** (the same coordinate family ABS already stores in `mediaProgress.ebookLocation` and that the [EPUB CFI Translator] operates on). The CFI is the load-bearing, irreversible anchor choice; every Annotation additionally stores the surrounding text snippet and chapter href as a human-readable fallback and re-anchoring aid if the EPUB is re-uploaded.
+
+Annotations are an **ABS-book capability**, anchored in the **ABS EPUB's** coordinate system, and keyed by the ABS Library Item. A [Storyteller Server] is only a [Readaloud] provider, so a Storyteller-only (unmatched) book carries no Annotations, and — because the ABS and Storyteller editions are different EPUB files with different CFIs (see [ADR 0019](adr/0019-three-peer-unified-canonical-progress-sync.md)) — Annotations are created and displayed only while reading the **ABS side** in v1. Surfacing them on the Readaloud side (via ADR 0019's cross-EPUB index) is a deferred enhancement.
+
+### Annotation Sync
+The mechanism by which [Annotation]s roam between devices. The local Room store is always the primary, queryable store; Sync is an optional layer on top, reached through a single `AnnotationSyncTarget` abstraction (`list / read / write-own-file`) so the backing store is swappable without touching the format or the schema. The on-the-wire format is the **W3C Web Annotation Data Model** (JSON-LD), with a `riffle:` extension namespace carrying the merge-critical fields the standard omits (`device`, `updatedAt`, `deleted` tombstone). Two target *kinds* are anticipated: **blob-store** targets (a folder of one file per device per book, merged client-side by per-record last-write-wins — `deviceId` names the file, the annotation UUID is the identity) and **record-store** targets (per-record CRUD with server-side merge). **v1 ships local-only — no target implemented** — but the schema is sync-ready so enabling a target later is additive, never a migration. Abusing the ABS bookmark API as a record-store target was considered and **rejected**: it pollutes the audiobook-bookmark surface that Riffle itself will render once it becomes an audiobook player. A native ABS annotation endpoint is the eventual target the format is designed to slot into.
+
 ### Highlight
-A marked text range in an EPUB, stored with a colour and an optional Note. Anchored to an EPUB CFI position.
+A marked **text range** in an EPUB, stored with a colour and an optional [Note]. The colour is a token from a small fixed palette (yellow — the default — green, blue, pink), not a freeform value; the reader's theme system owns the light/dark RGB mapping so a Highlight stays legible in any theme. Anchored to a **CFI range** (start + end) over the selected text. An [Annotation].
 
 ### Note
-A user-written text annotation attached to a Highlight or a specific location in a Library Item.
+A user-written text comment on a [Highlight], annotating that range. In v1 a Note is **not a standalone entity** — it is an optional field on a Highlight, so a Highlight may exist with no Note, but a Note never exists without a Highlight. (A future standalone "margin note" at a bare location — a point anchor with a body — is deferred.) An [Annotation].
 
 ### Bookmark
-A saved position in a Library Item with no text selection — a pure location marker. Distinct from a Highlight.
+A saved reading location with no text selection — a pure location marker, distinct from a [Highlight]. Anchored to a **CFI point** at the top-of-viewport text of the current page (the reader's `currentLocator`, the same canonical position [Progress Sync] tracks); reflowable EPUBs have no fixed pages, so a Bookmark marks a text position, never a page number. An [Annotation].
 
 ### Table of Contents (TOC)
 The navigable chapter and subchapter structure of a Library Item, derived from the EPUB or PDF's own structure.

@@ -2,6 +2,7 @@ package com.riffle.core.data.di
 
 import android.content.Context
 import androidx.room.Room
+import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
@@ -53,6 +54,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_21_22,
                 RiffleDatabase.MIGRATION_22_23,
                 RiffleDatabase.MIGRATION_23_24,
+                RiffleDatabase.MIGRATION_24_25,
             )
             .build()
 
@@ -99,4 +101,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideCrossEpubIndexDao(db: RiffleDatabase): CrossEpubIndexDao = db.crossEpubIndexDao()
+
+    @Provides
+    @Singleton
+    fun provideAnnotationDao(db: RiffleDatabase): AnnotationDao = db.annotationDao()
 }

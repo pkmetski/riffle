@@ -183,6 +183,8 @@ fun EpubReaderScreen(
     val tocVisible by viewModel.tocVisible.collectAsState()
     val footnotePopup by viewModel.footnotePopup.collectAsState()
 
+    val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
+    val highlightRenders by viewModel.highlightRenders.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
     val readaloudExpanded by viewModel.readaloudExpanded.collectAsState()
@@ -243,6 +245,9 @@ fun EpubReaderScreen(
                         advancePageEvents = viewModel.advancePageEvents,
                         onReportVisibleFragments = viewModel::reportVisibleFragments,
                         onPlayFromHere = viewModel::playFromHere,
+                        annotationsAvailable = annotationsAvailable,
+                        highlightRenders = highlightRenders,
+                        onHighlight = viewModel::createHighlight,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -586,6 +591,9 @@ private fun EpubNavigatorView(
     advancePageEvents: Flow<Unit>,
     onReportVisibleFragments: (Set<String>) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
+    annotationsAvailable: Boolean,
+    highlightRenders: List<EpubReaderViewModel.HighlightRender>,
+    onHighlight: (Locator) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -608,6 +616,8 @@ private fun EpubNavigatorView(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
+    val currentOnHighlight by rememberUpdatedState(onHighlight)
+    val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentPublication by rememberUpdatedState(state.publication)
 
     // "Play from here" is added to the WebView text-selection action bar via Readium's
@@ -617,9 +627,13 @@ private fun EpubNavigatorView(
     // we use the selection's first fragment id (locations.fragments) when present, falling back to
     // the bare href; ReadaloudTrack.clipForFragment then matches the nearest narrated clip it can.
     val playFromHereMenuId = remember { View.generateViewId() }
+    // "Highlight" is added to the same Readium selection action bar (ADR 0024). Gated on
+    // annotationsAvailable so it never shows on a Storyteller-only book / the Readaloud side.
+    val highlightMenuId = remember { View.generateViewId() }
     val playFromHereActionMode = remember {
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                if (currentAnnotationsAvailable) menu.add(0, highlightMenuId, 0, "Highlight")
                 menu.add(0, playFromHereMenuId, 0, "Play from here")
                 return true
             }
@@ -627,18 +641,34 @@ private fun EpubNavigatorView(
             override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
 
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
-                if (item.itemId != playFromHereMenuId) return false
-                val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator ?: return false
-                coroutineScope.launch {
-                    val selection = selectable.currentSelection() ?: return@launch
-                    val loc = selection.locator
-                    val fragId = loc.locations.fragments.firstOrNull()
-                    val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
-                    currentOnPlayFromHere(ref)
-                    selectable.clearSelection()
+                when (item.itemId) {
+                    highlightMenuId -> {
+                        val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
+                            ?: return false
+                        coroutineScope.launch {
+                            val selection = selectable.currentSelection() ?: return@launch
+                            currentOnHighlight(selection.locator)
+                            selectable.clearSelection()
+                        }
+                        mode.finish()
+                        return true
+                    }
+                    playFromHereMenuId -> {
+                        val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
+                            ?: return false
+                        coroutineScope.launch {
+                            val selection = selectable.currentSelection() ?: return@launch
+                            val loc = selection.locator
+                            val fragId = loc.locations.fragments.firstOrNull()
+                            val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
+                            currentOnPlayFromHere(ref)
+                            selectable.clearSelection()
+                        }
+                        mode.finish()
+                        return true
+                    }
+                    else -> return false
                 }
-                mode.finish()
-                return true
             }
 
             override fun onDestroyActionMode(mode: android.view.ActionMode) {}
@@ -806,6 +836,34 @@ private fun EpubNavigatorView(
             fragment.applyDecorations(listOf(decoration), group = "readaloud")
         }
         hasReadaloudDecoration.value = true
+    }
+
+    // ---- Persisted highlights (ADR 0024) ---------------------------------------------------
+    // Renders all of a book's stored highlights via the same DecorableNavigator mechanism, on its
+    // own "annotations" group. Re-applied whenever the set changes — including the re-render of
+    // every highlight when the book is reopened, and the immediate paint after a new highlight.
+    val hasHighlightDecorations = remember { mutableStateOf(false) }
+    LaunchedEffect(highlightRenders) {
+        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        if (highlightRenders.isEmpty()) {
+            if (!hasHighlightDecorations.value) return@LaunchedEffect
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "annotations")
+            }
+            hasHighlightDecorations.value = false
+            return@LaunchedEffect
+        }
+        val decorations = highlightRenders.map { h ->
+            Decoration(
+                id = h.id,
+                locator = h.locator,
+                style = Decoration.Style.Highlight(tint = highlightTint(h.color)),
+            )
+        }
+        withContext(Dispatchers.Main) {
+            fragment.applyDecorations(decorations, group = "annotations")
+        }
+        hasHighlightDecorations.value = true
     }
 
     // ---- Auto-page-turn --------------------------------------------------------------------
@@ -1118,3 +1176,8 @@ private fun PullChip(forward: Boolean, progress: Float) {
     }
 }
 
+
+// Maps an annotation colour token to a Readium highlight tint. v1 has only yellow (ADR 0024); a
+// later colour-picker slice maps `color` to other tints.
+private fun highlightTint(color: String): Int =
+    android.graphics.Color.parseColor("#FFFDE68A")

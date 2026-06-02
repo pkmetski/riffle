@@ -892,6 +892,70 @@ class MigrationTest {
     }
 
     @Test
+    fun migration24To25_addsSyncReadyAnnotationsStoreKeyedByAbsItem() {
+        helper.createDatabase(TEST_DB, 24).use { db ->
+            // An ABS server the annotation will reference (FK target).
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('abs1', 'http://media-server:13378', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 25, true, RiffleDatabase.MIGRATION_24_25)
+
+        // The new table starts empty.
+        db.query("SELECT COUNT(*) FROM annotations").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // A full sync-ready highlight row — CFI *range*, snippet, chapter href, provenance,
+        // tombstone flag — writes and reads back intact.
+        db.execSQL(
+            "INSERT INTO annotations " +
+                "(id, serverId, itemId, type, cfi, color, note, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "VALUES ('uuid-1', 'abs1', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:0,/1:10)', 'yellow', NULL, 'hello world', 'chap01.xhtml', 1000, 1000, 'device-A', 'device-A', 0)"
+        )
+        db.query(
+            "SELECT serverId, itemId, type, cfi, color, note, textSnippet, chapterHref, originDeviceId, lastModifiedByDeviceId, deleted " +
+                "FROM annotations WHERE id = 'uuid-1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("abs1", cursor.getString(0))
+            assertEquals("item-1", cursor.getString(1))
+            assertEquals("HIGHLIGHT", cursor.getString(2))
+            assertEquals("epubcfi(/6/4!/4/2,/1:0,/1:10)", cursor.getString(3))
+            assertEquals("yellow", cursor.getString(4))
+            assertNull(cursor.getString(5))
+            assertEquals("hello world", cursor.getString(6))
+            assertEquals("chap01.xhtml", cursor.getString(7))
+            assertEquals("device-A", cursor.getString(8))
+            assertEquals("device-A", cursor.getString(9))
+            assertEquals(0, cursor.getInt(10))
+        }
+
+        // A note (nullable column populated) coexists with the highlight.
+        db.execSQL(
+            "INSERT INTO annotations " +
+                "(id, serverId, itemId, type, cfi, color, note, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "VALUES ('uuid-2', 'abs1', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/6/2,/1:0,/1:4)', 'yellow', 'my thought', 'word', 'chap01.xhtml', 1100, 1100, 'device-A', 'device-A', 0)"
+        )
+        db.query("SELECT note FROM annotations WHERE id = 'uuid-2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("my thought", cursor.getString(0))
+        }
+
+        // FK cascade: removing the ABS server clears its annotations.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 'abs1'")
+        db.query("SELECT COUNT(*) FROM annotations").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -900,7 +964,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 24, true,
+            TEST_DB, 25, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -924,6 +988,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_21_22,
             RiffleDatabase.MIGRATION_22_23,
             RiffleDatabase.MIGRATION_23_24,
+            RiffleDatabase.MIGRATION_24_25,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
