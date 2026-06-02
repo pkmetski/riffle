@@ -31,7 +31,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -203,6 +206,7 @@ fun LibraryItemsScreen(
                     isLoading = isLoading,
                     token = viewModel.authToken,
                     onItemSelected = onItemSelected,
+                    linkedItemIds = linkedItemIds,
                 )
             } else {
                 when (selectedTab) {
@@ -214,12 +218,14 @@ fun LibraryItemsScreen(
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
                         onSectionSeeMore = onSectionSeeMore,
+                        linkedItemIds = linkedItemIds,
                     )
                     1 -> ToReadTabContent(
                         items = toReadItems,
                         isLoading = isLoading,
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
+                        linkedItemIds = linkedItemIds,
                     )
                     2 -> SeriesTabContent(
                         items = series,
@@ -239,6 +245,7 @@ fun LibraryItemsScreen(
                         isLoading = isLoading,
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
+                        linkedItemIds = linkedItemIds,
                     )
                     else -> {}
                 }
@@ -305,6 +312,7 @@ fun BookSectionGrid(
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
     onSeeMore: (() -> Unit)? = null,
+    linkedItemIds: Set<String> = emptySet(),
 ) {
     val preview = if (onSeeMore != null) items.take(SECTION_PREVIEW_LIMIT) else items
     val overflowCount = items.size - SECTION_PREVIEW_LIMIT
@@ -316,7 +324,7 @@ fun BookSectionGrid(
             SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
         } else {
             val item = preview[index]
-            BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) })
+            BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
         }
     }
 }
@@ -406,6 +414,7 @@ fun BookCoverTile(
     item: LibraryItem,
     token: String,
     onClick: () -> Unit,
+    hasReadaloudLink: Boolean = false,
 ) {
     val alpha = if (!item.isSupported) 0.38f else 1f
     Column(
@@ -439,21 +448,22 @@ fun BookCoverTile(
                         .height(3.dp),
                 )
             }
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(2.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                if (item.isCached) {
-                    Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                        Text("C", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-                if (item.isDownloaded) {
-                    Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                        Text("D", style = MaterialTheme.typography.labelSmall)
-                    }
+            if (hasReadaloudLink) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_readaloud),
+                        contentDescription = "Has readaloud (synced narration)",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp),
+                    )
                 }
             }
         }
@@ -914,6 +924,7 @@ private fun HomeTabContent(
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
+    linkedItemIds: Set<String> = emptySet(),
 ) {
     if (isLoading) return
     if (inProgress.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
@@ -936,6 +947,7 @@ private fun HomeTabContent(
                     onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
                     } else null,
+                    linkedItemIds = linkedItemIds,
                 )
             }
         }
@@ -949,6 +961,7 @@ private fun HomeTabContent(
                     onSeeMore = if (recentlyAdded.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) }
                     } else null,
+                    linkedItemIds = linkedItemIds,
                 )
             }
         }
@@ -962,6 +975,7 @@ private fun HomeTabContent(
                     onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT + 1) {
                         { onSectionSeeMore(LibrarySectionType.FINISHED) }
                     } else null,
+                    linkedItemIds = linkedItemIds,
                 )
             }
         }
@@ -1044,6 +1058,7 @@ private fun ToReadTabContent(
     isLoading: Boolean,
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
+    linkedItemIds: Set<String> = emptySet(),
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1064,7 +1079,7 @@ private fun ToReadTabContent(
         }
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
-                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) })
+                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
             }
         }
     }
@@ -1076,6 +1091,7 @@ private fun AllBooksTabContent(
     isLoading: Boolean,
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
+    linkedItemIds: Set<String> = emptySet(),
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1096,7 +1112,7 @@ private fun AllBooksTabContent(
         }
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
-                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) })
+                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
             }
         }
     }
