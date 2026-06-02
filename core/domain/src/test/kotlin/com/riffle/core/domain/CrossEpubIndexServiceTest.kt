@@ -17,8 +17,8 @@ class CrossEpubIndexServiceTest {
     )
 
     private val inputs = CrossEpubBuildInputs(
-        absEpubBytes = "abs-v1".toByteArray(),
-        storytellerEpubBytes = "st-v1".toByteArray(),
+        absChecksum = EpubChecksum.of("abs-v1".toByteArray()),
+        storytellerChecksum = EpubChecksum.of("st-v1".toByteArray()),
         absChaptersHtml = listOf("<html><body><p>Hello there.</p></body></html>"),
         storytellerChaptersHtml = listOf("<html><body><p>Hello there.</p></body></html>"),
     )
@@ -43,8 +43,8 @@ class CrossEpubIndexServiceTest {
 
         val outcome = service.buildOnConfirm(link)
 
-        val absChk = EpubChecksum.of(inputs.absEpubBytes)
-        val stChk = EpubChecksum.of(inputs.storytellerEpubBytes)
+        val absChk = inputs.absChecksum
+        val stChk = inputs.storytellerChecksum
         assertEquals(CrossEpubIndexBuildOutcome.Built(absChk, stChk), outcome)
         val (blob, builtAt) = store.rows.getValue(absChk to stChk)
         assertEquals(5000L, builtAt)
@@ -73,8 +73,8 @@ class CrossEpubIndexServiceTest {
     @Test
     fun `an already-cached index for the same checksums is not rebuilt`() = runTest {
         val store = FakeStore()
-        val absChk = EpubChecksum.of(inputs.absEpubBytes)
-        val stChk = EpubChecksum.of(inputs.storytellerEpubBytes)
+        val absChk = inputs.absChecksum
+        val stChk = inputs.storytellerChecksum
         store.put(absChk, stChk, "preexisting", 1L)
         var loadCalls = 0
         val service = CrossEpubIndexService(

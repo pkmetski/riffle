@@ -2,6 +2,8 @@ package com.riffle.core.domain
 
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -20,12 +22,29 @@ data class ExtractedEpub(
  */
 object EpubContentExtractor {
 
-    fun extract(epubBytes: ByteArray): ExtractedEpub? = try {
-        val entries = readAllEntries(epubBytes)
+    fun extract(epubBytes: ByteArray): ExtractedEpub? {
+        // Small EPUBs (and test fixtures): read every entry up front, then look up by name.
+        val entries = try { readAllEntries(epubBytes) } catch (_: Exception) { return null }
+        return extractFrom { entries[it] }
+    }
 
-        val opfPath = rootfilePath(entries["META-INF/container.xml"]) ?: return null
+    /**
+     * File overload for large bundles: reads each needed entry directly from the zip by name, so a
+     * synced bundle's hundreds of MB of audio (ADR 0023) are never materialised — only the OPF,
+     * spine chapters, and their SMIL overlays are read. Returns `null` if the file is not a zip.
+     */
+    fun extract(epub: File): ExtractedEpub? = try {
+        ZipFile(epub).use { zip ->
+            extractFrom { name -> zip.getEntry(name)?.let { zip.getInputStream(it).use { s -> s.readBytes() } } }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun extractFrom(lookup: (String) -> ByteArray?): ExtractedEpub? = try {
+        val opfPath = rootfilePath(lookup("META-INF/container.xml")) ?: return null
         val opfDir = opfPath.substringBeforeLast('/', "")
-        val opf = parseXml(entries[opfPath] ?: return null) ?: return null
+        val opf = parseXml(lookup(opfPath) ?: return null) ?: return null
 
         // manifest: id → (href, mediaOverlayId)
         val manifest = opf.elementsByTag("item").associate { item ->
@@ -37,12 +56,12 @@ object EpubContentExtractor {
         for (itemref in opf.elementsByTag("itemref")) {
             val idref = itemref.getAttribute("idref")
             val (href, overlayId) = manifest[idref] ?: continue
-            val html = entries[resolve(opfDir, href)]?.toString(Charsets.UTF_8) ?: continue
+            val html = lookup(resolve(opfDir, href))?.toString(Charsets.UTF_8) ?: continue
             chapters += EpubChapterHtml(href = href, html = html)
 
             val overlayHref = overlayId.takeIf { it.isNotEmpty() }?.let { manifest[it]?.first }
             if (overlayHref != null) {
-                entries[resolve(opfDir, overlayHref)]?.toString(Charsets.UTF_8)?.let { smilXml ->
+                lookup(resolve(opfDir, overlayHref))?.toString(Charsets.UTF_8)?.let { smilXml ->
                     clips += SmilOverlayParser.parse(smilXml)
                 }
             }

@@ -6,6 +6,7 @@ import com.riffle.core.domain.CrossEpubBuildInputs
 import com.riffle.core.domain.CrossEpubIndexBuildOutcome
 import com.riffle.core.domain.CrossEpubIndexService
 import com.riffle.core.domain.CrossEpubIndexStore
+import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLink
@@ -19,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Collections
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -84,44 +86,42 @@ class CrossEpubIndexBuilderService(
         val storytellerServer = serverRepository.getById(link.storytellerServerId) ?: return null
         val storytellerToken = tokenStorage.getToken(link.storytellerServerId) ?: return null
 
-        val absBytes = absEpubBytes(absServer, absToken, link.absLibraryItemId) ?: return null
-        val storytellerBytes = storytellerEpubBytes(storytellerServer, storytellerToken, link.storytellerBookId) ?: return null
+        val absFile = absEpubFile(absServer, absToken, link.absLibraryItemId) ?: return null
+        val storytellerFile = storytellerEpubFile(storytellerServer, storytellerToken, link.storytellerBookId) ?: return null
 
-        val absExtract = EpubContentExtractor.extract(absBytes) ?: return null
-        val storytellerExtract = EpubContentExtractor.extract(storytellerBytes) ?: return null
+        // extract() reads only the OPF + spine chapters + SMIL from the zip, and of() streams the
+        // file — so the hundreds-of-MB synced bundle (ADR 0023) is never held in memory.
+        val absExtract = EpubContentExtractor.extract(absFile) ?: return null
+        val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
 
         return CrossEpubBuildInputs(
-            absEpubBytes = absBytes,
-            storytellerEpubBytes = storytellerBytes,
+            absChecksum = EpubChecksum.of(absFile),
+            storytellerChecksum = EpubChecksum.of(storytellerFile),
             absChaptersHtml = absExtract.chapters.map { it.html },
             storytellerChaptersHtml = storytellerExtract.chapters.map { it.html },
         )
     }
 
-    private fun cachedBytes(itemId: String): ByteArray? =
-        (downloadsStore.get(itemId) ?: cacheStore.get(itemId))?.readBytes()
+    private fun cachedFile(itemId: String): File? =
+        downloadsStore.get(itemId) ?: cacheStore.get(itemId)
 
-    private suspend fun absEpubBytes(server: Server, token: String, itemId: String): ByteArray? {
-        cachedBytes(itemId)?.let { return it }
+    private suspend fun absEpubFile(server: Server, token: String, itemId: String): File? {
+        cachedFile(itemId)?.let { return it }
         val ino = when (val r = absApi.getItemEbookFileIno(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
             is NetworkItemEbookInoResult.Success -> r.ino
             is NetworkItemEbookInoResult.NetworkError -> return null
         }
-        val bytes = when (val r = absApi.downloadEpub(server.url.value, itemId, ino, token, server.insecureConnectionAllowed)) {
-            is NetworkEpubDownloadResult.Success -> r.body.use { it.byteStream().readBytes() }
-            is NetworkEpubDownloadResult.NetworkError -> return null
+        return when (val r = absApi.downloadEpub(server.url.value, itemId, ino, token, server.insecureConnectionAllowed)) {
+            is NetworkEpubDownloadResult.Success -> r.body.use { cacheStore.save(itemId, it.byteStream()) }
+            is NetworkEpubDownloadResult.NetworkError -> null
         }
-        cacheStore.save(itemId, bytes.inputStream())
-        return bytes
     }
 
-    private suspend fun storytellerEpubBytes(server: Server, token: String, bookId: String): ByteArray? {
-        cachedBytes(bookId)?.let { return it }
+    private suspend fun storytellerEpubFile(server: Server, token: String, bookId: String): File? {
+        cachedFile(bookId)?.let { return it }
         return when (val r = bundleFetcher.fetch(server.url.value, bookId, token, server.insecureConnectionAllowed)) {
             is EpubBundleFetcher.Result.Success -> try {
-                val bytes = r.epubFile.readBytes()
-                cacheStore.save(bookId, bytes.inputStream())
-                bytes
+                r.epubFile.inputStream().use { cacheStore.save(bookId, it) }
             } finally {
                 r.epubFile.delete()
             }

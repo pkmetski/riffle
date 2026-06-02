@@ -2,12 +2,17 @@ package com.riffle.core.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class EpubContentExtractorTest {
+
+    @get:Rule
+    val tmp = TemporaryFolder()
 
     /** Build a minimal but structurally-valid EPUB 3 (with a media overlay) in memory. */
     private fun buildEpub(): ByteArray {
@@ -75,5 +80,34 @@ class EpubContentExtractorTest {
     @Test
     fun `returns null for bytes that are not a valid EPUB`() {
         assertNull(EpubContentExtractor.extract("not a zip".toByteArray()))
+    }
+
+    @Test
+    fun `extract from file reads only the text entries, ignoring large audio`() {
+        // A synced bundle (ADR 0023) carries hundreds of MB of audio. The file overload must read
+        // chapters straight from the zip without materialising every entry (which would OOM), and
+        // produce the same result as the in-memory extract of the text-only EPUB.
+        val expected = EpubContentExtractor.extract(buildEpub())!!
+
+        val bos = ByteArrayOutputStream()
+        ZipOutputStream(bos).use { zip ->
+            // Stored (uncompressed) so the on-disk file genuinely contains the bytes.
+            zip.setMethod(ZipOutputStream.DEFLATED)
+            fun put(name: String, content: ByteArray) {
+                zip.putNextEntry(ZipEntry(name)); zip.write(content); zip.closeEntry()
+            }
+            // Reuse the valid text EPUB's entries, then append a big "audio" blob.
+            java.util.zip.ZipInputStream(buildEpub().inputStream()).use { src ->
+                var e = src.nextEntry
+                while (e != null) { put(e.name, src.readBytes()); e = src.nextEntry }
+            }
+            put("OEBPS/ch1.mp3", ByteArray(8 * 1024 * 1024))
+        }
+        val file = tmp.newFile("with-audio.epub").apply { writeBytes(bos.toByteArray()) }
+
+        val fromFile = EpubContentExtractor.extract(file)!!
+
+        assertEquals(expected.chapters, fromFile.chapters)
+        assertEquals(expected.smilClips, fromFile.smilClips)
     }
 }
