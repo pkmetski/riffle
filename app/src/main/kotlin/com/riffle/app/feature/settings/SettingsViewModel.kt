@@ -11,6 +11,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ReadaloudAudioRepository
+import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -44,6 +45,7 @@ class SettingsViewModel @Inject constructor(
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val audioCachePreferencesStore: AudioCachePreferencesStore,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
+    private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -82,6 +84,27 @@ class SettingsViewModel @Inject constructor(
                 combine(
                     items.map { item ->
                         audioCachePreferencesStore.capBytes(item.id).map { item.id to it }
+                    }
+                ) { pairs -> pairs.toMap() }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Readaloud-matches counts (confirmed / pending / unmatched) for each Storyteller server. */
+    val readaloudSummaries: StateFlow<Map<String, ReadaloudMatchSummary>> = storytellerServers
+        .flatMapLatest { items ->
+            if (items.isEmpty()) {
+                MutableStateFlow(emptyMap<String, ReadaloudMatchSummary>())
+            } else {
+                combine(
+                    items.map { item ->
+                        readaloudReviewRepository.observeReview(item.id).map { review ->
+                            item.id to ReadaloudMatchSummary(
+                                confirmedCount = review.confirmed.size,
+                                pendingCount = review.pending.size,
+                                unmatchedCount = review.unmatched.size,
+                            )
+                        }
                     }
                 ) { pairs -> pairs.toMap() }
             }
@@ -193,4 +216,11 @@ class SettingsViewModel @Inject constructor(
 data class StorytellerServerUiItem(
     val id: String,
     val name: String,
+)
+
+/** Counts shown in a Storyteller server's expanded "Readaloud matches" summary. */
+data class ReadaloudMatchSummary(
+    val confirmedCount: Int,
+    val pendingCount: Int,
+    val unmatchedCount: Int,
 )

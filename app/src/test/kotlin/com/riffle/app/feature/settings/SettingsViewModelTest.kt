@@ -15,10 +15,17 @@ import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.AbsPickerItem
+import com.riffle.core.domain.ConfirmedReadaloud
+import com.riffle.core.domain.PendingReadaloud
+import com.riffle.core.domain.ReadaloudReview
+import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.UnmatchedReadaloud
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import kotlinx.coroutines.Dispatchers
@@ -71,12 +78,17 @@ class SettingsViewModelTest {
         override suspend fun setInvertVolumeKeys(value: Boolean) { invertVolumeKeysFlow.value = value }
     }
 
-    private fun server(id: String, active: Boolean = false) = Server(
+    private fun server(
+        id: String,
+        active: Boolean = false,
+        serverType: ServerType = ServerType.AUDIOBOOKSHELF,
+    ) = Server(
         id = id,
         url = ServerUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
+        serverType = serverType,
     )
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
@@ -140,6 +152,20 @@ class SettingsViewModelTest {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
     }
 
+    private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
+    private val fakeReviewRepo = object : ReadaloudReviewRepository {
+        override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
+            reviewsFlow.map { it[storytellerServerId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
+        override suspend fun hasPendingCandidates(storytellerServerId: String, storytellerBookId: String) = false
+        override suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
+        override suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
+        override suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) = Unit
+        override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) = Unit
+        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
+        override suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
+        override suspend fun searchAbsItems(query: String): List<AbsPickerItem> = emptyList()
+    }
+
     private fun makeViewModel(report: CrashReport? = null) = SettingsViewModel(
         crashReportRepository = object : CrashReportRepository {
             override fun getLastCrashReport() = report
@@ -152,6 +178,7 @@ class SettingsViewModelTest {
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
         audioCachePreferencesStore = fakeAudioCacheStore,
         readaloudAudioRepository = fakeReadaloudAudioRepo,
+        readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
     )
 
@@ -296,6 +323,51 @@ class SettingsViewModelTest {
         val items = vm.libraryUiItems.value
         assertTrue(items.all { it.switchEnabled })
     }
+
+    // --- readaloud matches summary ---
+
+    @Test
+    fun `readaloudSummaries reports per-server confirmed pending and unmatched counts`() = runTest {
+        serversFlow.value = listOf(server("st-1", active = true, serverType = ServerType.STORYTELLER))
+        reviewsFlow.value = mapOf(
+            "st-1" to ReadaloudReview(
+                pending = listOf(pending("b1")),
+                unmatched = listOf(unmatched("b2"), unmatched("b3")),
+                confirmed = listOf(confirmed("b4"), confirmed("b5"), confirmed("b6")),
+            )
+        )
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.readaloudSummaries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val summary = vm.readaloudSummaries.value["st-1"]
+        assertEquals(ReadaloudMatchSummary(confirmedCount = 3, pendingCount = 1, unmatchedCount = 2), summary)
+    }
+
+    @Test
+    fun `readaloudSummaries is empty when there are no Storyteller servers`() = runTest {
+        serversFlow.value = listOf(server("abs-1", active = true))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.readaloudSummaries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.readaloudSummaries.value.isEmpty())
+    }
+
+    private fun pending(bookId: String) = PendingReadaloud(
+        storytellerServerId = "st-1", storytellerBookId = bookId,
+        title = bookId, author = "", coverUrl = null, candidates = emptyList(),
+    )
+
+    private fun unmatched(bookId: String) = UnmatchedReadaloud(
+        storytellerServerId = "st-1", storytellerBookId = bookId,
+        title = bookId, author = "", coverUrl = null,
+    )
+
+    private fun confirmed(bookId: String) = ConfirmedReadaloud(
+        storytellerServerId = "st-1", storytellerBookId = bookId,
+        title = bookId, targets = emptyList(),
+    )
 
     // --- volume key preferences ---
 
