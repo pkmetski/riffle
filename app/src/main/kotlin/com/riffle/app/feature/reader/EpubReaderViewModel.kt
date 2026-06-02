@@ -498,6 +498,8 @@ class EpubReaderViewModel @Inject constructor(
         epubZip = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
+        // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
+        playerCoordinator.dispose()
     }
 
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
@@ -772,10 +774,12 @@ class EpubReaderViewModel @Inject constructor(
 
     fun confirmDownloadAudio(wifiOnly: Boolean) {
         _downloadPromptBytes.value = null
-        // wifiOnly is honoured by the repository's download path (which inspects the active
-        // connection); we surface the toggle here and pass intent through by simply not starting
-        // when wifiOnly is requested but we're not on un-metered. Keep it simple: the repository
-        // owns the metered check, so we always kick off and let it decide.
+        // Honour "Wi-Fi only": if the active network is metered, refuse to start the (large) download
+        // and surface the same connect-to-download message the offline path uses.
+        if (wifiOnly && connectivityObserver.isMetered()) {
+            _readaloudOfflineMessage.value = true
+            return
+        }
         viewModelScope.launch {
             _downloadProgress.value = 0f
             val result = readaloudAudioRepository.downloadAudio(itemId) { downloaded, total ->

@@ -6,6 +6,7 @@ import com.riffle.core.domain.ReadaloudTrack
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -113,6 +114,12 @@ class PlayerCoordinator @Inject constructor(
         lastAdvancedIndex = -1
         controller.stop()
         _activeFragmentRef.value = null
+    }
+
+    /** Cancels the state-collection scope. Call when the owning ViewModel is cleared (not on a
+     *  mere bar-close, which must leave the coordinator reusable for the next open). */
+    fun dispose() {
+        scope.cancel()
     }
 
     /** The screen reports which fragment refs are currently rendered in the viewport. */

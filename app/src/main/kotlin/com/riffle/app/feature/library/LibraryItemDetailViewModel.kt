@@ -6,12 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfDownloadResult
@@ -80,20 +78,6 @@ sealed interface DownloadState {
     data object Downloaded : DownloadState
 }
 
-/** State machine for the "Download readaloud audio" action (the Storyteller synced bundle, ADR 0023). */
-sealed interface AudioDownloadState {
-    data object NotDownloaded : AudioDownloadState
-    /** Probing the server for the download size before showing the confirmation dialog. */
-    data object Probing : AudioDownloadState
-    /** Awaiting user confirmation; carries the probed download size (null when unprobeable). */
-    data class Confirming(val sizeBytes: Long?) : AudioDownloadState
-    /** Awaiting user confirmation to remove; carries the on-disk size that would be freed. */
-    data class ConfirmingRemove(val sizeBytes: Long) : AudioDownloadState
-    data class InProgress(val downloaded: Long, val total: Long) : AudioDownloadState
-    data object Downloaded : AudioDownloadState
-    data object Error : AudioDownloadState
-}
-
 @HiltViewModel
 class LibraryItemDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -105,7 +89,6 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val sessionRepository: ReadingSessionRepository,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
-    private val readaloudAudioRepository: ReadaloudAudioRepository,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -116,9 +99,6 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.NotDownloaded)
     val downloadState: StateFlow<DownloadState> = _downloadState
-
-    private val _audioDownloadState = MutableStateFlow<AudioDownloadState>(AudioDownloadState.NotDownloaded)
-    val audioDownloadState: StateFlow<AudioDownloadState> = _audioDownloadState
 
     private val _snackbarEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val snackbarEvents: SharedFlow<String> = _snackbarEvents.asSharedFlow()
@@ -137,11 +117,6 @@ class LibraryItemDetailViewModel @Inject constructor(
                 val item = repository.getItem(itemId)
                 if (item != null) {
                     _downloadState.value = deriveDownloadState(item)
-                    _audioDownloadState.value = if (readaloudAudioRepository.isAudioAvailable(item.id)) {
-                        AudioDownloadState.Downloaded
-                    } else {
-                        AudioDownloadState.NotDownloaded
-                    }
                     if (!isReadaloud) toReadRepository.refresh(item.libraryId)
                     val isInToRead = if (isReadaloud) false else toReadRepository.isInToRead(item.id, item.libraryId)
                     val footer = resolveReadaloudFooter(item, isReadaloud, server?.id)
@@ -258,62 +233,6 @@ class LibraryItemDetailViewModel @Inject constructor(
             }
             _downloadState.value = DownloadState.NotDownloaded
             refreshCacheState()
-        }
-    }
-
-    fun onDownloadReadaloudAudioClicked() {
-        val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
-        if (_audioDownloadState.value is AudioDownloadState.Probing ||
-            _audioDownloadState.value is AudioDownloadState.InProgress
-        ) {
-            return
-        }
-        _audioDownloadState.value = AudioDownloadState.Probing
-        viewModelScope.launch {
-            val size = readaloudAudioRepository.probeSizeBytes(item.id)
-            _audioDownloadState.value = AudioDownloadState.Confirming(size)
-        }
-    }
-
-    fun confirmDownloadAudio(wifiOnly: Boolean) {
-        val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
-        // TODO: honour wifiOnly once a network-type checker exists; for now the toggle value is
-        // carried through but not enforced (no Wi-Fi gating infra in the data layer yet).
-        @Suppress("UNUSED_VARIABLE") val gateOnWifi = wifiOnly
-        _audioDownloadState.value = AudioDownloadState.InProgress(downloaded = 0L, total = 0L)
-        viewModelScope.launch {
-            val result = readaloudAudioRepository.downloadAudio(item.id) { downloaded, total ->
-                _audioDownloadState.value = AudioDownloadState.InProgress(downloaded, total)
-            }
-            _audioDownloadState.value = when (result) {
-                AudioDownloadResult.Success -> AudioDownloadState.Downloaded
-                AudioDownloadResult.NoBundle -> AudioDownloadState.Error
-                is AudioDownloadResult.NetworkError -> AudioDownloadState.Error
-            }
-            if (result is AudioDownloadResult.NetworkError || result is AudioDownloadResult.NoBundle) {
-                _snackbarEvents.emit("Couldn't download readaloud audio")
-            }
-        }
-    }
-
-    fun onRemoveReadaloudAudioClicked() {
-        val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
-        val sizeBytes = readaloudAudioRepository.bundleFile(item.id)?.length() ?: 0L
-        _audioDownloadState.value = AudioDownloadState.ConfirmingRemove(sizeBytes)
-    }
-
-    fun confirmRemoveAudio() {
-        val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
-        viewModelScope.launch {
-            readaloudAudioRepository.removeAudio(item.id)
-            _audioDownloadState.value = AudioDownloadState.NotDownloaded
-        }
-    }
-
-    fun dismissAudioDownloadDialog() {
-        _audioDownloadState.value = when {
-            readaloudAudioRepository.isAudioAvailable(itemId) -> AudioDownloadState.Downloaded
-            else -> AudioDownloadState.NotDownloaded
         }
     }
 

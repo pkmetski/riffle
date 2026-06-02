@@ -86,6 +86,10 @@ class ReadaloudController @Inject constructor(
 
     fun pause() {
         controller?.pause()
+        // Position is frozen while paused, so stop the 250ms poll; the Player.Listener still pushes
+        // state on transitions (incl. the pause itself). Polling resumes on the next play().
+        pollJob?.cancel()
+        pollJob = null
     }
 
     fun setSpeed(speed: Float) {

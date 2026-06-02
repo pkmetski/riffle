@@ -225,20 +225,8 @@ class LibraryItemDetailViewModelTest {
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
-        readaloudAudioRepository = NoopReadaloudAudioRepository,
         connectivityObserver = connectivityObserver,
     )
-
-    private object NoopReadaloudAudioRepository : com.riffle.core.domain.ReadaloudAudioRepository {
-        override fun isAudioAvailable(itemId: String) = false
-        override fun bundleFile(itemId: String): java.io.File? = null
-        override suspend fun readTrack(itemId: String) = null
-        override suspend fun probeSizeBytes(itemId: String): Long? = null
-        override suspend fun downloadAudio(itemId: String, onProgress: (Long, Long) -> Unit) =
-            com.riffle.core.domain.AudioDownloadResult.NoBundle
-        override suspend fun removeAudio(itemId: String): Long = 0L
-        override suspend fun enforceCacheCap() {}
-    }
 
     private fun serverRepoReturning(server: Server) = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(listOf(server))
