@@ -19,14 +19,18 @@ A matched book should carry the same mark in three places:
 This applies to **both ebook and audiobook** ABS items that have a confirmed
 `ReadaloudLink`.
 
+In addition, the item-detail screen gets a **dedicated "Download readaloud" button**
+for matched ABS items, so the readaloud bundle (synced EPUB + audio) can be provisioned
+without ever visiting the Storyteller library.
+
 ## Explicitly out of scope (shelved)
 
-The earlier idea of a **dedicated readaloud launch button** on the library card —
+The earlier idea of a **dedicated readaloud _launch_ button** on the library card —
 opening the book and auto-starting playback, with a "not downloaded" error — is **not**
-part of this work. No new launch button, no `startReadaloud` nav arg, no auto-play.
-Readaloud continues to start the way it does today (the control inside the reader).
-
-This spec is purely the **indicator/icon**.
+part of this work. No launch-from-library button, no `startReadaloud` nav arg, no
+auto-play. Readaloud continues to *start* the way it does today (the control inside the
+reader). The new detail-screen button **downloads** the bundle; it does not launch
+playback.
 
 ## The icon
 
@@ -77,12 +81,14 @@ unchanged; only the on-cover badges are hidden.
 accessor (e.g. a `painterResource`/`ImageVector` helper) so all three call sites use
 the same source.
 
-### 2. Replace existing headphones usages (icon swap, no behavior change)
-- `LibraryItemsScreen.kt:824` — list-row readaloud badge.
-- `LibraryItemDetailScreen.kt:340` — item-detail readaloud indicator/row.
-- `EpubReaderScreen.kt:394` — reader top-bar readaloud control.
+### 2. Replace existing headphones usages
+- `LibraryItemsScreen.kt:824` — list-row readaloud badge → new icon (straight swap).
+- `EpubReaderScreen.kt:394` — reader top-bar readaloud control → new icon (straight swap).
+- `LibraryItemDetailScreen.kt:340` — this headphones lives inside `ReadaloudFooter`, which
+  is being restructured (see §5). It disappears with the footer; the detail's new indicator
+  icon is added near the title instead.
 
-Drop the now-unused `Icons.Filled.Headphones` imports.
+Drop now-unused `Icons.Filled.Headphones` imports.
 
 ### 3. New: cover overlay in the grid view
 `BookCoverTile` (`LibraryItemsScreen.kt:404`) currently receives no readaloud signal.
@@ -108,6 +114,52 @@ matching-layer change required.
 Audiobook items are **indicator-only**: they have no EPUB to render, so the reader
 top-bar control does not apply to them — the cover overlay and detail indicator do.
 
+### 5. Detail screen: replace footer + add readaloud download button
+
+For a matched **ABS** item:
+
+**a. Replace the footer with the indicator icon.**
+The `AbsHasReadaloud` case of `ReadaloudFooter` (`LibraryItemDetailScreen.kt:310–387`,
+the "Readaloud available — open from …" row with the headphones) is removed. In its
+place, the new icon sits next to the title as a compact indicator (matching the grid /
+reader iconography).
+
+- Scope: this replaces the **ABS-side** footer state (`AbsHasReadaloud`). The
+  Storyteller-side footer states (`ReadaloudLinkedToAbs` unlink, `ReadaloudPendingReview`
+  → review queue, `ReadaloudUnmatched` → manual pair) are shown on the *Readaloud library*
+  item, not the ABS item — they are out of scope here and unchanged. **Confirm during
+  planning** that no ABS-side item relies on those interactive states.
+
+**b. Add a dedicated "Download readaloud" button to the `ActionRow`.**
+A second round 40dp control next to the existing ebook `DownloadButton`, using the new
+glyph. It **downloads the Storyteller bundle** (synced EPUB + audio) for the matched ABS
+item — the work the existing code comment at `LibraryItemDetailScreen.kt:545–550`
+explicitly deferred to "the next slice."
+
+Behavior **mirrors the existing `DownloadButton`** exactly:
+
+- **NotDownloaded:** outlined circle, new glyph (outline tint), tap → download.
+- **InProgress:** circular progress indicator.
+- **Downloaded:** filled (`primaryContainer`) circle, new glyph, **tap → remove** the
+  bundle. (Second-tap-removes, same as the ebook button.)
+- **No size** is shown.
+- **Offline/metered:** reuse the existing readaloud handling — disabled with the
+  "Connect to download readaloud audio" affordance when there's no usable connection.
+
+Visibility: only for ABS items with a confirmed `ReadaloudLink`. Not shown on Storyteller
+(Readaloud library) items — their single `DownloadButton` already fetches the whole bundle
+(EPUB + audio), per the `:545–550` comment; a second control there would delete the bundle
+the reader uses.
+
+Wiring (planning to detail):
+- A readaloud `DownloadState` (NotDownloaded / InProgress / Downloaded) for the matched
+  ABS item, backed by `ReadaloudAudioRepository.isAudioAvailable(itemId)` plus a
+  download/remove action. The download/probe path already exists in
+  `EpubReaderViewModel.onPlayTapped` (`probeSizeBytes` + bundle download) and
+  `ReadaloudAudioRepository` — reuse it from `LibraryItemDetailViewModel`.
+- `LibraryItemDetailViewModel` exposes: is-matched, readaloud download state, and
+  `onDownloadReadaloud` / `onRemoveReadaloud`.
+
 ## Accessibility
 
 `contentDescription` updated to convey the concept, e.g. *"Has readaloud (synced
@@ -118,7 +170,12 @@ narration)"*, at every call site. The cover overlay carries the same description
 - **Grid overlay:** a matched **ebook** shows the icon top-right; a matched
   **audiobook** shows it; an **unmatched** item shows nothing. **No "C"/"D" badges**
   render on grid covers anymore.
-- **Detail:** matched item shows the new icon (not headphones).
+- **Detail:** matched ABS item shows the new icon by the title (old "Readaloud
+  available" footer gone); an unmatched item shows neither icon nor download button.
+- **Readaloud download button:** appears only for matched ABS items; renders the three
+  states (NotDownloaded / InProgress / Downloaded); tap downloads, second tap removes;
+  disabled with the offline affordance when there's no connection. Not shown on
+  Storyteller (Readaloud library) items.
 - **Reader:** top-bar readaloud control renders the new icon; existing readaloud
   open/play tests still pass.
 - **Drawable:** the vector inflates without error and is legible at 16–17dp
@@ -130,3 +187,7 @@ narration)"*, at every call site. The cover overlay carries the same description
 
 1. Exact resource module location for the shared drawable (app vs. a core/ui module),
    following existing icon-resource conventions.
+2. Confirm no ABS-side detail relies on the interactive footer states being removed
+   (§5a) — i.e., the ABS item only ever shows `AbsHasReadaloud`.
+3. Confirm the bundle download/remove API surfaced for `LibraryItemDetailViewModel`
+   reuses the existing `ReadaloudAudioRepository` path without duplicating logic.
