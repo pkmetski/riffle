@@ -33,18 +33,16 @@ It stays a **dedicated screen**. The Storyteller expansion shows a compact **sum
 row that navigates to the existing screen. The expansion only relocates the entry point under
 its server; it does not inline the matches UI.
 
-### Audio cache — make it genuinely global, not per-server (Option A + cleanup)
+### Audio cache — left untouched, out of scope
 
-Today the cache cap is *stored* per Storyteller server id, but the cache itself is a single
-shared on-disk store and `enforceCacheCap()` applies only the **active** server's cap to it.
-The per-server-ness is an implementation artifact, not real isolation, and would be a lie if
-surfaced under each server's expansion.
+The readaloud audio-cache cap is **not part of this task**. It only ever governs Storyteller
+readaloud audio (ABS EPUB/PDF books live in entirely separate cache/download stores with no
+app-level cap), and making it genuinely global — let alone unifying it with the book caches —
+is a separate piece of work.
 
-Resolution: treat the cap as **one global setting** and clean up the code to match.
-
-- It is **not** placed in any server's expansion. It remains its own section
-  ("Readaloud audio cache"), shown whenever at least one Storyteller server exists.
-- Storage collapses from per-`serverId` keys to a single global key.
+Resolution: the existing `Audio cache` section stays **exactly as it is today** (its own
+section, per-Storyteller-server dropdowns). It is **not** moved into any server expansion and
+no cache code is changed.
 
 ## Affected code
 
@@ -58,8 +56,7 @@ Resolution: treat the cap as **one global setting** and clean up the code to mat
 - Storyteller expansion renders the matches summary + navigate row (currently the standalone
   `Readaloud matches` section).
 - Remove the standalone `Libraries` and `Readaloud matches` sections.
-- `Audio cache` section becomes a single global "Readaloud audio cache" cap dropdown
-  (shown when any Storyteller server exists), no longer per-server.
+- Leave the `Audio cache` section exactly as-is (out of scope).
 
 ### ViewModel — `app/.../feature/settings/SettingsViewModel.kt`
 
@@ -69,27 +66,19 @@ Resolution: treat the cap as **one global setting** and clean up the code to mat
   server is out of scope for v1 — only the active ABS server shows its library switches.
   Non-active ABS expansions show a short note ("Activate this server to manage its
   libraries") rather than fetching. *(Confirm during planning — see Open questions.)*
-- `audioCacheCaps: StateFlow<Map<String, Long>>` → single `audioCacheCap: StateFlow<Long>`.
-- `setAudioCacheCap(serverId, cap)` → `setAudioCacheCap(cap)`.
+- `audioCacheCaps` / `setAudioCacheCap` are left unchanged (cache out of scope).
 - Add a matches **summary** stream per Storyteller server (counts of confirmed / pending /
   unmatched) to feed the expansion. Derive from the same source
   `ReadaloudMatchesViewModel` uses (`ReadaloudReview`).
 
-### Cache store — make global
+### Cache store — unchanged
 
-- `AudioCachePreferencesStore`: `capBytes(serverId)` / `setCapBytes(serverId, cap)` →
-  `capBytes()` / `setCapBytes(cap)`.
-- `AudioCachePreferencesStoreImpl`: single key `longPreferencesKey("audio_cache_cap")`
-  instead of `audio_cache_cap_$serverId`. No DataStore migration of old per-server values
-  is required (caps are a convenience setting that re-defaults to 2 GB); note this in the PR.
-- `ReadaloudAudioRepositoryImpl.enforceCacheCap()`: drop the `getActive()` lookup; read the
-  global cap directly.
-- Update the KDoc on the store (no longer "Per-Storyteller-Server").
+The audio-cache store, preferences, and `enforceCacheCap()` are **not touched** by this task.
 
 ## Testing
 
-- `SettingsViewModelTest`: update for the global `audioCacheCap` / `setAudioCacheCap(cap)`
-  signature; add a test for the new matches-summary stream.
+- `SettingsViewModelTest`: add a test for the new matches-summary stream. Audio-cache tests
+  stay as-is.
 - Harness UI test (phone form factor): expanding an ABS server reveals its library switches;
   expanding a Storyteller server reveals the matches summary + navigate row; collapsing hides
   them. Follow existing settings harness-test patterns.
@@ -98,12 +87,11 @@ Resolution: treat the cap as **one global setting** and clean up the code to mat
 ## Out of scope
 
 - Inlining the full matches UI (rejected — Option A chosen).
-- Genuinely partitioning the audio cache per server (Option B from discussion).
+- Any change to the readaloud audio-cache (global cap, per-server partitioning, or a unified
+  app-wide cap spanning the EPUB/PDF book caches) — all deferred as separate work.
 - Managing libraries for non-active ABS servers (deferred; see Open questions).
 
 ## Open questions (resolve in planning)
 
 1. Non-active ABS server expansion: show a "activate to manage" note vs. fetch libraries for
    any ABS server. Leaning toward the note for v1.
-2. Should the global audio-cache section move under a general "Storyteller" heading, or stay a
-   top-level "Readaloud audio cache" section? Leaning top-level.
