@@ -150,8 +150,30 @@ class SettingsViewModelTest {
         visibilityStore = fakeVisibilityStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        audioCachePreferencesStore = fakeAudioCacheStore,
+        readaloudAudioRepository = fakeReadaloudAudioRepo,
         connectivityObserver = fakeConnectivity,
     )
+
+    private val fakeAudioCacheStore = object : com.riffle.core.domain.AudioCachePreferencesStore {
+        private val caps = MutableStateFlow<Map<String, Long>>(emptyMap())
+        override fun capBytes(serverId: String): Flow<Long> =
+            caps.map { it[serverId] ?: com.riffle.core.domain.AudioCachePreferencesStore.DEFAULT_CAP_BYTES }
+        override suspend fun setCapBytes(serverId: String, capBytes: Long) {
+            caps.update { it + (serverId to capBytes) }
+        }
+    }
+
+    private val fakeReadaloudAudioRepo = object : com.riffle.core.domain.ReadaloudAudioRepository {
+        override fun isAudioAvailable(itemId: String) = false
+        override fun bundleFile(itemId: String): java.io.File? = null
+        override suspend fun readTrack(itemId: String) = null
+        override suspend fun probeSizeBytes(itemId: String): Long? = null
+        override suspend fun downloadAudio(itemId: String, onProgress: (Long, Long) -> Unit) =
+            com.riffle.core.domain.AudioDownloadResult.NoBundle
+        override suspend fun removeAudio(itemId: String): Long = 0L
+        override suspend fun enforceCacheCap() {}
+    }
 
     // --- existing crash report tests (unchanged) ---
 

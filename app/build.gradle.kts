@@ -123,6 +123,10 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.okhttp)
 
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
+    implementation(libs.media3.common)
+
     implementation(libs.readium.shared)
     implementation(libs.readium.streamer)
     implementation(libs.readium.navigator)

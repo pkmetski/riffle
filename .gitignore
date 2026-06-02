@@ -30,3 +30,6 @@ gradle/gradle-daemon-jvm.properties
 
 # Superpowers brainstorm sessions
 .superpowers/
+
+# Local Claude Code runtime lock (transient)
+.claude/scheduled_tasks.lock

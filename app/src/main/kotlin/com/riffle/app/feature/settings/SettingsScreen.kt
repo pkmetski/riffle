@@ -3,6 +3,7 @@ package com.riffle.app.feature.settings
 import android.content.ClipData
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.FormattingPanel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.core.domain.AudioCachePreferencesStore
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
@@ -64,6 +68,8 @@ fun SettingsScreen(
     val servers by viewModel.servers.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItems by viewModel.libraryUiItems.collectAsState()
+    val storytellerServers by viewModel.storytellerServers.collectAsState()
+    val audioCacheCaps by viewModel.audioCacheCaps.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
@@ -175,6 +181,45 @@ fun SettingsScreen(
                     HorizontalDivider()
                 }
 
+                if (storytellerServers.isNotEmpty()) {
+                    Text(
+                        text = "Audio cache",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    HorizontalDivider()
+                    storytellerServers.forEach { server ->
+                        val capBytes = audioCacheCaps[server.id] ?: AUDIO_CACHE_DEFAULT_CAP_BYTES
+                        var menuExpanded by remember(server.id) { mutableStateOf(false) }
+                        ListItem(
+                            headlineContent = { Text(server.name) },
+                            supportingContent = { Text("Maximum auto-cached audio") },
+                            trailingContent = {
+                                Box {
+                                    TextButton(onClick = { menuExpanded = true }) {
+                                        Text(formatBytesAsGb(capBytes))
+                                    }
+                                    DropdownMenu(
+                                        expanded = menuExpanded,
+                                        onDismissRequest = { menuExpanded = false },
+                                    ) {
+                                        AUDIO_CACHE_CAP_PRESETS.forEach { preset ->
+                                            DropdownMenuItem(
+                                                text = { Text(formatBytesAsGb(preset)) },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    viewModel.setAudioCacheCap(server.id, preset)
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                    }
+                    HorizontalDivider()
+                }
+
                 Text(
                     text = "Reading",
                     style = MaterialTheme.typography.titleSmall,
@@ -256,4 +301,17 @@ fun SettingsScreen(
             fullScreen = true,
         )
     }
+}
+
+private const val GIB: Long = 1024L * 1024 * 1024
+
+private val AUDIO_CACHE_DEFAULT_CAP_BYTES: Long = AudioCachePreferencesStore.DEFAULT_CAP_BYTES
+
+/** Preset audio-cache caps offered in the dropdown: 1 / 2 / 5 / 10 GB. */
+private val AUDIO_CACHE_CAP_PRESETS: List<Long> = listOf(1, 2, 5, 10).map { it * GIB }
+
+/** Renders a byte cap as a whole-number "N GB" label. */
+private fun formatBytesAsGb(bytes: Long): String {
+    val gb = (bytes + GIB / 2) / GIB
+    return "$gb GB"
 }

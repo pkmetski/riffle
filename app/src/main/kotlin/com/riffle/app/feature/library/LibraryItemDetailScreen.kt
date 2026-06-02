@@ -490,6 +490,12 @@ private fun ActionRow(
                     onToggle = onToggleToRead,
                 )
             }
+            // For a Storyteller (Readaloud) book the synced bundle is BOTH the EPUB and the audio
+            // source (ADR 0023), so the single DownloadButton already downloads/removes the audio.
+            // A separate readaloud download/remove control here would be redundant and, worse, would
+            // delete the very bundle the reader is using — so it is intentionally absent. Listening
+            // happens in the reader (its headphones action); proactively fetching the audio for a
+            // matched ABS book is the next slice's concern.
             DownloadButton(
                 state = downloadState,
                 onDownload = onDownload,

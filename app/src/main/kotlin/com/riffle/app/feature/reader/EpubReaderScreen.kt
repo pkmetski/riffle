@@ -14,7 +14,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
@@ -28,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -70,6 +70,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
+import com.riffle.app.feature.reader.readaloud.ReadaloudExpandedSheet
+import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -180,6 +183,15 @@ fun EpubReaderScreen(
     val tocVisible by viewModel.tocVisible.collectAsState()
     val footnotePopup by viewModel.footnotePopup.collectAsState()
 
+    val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
+    val readaloudOpen by viewModel.readaloudOpen.collectAsState()
+    val readaloudExpanded by viewModel.readaloudExpanded.collectAsState()
+    val playbackState by viewModel.playbackState.collectAsState()
+    val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
+    val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
+    val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
+
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
@@ -227,6 +239,10 @@ fun EpubReaderScreen(
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
+                        activeFragmentRef = activeFragmentRef,
+                        advancePageEvents = viewModel.advancePageEvents,
+                        onReportVisibleFragments = viewModel::reportVisibleFragments,
+                        onPlayFromHere = viewModel::playFromHere,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -260,24 +276,68 @@ fun EpubReaderScreen(
             }
         }
 
-        // Chapter rail lives in the outer (unpadded) Box so it remains anchored to the
-        // absolute screen bottom — the system nav bar overlays it without shifting it up.
-        // Rail state (cursorPosition at scroll framerate) is isolated inside the overlay so
-        // EpubNavigatorView does not recompose on every scroll event.
-        if (state is ReaderState.Ready &&
+        // Bottom stack (player bar above the chapter rail), both anchored to the absolute screen
+        // bottom in one Column so the readaloud bar floats directly above the rail. The system nav
+        // bar overlays this column without shifting it up.
+        val showRailOverlay = state is ReaderState.Ready &&
             (
                 formattingPrefs.showChapterMap ||
                     formattingPrefs.showReadingProgressLabels ||
                     formattingPrefs.showCurrentChapterLabel
                 )
-        ) {
-            EpubChapterRailOverlay(
-                viewModel = viewModel,
-                showRail = formattingPrefs.showChapterMap,
-                showProgressLabels = formattingPrefs.showReadingProgressLabels,
-                showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
-                readerTheme = formattingPrefs.theme,
-                modifier = Modifier.align(Alignment.BottomCenter),
+        if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
+            Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+                if (readaloudOpen) {
+                    // Reference the reader-theme palette so the player matches the chapter-rail
+                    // overlay backdrop (which paints readerTheme.palette.background) and the two
+                    // read as one continuous, theme-following strip.
+                    val readerPalette = formattingPrefs.theme.palette
+                    ReadaloudMiniPlayer(
+                        isPlaying = playbackState.isPlaying,
+                        speed = playbackState.speed,
+                        offlineMessage = readaloudOfflineMessage,
+                        downloadProgress = downloadProgress,
+                        containerColor = readerPalette.background,
+                        contentColor = readerPalette.foreground,
+                        onPlayPause = viewModel::togglePlayPause,
+                        onCycleSpeed = {
+                            // Cycle 0.75× → 1× → 1.25× → 1.5× → 2× → 0.75×.
+                            val speeds = com.riffle.app.feature.reader.readaloud.ReadaloudController.SPEEDS
+                            val idx = speeds.indexOfFirst { kotlin.math.abs(it - playbackState.speed) < 0.001f }
+                            viewModel.setSpeed(if (idx < 0) 1f else speeds[(idx + 1) % speeds.size])
+                        },
+                        onClose = viewModel::closeReadaloud,
+                        onExpand = viewModel::expandPlayer,
+                    )
+                }
+                if (showRailOverlay) {
+                    EpubChapterRailOverlay(
+                        viewModel = viewModel,
+                        showRail = formattingPrefs.showChapterMap,
+                        showProgressLabels = formattingPrefs.showReadingProgressLabels,
+                        showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
+                        readerTheme = formattingPrefs.theme,
+                    )
+                }
+            }
+        }
+
+        if (readaloudOpen && readaloudExpanded) {
+            ReadaloudExpandedSheet(
+                isPlaying = playbackState.isPlaying,
+                speed = playbackState.speed,
+                positionSec = playbackState.positionSec,
+                onPlayPause = viewModel::togglePlayPause,
+                onSpeedSelected = viewModel::setSpeed,
+                onDismiss = viewModel::collapsePlayer,
+            )
+        }
+
+        downloadPromptBytes?.let { bytes ->
+            ReadaloudDownloadDialog(
+                sizeBytes = bytes,
+                onConfirm = { wifiOnly -> viewModel.confirmDownloadAudio(wifiOnly) },
+                onDismiss = viewModel::dismissDownloadPrompt,
             )
         }
 
@@ -320,6 +380,14 @@ fun EpubReaderScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.semantics { contentDescription = "Format" },
                                 )
+                            }
+                            if (readaloudAvailable) {
+                                IconButton(
+                                    onClick = viewModel::openReadaloud,
+                                    modifier = Modifier.testTag("readaloud_open"),
+                                ) {
+                                    Icon(Icons.Default.Headphones, contentDescription = "Readaloud")
+                                }
                             }
                         }
                     },
@@ -365,7 +433,7 @@ internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefau
 
 // Isolated scope: cursorPosition updates only recompose this composable, not sibling EpubNavigatorView.
 @Composable
-private fun BoxScope.EpubChapterRailOverlay(
+private fun EpubChapterRailOverlay(
     viewModel: EpubReaderViewModel,
     showRail: Boolean,
     showProgressLabels: Boolean,
@@ -514,6 +582,10 @@ private fun EpubNavigatorView(
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: String) -> Unit,
+    activeFragmentRef: String?,
+    advancePageEvents: Flow<Unit>,
+    onReportVisibleFragments: (Set<String>) -> Unit,
+    onPlayFromHere: (fragmentRef: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -535,7 +607,43 @@ private fun EpubNavigatorView(
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
+    val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
     val currentPublication by rememberUpdatedState(state.publication)
+
+    // "Play from here" is added to the WebView text-selection action bar via Readium's
+    // selectionActionModeCallback hook (the only supported way to customise the selection menu in
+    // 3.0.0). On click we read currentSelection() and derive a SMIL fragment ref from the selection
+    // locator. Limitation: a free-text selection rarely lands exactly on a SMIL <par> boundary, so
+    // we use the selection's first fragment id (locations.fragments) when present, falling back to
+    // the bare href; ReadaloudTrack.clipForFragment then matches the nearest narrated clip it can.
+    val playFromHereMenuId = remember { View.generateViewId() }
+    val playFromHereActionMode = remember {
+        object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                menu.add(0, playFromHereMenuId, 0, "Play from here")
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
+
+            override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                if (item.itemId != playFromHereMenuId) return false
+                val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator ?: return false
+                coroutineScope.launch {
+                    val selection = selectable.currentSelection() ?: return@launch
+                    val loc = selection.locator
+                    val fragId = loc.locations.fragments.firstOrNull()
+                    val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
+                    currentOnPlayFromHere(ref)
+                    selectable.clearSelection()
+                }
+                mode.finish()
+                return true
+            }
+
+            override fun onDestroyActionMode(mode: android.view.ActionMode) {}
+        }
+    }
     // ConcurrentHashMap: writes happen on Dispatchers.IO from the locator
     // coroutine; reads happen on the JS binder thread inside resolveAnchorTap.
     val footnoteDocCache = remember { ConcurrentHashMap<String, Document>() }
@@ -651,6 +759,101 @@ private fun EpubNavigatorView(
             fragment.applyDecorations(decorations, group = "search")
         }
         hasActiveDecorations.value = true
+    }
+
+    // ---- Readaloud synced highlight --------------------------------------------------------
+    // Uses the same Readium DecorableNavigator mechanism as search, on its own "readaloud" group
+    // so it doesn't clobber search highlights. The active fragment ref is "href#fragId"; we build
+    // a Locator with that href and a cssSelector targeting the fragment id, which is how Readium's
+    // EPUB decorator resolves the DOM range for a highlight. Null clears the decoration.
+    val hasReadaloudDecoration = remember { mutableStateOf(false) }
+    LaunchedEffect(activeFragmentRef) {
+        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        val ref = activeFragmentRef
+        if (ref == null) {
+            if (!hasReadaloudDecoration.value) return@LaunchedEffect
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "readaloud")
+            }
+            hasReadaloudDecoration.value = false
+            return@LaunchedEffect
+        }
+        val hashIdx = ref.indexOf('#')
+        val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
+        val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
+        val locatorJson = JSONObject()
+            .put("href", href)
+            .put("type", "application/xhtml+xml")
+            .put(
+                "locations",
+                JSONObject().apply {
+                    if (fragId != null) {
+                        put("fragments", org.json.JSONArray().put(fragId))
+                        put("cssSelector", "#$fragId")
+                    }
+                },
+            )
+        val locator = Locator.fromJSON(locatorJson) ?: return@LaunchedEffect
+        val decoration = Decoration(
+            id = "readaloud_active",
+            locator = locator,
+            style = Decoration.Style.Highlight(
+                tint = android.graphics.Color.parseColor("#FF7DD3FC"),
+                isActive = true,
+            ),
+        )
+        withContext(Dispatchers.Main) {
+            fragment.applyDecorations(listOf(decoration), group = "readaloud")
+        }
+        hasReadaloudDecoration.value = true
+    }
+
+    // ---- Auto-page-turn --------------------------------------------------------------------
+    // When the coordinator signals the narrated sentence has scrolled off-screen, advance using
+    // the same navigation calls the volume-key path uses (goForward for paginated, scroll-to-
+    // bottom for continuous). Approximation note: Readium 3.0.0 has no API to enumerate the
+    // fragment refs actually rendered in the viewport, so we report a coarse visible set built
+    // from the current locator's href below; the coordinator treats the active sentence as
+    // off-screen once it moves past that set.
+    LaunchedEffect(advancePageEvents) {
+        advancePageEvents.collect {
+            val fragment = fragmentRef.value ?: return@collect
+            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical) {
+                // Continuous: scroll down by a viewport height.
+                launch {
+                    fragment.evaluateJavascript(
+                        "window.scrollBy(0, window.innerHeight * 0.9);"
+                    )
+                }
+            } else {
+                fragment.goForward(animated = false)
+            }
+        }
+    }
+
+    // Feed the coordinator a coarse visible-fragment set. Readium 3.0.0 does not expose the exact
+    // fragment refs rendered in the viewport, so we approximate by snapshotting the fragment that
+    // was active at the moment the page last settled (the locator href changed). While playback
+    // stays on that page the snapshot is the "visible" set; once the active clip's document index
+    // climbs past it, AutoPageTurnRule fires an advance. This is intentionally conservative — it
+    // advances when audio moves beyond where the page settled, not mid-sentence.
+    val pageSettledFragment = remember { mutableStateOf<String?>(null) }
+    val currentActiveFragmentRef by rememberUpdatedState(activeFragmentRef)
+    // Snapshot whenever the locator href changes (a new page/chapter has rendered).
+    LaunchedEffect(fragmentRef.value) {
+        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        var lastHref: String? = null
+        fragment.currentLocator.collect { locator ->
+            val href = locator.href.toString()
+            if (href != lastHref) {
+                lastHref = href
+                pageSettledFragment.value = currentActiveFragmentRef
+            }
+        }
+    }
+    LaunchedEffect(pageSettledFragment.value) {
+        val ref = pageSettledFragment.value
+        onReportVisibleFragments(if (ref != null) setOf(ref) else emptySet())
     }
 
     LaunchedEffect(volumeNavEvents) {
@@ -807,6 +1010,8 @@ private fun EpubNavigatorView(
                             registerJavascriptInterface(FootnoteAnchorBridge.JS_NAME) { _ ->
                                 FootnoteAnchorBridge.bridge
                             }
+                            // Adds the "Play from here" item to the text-selection action bar.
+                            selectionActionModeCallback = playFromHereActionMode
                         },
                         listener = fragmentListener,
                         paginationListener = paginationListener,
