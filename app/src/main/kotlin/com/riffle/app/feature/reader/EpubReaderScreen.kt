@@ -27,8 +27,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.res.painterResource
+import com.riffle.app.R
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -186,6 +187,7 @@ fun EpubReaderScreen(
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
+    val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
     val readaloudExpanded by viewModel.readaloudExpanded.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
@@ -384,12 +386,16 @@ fun EpubReaderScreen(
                                     modifier = Modifier.semantics { contentDescription = "Format" },
                                 )
                             }
-                            if (readaloudAvailable) {
+                            if (readaloudVisible) {
                                 IconButton(
                                     onClick = viewModel::openReadaloud,
+                                    enabled = readaloudAvailable,
                                     modifier = Modifier.testTag("readaloud_open"),
                                 ) {
-                                    Icon(Icons.Default.Headphones, contentDescription = "Readaloud")
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_readaloud),
+                                        contentDescription = "Readaloud",
+                                    )
                                 }
                             }
                         }
