@@ -1,6 +1,13 @@
 package com.riffle.core.network
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import okhttp3.Call
+import okhttp3.Connection
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -12,6 +19,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class AudiobookBundleApiTest {
 
@@ -66,6 +75,41 @@ class AudiobookBundleApiTest {
         result as NetworkAudiobookBundleResult.Success
         assertEquals(128L, result.totalBytes)
         assertTrue(result.isPartial)
+    }
+
+    @Test fun cancelledDuringSlowHeaderWait_doesNotLeakConnection() = runBlocking {
+        val acquired = AtomicInteger()
+        val released = AtomicInteger()
+        val countingClient = OkHttpClient.Builder()
+            .eventListener(object : EventListener() {
+                override fun connectionAcquired(call: Call, connection: Connection) { acquired.incrementAndGet() }
+                override fun connectionReleased(call: Call, connection: Connection) { released.incrementAndGet() }
+            })
+            .build()
+        val leakApi: AudiobookBundleApi = AudiobookBundleApiImpl(countingClient)
+
+        server.enqueue(
+            MockResponse()
+                .setHeader("Content-Length", "64")
+                .setBody(Buffer().write(ByteArray(64)))
+                .setHeadersDelay(500, TimeUnit.MILLISECONDS),
+        )
+
+        val job = launch(Dispatchers.IO) {
+            leakApi.openBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L)
+        }
+        delay(100)
+        job.cancel()
+        job.join()
+
+        var waited = 0
+        while (acquired.get() == 0 || released.get() < acquired.get()) {
+            if (waited >= 2000) break
+            delay(50); waited += 50
+        }
+
+        assertTrue("Expected a connection to be acquired", acquired.get() >= 1)
+        assertEquals("Leaked connection: acquired but never released", acquired.get(), released.get())
     }
 
     @Test fun nonSuccess_returnsNetworkError() = runTest {

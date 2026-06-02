@@ -1,6 +1,7 @@
 package com.riffle.core.network
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -75,6 +76,15 @@ class StorytellerBundleApiImpl(
                 IOException("Empty response body")
             )
             if (response.isSuccessful) {
+                // execute() blocks through Storyteller's slow /synced header wait; if the coroutine
+                // was cancelled during it, withContext will discard this Success and leak the open
+                // body. Close it ourselves before handing ownership to the (live) caller.
+                try {
+                    ensureActive()
+                } catch (e: Throwable) {
+                    body.close()
+                    throw e
+                }
                 NetworkStorytellerBundleResult.Success(body)
             } else {
                 body.close()
