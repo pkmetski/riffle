@@ -103,6 +103,7 @@ class EpubReaderViewModel @Inject constructor(
     private val playerCoordinator: PlayerCoordinator,
     private val storytellerSyncController: StorytellerPositionSyncController,
     private val serverRepository: ServerRepository,
+    private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
@@ -235,6 +236,13 @@ class EpubReaderViewModel @Inject constructor(
     private val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
 
+    private val _readaloudVisible = MutableStateFlow(false)
+    val readaloudVisible: StateFlow<Boolean> = _readaloudVisible
+
+    // The id under which the synced bundle is stored. For a matched ABS book this is the linked
+    // Storyteller book id; for a Storyteller book (or unmatched ABS) it is the opened itemId.
+    private var audioBookId: String = itemId
+
     // Whether the bottom mini-player / sheet is showing.
     private val _readaloudOpen = MutableStateFlow(false)
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
@@ -317,8 +325,23 @@ class EpubReaderViewModel @Inject constructor(
             // while ABS books qualify only when a synced bundle has already been downloaded.
             val activeServer = serverRepository.getActive()
             isStorytellerServer = activeServer?.serverType == ServerType.STORYTELLER
-            _readaloudAvailable.value =
-                isStorytellerServer || readaloudAudioRepository.isAudioAvailable(itemId)
+
+            // Matched ABS book → key the bundle by the linked Storyteller book id (the bundle
+            // is stored under that id, not the ABS item id). Storyteller side keeps itemId.
+            val link = if (!isStorytellerServer && activeServer != null) {
+                readaloudLinkRepository.findByAbsItem(activeServer.id, itemId)
+            } else {
+                null
+            }
+            audioBookId = link?.storytellerBookId ?: itemId
+
+            val control = readaloudControlState(
+                isStoryteller = isStorytellerServer,
+                isMatchedAbs = link != null,
+                bundlePresent = readaloudAudioRepository.isAudioAvailable(audioBookId),
+            )
+            _readaloudVisible.value = control.visible
+            _readaloudAvailable.value = control.enabled
 
             // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
             if (!isStorytellerServer && activeServer != null) {
@@ -870,7 +893,7 @@ class EpubReaderViewModel @Inject constructor(
      */
     fun onPlayTapped() {
         _readaloudOfflineMessage.value = false
-        val bundle = readaloudAudioRepository.bundleFile(itemId)
+        val bundle = readaloudAudioRepository.bundleFile(audioBookId)
         if (bundle != null) {
             viewModelScope.launch { ensurePreparedAndPlay(bundle) }
             return
@@ -882,14 +905,14 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
             // the user can still choose to download.
-            _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(itemId) ?: 0L
+            _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioBookId) ?: 0L
         }
     }
 
     /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
     fun playFromHere(fragmentRef: String) {
         if (!_readaloudOpen.value) openReadaloud()
-        val bundle = readaloudAudioRepository.bundleFile(itemId)
+        val bundle = readaloudAudioRepository.bundleFile(audioBookId)
         if (bundle == null) {
             // No bundle yet — fall through to the normal play path (prompt/notify) so the user is
             // told to download first.
@@ -915,14 +938,14 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _downloadProgress.value = 0f
-            val result = readaloudAudioRepository.downloadAudio(itemId) { downloaded, total ->
+            val result = readaloudAudioRepository.downloadAudio(audioBookId) { downloaded, total ->
                 if (total > 0) _downloadProgress.value = downloaded.toFloat() / total.toFloat()
             }
             _downloadProgress.value = null
             when (result) {
                 com.riffle.core.domain.AudioDownloadResult.Success -> {
                     _readaloudAvailable.value = true
-                    readaloudAudioRepository.bundleFile(itemId)?.let { ensurePreparedAndPlay(it) }
+                    readaloudAudioRepository.bundleFile(audioBookId)?.let { ensurePreparedAndPlay(it) }
                 }
                 com.riffle.core.domain.AudioDownloadResult.NoBundle -> Unit
                 is com.riffle.core.domain.AudioDownloadResult.NetworkError ->
@@ -967,7 +990,7 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun ensureOpened(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
         val track = ensureTrack(bundle) ?: return null
         if (!readaloudPrepared) {
-            playerCoordinator.open(itemId, bundle, track)
+            playerCoordinator.open(audioBookId, bundle, track)
             readaloudPrepared = true
         }
         return track
@@ -975,7 +998,7 @@ class EpubReaderViewModel @Inject constructor(
 
     private suspend fun ensureTrack(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
         readaloudTrack?.let { return it }
-        val track = readaloudAudioRepository.readTrack(itemId) ?: return null
+        val track = readaloudAudioRepository.readTrack(audioBookId) ?: return null
         readaloudTrack = track
         return track
     }
