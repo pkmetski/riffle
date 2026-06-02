@@ -1,7 +1,9 @@
 package com.riffle.app.feature.reader.readaloud
 
 import android.net.Uri
+import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -16,6 +18,7 @@ import java.util.zip.ZipFile
  *
  * Seeks are honoured by reopening the entry and skipping, since zip entry streams are forward-only.
  */
+@OptIn(UnstableApi::class)
 internal class ZipAudioDataSource(private val bundle: File) : BaseDataSource(/* isNetwork = */ false) {
 
     private var zip: ZipFile? = null

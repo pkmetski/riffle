@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader.readaloud
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import java.io.File
 
@@ -9,6 +11,7 @@ import java.io.File
  * [ReadaloudController] sets the current bundle here before connecting and queuing media. There is
  * only ever one Readaloud playing at a time, so a single slot is sufficient.
  */
+@OptIn(UnstableApi::class)
 internal object SharedBundle {
     @Volatile
     var current: File? = null

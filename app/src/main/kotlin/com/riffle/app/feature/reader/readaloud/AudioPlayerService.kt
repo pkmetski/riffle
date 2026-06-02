@@ -1,8 +1,10 @@
 package com.riffle.app.feature.reader.readaloud
 
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.session.MediaSession
@@ -20,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture
  * bundle on disk (ADR 0023). The bundle file is supplied per book by [ReadaloudController] before
  * playback begins.
  */
+@OptIn(UnstableApi::class)
 class AudioPlayerService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
