@@ -78,7 +78,7 @@ class ReadaloudReviewRepositoryImpl(
             .groupBy { it.storytellerBookId }
             .mapNotNull { (storytellerBookId, links) ->
                 val targets = links.mapNotNull { link ->
-                    val abs = libraryItemDao.getById(link.absLibraryItemId) ?: return@mapNotNull null
+                    val abs = libraryItemDao.getById(link.absServerId, link.absLibraryItemId) ?: return@mapNotNull null
                     ConfirmedReadaloud.ConfirmedTarget(
                         absServerId = link.absServerId,
                         absLibraryItemId = link.absLibraryItemId,
@@ -87,7 +87,7 @@ class ReadaloudReviewRepositoryImpl(
                     )
                 }
                 if (targets.isEmpty()) return@mapNotNull null
-                val book = libraryItemDao.getById(storytellerBookId)
+                val book = libraryItemDao.getById(storytellerServerId, storytellerBookId)
                 ConfirmedReadaloud(
                     storytellerServerId = storytellerServerId,
                     storytellerBookId = storytellerBookId,
@@ -100,11 +100,11 @@ class ReadaloudReviewRepositoryImpl(
         val pending = books
             .filter { it.itemId !in confirmedBookIds && candidatesByBook.containsKey(it.itemId) }
             .map { book ->
-                val bookEntity = libraryItemDao.getById(book.itemId)
+                val bookEntity = libraryItemDao.getById(storytellerServerId, book.itemId)
                 val cands = candidatesByBook.getValue(book.itemId)
                     .sortedByDescending { it.score }
                     .mapNotNull { cand ->
-                        val abs = libraryItemDao.getById(cand.absLibraryItemId) ?: return@mapNotNull null
+                        val abs = libraryItemDao.getById(cand.absServerId, cand.absLibraryItemId) ?: return@mapNotNull null
                         AbsCandidate(
                             absServerId = cand.absServerId,
                             absLibraryItemId = cand.absLibraryItemId,
@@ -132,7 +132,7 @@ class ReadaloudReviewRepositoryImpl(
         val unmatched = books
             .filter { it.itemId !in confirmedBookIds && it.itemId !in pendingBookIds }
             .map { book ->
-                val bookEntity = libraryItemDao.getById(book.itemId)
+                val bookEntity = libraryItemDao.getById(storytellerServerId, book.itemId)
                 UnmatchedReadaloud(
                     storytellerServerId = storytellerServerId,
                     storytellerBookId = book.itemId,
@@ -218,7 +218,7 @@ class ReadaloudReviewRepositoryImpl(
         return matched
             .sortedBy { it.title.lowercase() }
             .mapNotNull { row ->
-                val abs: LibraryItemEntity = libraryItemDao.getById(row.itemId) ?: return@mapNotNull null
+                val abs: LibraryItemEntity = libraryItemDao.getById(row.serverId, row.itemId) ?: return@mapNotNull null
                 val name = libraryNameCache.getOrPut(abs.libraryId) {
                     libraryDao.getById(abs.libraryId)?.name ?: abs.libraryId
                 }

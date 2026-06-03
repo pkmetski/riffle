@@ -107,6 +107,7 @@ class PdfRepositoryTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Pdf,
         ebookFileIno = ino,
+        serverId = "server-1",
     )
 
     // --- openPdf ---
@@ -122,12 +123,12 @@ class PdfRepositoryTest {
     fun `openPdf with cache miss writes file to cache for subsequent opens`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
         repo.openPdf(item())
-        assertTrue(cacheStore.get("item-1") != null)
+        assertTrue(cacheStore.get("server-1", "item-1") != null)
     }
 
     @Test
     fun `openPdf with cache hit makes no network request`() = runTest {
-        cacheStore.save("item-1", pdfBytes.inputStream())
+        cacheStore.save("server-1", "item-1", pdfBytes.inputStream())
         val result = repo.openPdf(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is PdfOpenResult.Success)
@@ -135,7 +136,7 @@ class PdfRepositoryTest {
 
     @Test
     fun `openPdf with downloads hit makes no network request`() = runTest {
-        downloadsStore.save("item-1", pdfBytes.inputStream())
+        downloadsStore.save("server-1", "item-1", pdfBytes.inputStream())
         val result = repo.openPdf(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is PdfOpenResult.Success)
@@ -143,7 +144,7 @@ class PdfRepositoryTest {
 
     @Test
     fun `openPdf returns last saved reading position`() = runTest {
-        cacheStore.save("item-1", pdfBytes.inputStream())
+        cacheStore.save("server-1", "item-1", pdfBytes.inputStream())
         positionStore.save("server-1", "item-1", """{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""")
         val result = repo.openPdf(item()) as PdfOpenResult.Success
         assertEquals("""{"href":"publication.pdf","type":"application/pdf","locations":{"position":5}}""", result.lastPosition)
@@ -151,7 +152,7 @@ class PdfRepositoryTest {
 
     @Test
     fun `openPdf returns null lastPosition for fresh pdf`() = runTest {
-        cacheStore.save("item-1", pdfBytes.inputStream())
+        cacheStore.save("server-1", "item-1", pdfBytes.inputStream())
         val result = repo.openPdf(item()) as PdfOpenResult.Success
         assertNull(result.lastPosition)
     }
@@ -183,12 +184,12 @@ class PdfRepositoryTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
         val result = repo.downloadPdf(item())
         assertTrue(result is PdfDownloadResult.Success)
-        assertTrue(downloadsStore.get("item-1") != null)
+        assertTrue(downloadsStore.get("server-1", "item-1") != null)
     }
 
     @Test
     fun `downloadPdf returns AlreadyDownloaded when file already in downloads store`() = runTest {
-        downloadsStore.save("item-1", pdfBytes.inputStream())
+        downloadsStore.save("server-1", "item-1", pdfBytes.inputStream())
         val result = repo.downloadPdf(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is PdfDownloadResult.AlreadyDownloaded)
@@ -198,37 +199,37 @@ class PdfRepositoryTest {
     fun `downloadPdf does not write to cache store`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
         repo.downloadPdf(item())
-        assertNull(cacheStore.get("item-1"))
+        assertNull(cacheStore.get("server-1", "item-1"))
     }
 
     @Test
     fun `isDownloaded returns true after downloadPdf succeeds`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
         repo.downloadPdf(item())
-        assertTrue(repo.isDownloaded("item-1"))
+        assertTrue(repo.isDownloaded("server-1", "item-1"))
     }
 
     @Test
     fun `isCached returns true after openPdf populates cache`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
         repo.openPdf(item())
-        assertTrue(repo.isCached("item-1"))
+        assertTrue(repo.isCached("server-1", "item-1"))
     }
 
     @Test
     fun `removeDownload deletes file from downloads store`() = runTest {
-        downloadsStore.save("item-1", pdfBytes.inputStream())
-        repo.removeDownload("item-1")
-        assertTrue(!repo.isDownloaded("item-1"))
+        downloadsStore.save("server-1", "item-1", pdfBytes.inputStream())
+        repo.removeDownload("server-1", "item-1")
+        assertTrue(!repo.isDownloaded("server-1", "item-1"))
     }
 
     @Test
     fun `downloadPdf promotes cached file to downloads without network request`() = runTest {
-        cacheStore.save("item-1", pdfBytes.inputStream())
+        cacheStore.save("server-1", "item-1", pdfBytes.inputStream())
         val result = repo.downloadPdf(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is PdfDownloadResult.Success)
-        assertTrue(downloadsStore.get("item-1") != null)
-        assertNull(cacheStore.get("item-1"))
+        assertTrue(downloadsStore.get("server-1", "item-1") != null)
+        assertNull(cacheStore.get("server-1", "item-1"))
     }
 }

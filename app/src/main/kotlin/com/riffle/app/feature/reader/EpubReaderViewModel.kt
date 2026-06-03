@@ -243,6 +243,9 @@ class EpubReaderViewModel @Inject constructor(
     // The id under which the synced bundle is stored. For a matched ABS book this is the linked
     // Storyteller book id; for a Storyteller book (or unmatched ABS) it is the opened itemId.
     private var audioBookId: String = itemId
+    // The Server the bundle lives on, paired with [audioBookId] to key the file store (ADR 0025).
+    // For a matched ABS book this is the linked Storyteller Server; otherwise the active Server.
+    private var audioServerId: String = ""
 
     // Whether the bottom mini-player / sheet is showing.
     private val _readaloudOpen = MutableStateFlow(false)
@@ -335,11 +338,12 @@ class EpubReaderViewModel @Inject constructor(
                 null
             }
             audioBookId = link?.storytellerBookId ?: itemId
+            audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
 
             val control = readaloudControlState(
                 isStoryteller = isStorytellerServer,
                 isMatchedAbs = link != null,
-                bundlePresent = readaloudAudioRepository.isAudioAvailable(audioBookId),
+                bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId),
             )
             _readaloudVisible.value = control.visible
             _readaloudAvailable.value = control.enabled
@@ -898,7 +902,7 @@ class EpubReaderViewModel @Inject constructor(
      */
     fun onPlayTapped() {
         _readaloudOfflineMessage.value = false
-        val bundle = readaloudAudioRepository.bundleFile(audioBookId)
+        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
         if (bundle != null) {
             viewModelScope.launch { ensurePreparedAndPlay(bundle) }
             return
@@ -919,14 +923,14 @@ class EpubReaderViewModel @Inject constructor(
             // Storyteller) reach this path, and audioBookId resolves correctly.
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
             // the user can still choose to download.
-            _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioBookId) ?: 0L
+            _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioServerId, audioBookId) ?: 0L
         }
     }
 
     /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
     fun playFromHere(fragmentRef: String) {
         if (!_readaloudOpen.value) openReadaloud()
-        val bundle = readaloudAudioRepository.bundleFile(audioBookId)
+        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
         if (bundle == null) {
             // No bundle yet — fall through to the normal play path (prompt/notify) so the user is
             // told to download first.
@@ -952,7 +956,7 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _downloadProgress.value = 0f
-            val result = readaloudAudioRepository.downloadAudio(audioBookId) { downloaded, total ->
+            val result = readaloudAudioRepository.downloadAudio(audioServerId, audioBookId) { downloaded, total ->
                 if (total > 0) _downloadProgress.value = downloaded.toFloat() / total.toFloat()
             }
             _downloadProgress.value = null
@@ -961,7 +965,7 @@ class EpubReaderViewModel @Inject constructor(
                     // Bundle now present: keep the control visible and enable it.
                     _readaloudVisible.value = true
                     _readaloudAvailable.value = true
-                    readaloudAudioRepository.bundleFile(audioBookId)?.let { ensurePreparedAndPlay(it) }
+                    readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { ensurePreparedAndPlay(it) }
                 }
                 com.riffle.core.domain.AudioDownloadResult.NoBundle -> Unit
                 is com.riffle.core.domain.AudioDownloadResult.NetworkError ->
@@ -1014,7 +1018,7 @@ class EpubReaderViewModel @Inject constructor(
 
     private suspend fun ensureTrack(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
         readaloudTrack?.let { return it }
-        val track = readaloudAudioRepository.readTrack(audioBookId) ?: return null
+        val track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
         readaloudTrack = track
         return track
     }

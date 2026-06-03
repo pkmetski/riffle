@@ -24,7 +24,11 @@ interface LibraryRepository {
     fun observeCollections(libraryId: String): Flow<List<Collection>>
     fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>>
     fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>>
+    /** The active Server's copy of an item (item ids are only unique within a Server, ADR 0025). */
     suspend fun getItem(itemId: String): LibraryItem?
+
+    /** A specific Server's copy of an item — for cross-Server callers like the Downloads screen. */
+    suspend fun getItem(serverId: String, itemId: String): LibraryItem?
     suspend fun getLibrary(libraryId: String): Library?
     suspend fun markItemOpened(itemId: String)
     suspend fun updateReadingProgress(itemId: String, progress: Float)

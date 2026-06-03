@@ -284,8 +284,8 @@ class LibraryItemsViewModel @Inject constructor(
     }
 
     private fun isAvailableOffline(item: LibraryItem): Boolean = when (item.ebookFormat) {
-        EbookFormat.Epub -> epubRepository.isDownloaded(item.id) || epubRepository.isCached(item.id)
-        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.id) || pdfRepository.isCached(item.id)
+        EbookFormat.Epub -> epubRepository.isDownloaded(item.serverId, item.id) || epubRepository.isCached(item.serverId, item.id)
+        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.serverId, item.id) || pdfRepository.isCached(item.serverId, item.id)
         else -> false
     }
 

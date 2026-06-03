@@ -102,26 +102,26 @@ class CrossEpubIndexBuilderService(
         )
     }
 
-    private fun cachedFile(itemId: String): File? =
-        downloadsStore.get(itemId) ?: cacheStore.get(itemId)
+    private fun cachedFile(serverId: String, itemId: String): File? =
+        downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
 
     private suspend fun absEpubFile(server: Server, token: String, itemId: String): File? {
-        cachedFile(itemId)?.let { return it }
+        cachedFile(server.id, itemId)?.let { return it }
         val ino = when (val r = absApi.getItemEbookFileIno(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
             is NetworkItemEbookInoResult.Success -> r.ino
             is NetworkItemEbookInoResult.NetworkError -> return null
         }
         return when (val r = absApi.downloadEpub(server.url.value, itemId, ino, token, server.insecureConnectionAllowed)) {
-            is NetworkEpubDownloadResult.Success -> r.body.use { cacheStore.save(itemId, it.byteStream()) }
+            is NetworkEpubDownloadResult.Success -> r.body.use { cacheStore.save(server.id, itemId, it.byteStream()) }
             is NetworkEpubDownloadResult.NetworkError -> null
         }
     }
 
     private suspend fun storytellerEpubFile(server: Server, token: String, bookId: String): File? {
-        cachedFile(bookId)?.let { return it }
+        cachedFile(server.id, bookId)?.let { return it }
         return when (val r = bundleFetcher.fetch(server.url.value, bookId, token, server.insecureConnectionAllowed)) {
             is EpubBundleFetcher.Result.Success -> try {
-                r.epubFile.inputStream().use { cacheStore.save(bookId, it) }
+                r.epubFile.inputStream().use { cacheStore.save(server.id, bookId, it) }
             } finally {
                 r.epubFile.delete()
             }

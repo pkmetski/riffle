@@ -1,20 +1,27 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.LocalStore
+import com.riffle.core.domain.StoredItemRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 
+// Files live under dir/<serverId>/<itemId><ext> so item ids that collide across Servers
+// (e.g. two Storyteller Servers each emitting "1") never overwrite each other (ADR 0025).
 class LocalStoreImpl(private val dir: File, private val extension: String) : LocalStore {
 
-    override fun get(itemId: String): File? =
-        dir.resolve("$itemId$extension").takeIf { it.exists() }
+    private fun fileFor(serverId: String, itemId: String): File =
+        dir.resolve(serverId).resolve("$itemId$extension")
 
-    override suspend fun save(itemId: String, stream: InputStream): File =
+    override fun get(serverId: String, itemId: String): File? =
+        fileFor(serverId, itemId).takeIf { it.exists() }
+
+    override suspend fun save(serverId: String, itemId: String, stream: InputStream): File =
         withContext(Dispatchers.IO) {
-            val dest = dir.resolve("$itemId$extension")
-            val tmp = dir.resolve("$itemId$extension.tmp")
+            val serverDir = dir.resolve(serverId).also { it.mkdirs() }
+            val dest = serverDir.resolve("$itemId$extension")
+            val tmp = serverDir.resolve("$itemId$extension.tmp")
             try {
                 tmp.outputStream().use { out -> stream.copyTo(out) }
                 tmp.renameTo(dest)
@@ -25,17 +32,22 @@ class LocalStoreImpl(private val dir: File, private val extension: String) : Loc
             }
         }
 
-    override fun delete(itemId: String) {
-        dir.resolve("$itemId$extension").delete()
+    override fun delete(serverId: String, itemId: String) {
+        fileFor(serverId, itemId).delete()
     }
 
     override fun clear() {
-        dir.listFiles()?.forEach { it.delete() }
+        dir.listFiles()?.forEach { it.deleteRecursively() }
     }
 
-    override fun listItemIds(): List<String> =
+    override fun listItems(): List<StoredItemRef> =
         dir.listFiles()
-            ?.filter { it.name.endsWith(extension) }
-            ?.map { it.name.removeSuffix(extension) }
+            ?.filter { it.isDirectory }
+            ?.flatMap { serverDir ->
+                serverDir.listFiles()
+                    ?.filter { it.name.endsWith(extension) }
+                    ?.map { StoredItemRef(serverId = serverDir.name, itemId = it.name.removeSuffix(extension)) }
+                    ?: emptyList()
+            }
             ?: emptyList()
 }

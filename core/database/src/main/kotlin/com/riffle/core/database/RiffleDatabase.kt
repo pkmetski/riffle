@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CrossEpubIndexEntity::class,
         AnnotationEntity::class,
     ],
-    version = 25,
+    version = 26,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -425,6 +425,126 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_annotations_serverId_itemId` " +
                         "ON `annotations` (`serverId`, `itemId`)"
+                )
+            }
+        }
+
+        // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0025).
+        // Item ids are unique only within a Server — two Storyteller Servers each emit "1", "2", …
+        // — so itemId-alone keying collides. Recreate `library_items` with a `serverId` column and
+        // a composite PK (serverId, id), backfilling serverId from each item's owning library
+        // (libraryId → libraries.serverId); an FK to servers cascade-deletes a Server's items.
+        // The series_items / collection_items join tables and book_formatting_preferences gain
+        // `serverId` in their PKs, backfilled by resolving itemId → the recreated library_items.
+        // Rows whose itemId no longer resolves to a surviving item (hence Server) are dropped as
+        // orphans. `reading_positions`, `readaloud_*`, and `annotations` are already (serverId,
+        // itemId)-keyed and untouched.
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // library_items: add serverId + composite PK, backfilled from the owning library.
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `library_items_new` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`id` TEXT NOT NULL, " +
+                        "`libraryId` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`author` TEXT NOT NULL, " +
+                        "`coverUrl` TEXT, " +
+                        "`readingProgress` REAL NOT NULL, " +
+                        "`ebookFileIno` TEXT, " +
+                        "`ebookFormat` TEXT NOT NULL, " +
+                        "`description` TEXT, " +
+                        "`seriesName` TEXT, " +
+                        "`publishedYear` TEXT, " +
+                        "`genres` TEXT NOT NULL, " +
+                        "`publisher` TEXT, " +
+                        "`lastOpenedAt` INTEGER, " +
+                        "`addedAt` INTEGER, " +
+                        "`isbn` TEXT, " +
+                        "`asin` TEXT, " +
+                        "PRIMARY KEY(`serverId`, `id`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "INSERT INTO `library_items_new` " +
+                        "(serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, " +
+                        "ebookFormat, description, seriesName, publishedYear, genres, publisher, lastOpenedAt, addedAt, isbn, asin) " +
+                        "SELECT lib.serverId, li.id, li.libraryId, li.title, li.author, li.coverUrl, li.readingProgress, " +
+                        "li.ebookFileIno, li.ebookFormat, li.description, li.seriesName, li.publishedYear, li.genres, " +
+                        "li.publisher, li.lastOpenedAt, li.addedAt, li.isbn, li.asin " +
+                        "FROM `library_items` li JOIN `libraries` lib ON li.libraryId = lib.id"
+                )
+                db.execSQL("DROP TABLE `library_items`")
+                db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_library_items_serverId` ON `library_items` (`serverId`)")
+
+                // series_items: add serverId to the PK, resolved via the item's owning server.
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `series_items_new` (" +
+                        "`seriesId` TEXT NOT NULL, " +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`sequenceOrder` REAL NOT NULL, " +
+                        "PRIMARY KEY(`seriesId`, `serverId`, `itemId`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `series_items_new` (seriesId, serverId, itemId, sequenceOrder) " +
+                        "SELECT si.seriesId, li.serverId, si.itemId, si.sequenceOrder " +
+                        "FROM `series_items` si JOIN `library_items` li ON si.itemId = li.id"
+                )
+                db.execSQL("DROP TABLE `series_items`")
+                db.execSQL("ALTER TABLE `series_items_new` RENAME TO `series_items`")
+
+                // collection_items: same treatment.
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `collection_items_new` (" +
+                        "`collectionId` TEXT NOT NULL, " +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`collectionId`, `serverId`, `itemId`))"
+                )
+                db.execSQL(
+                    "INSERT INTO `collection_items_new` (collectionId, serverId, itemId) " +
+                        "SELECT ci.collectionId, li.serverId, ci.itemId " +
+                        "FROM `collection_items` ci JOIN `library_items` li ON ci.itemId = li.id"
+                )
+                db.execSQL("DROP TABLE `collection_items`")
+                db.execSQL("ALTER TABLE `collection_items_new` RENAME TO `collection_items`")
+
+                // book_formatting_preferences: add serverId + composite PK for identity (still
+                // per-device, never synced). Backfill via the item's owning server; orphans drop.
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_formatting_preferences_new` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`fontSize` REAL, " +
+                        "`theme` TEXT, " +
+                        "`fontFamily` TEXT, " +
+                        "`lineSpacing` REAL, " +
+                        "`margins` REAL, " +
+                        "`orientation` TEXT, " +
+                        "`showChapterMap` INTEGER, " +
+                        "`showReadingProgressLabels` INTEGER, " +
+                        "`showCurrentChapterLabel` INTEGER, " +
+                        "`doublePageSpread` INTEGER, " +
+                        "`justifyText` INTEGER, " +
+                        "PRIMARY KEY(`serverId`, `itemId`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "INSERT INTO `book_formatting_preferences_new` " +
+                        "(serverId, itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, " +
+                        "showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, justifyText) " +
+                        "SELECT li.serverId, bfp.itemId, bfp.fontSize, bfp.theme, bfp.fontFamily, bfp.lineSpacing, " +
+                        "bfp.margins, bfp.orientation, bfp.showChapterMap, bfp.showReadingProgressLabels, " +
+                        "bfp.showCurrentChapterLabel, bfp.doublePageSpread, bfp.justifyText " +
+                        "FROM `book_formatting_preferences` bfp JOIN `library_items` li ON bfp.itemId = li.id"
+                )
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_serverId` " +
+                        "ON `book_formatting_preferences` (`serverId`)"
                 )
             }
         }

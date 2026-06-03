@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.After
@@ -26,6 +27,10 @@ class SeriesDaoTest {
             RiffleDatabase::class.java,
         ).allowMainThreadQueries().build()
         dao = db.seriesDao()
+        // library_items FK-references servers; seed the owning Server first.
+        runBlocking {
+            db.serverDao().upsert(ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+        }
     }
 
     @After
@@ -34,7 +39,7 @@ class SeriesDaoTest {
     }
 
     private fun series(id: String) = SeriesEntity(id = id, libraryId = "lib1", name = "Series $id", coverUrl = null, bookCount = 1)
-    private fun seriesItem(seriesId: String, itemId: String) = SeriesItemEntity(seriesId = seriesId, itemId = itemId, sequenceOrder = 1f)
+    private fun seriesItem(seriesId: String, itemId: String) = SeriesItemEntity(seriesId = seriesId, serverId = "s1", itemId = itemId, sequenceOrder = 1f)
 
     // B1 — replaceAllForLibrary must never expose an empty intermediate state to series observers.
     @Test
@@ -62,16 +67,16 @@ class SeriesDaoTest {
     @Test
     fun observeItemsBySeriesId_returnsItemsInSequenceOrder() = runTest {
         val items = listOf(
-            LibraryItemEntity("item-1", "lib1", "Title 1", "Author", null, 0f),
-            LibraryItemEntity("item-2", "lib1", "Title 2", "Author", null, 0f),
-            LibraryItemEntity("item-3", "lib1", "Title 3", "Author", null, 0f),
+            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "Title 1", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "Title 2", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "Title 3", author = "Author", coverUrl = null, readingProgress = 0f),
         )
         db.libraryItemDao().upsertAll(items)
         dao.upsertAll(listOf(series("s1")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("s1", "item-3", sequenceOrder = 1f),
-            SeriesItemEntity("s1", "item-1", sequenceOrder = 2f),
-            SeriesItemEntity("s1", "item-2", sequenceOrder = 3f),
+            SeriesItemEntity("s1", serverId = "s1", itemId = "item-3", sequenceOrder = 1f),
+            SeriesItemEntity("s1", serverId = "s1", itemId = "item-1", sequenceOrder = 2f),
+            SeriesItemEntity("s1", serverId = "s1", itemId = "item-2", sequenceOrder = 3f),
         ))
 
         val result = dao.observeItemsBySeriesId("s1").first()

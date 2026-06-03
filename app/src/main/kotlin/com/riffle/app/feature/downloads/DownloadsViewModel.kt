@@ -13,6 +13,7 @@ import javax.inject.Inject
 
 /** A locally-available item paired with the on-disk size of its file. */
 data class LocalItemUi(
+    val serverId: String,
     val item: LibraryItem,
     val sizeBytes: Long,
 )
@@ -40,30 +41,34 @@ class DownloadsViewModel @Inject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            val downloadedIds = downloadsRepository.getDownloadedItemIds()
-            val cachedIds = downloadsRepository.getCachedItemIds()
+            val downloaded = downloadsRepository.getDownloadedItems()
+            val cached = downloadsRepository.getCachedItems()
 
-            val downloadedItems = downloadedIds.mapNotNull { id ->
-                libraryRepository.getItem(id)?.let { LocalItemUi(it, downloadsRepository.sizeOf(id)) }
+            val downloadedItems = downloaded.mapNotNull { ref ->
+                libraryRepository.getItem(ref.serverId, ref.itemId)?.let {
+                    LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
+                }
             }
-            val cachedItems = cachedIds.mapNotNull { id ->
-                libraryRepository.getItem(id)?.let { LocalItemUi(it, downloadsRepository.sizeOf(id)) }
+            val cachedItems = cached.mapNotNull { ref ->
+                libraryRepository.getItem(ref.serverId, ref.itemId)?.let {
+                    LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
+                }
             }
 
             _uiState.value = DownloadsUiState(downloadedItems = downloadedItems, cachedItems = cachedItems)
         }
     }
 
-    fun removeDownloadedItem(itemId: String) {
+    fun removeDownloadedItem(serverId: String, itemId: String) {
         viewModelScope.launch {
-            downloadsRepository.removeDownload(itemId)
+            downloadsRepository.removeDownload(serverId, itemId)
             load()
         }
     }
 
-    fun removeCachedItem(itemId: String) {
+    fun removeCachedItem(serverId: String, itemId: String) {
         viewModelScope.launch {
-            downloadsRepository.removeCached(itemId)
+            downloadsRepository.removeCached(serverId, itemId)
             load()
         }
     }

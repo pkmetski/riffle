@@ -111,14 +111,15 @@ class SeriesIntegrationTest {
         override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override suspend fun getById(itemId: String): LibraryItemEntity? = null
+        override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? = null
+        override suspend fun findServerIdForItem(itemId: String): String? = null
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun deleteByLibraryId(libraryId: String) {}
-        override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
+        override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun updateReadaloudMetadata(itemId: String, author: String?, description: String?, publishedYear: String?, publisher: String?, genres: String) {}
+        override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
+        override suspend fun updateReadaloudMetadata(serverId: String, itemId: String, author: String?, description: String?, publishedYear: String?, publisher: String?, genres: String) {}
         override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
     }
 

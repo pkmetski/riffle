@@ -31,8 +31,16 @@ interface LibraryItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LibraryItemEntity>)
 
-    @Query("SELECT * FROM library_items WHERE id = :itemId LIMIT 1")
-    suspend fun getById(itemId: String): LibraryItemEntity?
+    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
+    suspend fun getById(serverId: String, itemId: String): LibraryItemEntity?
+
+    /**
+     * The Server that owns an item id. Used by the one-time on-disk file migration (ADR 0025) to
+     * relocate legacy flat `<itemId>` files under their owning Server. Pre-migration item ids were
+     * globally unique (DB PK was itemId), so at most one row matches.
+     */
+    @Query("SELECT serverId FROM library_items WHERE id = :itemId LIMIT 1")
+    suspend fun findServerIdForItem(itemId: String): String?
 
     @Query("DELETE FROM library_items WHERE libraryId = :libraryId")
     suspend fun deleteByLibraryId(libraryId: String)
@@ -61,11 +69,11 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY title ASC")
     fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE id = :itemId")
-    suspend fun updateLastOpenedAt(itemId: String, timestamp: Long)
+    @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE serverId = :serverId AND id = :itemId")
+    suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long)
 
-    @Query("UPDATE library_items SET readingProgress = :progress WHERE id = :itemId")
-    suspend fun updateReadingProgress(itemId: String, progress: Float)
+    @Query("UPDATE library_items SET readingProgress = :progress WHERE serverId = :serverId AND id = :itemId")
+    suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float)
 
     /**
      * Borrow ABS metadata onto a single item. Used by the Storyteller↔ABS matcher to backfill a
@@ -79,9 +87,11 @@ interface LibraryItemDao {
      */
     @Query(
         "UPDATE library_items SET author = COALESCE(:author, author), description = :description, " +
-            "publishedYear = :publishedYear, publisher = :publisher, genres = :genres WHERE id = :itemId"
+            "publishedYear = :publishedYear, publisher = :publisher, genres = :genres " +
+            "WHERE serverId = :serverId AND id = :itemId"
     )
     suspend fun updateReadaloudMetadata(
+        serverId: String,
         itemId: String,
         author: String?,
         description: String?,

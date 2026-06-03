@@ -5,7 +5,16 @@ import android.content.Context
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
+import com.riffle.core.data.LocalStoreMigrator
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import org.acra.ReportField
@@ -13,6 +22,12 @@ import org.acra.ktx.initAcra
 
 @HiltAndroidApp
 class RiffleApplication : Application(), ImageLoaderFactory {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface MigratorEntryPoint {
+        fun localStoreMigrator(): LocalStoreMigrator
+    }
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -24,6 +39,16 @@ class RiffleApplication : Application(), ImageLoaderFactory {
                 ReportField.APP_VERSION_NAME,
                 ReportField.AVAILABLE_MEM_SIZE,
             )
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        // One-time relocation of legacy flat cache/download files into per-Server dirs (ADR 0025).
+        // Idempotent and best-effort; runs off the main thread and never blocks startup.
+        val migrator = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).localStoreMigrator()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { migrator.migrate() }
         }
     }
 
