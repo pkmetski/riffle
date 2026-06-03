@@ -40,20 +40,6 @@ class FragmentConfigurationMapperTest {
         assertEquals(ColCount.ONE, result.readiumCssRsProperties.colCount)
     }
 
-    // Regression: Readium 3.3.0 changed the reflowable default so a phone-width viewport rendered
-    // TWO columns, and its decoration renderer mispositions the readaloud highlight in a multi-column
-    // layout — so the synced highlight silently vanished (e.g. The Martian). We pin reflowable
-    // single-page rendering to ONE column; this test fails if that default is ever lost (e.g. a future
-    // engine upgrade reintroduces multi-column), which would bring the missing-highlight bug back.
-    @Test
-    fun reflowableSinglePagePinsOneColumnSoTheReadaloudHighlightStaysVisible() {
-        val result = FormattingPreferences().toFragmentConfiguration(
-            isLandscape = false,
-            isFixedLayout = false,
-        )
-        assertEquals(ColCount.ONE, result.readiumCssRsProperties.colCount)
-    }
-
     @Test
     fun verticalOrientationUsesDefaultColumns() {
         val result = FormattingPreferences(
