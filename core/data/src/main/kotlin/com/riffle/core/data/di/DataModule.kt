@@ -51,6 +51,8 @@ import com.riffle.core.data.EpubBundleFetcher
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
 import com.riffle.core.data.StorytellerPositionSyncController
+import com.riffle.core.data.StorytellerReadaloudSyncer
+import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.StorytellerPositionApi
@@ -395,5 +397,20 @@ abstract class DataModule {
         fun provideDeviceIdDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.deviceIdDataStore
+
+        @Provides
+        @Singleton
+        fun provideStorytellerReadaloudSyncer(
+            serverRepository: ServerRepository,
+            tokenStorage: TokenStorage,
+            storytellerApi: StorytellerLibraryApi,
+            libraryItemDao: LibraryItemDao,
+        ): StorytellerReadaloudSyncer = StorytellerReadaloudSyncer(
+            serverRepository = serverRepository,
+            tokenStorage = tokenStorage,
+            storytellerApi = storytellerApi,
+            libraryItemDao = libraryItemDao,
+            clock = System::currentTimeMillis,
+        )
     }
 }
