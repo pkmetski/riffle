@@ -52,10 +52,12 @@ internal fun storytellerBooksToEntities(
     )
 }
 
-internal fun readaloudLibraryId(serverId: String): String = "readaloud:$serverId"
-
 private const val STORYTELLER_SYNC_TTL_MILLIS = 10L * 60L * 1000L
 
+/**
+ * Proactively syncs Storyteller readaloud books for all known servers in the background.
+ * Open so tests can subclass it with a no-op/spy `syncStale()`.
+ */
 open class StorytellerReadaloudSyncer(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
@@ -81,7 +83,7 @@ open class StorytellerReadaloudSyncer(
     }
 
     private suspend fun fetchAndStore(server: Server, token: String): Boolean {
-        val libraryId = readaloudLibraryId(server.id)
+        val libraryId = ServerRepositoryImpl.readaloudLibraryId(server.id)
         return when (val r = storytellerApi.listReadalouds(server.url.value, token, server.insecureConnectionAllowed)) {
             is NetworkStorytellerBooksResult.Success -> {
                 val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }

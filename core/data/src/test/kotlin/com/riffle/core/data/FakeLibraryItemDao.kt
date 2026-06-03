@@ -35,10 +35,14 @@ internal class FakeLibraryItemDao : LibraryItemDao {
 
     override suspend fun upsertAll(items: List<LibraryItemEntity>) {
         upserted.addAll(items)
-        items.groupBy { it.libraryId }.forEach { (libraryId, entities) ->
-            roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }.value = entities
+        items.groupBy { it.libraryId }.forEach { (libraryId, newItems) ->
+            val flow = roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+            val newIds = newItems.map { it.id }.toSet()
+            flow.value = flow.value.filterNot { it.id in newIds } + newItems
         }
     }
+
+    // replaceAllForLibrary is intentionally inherited (deleteByLibraryId + upsertAll @Transaction default).
 
     override suspend fun getById(itemId: String): LibraryItemEntity? =
         roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }

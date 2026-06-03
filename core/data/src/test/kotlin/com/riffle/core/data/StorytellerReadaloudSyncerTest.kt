@@ -133,7 +133,13 @@ class StorytellerReadaloudSyncerTest {
         val itemDao = FakeLibraryItemDao()
         val api = capturingApi(books = listOf(NetworkStorytellerBook(id = 1L, title = "T", authors = listOf("A"))))
         var now = 0L
-        val syncer = StorytellerReadaloudSyncer(fakeServers(listOf(stServer("st-1"))), fakeTokens(mapOf("st-1" to "tok")), api, itemDao, clock = { now })
+        val syncer = StorytellerReadaloudSyncer(
+            serverRepository = fakeServers(listOf(stServer("st-1"))),
+            tokenStorage = fakeTokens(mapOf("st-1" to "tok")),
+            storytellerApi = api,
+            libraryItemDao = itemDao,
+            clock = { now },
+        )
         syncer.syncStale()
         now = 9 * 60 * 1000L
         syncer.syncStale()
@@ -147,7 +153,13 @@ class StorytellerReadaloudSyncerTest {
         val itemDao = FakeLibraryItemDao()
         val api = capturingApiError()
         var now = 0L
-        val syncer = StorytellerReadaloudSyncer(fakeServers(listOf(stServer("st-1"))), fakeTokens(mapOf("st-1" to "tok")), api, itemDao, clock = { now })
+        val syncer = StorytellerReadaloudSyncer(
+            serverRepository = fakeServers(listOf(stServer("st-1"))),
+            tokenStorage = fakeTokens(mapOf("st-1" to "tok")),
+            storytellerApi = api,
+            libraryItemDao = itemDao,
+            clock = { now },
+        )
         syncer.syncStale()
         assertEquals(0, itemDao.itemsFor("readaloud:st-1").size)
         now = 1L
