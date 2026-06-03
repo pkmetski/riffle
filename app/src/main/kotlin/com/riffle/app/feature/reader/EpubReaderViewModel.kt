@@ -903,14 +903,20 @@ class EpubReaderViewModel @Inject constructor(
             viewModelScope.launch { ensurePreparedAndPlay(bundle) }
             return
         }
+        // A matched ABS book's bundle is provisioned from the book's detail screen against the
+        // linked Storyteller server (the active server here is ABS and can't serve it). The reader
+        // control is disabled until the bundle exists; this also guards the "Play from here"
+        // selection path, which can reach onPlayTapped() directly. So: no local bundle + matched
+        // ABS book → do nothing (no wrong-server probe/download).
+        if (audioBookId != itemId) return
         if (!connectivityObserver.isOnline.value) {
             _readaloudOfflineMessage.value = true
             return
         }
         viewModelScope.launch {
-            // NOTE: probe/download here use the ACTIVE server. This path is only reachable for
-            // Storyteller books (active server == Storyteller) or already-downloaded matched ABS
-            // books (control is disabled until the bundle exists), so audioBookId resolves correctly.
+            // NOTE: probe/download here use the ACTIVE server. The matched-ABS case (audioBookId !=
+            // itemId) is handled by the guard above, so only Storyteller books (active server ==
+            // Storyteller) reach this path, and audioBookId resolves correctly.
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
             // the user can still choose to download.
             _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioBookId) ?: 0L
