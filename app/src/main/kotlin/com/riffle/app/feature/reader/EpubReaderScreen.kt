@@ -570,6 +570,31 @@ private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configurati
 
 private const val BOUNDARY_POLL_INTERVAL_MS = 120L
 
+/**
+ * Builds a Readium [Locator] from a readaloud fragment ref — "href#fragId", or a bare "href" when
+ * the ref carries no fragment. The cssSelector targets the fragment id so Readium's EPUB decorator
+ * and navigator resolve the same DOM range. Shared by the synced-highlight decoration and the
+ * auto-follow so both always point at the same element.
+ */
+private fun fragmentLocator(ref: String): Locator? {
+    val hashIdx = ref.indexOf('#')
+    val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
+    val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
+    val json = JSONObject()
+        .put("href", href)
+        .put("type", "application/xhtml+xml")
+        .put(
+            "locations",
+            JSONObject().apply {
+                if (fragId != null) {
+                    put("fragments", org.json.JSONArray().put(fragId))
+                    put("cssSelector", "#$fragId")
+                }
+            },
+        )
+    return Locator.fromJSON(json)
+}
+
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
@@ -835,22 +860,7 @@ private fun EpubNavigatorView(
             hasReadaloudDecoration.value = false
             return@LaunchedEffect
         }
-        val hashIdx = ref.indexOf('#')
-        val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
-        val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
-        val locatorJson = JSONObject()
-            .put("href", href)
-            .put("type", "application/xhtml+xml")
-            .put(
-                "locations",
-                JSONObject().apply {
-                    if (fragId != null) {
-                        put("fragments", org.json.JSONArray().put(fragId))
-                        put("cssSelector", "#$fragId")
-                    }
-                },
-            )
-        val locator = Locator.fromJSON(locatorJson) ?: return@LaunchedEffect
+        val locator = fragmentLocator(ref) ?: return@LaunchedEffect
         val decoration = Decoration(
             id = "readaloud_active",
             locator = locator,
@@ -935,16 +945,7 @@ private fun EpubNavigatorView(
             """.trimIndent(),
         )?.trim('"')
         if (where != "off") return@LaunchedEffect
-        val locatorJson = JSONObject()
-            .put("href", ref.substring(0, hashIdx))
-            .put("type", "application/xhtml+xml")
-            .put(
-                "locations",
-                JSONObject()
-                    .put("fragments", org.json.JSONArray().put(fragId))
-                    .put("cssSelector", "#$fragId"),
-            )
-        Locator.fromJSON(locatorJson)?.let { fragment.go(it, animated = false) }
+        fragmentLocator(ref)?.let { fragment.go(it, animated = false) }
     }
 
     LaunchedEffect(volumeNavEvents) {
