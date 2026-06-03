@@ -1,24 +1,17 @@
 package com.riffle.app.feature.reader
 
 import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
  * End-to-end verification of the two scripts EpubReaderScreen injects into every reflowable page,
- * run against a **real** WebView. The harness AVD is Android 7.1.1 (API 25), whose pre-Chromium-61
- * WebView is exactly the engine both fixes target — so these tests reproduce the original bugs and
- * prove the fix in the environment that actually broke.
+ * run against a **real** WebView via [withWebViewFixture]. The harness AVD is Android 7.1.1 (API 25),
+ * whose pre-Chromium-61 WebView is exactly the engine both fixes target — so these tests reproduce
+ * the original bugs and prove the fix in the environment that actually broke.
  *
  * Covers:
  *  - [RECT_TO_JSON_POLYFILL_JS]: on the old engine `getBoundingClientRect()` returns a ClientRect
@@ -40,13 +33,14 @@ class ReaderWebViewScriptsTest {
     """.trimIndent()
 
     // Sentence spans mirror the Storyteller bundle shape: each narrated sentence is a <span id="cNNN-sM">.
-    // s5 wraps an inner element with no id of its own to exercise the walk-up-to-nearest-id path.
+    // s5 wraps an inner element with no id of its own to exercise the walk-up-to-nearest-id path; the
+    // last paragraph has no id anywhere in its ancestry to exercise the "no sentence span" fallback.
     private val sentenceFixture = """
         <!DOCTYPE html>
         <html>
           <body>
             <p><span id="c007-s2">The quick brown fox.</span> <span id="c007-s5"><em>Jumps over it.</em></span></p>
-            <p id="no-sentence-id">Bare paragraph with no sentence span.</p>
+            <p>Bare paragraph with no id in its ancestry.</p>
           </body>
         </html>
     """.trimIndent()
@@ -55,7 +49,7 @@ class ReaderWebViewScriptsTest {
 
     @Test
     fun polyfillMakesGetBoundingClientRectToJsonReturnTheRect() {
-        withFixture(rectFixture) { webView ->
+        withWebViewFixture(rectFixture) { webView ->
             webView.evalSync(RECT_TO_JSON_POLYFILL_JS)
             // This is the exact call Readium's reflowable tap handler makes; on the un-polyfilled
             // API-25 engine it throws "toJSON is not a function" and swallows the tap.
@@ -78,7 +72,7 @@ class ReaderWebViewScriptsTest {
 
     @Test
     fun polyfillIsIdempotentAndKeepsToJsonWorking() {
-        withFixture(rectFixture) { webView ->
+        withWebViewFixture(rectFixture) { webView ->
             repeat(3) { webView.evalSync(RECT_TO_JSON_POLYFILL_JS) }
             val typeOfToJson = webView.evalSync(
                 "typeof document.getElementById('target').getBoundingClientRect().toJSON"
@@ -91,7 +85,7 @@ class ReaderWebViewScriptsTest {
 
     @Test
     fun selectionInsideSentenceSpanStashesItsId() {
-        withFixture(sentenceFixture) { webView ->
+        withWebViewFixture(sentenceFixture) { webView ->
             webView.evalSync(SELECTION_SPAN_TRACKER_JS)
             webView.selectWordIn("c007-s2")
             assertEquals("c007-s2", webView.awaitSelSpan())
@@ -100,7 +94,7 @@ class ReaderWebViewScriptsTest {
 
     @Test
     fun selectionWalksUpToNearestAncestorWithAnId() {
-        withFixture(sentenceFixture) { webView ->
+        withWebViewFixture(sentenceFixture) { webView ->
             webView.evalSync(SELECTION_SPAN_TRACKER_JS)
             // Selection lands inside the <em> (no id) → tracker must walk up to the enclosing span.
             webView.selectWordIn("c007-s5")
@@ -109,23 +103,39 @@ class ReaderWebViewScriptsTest {
     }
 
     @Test
-    fun collapsedSelectionDoesNotUpdateTheStashedId() {
-        withFixture(sentenceFixture) { webView ->
+    fun selectionWithoutASentenceSpanResetsTheStashedIdRatherThanLeavingItStale() {
+        withWebViewFixture(sentenceFixture) { webView ->
             webView.evalSync(SELECTION_SPAN_TRACKER_JS)
-            // First a real selection so __riffleSelSpan is set...
+            // Set a real span id first...
             webView.selectWordIn("c007-s2")
             assertEquals("c007-s2", webView.awaitSelSpan())
-            // ...then collapse it; the tracker ignores collapsed selections, so the value must hold.
+            // ...then select text whose ancestry has no id. The tracker must clear the stash to "" so
+            // "Play from here" falls back to the chapter position, NOT the previously-selected sentence.
+            webView.selectFirstWordOfBareParagraph()
+            assertEquals("", webView.awaitSelSpan(expectEmpty = true))
+        }
+    }
+
+    @Test
+    fun collapsedSelectionDoesNotUpdateTheStashedId() {
+        withWebViewFixture(sentenceFixture) { webView ->
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            webView.selectWordIn("c007-s2")
+            assertEquals("c007-s2", webView.awaitSelSpan())
+            // Collapse it; the tracker ignores collapsed selections, so the value must hold.
             webView.evalSync("window.getSelection().collapseToEnd()")
-            // Give any (wrongly fired) update a chance to land, then re-read.
             Thread.sleep(150)
-            assertEquals("collapsed selection must not overwrite the stashed span", "c007-s2", webView.evalSync("window.__riffleSelSpan").trim('"'))
+            assertEquals(
+                "collapsed selection must not overwrite the stashed span",
+                "c007-s2",
+                webView.evalSync("window.__riffleSelSpan").trim('"'),
+            )
         }
     }
 
     @Test
     fun installIsIdempotent() {
-        withFixture(sentenceFixture) { webView ->
+        withWebViewFixture(sentenceFixture) { webView ->
             repeat(3) { webView.evalSync(SELECTION_SPAN_TRACKER_JS) }
             assertEquals("true", webView.evalSync("String(window.__riffleSelTrackerInstalled)").trim('"'))
             webView.selectWordIn("c007-s2")
@@ -135,8 +145,8 @@ class ReaderWebViewScriptsTest {
 
     // ---- helpers ----
 
-    // Selects a word inside the text node of [spanId] (or its first descendant text node), so the
-    // selection's startContainer is a text node — the realistic shape the tracker must handle.
+    // Selects a word inside the text node of [spanId], so the selection's startContainer is a text
+    // node — the realistic shape the tracker must handle.
     private fun WebView.selectWordIn(spanId: String) {
         evalSync(
             """
@@ -156,55 +166,36 @@ class ReaderWebViewScriptsTest {
         )
     }
 
-    // selectionchange is dispatched asynchronously; poll until the tracker has stashed a value.
-    private fun WebView.awaitSelSpan(timeoutMs: Long = 3_000): String {
+    // Selects inside the fixture's last <p>, which has no id anywhere in its ancestry.
+    private fun WebView.selectFirstWordOfBareParagraph() {
+        evalSync(
+            """
+            (function () {
+              var ps = document.getElementsByTagName('p');
+              var p = ps[ps.length - 1];
+              var textNode = p.firstChild;
+              var range = document.createRange();
+              range.setStart(textNode, 0);
+              range.setEnd(textNode, 4);
+              var sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+              return 'ok';
+            })();
+            """.trimIndent(),
+        )
+    }
+
+    // selectionchange is dispatched asynchronously; poll until the tracker has written a value. When
+    // [expectEmpty], we instead wait for the stash to settle to "" (the reset case).
+    private fun WebView.awaitSelSpan(timeoutMs: Long = 3_000, expectEmpty: Boolean = false): String {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val value = evalSync("window.__riffleSelSpan").trim('"')
-            if (value.isNotEmpty() && value != "null" && value != "undefined") return value
+            val settled = if (expectEmpty) value == "" else value.isNotEmpty() && value != "null" && value != "undefined"
+            if (settled) return value
             Thread.sleep(30)
         }
         return evalSync("window.__riffleSelSpan").trim('"')
-    }
-
-    private fun withFixture(html: String, block: (WebView) -> Unit) {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val ready = CountDownLatch(1)
-        val webViewHolder = arrayOfNulls<WebView>(1)
-        instrumentation.runOnMainSync {
-            val webView = WebView(context).also {
-                it.settings.javaScriptEnabled = true
-                it.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        ready.countDown()
-                    }
-                }
-            }
-            webViewHolder[0] = webView
-            webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-        }
-        assertTrue("Fixture page did not finish loading", ready.await(10, TimeUnit.SECONDS))
-        val webView = webViewHolder[0]!!
-        try {
-            block(webView)
-        } finally {
-            instrumentation.runOnMainSync { webView.destroy() }
-        }
-    }
-
-    private fun WebView.evalSync(script: String): String {
-        val latch = CountDownLatch(1)
-        val result = arrayOfNulls<String>(1)
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            evaluateJavascript(script) { value ->
-                result[0] = value
-                latch.countDown()
-            }
-        }
-        assertTrue("evaluateJavascript timed out for: $script", latch.await(5, TimeUnit.SECONDS))
-        val value = result[0]
-        assertNotNull("evaluateJavascript returned null for: $script", value)
-        return value!!
     }
 }
