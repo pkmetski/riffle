@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -53,6 +54,17 @@ class ReadaloudTrackTest {
     @Test
     fun `resolveStartClip ignores leading slash differences`() {
         assertEquals(chapterClips[1], chapterTrack.resolveStartClip("/text/c1.html", "s2"))
+    }
+
+    // Regression for "Play from here started at the beginning of the chapter": when the selection's
+    // sentence-span id is supplied, narration must begin at THAT sentence's clip — not silently fall
+    // back to the chapter's first clip. (The fix that surfaces the span id lives in EpubReaderScreen;
+    // this locks the resolver contract that fix depends on.)
+    @Test
+    fun `resolveStartClip on a mid-chapter sentence starts there, not at the chapter's first clip`() {
+        val resolved = chapterTrack.resolveStartClip("text/c1.html", "s2")
+        assertEquals(chapterClips[1], resolved)
+        assertNotEquals(chapterClips[0], resolved)
     }
 
     @Test
