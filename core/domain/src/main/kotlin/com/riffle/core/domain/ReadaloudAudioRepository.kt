@@ -30,6 +30,17 @@ interface ReadaloudAudioRepository {
     /** Downloads the synced bundle into permanent Downloads with resume + progress. */
     suspend fun downloadAudio(itemId: String, onProgress: (downloaded: Long, total: Long) -> Unit): AudioDownloadResult
 
+    /**
+     * Downloads the synced bundle from a specific server (by id) rather than the active one.
+     * Used by the ABS item-detail screen, where the active server is ABS but the bundle lives
+     * on the linked Storyteller server. Keyed by [bookId] (the Storyteller book id).
+     */
+    suspend fun downloadAudio(
+        bookId: String,
+        serverId: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): AudioDownloadResult
+
     /** Removes the downloaded bundle; returns the number of bytes freed. */
     suspend fun removeAudio(itemId: String): Long
 }

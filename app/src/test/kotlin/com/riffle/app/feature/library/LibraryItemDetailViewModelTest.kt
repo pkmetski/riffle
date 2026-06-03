@@ -228,6 +228,7 @@ class LibraryItemDetailViewModelTest {
         toReadRepository = toReadRepo,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudReviewRepository = NoopReadaloudReviewRepository,
+        readaloudAudioRepository = NoopReadaloudAudioRepository,
         connectivityObserver = connectivityObserver,
     )
 

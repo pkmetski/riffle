@@ -46,12 +46,22 @@ class ReadaloudAudioRepositoryImpl(
         itemId: String,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudioDownloadResult {
-        if (downloadsStore.get(itemId) != null) return AudioDownloadResult.Success
-        val server = serverRepository.getActive()
+        val activeId = serverRepository.getActive()?.id
             ?: return AudioDownloadResult.NetworkError(IllegalStateException("No active server"))
-        val token = tokenStorage.getToken(server.id)
-            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No token for server"))
-        return when (val r = downloader.download(server.url.value, itemId, token, server.insecureConnectionAllowed, onProgress)) {
+        return downloadAudio(itemId, activeId, onProgress)
+    }
+
+    override suspend fun downloadAudio(
+        bookId: String,
+        serverId: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): AudioDownloadResult {
+        if (downloadsStore.get(bookId) != null) return AudioDownloadResult.Success
+        val server = serverRepository.getById(serverId)
+            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No server $serverId"))
+        val token = tokenStorage.getToken(serverId)
+            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No token for $serverId"))
+        return when (val r = downloader.download(server.url.value, bookId, token, server.insecureConnectionAllowed, onProgress)) {
             is AudiobookBundleDownloader.Result.Success -> AudioDownloadResult.Success
             is AudiobookBundleDownloader.Result.NetworkError -> AudioDownloadResult.NetworkError(r.cause)
         }
