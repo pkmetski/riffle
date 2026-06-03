@@ -864,6 +864,10 @@ class EpubReaderViewModel @Inject constructor(
         if (!_readaloudAvailable.value) return
         _readaloudOpen.value = true
         startStorytellerSync()
+        // Pressing the reader's readaloud control plays immediately — no separate Play tap.
+        // A matched ABS book only enables the control once the bundle is present, so this reaches
+        // the bundle-present play path; a Storyteller book matches today's Play-tap behavior.
+        onPlayTapped()
     }
 
     fun closeReadaloud() {
