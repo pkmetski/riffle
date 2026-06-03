@@ -1,6 +1,7 @@
 package com.riffle.core.network
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -78,6 +79,15 @@ class AudiobookBundleApiImpl(
             } else {
                 response.header("Content-Length")?.toLongOrNull()
             } ?: -1L
+            // execute() blocks through the slow /synced header wait; if the coroutine was cancelled
+            // during it, withContext discards this Success and leaks the open body. Close it ourselves
+            // before handing ownership to the (live) caller.
+            try {
+                ensureActive()
+            } catch (e: Throwable) {
+                body.close()
+                throw e
+            }
             NetworkAudiobookBundleResult.Success(body = body, totalBytes = total, isPartial = isPartial)
         } catch (e: IOException) {
             NetworkAudiobookBundleResult.NetworkError(e)

@@ -1,9 +1,13 @@
 package com.riffle.core.domain
 
-/** The locally-cached materials needed to build a cross-EPUB index for one matched book. */
+/**
+ * The locally-cached materials needed to build a cross-EPUB index for one matched book. The EPUBs
+ * are referenced by their precomputed [EpubChecksum] (streamed from disk by the caller) rather than
+ * their raw bytes, so a hundreds-of-MB synced bundle (ADR 0023) is never held in memory here.
+ */
 data class CrossEpubBuildInputs(
-    val absEpubBytes: ByteArray,
-    val storytellerEpubBytes: ByteArray,
+    val absChecksum: String,
+    val storytellerChecksum: String,
     val absChaptersHtml: List<String>,
     val storytellerChaptersHtml: List<String>,
 )
@@ -42,8 +46,8 @@ class CrossEpubIndexService(
     suspend fun buildOnConfirm(link: ReadaloudLink): CrossEpubIndexBuildOutcome {
         val inputs = loadInputs(link) ?: return CrossEpubIndexBuildOutcome.Deferred
 
-        val absChecksum = EpubChecksum.of(inputs.absEpubBytes)
-        val storytellerChecksum = EpubChecksum.of(inputs.storytellerEpubBytes)
+        val absChecksum = inputs.absChecksum
+        val storytellerChecksum = inputs.storytellerChecksum
         if (store.exists(absChecksum, storytellerChecksum)) return CrossEpubIndexBuildOutcome.AlreadyBuilt
 
         val index = CrossEpubIndexBuilder.build(inputs.absChaptersHtml, inputs.storytellerChaptersHtml)

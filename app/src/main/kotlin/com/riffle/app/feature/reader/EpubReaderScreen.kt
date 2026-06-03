@@ -242,8 +242,6 @@ fun EpubReaderScreen(
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
-                        advancePageEvents = viewModel.advancePageEvents,
-                        onReportVisibleFragments = viewModel::reportVisibleFragments,
                         onPlayFromHere = viewModel::playFromHere,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -572,6 +570,31 @@ private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configurati
 
 private const val BOUNDARY_POLL_INTERVAL_MS = 120L
 
+/**
+ * Builds a Readium [Locator] from a readaloud fragment ref — "href#fragId", or a bare "href" when
+ * the ref carries no fragment. The cssSelector targets the fragment id so Readium's EPUB decorator
+ * and navigator resolve the same DOM range. Shared by the synced-highlight decoration and the
+ * auto-follow so both always point at the same element.
+ */
+private fun fragmentLocator(ref: String): Locator? {
+    val hashIdx = ref.indexOf('#')
+    val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
+    val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
+    val json = JSONObject()
+        .put("href", href)
+        .put("type", "application/xhtml+xml")
+        .put(
+            "locations",
+            JSONObject().apply {
+                if (fragId != null) {
+                    put("fragments", org.json.JSONArray().put(fragId))
+                    put("cssSelector", "#$fragId")
+                }
+            },
+        )
+    return Locator.fromJSON(json)
+}
+
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
@@ -588,8 +611,6 @@ private fun EpubNavigatorView(
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: String) -> Unit,
     activeFragmentRef: String?,
-    advancePageEvents: Flow<Unit>,
-    onReportVisibleFragments: (Set<String>) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -620,28 +641,61 @@ private fun EpubNavigatorView(
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentPublication by rememberUpdatedState(state.publication)
 
-    // "Play from here" is added to the WebView text-selection action bar via Readium's
-    // selectionActionModeCallback hook (the only supported way to customise the selection menu in
-    // 3.0.0). On click we read currentSelection() and derive a SMIL fragment ref from the selection
-    // locator. Limitation: a free-text selection rarely lands exactly on a SMIL <par> boundary, so
-    // we use the selection's first fragment id (locations.fragments) when present, falling back to
-    // the bare href; ReadaloudTrack.clipForFragment then matches the nearest narrated clip it can.
+    // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
+    // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
+    // menu). So besides our "Play from here"/"Highlight" items we must re-add the standard
+    // Copy / Search / Share actions the user expects, driven off the current selection's text.
+    //
+    // "Play from here": on click we read currentSelection() and derive a SMIL fragment ref. A
+    // free-text selection rarely lands exactly on a SMIL <par> boundary, so we pass the selection's
+    // first fragment id (locations.fragments) when present, else the bare href; the player resolves
+    // the nearest narrated clip at/after that position (never restarting the book).
     val playFromHereMenuId = remember { View.generateViewId() }
-    // "Highlight" is added to the same Readium selection action bar (ADR 0024). Gated on
-    // annotationsAvailable so it never shows on a Storyteller-only book / the Readaloud side.
+    // "Highlight" is gated on annotationsAvailable so it never shows on a Storyteller-only book.
     val highlightMenuId = remember { View.generateViewId() }
+    val copyMenuId = remember { View.generateViewId() }
+    val searchMenuId = remember { View.generateViewId() }
+    val shareMenuId = remember { View.generateViewId() }
     val playFromHereActionMode = remember {
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
-                if (currentAnnotationsAvailable) menu.add(0, highlightMenuId, 0, "Highlight")
-                menu.add(0, playFromHereMenuId, 0, "Play from here")
+                menu.add(0, copyMenuId, 0, android.R.string.copy)
+                if (currentAnnotationsAvailable) menu.add(0, highlightMenuId, 1, "Highlight")
+                menu.add(0, playFromHereMenuId, 2, "Play from here")
+                menu.add(0, searchMenuId, 3, "Search")
+                menu.add(0, shareMenuId, 4, "Share")
                 return true
             }
 
             override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
 
+            /** Runs [block] with the current selection's plain text, then clears the selection. */
+            private fun withSelectionText(block: (String) -> Unit) {
+                val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator ?: return
+                coroutineScope.launch {
+                    val selection = selectable.currentSelection() ?: return@launch
+                    selection.locator.text.highlight?.takeIf { it.isNotBlank() }?.let(block)
+                    selectable.clearSelection()
+                }
+            }
+
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
+                    copyMenuId -> withSelectionText { text ->
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Riffle", text))
+                    }
+                    searchMenuId -> withSelectionText { text ->
+                        val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
+                            .putExtra(android.app.SearchManager.QUERY, text)
+                        if (intent.resolveActivity(context.packageManager) != null) context.startActivity(intent)
+                    }
+                    shareMenuId -> withSelectionText { text ->
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                            .setType("text/plain")
+                            .putExtra(android.content.Intent.EXTRA_TEXT, text)
+                        context.startActivity(android.content.Intent.createChooser(send, null))
+                    }
                     highlightMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
                             ?: return false
@@ -650,8 +704,6 @@ private fun EpubNavigatorView(
                             currentOnHighlight(selection.locator)
                             selectable.clearSelection()
                         }
-                        mode.finish()
-                        return true
                     }
                     playFromHereMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
@@ -664,11 +716,11 @@ private fun EpubNavigatorView(
                             currentOnPlayFromHere(ref)
                             selectable.clearSelection()
                         }
-                        mode.finish()
-                        return true
                     }
                     else -> return false
                 }
+                mode.finish()
+                return true
             }
 
             override fun onDestroyActionMode(mode: android.view.ActionMode) {}
@@ -808,28 +860,13 @@ private fun EpubNavigatorView(
             hasReadaloudDecoration.value = false
             return@LaunchedEffect
         }
-        val hashIdx = ref.indexOf('#')
-        val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
-        val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
-        val locatorJson = JSONObject()
-            .put("href", href)
-            .put("type", "application/xhtml+xml")
-            .put(
-                "locations",
-                JSONObject().apply {
-                    if (fragId != null) {
-                        put("fragments", org.json.JSONArray().put(fragId))
-                        put("cssSelector", "#$fragId")
-                    }
-                },
-            )
-        val locator = Locator.fromJSON(locatorJson) ?: return@LaunchedEffect
+        val locator = fragmentLocator(ref) ?: return@LaunchedEffect
         val decoration = Decoration(
             id = "readaloud_active",
             locator = locator,
             style = Decoration.Style.Highlight(
                 tint = android.graphics.Color.parseColor("#FF7DD3FC"),
-                isActive = true,
+                isActive = false,
             ),
         )
         withContext(Dispatchers.Main) {
@@ -866,52 +903,49 @@ private fun EpubNavigatorView(
         hasHighlightDecorations.value = true
     }
 
-    // ---- Auto-page-turn --------------------------------------------------------------------
-    // When the coordinator signals the narrated sentence has scrolled off-screen, advance using
-    // the same navigation calls the volume-key path uses (goForward for paginated, scroll-to-
-    // bottom for continuous). Approximation note: Readium 3.0.0 has no API to enumerate the
-    // fragment refs actually rendered in the viewport, so we report a coarse visible set built
-    // from the current locator's href below; the coordinator treats the active sentence as
-    // off-screen once it moves past that set.
-    LaunchedEffect(advancePageEvents) {
-        advancePageEvents.collect {
-            val fragment = fragmentRef.value ?: return@collect
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical) {
-                // Continuous: scroll down by a viewport height.
-                launch {
-                    fragment.evaluateJavascript(
-                        "window.scrollBy(0, window.innerHeight * 0.9);"
-                    )
-                }
-            } else {
-                fragment.goForward(animated = false)
-            }
-        }
-    }
-
-    // Feed the coordinator a coarse visible-fragment set. Readium 3.0.0 does not expose the exact
-    // fragment refs rendered in the viewport, so we approximate by snapshotting the fragment that
-    // was active at the moment the page last settled (the locator href changed). While playback
-    // stays on that page the snapshot is the "visible" set; once the active clip's document index
-    // climbs past it, AutoPageTurnRule fires an advance. This is intentionally conservative — it
-    // advances when audio moves beyond where the page settled, not mid-sentence.
-    val pageSettledFragment = remember { mutableStateOf<String?>(null) }
-    val currentActiveFragmentRef by rememberUpdatedState(activeFragmentRef)
-    // Snapshot whenever the locator href changes (a new page/chapter has rendered).
-    LaunchedEffect(fragmentRef.value) {
+    // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
+    // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence); the
+    // page should follow the narrated sentence. Readium 3.0.0 can't enumerate visible fragments, so
+    // we ask the WebView for the element's on-screen rect and act per layout:
+    //
+    //  - Scroll (Vertical) mode — the document overflows the viewport, so we scroll it to KEEP THE
+    //    SENTENCE CENTERED, the natural karaoke-follow.
+    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized (nothing to scroll), so we
+    //    can't centre; instead we snap to the sentence's page when it isn't cleanly on the current
+    //    one. "on" requires FULL horizontal containment (within a tolerance): a reader resting at a
+    //    fractional page offset shows a clipped column plus a sliver of the next, and a sentence in
+    //    that sliver is "partly visible" but misaligned — requiring full containment snaps it instead
+    //    of leaving the page dragged sideways. go(locator) lands on a page boundary (aligned), which
+    //    also corrects the fractional offset; because we only rest on an aligned page, the saved
+    //    position stays aligned too.
+    //
+    // A missing element (sentence in another chapter's document) reads as off → go(locator) jumps
+    // chapters, so cross-chapter follow falls out for free in both modes.
+    LaunchedEffect(activeFragmentRef) {
+        val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
-        var lastHref: String? = null
-        fragment.currentLocator.collect { locator ->
-            val href = locator.href.toString()
-            if (href != lastHref) {
-                lastHref = href
-                pageSettledFragment.value = currentActiveFragmentRef
-            }
-        }
-    }
-    LaunchedEffect(pageSettledFragment.value) {
-        val ref = pageSettledFragment.value
-        onReportVisibleFragments(if (ref != null) setOf(ref) else emptySet())
+        val hashIdx = ref.indexOf('#')
+        if (hashIdx < 0) return@LaunchedEffect
+        val fragId = ref.substring(hashIdx + 1)
+        val where = fragment.evaluateJavascript(
+            """
+            (function(){
+              var e=document.getElementById(${JSONObject.quote(fragId)});
+              if(!e) return "off";
+              var r=e.getBoundingClientRect();
+              var se=document.scrollingElement||document.documentElement;
+              if(se && se.scrollHeight > window.innerHeight + 4){
+                var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
+                if(Math.abs(delta) > 8) window.scrollBy(0, delta);
+                return "on";
+              }
+              var TOL=24;
+              return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
+            })()
+            """.trimIndent(),
+        )?.trim('"')
+        if (where != "off") return@LaunchedEffect
+        fragmentLocator(ref)?.let { fragment.go(it, animated = false) }
     }
 
     LaunchedEffect(volumeNavEvents) {

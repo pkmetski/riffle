@@ -59,15 +59,16 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         val storytellerServer = serverRepository.getById(link.storytellerServerId) ?: return null
         val storytellerToken = tokenStorage.getToken(link.storytellerServerId) ?: return null
 
-        val absBytes = cachedBytes(link.absLibraryItemId) ?: return null
-        val storytellerBytes = cachedBytes(link.storytellerBookId) ?: return null
+        val absFile = cachedFile(link.absLibraryItemId) ?: return null
+        val storytellerFile = cachedFile(link.storytellerBookId) ?: return null
 
         // The index must already be built for these exact bytes (checksum-keyed); otherwise the
-        // background builder hasn't caught up — stay single-peer until it has.
-        val index = indexStore.load(EpubChecksum.of(absBytes), EpubChecksum.of(storytellerBytes)) ?: return null
+        // background builder hasn't caught up — stay single-peer until it has. Checksums stream the
+        // file (the synced bundle is hundreds of MB — never read it into memory; ADR 0023).
+        val index = indexStore.load(EpubChecksum.of(absFile), EpubChecksum.of(storytellerFile)) ?: return null
 
-        val absExtract = EpubContentExtractor.extract(absBytes) ?: return null
-        val storytellerExtract = EpubContentExtractor.extract(storytellerBytes) ?: return null
+        val absExtract = EpubContentExtractor.extract(absFile) ?: return null
+        val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
 
         val fragmentProgressions = StorytellerFragmentIndexBuilder.build(
             storytellerExtract.chapters, storytellerExtract.smilClips,
@@ -98,8 +99,8 @@ class ThreePeerReaderSyncFactory @Inject constructor(
     private fun endpoint(server: Server, token: String, itemId: String) =
         AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId)
 
-    private fun cachedBytes(itemId: String): ByteArray? =
-        (downloadsStore.get(itemId) ?: cacheStore.get(itemId))?.readBytes()
+    private fun cachedFile(itemId: String): java.io.File? =
+        downloadsStore.get(itemId) ?: cacheStore.get(itemId)
 
     private fun ExtractedEpub.hrefs() = chapters.map { it.href }
     private fun ExtractedEpub.htmlAt(): (Int) -> String? = { chapters.getOrNull(it)?.html }

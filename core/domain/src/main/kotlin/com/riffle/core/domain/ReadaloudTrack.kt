@@ -2,9 +2,9 @@ package com.riffle.core.domain
 
 /**
  * The ordered Media Overlay timeline for a Readaloud, built from every `.smil` entry in the
- * Storyteller EPUB bundle (concatenated in spine order). Maps freely between the three things
- * the player and reader need to relate: a playback position `(audioSrc, sec)`, a text fragment
- * reference, and the document-order index used for [AutoPageTurnRule] decisions.
+ * Storyteller EPUB bundle (concatenated in spine order). Relates the things the player and reader
+ * need: a playback position `(audioSrc, sec)`, a text fragment reference, and the clip to start
+ * narration from for a given reader position.
  */
 class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
 
@@ -25,22 +25,27 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
     fun clipForFragment(textFragmentRef: String): MediaOverlayClip? =
         indexByFragment[textFragmentRef]?.let { clips[it] }
 
-    /** Document-order index of a fragment, or -1 if absent. */
-    fun indexOfFragment(textFragmentRef: String): Int =
-        indexByFragment[textFragmentRef] ?: -1
-
     /**
      * The clip to start narration from for a reader position given by its chapter [href] and
      * optional [fragmentId]. Prefers an exact "href#fragmentId" match (the sentence under the
-     * reader's cursor); otherwise falls back to the first clip of that chapter so playback at
-     * least begins on the page the user is reading rather than at the start of the book. Leading
+     * reader's cursor); else the first clip of that chapter; else — when the chapter has no Media
+     * Overlay at all (e.g. a Storyteller un-narrated chapter-heading page, `…_split_000.html`, the
+     * page the TOC lands on) — the first narrated clip at or after the reader's position in reading
+     * order. Returns null only when the reader is past all narrated content. This keeps playback on
+     * (or just ahead of) the page the user is reading rather than restarting the whole book. Leading
      * slashes are ignored so Readium's "/text/x" and SMIL's "text/x" hrefs reconcile.
+     *
+     * Relies on [clips] being in reading order (MediaOverlayReader concatenates `.smil` entries in
+     * spine order) with reading-order-monotonic hrefs, so the first clip whose chapter href is not
+     * less than [href] is the start of the nearest following narrated chapter.
      */
     fun resolveStartClip(href: String, fragmentId: String?): MediaOverlayClip? {
         val target = href.trimStart('/')
         if (fragmentId != null) {
             clips.firstOrNull { it.textFragmentRef.trimStart('/') == "$target#$fragmentId" }?.let { return it }
         }
-        return clips.firstOrNull { it.textFragmentRef.substringBefore('#').trimStart('/') == target }
+        fun chapterHref(clip: MediaOverlayClip) = clip.textFragmentRef.substringBefore('#').trimStart('/')
+        clips.firstOrNull { chapterHref(it) == target }?.let { return it }
+        return clips.firstOrNull { chapterHref(it) >= target }
     }
 }

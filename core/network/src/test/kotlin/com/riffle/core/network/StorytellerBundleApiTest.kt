@@ -1,5 +1,12 @@
 package com.riffle.core.network
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import okhttp3.Call
+import okhttp3.Connection
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -9,6 +16,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.test.runTest
 
 class StorytellerBundleApiTest {
@@ -61,6 +70,51 @@ class StorytellerBundleApiTest {
         )
 
         assertTrue(result is NetworkStorytellerBundleResult.NetworkError)
+    }
+
+    @Test fun downloadBundle_cancelledDuringSlowHeaderWait_doesNotLeakConnection() = runBlocking {
+        // Storyteller takes 1.5–5s to answer /synced; if the reader navigates away in that window
+        // the coroutine is cancelled and withContext discards the returned Success(body) — the open
+        // ResponseBody (and its connection) leaks unless the API closes it on cancellation.
+        val acquired = AtomicInteger()
+        val released = AtomicInteger()
+        val countingClient = OkHttpClient.Builder()
+            .eventListener(object : EventListener() {
+                override fun connectionAcquired(call: Call, connection: Connection) { acquired.incrementAndGet() }
+                override fun connectionReleased(call: Call, connection: Connection) { released.incrementAndGet() }
+            })
+            .build()
+        val leakApi: StorytellerBundleApi = StorytellerBundleApiImpl(countingClient)
+
+        // Headers arrive only after 500ms, so execute() is still blocked when we cancel at ~100ms.
+        server.enqueue(
+            MockResponse()
+                .setBody(Buffer().write(ByteArray(64)))
+                .setHeadersDelay(500, TimeUnit.MILLISECONDS),
+        )
+
+        val job = launch(Dispatchers.IO) {
+            // Caller never reaches its body.use{} — it is cancelled mid-request.
+            leakApi.downloadBundle(
+                baseUrl = server.url("/").toString().trimEnd('/'),
+                bookId = "42",
+                token = "tkn",
+                insecureAllowed = false,
+            )
+        }
+        delay(100)
+        job.cancel()
+        job.join() // returns once the blocking execute() unwinds and withContext observes the cancel
+
+        // Allow the connection-release callback to settle after the body is closed.
+        var waited = 0
+        while (acquired.get() == 0 || released.get() < acquired.get()) {
+            if (waited >= 2000) break
+            delay(50); waited += 50
+        }
+
+        assertTrue("Expected a connection to be acquired", acquired.get() >= 1)
+        assertEquals("Leaked connection: acquired but never released", acquired.get(), released.get())
     }
 
     @Test fun probeBundleSize_returnsContentLength_fromHeadResponse() = runTest {
