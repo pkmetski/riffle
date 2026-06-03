@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.flowOf
 internal object NoopReadaloudReviewRepository : ReadaloudReviewRepository {
     override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
         flowOf(ReadaloudReview(emptyList(), emptyList(), emptyList()))
-    override suspend fun hasPendingCandidates(storytellerServerId: String, storytellerBookId: String): Boolean = false
     override suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
     override suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
     override suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) = Unit

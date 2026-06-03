@@ -10,6 +10,7 @@ import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.READALOUD_MEDIA_TYPE
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
@@ -111,24 +112,14 @@ class ServerRepositoryImpl @Inject constructor(
                 userId = "", // Storyteller's auth response doesn't expose a user id; identity is the username + token.
                 token = result.token,
                 insecureConnectionAllowed = insecureAllowed,
-                libraries = listOf(syntheticReadaloudLibrary()),
+                // Storyteller contributes no browsable Library (ADR 0026) — it is a Settings-only
+                // readaloud backend. The local namespace row that hosts its books as matcher input
+                // is created in [commit], not surfaced to the user.
+                libraries = emptyList(),
                 serverType = ServerType.STORYTELLER,
             )
         )
     }
-
-    /**
-     * Storyteller has no Library concept on the server — Riffle synthesizes one local Library
-     * to host every readaloud (ADR 0020). The id is generated per-server at commit time; see
-     * [commit].
-     */
-    private fun syntheticReadaloudLibrary(): Library =
-        Library(
-            id = SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID,
-            name = "Readalouds",
-            mediaType = READALOUD_MEDIA_TYPE,
-            isUnsupported = false,
-        )
 
     override suspend fun commit(
         pending: PendingServer,
@@ -143,34 +134,44 @@ class ServerRepositoryImpl @Inject constructor(
             username = pending.username,
             serverType = pending.serverType.name,
         )
-        val inserted = dao.upsertAsFirstIfNoActive(entity)
-        tokenStorage.saveToken(id, pending.token)
-        libraryDao.replaceAllForServer(
-            serverId = id,
-            libraries = pending.libraries.map {
-                LibraryEntity(
-                    // Materialise the synthetic Readaloud library with a server-scoped id so multiple
-                    // Storyteller Servers can coexist (each contributes its own Readaloud Library).
-                    id = if (it.id == SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID) readaloudLibraryId(id) else it.id,
-                    name = it.name,
-                    mediaType = it.mediaType,
-                    serverId = id,
-                )
-            },
-        )
-        // Hidden ids arriving from the picker may still reference the synthetic placeholder
-        // for the Readaloud library; remap them to the materialised server-scoped id so the
-        // visibility preference attaches to the row that actually exists.
-        hiddenLibraryIds.forEach { hidden ->
-            val materialisedId = if (hidden == SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID) readaloudLibraryId(id) else hidden
-            visibilityStore.hideLibrary(id, materialisedId)
+        // A Storyteller Server is a Settings-only readaloud backend (ADR 0026) — it must never
+        // become the active browsable Server, not even as the first server added. ABS servers keep
+        // the "first server becomes active" convenience.
+        val inserted = if (pending.serverType == ServerType.STORYTELLER) {
+            dao.upsert(entity)
+            entity
+        } else {
+            dao.upsertAsFirstIfNoActive(entity)
         }
+        tokenStorage.saveToken(id, pending.token)
+        val libraryRows = pending.libraries.map {
+            LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = id)
+        }.toMutableList()
+        // A Storyteller Server contributes no browsable Library (ADR 0026), but its readaloud books
+        // are stored in `library_items` as matcher input. They need an owning `libraries` row so the
+        // matcher's library→server join resolves their serverType and the server-removal cascade
+        // cleans them up. This row is never surfaced in the drawer or any library picker — the
+        // Server is never the active browsable Server.
+        if (pending.serverType == ServerType.STORYTELLER) {
+            libraryRows += LibraryEntity(
+                id = readaloudLibraryId(id),
+                name = "Readalouds",
+                mediaType = READALOUD_MEDIA_TYPE,
+                serverId = id,
+            )
+        }
+        libraryDao.replaceAllForServer(serverId = id, libraries = libraryRows)
+        hiddenLibraryIds.forEach { hidden -> visibilityStore.hideLibrary(id, hidden) }
         CommitServerResult.Success(inserted.toDomain())
     } catch (t: Throwable) {
         CommitServerResult.Failure(t)
     }
 
     override suspend fun setActive(serverId: String) {
+        // A Storyteller Server is a Settings-only readaloud backend (ADR 0026) — it can never be the
+        // active browsable Server. Enforce the invariant here so no caller (server removal, deep
+        // links, future UI) can promote one, and a stale DB row can't be re-activated.
+        if (dao.getById(serverId)?.serverType == ServerType.STORYTELLER.name) return
         dao.setActiveAtomic(serverId)
     }
 
@@ -198,8 +199,9 @@ class ServerRepositoryImpl @Inject constructor(
     }
 
     companion object {
-        const val SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID = "readaloud:pending"
-        const val READALOUD_MEDIA_TYPE = "readaloud"
+        // The local-only library id that namespaces a Storyteller Server's readaloud rows in
+        // `library_items` (matcher input; never browsable — ADR 0026). Its mediaType is the shared
+        // [READALOUD_MEDIA_TYPE] so consumers can filter it out of browsable surfaces.
         fun readaloudLibraryId(serverId: String): String = "readaloud:$serverId"
     }
 

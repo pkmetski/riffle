@@ -61,11 +61,6 @@ class EpubPositionIntegrationTest {
 
     private fun buildRepo(): EpubRepositoryImpl = EpubRepositoryImpl(
         api = AbsApiClient(OkHttpClient()),
-        bundleFetcher = EpubBundleFetcher(
-            api = com.riffle.core.network.StorytellerBundleApi { _, _, _, _ -> error("ABS test should not call bundle fetcher") },
-            workingDirProvider = { tmp.newFolder("unused-${System.nanoTime()}") },
-        ),
-        bundleProbe = com.riffle.core.network.StorytellerBundleProbeApi { _, _, _, _ -> error("ABS test should not probe bundle size") },
         cacheStore = cacheStore,
         downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub"),
         positionStore = ReadingPositionStoreImpl(sharedPositionDao),

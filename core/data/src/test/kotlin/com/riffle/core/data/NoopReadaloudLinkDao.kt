@@ -16,7 +16,6 @@ internal object NoopReadaloudLinkDao : ReadaloudLinkDao {
     override fun observeAll(): Flow<List<ReadaloudLinkEntity>> = flowOf(emptyList())
     override suspend fun allRows(): List<ReadaloudLinkEntity> = emptyList()
     override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(emptyList())
-    override fun observeLinkedStorytellerBookIds(): Flow<List<String>> = flowOf(emptyList())
     override suspend fun countForServer(serverId: String): Int = 0
     override suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String) = Unit
     override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) = Unit
@@ -29,7 +28,6 @@ internal object NoopReadaloudCandidateDao : ReadaloudCandidateDao {
     override suspend fun clearAll() = Unit
     override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(emptyList())
     override fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>> = flowOf(emptyList())
-    override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudCandidateEntity> = emptyList()
     override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) = Unit
     override suspend fun deleteCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
 }

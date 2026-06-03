@@ -168,7 +168,9 @@ class SettingsViewModel @Inject constructor(
             val removing = current.firstOrNull { it.id == serverId } ?: return@launch
             serverRepository.remove(serverId)
             if (removing.isActive) {
-                val next = current.firstOrNull { it.id != serverId }
+                // Promote the next browsable server. A Storyteller Server is never browsable
+                // (ADR 0026) and can never be active, so skip it when choosing the successor.
+                val next = current.firstOrNull { it.id != serverId && it.serverType != ServerType.STORYTELLER }
                 if (next != null) {
                     serverRepository.setActive(next.id)
                 } else {

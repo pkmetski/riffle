@@ -165,7 +165,6 @@ class ReadaloudReviewRepositoryTest {
         override fun observeAll(): Flow<List<ReadaloudLinkEntity>> = flowOf(store.values.toList())
         override suspend fun allRows() = store.values.toList()
         override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
-        override fun observeLinkedStorytellerBookIds(): Flow<List<String>> = flowOf(store.values.map { it.storytellerBookId })
         override suspend fun countForServer(serverId: String) = 0
         override suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String) { store.remove(absServerId to absLibraryItemId) }
         override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
@@ -185,8 +184,6 @@ class ReadaloudReviewRepositoryTest {
         override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(store.toList())
         override fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>> =
             flowOf(store.filter { it.storytellerServerId == storytellerServerId })
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
-            store.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
         override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
             store.removeAll { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
         }

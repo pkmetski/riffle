@@ -8,6 +8,8 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.isReadaloud
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +35,10 @@ class NavigationDrawerViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
+    // Storyteller is a Settings-only readaloud backend (ADR 0026): it never appears in the Server
+    // Switcher and can never become the active browsable Server.
     val allServers: StateFlow<List<Server>> = serverRepository.observeAll()
+        .map { servers -> servers.filter { it.serverType != ServerType.STORYTELLER } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeServer: StateFlow<Server?> = allServers
@@ -51,7 +56,8 @@ class NavigationDrawerViewModel @Inject constructor(
                 libraryRepository.observeLibraries(),
                 visibilityStore.hiddenLibraryIds(server.id),
             ) { libraries, hiddenIds ->
-                libraries.filter { it.id !in hiddenIds }
+                // Exclude hidden libraries and the never-browsable Readaloud namespace row (ADR 0026).
+                libraries.filter { it.id !in hiddenIds && !it.isReadaloud }
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())

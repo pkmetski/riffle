@@ -9,12 +9,10 @@ import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.ExtractedEpub
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.OpenedSide
 import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
@@ -39,18 +37,14 @@ class ThreePeerReaderSyncFactory @Inject constructor(
     @EpubDownloadsStore private val downloadsStore: LocalStore,
 ) {
     /**
-     * @param itemId the id the reader opened (an ABS Library Item id on the ABS side, a
-     *   Storyteller book id on the Readaloud side).
+     * @param itemId the ABS Library Item id the reader opened. A book is always read from the ABS
+     *   side (ADR 0026), so the link is resolved by ABS item.
      */
     suspend fun createIfApplicable(itemId: String): ThreePeerReaderSyncCoordinator? {
         val active = serverRepository.getActive() ?: return null
-        val side = if (active.serverType == ServerType.STORYTELLER) OpenedSide.READALOUD else OpenedSide.ABS
 
         // Resolve the single Confirmed link; three-peer requires exactly one ABS link.
-        val link = when (side) {
-            OpenedSide.ABS -> linkRepository.findByAbsItem(active.id, itemId) ?: return null
-            OpenedSide.READALOUD -> linkRepository.findByStorytellerBook(active.id, itemId).singleOrNull() ?: return null
-        }
+        val link = linkRepository.findByAbsItem(active.id, itemId) ?: return null
         val absLinkCount = linkRepository.findByStorytellerBook(link.storytellerServerId, link.storytellerBookId).size
         if (absLinkCount != 1) return null
 
@@ -76,7 +70,6 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         val translator = CanonicalPositionTranslator(storytellerExtract.smilClips, index, fragmentProgressions)
 
         val bridge = ReaderPositionBridge(
-            displayedSide = side,
             absSpineHrefs = absExtract.hrefs(),
             absChapterHtml = absExtract.htmlAt(),
             storytellerSpineHrefs = storytellerExtract.hrefs(),
@@ -85,7 +78,7 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         )
 
         return ThreePeerReaderSyncCoordinator(
-            state = BookSyncState(isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = true, openedSide = side),
+            state = BookSyncState(isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = true),
             bridge = bridge,
             absApi = absSessionApi,
             storytellerApi = storytellerPositionApi,

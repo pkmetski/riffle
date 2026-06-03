@@ -157,7 +157,6 @@ class SettingsViewModelTest {
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
         override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
             reviewsFlow.map { it[storytellerServerId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
-        override suspend fun hasPendingCandidates(storytellerServerId: String, storytellerBookId: String) = false
         override suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) = Unit
@@ -225,6 +224,25 @@ class SettingsViewModelTest {
         assertEquals(1, remaining.size)
         assertEquals("srv-2", remaining[0].id)
         assertTrue(remaining[0].isActive)
+    }
+
+    @Test
+    fun `removeServer active server promotes the next browsable server, never a Storyteller`() = runTest {
+        // ADR 0026: a Storyteller Server can never become the active browsable Server, so removing
+        // the active ABS server must skip the Storyteller and promote the next ABS server.
+        serversFlow.value = listOf(
+            server("abs-1", active = true),
+            server("st-1", serverType = ServerType.STORYTELLER),
+            server("abs-2"),
+        )
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.servers.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.removeServer("abs-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("abs-2"), serversFlow.value.filter { it.isActive }.map { it.id })
     }
 
     @Test

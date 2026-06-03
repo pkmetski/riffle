@@ -229,7 +229,6 @@ class LibraryItemDetailViewModelTest {
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
-        readaloudReviewRepository = NoopReadaloudReviewRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,
         connectivityObserver = connectivityObserver,
     )
@@ -450,18 +449,9 @@ class LibraryItemDetailViewModelTest {
         assertTrue((vm.uiState.value as Ready).isInToRead)
     }
 
-    // --- Readaloud (Storyteller) detail mode ---
+    // --- Ready.isCachedOrDownloaded / Ready.isOffline ---
 
-    private fun storytellerServer() = Server(
-        id = "st-1",
-        url = com.riffle.core.domain.ServerUrl.parse("http://media-server:8001")!!,
-        isActive = true,
-        insecureConnectionAllowed = false,
-        username = "plamen",
-        serverType = com.riffle.core.domain.ServerType.STORYTELLER,
-    )
-
-    private fun absServer() = Server(
+    private fun activeServer() = Server(
         id = "abs-1",
         url = com.riffle.core.domain.ServerUrl.parse("http://media-server:13378")!!,
         isActive = true,
@@ -471,46 +461,12 @@ class LibraryItemDetailViewModelTest {
     )
 
     @Test
-    fun `isReadaloud true when active server is Storyteller`() = runTest {
-        val vm = makeVm(repo = fakeRepo(knownItem), serverRepository = serverRepoReturning(storytellerServer()))
-        backgroundScope.launch { vm.uiState.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue((vm.uiState.value as Ready).isReadaloud)
-    }
-
-    @Test
-    fun `isReadaloud false when active server is Audiobookshelf`() = runTest {
-        val vm = makeVm(repo = fakeRepo(knownItem), serverRepository = serverRepoReturning(absServer()))
-        backgroundScope.launch { vm.uiState.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertFalse((vm.uiState.value as Ready).isReadaloud)
-    }
-
-    @Test
-    fun `Readaloud detail does not invoke toReadRepository - no ABS-side playlists`() = runTest {
-        val toRead = FakeToReadRepository()
-        val vm = makeVm(
-            repo = fakeRepo(knownItem),
-            toReadRepo = toRead,
-            serverRepository = serverRepoReturning(storytellerServer()),
-        )
-        backgroundScope.launch { vm.uiState.collect {} }
-        testDispatcher.scheduler.advanceUntilIdle()
-        // refresh and isInToRead both touch the ABS playlists API and would 404 against
-        // Storyteller — confirm both are skipped for Readaloud detail.
-        assertTrue("toReadRepository should not be called for Readaloud items, was: ${toRead.callLog}", toRead.callLog.isEmpty())
-        assertFalse((vm.uiState.value as Ready).isInToRead)
-    }
-
-    // --- Ready.isCachedOrDownloaded / Ready.isOffline for Storyteller items ---
-
-    @Test
     fun `Ready state exposes isCachedOrDownloaded true when epub is cached`() = runTest {
         val fakeEpub = FakeEpubRepository(cachedIds = setOf(knownItem.id))
         val vm = makeVm(
             repo = fakeRepo(knownItem),
             epubRepository = fakeEpub,
-            serverRepository = serverRepoReturning(storytellerServer()),
+            serverRepository = serverRepoReturning(activeServer()),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -525,7 +481,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             repo = fakeRepo(knownItem),
             epubRepository = fakeEpub,
-            serverRepository = serverRepoReturning(storytellerServer()),
+            serverRepository = serverRepoReturning(activeServer()),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -540,7 +496,7 @@ class LibraryItemDetailViewModelTest {
         val vm = makeVm(
             repo = fakeRepo(knownItem),
             epubRepository = fakeEpub,
-            serverRepository = serverRepoReturning(storytellerServer()),
+            serverRepository = serverRepoReturning(activeServer()),
         )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -554,7 +510,7 @@ class LibraryItemDetailViewModelTest {
         val connectivity = FakeConnectivityObserver(online = true)
         val vm = makeVm(
             repo = fakeRepo(knownItem),
-            serverRepository = serverRepoReturning(storytellerServer()),
+            serverRepository = serverRepoReturning(activeServer()),
             connectivityObserver = connectivity,
         )
         backgroundScope.launch { vm.uiState.collect {} }
@@ -568,7 +524,7 @@ class LibraryItemDetailViewModelTest {
         val connectivity = FakeConnectivityObserver(online = false)
         val vm = makeVm(
             repo = fakeRepo(knownItem),
-            serverRepository = serverRepoReturning(storytellerServer()),
+            serverRepository = serverRepoReturning(activeServer()),
             connectivityObserver = connectivity,
         )
         backgroundScope.launch { vm.uiState.collect {} }
@@ -582,7 +538,7 @@ class LibraryItemDetailViewModelTest {
         val connectivity = FakeConnectivityObserver(online = true)
         val vm = makeVm(
             repo = fakeRepo(knownItem),
-            serverRepository = serverRepoReturning(storytellerServer()),
+            serverRepository = serverRepoReturning(activeServer()),
             connectivityObserver = connectivity,
         )
         backgroundScope.launch { vm.uiState.collect {} }

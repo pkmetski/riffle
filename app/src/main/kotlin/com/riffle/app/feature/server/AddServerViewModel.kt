@@ -102,7 +102,11 @@ class AddServerViewModel @Inject constructor(
             when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
                 is AuthenticateResult.Success -> {
                     val pending = result.pending
-                    if (pending.libraries.size == 1) {
+                    // Show the library picker only when there's an actual choice (≥2 libraries).
+                    // A Storyteller Server contributes no browsable Library (ADR 0026) so it has
+                    // zero, and a single-library ABS Server has nothing to pick — both commit
+                    // directly and the Storyteller Server then lives only in Settings.
+                    if (pending.libraries.size <= 1) {
                         when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
                             is CommitServerResult.Success -> _navigateHome.send(Unit)
                             is CommitServerResult.Failure ->

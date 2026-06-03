@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -134,7 +135,6 @@ class ServerRepositoryTest {
         override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
-        override suspend fun updateReadaloudMetadata(serverId: String, itemId: String, author: String?, description: String?, publishedYear: String?, publisher: String?, genres: String) {}
         override suspend fun listMatchableByServerType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
     }
 
@@ -280,8 +280,9 @@ class ServerRepositoryTest {
         val pending = (result as AuthenticateResult.Success).pending
         assertEquals("tok-st", pending.token)
         assertEquals(ServerType.STORYTELLER, pending.serverType)
-        assertEquals(1, pending.libraries.size)
-        assertEquals("readaloud", pending.libraries.single().mediaType)
+        // Storyteller contributes no browsable Library (ADR 0026) — the namespace row is created
+        // at commit time, not surfaced as a pending library.
+        assertTrue(pending.libraries.isEmpty())
         assertEquals(0, dao.allCount())
     }
 
@@ -302,32 +303,6 @@ class ServerRepositoryTest {
     }
 
     @Test
-    fun `commit Storyteller pending remaps hidden placeholder id to materialised library id`() = runTest {
-        val dao = fakeDao(); val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
-        val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
-
-        val pending = PendingServer(
-            url = ServerUrl.parse("http://media-server:8001")!!,
-            username = "plamen", userId = "", token = "tok-st",
-            insecureConnectionAllowed = false,
-            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
-            serverType = ServerType.STORYTELLER,
-        )
-
-        val result = repo.commit(
-            pending,
-            hiddenLibraryIds = setOf(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID),
-        )
-
-        assertTrue(result is CommitServerResult.Success)
-        val server = (result as CommitServerResult.Success).server
-        val materialisedId = ServerRepositoryImpl.readaloudLibraryId(server.id)
-        assertEquals(setOf(materialisedId), visibility.hidden[server.id])
-    }
-
-    @Test
     fun `two Storyteller servers commit independently, each with their own Readaloud library row`() = runTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
@@ -339,14 +314,14 @@ class ServerRepositoryTest {
             url = ServerUrl.parse("http://media-server:8001")!!,
             username = "plamen", userId = "", token = "tok-A",
             insecureConnectionAllowed = false,
-            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
         )
         val pendingB = PendingServer(
             url = ServerUrl.parse("https://readalouds.example.com")!!,
             username = "plamen", userId = "", token = "tok-B",
             insecureConnectionAllowed = false,
-            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
         )
 
@@ -387,7 +362,7 @@ class ServerRepositoryTest {
             url = ServerUrl.parse("http://media-server:8001")!!,
             username = "plamen", userId = "", token = "tok-st",
             insecureConnectionAllowed = false,
-            libraries = listOf(Library(ServerRepositoryImpl.SYNTHETIC_READALOUD_LIBRARY_PLACEHOLDER_ID, "Readalouds", "readaloud", false)),
+            libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
         )
 
@@ -399,6 +374,30 @@ class ServerRepositoryTest {
         assertEquals(ServerRepositoryImpl.readaloudLibraryId(server.id), lib.id)
         assertEquals("readaloud", lib.mediaType)
         assertEquals(server.id, lib.serverId)
+    }
+
+    @Test
+    fun `commit Storyteller server is never marked active even when no server is active`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+
+        val pending = PendingServer(
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            username = "plamen", userId = "", token = "tok-st",
+            insecureConnectionAllowed = false,
+            libraries = emptyList(),
+            serverType = ServerType.STORYTELLER,
+        )
+
+        val result = repo.commit(pending, hiddenLibraryIds = emptySet())
+
+        assertTrue(result is CommitServerResult.Success)
+        // Storyteller is a Settings-only readaloud backend (ADR 0026) — it must never become the
+        // active browsable Server, even when it is the first server added.
+        assertFalse((result as CommitServerResult.Success).server.isActive)
+        assertEquals(null, dao.getActive())
     }
 
     @Test
@@ -503,5 +502,22 @@ class ServerRepositoryTest {
         )
         repo.setActive("s2")
         assertEquals("s2", dao.getActive()?.id)
+    }
+
+    @Test
+    fun `setActive ignores a Storyteller server so it never becomes the active browsable server`() = runTest {
+        val abs = ServerEntity("abs", "https://abs.example.com", true, false, username = "")
+        val st = ServerEntity("st", "http://media-server:8001", false, false, username = "", serverType = ServerType.STORYTELLER.name)
+        val dao = fakeDao(abs, st)
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(
+            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
+        )
+
+        repo.setActive("st")
+
+        // ADR 0026: a Storyteller Server is a Settings-only readaloud backend and can never be the
+        // active browsable Server — the previously active ABS server stays active.
+        assertEquals("abs", dao.getActive()?.id)
     }
 }

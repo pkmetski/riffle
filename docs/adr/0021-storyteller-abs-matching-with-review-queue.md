@@ -1,6 +1,7 @@
 # ADR 0021 — Client-side incremental Storyteller↔ABS matching with a review queue
 
 **Status:** Accepted
+**Amended by:** [ADR 0026](0026-storyteller-as-settings-only-readaloud-backend.md) — the matching mechanism and the Settings review queue (Pending Review / Unmatched / Confirmed, incl. Unlink) are **unchanged and are the only link-management surface**. The *secondary* entry point on the "Readaloud-side Library Item Detail Screen" no longer exists (that screen is removed); the ABS Detail Screen gains no new link affordances.
 
 ## Context
 

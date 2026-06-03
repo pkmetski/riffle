@@ -34,10 +34,6 @@ interface ReadaloudLinkDao {
     @Query("SELECT absLibraryItemId FROM readaloud_links")
     fun observeLinkedAbsItemIds(): Flow<List<String>>
 
-    /** Set of Storyteller book ids with any link — drives the Readaloud-side footer state. */
-    @Query("SELECT DISTINCT storytellerBookId FROM readaloud_links")
-    fun observeLinkedStorytellerBookIds(): Flow<List<String>>
-
     @Query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerServerId = :serverId OR absServerId = :serverId")
     suspend fun countForServer(serverId: String): Int
 

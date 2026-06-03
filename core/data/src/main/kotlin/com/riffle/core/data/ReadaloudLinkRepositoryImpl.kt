@@ -20,9 +20,6 @@ class ReadaloudLinkRepositoryImpl @Inject constructor(
     override fun observeLinkedAbsItemIds(): Flow<Set<String>> =
         dao.observeLinkedAbsItemIds().map { it.toSet() }
 
-    override fun observeLinkedStorytellerBookIds(): Flow<Set<String>> =
-        dao.observeLinkedStorytellerBookIds().map { it.toSet() }
-
     override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink? =
         dao.findByAbsItem(absServerId, absLibraryItemId)?.toDomain()
 
@@ -31,9 +28,6 @@ class ReadaloudLinkRepositoryImpl @Inject constructor(
 
     override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) =
         dao.deleteByAbsItem(absServerId, absLibraryItemId)
-
-    override suspend fun unlinkStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
-        dao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
 
     override suspend fun countForServer(serverId: String): Int =
         dao.countForServer(serverId)

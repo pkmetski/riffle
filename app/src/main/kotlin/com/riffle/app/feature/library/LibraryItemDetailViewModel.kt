@@ -17,7 +17,6 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,11 +35,6 @@ sealed interface LibraryItemDetailUiState {
     data class Ready(
         val item: LibraryItem,
         val isInToRead: Boolean = false,
-        // True when the item belongs to a Storyteller-backed (Readaloud) Library.
-        val isReadaloud: Boolean = false,
-        // Surfaced as the Readaloud-side / ABS-side footer per ADR 0021 when the matcher has
-        // produced a Confirmed link.
-        val readaloudFooter: ReadaloudFooterState? = null,
         // True when the epub is available locally (cached or downloaded). Used by the UI to decide
         // whether to disable the Read button when offline (#35).
         val isCachedOrDownloaded: Boolean = false,
@@ -49,33 +43,6 @@ sealed interface LibraryItemDetailUiState {
         val isOffline: Boolean = false,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
-}
-
-sealed interface ReadaloudFooterState {
-    /**
-     * Shown on the Readaloud-side detail. Lists every ABS counterpart since a readaloud can
-     * legitimately link to multiple ABS items (e.g. ebook + audiobook stub). Unlink drops
-     * every row paired with this readaloud.
-     */
-    data class ReadaloudLinkedToAbs(
-        val targets: List<AbsTarget>,
-        val storytellerServerId: String,
-        val storytellerBookId: String,
-    ) : ReadaloudFooterState {
-        data class AbsTarget(val absTitle: String, val absLibraryName: String)
-    }
-
-    /** Readaloud side, Tier 3: "Possible matches — Review" → opens the Pending Review queue. */
-    data class ReadaloudPendingReview(
-        val storytellerServerId: String,
-        val storytellerBookId: String,
-    ) : ReadaloudFooterState
-
-    /** Readaloud side, Tier 4: "Not linked to an ABS book — Pair manually" → opens the picker. */
-    data class ReadaloudUnmatched(
-        val storytellerServerId: String,
-        val storytellerBookId: String,
-    ) : ReadaloudFooterState
 }
 
 sealed interface DownloadState {
@@ -98,7 +65,6 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val sessionRepository: ReadingSessionRepository,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
-    private val readaloudReviewRepository: com.riffle.core.domain.ReadaloudReviewRepository,
     private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
@@ -127,14 +93,13 @@ class LibraryItemDetailViewModel @Inject constructor(
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
-            val isReadaloud = server?.serverType == ServerType.STORYTELLER
             _uiState.value = try {
                 val item = repository.getItem(itemId)
                 if (item != null) {
                     _downloadState.value = deriveDownloadState(item)
-                    if (!isReadaloud) toReadRepository.refresh(item.libraryId)
-                    val isInToRead = if (isReadaloud) false else toReadRepository.isInToRead(item.id, item.libraryId)
-                    val link = if (!isReadaloud && server?.id != null) {
+                    toReadRepository.refresh(item.libraryId)
+                    val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
+                    val link = if (server?.id != null) {
                         readaloudLinkRepository.findByAbsItem(server.id, item.id)
                     } else {
                         null
@@ -143,13 +108,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                     _readaloudDownloadState.value = link?.let {
                         readaloudDownloadStateFor(readaloudAudioRepository.isAudioAvailable(it.storytellerServerId, it.storytellerBookId))
                     }
-                    val footer = resolveReadaloudFooter(item, isReadaloud, server?.id)
                     val isCachedOrDownloaded = epubRepository.isCached(item.serverId, item.id) || epubRepository.isDownloaded(item.serverId, item.id)
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         isInToRead = isInToRead,
-                        isReadaloud = isReadaloud,
-                        readaloudFooter = footer,
                         isCachedOrDownloaded = isCachedOrDownloaded,
                         isOffline = !connectivityObserver.isOnline.value,
                     )
@@ -261,25 +223,6 @@ class LibraryItemDetailViewModel @Inject constructor(
         }
     }
 
-    fun unlinkFromAbs() {
-        val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
-        val footer = current.readaloudFooter as? ReadaloudFooterState.ReadaloudLinkedToAbs ?: return
-        viewModelScope.launch {
-            // Readaloud-side unlink drops every ABS row paired with this readaloud (each
-            // ABS slot has its own row under the ABS-keyed schema).
-            readaloudLinkRepository.unlinkStorytellerBook(footer.storytellerServerId, footer.storytellerBookId)
-            // Recompute the footer so the "Pair manually" / "Review" prompt appears immediately
-            // instead of the footer vanishing until the screen is reopened.
-            val newFooter = if (readaloudReviewRepository.hasPendingCandidates(footer.storytellerServerId, footer.storytellerBookId)) {
-                ReadaloudFooterState.ReadaloudPendingReview(footer.storytellerServerId, footer.storytellerBookId)
-            } else {
-                ReadaloudFooterState.ReadaloudUnmatched(footer.storytellerServerId, footer.storytellerBookId)
-            }
-            val latest = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
-            _uiState.value = latest.copy(readaloudFooter = newFooter)
-        }
-    }
-
     fun onDownloadReadaloud() {
         val link = readaloudLink ?: return
         if (_readaloudDownloadState.value == DownloadState.InProgress) return
@@ -302,52 +245,6 @@ class LibraryItemDetailViewModel @Inject constructor(
         viewModelScope.launch {
             readaloudAudioRepository.removeAudio(link.storytellerServerId, link.storytellerBookId)
             _readaloudDownloadState.value = DownloadState.NotDownloaded
-        }
-    }
-
-    private suspend fun resolveReadaloudFooter(
-        item: LibraryItem,
-        isReadaloud: Boolean,
-        serverId: String?,
-    ): ReadaloudFooterState? {
-        if (serverId == null) return null
-        return if (isReadaloud) {
-            // A readaloud can have multiple ABS rows (ebook + audiobook stub). Surface
-            // every counterpart, ebooks first so the most useful target leads the list.
-            val links = readaloudLinkRepository.findByStorytellerBook(serverId, item.id)
-            if (links.isEmpty()) {
-                // No Confirmed link: surface either the Pending Review queue (Tier 3 candidates
-                // exist) or the Unmatched "pair manually" prompt (Tier 4).
-                return if (readaloudReviewRepository.hasPendingCandidates(serverId, item.id)) {
-                    ReadaloudFooterState.ReadaloudPendingReview(serverId, item.id)
-                } else {
-                    ReadaloudFooterState.ReadaloudUnmatched(serverId, item.id)
-                }
-            }
-            val targets = links
-                .mapNotNull { link ->
-                    val absItem = repository.getItem(link.absLibraryItemId) ?: return@mapNotNull null
-                    val library = repository.getLibrary(absItem.libraryId)
-                    absItem to ReadaloudFooterState.ReadaloudLinkedToAbs.AbsTarget(
-                        absTitle = absItem.title,
-                        absLibraryName = library?.name ?: absItem.libraryId,
-                    )
-                }
-                .sortedWith(
-                    compareBy(
-                        { if (it.first.ebookFormat == EbookFormat.Unsupported) 1 else 0 },
-                        { it.second.absLibraryName },
-                    )
-                )
-                .map { it.second }
-            if (targets.isEmpty()) return null
-            ReadaloudFooterState.ReadaloudLinkedToAbs(
-                targets = targets,
-                storytellerServerId = serverId,
-                storytellerBookId = item.id,
-            )
-        } else {
-            return null
         }
     }
 

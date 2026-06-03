@@ -59,13 +59,6 @@ class LibraryItemsViewModel @Inject constructor(
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
-    // Readaloud Libraries (ADR 0020) collapse the Library Tab Bar to All Books only — Storyteller
-    // exposes no Series, Collections, or To Read source.
-    val isReadaloudLibrary: StateFlow<Boolean> = libraryRepository.observeLibraries()
-        .map { libs -> libs.firstOrNull { it.id == libraryId }?.mediaType == "readaloud" }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-
     val series: StateFlow<List<Series>> = libraryRepository.observeSeries(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -114,15 +107,11 @@ class LibraryItemsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /**
-     * Set of items in this library that have a Readaloud↔ABS link — drives the small
-     * readaloud badge on each LibraryItemCard. For an ABS Library the set is keyed by
-     * ABS Library Item id; for a Readaloud Library it's keyed by Storyteller book id.
+     * Set of ABS Library Item ids in this library that have a Readaloud↔ABS link — drives the
+     * small readaloud badge on each LibraryItemCard (ADR 0026: readalouds surface only on ABS
+     * items).
      */
-    val linkedItemIds: StateFlow<Set<String>> = isReadaloudLibrary
-        .flatMapLatest { isReadaloud ->
-            if (isReadaloud) readaloudLinkRepository.observeLinkedStorytellerBookIds()
-            else readaloudLinkRepository.observeLinkedAbsItemIds()
-        }
+    val linkedItemIds: StateFlow<Set<String>> = readaloudLinkRepository.observeLinkedAbsItemIds()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
