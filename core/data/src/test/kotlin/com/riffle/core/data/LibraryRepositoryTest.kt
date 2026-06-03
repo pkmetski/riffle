@@ -183,9 +183,14 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         },
         readingSessionRepository: com.riffle.core.domain.ReadingSessionRepository = NoopReadingSessionRepository,
+        readaloudMatchingService: ReadaloudMatchingService = noopMatchingService(libraryItemDao),
+        storytellerReadaloudSyncer: StorytellerReadaloudSyncer = StorytellerReadaloudSyncer(
+            fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), libraryItemDao, { 0L },
+        ),
     ) = LibraryRepositoryImpl(
         api, storytellerApiNotCalled, libraryDao, libraryItemDao, seriesDao, collectionDao,
-        fakeServerRepository, fakeTokenStorage, readingSessionRepository, noopMatchingService(libraryItemDao),
+        fakeServerRepository, fakeTokenStorage, readingSessionRepository, readaloudMatchingService,
+        storytellerReadaloudSyncer,
     )
 
     private fun noopMatchingService(itemDao: FakeLibraryItemDao): ReadaloudMatchingService =
@@ -813,6 +818,9 @@ class LibraryRepositoryTest {
                 tokenStorage = fakeTokenStorage,
                 readingSessionRepository = NoopReadingSessionRepository,
                 readaloudMatchingService = noopMatchingService(itemDao),
+                storytellerReadaloudSyncer = StorytellerReadaloudSyncer(
+                    fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), itemDao, { 0L },
+                ),
             ).refreshLibraryItems("readaloud:st-1")
         }
 
@@ -841,5 +849,36 @@ class LibraryRepositoryTest {
         fakeTokenStorage.tokens["st-1"] = "tok-st"
         val result = makeRepo().refreshCollections("readaloud:st-1")
         assertTrue(result is com.riffle.core.domain.LibraryRefreshResult.Success)
+    }
+
+    // ── ABS refresh triggers storyteller syncer ───────────────────────────────
+
+    @Test
+    fun `ABS library refresh invokes storyteller syncer before reconcile`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val itemDao = FakeLibraryItemDao()
+        var synced = false
+        val spySyncer = object : StorytellerReadaloudSyncer(
+            fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), itemDao, { 0L },
+        ) {
+            override suspend fun syncStale() { synced = true }
+        }
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 0f, ebookFormat = com.riffle.core.domain.EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        val result = makeRepo(libraryItemDao = itemDao, api = api, storytellerReadaloudSyncer = spySyncer)
+            .refreshLibraryItems("lib-1")
+        assertTrue(result is LibraryRefreshResult.Success)
+        assertTrue("syncStale() should have been called during ABS library refresh", synced)
     }
 }

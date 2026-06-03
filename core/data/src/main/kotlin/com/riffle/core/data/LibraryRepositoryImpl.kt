@@ -48,6 +48,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val readingSessionRepository: ReadingSessionRepository,
     private val readaloudMatchingService: ReadaloudMatchingService,
+    private val storytellerReadaloudSyncer: StorytellerReadaloudSyncer,
 ) : LibraryRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -172,6 +173,7 @@ class LibraryRepositoryImpl @Inject constructor(
                 libraryItemDao.replaceAllForLibrary(libraryId, entities)
                 val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                 libraryDao.setUnsupported(libraryId, isUnsupported)
+                storytellerReadaloudSyncer.syncStale()
                 readaloudMatchingService.reconcileLinks()
                 LibraryRefreshResult.Success
             }

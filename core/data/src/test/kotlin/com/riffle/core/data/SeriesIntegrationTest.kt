@@ -131,18 +131,34 @@ class SeriesIntegrationTest {
         override suspend fun deleteItemsByLibraryId(libraryId: String) {}
     }
 
-    private fun makeRepo(seriesDao: FakeSeriesDao = FakeSeriesDao()) = LibraryRepositoryImpl(
-        api = AbsApiClient(OkHttpClient()),
-        storytellerApi = com.riffle.core.network.StorytellerApiClient(OkHttpClient()),
-        libraryDao = FakeLibraryDao(),
-        libraryItemDao = FakeLibraryItemDao(),
-        seriesDao = seriesDao,
-        collectionDao = FakeCollectionDao(),
-        serverRepository = fakeServerRepository,
-        tokenStorage = fakeTokenStorage,
-        readingSessionRepository = NoopReadingSessionRepository,
-        readaloudMatchingService = ReadaloudMatchingService(FakeLibraryItemDao(), NoopReadaloudLinkDao, NoopReadaloudCandidateDao, NoopReadaloudDismissalDao),
-    )
+    private fun makeRepo(seriesDao: FakeSeriesDao = FakeSeriesDao()): LibraryRepositoryImpl {
+        val itemDao = FakeLibraryItemDao()
+        return LibraryRepositoryImpl(
+            api = AbsApiClient(OkHttpClient()),
+            storytellerApi = com.riffle.core.network.StorytellerApiClient(OkHttpClient()),
+            libraryDao = FakeLibraryDao(),
+            libraryItemDao = itemDao,
+            seriesDao = seriesDao,
+            collectionDao = FakeCollectionDao(),
+            serverRepository = fakeServerRepository,
+            tokenStorage = fakeTokenStorage,
+            readingSessionRepository = NoopReadingSessionRepository,
+            readaloudMatchingService = ReadaloudMatchingService(itemDao, NoopReadaloudLinkDao, NoopReadaloudCandidateDao, NoopReadaloudDismissalDao),
+            storytellerReadaloudSyncer = StorytellerReadaloudSyncer(
+                fakeServerRepository, fakeTokenStorage,
+                object : com.riffle.core.network.StorytellerLibraryApi {
+                    override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                        com.riffle.core.network.NetworkStorytellerValidateResult.Valid
+                    override suspend fun listReadalouds(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                        com.riffle.core.network.NetworkStorytellerBooksResult.Success(emptyList())
+                    override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean) =
+                        com.riffle.core.network.NetworkStorytellerBookResult.NotFound(bookId)
+                    override fun coverUrl(baseUrl: String, bookId: Long) = "$baseUrl/api/books/$bookId/cover"
+                },
+                itemDao, { 0L },
+            ),
+        )
+    }
 
     private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
