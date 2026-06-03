@@ -82,13 +82,21 @@ fun FormattingPreferences.toFragmentConfiguration(
         // falls back to the default serif — Literata/Merriweather/OpenDyslexic would all
         // render identically.
         servedAssets = listOf("fonts/.*"),
-        readiumCssRsProperties = if (isDoublePage) {
-            RsProperties(
+        readiumCssRsProperties = when {
+            isDoublePage -> RsProperties(
                 colCount = ColCount.TWO,
                 overrides = mapOf("--RS__colWidth" to "auto"),
             )
-        } else {
-            RsProperties()
+            // Reflowable, paginated (not scroll), single page: pin to ONE column. Readium 3.0.0's
+            // default already resolves to one column on a phone, but stating it explicitly keeps it
+            // the default across future engine upgrades. Readium 3.3.0, for example, changed the
+            // default so a phone-width viewport rendered TWO columns — and its decoration renderer
+            // mispositions the readaloud highlight in a multi-column layout, so the synced highlight
+            // silently vanished. (Landscape double-page still uses TWO columns above, by design.)
+            !isFixedLayout && orientation != ReaderOrientation.Vertical ->
+                RsProperties(colCount = ColCount.ONE)
+            // Scroll mode and fixed-layout: column count doesn't apply.
+            else -> RsProperties()
         },
         // Compose owns all window-inset handling (navigationBarsPadding on the reader Box,
         // status-bar consumed at the AndroidView root). Without this flag, Readium's
