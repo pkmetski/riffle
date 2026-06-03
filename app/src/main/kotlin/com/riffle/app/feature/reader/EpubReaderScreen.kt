@@ -989,23 +989,7 @@ private fun EpubNavigatorView(
         val hashIdx = ref.indexOf('#')
         if (hashIdx < 0) return@LaunchedEffect
         val fragId = ref.substring(hashIdx + 1)
-        val where = fragment.evaluateJavascript(
-            """
-            (function(){
-              var e=document.getElementById(${JSONObject.quote(fragId)});
-              if(!e) return "off";
-              var r=e.getBoundingClientRect();
-              var se=document.scrollingElement||document.documentElement;
-              if(se && se.scrollHeight > window.innerHeight + 4){
-                var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
-                if(Math.abs(delta) > 8) window.scrollBy(0, delta);
-                return "on";
-              }
-              var TOL=24;
-              return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
-            })()
-            """.trimIndent(),
-        )?.trim('"')
+        val where = fragment.evaluateJavascript(autoFollowSnapJs(fragId))?.trim('"')
         if (where != "off") return@LaunchedEffect
         fragmentLocator(ref)?.let { fragment.go(it, animated = false) }
     }

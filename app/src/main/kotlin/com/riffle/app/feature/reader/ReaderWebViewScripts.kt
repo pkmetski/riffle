@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import org.json.JSONObject
+
 /**
  * JavaScript snippets EpubReaderScreen injects into every reflowable page (see the
  * paginationListener's onPageLoaded). Kept together — and out of the screen file — alongside the
@@ -60,4 +62,34 @@ internal val SELECTION_SPAN_TRACKER_JS = """
         window.__riffleSelSpan = id;
       });
     })();
+""".trimIndent()
+
+/**
+ * The page-follow probe run on each narrated-sentence change (auto-follow). Given the narrated
+ * sentence's element id [fragId], it reports whether the page already shows the sentence ("on") or
+ * must snap to it ("off"), and keeps it on screen per layout:
+ *
+ *  - Scroll mode (document overflows the viewport): scrolls *vertically* to centre the sentence —
+ *    the karaoke follow — and returns "on".
+ *  - Paginated mode (page is exactly viewport-sized): can't scroll, so it returns "on" only when the
+ *    sentence is fully horizontally contained (within a tolerance), else "off" so the Kotlin side
+ *    snaps to its page via go().
+ *
+ * Crucially it only ever scrolls the Y axis (`scrollBy(0, …)`) — never X — so the page cannot drift
+ * sideways while narrating.
+ */
+internal fun autoFollowSnapJs(fragId: String): String = """
+    (function(){
+      var e=document.getElementById(${JSONObject.quote(fragId)});
+      if(!e) return "off";
+      var r=e.getBoundingClientRect();
+      var se=document.scrollingElement||document.documentElement;
+      if(se && se.scrollHeight > window.innerHeight + 4){
+        var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
+        if(Math.abs(delta) > 8) window.scrollBy(0, delta);
+        return "on";
+      }
+      var TOL=24;
+      return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
+    })()
 """.trimIndent()
