@@ -103,77 +103,28 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.util.AbsoluteUrl
 
-// Readium 3.0.0's reflowable tap handler (`ut` in readium-reflowable.js) hit-tests decorations
-// by calling `element.getBoundingClientRect().toJSON()`. On Android's pre-Chromium-61 WebView
-// (API ≤ 27, e.g. Android 7.1.1) getBoundingClientRect() returns a ClientRect with no toJSON(),
-// so that call throws *before* Readium forwards the gesture to Android.onTap — silently
-// swallowing every tap whenever an activable decoration is present. In practice that's the
-// readaloud sentence highlight: while (or after) readaloud runs, the user can no longer tap to
-// enter/exit immersive mode. Adding the missing toJSON() restores tap delivery. Injected per
-// page (see paginationListener) and guarded so it's a no-op where the engine already has it.
-internal val RECT_TO_JSON_POLYFILL_JS = """
-    (function () {
-      try {
-        var protos = [];
-        if (window.DOMRect && DOMRect.prototype) protos.push(DOMRect.prototype);
-        if (window.ClientRect && ClientRect.prototype) protos.push(ClientRect.prototype);
-        try { protos.push(Object.getPrototypeOf(document.documentElement.getBoundingClientRect())); } catch (e) {}
-        protos.forEach(function (p) {
-          if (p && typeof p.toJSON !== 'function') {
-            p.toJSON = function () {
-              return {
-                x: this.x, y: this.y, width: this.width, height: this.height,
-                top: this.top, right: this.right, bottom: this.bottom, left: this.left
-              };
-            };
-          }
-        });
-      } catch (e) {}
-    })();
-""".trimIndent()
-
-// Tracks the narrated-sentence span under the user's text selection so "Play from here" can resolve
-// the right SMIL clip. Storyteller wraps each sentence in <span id="cNNN-sM">; on every non-collapsed
-// selectionchange we walk up from the selection start to the nearest element with an id and stash it
-// in window.__riffleSelSpan. The stashed value survives the action-mode teardown that collapses the
-// DOM selection, so the menu handler can still read it. Idempotent via the installed flag.
-internal val SELECTION_SPAN_TRACKER_JS = """
-    (function () {
-      if (window.__riffleSelTrackerInstalled) return;
-      window.__riffleSelTrackerInstalled = true;
-      document.addEventListener('selectionchange', function () {
-        var s = window.getSelection();
-        if (!s || s.rangeCount === 0 || s.isCollapsed) return;
-        var n = s.getRangeAt(0).startContainer;
-        if (n && n.nodeType === 3) n = n.parentElement;
-        while (n && n !== document.body) {
-          if (n.id) { window.__riffleSelSpan = n.id; return; }
-          n = n.parentElement;
-        }
-      });
-    })();
-""".trimIndent()
-
 /**
- * A generation counter that increments a few times shortly after [orientation] changes — so
- * decoration effects keyed on it re-apply against the reflowed layout.
+ * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
+ * decoration effects keyed on it re-apply against the reflowed layout. Pass a value that changes
+ * whenever the layout reflows; in practice the formatting preferences (orientation/scroll mode, font
+ * size, margins, line spacing, font family all reflow the page via submitPreferences).
  *
- * Switching orientation/scroll mode reflows the WebView in place (submitPreferences). Readium does
- * not re-render existing decorations onto the new layout, so a stable highlight — e.g. a paused
- * readaloud sentence, whose activeFragmentRef isn't changing to re-trigger its own effect — ends up
- * painted on the wrong sentence. The relayout settles asynchronously and emits no reliable "done"
- * signal (onPageLoaded does not fire for an in-place reflow), so we bump a few times across a short
- * settle window: the bump that lands once the relayout has completed is the one that makes the
- * re-apply stick, and the earlier/duplicate re-applies are idempotent. The first composition is
- * skipped so opening a book doesn't trigger a needless re-apply storm.
+ * Readium does not re-render existing decorations onto a reflowed layout, so a stable highlight —
+ * e.g. a paused readaloud sentence, whose activeFragmentRef isn't changing to re-trigger its own
+ * effect — ends up painted on the wrong sentence. The relayout settles asynchronously; for an
+ * in-place reflow there's no onPageLoaded to hang the re-apply on, so we bump a few times across a
+ * short settle window: the bump that lands once the relayout has completed is the one that makes the
+ * re-apply stick, and the earlier/duplicate re-applies are idempotent. The settle delays are a
+ * heuristic (no engine signal exists for "reflow done"); they're sized for the low-end API-25 devices
+ * the feature targets. The first composition is skipped so opening a book triggers no re-apply storm.
  *
  * Extracted (rather than inlined) so the trigger schedule is unit-testable independent of the reader.
  */
 @Composable
-internal fun rememberReflowReapplyGeneration(orientation: ReaderOrientation): Int {
+internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
     val generation = remember { mutableStateOf(0) }
     var settled by remember { mutableStateOf(false) }
-    LaunchedEffect(orientation) {
+    LaunchedEffect(reflowTrigger) {
         if (!settled) {
             settled = true
             return@LaunchedEffect
@@ -808,9 +759,10 @@ private fun EpubNavigatorView(
                             // text + rect (no fragment id), so without that span id the player can't map the
                             // selection to a clip and restarts the chapter from its first clip. The
                             // selectionchange tracker (SELECTION_SPAN_TRACKER_JS, injected per page) stashes
-                            // the enclosing span id in window.__riffleSelSpan as the user selects, so it's
-                            // still readable here even though the action-mode teardown has collapsed the DOM
-                            // selection by the time this coroutine runs.
+                            // the enclosing span id in window.__riffleSelSpan as the user selects; we read
+                            // that stash rather than the live DOM selection so the value is robust to the
+                            // action-mode teardown. Empty when the selection had no sentence-span ancestor →
+                            // falls back to the locator fragment, then the bare href (chapter start).
                             val spanId = nav?.evaluateJavascript("window.__riffleSelSpan || ''")
                                 ?.trim('"')?.takeIf { it.isNotEmpty() }
                             val fragId = spanId ?: loc.locations.fragments.firstOrNull()
@@ -859,9 +811,9 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Bumps whenever the layout reflows so the decoration effects below re-apply onto the new layout
-    // (see rememberReflowReapplyGeneration for why).
-    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs.orientation)
+    // Bumps whenever a formatting change reflows the layout so the decoration effects below re-apply
+    // onto the new layout (see rememberReflowReapplyGeneration for why).
+    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
 
     // Injects, into each newly loaded reflowable page: the ClientRect.toJSON polyfill (see
     // RECT_TO_JSON_POLYFILL_JS), the selection-span tracker (SELECTION_SPAN_TRACKER_JS), the targeted
