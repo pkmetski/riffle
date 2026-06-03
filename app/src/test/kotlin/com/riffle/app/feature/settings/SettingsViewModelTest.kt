@@ -227,6 +227,25 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `removeServer active server promotes the next browsable server, never a Storyteller`() = runTest {
+        // ADR 0026: a Storyteller Server can never become the active browsable Server, so removing
+        // the active ABS server must skip the Storyteller and promote the next ABS server.
+        serversFlow.value = listOf(
+            server("abs-1", active = true),
+            server("st-1", serverType = ServerType.STORYTELLER),
+            server("abs-2"),
+        )
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.servers.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.removeServer("abs-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("abs-2"), serversFlow.value.filter { it.isActive }.map { it.id })
+    }
+
+    @Test
     fun `removeServer last server emits NavigateToAddServer event`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         val vm = makeViewModel()

@@ -503,4 +503,21 @@ class ServerRepositoryTest {
         repo.setActive("s2")
         assertEquals("s2", dao.getActive()?.id)
     }
+
+    @Test
+    fun `setActive ignores a Storyteller server so it never becomes the active browsable server`() = runTest {
+        val abs = ServerEntity("abs", "https://abs.example.com", true, false, username = "")
+        val st = ServerEntity("st", "http://media-server:8001", false, false, username = "", serverType = ServerType.STORYTELLER.name)
+        val dao = fakeDao(abs, st)
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(
+            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
+        )
+
+        repo.setActive("st")
+
+        // ADR 0026: a Storyteller Server is a Settings-only readaloud backend and can never be the
+        // active browsable Server — the previously active ABS server stays active.
+        assertEquals("abs", dao.getActive()?.id)
+    }
 }

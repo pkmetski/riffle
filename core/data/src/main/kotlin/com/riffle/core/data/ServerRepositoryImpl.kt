@@ -168,6 +168,10 @@ class ServerRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setActive(serverId: String) {
+        // A Storyteller Server is a Settings-only readaloud backend (ADR 0026) — it can never be the
+        // active browsable Server. Enforce the invariant here so no caller (server removal, deep
+        // links, future UI) can promote one, and a stale DB row can't be re-activated.
+        if (dao.getById(serverId)?.serverType == ServerType.STORYTELLER.name) return
         dao.setActiveAtomic(serverId)
     }
 
