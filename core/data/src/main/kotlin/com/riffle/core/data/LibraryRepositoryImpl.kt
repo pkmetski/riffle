@@ -249,32 +249,13 @@ class LibraryRepositoryImpl @Inject constructor(
         is NetworkStorytellerBooksResult.Success -> {
             val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
             val localProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
-            val entities = result.books.map { book ->
-                val id = book.id.toString()
-                LibraryItemEntity(
-                    id = id,
-                    libraryId = libraryId,
-                    title = book.title,
-                    author = book.authors.joinToString(", "),
-                    coverUrl = storytellerApi.coverUrl(server.url.value, book.id),
-                    // Storyteller has a positions endpoint but reader-side bundle fetch and
-                    // progress sync come in later slices (#37/#38); for now seed with whatever
-                    // we've seen locally so the UI stays stable.
-                    readingProgress = localProgressMap[id] ?: 0f,
-                    // Readalouds are always EPUB 3 with media overlays.
-                    ebookFormat = EbookFormat.Epub.toStorageString(),
-                    ebookFileIno = null,
-                    description = null,
-                    seriesName = null,
-                    publishedYear = null,
-                    genres = "",
-                    publisher = null,
-                    lastOpenedAt = lastOpenedAtMap[id],
-                    addedAt = null,
-                    isbn = book.isbn,
-                    asin = book.asin,
-                )
-            }
+            val entities = storytellerBooksToEntities(
+                books = result.books,
+                libraryId = libraryId,
+                coverUrlOf = { bookId -> storytellerApi.coverUrl(server.url.value, bookId) },
+                lastOpenedAtMap = lastOpenedAtMap,
+                progressMap = localProgressMap,
+            )
             libraryItemDao.replaceAllForLibrary(libraryId, entities)
             libraryDao.setUnsupported(libraryId, false)
             readaloudMatchingService.reconcileLinks()
