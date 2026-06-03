@@ -119,7 +119,8 @@ class ServerRepositoryTest {
         override fun observeFinished(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override fun observeRecentlyAdded(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override fun observeAllBooks(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-        override suspend fun getById(itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
+        override suspend fun getById(serverId: String, itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
+        override suspend fun findServerIdForItem(itemId: String): String? = rows.values.flatten().firstOrNull { it.id == itemId }?.serverId
         override suspend fun upsertAll(items: List<com.riffle.core.database.LibraryItemEntity>) {
             items.groupBy { it.libraryId }.forEach { (libraryId, entities) ->
                 rows.getOrPut(libraryId) { mutableListOf() }.addAll(entities)
@@ -129,11 +130,11 @@ class ServerRepositoryTest {
             deletedLibraryIds += libraryId
             rows.remove(libraryId)
         }
-        override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
+        override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun updateReadaloudMetadata(itemId: String, author: String?, description: String?, publishedYear: String?, publisher: String?, genres: String) {}
+        override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
+        override suspend fun updateReadaloudMetadata(serverId: String, itemId: String, author: String?, description: String?, publishedYear: String?, publisher: String?, genres: String) {}
         override suspend fun listMatchableByServerType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
     }
 
@@ -448,8 +449,8 @@ class ServerRepositoryTest {
         libDao.rows["st-1"] = mutableListOf(LibraryEntity(libraryId, "Readalouds", "readaloud", "st-1"))
         val itemDao = fakeLibraryItemDao()
         itemDao.seed(libraryId, listOf(
-            com.riffle.core.database.LibraryItemEntity("1385738337074647", libraryId, "The Martian", "Andy Weir", null, 0f),
-            com.riffle.core.database.LibraryItemEntity("99", libraryId, "Dune", "Frank Herbert", null, 0f),
+            com.riffle.core.database.LibraryItemEntity("st-1", "1385738337074647", libraryId, "The Martian", "Andy Weir", null, 0f),
+            com.riffle.core.database.LibraryItemEntity("st-1", "99", libraryId, "Dune", "Frank Herbert", null, 0f),
         ))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = ServerRepositoryImpl(
@@ -477,8 +478,8 @@ class ServerRepositoryTest {
             LibraryEntity("lib-2", "Audiobooks", "book", "abs-1"),
         )
         val itemDao = fakeLibraryItemDao()
-        itemDao.seed("lib-1", listOf(com.riffle.core.database.LibraryItemEntity("i-1", "lib-1", "Dune", "Herbert", null, 0f)))
-        itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("i-2", "lib-2", "Foundation", "Asimov", null, 0f)))
+        itemDao.seed("lib-1", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-1", "lib-1", "Dune", "Herbert", null, 0f)))
+        itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-2", "lib-2", "Foundation", "Asimov", null, 0f)))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = ServerRepositoryImpl(
             dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore()

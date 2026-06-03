@@ -121,7 +121,7 @@ class EpubRepositoryTest {
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
     }
 
-    private fun item(id: String = "item-1", ino: String? = "ino-42") = LibraryItem(
+    private fun item(id: String = "item-1", ino: String? = "ino-42", serverId: String = "server-1") = LibraryItem(
         id = id,
         libraryId = "lib-1",
         title = "Test Book",
@@ -132,6 +132,7 @@ class EpubRepositoryTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
         ebookFileIno = ino,
+        serverId = serverId,
     )
 
     // --- openEpub ---
@@ -147,12 +148,12 @@ class EpubRepositoryTest {
     fun `openEpub with cache miss writes file to cache for subsequent opens`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         repo.openEpub(item())
-        assertTrue(cacheStore.get("item-1") != null)
+        assertTrue(cacheStore.get("server-1", "item-1") != null)
     }
 
     @Test
     fun `openEpub with cache hit makes no network request`() = runTest {
-        cacheStore.save("item-1", epubBytes.inputStream())
+        cacheStore.save("server-1", "item-1", epubBytes.inputStream())
         val result = repo.openEpub(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is EpubOpenResult.Success)
@@ -160,7 +161,7 @@ class EpubRepositoryTest {
 
     @Test
     fun `openEpub with downloads hit makes no network request`() = runTest {
-        downloadsStore.save("item-1", epubBytes.inputStream())
+        downloadsStore.save("server-1", "item-1", epubBytes.inputStream())
         val result = repo.openEpub(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is EpubOpenResult.Success)
@@ -168,7 +169,7 @@ class EpubRepositoryTest {
 
     @Test
     fun `openEpub returns last saved reading position`() = runTest {
-        cacheStore.save("item-1", epubBytes.inputStream())
+        cacheStore.save("server-1", "item-1", epubBytes.inputStream())
         positionStore.save("server-1", "item-1", "epubcfi(/6/4!/4/1:0)")
         val result = repo.openEpub(item()) as EpubOpenResult.Success
         assertEquals("epubcfi(/6/4!/4/1:0)", result.lastPosition)
@@ -176,7 +177,7 @@ class EpubRepositoryTest {
 
     @Test
     fun `openEpub returns null lastPosition for fresh book`() = runTest {
-        cacheStore.save("item-1", epubBytes.inputStream())
+        cacheStore.save("server-1", "item-1", epubBytes.inputStream())
         val result = repo.openEpub(item()) as EpubOpenResult.Success
         assertNull(result.lastPosition)
     }
@@ -214,12 +215,12 @@ class EpubRepositoryTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         val result = repo.downloadEpub(item())
         assertTrue(result is EpubDownloadResult.Success)
-        assertTrue(downloadsStore.get("item-1") != null)
+        assertTrue(downloadsStore.get("server-1", "item-1") != null)
     }
 
     @Test
     fun `downloadEpub returns AlreadyDownloaded when file already in downloads store`() = runTest {
-        downloadsStore.save("item-1", epubBytes.inputStream())
+        downloadsStore.save("server-1", "item-1", epubBytes.inputStream())
         val result = repo.downloadEpub(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is EpubDownloadResult.AlreadyDownloaded)
@@ -229,38 +230,38 @@ class EpubRepositoryTest {
     fun `downloadEpub does not write to cache store`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         repo.downloadEpub(item())
-        assertNull(cacheStore.get("item-1"))
+        assertNull(cacheStore.get("server-1", "item-1"))
     }
 
     @Test
     fun `isDownloaded returns true after downloadEpub succeeds`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         repo.downloadEpub(item())
-        assertTrue(repo.isDownloaded("item-1"))
+        assertTrue(repo.isDownloaded("server-1", "item-1"))
     }
 
     @Test
     fun `isCached returns true after openEpub populates cache`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         repo.openEpub(item())
-        assertTrue(repo.isCached("item-1"))
+        assertTrue(repo.isCached("server-1", "item-1"))
     }
 
     @Test
     fun `removeDownload deletes file from downloads store`() = runTest {
-        downloadsStore.save("item-1", epubBytes.inputStream())
-        repo.removeDownload("item-1")
-        assertTrue(!repo.isDownloaded("item-1"))
+        downloadsStore.save("server-1", "item-1", epubBytes.inputStream())
+        repo.removeDownload("server-1", "item-1")
+        assertTrue(!repo.isDownloaded("server-1", "item-1"))
     }
 
     @Test
     fun `downloadEpub promotes cached file to downloads without network request`() = runTest {
-        cacheStore.save("item-1", epubBytes.inputStream())
+        cacheStore.save("server-1", "item-1", epubBytes.inputStream())
         val result = repo.downloadEpub(item())
         assertEquals(0, server.requestCount)
         assertTrue(result is EpubDownloadResult.Success)
-        assertTrue(downloadsStore.get("item-1") != null)
-        assertNull(cacheStore.get("item-1"))
+        assertTrue(downloadsStore.get("server-1", "item-1") != null)
+        assertNull(cacheStore.get("server-1", "item-1"))
     }
 
     // --- Storyteller ---
@@ -294,16 +295,16 @@ class EpubRepositoryTest {
             tokenStorage = fakeTokenStorage("st-token"),
         )
 
-        val result = storytellerRepo.downloadEpub(item(id = "77", ino = null))
+        val result = storytellerRepo.downloadEpub(item(id = "77", ino = null, serverId = "st-srv"))
 
         assertEquals(EpubDownloadResult.Success, result)
-        assertEquals(epubBytes.toList(), downloads.get("77")!!.readBytes().toList())
+        assertEquals(epubBytes.toList(), downloads.get("st-srv", "77")!!.readBytes().toList())
     }
 
     @Test
     fun `downloadEpub for Storyteller server promotes cache without calling fetcher`() = runTest {
         val cache = LocalStoreImpl(tmp.newFolder("st-cache-promote"), ".epub")
-        cache.save("77", "CACHED".byteInputStream())
+        cache.save("st-srv", "77", "CACHED".byteInputStream())
         val downloads = LocalStoreImpl(tmp.newFolder("st-dl-promote"), ".epub")
 
         val bundleApi = StorytellerBundleApi { _, _, _, _ ->
@@ -328,11 +329,11 @@ class EpubRepositoryTest {
             tokenStorage = fakeTokenStorage("st-token"),
         )
 
-        val result = storytellerRepo.downloadEpub(item(id = "77", ino = null))
+        val result = storytellerRepo.downloadEpub(item(id = "77", ino = null, serverId = "st-srv"))
 
         assertEquals(EpubDownloadResult.Success, result)
-        assertEquals("CACHED", downloads.get("77")!!.readText())
-        assertEquals(null, cache.get("77"))
+        assertEquals("CACHED", downloads.get("st-srv", "77")!!.readText())
+        assertEquals(null, cache.get("st-srv", "77"))
     }
 
     @Test
@@ -370,10 +371,10 @@ class EpubRepositoryTest {
             tokenStorage = fakeTokenStorage("st-token"),
         )
 
-        val result = storytellerRepo.openEpub(item(id = "42", ino = null))
+        val result = storytellerRepo.openEpub(item(id = "42", ino = null, serverId = "st-srv"))
 
         assertTrue("Expected Success but got $result", result is EpubOpenResult.Success)
-        val cached = storytellerCache.get("42")
+        val cached = storytellerCache.get("st-srv", "42")
         assertEquals(epubContent.toList(), cached!!.readBytes().toList())
     }
 
@@ -404,10 +405,10 @@ class EpubRepositoryTest {
             tokenStorage = fakeTokenStorage("st-token"),
         )
 
-        val result = storytellerRepo.openEpub(item(id = "99", ino = null))
+        val result = storytellerRepo.openEpub(item(id = "99", ino = null, serverId = "st-srv"))
 
         assertTrue("Expected BundleTooLarge but got $result", result is EpubOpenResult.BundleTooLarge)
         assertEquals(tooBig, (result as EpubOpenResult.BundleTooLarge).sizeBytes)
-        assertEquals(null, cache.get("99"))
+        assertEquals(null, cache.get("st-srv", "99"))
     }
 }

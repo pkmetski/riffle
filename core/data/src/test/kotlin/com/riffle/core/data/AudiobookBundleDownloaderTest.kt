@@ -55,14 +55,14 @@ class AudiobookBundleDownloaderTest {
     }
 
     private fun downloader(api: AudiobookBundleApi, dir: File) =
-        AudiobookBundleDownloader(api = api, targetFileProvider = { File(dir, "$it.epub") })
+        AudiobookBundleDownloader(api = api, targetFileProvider = { _, id -> File(dir, "$id.epub") })
 
     @Test fun freshDownload_writesFullBundle_andReportsProgressToCompletion() = runTest {
         val dir = tmp.newFolder()
         var lastDownloaded = 0L
         var lastTotal = 0L
 
-        val result = downloader(FakeApi(), dir).download("u", "42", "t", false) { d, total ->
+        val result = downloader(FakeApi(), dir).download("s1", "u", "42", "t", false) { d, total ->
             lastDownloaded = d; lastTotal = total
         }
 
@@ -81,7 +81,7 @@ class AudiobookBundleDownloaderTest {
         val part = File(dir, "42.epub.part")
         part.writeBytes(full.copyOfRange(0, 80))
 
-        val result = downloader(api, dir).download("u", "42", "t", false) { _, _ -> }
+        val result = downloader(api, dir).download("s1", "u", "42", "t", false) { _, _ -> }
 
         assertEquals(80L, api.requestedFromByte)
         assertTrue(result is AudiobookBundleDownloader.Result.Success)
@@ -93,7 +93,7 @@ class AudiobookBundleDownloaderTest {
         val part = File(dir, "42.epub.part")
         part.writeBytes(full.copyOfRange(0, 80))
 
-        val result = downloader(FakeApi(honorRange = false), dir).download("u", "42", "t", false) { _, _ -> }
+        val result = downloader(FakeApi(honorRange = false), dir).download("s1", "u", "42", "t", false) { _, _ -> }
 
         assertTrue(result is AudiobookBundleDownloader.Result.Success)
         assertArrayEquals(full, (result as AudiobookBundleDownloader.Result.Success).file.readBytes())
@@ -104,7 +104,7 @@ class AudiobookBundleDownloaderTest {
         val existing = File(dir, "42.epub").apply { writeBytes(full) }
         val api = FakeApi()
 
-        val result = downloader(api, dir).download("u", "42", "t", false) { _, _ -> }
+        val result = downloader(api, dir).download("s1", "u", "42", "t", false) { _, _ -> }
 
         assertEquals(-1L, api.requestedFromByte) // never called
         assertTrue(result is AudiobookBundleDownloader.Result.Success)
@@ -116,7 +116,7 @@ class AudiobookBundleDownloaderTest {
         val part = File(dir, "42.epub.part").apply { writeBytes(full.copyOfRange(0, 40)) }
 
         val result = downloader(FakeApi(failWith = IOException("boom")), dir)
-            .download("u", "42", "t", false) { _, _ -> }
+            .download("s1", "u", "42", "t", false) { _, _ -> }
 
         assertTrue(result is AudiobookBundleDownloader.Result.NetworkError)
         assertTrue("partial kept for resume", part.exists())

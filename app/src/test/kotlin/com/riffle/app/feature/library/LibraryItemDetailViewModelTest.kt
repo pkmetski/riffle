@@ -82,6 +82,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = item
+        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
@@ -105,6 +106,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = throw RuntimeException("DB unavailable")
+        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
@@ -143,9 +145,9 @@ class LibraryItemDetailViewModelTest {
             if (downloadResult is EpubDownloadResult.Success) downloaded = true
             return downloadResult
         }
-        override suspend fun removeDownload(itemId: String) { downloaded = false }
-        override fun isDownloaded(itemId: String): Boolean = downloaded
-        override fun isCached(itemId: String): Boolean = itemId in cachedIds
+        override suspend fun removeDownload(serverId: String, itemId: String) { downloaded = false }
+        override fun isDownloaded(serverId: String, itemId: String): Boolean = downloaded
+        override fun isCached(serverId: String, itemId: String): Boolean = itemId in cachedIds
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
@@ -161,9 +163,9 @@ class LibraryItemDetailViewModelTest {
             downloaded = true
             return PdfDownloadResult.Success
         }
-        override suspend fun removeDownload(itemId: String) { downloaded = false }
-        override fun isDownloaded(itemId: String): Boolean = downloaded
-        override fun isCached(itemId: String): Boolean = false
+        override suspend fun removeDownload(serverId: String, itemId: String) { downloaded = false }
+        override fun isDownloaded(serverId: String, itemId: String): Boolean = downloaded
+        override fun isCached(serverId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 

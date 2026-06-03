@@ -94,14 +94,22 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
         collectionDao.observeItemsByCollectionId(collectionId).map { list -> list.map { it.toDomain() } }
 
-    override suspend fun getItem(itemId: String): LibraryItem? =
-        libraryItemDao.getById(itemId)?.toDomain()
+    // Item ids are only unique within a Server (ADR 0025); reads/writes here target the active
+    // Server's copy, mirroring how reading positions are keyed. No active Server → nothing to do.
+    override suspend fun getItem(itemId: String): LibraryItem? {
+        val serverId = serverRepository.getActive()?.id ?: return null
+        return libraryItemDao.getById(serverId, itemId)?.toDomain()
+    }
+
+    override suspend fun getItem(serverId: String, itemId: String): LibraryItem? =
+        libraryItemDao.getById(serverId, itemId)?.toDomain()
 
     override suspend fun getLibrary(libraryId: String): Library? =
         libraryDao.getById(libraryId)?.toDomain()
 
     override suspend fun markItemOpened(itemId: String) {
-        libraryItemDao.updateLastOpenedAt(itemId, System.currentTimeMillis())
+        val serverId = serverRepository.getActive()?.id ?: return
+        libraryItemDao.updateLastOpenedAt(serverId, itemId, System.currentTimeMillis())
         // Best-effort push so other devices see this open via mediaProgress.lastUpdate. Offline
         // failures are intentionally swallowed — the local stamp lifts the server timestamp via
         // max() on the next successful library refresh.
@@ -109,7 +117,8 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {
-        libraryItemDao.updateReadingProgress(itemId, progress)
+        val serverId = serverRepository.getActive()?.id ?: return
+        libraryItemDao.updateReadingProgress(serverId, itemId, progress)
     }
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
@@ -147,6 +156,7 @@ class LibraryRepositoryImpl @Inject constructor(
                     .map { item ->
                         val serverProgress = serverProgressMap[item.id]
                         LibraryItemEntity(
+                            serverId = server.id,
                             id = item.id,
                             libraryId = item.libraryId,
                             title = item.title,
@@ -202,6 +212,7 @@ class LibraryRepositoryImpl @Inject constructor(
                     s.items.mapIndexed { index, item ->
                         SeriesItemEntity(
                             seriesId = s.id,
+                            serverId = server.id,
                             itemId = item.id,
                             sequenceOrder = item.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
                         )
@@ -231,7 +242,7 @@ class LibraryRepositoryImpl @Inject constructor(
                 }
                 val collectionItemEntities = result.collections.flatMap { c ->
                     c.items.map { item ->
-                        CollectionItemEntity(collectionId = c.id, itemId = item.id)
+                        CollectionItemEntity(collectionId = c.id, serverId = server.id, itemId = item.id)
                     }
                 }
                 collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
@@ -253,6 +264,7 @@ class LibraryRepositoryImpl @Inject constructor(
             val localProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
             val entities = storytellerBooksToEntities(
                 books = result.books,
+                serverId = server.id,
                 libraryId = libraryId,
                 coverUrlOf = { bookId -> storytellerApi.coverUrl(server.url.value, bookId) },
                 lastOpenedAtMap = lastOpenedAtMap,
@@ -277,6 +289,7 @@ class LibraryRepositoryImpl @Inject constructor(
 
     private fun LibraryItemEntity.toDomain() = LibraryItem(
         id = id,
+        serverId = serverId,
         libraryId = libraryId,
         title = title,
         author = author,

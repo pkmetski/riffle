@@ -15,7 +15,7 @@ interface SeriesDao {
 
     @Query("""
         SELECT li.* FROM library_items li
-        INNER JOIN series_items si ON li.id = si.itemId
+        INNER JOIN series_items si ON li.serverId = si.serverId AND li.id = si.itemId
         WHERE si.seriesId = :seriesId
         ORDER BY si.sequenceOrder ASC
     """)

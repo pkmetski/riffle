@@ -168,7 +168,7 @@ class ReadaloudMatchingService(
             // same work). Borrow from the ebook — the supported format with the richer metadata —
             // before any unsupported stub, then settle ties by libraryId for a stable choice.
             val abs = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
-                .mapNotNull { libraryItemDao.getById(it.absLibraryItemId) }
+                .mapNotNull { libraryItemDao.getById(it.absServerId, it.absLibraryItemId) }
                 .sortedWith(
                     compareBy(
                         { if (it.ebookFormat == EbookFormat.Unsupported.toStorageString()) 1 else 0 },
@@ -177,6 +177,7 @@ class ReadaloudMatchingService(
                 )
                 .firstOrNull()
             libraryItemDao.updateReadaloudMetadata(
+                serverId = book.serverId,
                 itemId = book.itemId,
                 // Overwrite the (possibly duplicated/malformed) Storyteller author when linked;
                 // null leaves it untouched so an unlinked readaloud keeps its own author.

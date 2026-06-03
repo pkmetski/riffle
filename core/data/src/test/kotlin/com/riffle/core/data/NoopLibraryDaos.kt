@@ -19,11 +19,13 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
-    override suspend fun getById(itemId: String): LibraryItemEntity? = null
+    override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? = null
+    override suspend fun findServerIdForItem(itemId: String): String? = null
     override suspend fun deleteByLibraryId(libraryId: String) = Unit
-    override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) = Unit
-    override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
+    override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) = Unit
+    override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) = Unit
     override suspend fun updateReadaloudMetadata(
+        serverId: String,
         itemId: String,
         author: String?,
         description: String?,

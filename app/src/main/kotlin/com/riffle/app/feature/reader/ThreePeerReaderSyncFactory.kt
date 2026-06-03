@@ -59,8 +59,8 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         val storytellerServer = serverRepository.getById(link.storytellerServerId) ?: return null
         val storytellerToken = tokenStorage.getToken(link.storytellerServerId) ?: return null
 
-        val absFile = cachedFile(link.absLibraryItemId) ?: return null
-        val storytellerFile = cachedFile(link.storytellerBookId) ?: return null
+        val absFile = cachedFile(link.absServerId, link.absLibraryItemId) ?: return null
+        val storytellerFile = cachedFile(link.storytellerServerId, link.storytellerBookId) ?: return null
 
         // The index must already be built for these exact bytes (checksum-keyed); otherwise the
         // background builder hasn't caught up — stay single-peer until it has. Checksums stream the
@@ -99,8 +99,8 @@ class ThreePeerReaderSyncFactory @Inject constructor(
     private fun endpoint(server: Server, token: String, itemId: String) =
         AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId)
 
-    private fun cachedFile(itemId: String): java.io.File? =
-        downloadsStore.get(itemId) ?: cacheStore.get(itemId)
+    private fun cachedFile(serverId: String, itemId: String): java.io.File? =
+        downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
 
     private fun ExtractedEpub.hrefs() = chapters.map { it.href }
     private fun ExtractedEpub.htmlAt(): (Int) -> String? = { chapters.getOrNull(it)?.html }

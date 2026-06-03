@@ -96,6 +96,7 @@ class StorytellerReadaloudSyncerTest {
         )
         val entities = storytellerBooksToEntities(
             books = books,
+            serverId = "st-1",
             libraryId = "readaloud:st-1",
             coverUrlOf = { id -> "http://s/api/books/$id/cover" },
             lastOpenedAtMap = mapOf("42" to 1234L),

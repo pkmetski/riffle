@@ -15,7 +15,7 @@ interface CollectionDao {
 
     @Query("""
         SELECT li.* FROM library_items li
-        INNER JOIN collection_items ci ON li.id = ci.itemId
+        INNER JOIN collection_items ci ON li.serverId = ci.serverId AND li.id = ci.itemId
         WHERE ci.collectionId = :collectionId
         ORDER BY li.title ASC
     """)

@@ -29,7 +29,7 @@ class EpubRepositoryImpl(
     override suspend fun openEpub(item: LibraryItem): EpubOpenResult {
         val activeServer = serverRepository.getActive()
             ?: return EpubOpenResult.NetworkError(IllegalStateException("No active server"))
-        val local = downloadsStore.get(item.id) ?: cacheStore.get(item.id)
+        val local = downloadsStore.get(activeServer.id, item.id) ?: cacheStore.get(activeServer.id, item.id)
         val epubFile = if (local != null) {
             local
         } else {
@@ -45,7 +45,7 @@ class EpubRepositoryImpl(
                     }
                     when (val result = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)) {
                         is NetworkEpubDownloadResult.Success -> result.body.use { body ->
-                            cacheStore.save(item.id, body.byteStream())
+                            cacheStore.save(activeServer.id, item.id, body.byteStream())
                         }
                         is NetworkEpubDownloadResult.NetworkError -> return EpubOpenResult.NetworkError(result.cause)
                     }
@@ -66,7 +66,7 @@ class EpubRepositoryImpl(
                     when (val r = bundleFetcher.fetch(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
                         is EpubBundleFetcher.Result.Success -> {
                             try {
-                                r.epubFile.inputStream().use { cacheStore.save(item.id, it) }
+                                r.epubFile.inputStream().use { cacheStore.save(activeServer.id, item.id, it) }
                             } finally {
                                 r.epubFile.delete()
                             }
@@ -88,11 +88,11 @@ class EpubRepositoryImpl(
     }
 
     override suspend fun downloadEpub(item: LibraryItem): EpubDownloadResult {
-        if (downloadsStore.get(item.id) != null) return EpubDownloadResult.AlreadyDownloaded
-        val cached = cacheStore.get(item.id)
+        if (downloadsStore.get(item.serverId, item.id) != null) return EpubDownloadResult.AlreadyDownloaded
+        val cached = cacheStore.get(item.serverId, item.id)
         if (cached != null) {
-            cached.inputStream().use { downloadsStore.save(item.id, it) }
-            cacheStore.delete(item.id)
+            cached.inputStream().use { downloadsStore.save(item.serverId, item.id, it) }
+            cacheStore.delete(item.serverId, item.id)
             return EpubDownloadResult.Success
         }
         val server = serverRepository.getActive()
@@ -104,7 +104,7 @@ class EpubRepositoryImpl(
                 when (val r = bundleFetcher.fetch(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
                     is EpubBundleFetcher.Result.Success -> {
                         try {
-                            r.epubFile.inputStream().use { downloadsStore.save(item.id, it) }
+                            r.epubFile.inputStream().use { downloadsStore.save(item.serverId, item.id, it) }
                         } finally {
                             r.epubFile.delete()
                         }
@@ -122,7 +122,7 @@ class EpubRepositoryImpl(
                 }
                 when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
                     is NetworkEpubDownloadResult.Success -> {
-                        result.body.use { body -> downloadsStore.save(item.id, body.byteStream()) }
+                        result.body.use { body -> downloadsStore.save(item.serverId, item.id, body.byteStream()) }
                         EpubDownloadResult.Success
                     }
                     is NetworkEpubDownloadResult.NetworkError -> EpubDownloadResult.NetworkError(result.cause)
@@ -131,13 +131,13 @@ class EpubRepositoryImpl(
         }
     }
 
-    override suspend fun removeDownload(itemId: String) {
-        downloadsStore.delete(itemId)
+    override suspend fun removeDownload(serverId: String, itemId: String) {
+        downloadsStore.delete(serverId, itemId)
     }
 
-    override fun isDownloaded(itemId: String): Boolean = downloadsStore.get(itemId) != null
+    override fun isDownloaded(serverId: String, itemId: String): Boolean = downloadsStore.get(serverId, itemId) != null
 
-    override fun isCached(itemId: String): Boolean = cacheStore.get(itemId) != null
+    override fun isCached(serverId: String, itemId: String): Boolean = cacheStore.get(serverId, itemId) != null
 
     override suspend fun saveReadingPosition(itemId: String, cfi: String) {
         val serverId = serverRepository.getActive()?.id ?: return

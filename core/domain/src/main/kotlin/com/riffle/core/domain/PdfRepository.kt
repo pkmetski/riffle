@@ -17,8 +17,8 @@ sealed class PdfDownloadResult {
 interface PdfRepository {
     suspend fun openPdf(item: LibraryItem): PdfOpenResult
     suspend fun downloadPdf(item: LibraryItem): PdfDownloadResult
-    suspend fun removeDownload(itemId: String)
-    fun isDownloaded(itemId: String): Boolean
-    fun isCached(itemId: String): Boolean
+    suspend fun removeDownload(serverId: String, itemId: String)
+    fun isDownloaded(serverId: String, itemId: String): Boolean
+    fun isCached(serverId: String, itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, locatorJson: String)
 }

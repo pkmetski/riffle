@@ -141,10 +141,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                     }
                     readaloudLink = link
                     _readaloudDownloadState.value = link?.let {
-                        readaloudDownloadStateFor(readaloudAudioRepository.isAudioAvailable(it.storytellerBookId))
+                        readaloudDownloadStateFor(readaloudAudioRepository.isAudioAvailable(it.storytellerServerId, it.storytellerBookId))
                     }
                     val footer = resolveReadaloudFooter(item, isReadaloud, server?.id)
-                    val isCachedOrDownloaded = epubRepository.isCached(item.id) || epubRepository.isDownloaded(item.id)
+                    val isCachedOrDownloaded = epubRepository.isCached(item.serverId, item.id) || epubRepository.isDownloaded(item.serverId, item.id)
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         isInToRead = isInToRead,
@@ -250,9 +250,10 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     fun removeDownload() {
         viewModelScope.launch {
-            when ((uiState.value as? LibraryItemDetailUiState.Ready)?.item?.ebookFormat) {
-                EbookFormat.Epub -> epubRepository.removeDownload(itemId)
-                EbookFormat.Pdf -> pdfRepository.removeDownload(itemId)
+            val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item
+            when (item?.ebookFormat) {
+                EbookFormat.Epub -> epubRepository.removeDownload(item.serverId, item.id)
+                EbookFormat.Pdf -> pdfRepository.removeDownload(item.serverId, item.id)
                 else -> {}
             }
             _downloadState.value = DownloadState.NotDownloaded
@@ -285,7 +286,7 @@ class LibraryItemDetailViewModel @Inject constructor(
         _readaloudDownloadState.value = DownloadState.InProgress
         viewModelScope.launch {
             val result = readaloudAudioRepository.downloadAudio(
-                link.storytellerBookId, link.storytellerServerId,
+                link.storytellerServerId, link.storytellerBookId,
             ) { _, _ -> }
             _readaloudDownloadState.value = readaloudDownloadStateFor(
                 result is com.riffle.core.domain.AudioDownloadResult.Success,
@@ -299,7 +300,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     fun onRemoveReadaloud() {
         val link = readaloudLink ?: return
         viewModelScope.launch {
-            readaloudAudioRepository.removeAudio(link.storytellerBookId)
+            readaloudAudioRepository.removeAudio(link.storytellerServerId, link.storytellerBookId)
             _readaloudDownloadState.value = DownloadState.NotDownloaded
         }
     }
@@ -352,7 +353,7 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private fun refreshCacheState() {
         val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
-        val refreshed = epubRepository.isCached(itemId) || epubRepository.isDownloaded(itemId)
+        val refreshed = epubRepository.isCached(current.item.serverId, itemId) || epubRepository.isDownloaded(current.item.serverId, itemId)
         _uiState.value = current.copy(isCachedOrDownloaded = refreshed)
     }
 
@@ -364,8 +365,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     }
 
     private fun isDownloadedForFormat(item: LibraryItem): Boolean = when (item.ebookFormat) {
-        EbookFormat.Epub -> epubRepository.isDownloaded(item.id)
-        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.id)
+        EbookFormat.Epub -> epubRepository.isDownloaded(item.serverId, item.id)
+        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.serverId, item.id)
         else -> false
     }
 }

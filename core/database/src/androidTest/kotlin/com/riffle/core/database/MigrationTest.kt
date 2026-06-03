@@ -955,6 +955,136 @@ class MigrationTest {
         }
     }
 
+    // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0025).
+    // `library_items` gains a `serverId` column + composite PK (serverId, id), backfilled from
+    // each item's owning library (libraryId → libraries.serverId). The series_items /
+    // collection_items join tables and book_formatting_preferences gain `serverId` in their PKs,
+    // backfilled by resolving itemId → library_items → libraries.serverId. This lets two
+    // Storyteller Servers each hold a book "1" without collision. Orphan rows whose item/library
+    // no longer resolves to a Server are dropped.
+    @Test
+    fun migration25To26_keysLibraryItemsByServerAndItem() {
+        helper.createDatabase(TEST_DB, 25).use { db ->
+            // Two Storyteller servers, each with one library.
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://story-a', 1, 0, 'plamen', 'STORYTELLER')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s2', 'http://story-b', 0, 0, 'plamen', 'STORYTELLER')"
+            )
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libA', 'Books A', 'book', 's1', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libB', 'Books B', 'book', 's2', 0)")
+
+            // Pre-migration the PK is itemId alone, so the two servers' book "1" can't both exist
+            // yet; seed item "1" on s1 and item "2" on s2.
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
+                    "VALUES ('1', 'libA', 'War and Peace', 'Tolstoy', NULL, 0.25, 'epub', '')"
+            )
+            db.execSQL(
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
+                    "VALUES ('2', 'libB', 'Picture Book', 'Anon', NULL, 0.5, 'epub', '')"
+            )
+
+            // Series / collection groupings and formatting prefs for s1's book "1".
+            db.execSQL("INSERT INTO series (id, libraryId, name, coverUrl, bookCount) VALUES ('ser1', 'libA', 'Classics', NULL, 1)")
+            db.execSQL("INSERT INTO collections (id, libraryId, name, bookCount) VALUES ('col1', 'libA', 'Favourites', 1)")
+            db.execSQL("INSERT INTO series_items (seriesId, itemId, sequenceOrder) VALUES ('ser1', '1', 1.0)")
+            db.execSQL("INSERT INTO collection_items (collectionId, itemId) VALUES ('col1', '1')")
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme) VALUES ('1', 18.0, 'sepia')"
+            )
+
+            // An orphan formatting-pref row whose item no longer exists — must be dropped.
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (itemId, fontSize, theme) VALUES ('ghost', 99.0, 'dark')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 26, true, RiffleDatabase.MIGRATION_25_26)
+
+        // library_items: serverId backfilled from the owning library, data preserved.
+        db.query("SELECT serverId, libraryId, title, readingProgress FROM library_items WHERE id = '1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("libA", cursor.getString(1))
+            assertEquals("War and Peace", cursor.getString(2))
+            assertEquals(0.25f, cursor.getFloat(3), 0.0001f)
+        }
+        db.query("SELECT serverId FROM library_items WHERE id = '2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("s2", cursor.getString(0))
+        }
+
+        // Composite PK now lets the two servers' book "1" coexist as distinct rows.
+        db.execSQL(
+            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
+                "VALUES ('s2', '1', 'libB', 'A Different Book', 'Someone', NULL, 0.0, 'epub', '')"
+        )
+        db.query("SELECT title FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("War and Peace", cursor.getString(0))
+        }
+        db.query("SELECT title FROM library_items WHERE serverId = 's2' AND id = '1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("A Different Book", cursor.getString(0))
+        }
+
+        // Join tables carry serverId, backfilled from the item's owning server.
+        db.query("SELECT serverId, sequenceOrder FROM series_items WHERE seriesId = 'ser1' AND itemId = '1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals(1.0f, cursor.getFloat(1), 0.0001f)
+        }
+        db.query("SELECT serverId FROM collection_items WHERE collectionId = 'col1' AND itemId = '1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+        }
+
+        // Formatting prefs: serverId backfilled, value preserved; orphan dropped.
+        db.query("SELECT serverId, fontSize, theme FROM book_formatting_preferences WHERE itemId = '1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals(18.0f, cursor.getFloat(1), 0.0001f)
+            assertEquals("sepia", cursor.getString(2))
+        }
+        db.query("SELECT COUNT(*) FROM book_formatting_preferences WHERE itemId = 'ghost'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // Two servers' formatting for book "1" no longer collide.
+        db.execSQL(
+            "INSERT INTO book_formatting_preferences (serverId, itemId, fontSize, theme) VALUES ('s2', '1', 32.0, 'dark')"
+        )
+        db.query("SELECT fontSize FROM book_formatting_preferences WHERE serverId = 's1' AND itemId = '1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(18.0f, cursor.getFloat(0), 0.0001f)
+        }
+        db.query("SELECT fontSize FROM book_formatting_preferences WHERE serverId = 's2' AND itemId = '1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(32.0f, cursor.getFloat(0), 0.0001f)
+        }
+
+        // FK cascade: removing a server clears its library items.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 's2'")
+        db.query("SELECT COUNT(*) FROM library_items WHERE serverId = 's2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM library_items WHERE serverId = 's1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+    }
+
     @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
@@ -964,7 +1094,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 25, true,
+            TEST_DB, 26, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -989,6 +1119,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_22_23,
             RiffleDatabase.MIGRATION_23_24,
             RiffleDatabase.MIGRATION_24_25,
+            RiffleDatabase.MIGRATION_25_26,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

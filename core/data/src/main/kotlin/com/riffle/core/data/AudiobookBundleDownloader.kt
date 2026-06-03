@@ -18,8 +18,10 @@ class AudiobookBundleDownloader(
     private val api: AudiobookBundleApi,
     // Resolves the final on-disk destination for a book's bundle. The reader and the player share
     // this single file (the synced bundle is both the EPUB and the audio source — ADR 0023), so the
-    // caller points this at the Downloads EPUB store location.
-    private val targetFileProvider: (bookId: String) -> File,
+    // caller points this at the Downloads EPUB store location. Keyed by (serverId, bookId) since
+    // bundle ids are only unique within a Server (ADR 0025) — it must land where the Downloads store
+    // looks it up, i.e. under the serverId subdirectory.
+    private val targetFileProvider: (serverId: String, bookId: String) -> File,
 ) {
 
     sealed interface Result {
@@ -28,13 +30,14 @@ class AudiobookBundleDownloader(
     }
 
     suspend fun download(
+        serverId: String,
         baseUrl: String,
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): Result = withContext(Dispatchers.IO) {
-        val finalFile = targetFileProvider(bookId)
+        val finalFile = targetFileProvider(serverId, bookId)
         finalFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
         if (finalFile.exists()) return@withContext Result.Success(finalFile)
 

@@ -15,6 +15,7 @@ import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
+import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
@@ -262,6 +263,23 @@ abstract class DataModule {
         fun providePdfDownloadsStore(@ApplicationContext context: Context): LocalStore =
             LocalStoreImpl(context.filesDir.resolve("downloads/pdfs").also { it.mkdirs() }, ".pdf")
 
+        // One-time relocation of legacy flat files into per-Server subdirectories (ADR 0025).
+        @Provides
+        @Singleton
+        fun provideLocalStoreMigrator(
+            @ApplicationContext context: Context,
+            libraryItemDao: LibraryItemDao,
+        ): LocalStoreMigrator =
+            LocalStoreMigrator(
+                stores = listOf(
+                    context.cacheDir.resolve("epubs") to ".epub",
+                    context.filesDir.resolve("downloads/epubs") to ".epub",
+                    context.cacheDir.resolve("pdfs") to ".pdf",
+                    context.filesDir.resolve("downloads/pdfs") to ".pdf",
+                ),
+                resolveServerId = { itemId -> libraryItemDao.findServerIdForItem(itemId) },
+            )
+
         @Provides
         @Singleton
         fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient): StorytellerBundleApiImpl =
@@ -290,9 +308,10 @@ abstract class DataModule {
         ): AudiobookBundleDownloader = AudiobookBundleDownloader(
             api = api,
             // Write into the same Downloads EPUB store the reader reads from — the synced bundle is
-            // both the EPUB and the audio source (ADR 0023), so they share one file.
-            targetFileProvider = { id ->
-                context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }.resolve("$id.epub")
+            // both the EPUB and the audio source (ADR 0023), so they share one file. Must mirror
+            // LocalStoreImpl's dir/<serverId>/<id> layout so downloadsStore.get(serverId, id) finds it.
+            targetFileProvider = { serverId, id ->
+                context.filesDir.resolve("downloads/epubs").resolve(serverId).also { it.mkdirs() }.resolve("$id.epub")
             },
         )
 

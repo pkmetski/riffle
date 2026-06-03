@@ -20,6 +20,10 @@ data class LibraryItem(
     val addedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
+    // The owning Server. Item ids are only unique within a Server (ADR 0025), so callers that key
+    // local files / DB rows must pair id with serverId. Defaulted for construction sites (e.g.
+    // tests) that don't care; the real value is set when mapping from the DB entity.
+    val serverId: String = "",
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }

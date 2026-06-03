@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.After
@@ -26,6 +27,11 @@ class LibraryItemDaoTest {
             RiffleDatabase::class.java,
         ).allowMainThreadQueries().build()
         dao = db.libraryItemDao()
+        // library_items FK-references servers; seed the owning Servers first.
+        runBlocking {
+            db.serverDao().upsert(ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+            db.serverDao().upsert(ServerEntity("s2", "http://s2", isActive = false, insecureConnectionAllowed = false, username = "u"))
+        }
     }
 
     @After
@@ -37,7 +43,9 @@ class LibraryItemDaoTest {
         id: String,
         readingProgress: Float,
         lastOpenedAt: Long? = null,
+        serverId: String = "s1",
     ) = LibraryItemEntity(
+        serverId = serverId,
         id = id,
         libraryId = "lib1",
         title = "Title $id",
@@ -118,6 +126,19 @@ class LibraryItemDaoTest {
         assertEquals(0, inProgress.size)
         assertEquals(0, finished.size)
         assertEquals(1, allBooks.size)
+    }
+
+    // A0 — two Servers can hold a book with the same itemId without colliding; getById resolves
+    // the right one by (serverId, itemId). This is the core fix for issue #81.
+    @Test
+    fun getById_distinguishesSameItemIdAcrossServers() = runTest {
+        dao.upsertAll(listOf(
+            item("1", readingProgress = 0.25f, serverId = "s1").copy(title = "War and Peace"),
+            item("1", readingProgress = 0.5f, serverId = "s2").copy(title = "A Different Book"),
+        ))
+
+        assertEquals("War and Peace", dao.getById("s1", "1")?.title)
+        assertEquals("A Different Book", dao.getById("s2", "1")?.title)
     }
 
     // A6 — replaceAllForLibrary must never expose an empty intermediate state to observers.

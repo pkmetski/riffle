@@ -44,14 +44,17 @@ internal class FakeLibraryItemDao : LibraryItemDao {
 
     // replaceAllForLibrary is intentionally inherited (deleteByLibraryId + upsertAll @Transaction default).
 
-    override suspend fun getById(itemId: String): LibraryItemEntity? =
-        roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }
+    override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? =
+        roomData.values.flatMap { it.value }.firstOrNull { it.serverId == serverId && it.id == itemId }
+
+    override suspend fun findServerIdForItem(itemId: String): String? =
+        roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }?.serverId
 
     override suspend fun deleteByLibraryId(libraryId: String) {
         roomData[libraryId]?.value = emptyList()
     }
 
-    override suspend fun updateLastOpenedAt(itemId: String, timestamp: Long) {}
+    override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
 
     override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> =
         roomData[libraryId]?.value
@@ -65,9 +68,10 @@ internal class FakeLibraryItemDao : LibraryItemDao {
             ?.map { ReadingProgressRow(it.id, it.readingProgress) }
             ?: emptyList()
 
-    override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
+    override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
 
     override suspend fun updateReadaloudMetadata(
+        serverId: String,
         itemId: String,
         author: String?,
         description: String?,

@@ -102,12 +102,12 @@ fun DownloadsScreen(
                         EmptySection("No downloaded books")
                     }
                 } else {
-                    items(uiState.downloadedItems, key = { it.item.id }) { entry ->
+                    items(uiState.downloadedItems, key = { it.serverId + "/" + it.item.id }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Downloaded,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeDownloadedItem(entry.item.id) },
+                            onRemove = { viewModel.removeDownloadedItem(entry.serverId, entry.item.id) },
                         )
                     }
                 }
@@ -125,12 +125,12 @@ fun DownloadsScreen(
                         EmptySection("No cached books")
                     }
                 } else {
-                    items(uiState.cachedItems, key = { it.item.id }) { entry ->
+                    items(uiState.cachedItems, key = { it.serverId + "/" + it.item.id }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Cached,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeCachedItem(entry.item.id) },
+                            onRemove = { viewModel.removeCachedItem(entry.serverId, entry.item.id) },
                         )
                     }
                 }

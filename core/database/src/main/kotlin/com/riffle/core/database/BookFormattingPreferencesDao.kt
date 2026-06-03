@@ -11,9 +11,9 @@ interface BookFormattingPreferencesDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: BookFormattingPreferencesEntity)
 
-    @Query("SELECT * FROM book_formatting_preferences WHERE itemId = :itemId LIMIT 1")
-    suspend fun getByItemId(itemId: String): BookFormattingPreferencesEntity?
+    @Query("SELECT * FROM book_formatting_preferences WHERE serverId = :serverId AND itemId = :itemId LIMIT 1")
+    suspend fun getByItemId(serverId: String, itemId: String): BookFormattingPreferencesEntity?
 
-    @Query("DELETE FROM book_formatting_preferences WHERE itemId = :itemId")
-    suspend fun deleteByItemId(itemId: String)
+    @Query("DELETE FROM book_formatting_preferences WHERE serverId = :serverId AND itemId = :itemId")
+    suspend fun deleteByItemId(serverId: String, itemId: String)
 }

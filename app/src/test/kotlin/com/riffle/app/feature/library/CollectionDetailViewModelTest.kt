@@ -61,6 +61,7 @@ class CollectionDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = collectionItemsFlow
         override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
@@ -86,6 +87,7 @@ class CollectionDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = collectionItemsFlow
         override suspend fun getItem(itemId: String): LibraryItem? = null
+        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
@@ -116,18 +118,18 @@ class CollectionDetailViewModelTest {
     private class FakeEpubRepository(private val downloadedIds: Set<String> = emptySet()) : EpubRepository {
         override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
         override suspend fun downloadEpub(item: LibraryItem) = EpubDownloadResult.Success
-        override suspend fun removeDownload(itemId: String) {}
-        override fun isDownloaded(itemId: String): Boolean = itemId in downloadedIds
-        override fun isCached(itemId: String): Boolean = false
+        override suspend fun removeDownload(serverId: String, itemId: String) {}
+        override fun isDownloaded(serverId: String, itemId: String): Boolean = itemId in downloadedIds
+        override fun isCached(serverId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
     private class FakePdfRepository : PdfRepository {
         override suspend fun openPdf(item: LibraryItem) = PdfOpenResult.Offline
         override suspend fun downloadPdf(item: LibraryItem) = PdfDownloadResult.Success
-        override suspend fun removeDownload(itemId: String) {}
-        override fun isDownloaded(itemId: String): Boolean = false
-        override fun isCached(itemId: String): Boolean = false
+        override suspend fun removeDownload(serverId: String, itemId: String) {}
+        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
+        override fun isCached(serverId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 

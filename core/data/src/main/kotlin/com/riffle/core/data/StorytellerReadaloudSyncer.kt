@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.first
  */
 internal fun storytellerBooksToEntities(
     books: List<NetworkStorytellerBook>,
+    serverId: String,
     libraryId: String,
     coverUrlOf: (Long) -> String,
     lastOpenedAtMap: Map<String, Long?>,
@@ -28,6 +29,7 @@ internal fun storytellerBooksToEntities(
 ): List<LibraryItemEntity> = books.map { book ->
     val id = book.id.toString()
     LibraryItemEntity(
+        serverId = serverId,
         id = id,
         libraryId = libraryId,
         title = book.title,
@@ -90,6 +92,7 @@ open class StorytellerReadaloudSyncer(
                 val progressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val entities = storytellerBooksToEntities(
                     books = r.books,
+                    serverId = server.id,
                     libraryId = libraryId,
                     coverUrlOf = { bookId -> storytellerApi.coverUrl(server.url.value, bookId) },
                     lastOpenedAtMap = lastOpenedAtMap,
