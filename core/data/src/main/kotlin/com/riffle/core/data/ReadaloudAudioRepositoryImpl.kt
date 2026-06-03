@@ -52,7 +52,7 @@ class ReadaloudAudioRepositoryImpl(
             ?: return AudioDownloadResult.NetworkError(IllegalStateException("No server $serverId"))
         val token = tokenStorage.getToken(serverId)
             ?: return AudioDownloadResult.NetworkError(IllegalStateException("No token for $serverId"))
-        return when (val r = downloader.download(server.url.value, bookId, token, server.insecureConnectionAllowed, onProgress)) {
+        return when (val r = downloader.download(serverId, server.url.value, bookId, token, server.insecureConnectionAllowed, onProgress)) {
             is AudiobookBundleDownloader.Result.Success -> AudioDownloadResult.Success
             is AudiobookBundleDownloader.Result.NetworkError -> AudioDownloadResult.NetworkError(r.cause)
         }

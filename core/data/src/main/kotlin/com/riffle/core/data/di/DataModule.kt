@@ -308,9 +308,10 @@ abstract class DataModule {
         ): AudiobookBundleDownloader = AudiobookBundleDownloader(
             api = api,
             // Write into the same Downloads EPUB store the reader reads from — the synced bundle is
-            // both the EPUB and the audio source (ADR 0023), so they share one file.
-            targetFileProvider = { id ->
-                context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }.resolve("$id.epub")
+            // both the EPUB and the audio source (ADR 0023), so they share one file. Must mirror
+            // LocalStoreImpl's dir/<serverId>/<id> layout so downloadsStore.get(serverId, id) finds it.
+            targetFileProvider = { serverId, id ->
+                context.filesDir.resolve("downloads/epubs").resolve(serverId).also { it.mkdirs() }.resolve("$id.epub")
             },
         )
 
