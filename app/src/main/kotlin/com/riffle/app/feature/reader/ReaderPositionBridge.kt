@@ -2,12 +2,13 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.CanonicalPositionTranslator
 import com.riffle.core.domain.ChapterProgression
-import com.riffle.core.domain.OpenedSide
 import org.json.JSONObject
 
 /**
- * Converts the reader's canonical position (a Readium Locator JSON on the **displayed** EPUB)
- * to and from each peer's native coordinate for a matched readaloud book (ADR 0019):
+ * Converts the reader's canonical position (a Readium Locator JSON on the displayed **ABS** EPUB)
+ * to and from each peer's native coordinate for a matched readaloud book (ADR 0019, as amended by
+ * ADR 0026 — a book is always read from the ABS side, so the canonical frame is always the ABS
+ * EPUB and ABS ebook is always the native peer):
  *
  *  - ABS ebook → a CFI in the ABS EPUB,
  *  - ABS audiobook → seconds (via the Storyteller SMIL),
@@ -19,14 +20,13 @@ import org.json.JSONObject
  * defers a PATCH rather than producing a wrong one. Pure (JSON + jsoup), unit-testable.
  */
 class ReaderPositionBridge(
-    private val displayedSide: OpenedSide,
     private val absSpineHrefs: List<String>,
     private val absChapterHtml: (Int) -> String?,
     private val storytellerSpineHrefs: List<String>,
     private val storytellerChapterHtml: (Int) -> String?,
     private val translator: CanonicalPositionTranslator,
 ) {
-    private val displayedDomain = if (displayedSide == OpenedSide.ABS) Domain.ABS else Domain.ST
+    private val displayedDomain = Domain.ABS
 
     private enum class Domain { ABS, ST }
 

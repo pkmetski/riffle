@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Supersedes:** Extends [ADR 0008](0008-last-update-wins-progress-sync.md) for the matched-readaloud case; ADR 0008's two-peer rules remain in force for ABS-only books.
+**Amended by:** [ADR 0026](0026-storyteller-as-settings-only-readaloud-backend.md) — a matched book is **always** opened from the ABS side and the reader always displays the **ABS EPUB**; the "opened from either side (ABS or Readaloud)" framing below no longer applies, since the Readaloud Library is removed. The three-peer remote set, canonical position, and reconciliation cycle are otherwise unchanged.
 
 ## Context
 

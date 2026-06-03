@@ -11,9 +11,6 @@ interface ReadaloudReviewRepository {
     /** The live three-section review for one Storyteller Server. */
     fun observeReview(storytellerServerId: String): Flow<ReadaloudReview>
 
-    /** True when a readaloud has at least one surviving Pending-Review candidate. */
-    suspend fun hasPendingCandidates(storytellerServerId: String, storytellerBookId: String): Boolean
-
     /** Confirm a candidate: create a sticky `userConfirmed` link and clear the book's candidates. */
     suspend fun confirmCandidate(
         storytellerServerId: String,

@@ -14,6 +14,7 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -45,15 +46,21 @@ class NavigationDrawerViewModelTest {
     private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
 
-    private fun server(id: String, active: Boolean = false) = Server(
+    private fun server(
+        id: String,
+        active: Boolean = false,
+        serverType: ServerType = ServerType.AUDIOBOOKSHELF,
+    ) = Server(
         id = id,
         url = ServerUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
+        serverType = serverType,
     )
 
-    private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
+    private fun library(id: String, mediaType: String = "book") =
+        Library(id = id, name = id, mediaType = mediaType, isUnsupported = false)
 
     private var fakeVersions: Map<String, String?> = emptyMap()
 
@@ -199,6 +206,36 @@ class NavigationDrawerViewModelTest {
 
         assertEquals("visibleLibraries should only have lib-2 after hiding lib-1",
             listOf(library("lib-2")), vm.visibleLibraries.value)
+    }
+
+    @Test
+    fun `allServers excludes Storyteller servers from the switcher`() = runTest {
+        // Storyteller is a Settings-only readaloud backend (ADR 0026) — it must never appear in the
+        // drawer's Server Switcher, so it can never become the active browsable server.
+        serversFlow.value = listOf(
+            server("abs-1", active = true),
+            server("st-1", serverType = ServerType.STORYTELLER),
+        )
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.allServers.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(server("abs-1", active = true)), vm.allServers.value)
+    }
+
+    @Test
+    fun `visibleLibraries excludes readaloud media-type libraries`() = runTest {
+        // The synthetic Readaloud library row exists only as matcher input (ADR 0026); it is never
+        // browsable, so it must not show in the drawer even if the active server still owns it.
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("readaloud:srv-1", mediaType = "readaloud"))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.visibleLibraries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(library("lib-1")), vm.visibleLibraries.value)
     }
 
     @Test

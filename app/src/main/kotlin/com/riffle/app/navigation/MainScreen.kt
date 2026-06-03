@@ -337,15 +337,6 @@ fun MainScreen(
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
                     },
-                    onReviewReadaloud = { serverId ->
-                        val encoded = URLEncoder.encode(serverId, "UTF-8")
-                        navController.navigate("readaloud_matches/$encoded")
-                    },
-                    onPairReadaloud = { serverId, bookId ->
-                        val encodedServer = URLEncoder.encode(serverId, "UTF-8")
-                        val encodedBook = URLEncoder.encode(bookId, "UTF-8")
-                        navController.navigate("readaloud_matches/$encodedServer?pairBookId=$encodedBook")
-                    },
                 )
             }
             composable(

@@ -1,6 +1,8 @@
 # ADR 0020 — Storyteller as a peer Server type; Readaloud Library as its single navigation surface
 
-**Status:** Accepted
+**Status:** Superseded by [ADR 0026](0026-storyteller-as-settings-only-readaloud-backend.md)
+
+> **Superseded.** Storyteller is no longer a browsable peer Server and contributes no Readaloud Library. It is a Settings-only Readaloud backend; the Readaloud capability surfaces only on matched ABS Library Items, and the ABS→Storyteller metadata-borrow rule is dropped. Storyteller-only deployments are no longer supported. The matching mechanism ([ADR 0021](0021-storyteller-abs-matching-with-review-queue.md)) and three-peer sync ([ADR 0019](0019-three-peer-unified-canonical-progress-sync.md)) survive. The historical record below is retained for context only.
 
 ## Context
 

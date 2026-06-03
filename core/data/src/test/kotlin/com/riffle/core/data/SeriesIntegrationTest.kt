@@ -119,7 +119,6 @@ class SeriesIntegrationTest {
         override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
-        override suspend fun updateReadaloudMetadata(serverId: String, itemId: String, author: String?, description: String?, publishedYear: String?, publisher: String?, genres: String) {}
         override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
     }
 
@@ -136,7 +135,6 @@ class SeriesIntegrationTest {
         val itemDao = FakeLibraryItemDao()
         return LibraryRepositoryImpl(
             api = AbsApiClient(OkHttpClient()),
-            storytellerApi = com.riffle.core.network.StorytellerApiClient(OkHttpClient()),
             libraryDao = FakeLibraryDao(),
             libraryItemDao = itemDao,
             seriesDao = seriesDao,

@@ -75,31 +75,6 @@ interface LibraryItemDao {
     @Query("UPDATE library_items SET readingProgress = :progress WHERE serverId = :serverId AND id = :itemId")
     suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float)
 
-    /**
-     * Borrow ABS metadata onto a single item. Used by the Storyteller↔ABS matcher to backfill a
-     * Confirmed-matched readaloud from its linked ABS item, and to clear the ABS-only fields back
-     * to their empty defaults when no link survives.
-     *
-     * [author] is COALESCEd: a non-null value overwrites the Storyteller author (which can be
-     * malformed/duplicated), while null leaves it untouched — so the readaloud keeps its own
-     * author when no link exists. The other four fields are always written (cleared to
-     * null/empty when no link), since the Storyteller defaults for those are empty anyway.
-     */
-    @Query(
-        "UPDATE library_items SET author = COALESCE(:author, author), description = :description, " +
-            "publishedYear = :publishedYear, publisher = :publisher, genres = :genres " +
-            "WHERE serverId = :serverId AND id = :itemId"
-    )
-    suspend fun updateReadaloudMetadata(
-        serverId: String,
-        itemId: String,
-        author: String?,
-        description: String?,
-        publishedYear: String?,
-        publisher: String?,
-        genres: String,
-    )
-
     @Query("SELECT id, lastOpenedAt FROM library_items WHERE libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
     suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow>
 

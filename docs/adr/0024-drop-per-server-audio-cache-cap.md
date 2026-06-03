@@ -2,6 +2,8 @@
 
 **Status:** Accepted (supersedes the "Cache cap / LRU" clause of [ADR 0023](0023-storyteller-synced-bundle-is-the-readaloud-audio-source.md))
 
+> **Note (ADR 0026):** the implicit cache-on-open path described in the Context below (`MAX_STORYTELLER_IMPLICIT_CACHE_BYTES` / `BundleTooLarge` in `EpubRepositoryImpl`) has since been removed — a Storyteller book is never opened directly, so its bundle reaches disk only via the explicit readaloud-audio download / the cross-EPUB index prerequisite fetch. The decision below (no app-managed audio cache cap) stands.
+
 ## Context
 
 [ADR 0023](0023-storyteller-synced-bundle-is-the-readaloud-audio-source.md) introduced a per-Storyteller-server, app-managed LRU cap (`AudioCachePreferencesStore`, default 2 GB, enforced by `LruCacheEvictor`) over the *auto-cached* synced-bundle area, surfaced as an "Audio cache" section in global Settings.

@@ -157,7 +157,6 @@ class SettingsViewModelTest {
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
         override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
             reviewsFlow.map { it[storytellerServerId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
-        override suspend fun hasPendingCandidates(storytellerServerId: String, storytellerBookId: String) = false
         override suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) = Unit

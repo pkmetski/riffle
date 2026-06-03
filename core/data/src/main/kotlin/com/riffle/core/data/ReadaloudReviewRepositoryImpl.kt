@@ -54,9 +54,6 @@ class ReadaloudReviewRepositoryImpl(
             buildReview(storytellerServerId, links, candidates)
         }
 
-    override suspend fun hasPendingCandidates(storytellerServerId: String, storytellerBookId: String): Boolean =
-        candidateDao.findByStorytellerBook(storytellerServerId, storytellerBookId).isNotEmpty()
-
     private suspend fun buildReview(
         storytellerServerId: String,
         allLinks: List<ReadaloudLinkEntity>,

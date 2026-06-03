@@ -4,7 +4,6 @@ import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.CanonicalPositionTranslator
 import com.riffle.core.domain.ChapterCharMap
 import com.riffle.core.domain.CrossEpubIndex
-import com.riffle.core.domain.OpenedSide
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
@@ -32,7 +31,6 @@ class ThreePeerReaderSyncCoordinatorTest {
     )
     private val absHtml = "<html><body><p>${"x".repeat(100)}</p></body></html>"
     private val bridge = ReaderPositionBridge(
-        displayedSide = OpenedSide.READALOUD,
         absSpineHrefs = listOf("c1.xhtml"),
         absChapterHtml = { if (it == 0) absHtml else null },
         storytellerSpineHrefs = listOf("c1.xhtml"),
@@ -41,7 +39,7 @@ class ThreePeerReaderSyncCoordinatorTest {
     )
 
     private val state = BookSyncState(
-        isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = true, openedSide = OpenedSide.READALOUD,
+        isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = true,
     )
     private val absEp = AbsSyncEndpoint("http://abs", "t", false, "abs-item")
     private val stEp = StorytellerSyncEndpoint("http://st", "t", false, "st-book")

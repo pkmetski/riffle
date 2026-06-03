@@ -28,7 +28,6 @@ class ProgressSyncStrategyTest {
             isMatched = true,
             confirmedAbsLinkCount = 1,
             prerequisitesCached = true,
-            openedSide = OpenedSide.ABS,
         )
         strategy.runCycle(state, local)
 
@@ -47,7 +46,6 @@ class ProgressSyncStrategyTest {
             isMatched = true,
             confirmedAbsLinkCount = 2, // collision → Storyteller excluded
             prerequisitesCached = true,
-            openedSide = OpenedSide.READALOUD,
         )
         strategy.runCycle(state, local)
 
@@ -60,7 +58,7 @@ class ProgressSyncStrategyTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
-        val state = BookSyncState(false, 0, prerequisitesCached = false, openedSide = OpenedSide.ABS)
+        val state = BookSyncState(false, 0, prerequisitesCached = false)
         strategy.runCycle(state, local)
 
         assertEquals(listOf(RemoteKind.ABS_EBOOK), built)
@@ -73,7 +71,7 @@ class ProgressSyncStrategyTest {
             if (kind == RemoteKind.STORYTELLER) null else FakeRemote(kind.name)
         }
 
-        val state = BookSyncState(true, 1, prerequisitesCached = true, openedSide = OpenedSide.ABS)
+        val state = BookSyncState(true, 1, prerequisitesCached = true)
         val result = strategy.runCycle(state, local)
 
         // No remote was newer than local and none can be read, so no jump; cycle still completes.

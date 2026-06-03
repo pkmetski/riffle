@@ -188,7 +188,7 @@ class LibraryRepositoryTest {
             fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), libraryItemDao, { 0L },
         ),
     ) = LibraryRepositoryImpl(
-        api, storytellerApiNotCalled, libraryDao, libraryItemDao, seriesDao, collectionDao,
+        api, libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, fakeTokenStorage, readingSessionRepository, readaloudMatchingService,
         storytellerReadaloudSyncer,
     )
@@ -782,74 +782,9 @@ class LibraryRepositoryTest {
         override fun coverUrl(baseUrl: String, bookId: Long) = "$baseUrl/api/books/$bookId/cover"
     }
 
-    @Test
-    fun `refreshLibraryItems for Storyteller server populates library_items from listReadalouds`() = runTest {
-        fakeServerRepository.activeServer = storytellerServer()
-        fakeTokenStorage.tokens["st-1"] = "tok-st"
-        val itemDao = FakeLibraryItemDao()
-        val storyteller = storytellerApiReturning(
-            listOf(
-                com.riffle.core.network.NetworkStorytellerBook(id = 1385738337074647L, title = "The Martian: A Novel", authors = listOf("Andy Weir")),
-                com.riffle.core.network.NetworkStorytellerBook(id = 99L, title = "Dune", authors = listOf("Frank Herbert", "Brian Herbert")),
-            ),
-        )
-
-        val result = makeRepo(libraryItemDao = itemDao).let { repo ->
-            // makeRepo wires the abs-mode storytellerApiNotCalled by default; swap directly via reflection-free path:
-            com.riffle.core.data.LibraryRepositoryImpl(
-                api = object : AbsLibraryApi {
-                    override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                        error("ABS getLibraries should not be called for Storyteller refresh")
-                    override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                        error("ABS getLibraryItems should not be called for Storyteller refresh")
-                    override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                        error("ABS getSeries should not be called for Storyteller refresh")
-                    override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-                        error("ABS getCollections should not be called for Storyteller refresh")
-                    override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                        error("ABS getUserProgress should not be called for Storyteller refresh")
-                },
-                storytellerApi = storyteller,
-                libraryDao = FakeLibraryDao(),
-                libraryItemDao = itemDao,
-                seriesDao = FakeSeriesDao(),
-                collectionDao = FakeCollectionDao(),
-                serverRepository = fakeServerRepository,
-                tokenStorage = fakeTokenStorage,
-                readingSessionRepository = NoopReadingSessionRepository,
-                readaloudMatchingService = noopMatchingService(itemDao),
-                storytellerReadaloudSyncer = StorytellerReadaloudSyncer(
-                    fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), itemDao, { 0L },
-                ),
-            ).refreshLibraryItems("readaloud:st-1")
-        }
-
-        assertTrue(result is com.riffle.core.domain.LibraryRefreshResult.Success)
-        val entities = itemDao.upserted
-        assertEquals(2, entities.size)
-        assertEquals("1385738337074647", entities[0].id)
-        assertEquals("The Martian: A Novel", entities[0].title)
-        assertEquals("Andy Weir", entities[0].author)
-        assertEquals("http://media-server:8001/api/books/1385738337074647/cover", entities[0].coverUrl)
-        assertEquals("epub", entities[0].ebookFormat)
-        assertEquals("Frank Herbert, Brian Herbert", entities[1].author)
-    }
-
-    @Test
-    fun `refreshSeries no-ops for Storyteller libraries`() = runTest {
-        fakeServerRepository.activeServer = storytellerServer()
-        fakeTokenStorage.tokens["st-1"] = "tok-st"
-        val result = makeRepo().refreshSeries("readaloud:st-1")
-        assertTrue(result is com.riffle.core.domain.LibraryRefreshResult.Success)
-    }
-
-    @Test
-    fun `refreshCollections no-ops for Storyteller libraries`() = runTest {
-        fakeServerRepository.activeServer = storytellerServer()
-        fakeTokenStorage.tokens["st-1"] = "tok-st"
-        val result = makeRepo().refreshCollections("readaloud:st-1")
-        assertTrue(result is com.riffle.core.domain.LibraryRefreshResult.Success)
-    }
+    // Storyteller is never the active/browsable server (ADR 0026), so refreshLibraryItems/
+    // refreshSeries/refreshCollections no longer have a Storyteller branch. Its readaloud rows are
+    // synced as matcher input via the StorytellerReadaloudSyncer (covered below).
 
     // ── ABS refresh triggers storyteller syncer ───────────────────────────────
 

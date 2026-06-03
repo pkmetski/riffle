@@ -30,15 +30,6 @@ interface ReadaloudCandidateDao {
     fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>>
 
     @Query(
-        "SELECT * FROM readaloud_candidates " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId"
-    )
-    suspend fun findByStorytellerBook(
-        storytellerServerId: String,
-        storytellerBookId: String,
-    ): List<ReadaloudCandidateEntity>
-
-    @Query(
         "DELETE FROM readaloud_candidates " +
             "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId"
     )

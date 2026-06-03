@@ -124,7 +124,6 @@ fun LibraryItemsScreen(
     val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isReadaloudLibrary by viewModel.isReadaloudLibrary.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -174,9 +173,7 @@ fun LibraryItemsScreen(
             )
         },
         bottomBar = {
-            // Readaloud Libraries (Storyteller) collapse to All Books only — the multi-tab bar
-            // is hidden because Storyteller exposes no Series, Collections, or To Read source.
-            if (searchQuery.isEmpty() && !isReadaloudLibrary) {
+            if (searchQuery.isEmpty()) {
                 LibraryTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
             }
         },
@@ -196,15 +193,6 @@ fun LibraryItemsScreen(
                     token = viewModel.authToken,
                     onSeriesSelected = onSeriesSelected,
                     onCollectionSelected = onCollectionSelected,
-                    onItemSelected = onItemSelected,
-                    linkedItemIds = linkedItemIds,
-                )
-            } else if (isReadaloudLibrary) {
-                // Readaloud Library: only the All Books tab exists, rendered directly.
-                AllBooksTabContent(
-                    items = allBooks,
-                    isLoading = isLoading,
-                    token = viewModel.authToken,
                     onItemSelected = onItemSelected,
                     linkedItemIds = linkedItemIds,
                 )

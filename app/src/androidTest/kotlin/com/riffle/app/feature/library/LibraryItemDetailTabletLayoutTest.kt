@@ -52,8 +52,6 @@ class LibraryItemDetailTabletLayoutTest {
                 isInToRead = false,
                 token = "",
                 downloadState = DownloadState.NotDownloaded,
-                isReadaloud = false,
-                readaloudFooter = null,
                 isCachedOrDownloaded = false,
                 isOffline = false,
                 readaloudDownloadState = null,
@@ -63,7 +61,6 @@ class LibraryItemDetailTabletLayoutTest {
                 onToggleToRead = {},
                 onDownload = {},
                 onRemove = {},
-                onUnlinkReadaloud = {},
             )
         }
 

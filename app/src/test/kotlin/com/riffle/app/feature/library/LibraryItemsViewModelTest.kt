@@ -815,24 +815,6 @@ class LibraryItemsViewModelTest {
         assertEquals(50, vm.filteredRecentlyAdded.value.size)
     }
 
-    @Test
-    fun `isReadaloudLibrary true when the active library has mediaType readaloud`() = runTest {
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.isReadaloudLibrary.collect {} }
-        librariesFlow.value = listOf(Library("lib-1", "Readalouds", "readaloud", false))
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue(vm.isReadaloudLibrary.value)
-    }
-
-    @Test
-    fun `isReadaloudLibrary false for a standard ABS library`() = runTest {
-        val vm = makeViewModel()
-        backgroundScope.launch { vm.isReadaloudLibrary.collect {} }
-        librariesFlow.value = listOf(Library("lib-1", "Books", "book", false))
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertFalse(vm.isReadaloudLibrary.value)
-    }
-
     // --- searchQuery persistence (issue #60) ---
 
     @Test
