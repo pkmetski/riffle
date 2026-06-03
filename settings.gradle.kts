@@ -17,6 +17,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("https://jitpack.io")
+            // readium-adapter-pdfium-document pulls its PDF engine from this JitPack fork.
+            content { includeGroup("com.github.marain87") }
+        }
     }
 }
 
