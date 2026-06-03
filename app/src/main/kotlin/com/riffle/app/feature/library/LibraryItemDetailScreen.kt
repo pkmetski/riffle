@@ -293,22 +293,7 @@ private fun LibraryItemDetailContent(
             onRemoveReadaloud = onRemoveReadaloud,
         )
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (readaloudDownloadState != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    painter = painterResource(R.drawable.ic_readaloud),
-                    contentDescription = "Has readaloud (synced narration)",
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
+        TitleWithReadaloudIndicator(title = item.title, hasReadaloud = readaloudDownloadState != null)
         Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
 
         item.seriesName?.let { series ->
@@ -462,22 +447,7 @@ internal fun LibraryItemDetailContentTablet(
                         .align(Alignment.CenterHorizontally),
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (readaloudDownloadState != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        painter = painterResource(R.drawable.ic_readaloud),
-                        contentDescription = "Has readaloud (synced narration)",
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
+            TitleWithReadaloudIndicator(title = item.title, hasReadaloud = readaloudDownloadState != null)
             Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress)
@@ -524,6 +494,22 @@ internal fun LibraryItemDetailContentTablet(
                     onPairReadaloud = onPairReadaloud,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun TitleWithReadaloudIndicator(title: String, hasReadaloud: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f, fill = false))
+        if (hasReadaloud) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                painter = painterResource(R.drawable.ic_readaloud),
+                contentDescription = "Has readaloud (synced narration)",
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }
@@ -600,25 +586,22 @@ private fun ActionRow(
             )
             if (readaloudDownloadState != null) {
                 val readaloudOfflineBlocked = isOffline && readaloudDownloadState == DownloadState.NotDownloaded
+                val readaloudButton: @Composable () -> Unit = {
+                    ReadaloudDownloadButton(
+                        state = readaloudDownloadState,
+                        onDownload = onDownloadReadaloud,
+                        onRemove = onRemoveReadaloud,
+                        enabled = !readaloudOfflineBlocked,
+                    )
+                }
                 if (readaloudOfflineBlocked) {
                     TooltipBox(
                         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                         tooltip = { PlainTooltip { Text("Connect to download readaloud audio") } },
                         state = rememberTooltipState(),
-                    ) {
-                        ReadaloudDownloadButton(
-                            state = readaloudDownloadState,
-                            onDownload = onDownloadReadaloud,
-                            onRemove = onRemoveReadaloud,
-                            enabled = false,
-                        )
-                    }
+                    ) { readaloudButton() }
                 } else {
-                    ReadaloudDownloadButton(
-                        state = readaloudDownloadState,
-                        onDownload = onDownloadReadaloud,
-                        onRemove = onRemoveReadaloud,
-                    )
+                    readaloudButton()
                 }
             }
         }
