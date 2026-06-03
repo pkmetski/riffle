@@ -290,6 +290,9 @@ class LibraryItemDetailViewModel @Inject constructor(
             _readaloudDownloadState.value = readaloudDownloadStateFor(
                 result is com.riffle.core.domain.AudioDownloadResult.Success,
             )
+            if (result !is com.riffle.core.domain.AudioDownloadResult.Success) {
+                _snackbarEvents.tryEmit("Couldn't download readaloud audio")
+            }
         }
     }
 
