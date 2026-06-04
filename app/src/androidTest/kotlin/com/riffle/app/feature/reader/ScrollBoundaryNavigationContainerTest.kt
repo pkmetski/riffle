@@ -23,6 +23,8 @@ class ScrollBoundaryNavigationContainerTest {
         isScrollMode: Boolean = true,
         atForwardBoundary: Boolean = false,
         atBackwardBoundary: Boolean = false,
+        canNavigateForward: Boolean = true,
+        canNavigateBackward: Boolean = true,
     ): ScrollBoundaryNavigationContainer {
         var c: ScrollBoundaryNavigationContainer? = null
         onMain {
@@ -30,6 +32,8 @@ class ScrollBoundaryNavigationContainerTest {
                 this.isScrollMode = isScrollMode
                 this.atForwardBoundary = atForwardBoundary
                 this.atBackwardBoundary = atBackwardBoundary
+                this.canNavigateForward = canNavigateForward
+                this.canNavigateBackward = canNavigateBackward
             }
         }
         return c!!
@@ -180,6 +184,32 @@ class ScrollBoundaryNavigationContainerTest {
         }
         onMain {}
         assertFalse(invoked)
+    }
+
+    @Test
+    fun forwardPullAtLastChapterDoesNotArmPullOrNavigate() {
+        // Pull-up on the very last chapter: nowhere forward to go, so no pill and no nav.
+        var navigated = false
+        var pillShown = false
+        val c = container(atForwardBoundary = true, canNavigateForward = false)
+        c.onNavigateForward = { navigated = true }
+        c.onPullStarted = { pillShown = true }
+        simulatePull(c, forward = true)
+        assertFalse(navigated)
+        assertFalse(pillShown)
+    }
+
+    @Test
+    fun backwardPullAtFirstChapterDoesNotArmPullOrNavigate() {
+        // Pull-down on the very first chapter: nowhere back to go, so no pill and no nav.
+        var navigated = false
+        var pillShown = false
+        val c = container(atBackwardBoundary = true, canNavigateBackward = false)
+        c.onNavigateBackward = { navigated = true }
+        c.onPullStarted = { pillShown = true }
+        simulatePull(c, forward = false)
+        assertFalse(navigated)
+        assertFalse(pillShown)
     }
 
     @Test
