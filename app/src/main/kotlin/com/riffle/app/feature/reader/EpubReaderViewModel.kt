@@ -363,9 +363,9 @@ class EpubReaderViewModel @Inject constructor(
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
         // parse reads the whole bundle, so doing it during audio startup risks starving ExoPlayer on
-        // a large book. The map-empty guard inside buildSentenceQuotes keeps this one-shot.
+        // a large book. buildSentenceQuotes is one-shot (quotesBuildStarted), so re-emissions are cheap.
         viewModelScope.launch {
-            playerCoordinator.state
+            playbackState
                 .map { it.isPlaying }
                 .distinctUntilChanged()
                 .collect { isPlaying ->
@@ -1046,8 +1046,15 @@ class EpubReaderViewModel @Inject constructor(
     // the sentence spans (the ABS ebook may be the plain publisher EPUB without them). Keyed by span
     // id, these feed the text-anchored highlight locator; Readium then finds the sentence by text in
     // the rendered ABS page. Off the main thread; a corrupt/empty bundle just leaves the map empty.
+    // Set synchronously the first time the parse is kicked, so a rapid pause→resume (two isPlaying
+    // transitions before the IO completes) or a bundle that yields no quotes can't re-launch the
+    // heavy whole-bundle parse. Guarding on _sentenceQuotes (written only at the end of the IO) would
+    // not cover either case.
+    @Volatile private var quotesBuildStarted = false
+
     private fun buildSentenceQuotes(bundle: File) {
-        if (_sentenceQuotes.value.isNotEmpty()) return
+        if (quotesBuildStarted) return
+        quotesBuildStarted = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val chapters = com.riffle.core.domain.EpubContentExtractor.extract(bundle)?.chapters ?: return@launch

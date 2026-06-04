@@ -1020,10 +1020,14 @@ private fun EpubNavigatorView(
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
-        val quote = sentenceQuotes[ref.substringAfter('#', "")]
+        // No quote yet (the map is built off-thread once playback starts) → we can neither locate the
+        // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
+        // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
+        // this effect re-keys on [sentenceQuotes] and re-runs to follow correctly once it's available.
+        val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@LaunchedEffect
         // Locate the sentence by its text (spans are stripped); "off" only when it's genuinely not on
         // the current page, so we don't snap on every sentence. go() is text-anchored too.
-        val where = fragment.evaluateJavascript(autoFollowSnapJs(quote?.highlight ?: ""))?.trim('"')
+        val where = fragment.evaluateJavascript(autoFollowSnapJs(quote.highlight))?.trim('"')
         if (where != "off") return@LaunchedEffect
         fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
     }
