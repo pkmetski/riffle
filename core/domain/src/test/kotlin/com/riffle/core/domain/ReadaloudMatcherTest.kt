@@ -141,6 +141,30 @@ class ReadaloudMatcherTest {
     }
 
     @Test
+    fun `colon that is part of the work name still matches the full title`() {
+        // Real data: ABS "2001: A Space Odyssey" vs Storyteller "2001. A Space Odyssey". The
+        // colon here is part of the title, not a "A Novel"-style subtitle, so stripping it to
+        // "2001" loses everything that discriminates the book. The full forms align exactly.
+        val book = storytellerBook(title = "2001. A Space Odyssey", author = "Arthur C. Clarke")
+        val abs = absItem(title = "2001: A Space Odyssey", author = "Arthur C. Clarke")
+
+        assertEquals(confirmed("abs-1" to "item-1"), ReadaloudMatcher.match(book, listOf(abs)))
+    }
+
+    @Test
+    fun `colon subtitle still matches when both sides carry it`() {
+        // Stripping must remain available: "A Dance with Dragons: A Song of Ice and Fire: Book
+        // Five" on the Storyteller side vs the bare ABS title still pairs via the head form.
+        val book = storytellerBook(
+            title = "A Dance with Dragons: A Song of Ice and Fire: Book Five",
+            author = "George R.R. Martin",
+        )
+        val abs = absItem(title = "A Dance with Dragons", author = "George R.R. Martin")
+
+        assertEquals(confirmed("abs-1" to "item-1"), ReadaloudMatcher.match(book, listOf(abs)))
+    }
+
+    @Test
     fun `leading article on one side does not block title match`() {
         val book = storytellerBook(title = "The Dragons of Eden", author = "Carl Sagan")
         val abs = absItem(title = "Dragons of Eden", author = "Carl Sagan")
