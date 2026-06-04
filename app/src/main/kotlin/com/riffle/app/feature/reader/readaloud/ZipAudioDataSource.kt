@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.readaloud
 
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -30,8 +31,19 @@ internal class ZipAudioDataSource(private val bundle: File) : BaseDataSource(/* 
         transferInitializing(dataSpec)
         uri = dataSpec.uri
         val entryPath = requireNotNull(dataSpec.uri.path).trimStart('/')
-        val z = ZipFile(bundle).also { zip = it }
-        val entry = requireNotNull(z.getEntry(entryPath)) { "Missing audio entry: $entryPath" }
+        // A failed zip open or a missing entry means the bundle is corrupt/truncated (e.g. a download
+        // cut short by a full disk). Log it — otherwise ExoPlayer just reports an opaque source error.
+        val z = try {
+            ZipFile(bundle).also { zip = it }
+        } catch (e: Exception) {
+            Log.e(LOG, "open: ZipFile(${bundle.name} size=${bundle.length()}) FAILED for $entryPath", e)
+            throw e
+        }
+        val entry = z.getEntry(entryPath)
+        if (entry == null) {
+            Log.e(LOG, "open: MISSING entry '$entryPath' in ${bundle.name} (size=${bundle.length()}); likely a truncated bundle")
+            throw java.io.IOException("Missing audio entry: $entryPath")
+        }
         val full = entry.size
         val input = z.getInputStream(entry).also { stream = it }
         var skipped = 0L
@@ -80,6 +92,8 @@ internal class ZipAudioDataSource(private val bundle: File) : BaseDataSource(/* 
     }
 
     companion object {
+        private const val LOG = "RIFFLE_RA"
+
         /** Builds the playback URI for a zip-internal audio entry path. */
         fun uriFor(entryPath: String): Uri = Uri.parse("zipaudio:///$entryPath")
     }

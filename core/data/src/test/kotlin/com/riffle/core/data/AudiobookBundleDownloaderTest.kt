@@ -26,6 +26,9 @@ class AudiobookBundleDownloaderTest {
     private inner class FakeApi(
         private val honorRange: Boolean = true,
         private val failWith: Throwable? = null,
+        // Serve a body shorter than the advertised totalBytes (a truncating proxy / mid-stream close),
+        // without throwing — to exercise the completeness guard.
+        private val serveBytes: Int = full.size,
     ) : AudiobookBundleApi {
         var requestedFromByte: Long = -1
         override suspend fun openBundleStream(
@@ -45,8 +48,9 @@ class AudiobookBundleDownloaderTest {
                     isPartial = true,
                 )
             } else {
+                // Advertise the FULL length but serve only [serveBytes] — a silent truncation.
                 NetworkAudiobookBundleResult.Success(
-                    body = full.toResponseBody("application/epub+zip".toMediaType()),
+                    body = full.copyOfRange(0, serveBytes).toResponseBody("application/epub+zip".toMediaType()),
                     totalBytes = full.size.toLong(),
                     isPartial = false,
                 )
@@ -109,6 +113,18 @@ class AudiobookBundleDownloaderTest {
         assertEquals(-1L, api.requestedFromByte) // never called
         assertTrue(result is AudiobookBundleDownloader.Result.Success)
         assertEquals(existing, (result as AudiobookBundleDownloader.Result.Success).file)
+    }
+
+    @Test fun truncatedStream_isNotFinalised_andPartIsKeptForResume() = runTest {
+        val dir = tmp.newFolder()
+        // Server advertises 200 bytes but the body ends after 120 — no exception thrown.
+        val result = downloader(FakeApi(serveBytes = 120), dir).download("s1", "u", "42", "t", false) { _, _ -> }
+
+        assertTrue("a short body must be treated as a failure, not a complete bundle", result is AudiobookBundleDownloader.Result.NetworkError)
+        assertFalse("truncated bundle must not be promoted to the final file", File(dir, "42.epub").exists())
+        val part = File(dir, "42.epub.part")
+        assertTrue("the received prefix is kept for a resume", part.exists())
+        assertEquals(120, part.length())
     }
 
     @Test fun networkError_preservesPartialForResume() = runTest {
