@@ -1037,6 +1037,14 @@ private fun EpubNavigatorView(
                     )?.trim('"') == "true"
                     container.atForwardBoundary = atBottom
                     container.atBackwardBoundary = atTop
+
+                    // No pill at the book's ends: a pull-down on the very first chapter or a
+                    // pull-up on the very last has nowhere to go, so don't arm the gesture.
+                    val idx = state.publication.readingOrder
+                        .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
+                    container.canNavigateForward =
+                        idx in 0 until state.publication.readingOrder.size - 1
+                    container.canNavigateBackward = idx > 0
                 }
             }
             delay(BOUNDARY_POLL_INTERVAL_MS)

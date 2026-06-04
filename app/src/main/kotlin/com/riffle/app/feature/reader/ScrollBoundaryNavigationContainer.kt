@@ -19,6 +19,12 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     var atForwardBoundary: Boolean = false
     var atBackwardBoundary: Boolean = false
 
+    // Whether a chapter actually exists past the current one. Set by EpubReaderScreen from the
+    // reading-order position. At the very first/last chapter there is nowhere to navigate, so we
+    // never arm a pull there — no pill, no feedback for a gesture that could never complete.
+    var canNavigateForward: Boolean = true
+    var canNavigateBackward: Boolean = true
+
     var onNavigateForward: (() -> Unit)? = null
     var onNavigateBackward: (() -> Unit)? = null
     // Two-channel feedback API. Visibility binds to the started/ended pair; the circle's
@@ -156,14 +162,14 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         // Start a new pull only when finger moves in the correct direction at a boundary.
         if (pullDirection == 0) {
             when {
-                dy < -MOVEMENT_SLOP_PX && atForwardBoundary -> {
+                dy < -MOVEMENT_SLOP_PX && atForwardBoundary && canNavigateForward -> {
                     pullDirection = 1
                     pullDistancePx = 0f
                     lastMoveTimeMs = now
                     onPullStarted?.invoke(true)
                     onPullProgress?.invoke(0f)
                 }
-                dy > MOVEMENT_SLOP_PX && atBackwardBoundary -> {
+                dy > MOVEMENT_SLOP_PX && atBackwardBoundary && canNavigateBackward -> {
                     pullDirection = -1
                     pullDistancePx = 0f
                     lastMoveTimeMs = now
