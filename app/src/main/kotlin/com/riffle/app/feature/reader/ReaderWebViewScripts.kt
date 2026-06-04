@@ -65,24 +65,35 @@ internal val SELECTION_SPAN_TRACKER_JS = """
 """.trimIndent()
 
 /**
- * The page-follow probe run on each narrated-sentence change (auto-follow). Given the narrated
- * sentence's element id [fragId], it reports whether the page already shows the sentence ("on") or
- * must snap to it ("off"), and keeps it on screen per layout:
+ * The page-follow probe run on each narrated-sentence change (auto-follow). It locates the narrated
+ * sentence by its [text] (the same text the highlight is anchored to) rather than by span id —
+ * Readium strips the media-overlay sentence spans from the served HTML, so `getElementById` would
+ * always miss and the page would snap on EVERY sentence (the jarring per-sentence flip). Finding the
+ * sentence's first text node gives its on-screen rect without needing the span. Then per layout:
  *
  *  - Scroll mode (document overflows the viewport): scrolls *vertically* to centre the sentence —
  *    the karaoke follow — and returns "on".
- *  - Paginated mode (page is exactly viewport-sized): can't scroll, so it returns "on" only when the
- *    sentence is fully horizontally contained (within a tolerance), else "off" so the Kotlin side
- *    snaps to its page via go().
+ *  - Paginated mode (page is exactly viewport-sized): returns "on" only when the sentence is fully
+ *    horizontally contained (within a tolerance), else "off" so the Kotlin side snaps via go().
  *
- * Crucially it only ever scrolls the Y axis (`scrollBy(0, …)`) — never X — so the page cannot drift
- * sideways while narrating.
+ * Returns "off" when the text isn't on the current resource (sentence in another chapter) → go()
+ * jumps chapters, as before. Only ever scrolls the Y axis — never X — so the page can't drift sideways.
  */
-internal fun autoFollowSnapJs(fragId: String): String = """
+internal fun autoFollowSnapJs(text: String): String {
+    // A short, near-unique prefix of the sentence; matched within a single text node (sentence starts
+    // almost never split across nodes). Empty text disables the lookup → "off" (caller's go() fallback).
+    val probe = text.trim().take(24)
+    return """
     (function(){
-      var e=document.getElementById(${JSONObject.quote(fragId)});
-      if(!e) return "off";
-      var r=e.getBoundingClientRect();
+      var needle=${JSONObject.quote(probe)};
+      if(!needle) return "off";
+      var key=needle.slice(0,12);
+      var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, r=null;
+      while(n=w.nextNode()){
+        var i=n.nodeValue.indexOf(key);
+        if(i>=0){ var g=document.createRange(); g.setStart(n,i); g.setEnd(n, Math.min(n.nodeValue.length, i+1)); r=g.getBoundingClientRect(); break; }
+      }
+      if(!r) return "off";
       var se=document.scrollingElement||document.documentElement;
       if(se && se.scrollHeight > window.innerHeight + 4){
         var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
@@ -92,4 +103,5 @@ internal fun autoFollowSnapJs(fragId: String): String = """
       var TOL=24;
       return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
     })()
-""".trimIndent()
+    """.trimIndent()
+}

@@ -264,6 +264,12 @@ class EpubReaderViewModel @Inject constructor(
     // The track is parsed once on first play and reused.
     private var readaloudTrack: com.riffle.core.domain.ReadaloudTrack? = null
 
+    // fragmentRef → sentence text quote, so the synced highlight can be anchored by text when
+    // Readium has stripped the sentence spans from the rendered (ABS) EPUB. Built once, off the
+    // rendered EPUB's own spans, the first time readaloud prepares.
+    private val _sentenceQuotes = MutableStateFlow<Map<String, com.riffle.core.domain.SentenceQuote>>(emptyMap())
+    val sentenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = _sentenceQuotes
+
     // Download-prompt state: non-null size means "show the download dialog".
     private val _downloadPromptBytes = MutableStateFlow<Long?>(null)
     val downloadPromptBytes: StateFlow<Long?> = _downloadPromptBytes
@@ -354,6 +360,17 @@ class EpubReaderViewModel @Inject constructor(
                 _annotationsAvailable.value = true
                 observeHighlights(activeServer.id)
             }
+        }
+        // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
+        // parse reads the whole bundle, so doing it during audio startup risks starving ExoPlayer on
+        // a large book. The map-empty guard inside buildSentenceQuotes keeps this one-shot.
+        viewModelScope.launch {
+            playerCoordinator.state
+                .map { it.isPlaying }
+                .distinctUntilChanged()
+                .collect { isPlaying ->
+                    if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
+                }
         }
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
@@ -1014,7 +1031,32 @@ class EpubReaderViewModel @Inject constructor(
         readaloudTrack?.let { return it }
         val track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
         readaloudTrack = track
+        // Defer the (heavy, whole-bundle) sentence-quote parse until audio is actually playing, so it
+        // never competes with ExoPlayer's audio-start I/O on the same multi-hundred-MB zip. The
+        // highlight is only meaningful once playback is running anyway, so a beat's delay is invisible.
+        quoteBundle = bundle
         return track
+    }
+
+    // Stashed so the deferred quote parse (kicked once playback first reaches "playing") knows which
+    // bundle to read. See the playbackState observer in init.
+    @Volatile private var quoteBundle: File? = null
+
+    // Extracts per-sentence text quotes from the *Storyteller bundle* — the EPUB that actually carries
+    // the sentence spans (the ABS ebook may be the plain publisher EPUB without them). Keyed by span
+    // id, these feed the text-anchored highlight locator; Readium then finds the sentence by text in
+    // the rendered ABS page. Off the main thread; a corrupt/empty bundle just leaves the map empty.
+    private fun buildSentenceQuotes(bundle: File) {
+        if (_sentenceQuotes.value.isNotEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val chapters = com.riffle.core.domain.EpubContentExtractor.extract(bundle)?.chapters ?: return@launch
+                _sentenceQuotes.value = com.riffle.core.domain.ReadaloudTextQuotes.build(chapters)
+            } catch (e: Throwable) {
+                // Never let the highlight-quote parse crash playback; the highlight just stays absent.
+                android.util.Log.e("RIFFLE_RA", "buildSentenceQuotes failed", e)
+            }
+        }
     }
 
     private fun startStorytellerSync() {

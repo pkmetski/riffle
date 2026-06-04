@@ -80,6 +80,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -100,8 +101,7 @@ import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
-import org.readium.r2.shared.publication.epub.EpubLayout
-import org.readium.r2.shared.publication.presentation.presentation
+import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.util.AbsoluteUrl
 
 /**
@@ -229,6 +229,7 @@ fun EpubReaderScreen(
     val readaloudExpanded by viewModel.readaloudExpanded.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
+    val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
@@ -281,6 +282,7 @@ fun EpubReaderScreen(
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
+                        sentenceQuotes = sentenceQuotes,
                         onPlayFromHere = viewModel::playFromHere,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -618,8 +620,23 @@ private const val BOUNDARY_POLL_INTERVAL_MS = 120L
  * the ref carries no fragment. The cssSelector targets the fragment id so Readium's EPUB decorator
  * and navigator resolve the same DOM range. Shared by the synced-highlight decoration and the
  * auto-follow so both always point at the same element.
+ *
+ * When a [quote] is supplied, the locator also carries the sentence's text (with neighbouring
+ * context as prefix/suffix). Readium's decoration positioner uses the cssSelector when it resolves,
+ * and otherwise falls back to a TextQuoteAnchor search over the document body — so the highlight
+ * still lands when Readium has stripped the sentence span from the rendered (ABS) EPUB.
  */
-private fun fragmentLocator(ref: String): Locator? {
+private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
+    Locator.fromJSON(readaloudLocatorJson(ref, quote))
+
+/**
+ * The Readium Locator JSON for a readaloud fragment ref. Extracted (and `internal`) so the
+ * text-anchoring contract is unit-testable without a navigator: when a [quote] is present the JSON
+ * MUST carry a `text` block (highlight + before/after), because that's what lets Readium position
+ * the highlight by text search after it strips the sentence span from the served HTML. The
+ * cssSelector is kept as the fast path for when the span does survive.
+ */
+internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObject {
     val hashIdx = ref.indexOf('#')
     val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
     val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
@@ -635,7 +652,16 @@ private fun fragmentLocator(ref: String): Locator? {
                 }
             },
         )
-    return Locator.fromJSON(json)
+    if (quote != null) {
+        json.put(
+            "text",
+            JSONObject()
+                .put("before", quote.before)
+                .put("highlight", quote.highlight)
+                .put("after", quote.after),
+        )
+    }
+    return json
 }
 
 @OptIn(ExperimentalReadiumApi::class)
@@ -654,6 +680,7 @@ private fun EpubNavigatorView(
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: String) -> Unit,
     activeFragmentRef: String?,
+    sentenceQuotes: Map<String, SentenceQuote>,
     onPlayFromHere: (fragmentRef: String) -> Unit,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -663,7 +690,7 @@ private fun EpubNavigatorView(
     val context = LocalContext.current
     val fragmentActivity = context as? FragmentActivity ?: return
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val isFixedLayout = state.publication.metadata.presentation.layout == EpubLayout.FIXED
+    val isFixedLayout = state.publication.metadata.layout == Layout.FIXED
     val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
@@ -908,11 +935,14 @@ private fun EpubNavigatorView(
 
     // ---- Readaloud synced highlight --------------------------------------------------------
     // Uses the same Readium DecorableNavigator mechanism as search, on its own "readaloud" group
-    // so it doesn't clobber search highlights. The active fragment ref is "href#fragId"; we build
-    // a Locator with that href and a cssSelector targeting the fragment id, which is how Readium's
-    // EPUB decorator resolves the DOM range for a highlight. Null clears the decoration.
+    // so it doesn't clobber search highlights. The active fragment ref is "href#fragId"; we build a
+    // Locator that carries both the fragment-id cssSelector AND the sentence's text. Readium uses the
+    // cssSelector when it resolves and otherwise falls back to a text search — necessary because it
+    // strips the sentence spans from the rendered ABS EPUB. Null clears the decoration. The effect
+    // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
+    // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef, reflowGeneration) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, sentenceQuotes) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -923,7 +953,9 @@ private fun EpubNavigatorView(
             hasReadaloudDecoration.value = false
             return@LaunchedEffect
         }
-        val locator = fragmentLocator(ref) ?: return@LaunchedEffect
+        val sid = ref.substringAfter('#', "")
+        val quote = sentenceQuotes[sid]
+        val locator = fragmentLocator(ref, quote) ?: return@LaunchedEffect
         val decoration = Decoration(
             id = "readaloud_active",
             locator = locator,
@@ -984,15 +1016,16 @@ private fun EpubNavigatorView(
     //
     // A missing element (sentence in another chapter's document) reads as off → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
-    LaunchedEffect(activeFragmentRef) {
+    LaunchedEffect(activeFragmentRef, sentenceQuotes) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
-        val hashIdx = ref.indexOf('#')
-        if (hashIdx < 0) return@LaunchedEffect
-        val fragId = ref.substring(hashIdx + 1)
-        val where = fragment.evaluateJavascript(autoFollowSnapJs(fragId))?.trim('"')
+        if (ref.indexOf('#') < 0) return@LaunchedEffect
+        val quote = sentenceQuotes[ref.substringAfter('#', "")]
+        // Locate the sentence by its text (spans are stripped); "off" only when it's genuinely not on
+        // the current page, so we don't snap on every sentence. go() is text-anchored too.
+        val where = fragment.evaluateJavascript(autoFollowSnapJs(quote?.highlight ?: ""))?.trim('"')
         if (where != "off") return@LaunchedEffect
-        fragmentLocator(ref)?.let { fragment.go(it, animated = false) }
+        fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
     }
 
     LaunchedEffect(volumeNavEvents) {

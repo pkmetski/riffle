@@ -8,14 +8,21 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Verifies the page-follow probe ([autoFollowSnapJs]) against a real, sized WebView. Backs the two
+ * Verifies the page-follow probe ([autoFollowSnapJs]) against a real, sized WebView. The probe locates
+ * the narrated sentence by its TEXT (Readium strips the media-overlay span ids), so these fixtures
+ * carry distinctive sentence text rather than relying on element ids. Backs the two
  * "while the player is playing" behaviours:
- *  - the page must follow the narrated sentence (scroll mode centres it; paginated mode reports
- *    "off" so the reader snaps to its page), and
- *  - the page must never drift sideways — the probe only ever scrolls the Y axis.
+ *  - the page follows the narrated sentence (scroll mode centres it; paginated mode reports "off" so
+ *    the reader snaps to its page), and
+ *  - the page never drifts sideways — the probe only ever scrolls the Y axis.
  */
 @RunWith(AndroidJUnit4::class)
 class AutoFollowJsTest {
+
+    private val onPageText = "Onpage visible sentence to follow"
+    private val offRightText = "Offright next page sentence here"
+    private val offLeftText = "Offleft previous page sentence here"
+    private val targetText = "Narrated target sentence deep in the page"
 
     // A document much taller than the viewport → scroll (karaoke) mode. The narrated sentence sits
     // far down the page so following it requires a real vertical scroll.
@@ -23,20 +30,20 @@ class AutoFollowJsTest {
         <!DOCTYPE html>
         <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
           <body style="margin:0; height:6000px; position:relative">
-            <div id="target" style="position:absolute; left:20px; top:3000px; width:200px; height:40px">narrated</div>
+            <div id="target" style="position:absolute; left:20px; top:3000px; width:300px; height:40px">$targetText</div>
           </body>
         </html>
     """.trimIndent()
 
-    // A viewport-sized page → paginated mode. #onpage is fully visible; #offright sits far to the
-    // right (as if on the next column/page); #offleft far to the left (previous page).
+    // A viewport-sized page → paginated mode. The on-page sentence is fully visible; the others sit far
+    // to the right (next column/page) and far to the left (previous page).
     private val shortFixture = """
         <!DOCTYPE html>
         <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
           <body style="margin:0; height:40px; position:relative">
-            <div id="onpage"  style="position:absolute; left:20px;    top:5px; width:80px; height:25px">a</div>
-            <div id="offright" style="position:absolute; left:5000px;  top:5px; width:80px; height:25px">b</div>
-            <div id="offleft"  style="position:absolute; left:-5000px; top:5px; width:80px; height:25px">c</div>
+            <div id="onpage"  style="position:absolute; left:20px;    top:5px; width:240px; height:25px">$onPageText</div>
+            <div id="offright" style="position:absolute; left:5000px;  top:5px; width:240px; height:25px">$offRightText</div>
+            <div id="offleft"  style="position:absolute; left:-5000px; top:5px; width:240px; height:25px">$offLeftText</div>
           </body>
         </html>
     """.trimIndent()
@@ -47,12 +54,10 @@ class AutoFollowJsTest {
             val h = webView.awaitInnerHeight()
             assertTrue("viewport must have a real height", h > 100)
 
-            val result = webView.evalSync(autoFollowSnapJs("target")).trim('"')
+            val result = webView.evalSync(autoFollowSnapJs(targetText)).trim('"')
             assertEquals("a sentence in an overflowing document is followed by scrolling → on", "on", result)
 
             val center = webView.rectCenterY("target")
-            // The probe scrolls so the sentence's vertical centre lands at the viewport centre
-            // (within the probe's own >8px dead-band, plus rounding).
             assertTrue("sentence should be vertically centred (center=$center, half=${h / 2})", Math.abs(center - h / 2) <= 12)
         }
     }
@@ -61,7 +66,7 @@ class AutoFollowJsTest {
     fun scrollModeNeverScrollsHorizontally() {
         withSizedWebViewFixture(tallFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            webView.evalSync(autoFollowSnapJs("target"))
+            webView.evalSync(autoFollowSnapJs(targetText))
             assertEquals("auto-follow must not move the page sideways", 0, webView.scrollX())
         }
     }
@@ -70,7 +75,7 @@ class AutoFollowJsTest {
     fun paginatedReturnsOnForAVisibleSentenceWithoutScrolling() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            val result = webView.evalSync(autoFollowSnapJs("onpage")).trim('"')
+            val result = webView.evalSync(autoFollowSnapJs(onPageText)).trim('"')
             assertEquals("a fully visible sentence on the current page → on", "on", result)
             assertEquals("paginated mode must not scroll horizontally", 0, webView.scrollX())
             assertEquals("paginated mode must not scroll vertically", 0, webView.scrollY())
@@ -84,22 +89,30 @@ class AutoFollowJsTest {
             assertEquals(
                 "a sentence off to the right (next page) → off, so the reader snaps to its page",
                 "off",
-                webView.evalSync(autoFollowSnapJs("offright")).trim('"'),
+                webView.evalSync(autoFollowSnapJs(offRightText)).trim('"'),
             )
             assertEquals(
                 "a sentence off to the left (previous page) → off",
                 "off",
-                webView.evalSync(autoFollowSnapJs("offleft")).trim('"'),
+                webView.evalSync(autoFollowSnapJs(offLeftText)).trim('"'),
             )
             assertEquals("probing an off-page sentence must not scroll horizontally", 0, webView.scrollX())
         }
     }
 
     @Test
-    fun returnsOffForAnUnknownFragment() {
+    fun returnsOffForTextNotOnThePage() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            assertEquals("off", webView.evalSync(autoFollowSnapJs("does-not-exist")).trim('"'))
+            assertEquals("off", webView.evalSync(autoFollowSnapJs("Zzz nonexistent sentence text")).trim('"'))
+        }
+    }
+
+    @Test
+    fun emptyTextDisablesTheProbe() {
+        withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            assertEquals("empty/unknown text → off (caller falls back to go())", "off", webView.evalSync(autoFollowSnapJs("")).trim('"'))
         }
     }
 
