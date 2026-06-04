@@ -71,13 +71,12 @@ object ReadaloudMatcher {
             return MatchOutcome.Confirmed(identifierHits.map { it.confirmed() })
         }
 
-        val bookTitle = normaliseTitle(book.title)
-        val bookTitleTokens = titleTokens(book.title)
+        val bookTitleForms = titleForms(book.title)
         val bookAuthorTokens = authorTokens(book.author)
-        if (bookTitle.isEmpty() || bookAuthorTokens.isEmpty()) return MatchOutcome.Unmatched
+        if (bookTitleForms.all { it.isEmpty() } || bookAuthorTokens.isEmpty()) return MatchOutcome.Unmatched
 
         val titleAuthorHits = candidates.filter {
-            normaliseTitle(it.title) == bookTitle &&
+            titlesMatchExactly(bookTitleForms, titleForms(it.title)) &&
                 authorsOverlap(bookAuthorTokens, authorTokens(it.author))
         }
         if (titleAuthorHits.isNotEmpty()) {
@@ -85,7 +84,7 @@ object ReadaloudMatcher {
         }
 
         val fuzzy = candidates.mapNotNull { candidate ->
-            val titleSim = diceSimilarity(bookTitleTokens, titleTokens(candidate.title))
+            val titleSim = bestTitleSimilarity(bookTitleForms, titleForms(candidate.title))
             val authorSim = diceSimilarity(bookAuthorTokens, authorTokens(candidate.author))
             if (titleSim >= FUZZY_THRESHOLD && authorSim >= FUZZY_THRESHOLD) {
                 ScoredCandidate(candidate.serverUuid, candidate.libraryItemId, (titleSim + authorSim) / 2.0)
@@ -146,19 +145,31 @@ object ReadaloudMatcher {
         return stripped.ifEmpty { null }?.uppercase()
     }
 
+    /** Tier 2: titles match iff any normalised form on one side equals a form on the other. */
+    private fun titlesMatchExactly(a: Set<List<String>>, b: Set<List<String>>): Boolean =
+        a.any { it.isNotEmpty() && it in b }
+
+    /** Tier 3: best token-set similarity across every pairing of the two sides' title forms. */
+    private fun bestTitleSimilarity(a: Set<List<String>>, b: Set<List<String>>): Double =
+        a.maxOf { x -> b.maxOf { y -> diceSimilarity(x.toSet(), y.toSet()) } }
+
     /**
-     * Ordered, normalised title used for Tier 2 exact comparison. Strips the subtitle (anything
-     * after the first `:` or em-dash — Storyteller keeps the OPF "A Novel"-style subtitle that ABS
-     * users curate out), lowercases, strips punctuation, and drops a single leading article.
+     * The normalised, ordered token forms of a title to compare against. Two are produced: the
+     * **full** title and the **subtitle-stripped head** (text before the first `:` or em-dash).
+     *
+     * Stripping the head rescues "The Martian: A Novel" ↔ "The Martian" — Storyteller keeps the
+     * OPF "A Novel"-style subtitle that ABS users curate out. But a colon is not always a subtitle
+     * separator: in "2001: A Space Odyssey" it is part of the work's name, and the head form
+     * collapses to "2001", which matches nothing. Keeping both forms — and matching if *any* form
+     * on one side aligns with *any* on the other — handles both cases without having to guess which
+     * interpretation of the colon is correct. Each form lowercases, strips punctuation, and drops a
+     * single leading article.
      */
-    private fun normaliseTitle(raw: String): String = titleTokenList(raw).joinToString(" ")
+    private fun titleForms(raw: String): Set<List<String>> =
+        setOf(normaliseTokens(raw), normaliseTokens(raw.split(':', '—').first()))
 
-    /** Token set form of [normaliseTitle], used for Tier 3 token-set similarity. */
-    private fun titleTokens(raw: String): Set<String> = titleTokenList(raw).toSet()
-
-    private fun titleTokenList(raw: String): List<String> {
-        val head = raw.split(':', '—').first()
-        val tokens = head.lowercase()
+    private fun normaliseTokens(raw: String): List<String> {
+        val tokens = raw.lowercase()
             .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
             .joinToString("")
             .split(Regex("\\s+"))
