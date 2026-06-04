@@ -14,10 +14,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -54,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -1051,7 +1054,29 @@ private fun EpubNavigatorView(
         }
     }
 
-    Box(modifier = modifier) {
+    // Single-page paginated reflowable is the only mode with horizontal column snapping, so it's
+    // the only one exposed to the column-grid drift bug — and the only one we narrow (and paint a
+    // page-coloured gutter behind). Scroll / fixed-layout / double-page keep fillMaxSize and the
+    // bare modifier, untouched. See reference_reader_right_margin_is_column_snap_bug.
+    val density = LocalDensity.current.density
+    val isPaginated = !isFixedLayout && formattingPrefs.orientation != ReaderOrientation.Vertical
+    val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
+    val alignViewport = isPaginated && !isDoublePage
+    val containerModifier = if (alignViewport) {
+        modifier.background(formattingPrefs.theme.palette.background)
+    } else {
+        modifier
+    }
+    BoxWithConstraints(modifier = containerModifier) {
+        val alignedWidth = remember(maxWidth, density) { alignedReaderWidthDp(maxWidth.value, density) }
+        val readerModifier = if (alignViewport) {
+            Modifier
+                .width(alignedWidth.dp)
+                .fillMaxHeight()
+                .align(Alignment.Center)
+        } else {
+            Modifier.fillMaxSize()
+        }
         AndroidView(
             factory = { ctx ->
                 ScrollBoundaryNavigationContainer(ctx).apply {
@@ -1172,7 +1197,7 @@ private fun EpubNavigatorView(
                     }
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = readerModifier,
         )
         AnimatedVisibility(
             visible = pullActive,
