@@ -154,19 +154,31 @@ object ReadaloudMatcher {
         a.maxOf { x -> b.maxOf { y -> diceSimilarity(x.toSet(), y.toSet()) } }
 
     /**
-     * The normalised, ordered token forms of a title to compare against. Two are produced: the
-     * **full** title and the **subtitle-stripped head** (text before the first `:` or em-dash).
+     * The normalised, ordered token forms of a title to compare against. For each of two raw
+     * variants — the title as given and the title with any **trailing parenthetical qualifier**
+     * removed — two forms are produced: the **full** title and the **subtitle-stripped head**
+     * (text before the first `:` or em-dash).
      *
      * Stripping the head rescues "The Martian: A Novel" ↔ "The Martian" — Storyteller keeps the
      * OPF "A Novel"-style subtitle that ABS users curate out. But a colon is not always a subtitle
      * separator: in "2001: A Space Odyssey" it is part of the work's name, and the head form
      * collapses to "2001", which matches nothing. Keeping both forms — and matching if *any* form
      * on one side aligns with *any* on the other — handles both cases without having to guess which
-     * interpretation of the colon is correct. Each form lowercases, strips punctuation, and drops a
-     * single leading article.
+     * interpretation of the colon is correct.
+     *
+     * Dropping a trailing "(Dramatized)"/"(Unabridged)"-style qualifier is the audiobook analogue:
+     * ABS tags an audiobook edition "The Hobbit (Dramatized)" while the Storyteller readaloud is
+     * plain "The Hobbit". The qualifier is always trailing, so it is removed before the rest of the
+     * normalisation rather than being treated as a subtitle. Each form lowercases, strips
+     * punctuation, and drops a single leading article.
      */
     private fun titleForms(raw: String): Set<List<String>> =
-        setOf(normaliseTokens(raw), normaliseTokens(raw.split(':', '—').first()))
+        setOf(raw, raw.replace(TRAILING_PARENTHETICAL, "")).flatMap { variant ->
+            listOf(normaliseTokens(variant), normaliseTokens(variant.split(':', '—').first()))
+        }.toSet()
+
+    /** One or more trailing parenthesised groups, e.g. the " (Dramatized)" in "The Hobbit (Dramatized)". */
+    private val TRAILING_PARENTHETICAL = Regex("(\\s*\\([^)]*\\))+\\s*$")
 
     private fun normaliseTokens(raw: String): List<String> {
         val tokens = raw.lowercase()

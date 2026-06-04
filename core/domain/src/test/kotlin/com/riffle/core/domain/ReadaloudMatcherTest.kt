@@ -165,6 +165,43 @@ class ReadaloudMatcherTest {
     }
 
     @Test
+    fun `trailing format parenthetical on the ABS audiobook still matches`() {
+        // Real data: Storyteller readaloud "The Hobbit" must link to its ABS audiobook entry
+        // "The Hobbit (Dramatized)" as well as the bare-titled ebook. ABS tags audiobook
+        // editions with a trailing "(Dramatized)"/"(Unabridged)"-style qualifier the Storyteller
+        // side never carries; it is the audiobook analogue of a stripped "A Novel" subtitle.
+        val book = storytellerBook(title = "The Hobbit", author = "J. R. R. Tolkien")
+        val abs = absItem(title = "The Hobbit (Dramatized)", author = "J. R. R. Tolkien")
+
+        assertEquals(confirmed("abs-1" to "item-1"), ReadaloudMatcher.match(book, listOf(abs)))
+    }
+
+    @Test
+    fun `ebook and parenthetical audiobook both match the same readaloud`() {
+        // The whole point of the multiplicity model: one readaloud links to its ebook *and* its
+        // audiobook, even though only the audiobook carries the format qualifier.
+        val book = storytellerBook(title = "The Hobbit", author = "J. R. R. Tolkien")
+        val ebook = absItem(serverUuid = "abs-1", libraryItemId = "ebook", title = "The Hobbit", author = "J. R. R. Tolkien")
+        val audio = absItem(serverUuid = "abs-1", libraryItemId = "audio", title = "The Hobbit (Dramatized)", author = "J. R. R. Tolkien")
+
+        val result = ReadaloudMatcher.match(book, listOf(ebook, audio))
+
+        assertEquals(setOf(Confirmed("abs-1", "ebook"), Confirmed("abs-1", "audio")), confirmedLinks(result))
+    }
+
+    @Test
+    fun `trailing parenthetical strips while a title-internal colon is preserved`() {
+        // The qualifier must come off without the colon-head form swallowing the work name:
+        // "2001: A Space Odyssey (Unabridged)" must still align with the full "2001: A Space
+        // Odyssey", which only the parenthetical-stripped *full* form provides (the colon-head
+        // collapses to "2001").
+        val book = storytellerBook(title = "2001: A Space Odyssey", author = "Arthur C. Clarke")
+        val abs = absItem(title = "2001: A Space Odyssey (Unabridged)", author = "Arthur C. Clarke")
+
+        assertEquals(confirmed("abs-1" to "item-1"), ReadaloudMatcher.match(book, listOf(abs)))
+    }
+
+    @Test
     fun `leading article on one side does not block title match`() {
         val book = storytellerBook(title = "The Dragons of Eden", author = "Carl Sagan")
         val abs = absItem(title = "Dragons of Eden", author = "Carl Sagan")
