@@ -65,9 +65,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
-import kotlin.math.floor
-import kotlin.math.roundToInt
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -1050,18 +1047,23 @@ private fun EpubNavigatorView(
     }
 
     // Single-page paginated reflowable is the only mode with horizontal column snapping, so it's
-    // the only one exposed to the column-grid drift bug. Scroll / fixed-layout / double-page keep
-    // fillMaxSize untouched. See reference_reader_right_margin_is_column_snap_bug.
+    // the only one exposed to the column-grid drift bug — and the only one we narrow (and paint a
+    // page-coloured gutter behind). Scroll / fixed-layout / double-page keep fillMaxSize and the
+    // bare modifier, untouched. See reference_reader_right_margin_is_column_snap_bug.
     val density = LocalDensity.current.density
     val isPaginated = !isFixedLayout && formattingPrefs.orientation != ReaderOrientation.Vertical
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
     val alignViewport = isPaginated && !isDoublePage
-    BoxWithConstraints(
-        modifier = modifier.background(formattingPrefs.theme.palette.background),
-    ) {
+    val containerModifier = if (alignViewport) {
+        modifier.background(formattingPrefs.theme.palette.background)
+    } else {
+        modifier
+    }
+    BoxWithConstraints(modifier = containerModifier) {
+        val alignedWidth = remember(maxWidth, density) { alignedReaderWidthDp(maxWidth.value, density) }
         val readerModifier = if (alignViewport) {
             Modifier
-                .width(alignedReaderWidthDp(maxWidth.value, density).dp)
+                .width(alignedWidth.dp)
                 .fillMaxHeight()
                 .align(Alignment.Center)
         } else {
@@ -1238,22 +1240,6 @@ private fun PullChip(forward: Boolean, progress: Float) {
     }
 }
 
-
-// Largest reader width (dp) <= availDp whose physical pixel width (width * density) is a whole
-// number — so Readium's paginated column-snap pitch b = physicalWidth/dpr equals CSS innerWidth
-// and the column grid stops drifting (the right-margin-vanishes bug; see
-// reference_reader_right_margin_is_column_snap_bug). On integer densities (e.g. dpr 3.0) every
-// integer dp already maps to whole pixels, so this returns floor(availDp) — no gutter cost.
-internal fun alignedReaderWidthDp(availDp: Float, density: Float): Float {
-    if (availDp <= 0f || density <= 0f) return availDp
-    var c = floor(availDp).toInt()
-    while (c > 0) {
-        val px = c * density
-        if (abs(px - px.roundToInt()) < 0.001f) return c.toFloat()
-        c--
-    }
-    return availDp
-}
 
 // Maps an annotation colour token to a Readium highlight tint. v1 has only yellow (ADR 0024); a
 // later colour-picker slice maps `color` to other tints.
