@@ -211,6 +211,15 @@ class LibraryItemDetailViewModelTest {
         }
     }
 
+    /** refresh() suspends forever, modelling a slow/unreachable server. */
+    private class BlockingRefreshToReadRepository : ToReadRepository {
+        override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
+        override suspend fun refresh(libraryId: String): Boolean = kotlinx.coroutines.awaitCancellation()
+        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = false
+        override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean = true
+        override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean = true
+    }
+
     private fun makeVm(
         repo: LibraryRepository,
         itemId: String = "item-1",
@@ -340,15 +349,30 @@ class LibraryItemDetailViewModelTest {
     }
 
     @Test
-    fun `init refreshes To Read before reading isInToRead`() = runTest {
-        val toRead = FakeToReadRepository()
+    fun `init shows local To Read state immediately then refreshes from the server`() = runTest {
+        // Local cache says the book is in To Read; the server refresh will confirm it.
+        val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
         val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
+        // The first isInToRead read happens before the refresh — Ready is not gated on the network.
+        val firstIsIn = toRead.callLog.indexOf("isInToRead")
         val refreshIdx = toRead.callLog.indexOf("refresh")
-        val isInIdx = toRead.callLog.indexOf("isInToRead")
-        assertTrue("expected refresh before isInToRead, got ${toRead.callLog}", refreshIdx in 0 until isInIdx)
+        assertTrue("expected isInToRead before refresh, got ${toRead.callLog}", firstIsIn in 0 until refreshIdx)
+        assertTrue((vm.uiState.value as Ready).isInToRead)
+    }
+
+    @Test
+    fun `uiState reaches Ready without waiting for the To Read server refresh`() = runTest {
+        // refresh() never completes — simulates a slow/unreachable ABS server. The detail screen
+        // must still render from local data instead of sitting in Loading for the network timeout.
+        val toRead = BlockingRefreshToReadRepository()
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue("expected Ready while refresh is still in flight", vm.uiState.value is Ready)
     }
 
     // --- toggleToRead tests ---
