@@ -10,29 +10,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.riffle.core.domain.ReaderTheme
 
 @Composable
 fun ChapterNavigationRail(
     segments: List<RailSegment>,
     activeIndex: Int,
     cursorPosition: Float,
+    readerTheme: ReaderTheme,
     onSegmentClick: (RailSegment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (segments.isEmpty()) return
 
-    val barColor = MaterialTheme.colorScheme.surfaceVariant
+    // Colour the rail from the reader page palette, not MaterialTheme — the rail sits directly on
+    // the page background (white / sepia / black), so MaterialTheme.surfaceVariant has no reliable
+    // contrast there (it's near-white on a white page and the unread track vanishes). Page
+    // foreground at graded alpha guarantees the track is visible on every theme.
+    val pageForeground = readerTheme.palette.foreground
+    val barColor = pageForeground.copy(alpha = 0.30f)
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-    // Foreground (onSurface) instead of `outline` so dividers read as crisp chapter
-    // boundaries on top of the filled track, not as soft chrome.
-    val dividerColor = MaterialTheme.colorScheme.onSurface
-    val activeOutlineColor = MaterialTheme.colorScheme.primary
     val cursorColor = MaterialTheme.colorScheme.primary
 
     val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
@@ -41,7 +43,7 @@ fun ChapterNavigationRail(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(5.dp)
+            .height(3.dp)
             .testTag("chapter_navigation_rail")
             .semantics { contentDescription = "Active rail segment: $activeTitle" }
             .pointerInput(segments) {
@@ -52,52 +54,35 @@ fun ChapterNavigationRail(
             }
             .drawWithCache {
                 val bounds = railSegmentBounds(segments, size.width)
+                // Chapter boundaries are gaps punched into the bar — half a gap is shaved off each
+                // interior edge of a segment so adjacent segments leave one full gap between them.
+                // Outer edges (start of the first segment, end of the last) stay flush.
+                val gap = 2.5.dp.toPx()
+                val fillX = clampedCursor * size.width
                 onDrawBehind {
-                    // 1. Empty track.
-                    drawRect(color = barColor)
+                    bounds.forEachIndexed { i, (start, width) ->
+                        val x0 = start + (if (i == 0) 0f else gap / 2f)
+                        val x1 = start + width - (if (i == bounds.lastIndex) 0f else gap / 2f)
+                        val w = (x1 - x0).coerceAtLeast(0f)
+                        if (w <= 0f) return@forEachIndexed
 
-                    // 2. Continuous progress underlay up to the cursor.
-                    val fillWidth = clampedCursor * size.width
-                    if (fillWidth > 0f) {
-                        drawRect(
-                            color = fillColor,
-                            topLeft = Offset(0f, 0f),
-                            size = Size(fillWidth, size.height),
-                        )
+                        // Track for this chapter.
+                        drawRect(color = barColor, topLeft = Offset(x0, 0f), size = Size(w, size.height))
+
+                        // Continuous progress fill, clamped to this segment's span.
+                        if (fillX > x0) {
+                            val fw = (minOf(x1, fillX) - x0).coerceAtLeast(0f)
+                            if (fw > 0f) {
+                                drawRect(color = fillColor, topLeft = Offset(x0, 0f), size = Size(fw, size.height))
+                            }
+                        }
                     }
 
-                    // 3. Chapter dividers (skip index 0 which is the start of the bar).
-                    for (i in 1 until bounds.size) {
-                        val x = bounds[i].first
-                        drawLine(
-                            color = dividerColor,
-                            start = Offset(x, 0f),
-                            end = Offset(x, size.height),
-                            strokeWidth = 1.dp.toPx(),
-                        )
-                    }
-
-                    // 4. Active-chapter outline.
-                    if (activeIndex in bounds.indices) {
-                        val (ax, aw) = bounds[activeIndex]
-                        val stroke = 1.5.dp.toPx()
-                        drawRect(
-                            color = activeOutlineColor,
-                            topLeft = Offset(ax + stroke / 2f, stroke / 2f),
-                            size = Size(
-                                width = (aw - stroke).coerceAtLeast(0f),
-                                height = (size.height - stroke).coerceAtLeast(0f),
-                            ),
-                            style = Stroke(width = stroke),
-                        )
-                    }
-
-                    // 5. Cursor.
-                    val cx = clampedCursor * size.width
+                    // Cursor marking the exact reading position.
                     drawLine(
                         color = cursorColor,
-                        start = Offset(cx, 0f),
-                        end = Offset(cx, size.height),
+                        start = Offset(fillX, 0f),
+                        end = Offset(fillX, size.height),
                         strokeWidth = 2.dp.toPx(),
                     )
                 }
