@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -112,6 +113,43 @@ internal fun autoFollowSnapJs(text: String): String {
       var absX=r.left + se.scrollLeft;
       se.scrollLeft=Math.floor(absX / iw) * iw;
       return "on";
+    })()
+    """.trimIndent()
+}
+
+/**
+ * Finds the first narrated sentence visible on the current page. [highlights] are the sentence texts
+ * in reading order (whole book); only the current chapter's sentences exist in this document's DOM,
+ * so the walk naturally ignores the rest. Returns the index into [highlights] of the first sentence
+ * whose start is on the current page, or "" when none is found.
+ *
+ * Unlike [autoFollowSnapJs] this never scrolls — it only reports visibility — so it can probe the
+ * page-top without dragging it. "Visible" uses the same containment test as autoFollow's paginated
+ * branch (within a tolerance) and, in scroll mode, any vertical overlap with the viewport.
+ */
+internal fun firstVisibleSentenceJs(highlights: List<String>): String {
+    // Same key shape as autoFollowSnapJs: a short near-unique prefix matched within one text node.
+    val keys = JSONArray(highlights.map { it.trim().take(12) }).toString()
+    // Walk text nodes in document order (== reading order) and return the first key whose start is on
+    // the current page. No "already-matched" short-circuit: a key's prefix can coincidentally appear
+    // in an earlier off-page node, and skipping it there would lose its real on-page occurrence.
+    return """
+    (function(){
+      var keys=$keys;
+      var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
+      var TOL=24;
+      while(n=w.nextNode()){
+        for(var k=0;k<keys.length;k++){
+          var key=keys[k];
+          if(!key) continue;
+          var i=n.nodeValue.indexOf(key);
+          if(i<0) continue;
+          var g=document.createRange(); g.setStart(n,i); g.setEnd(n, Math.min(n.nodeValue.length, i+1));
+          var r=g.getBoundingClientRect();
+          if(r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) return String(k);
+        }
+      }
+      return "";
     })()
     """.trimIndent()
 }
