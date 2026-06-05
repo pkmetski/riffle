@@ -59,6 +59,15 @@ internal object FootnoteResolver {
     // that commonly abuts a URL in prose but isn't part of it.
     private const val URL_TRAILING_PUNCTUATION = ".,;:!?\"')]}>"
 
+    // Block-level tags that imply a separating space between their content and
+    // adjacent content when flattened to plain text.
+    private val BLOCK_TAGS = setOf(
+        "p", "div", "section", "aside", "article", "blockquote", "pre",
+        "ul", "ol", "li", "dl", "dt", "dd",
+        "table", "thead", "tbody", "tr", "td", "th",
+        "figure", "figcaption", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
+    )
+
     // "Return to text" glyphs an EPUB appends as a trailing back-link: upwards
     // arrow (↑), hooked/curved return arrows, carriage-return symbol.
     private val BACKLINK_GLYPHS = setOf(
@@ -175,26 +184,41 @@ internal object FootnoteResolver {
     // excluded so their digit survives as plain text.
     private fun isBackReferenceChrome(a: Element): Boolean {
         if (MARKER_REGEX.matches(a.text().trim())) return false
+        return isTypedOrGlyphBacklink(a)
+    }
+
+    // The signal-based backlink checks shared by [isBackReference] and
+    // [isBackReferenceChrome]: a DPUB-ARIA/EPUB3 backlink type/role, or a
+    // return-to-text glyph. A new backlink signal only needs adding here.
+    private fun isTypedOrGlyphBacklink(a: Element): Boolean {
         if (matchesAny(a.attr("epub:type"), BACKLINK_EPUB_TYPES)) return true
         if (matchesAny(a.attr("role"), BACKLINK_ROLES)) return true
         return a.text().trim() in BACKLINK_GLYPHS
     }
 
     // Walks the cleaned tree in document order, accumulating visible text and
-    // recording a link span for each surviving external anchor.
+    // recording a link span for each surviving external anchor. Block elements
+    // and <br> introduce a separating space (Jsoup's .text() did the same), so a
+    // multi-paragraph note doesn't jam its blocks together; inline elements add
+    // no spacing of their own.
     private fun appendInline(node: Node, builder: InlineTextBuilder) {
         for (child in node.childNodes()) {
-            when (child) {
-                is TextNode -> builder.append(child.wholeText)
-                is Element -> if (isExternalLink(child)) {
+            when {
+                child is TextNode -> builder.append(child.wholeText)
+                child is Element && isExternalLink(child) -> {
                     val range = builder.append(child.text())
                     if (range != null) {
                         builder.links.add(FootnoteLink(range.first, range.second, child.attr("href")))
                     }
-                } else {
-                    appendInline(child, builder)
                 }
-                else -> Unit
+                child is Element && child.tagName().equals("br", ignoreCase = true) ->
+                    builder.markBoundary()
+                child is Element && child.tagName().lowercase() in BLOCK_TAGS -> {
+                    builder.markBoundary()
+                    appendInline(child, builder)
+                    builder.markBoundary()
+                }
+                child is Element -> appendInline(child, builder)
             }
         }
     }
@@ -221,6 +245,12 @@ internal object FootnoteResolver {
         private var pendingSpace = false
 
         val text: String get() = sb.toString()
+
+        // Records a whitespace boundary (a single space before the next visible
+        // character), unless we're at the very start. Used at block-element edges.
+        fun markBoundary() {
+            if (sb.isNotEmpty()) pendingSpace = true
+        }
 
         // Appends [raw], returning the [start, end) range (end exclusive) of the
         // visible characters written, or null if [raw] was all whitespace.
@@ -251,10 +281,8 @@ internal object FootnoteResolver {
     private fun isBackReference(element: Element): Boolean {
         if (!element.tagName().equals("a", ignoreCase = true)) return false
         if (!element.attr("href").startsWith("#")) return false
-        if (matchesAny(element.attr("epub:type"), BACKLINK_EPUB_TYPES)) return true
-        if (matchesAny(element.attr("role"), BACKLINK_ROLES)) return true
-        val text = element.text().trim()
-        return MARKER_REGEX.matches(text) || text in BACKLINK_GLYPHS
+        if (isTypedOrGlyphBacklink(element)) return true
+        return MARKER_REGEX.matches(element.text().trim())
     }
 
     // Climbs from a marker anchor to the enclosing note entry: the nearest

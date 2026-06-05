@@ -364,6 +364,51 @@ class FootnoteResolverTest {
         assertPlain("Note body.", FootnoteResolver.extractFootnoteContent(doc, "fn9"))
     }
 
+    // Multi-block notes must keep a separating space between blocks — the old
+    // Jsoup .text() inserted one, so dropping it would jam paragraphs together.
+    @Test
+    fun `adjacent block elements are separated by a space`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn1"><p>First paragraph.</p><p>Second paragraph.</p></div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        assertPlain(
+            "First paragraph. Second paragraph.",
+            FootnoteResolver.extractFootnoteContent(doc, "fn1"),
+        )
+    }
+
+    @Test
+    fun `line break is treated as a separating space`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn1"><p>Line one<br/>Line two</p></div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        assertPlain(
+            "Line one Line two",
+            FootnoteResolver.extractFootnoteContent(doc, "fn1"),
+        )
+    }
+
+    // An inline element (e.g. <i>) must NOT introduce spurious spaces — the only
+    // spacing comes from the surrounding text nodes.
+    @Test
+    fun `inline elements do not introduce spurious spaces`() {
+        val html = """
+            <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+              <aside id="en2" epub:type="rearnote">
+                <a id="m" href="#b">1.</a> Kanter, <i>Change Masters</i>.
+              </aside>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        assertPlain("1. Kanter, Change Masters.", FootnoteResolver.extractFootnoteContent(doc, "en2"))
+    }
+
     @Test
     fun `class footnotes plural on container is detected`() {
         val html = """
