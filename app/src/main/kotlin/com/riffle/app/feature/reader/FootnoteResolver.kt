@@ -25,6 +25,24 @@ internal object FootnoteResolver {
         "footnotes", "endnotes", "rearnotes",
     )
 
+    // The outcome of classifying a tapped in-document anchor (href="#id").
+    sealed interface AnchorTarget {
+        // Target is a footnote-style element: show the popup, [text] is its body.
+        data class Footnote(val text: String) : AnchorTarget
+
+        // Target is a regular in-document element (e.g. a "Figure 4.1"
+        // cross-reference). The caller must navigate via Readium's go() so the
+        // viewport lands on a column-page boundary. Letting the WebView perform
+        // its default same-document anchor scroll lands scrollLeft mid-column in
+        // a paginated reflowable layout — the page sits split between two
+        // columns and Readium never re-snaps it.
+        data object CrossReference : AnchorTarget
+
+        // Can't tell — cache cold, no current resource, or the id isn't in the
+        // current spine doc. Leave it to the WebView's default handling.
+        data object Unresolved : AnchorTarget
+    }
+
     fun parse(html: String): Document = Jsoup.parse(html)
 
     // Anchors whose entire text is just a note marker — "7", "7.", "[7]",
@@ -69,6 +87,27 @@ internal object FootnoteResolver {
         return noteText(block).takeIf { it.isNotEmpty() }
     }
 
+    // Classifies a tapped in-document anchor against the cached spine doc so the
+    // reader can decide between showing a footnote popup, navigating via
+    // Readium's go() (snapped), or deferring to the WebView's default scroll.
+    fun classifyAnchorTap(
+        currentHref: String?,
+        cache: Map<String, Document>,
+        fragmentId: String,
+    ): AnchorTarget {
+        val href = currentHref ?: return AnchorTarget.Unresolved
+        val doc = cache[href.substringBefore('#')] ?: return AnchorTarget.Unresolved
+        // The id must exist in the current resource: the JS bridge only fires
+        // for href="#id" links, which target the same document.
+        doc.getElementById(fragmentId) ?: return AnchorTarget.Unresolved
+        val footnote = extractFootnoteText(doc, fragmentId)
+        return if (footnote != null) {
+            AnchorTarget.Footnote(footnote)
+        } else {
+            AnchorTarget.CrossReference
+        }
+    }
+
     // Resolves an anchor tap from the WebView to footnote popup text. Returns
     // null when no popup should be shown (cache cold, no current spine,
     // target is a regular cross-reference, etc.).
@@ -76,12 +115,8 @@ internal object FootnoteResolver {
         currentHref: String?,
         cache: Map<String, Document>,
         fragmentId: String,
-    ): String? {
-        val href = currentHref ?: return null
-        val key = href.substringBefore('#')
-        val doc = cache[key] ?: return null
-        return extractFootnoteText(doc, fragmentId)
-    }
+    ): String? =
+        (classifyAnchorTap(currentHref, cache, fragmentId) as? AnchorTarget.Footnote)?.text
 
     // The visible note body for [block], with any back-reference marker anchors
     // ("1.", "[7]" that link back into the text) removed — they're navigation

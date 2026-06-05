@@ -144,6 +144,66 @@ class FootnoteResolverTest {
         assertNull(FootnoteResolver.resolveAnchorTap("OEBPS/ch01.html", cache, "sec1"))
     }
 
+    // Regression for the reader-navigation bug: tapping an in-document cross-
+    // reference like "Figure 4.1" used to fall through to the WebView's default
+    // same-document anchor scroll, which lands scrollLeft mid-column in a
+    // paginated reflowable layout (the page splits between two columns and never
+    // re-snaps). classifyAnchorTap must report CrossReference so the reader
+    // navigates via Readium's go() instead, landing on a column-page boundary.
+    @Test
+    fun `classifyAnchorTap reports a non-footnote in-document target as CrossReference`() {
+        val html = """
+            <html><body>
+              <p>See <a href="#fig41">Figure 4.1</a>.</p>
+              <figure id="fig41"><img src="fig41.png"/><figcaption>Figure 4.1</figcaption></figure>
+            </body></html>
+        """.trimIndent()
+        val cache = mapOf("OEBPS/ch08.html" to FootnoteResolver.parse(html))
+        assertEquals(
+            FootnoteResolver.AnchorTarget.CrossReference,
+            FootnoteResolver.classifyAnchorTap("OEBPS/ch08.html", cache, "fig41"),
+        )
+    }
+
+    @Test
+    fun `classifyAnchorTap reports a footnote target as Footnote`() {
+        val html = """
+            <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+              <aside epub:type="footnote" id="fn1"><p>Note one.</p></aside>
+            </body></html>
+        """.trimIndent()
+        val cache = mapOf("OEBPS/ch08.html" to FootnoteResolver.parse(html))
+        assertEquals(
+            FootnoteResolver.AnchorTarget.Footnote("Note one."),
+            FootnoteResolver.classifyAnchorTap("OEBPS/ch08.html", cache, "fn1"),
+        )
+    }
+
+    // An id that isn't in the cached doc (or a cold cache / no current href)
+    // must stay Unresolved so the reader defers to the WebView rather than
+    // navigating to a bogus locator.
+    @Test
+    fun `classifyAnchorTap reports a missing id as Unresolved`() {
+        val html = """<html><body><h2 id="sec1">Section</h2></body></html>"""
+        val cache = mapOf("OEBPS/ch08.html" to FootnoteResolver.parse(html))
+        assertEquals(
+            FootnoteResolver.AnchorTarget.Unresolved,
+            FootnoteResolver.classifyAnchorTap("OEBPS/ch08.html", cache, "nope"),
+        )
+    }
+
+    @Test
+    fun `classifyAnchorTap reports a cold cache as Unresolved`() {
+        assertEquals(
+            FootnoteResolver.AnchorTarget.Unresolved,
+            FootnoteResolver.classifyAnchorTap("OEBPS/ch08.html", emptyMap(), "fig41"),
+        )
+        assertEquals(
+            FootnoteResolver.AnchorTarget.Unresolved,
+            FootnoteResolver.classifyAnchorTap(null, emptyMap(), "fig41"),
+        )
+    }
+
     // Regression guard for the two install-script hazards burnt in this session:
     //   1. anchor matching must be case-insensitive (XHTML keeps tagName lowercase)
     //   2. listener must be capture-phase so it runs before Readium's bubble-phase ut()

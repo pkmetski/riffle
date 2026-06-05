@@ -117,6 +117,27 @@ internal fun autoFollowSnapJs(text: String): String {
     """.trimIndent()
 }
 
+// Scrolls the current resource so the column CONTAINING [fragmentId] sits flush at the viewport's
+// left edge — for an in-document cross-reference tap ("Figure 4.1"). go(cssSelector) lands flush to
+// the element's box (a little inside its column → a sliver of the neighbour shows); flooring
+// scrollLeft to a multiple of innerWidth lands on the column boundary. Holds because the reader is
+// sized so innerWidth == Readium's page-snap pitch (see [alignedReaderWidthDp]). Same floor-to-grid
+// math as [autoFollowSnapJs]'s paginated branch, but located by id rather than by sentence text.
+internal fun scrollToColumnJs(fragmentId: String): String =
+    "(function(){var el=document.getElementById(${JSONObject.quote(fragmentId)});" +
+        "if(!el)return;var se=document.scrollingElement;var iw=window.innerWidth;" +
+        "var abs=el.getBoundingClientRect().left+se.scrollLeft;" +
+        "se.scrollLeft=Math.floor(abs/iw)*iw;})()"
+
+// Snaps the CURRENT scroll position to the nearest column boundary. Run after a go()-based jump
+// (TOC/search/resume): Readium positions those flush to the target element, a gutter inside its
+// column, so the page lands off the grid (leading text clipped). Rounds rather than floors because
+// go() can leave the viewport just shy of the next column. A no-op for an already-aligned page, so
+// it never disturbs a normal page turn. Holds for the same reason as [scrollToColumnJs].
+internal val SNAP_NEAREST_COLUMN_JS: String =
+    "(function(){var se=document.scrollingElement;var iw=window.innerWidth;" +
+        "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;})()"
+
 /**
  * Finds the first narrated sentence visible on the current page. [highlights] are the sentence texts
  * in reading order (whole book); only the current chapter's sentences exist in this document's DOM,
