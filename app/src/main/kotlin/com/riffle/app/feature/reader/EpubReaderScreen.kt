@@ -651,10 +651,18 @@ private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configurati
 
 private const val BOUNDARY_POLL_INTERVAL_MS = 120L
 
-// How long to keep the navigation cover up after go()+snap, so the WebView paints the snapped
-// target underneath before the cover lifts (otherwise the cover could reveal a pre-snap frame —
-// the exact jump it exists to hide). A couple of frames is enough.
-private const val NAV_COVER_SETTLE_MS = 100L
+// How long to keep the navigation cover up after go(), to hide the new chapter's opener/white-blank
+// flash while it loads and paints. Correctness of the landing no longer depends on this timing:
+// [snapToTargetColumnJs] keeps the target pinned to its column through the async typography reflow
+// (which can finish well after this), so the cover is purely cosmetic.
+private const val NAV_COVER_SETTLE_MS = 250L
+
+// The element id a TOC/search/resume locator points at (its href fragment), or null for a jump to a
+// resource start. Drives [snapToTargetColumnJs] so the landing snaps to the column the target itself
+// occupies — robust to where go() landed and to the post-load reflow.
+private fun navTargetFragmentId(href: String): String? =
+    href.substringAfter('#', "").ifEmpty { null }
+        ?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }
 
 /**
  * Builds a Readium [Locator] from a readaloud fragment ref — "href#fragId", or a bare "href" when
@@ -993,10 +1001,10 @@ private fun EpubNavigatorView(
             navigating = cover
             try {
                 fragment.go(link)
-                // For a cross-resource jump, wait for the new chapter's typography reflow to settle
-                // (under the cover) BEFORE snapping, so we round the final position, not a transient.
+                // Snap to the target's column and keep it pinned through the new chapter's async
+                // typography reflow (see snapToTargetColumnJs). The cover is just cosmetic now.
+                fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(link.href.toString())))
                 if (cover) delay(NAV_COVER_SETTLE_MS)
-                fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
             } finally {
                 navigating = false
             }
@@ -1005,15 +1013,12 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
-            // Background position sync (peer/resume): snap but never cover — a cover here would
-            // flash unexpectedly mid-reading. Still wait for the new chapter's reflow on a
-            // cross-resource jump so we round the settled position, not a pre-reflow transient.
+            // Background position sync (peer/resume): snap to the target's column and keep it pinned
+            // through the new chapter's reflow, but never cover — a cover here would flash
+            // unexpectedly mid-reading (see snapToTargetColumnJs).
             val fragment = fragmentRef.value ?: return@collect
-            val crossResource = locator.href.toString().substringBefore('#') !=
-                currentHrefHolder[0]?.substringBefore('#')
             fragment.go(locator)
-            if (crossResource) delay(NAV_COVER_SETTLE_MS)
-            fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
+            fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(locator.href.toString())))
         }
     }
 
@@ -1025,8 +1030,8 @@ private fun EpubNavigatorView(
             navigating = cover
             try {
                 fragment.go(locator)
+                fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(locator.href.toString())))
                 if (cover) delay(NAV_COVER_SETTLE_MS)
-                fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
             } finally {
                 navigating = false
             }
