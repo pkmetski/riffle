@@ -126,9 +126,11 @@ class EpubReaderViewModel @Inject constructor(
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
     // Carries the chapter href whose current-page top sentence the screen should resolve against the
-    // WebView (only the screen owns it). The screen replies via [onPageTopResolved].
-    private val _pageTopProbeRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val pageTopProbeRequests: SharedFlow<String> = _pageTopProbeRequests.asSharedFlow()
+    // WebView (only the screen owns it). The screen replies via [onPageTopResolved]. A conflated
+    // channel (not a replay-less SharedFlow) so the request survives until the screen's collector
+    // receives it — a reopen can emit before the collector re-subscribes after a config change.
+    private val _pageTopProbeChannel = Channel<String>(Channel.CONFLATED)
+    val pageTopProbeRequests: Flow<String> = _pageTopProbeChannel.receiveAsFlow()
 
     private val progressSyncController = ProgressSyncController(
         repository = readingSessionRepository,
@@ -1055,15 +1057,17 @@ class EpubReaderViewModel @Inject constructor(
             is ReadaloudStartPlan.Resume -> playerCoordinator.playFromHere(plan.fragmentRef)
             // Reopened on a different page: the screen resolves the page's first sentence against the
             // WebView and replies via onPageTopResolved(); play starts there.
-            is ReadaloudStartPlan.PageTop -> _pageTopProbeRequests.tryEmit(plan.href)
+            is ReadaloudStartPlan.PageTop -> _pageTopProbeChannel.trySend(plan.href)
         }
     }
 
     /**
      * The screen resolved the first sentence visible on [href]'s current page ([fragmentId]), or null
-     * when none could be located. Starts narration there — chapter top when the id is null.
+     * when none could be located. Starts narration there — chapter top when the id is null. Ignored if
+     * the player was closed during the (async) probe round-trip, so a late reply can't revive it.
      */
     fun onPageTopResolved(href: String, fragmentId: String?) {
+        if (!_readaloudOpen.value) return
         playerCoordinator.playFromReaderPosition(href, fragmentId)
     }
 

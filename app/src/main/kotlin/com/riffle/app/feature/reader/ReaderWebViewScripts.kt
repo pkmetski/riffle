@@ -120,20 +120,20 @@ internal fun autoFollowSnapJs(text: String): String {
 internal fun firstVisibleSentenceJs(highlights: List<String>): String {
     // Same key shape as autoFollowSnapJs: a short near-unique prefix matched within one text node.
     val keys = JSONArray(highlights.map { it.trim().take(12) }).toString()
+    // Walk text nodes in document order (== reading order) and return the first key whose start is on
+    // the current page. No "already-matched" short-circuit: a key's prefix can coincidentally appear
+    // in an earlier off-page node, and skipping it there would lose its real on-page occurrence.
     return """
     (function(){
       var keys=$keys;
-      var seen={};
       var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
       var TOL=24;
       while(n=w.nextNode()){
         for(var k=0;k<keys.length;k++){
-          if(seen[k]) continue;
           var key=keys[k];
-          if(!key){ seen[k]=1; continue; }
+          if(!key) continue;
           var i=n.nodeValue.indexOf(key);
           if(i<0) continue;
-          seen[k]=1;
           var g=document.createRange(); g.setStart(n,i); g.setEnd(n, Math.min(n.nodeValue.length, i+1));
           var r=g.getBoundingClientRect();
           if(r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) return String(k);
