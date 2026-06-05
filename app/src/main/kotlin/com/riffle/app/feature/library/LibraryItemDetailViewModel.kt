@@ -97,8 +97,6 @@ class LibraryItemDetailViewModel @Inject constructor(
                 val item = repository.getItem(itemId)
                 if (item != null) {
                     _downloadState.value = deriveDownloadState(item)
-                    toReadRepository.refresh(item.libraryId)
-                    val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
                     val link = if (server?.id != null) {
                         readaloudLinkRepository.findByAbsItem(server.id, item.id)
                     } else {
@@ -109,6 +107,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                         readaloudDownloadStateFor(readaloudAudioRepository.isAudioAvailable(it.storytellerServerId, it.storytellerBookId))
                     }
                     val isCachedOrDownloaded = epubRepository.isCached(item.serverId, item.id) || epubRepository.isDownloaded(item.serverId, item.id)
+                    // Render from the locally-cached To Read state immediately. The server refresh
+                    // below runs off the critical path so a slow/unreachable ABS server can't keep
+                    // the detail screen stuck in Loading for the network timeout (~10s).
+                    val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         isInToRead = isInToRead,
@@ -120,6 +122,21 @@ class LibraryItemDetailViewModel @Inject constructor(
                 }
             } catch (_: Exception) {
                 LibraryItemDetailUiState.Error
+            }
+
+            // Refresh To Read from the server without blocking the initial render; patch the
+            // isInToRead badge once it returns.
+            val ready = _uiState.value
+            if (ready is LibraryItemDetailUiState.Ready) {
+                launch {
+                    if (toReadRepository.refresh(ready.item.libraryId)) {
+                        val refreshed = toReadRepository.isInToRead(ready.item.id, ready.item.libraryId)
+                        val latest = _uiState.value
+                        if (latest is LibraryItemDetailUiState.Ready) {
+                            _uiState.value = latest.copy(isInToRead = refreshed)
+                        }
+                    }
+                }
             }
         }
 
