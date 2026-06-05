@@ -105,6 +105,12 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.util.AbsoluteUrl
 
+// Gates the "Highlight" text-selection action. ADR 0024 shipped highlight create + render +
+// sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
+// creating one is a dead end. Keep the create/render plumbing live but hide the affordance until
+// that management UI exists. Flip to true to re-enable.
+private const val ANNOTATIONS_UI_ENABLED = false
+
 /**
  * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
  * decoration effects keyed on it re-apply against the reflowed layout. Pass a value that changes
@@ -301,6 +307,7 @@ fun EpubReaderScreen(
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
+                        readaloudAvailable = readaloudAvailable,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
@@ -718,6 +725,7 @@ private fun EpubNavigatorView(
     pageTopProbeRequests: Flow<String>,
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
+    readaloudAvailable: Boolean,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
@@ -752,6 +760,7 @@ private fun EpubNavigatorView(
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
+    val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     val currentPublication by rememberUpdatedState(state.publication)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
     // freshly loaded page re-applies the current value.
@@ -759,15 +768,19 @@ private fun EpubNavigatorView(
 
     // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
     // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
-    // menu). So besides our "Play from here"/"Highlight" items we must re-add the standard
-    // Copy / Search / Share actions the user expects, driven off the current selection's text.
+    // menu). So besides our "Play from here" item we must re-add the standard Copy / Search / Share
+    // actions the user expects, driven off the current selection's text.
     //
     // "Play from here": on click we read currentSelection() and derive a SMIL fragment ref. A
     // free-text selection rarely lands exactly on a SMIL <par> boundary, so we pass the selection's
     // first fragment id (locations.fragments) when present, else the bare href; the player resolves
-    // the nearest narrated clip at/after that position (never restarting the book).
+    // the nearest narrated clip at/after that position (never restarting the book). Gated on
+    // readaloudAvailable so it only shows where the toolbar readaloud control is enabled — i.e. a
+    // Storyteller book or a matched-ABS book with a downloaded bundle, never a plain EPUB.
     val playFromHereMenuId = remember { View.generateViewId() }
-    // "Highlight" is gated on annotationsAvailable so it never shows on a Storyteller-only book.
+    // "Highlight" creates a persisted annotation, but there's no UI yet to view/delete/recolor
+    // highlights (ADR 0024 shipped create + render only). Keep the plumbing wired but hidden behind
+    // ANNOTATIONS_UI_ENABLED until that management UI lands, so the affordance isn't a dead end.
     val highlightMenuId = remember { View.generateViewId() }
     val copyMenuId = remember { View.generateViewId() }
     val searchMenuId = remember { View.generateViewId() }
@@ -776,8 +789,8 @@ private fun EpubNavigatorView(
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
-                if (currentAnnotationsAvailable) menu.add(0, highlightMenuId, 1, "Highlight")
-                menu.add(0, playFromHereMenuId, 2, "Play from here")
+                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) menu.add(0, highlightMenuId, 1, "Highlight")
+                if (currentReadaloudAvailable) menu.add(0, playFromHereMenuId, 2, "Play from here")
                 menu.add(0, searchMenuId, 3, "Search")
                 menu.add(0, shareMenuId, 4, "Share")
                 return true
