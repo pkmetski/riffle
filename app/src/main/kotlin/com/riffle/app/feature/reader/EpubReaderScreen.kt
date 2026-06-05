@@ -950,8 +950,14 @@ private fun EpubNavigatorView(
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
             // Background position sync (peer/resume): snap but never cover — a cover here would
-            // flash unexpectedly mid-reading.
-            fragmentRef.value?.let { it.go(locator); it.evaluateJavascript(SNAP_NEAREST_COLUMN_JS) }
+            // flash unexpectedly mid-reading. Still wait for the new chapter's reflow on a
+            // cross-resource jump so we round the settled position, not a pre-reflow transient.
+            val fragment = fragmentRef.value ?: return@collect
+            val crossResource = locator.href.toString().substringBefore('#') !=
+                currentHrefHolder[0]?.substringBefore('#')
+            fragment.go(locator)
+            if (crossResource) delay(NAV_COVER_SETTLE_MS)
+            fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
         }
     }
 

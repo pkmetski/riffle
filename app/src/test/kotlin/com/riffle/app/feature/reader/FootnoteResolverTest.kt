@@ -192,6 +192,19 @@ class FootnoteResolverTest {
         )
     }
 
+    // An element that looks like a footnote but has an empty body resolves to CrossReference, not
+    // Footnote: there's no popup text to show, so we treat it as an in-document target and snap to
+    // its column (rather than the old behaviour of falling through to the WebView's default scroll).
+    @Test
+    fun `classifyAnchorTap reports an empty-body footnote as CrossReference`() {
+        val html = """<html><body><div class="footnote" id="fn1"></div></body></html>"""
+        val cache = mapOf("OEBPS/ch08.html" to FootnoteResolver.parse(html))
+        assertEquals(
+            FootnoteResolver.AnchorTarget.CrossReference,
+            FootnoteResolver.classifyAnchorTap("OEBPS/ch08.html", cache, "fn1"),
+        )
+    }
+
     @Test
     fun `classifyAnchorTap reports a cold cache as Unresolved`() {
         assertEquals(
