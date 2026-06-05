@@ -12,16 +12,16 @@ import org.junit.runner.RunWith
  * the narrated sentence by its TEXT (Readium strips the media-overlay span ids), so these fixtures
  * carry distinctive sentence text rather than relying on element ids. Backs the two
  * "while the player is playing" behaviours:
- *  - the page follows the narrated sentence (scroll mode centres it; paginated mode reports "off" so
- *    the reader snaps to its page), and
- *  - the page never drifts sideways — the probe only ever scrolls the Y axis.
+ *  - the page follows the narrated sentence (scroll mode centres it vertically; paginated mode snaps
+ *    scrollLeft to the column that contains the sentence's start), and
+ *  - paginated snaps land on the page grid (scrollLeft a whole multiple of innerWidth), so the page
+ *    never rests between two columns.
  */
 @RunWith(AndroidJUnit4::class)
 class AutoFollowJsTest {
 
     private val onPageText = "Onpage visible sentence to follow"
     private val offRightText = "Offright next page sentence here"
-    private val offLeftText = "Offleft previous page sentence here"
     private val targetText = "Narrated target sentence deep in the page"
 
     // A document much taller than the viewport → scroll (karaoke) mode. The narrated sentence sits
@@ -35,15 +35,14 @@ class AutoFollowJsTest {
         </html>
     """.trimIndent()
 
-    // A viewport-sized page → paginated mode. The on-page sentence is fully visible; the others sit far
-    // to the right (next column/page) and far to the left (previous page).
+    // A viewport-sized page → paginated mode. The on-page sentence is fully visible; the off-page one
+    // sits far to the right (a later column/page), so following it requires a horizontal column snap.
     private val shortFixture = """
         <!DOCTYPE html>
         <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
           <body style="margin:0; height:40px; position:relative">
             <div id="onpage"  style="position:absolute; left:20px;    top:5px; width:240px; height:25px">$onPageText</div>
             <div id="offright" style="position:absolute; left:5000px;  top:5px; width:240px; height:25px">$offRightText</div>
-            <div id="offleft"  style="position:absolute; left:-5000px; top:5px; width:240px; height:25px">$offLeftText</div>
           </body>
         </html>
     """.trimIndent()
@@ -83,20 +82,21 @@ class AutoFollowJsTest {
     }
 
     @Test
-    fun paginatedReturnsOffForASentenceOnAnotherPage() {
+    fun paginatedSnapsToTheColumnContainingTheSentence() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            assertEquals(
-                "a sentence off to the right (next page) → off, so the reader snaps to its page",
-                "off",
-                webView.evalSync(autoFollowSnapJs(offRightText)).trim('"'),
-            )
-            assertEquals(
-                "a sentence off to the left (previous page) → off",
-                "off",
-                webView.evalSync(autoFollowSnapJs(offLeftText)).trim('"'),
-            )
-            assertEquals("probing an off-page sentence must not scroll horizontally", 0, webView.scrollX())
+            val iw = webView.innerWidth()
+            assertTrue("viewport must have a real width", iw > 100)
+
+            val result = webView.evalSync(autoFollowSnapJs(offRightText)).trim('"')
+            assertEquals("a sentence on another page is followed by snapping → on", "on", result)
+
+            // After the snap the sentence's column is flush-left: its first char's client-left equals
+            // (absX mod iw), which lands in [0, iw) exactly when scrollLeft is a whole multiple of iw
+            // — i.e. the page is on the column grid, not resting between two columns.
+            val left = webView.rectLeft("offright")
+            assertTrue("sentence should be snapped onto the page grid (left=$left, iw=$iw)", left in 0 until iw)
+            assertTrue("snapping a next-page sentence must move the page", webView.scrollX() > 0)
         }
     }
 
@@ -121,6 +121,12 @@ class AutoFollowJsTest {
     private fun WebView.rectCenterY(id: String): Int =
         evalSync("(function(){var r=document.getElementById('$id').getBoundingClientRect();return Math.round((r.top+r.bottom)/2);})()")
             .trim('"').toDouble().toInt()
+
+    private fun WebView.rectLeft(id: String): Int =
+        evalSync("(function(){return Math.round(document.getElementById('$id').getBoundingClientRect().left);})()")
+            .trim('"').toDouble().toInt()
+
+    private fun WebView.innerWidth(): Int = evalSync("window.innerWidth").trim('"').toDouble().toInt()
 
     private fun WebView.scrollX(): Int = evalSync("window.scrollX").trim('"').toDouble().toInt()
     private fun WebView.scrollY(): Int = evalSync("window.scrollY").trim('"').toDouble().toInt()

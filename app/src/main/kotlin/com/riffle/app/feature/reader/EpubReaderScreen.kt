@@ -1005,16 +1005,15 @@ private fun EpubNavigatorView(
     //
     //  - Scroll (Vertical) mode — the document overflows the viewport, so we scroll it to KEEP THE
     //    SENTENCE CENTERED, the natural karaoke-follow.
-    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized (nothing to scroll), so we
-    //    can't centre; instead we snap to the sentence's page when it isn't cleanly on the current
-    //    one. "on" requires FULL horizontal containment (within a tolerance): a reader resting at a
-    //    fractional page offset shows a clipped column plus a sliver of the next, and a sentence in
-    //    that sliver is "partly visible" but misaligned — requiring full containment snaps it instead
-    //    of leaving the page dragged sideways. go(locator) lands on a page boundary (aligned), which
-    //    also corrects the fractional offset; because we only rest on an aligned page, the saved
-    //    position stays aligned too.
+    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized (nothing to scroll), so the
+    //    probe SNAPS scrollLeft to the column boundary that contains the sentence's start (landing on
+    //    the page grid) and returns "on". It does this every sentence rather than gating on rough
+    //    visibility: a go()-based snap lands flush to the element's box (a sliver of the next column
+    //    shows), and a tolerance gate never re-aligns a page that's already drifted between columns.
+    //    The snap holds because the reader is sized so innerWidth == Readium's page-snap pitch
+    //    ([alignedReaderWidthDp]) — the same column-snap the navigation path uses (scrollToColumnJs).
     //
-    // A missing element (sentence in another chapter's document) reads as off → go(locator) jumps
+    // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
     LaunchedEffect(activeFragmentRef, sentenceQuotes) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
@@ -1025,8 +1024,9 @@ private fun EpubNavigatorView(
         // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
         // this effect re-keys on [sentenceQuotes] and re-runs to follow correctly once it's available.
         val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@LaunchedEffect
-        // Locate the sentence by its text (spans are stripped); "off" only when it's genuinely not on
-        // the current page, so we don't snap on every sentence. go() is text-anchored too.
+        // Locate the sentence by its text (spans are stripped). The probe snaps to the sentence's
+        // column itself in paginated mode; "off" comes back only when the text isn't on this resource
+        // (another chapter), where we fall back to a text-anchored go() to load it.
         val where = fragment.evaluateJavascript(autoFollowSnapJs(quote.highlight))?.trim('"')
         if (where != "off") return@LaunchedEffect
         fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
