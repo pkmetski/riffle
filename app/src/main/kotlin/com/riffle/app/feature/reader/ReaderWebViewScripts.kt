@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -102,6 +103,43 @@ internal fun autoFollowSnapJs(text: String): String {
       }
       var TOL=24;
       return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
+    })()
+    """.trimIndent()
+}
+
+/**
+ * Finds the first narrated sentence visible on the current page. [highlights] are the sentence texts
+ * in reading order (whole book); only the current chapter's sentences exist in this document's DOM,
+ * so the walk naturally ignores the rest. Returns the index into [highlights] of the first sentence
+ * whose start is on the current page, or "" when none is found.
+ *
+ * Unlike [autoFollowSnapJs] this never scrolls — it only reports visibility — so it can probe the
+ * page-top without dragging it. "Visible" uses the same containment test as autoFollow's paginated
+ * branch (within a tolerance) and, in scroll mode, any vertical overlap with the viewport.
+ */
+internal fun firstVisibleSentenceJs(highlights: List<String>): String {
+    // Same key shape as autoFollowSnapJs: a short near-unique prefix matched within one text node.
+    val keys = JSONArray(highlights.map { it.trim().take(12) }).toString()
+    return """
+    (function(){
+      var keys=$keys;
+      var seen={};
+      var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
+      var TOL=24;
+      while(n=w.nextNode()){
+        for(var k=0;k<keys.length;k++){
+          if(seen[k]) continue;
+          var key=keys[k];
+          if(!key){ seen[k]=1; continue; }
+          var i=n.nodeValue.indexOf(key);
+          if(i<0) continue;
+          seen[k]=1;
+          var g=document.createRange(); g.setStart(n,i); g.setEnd(n, Math.min(n.nodeValue.length, i+1));
+          var r=g.getBoundingClientRect();
+          if(r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) return String(k);
+        }
+      }
+      return "";
     })()
     """.trimIndent()
 }

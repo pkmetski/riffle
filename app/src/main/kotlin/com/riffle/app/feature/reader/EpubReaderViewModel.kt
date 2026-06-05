@@ -26,6 +26,9 @@ import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudResumePlanner
+import com.riffle.core.domain.ReadaloudStartPlan
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
@@ -121,6 +124,11 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
+
+    // Carries the chapter href whose current-page top sentence the screen should resolve against the
+    // WebView (only the screen owns it). The screen replies via [onPageTopResolved].
+    private val _pageTopProbeRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val pageTopProbeRequests: SharedFlow<String> = _pageTopProbeRequests.asSharedFlow()
 
     private val progressSyncController = ProgressSyncController(
         repository = readingSessionRepository,
@@ -892,6 +900,12 @@ class EpubReaderViewModel @Inject constructor(
         _readaloudOfflineMessage.value = false
         storytellerSyncJob?.cancel()
         storytellerSyncJob = null
+        // Remember where we stopped before tearing the session down: the sentence narrating now and
+        // the reader page it sits on. Reopening uses these to resume in place (same page) or start at
+        // the top of the current page (different page) instead of restarting the chapter. Capture
+        // before close() — it nulls the active fragment.
+        resumeFragmentRef = playerCoordinator.activeFragmentRef.value
+        closeLocator = lastLocator
         readaloudPrepared = false
         readaloudStarted = false
         playerCoordinator.close()
@@ -997,25 +1011,60 @@ class EpubReaderViewModel @Inject constructor(
     // position while a later resume-after-pause stays where it was.
     private var readaloudStarted = false
 
+    // The reader position when the player was last closed, and the sentence narrating at that moment.
+    // Non-null only after a close (not a pause): they drive the resume-vs-page-top decision on reopen.
+    private var closeLocator: Locator? = null
+    private var resumeFragmentRef: String? = null
+
     private suspend fun ensurePreparedAndPlay(bundle: File) {
         ensureOpened(bundle) ?: return
-        if (!readaloudStarted) {
-            // First play of this session: start narration from the reader's current position (the
-            // spec requires this), not the beginning of the book. Resuming after a pause keeps its
-            // place via the plain play() branch below.
-            readaloudStarted = true
-            val loc = lastLocator
-            if (loc != null) {
-                playerCoordinator.playFromReaderPosition(
-                    href = loc.href.toString(),
-                    fragmentId = loc.locations.fragments.firstOrNull(),
-                )
-            } else {
-                playerCoordinator.play()
-            }
-        } else {
+        if (readaloudStarted) {
+            // Resume after a pause: ExoPlayer kept its place, just play.
             playerCoordinator.play()
+            return
         }
+        readaloudStarted = true
+        // Consume the remembered close position so a later first-of-session play (after dispose) or a
+        // mid-chapter pause doesn't reuse a stale page.
+        val closed = closeLocator
+        val resume = resumeFragmentRef
+        closeLocator = null
+        resumeFragmentRef = null
+        val loc = lastLocator
+        val plan = ReadaloudResumePlanner.plan(
+            isScroll = effectiveFormattingPreferences.value.orientation == ReaderOrientation.Vertical,
+            closeHref = closed?.href?.toString(),
+            closeProgression = closed?.locations?.progression,
+            resumeFragmentRef = resume,
+            currentHref = loc?.href?.toString(),
+            currentProgression = loc?.locations?.progression,
+        )
+        when (plan) {
+            ReadaloudStartPlan.FromReaderPosition ->
+                // First play of this session: start narration from the reader's current position (the
+                // spec requires this), not the beginning of the book. Resolves to chapter granularity
+                // because the reader locator carries no sentence fragment.
+                if (loc != null) {
+                    playerCoordinator.playFromReaderPosition(
+                        href = loc.href.toString(),
+                        fragmentId = loc.locations.fragments.firstOrNull(),
+                    )
+                } else {
+                    playerCoordinator.play()
+                }
+            is ReadaloudStartPlan.Resume -> playerCoordinator.playFromHere(plan.fragmentRef)
+            // Reopened on a different page: the screen resolves the page's first sentence against the
+            // WebView and replies via onPageTopResolved(); play starts there.
+            is ReadaloudStartPlan.PageTop -> _pageTopProbeRequests.tryEmit(plan.href)
+        }
+    }
+
+    /**
+     * The screen resolved the first sentence visible on [href]'s current page ([fragmentId]), or null
+     * when none could be located. Starts narration there — chapter top when the id is null.
+     */
+    fun onPageTopResolved(href: String, fragmentId: String?) {
+        playerCoordinator.playFromReaderPosition(href, fragmentId)
     }
 
     private suspend fun ensureOpened(bundle: File): com.riffle.core.domain.ReadaloudTrack? {

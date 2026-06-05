@@ -283,6 +283,8 @@ fun EpubReaderScreen(
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
                         sentenceQuotes = sentenceQuotes,
+                        pageTopProbeRequests = viewModel.pageTopProbeRequests,
+                        onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -681,6 +683,8 @@ private fun EpubNavigatorView(
     onFootnoteTapped: (content: String) -> Unit,
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
+    pageTopProbeRequests: Flow<String>,
+    onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -707,6 +711,7 @@ private fun EpubNavigatorView(
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
+    val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentPublication by rememberUpdatedState(state.publication)
@@ -895,6 +900,25 @@ private fun EpubNavigatorView(
     LaunchedEffect(searchNavigationEvents) {
         searchNavigationEvents.collect { locator ->
             fragmentRef.value?.go(locator)
+        }
+    }
+
+    // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
+    // for the first narrated sentence visible on the page (spans are stripped, so we search by the
+    // sentence's text — quotes are in reading order and only this chapter's sentences are in the DOM).
+    LaunchedEffect(pageTopProbeRequests) {
+        pageTopProbeRequests.collect { href ->
+            val fragment = fragmentRef.value
+            val ordered = currentSentenceQuotes.entries.toList()
+            val fragmentId = if (fragment != null && ordered.isNotEmpty()) {
+                val idx = fragment.evaluateJavascript(
+                    firstVisibleSentenceJs(ordered.map { it.value.highlight }),
+                )?.trim('"')?.toIntOrNull()
+                idx?.let { ordered.getOrNull(it)?.key }
+            } else {
+                null
+            }
+            onPageTopResolved(href, fragmentId)
         }
     }
 
