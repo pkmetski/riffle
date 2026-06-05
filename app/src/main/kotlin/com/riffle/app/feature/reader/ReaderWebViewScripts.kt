@@ -73,11 +73,19 @@ internal val SELECTION_SPAN_TRACKER_JS = """
  *
  *  - Scroll mode (document overflows the viewport): scrolls *vertically* to centre the sentence —
  *    the karaoke follow — and returns "on".
- *  - Paginated mode (page is exactly viewport-sized): returns "on" only when the sentence is fully
- *    horizontally contained (within a tolerance), else "off" so the Kotlin side snaps via go().
+ *  - Paginated mode (page is exactly viewport-sized): snaps scrollLeft to the COLUMN BOUNDARY that
+ *    contains the sentence's start, then returns "on". We snap here rather than report "off" and let
+ *    the Kotlin side go(): go() resolves the locator by text/cssSelector and lands flush to the
+ *    element's box — a little inside its column — so the page rests between two columns; and a binary
+ *    "is it roughly visible?" gate (the old ±tolerance check) never re-aligns a page that's already
+ *    drifted between two columns, nor follows promptly when a sentence starts just past the edge.
+ *    Snapping scrollLeft to floor(x / innerWidth) * innerWidth lands on the clean page grid every
+ *    sentence. This holds because the reader is sized so innerWidth == Readium's page-snap pitch (see
+ *    [alignedReaderWidthDp]), so the boundary we pick is exactly where Readium would rest anyway —
+ *    here we locate the sentence by text (the span id is stripped) rather than by element.
  *
- * Returns "off" when the text isn't on the current resource (sentence in another chapter) → go()
- * jumps chapters, as before. Only ever scrolls the Y axis — never X — so the page can't drift sideways.
+ * Returns "off" only when the text isn't on the current resource (sentence in another chapter) → the
+ * Kotlin side's go() jumps chapters, as before.
  */
 internal fun autoFollowSnapJs(text: String): String {
     // A short, near-unique prefix of the sentence; matched within a single text node (sentence starts
@@ -100,8 +108,10 @@ internal fun autoFollowSnapJs(text: String): String {
         if(Math.abs(delta) > 8) window.scrollBy(0, delta);
         return "on";
       }
-      var TOL=24;
-      return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
+      var iw=window.innerWidth;
+      var absX=r.left + se.scrollLeft;
+      se.scrollLeft=Math.floor(absX / iw) * iw;
+      return "on";
     })()
     """.trimIndent()
 }
