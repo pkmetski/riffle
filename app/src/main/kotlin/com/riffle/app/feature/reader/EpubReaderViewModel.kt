@@ -491,7 +491,7 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    fun showFootnotePopup(content: String) {
+    fun showFootnotePopup(content: FootnoteContent) {
         _footnotePopup.value = FootnotePopupState(content)
     }
 

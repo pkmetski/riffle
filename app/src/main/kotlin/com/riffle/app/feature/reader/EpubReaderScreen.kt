@@ -90,7 +90,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.Decoration
@@ -719,7 +718,7 @@ private fun EpubNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
-    onFootnoteTapped: (content: String) -> Unit,
+    onFootnoteTapped: (content: FootnoteContent) -> Unit,
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
     pageTopProbeRequests: Flow<String>,
@@ -888,9 +887,8 @@ private fun EpubNavigatorView(
                 context: HyperlinkNavigator.LinkContext?,
             ): Boolean {
                 if (context !is HyperlinkNavigator.FootnoteContext) return true
-                val plainText = Jsoup.parse(context.noteContent).text().trim()
-                if (plainText.isEmpty()) return true
-                currentOnFootnoteTapped(plainText)
+                val content = FootnoteResolver.footnoteContent(context.noteContent) ?: return true
+                currentOnFootnoteTapped(content)
                 return false
             }
 
@@ -967,7 +965,7 @@ private fun EpubNavigatorView(
                 is FootnoteResolver.AnchorTarget.Footnote -> {
                     // Called from the JS binder thread; hop to main for Compose state.
                     coroutineScope.launch(Dispatchers.Main) {
-                        currentOnFootnoteTapped(target.text)
+                        currentOnFootnoteTapped(target.content)
                     }
                     true
                 }

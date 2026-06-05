@@ -23,10 +23,10 @@ class EpubReaderViewModelFootnoteTest {
         val emissions = mutableListOf<FootnotePopupState?>()
         backgroundScope.launch { flow.collect { emissions.add(it) } }
 
-        flow.value = FootnotePopupState("Heraclitus of Ephesus (c. 535 BC)")
+        flow.value = FootnotePopupState(FootnoteContent("Heraclitus of Ephesus (c. 535 BC)"))
 
         assertEquals(2, emissions.size)
-        assertEquals("Heraclitus of Ephesus (c. 535 BC)", emissions[1]?.content)
+        assertEquals("Heraclitus of Ephesus (c. 535 BC)", emissions[1]?.content?.text)
     }
 
     @Test
@@ -35,12 +35,12 @@ class EpubReaderViewModelFootnoteTest {
         val emissions = mutableListOf<FootnotePopupState?>()
         backgroundScope.launch { flow.collect { emissions.add(it) } }
 
-        flow.value = FootnotePopupState("Some footnote")
+        flow.value = FootnotePopupState(FootnoteContent("Some footnote"))
         flow.value = null
 
         assertEquals(3, emissions.size)
         assertNull(emissions[0])
-        assertEquals("Some footnote", emissions[1]?.content)
+        assertEquals("Some footnote", emissions[1]?.content?.text)
         assertNull(emissions[2])
     }
 
@@ -50,12 +50,12 @@ class EpubReaderViewModelFootnoteTest {
         val emissions = mutableListOf<FootnotePopupState?>()
         backgroundScope.launch { flow.collect { emissions.add(it) } }
 
-        flow.value = FootnotePopupState("First footnote")
-        flow.value = FootnotePopupState("Second footnote")
+        flow.value = FootnotePopupState(FootnoteContent("First footnote"))
+        flow.value = FootnotePopupState(FootnoteContent("Second footnote"))
 
         assertEquals(3, emissions.size)
-        assertEquals("First footnote", emissions[1]?.content)
-        assertEquals("Second footnote", emissions[2]?.content)
+        assertEquals("First footnote", emissions[1]?.content?.text)
+        assertEquals("Second footnote", emissions[2]?.content?.text)
     }
 
     @Test
@@ -82,9 +82,9 @@ class EpubReaderViewModelFootnoteTest {
 
     @Test
     fun `FootnotePopupState equality is structural`() {
-        val a = FootnotePopupState("text")
-        val b = FootnotePopupState("text")
-        val c = FootnotePopupState("other")
+        val a = FootnotePopupState(FootnoteContent("text"))
+        val b = FootnotePopupState(FootnoteContent("text"))
+        val c = FootnotePopupState(FootnoteContent("other"))
         assertEquals(a, b)
         assert(a != c)
     }

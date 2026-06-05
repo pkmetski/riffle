@@ -9,6 +9,13 @@ import org.junit.Test
 
 class FootnoteResolverTest {
 
+    // Convenience: assert a footnote resolves to plain text with no links.
+    private fun assertPlain(expected: String, content: FootnoteContent?) {
+        assertNotNull(content)
+        assertEquals(expected, content!!.text)
+        assertTrue("expected no links, got ${content.links}", content.links.isEmpty())
+    }
+
     @Test
     fun `target with epub-type footnote is detected`() {
         val html = """
@@ -17,7 +24,7 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Note one.", FootnoteResolver.extractFootnoteText(doc, "fn1"))
+        assertPlain("Note one.", FootnoteResolver.extractFootnoteContent(doc, "fn1"))
     }
 
     // The Lean Customer Development EPUB ships ch01fn02..ch01fn08 without
@@ -31,7 +38,7 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Body text.", FootnoteResolver.extractFootnoteText(doc, "ftn.ch01fn02"))
+        assertPlain("Body text.", FootnoteResolver.extractFootnoteContent(doc, "ftn.ch01fn02"))
     }
 
     @Test
@@ -44,7 +51,7 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Third note.", FootnoteResolver.extractFootnoteText(doc, "ftn.ch01fn03"))
+        assertPlain("Third note.", FootnoteResolver.extractFootnoteContent(doc, "ftn.ch01fn03"))
     }
 
     @Test
@@ -55,7 +62,7 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Aria note.", FootnoteResolver.extractFootnoteText(doc, "dfn1"))
+        assertPlain("Aria note.", FootnoteResolver.extractFootnoteContent(doc, "dfn1"))
     }
 
     @Test
@@ -67,26 +74,26 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertNull(FootnoteResolver.extractFootnoteText(doc, "sec1"))
+        assertNull(FootnoteResolver.extractFootnoteContent(doc, "sec1"))
     }
 
     @Test
     fun `missing target id returns null`() {
         val doc = FootnoteResolver.parse("<html><body><p id=\"x\">Hi</p></body></html>")
-        assertNull(FootnoteResolver.extractFootnoteText(doc, "nope"))
+        assertNull(FootnoteResolver.extractFootnoteContent(doc, "nope"))
     }
 
     @Test
     fun `empty footnote body returns null`() {
         val html = """<html><body><div class="footnote" id="fn1"></div></body></html>"""
         val doc = FootnoteResolver.parse(html)
-        assertNull(FootnoteResolver.extractFootnoteText(doc, "fn1"))
+        assertNull(FootnoteResolver.extractFootnoteContent(doc, "fn1"))
     }
 
     // Regression for Readium 3.0.0's `select("#$id")` bug. Many EPUBs (O'Reilly
     // toolchain in particular) emit `id="ftn.ch01fn01"`, where Jsoup's CSS
     // selector parses the dot as a class separator and matches nothing.
-    // extractFootnoteText must use getElementById, not select.
+    // extractFootnoteContent must use getElementById, not select.
     @Test
     fun `dotted target id is still found`() {
         val html = """
@@ -97,11 +104,11 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Dotted body.", FootnoteResolver.extractFootnoteText(doc, "ftn.ch01fn01"))
+        assertPlain("Dotted body.", FootnoteResolver.extractFootnoteContent(doc, "ftn.ch01fn01"))
     }
 
     @Test
-    fun `resolveAnchorTap returns text on cache hit and footnote target`() {
+    fun `resolveAnchorTap returns content on cache hit and footnote target`() {
         val html = """
             <html><body>
               <div class="footnote" id="fn1"><p>Body.</p></div>
@@ -110,7 +117,7 @@ class FootnoteResolverTest {
         val cache = mapOf("OEBPS/ch01.html" to FootnoteResolver.parse(html))
         assertEquals(
             "Body.",
-            FootnoteResolver.resolveAnchorTap("OEBPS/ch01.html", cache, "fn1"),
+            FootnoteResolver.resolveAnchorTap("OEBPS/ch01.html", cache, "fn1")?.text,
         )
     }
 
@@ -174,7 +181,7 @@ class FootnoteResolverTest {
         """.trimIndent()
         val cache = mapOf("OEBPS/ch08.html" to FootnoteResolver.parse(html))
         assertEquals(
-            FootnoteResolver.AnchorTarget.Footnote("Note one."),
+            FootnoteResolver.AnchorTarget.Footnote(FootnoteContent("Note one.")),
             FootnoteResolver.classifyAnchorTap("OEBPS/ch08.html", cache, "fn1"),
         )
     }
@@ -251,10 +258,10 @@ class FootnoteResolverTest {
     //               <a id="c07-note-0002" href="#backTNT2">1.</a> Kanter…
     //             </aside>
     // getElementById("c07-note-0002") lands on the marker anchor whose text is
-    // just "1.", so the popup used to show only the number. The resolver must
-    // climb to the enclosing note entry and return the body, marker stripped.
+    // just "1.", so we climb to the enclosing note entry and return its body.
+    // The marker number is preserved (as plain text), only the dead link drops.
     @Test
-    fun `back-reference marker target resolves to the note body`() {
+    fun `back-reference marker target resolves to the note body with the number preserved`() {
         val html = """
             <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
               <section epub:type="rearnotes">
@@ -265,16 +272,17 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals(
-            "Kanter, Change Masters.",
-            FootnoteResolver.extractFootnoteText(doc, "c07-note-0002"),
+        assertPlain(
+            "1. Kanter, Change Masters.",
+            FootnoteResolver.extractFootnoteContent(doc, "c07-note-0002"),
         )
     }
 
-    // Even when the id points straight at the note entry, the leading
-    // back-reference marker ("1.") is chrome, not content — strip it.
+    // Even when the id points straight at the note entry, the leading marker
+    // ("1.") is preserved as plain text — its number is useful context, only
+    // the back-link target is dropped.
     @Test
-    fun `note entry target strips the leading back-reference marker`() {
+    fun `note entry target preserves the leading marker number as plain text`() {
         val html = """
             <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
               <aside id="en2" class="noteEntry" epub:type="rearnote">
@@ -283,14 +291,30 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals(
-            "Kanter, Change Masters.",
-            FootnoteResolver.extractFootnoteText(doc, "en2"),
+        assertPlain(
+            "1. Kanter, Change Masters.",
+            FootnoteResolver.extractFootnoteContent(doc, "en2"),
+        )
+    }
+
+    // The screenshot bug: brackets are plain text, the number is a back-reference
+    // anchor. Stripping the anchor left an orphaned "[]". The number must survive.
+    @Test
+    fun `numeric marker wrapped by text brackets is preserved`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn10">[<a href="#ref10">10</a>] KISSmetrics CEO talked.</div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        assertPlain(
+            "[10] KISSmetrics CEO talked.",
+            FootnoteResolver.extractFootnoteContent(doc, "fn10"),
         )
     }
 
     // A footnote whose body legitimately starts with a number must keep it;
-    // only the back-reference *anchor* is stripped, not arbitrary digits.
+    // only back-reference *anchors* are special-cased, not arbitrary digits.
     @Test
     fun `numeric body content is preserved when not a back-reference`() {
         val html = """
@@ -299,21 +323,17 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals(
+        assertPlain(
             "1984 was a pivotal year.",
-            FootnoteResolver.extractFootnoteText(doc, "en3"),
+            FootnoteResolver.extractFootnoteContent(doc, "en3"),
         )
     }
 
     // Many EPUBs append a "return to text" back-link at the END of the note —
-    // an up-arrow (↑) or hooked arrow that links back to the reference. Real
-    // sample from a Swedish-to-Bulgarian translation:
-    //   <div epub:type="footnote" id="note_3-1"><p>
-    //     <a href="#ref_3-1">[1]</a> Йостермалм … Б. пр. <a href="#ref_3-1">↑</a>
-    //   </p></div>
-    // Both the leading marker and the trailing arrow are chrome; strip both.
+    // an up-arrow (↑) or hooked arrow. The leading marker number is preserved
+    // as plain text; the trailing arrow is pure chrome and is removed.
     @Test
-    fun `trailing up-arrow back-link is stripped`() {
+    fun `leading marker kept, trailing up-arrow back-link stripped`() {
         val html = """
             <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
               <div epub:type="footnote" id="note_3-1"><p>
@@ -323,14 +343,16 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals(
-            "Ostermalm is a district. Note.",
-            FootnoteResolver.extractFootnoteText(doc, "note_3-1"),
+        assertPlain(
+            "[1] Ostermalm is a district. Note.",
+            FootnoteResolver.extractFootnoteContent(doc, "note_3-1"),
         )
     }
 
+    // A non-numeric backlink (epub:type="backlink", text "Return") carries no
+    // information and is removed entirely.
     @Test
-    fun `standard epub-type backlink is stripped`() {
+    fun `non-numeric epub-type backlink is stripped`() {
         val html = """
             <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
               <aside epub:type="footnote" id="fn9"><p>
@@ -339,7 +361,7 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Note body.", FootnoteResolver.extractFootnoteText(doc, "fn9"))
+        assertPlain("Note body.", FootnoteResolver.extractFootnoteContent(doc, "fn9"))
     }
 
     @Test
@@ -352,6 +374,95 @@ class FootnoteResolverTest {
             </body></html>
         """.trimIndent()
         val doc = FootnoteResolver.parse(html)
-        assertEquals("Container plural.", FootnoteResolver.extractFootnoteText(doc, "fnX"))
+        assertPlain("Container plural.", FootnoteResolver.extractFootnoteContent(doc, "fnX"))
+    }
+
+    // ── Clickable links ───────────────────────────────────────────────────────
+
+    // A real <a href="http…"> anchor whose visible text differs from the URL
+    // must survive as a link span covering its visible text, carrying the href.
+    @Test
+    fun `external anchor link is preserved with its href and visible-text offsets`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn1"><p>See <a href="https://example.com/study">the study</a> for details.</p></div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        val content = FootnoteResolver.extractFootnoteContent(doc, "fn1")
+        assertNotNull(content)
+        assertEquals("See the study for details.", content!!.text)
+        assertEquals(1, content.links.size)
+        val link = content.links.single()
+        assertEquals("https://example.com/study", link.url)
+        assertEquals("the study", content.text.substring(link.start, link.end))
+    }
+
+    // A bare-text URL (no anchor) — the screenshot's slideshare case — is
+    // linkified in place.
+    @Test
+    fun `bare text url is linkified`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn1"><p>Source: http://www.slideshare.net/hnshah/x</p></div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        val content = FootnoteResolver.extractFootnoteContent(doc, "fn1")
+        assertNotNull(content)
+        assertEquals("Source: http://www.slideshare.net/hnshah/x", content!!.text)
+        val link = content.links.single()
+        assertEquals("http://www.slideshare.net/hnshah/x", link.url)
+        assertEquals("http://www.slideshare.net/hnshah/x", content.text.substring(link.start, link.end))
+    }
+
+    // Trailing sentence punctuation must not be swallowed into the linkified URL.
+    @Test
+    fun `bare url trailing punctuation is trimmed from the link`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn1"><p>See http://example.com/a.</p></div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        val content = FootnoteResolver.extractFootnoteContent(doc, "fn1")
+        assertNotNull(content)
+        assertEquals("See http://example.com/a.", content!!.text)
+        val link = content.links.single()
+        assertEquals("http://example.com/a", link.url)
+        assertEquals("http://example.com/a", content.text.substring(link.start, link.end))
+    }
+
+    // A URL that is already an anchor must not be double-linkified by the
+    // bare-URL pass.
+    @Test
+    fun `url that is already an anchor is not double-linkified`() {
+        val html = """
+            <html><body>
+              <div class="footnote" id="fn1"><p><a href="http://example.com">http://example.com</a></p></div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        val content = FootnoteResolver.extractFootnoteContent(doc, "fn1")
+        assertNotNull(content)
+        assertEquals("http://example.com", content!!.text)
+        assertEquals(1, content.links.size)
+        assertEquals("http://example.com", content.links.single().url)
+    }
+
+    // footnoteContent(rawHtml) backs the Readium shouldFollowInternalLink path;
+    // it must apply the same marker/link processing as the getElementById path.
+    @Test
+    fun `footnoteContent parses raw note html with marker preserved and url linkified`() {
+        val noteHtml = "<aside>[<a href=\"#r\">2</a>] See http://example.com/x</aside>"
+        val content = FootnoteResolver.footnoteContent(noteHtml)
+        assertNotNull(content)
+        assertEquals("[2] See http://example.com/x", content!!.text)
+        assertEquals("http://example.com/x", content.links.single().url)
+    }
+
+    @Test
+    fun `footnoteContent returns null for empty note html`() {
+        assertNull(FootnoteResolver.footnoteContent("<aside></aside>"))
     }
 }
