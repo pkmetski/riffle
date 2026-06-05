@@ -2,8 +2,10 @@ package com.riffle.app.feature.reader.readaloud
 
 import android.content.ComponentName
 import android.content.Context
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -56,6 +58,14 @@ class ReadaloudController @Inject constructor(
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             pushState()
+        }
+
+        // Surface ExoPlayer failures instead of swallowing them. A truncated/corrupt bundle (e.g. a
+        // download cut short by a full disk) decodes to an error here — previously invisible, it
+        // looked like "the highlight shows but there's no sound": the small media-overlay track still
+        // parses, but playback never starts. Logged so the cause is greppable in a bug report.
+        override fun onPlayerError(error: PlaybackException) {
+            Log.e(LOG, "playback error code=${error.errorCodeName} src=${controller?.currentMediaItem?.mediaId}", error)
         }
     }
 
@@ -166,5 +176,6 @@ class ReadaloudController @Inject constructor(
     companion object {
         val SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
         private const val POLL_INTERVAL_MS = 250L
+        private const val LOG = "RIFFLE_RA"
     }
 }

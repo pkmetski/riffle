@@ -71,6 +71,18 @@ class AudiobookBundleDownloader(
                 } catch (e: Throwable) {
                     return@withContext Result.NetworkError(e) // .part preserved for resume
                 }
+                // A stream can end *short* of the advertised length without throwing — a truncating
+                // proxy, a server closing the connection mid-body, or a partial response written when
+                // storage was full. Promoting that .part to the final file would hand the reader/player
+                // a truncated bundle: the small media-overlay track still parses (so the first highlight
+                // shows) but ExoPlayer can't decode the clipped audio → silent readaloud with no
+                // progression. Only finalise a whole body; otherwise keep the .part so the next attempt
+                // resumes the missing tail.
+                if (total > 0 && written < total) {
+                    return@withContext Result.NetworkError(
+                        java.io.IOException("Truncated bundle for $bookId: $written/$total bytes"),
+                    )
+                }
                 if (!partFile.renameTo(finalFile)) {
                     partFile.copyTo(finalFile, overwrite = true)
                     partFile.delete()

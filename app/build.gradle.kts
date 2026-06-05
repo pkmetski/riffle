@@ -37,6 +37,10 @@ android {
         buildConfigField("String", "DEV_SERVER_URL", "\"\"")
         buildConfigField("String", "DEV_USERNAME", "\"\"")
         buildConfigField("String", "DEV_PASSWORD", "\"\"")
+
+        // Resolved Readium version, surfaced so ReadiumVersionPinTest can flag any future bump
+        // (Readium 3.2.0+ regresses the readaloud highlight — see that test).
+        buildConfigField("String", "READIUM_VERSION", "\"${libs.versions.readium.get()}\"")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH")

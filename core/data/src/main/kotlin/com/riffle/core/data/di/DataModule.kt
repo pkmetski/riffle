@@ -48,7 +48,6 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
-import com.riffle.core.data.EpubBundleFetcher
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
 import com.riffle.core.data.StorytellerPositionSyncController
@@ -284,16 +283,6 @@ abstract class DataModule {
         @Singleton
         fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient): StorytellerBundleApiImpl =
             StorytellerBundleApiImpl(okHttpClient)
-
-        @Provides
-        @Singleton
-        fun provideEpubBundleFetcher(
-            @ApplicationContext context: Context,
-            bundleApi: StorytellerBundleApiImpl,
-        ): EpubBundleFetcher = EpubBundleFetcher(
-            api = bundleApi,
-            workingDirProvider = { context.cacheDir.resolve("epub-bundles").also { it.mkdirs() } },
-        )
 
         @Provides
         @Singleton

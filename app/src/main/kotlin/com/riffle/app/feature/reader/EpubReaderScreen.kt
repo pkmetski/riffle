@@ -80,6 +80,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -98,10 +99,44 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
-import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.util.AbsoluteUrl
+
+/**
+ * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
+ * decoration effects keyed on it re-apply against the reflowed layout. Pass a value that changes
+ * whenever the layout reflows; in practice the formatting preferences (orientation/scroll mode, font
+ * size, margins, line spacing, font family all reflow the page via submitPreferences).
+ *
+ * Readium does not re-render existing decorations onto a reflowed layout, so a stable highlight —
+ * e.g. a paused readaloud sentence, whose activeFragmentRef isn't changing to re-trigger its own
+ * effect — ends up painted on the wrong sentence. The relayout settles asynchronously; for an
+ * in-place reflow there's no onPageLoaded to hang the re-apply on, so we bump a few times across a
+ * short settle window: the bump that lands once the relayout has completed is the one that makes the
+ * re-apply stick, and the earlier/duplicate re-applies are idempotent. The settle delays are a
+ * heuristic (no engine signal exists for "reflow done"); they're sized for the low-end API-25 devices
+ * the feature targets. The first composition is skipped so opening a book triggers no re-apply storm.
+ *
+ * Extracted (rather than inlined) so the trigger schedule is unit-testable independent of the reader.
+ */
+@Composable
+internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
+    val generation = remember { mutableStateOf(0) }
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(reflowTrigger) {
+        if (!settled) {
+            settled = true
+            return@LaunchedEffect
+        }
+        for (settleMs in longArrayOf(150L, 350L, 700L)) {
+            delay(settleMs)
+            generation.value += 1
+        }
+    }
+    return generation.value
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -194,6 +229,7 @@ fun EpubReaderScreen(
     val readaloudExpanded by viewModel.readaloudExpanded.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
+    val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
@@ -246,6 +282,7 @@ fun EpubReaderScreen(
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
+                        sentenceQuotes = sentenceQuotes,
                         onPlayFromHere = viewModel::playFromHere,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -583,8 +620,23 @@ private const val BOUNDARY_POLL_INTERVAL_MS = 120L
  * the ref carries no fragment. The cssSelector targets the fragment id so Readium's EPUB decorator
  * and navigator resolve the same DOM range. Shared by the synced-highlight decoration and the
  * auto-follow so both always point at the same element.
+ *
+ * When a [quote] is supplied, the locator also carries the sentence's text (with neighbouring
+ * context as prefix/suffix). Readium's decoration positioner uses the cssSelector when it resolves,
+ * and otherwise falls back to a TextQuoteAnchor search over the document body — so the highlight
+ * still lands when Readium has stripped the sentence span from the rendered (ABS) EPUB.
  */
-private fun fragmentLocator(ref: String): Locator? {
+private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
+    Locator.fromJSON(readaloudLocatorJson(ref, quote))
+
+/**
+ * The Readium Locator JSON for a readaloud fragment ref. Extracted (and `internal`) so the
+ * text-anchoring contract is unit-testable without a navigator: when a [quote] is present the JSON
+ * MUST carry a `text` block (highlight + before/after), because that's what lets Readium position
+ * the highlight by text search after it strips the sentence span from the served HTML. The
+ * cssSelector is kept as the fast path for when the span does survive.
+ */
+internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObject {
     val hashIdx = ref.indexOf('#')
     val href = if (hashIdx >= 0) ref.substring(0, hashIdx) else ref
     val fragId = if (hashIdx >= 0) ref.substring(hashIdx + 1) else null
@@ -600,7 +652,16 @@ private fun fragmentLocator(ref: String): Locator? {
                 }
             },
         )
-    return Locator.fromJSON(json)
+    if (quote != null) {
+        json.put(
+            "text",
+            JSONObject()
+                .put("before", quote.before)
+                .put("highlight", quote.highlight)
+                .put("after", quote.after),
+        )
+    }
+    return json
 }
 
 @OptIn(ExperimentalReadiumApi::class)
@@ -619,6 +680,7 @@ private fun EpubNavigatorView(
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: String) -> Unit,
     activeFragmentRef: String?,
+    sentenceQuotes: Map<String, SentenceQuote>,
     onPlayFromHere: (fragmentRef: String) -> Unit,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -716,10 +778,22 @@ private fun EpubNavigatorView(
                     playFromHereMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
                             ?: return false
+                        val nav = fragmentRef.value
                         coroutineScope.launch {
                             val selection = selectable.currentSelection() ?: return@launch
                             val loc = selection.locator
-                            val fragId = loc.locations.fragments.firstOrNull()
+                            // Storyteller wraps each narrated sentence in <span id="cNNN-sM"> — exactly the
+                            // SMIL clip target the player keys on. Readium's selection locator carries only
+                            // text + rect (no fragment id), so without that span id the player can't map the
+                            // selection to a clip and restarts the chapter from its first clip. The
+                            // selectionchange tracker (SELECTION_SPAN_TRACKER_JS, injected per page) stashes
+                            // the enclosing span id in window.__riffleSelSpan as the user selects; we read
+                            // that stash rather than the live DOM selection so the value is robust to the
+                            // action-mode teardown. Empty when the selection had no sentence-span ancestor →
+                            // falls back to the locator fragment, then the bare href (chapter start).
+                            val spanId = nav?.evaluateJavascript("window.__riffleSelSpan || ''")
+                                ?.trim('"')?.takeIf { it.isNotEmpty() }
+                            val fragId = spanId ?: loc.locations.fragments.firstOrNull()
                             val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
                             currentOnPlayFromHere(ref)
                             selectable.clearSelection()
@@ -765,15 +839,23 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Injects the targeted typography overrides (see TypographyOverride.kt) into each newly
-    // loaded reflowable page, plus the footnote-anchor install script. Both are idempotent
-    // (typography deduplicates by <style> tag, footnote by window.__riffleFootnoteInstalled),
-    // so repeated firings during reflow are harmless.
+    // Bumps whenever a formatting change reflows the layout so the decoration effects below re-apply
+    // onto the new layout (see rememberReflowReapplyGeneration for why).
+    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
+
+    // Injects, into each newly loaded reflowable page: the ClientRect.toJSON polyfill (see
+    // RECT_TO_JSON_POLYFILL_JS), the selection-span tracker (SELECTION_SPAN_TRACKER_JS), the targeted
+    // typography overrides (see TypographyOverride.kt), and the footnote-anchor install script. All are
+    // idempotent (typography deduplicates by <style> tag, footnote by window.__riffleFootnoteInstalled,
+    // tracker by window.__riffleSelTrackerInstalled, the polyfill by a typeof guard), so repeated
+    // firings during reflow are harmless.
     val paginationListener = remember {
         object : EpubNavigatorFragment.PaginationListener {
             override fun onPageLoaded() {
                 val fragment = fragmentRef.value ?: return
                 coroutineScope.launch {
+                    fragment.evaluateJavascript(RECT_TO_JSON_POLYFILL_JS)
+                    fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
                     fragment.evaluateJavascript(typographyOverrideInjectionJs())
                     fragment.evaluateJavascript(FootnoteAnchorBridge.INSTALL_SCRIPT)
                 }
@@ -853,11 +935,14 @@ private fun EpubNavigatorView(
 
     // ---- Readaloud synced highlight --------------------------------------------------------
     // Uses the same Readium DecorableNavigator mechanism as search, on its own "readaloud" group
-    // so it doesn't clobber search highlights. The active fragment ref is "href#fragId"; we build
-    // a Locator with that href and a cssSelector targeting the fragment id, which is how Readium's
-    // EPUB decorator resolves the DOM range for a highlight. Null clears the decoration.
+    // so it doesn't clobber search highlights. The active fragment ref is "href#fragId"; we build a
+    // Locator that carries both the fragment-id cssSelector AND the sentence's text. Readium uses the
+    // cssSelector when it resolves and otherwise falls back to a text search — necessary because it
+    // strips the sentence spans from the rendered ABS EPUB. Null clears the decoration. The effect
+    // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
+    // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, sentenceQuotes) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -868,7 +953,9 @@ private fun EpubNavigatorView(
             hasReadaloudDecoration.value = false
             return@LaunchedEffect
         }
-        val locator = fragmentLocator(ref) ?: return@LaunchedEffect
+        val sid = ref.substringAfter('#', "")
+        val quote = sentenceQuotes[sid]
+        val locator = fragmentLocator(ref, quote) ?: return@LaunchedEffect
         val decoration = Decoration(
             id = "readaloud_active",
             locator = locator,
@@ -888,7 +975,7 @@ private fun EpubNavigatorView(
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of
     // every highlight when the book is reopened, and the immediate paint after a new highlight.
     val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders) {
+    LaunchedEffect(highlightRenders, reflowGeneration) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         if (highlightRenders.isEmpty()) {
             if (!hasHighlightDecorations.value) return@LaunchedEffect
@@ -929,31 +1016,20 @@ private fun EpubNavigatorView(
     //
     // A missing element (sentence in another chapter's document) reads as off → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
-    LaunchedEffect(activeFragmentRef) {
+    LaunchedEffect(activeFragmentRef, sentenceQuotes) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
-        val hashIdx = ref.indexOf('#')
-        if (hashIdx < 0) return@LaunchedEffect
-        val fragId = ref.substring(hashIdx + 1)
-        val where = fragment.evaluateJavascript(
-            """
-            (function(){
-              var e=document.getElementById(${JSONObject.quote(fragId)});
-              if(!e) return "off";
-              var r=e.getBoundingClientRect();
-              var se=document.scrollingElement||document.documentElement;
-              if(se && se.scrollHeight > window.innerHeight + 4){
-                var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
-                if(Math.abs(delta) > 8) window.scrollBy(0, delta);
-                return "on";
-              }
-              var TOL=24;
-              return (r.left >= -TOL && r.right <= window.innerWidth+TOL && r.top < window.innerHeight && r.bottom > 0) ? "on" : "off";
-            })()
-            """.trimIndent(),
-        )?.trim('"')
+        if (ref.indexOf('#') < 0) return@LaunchedEffect
+        // No quote yet (the map is built off-thread once playback starts) → we can neither locate the
+        // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
+        // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
+        // this effect re-keys on [sentenceQuotes] and re-runs to follow correctly once it's available.
+        val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@LaunchedEffect
+        // Locate the sentence by its text (spans are stripped); "off" only when it's genuinely not on
+        // the current page, so we don't snap on every sentence. go() is text-anchored too.
+        val where = fragment.evaluateJavascript(autoFollowSnapJs(quote.highlight))?.trim('"')
         if (where != "off") return@LaunchedEffect
-        fragmentLocator(ref)?.let { fragment.go(it, animated = false) }
+        fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
     }
 
     LaunchedEffect(volumeNavEvents) {

@@ -1,15 +1,7 @@
 package com.riffle.app.feature.reader
 
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -49,7 +41,7 @@ class TypographyOverrideWebViewTest {
 
     @Test
     fun overrideIsInertWhenUserVariableIsNotSetOnRoot() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             // No --USER__lineHeight on :root → gate doesn't match → override inert →
             // publisher's 125% must win.
             webView.evalSync(typographyOverrideInjectionJs())
@@ -66,7 +58,7 @@ class TypographyOverrideWebViewTest {
 
     @Test
     fun overrideWinsWhenUserVariableIsSetOnRoot() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             // User customised line-spacing → Readium would write --USER__lineHeight on :root.
             // We simulate that here, then inject our override. Without the override the
             // publisher's #sbo-rt-content p { line-height: 125% } would still win because
@@ -89,7 +81,7 @@ class TypographyOverrideWebViewTest {
 
     @Test
     fun overrideWinsForJustifyText() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             webView.evalSync("document.documentElement.style.setProperty('--USER__textAlign', 'justify')")
             webView.evalSync(typographyOverrideInjectionJs())
             val textAlign = webView.evalSync(
@@ -101,7 +93,7 @@ class TypographyOverrideWebViewTest {
 
     @Test
     fun overrideIsInertForTextAlignWhenUserVariableIsNotSet() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             webView.evalSync(typographyOverrideInjectionJs())
             val textAlign = webView.evalSync(
                 "window.getComputedStyle(document.getElementById('target')).textAlign"
@@ -118,7 +110,7 @@ class TypographyOverrideWebViewTest {
     // an explicit --RS__pageGutter on :root so the calc has a concrete value.
     @Test
     fun marginsOverrideAppliesVerticalPaddingToRootWhenUserVariableIsSet() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             webView.evalSync("document.documentElement.style.setProperty('--RS__pageGutter', '20px')")
             webView.evalSync("document.documentElement.style.setProperty('--USER__pageMargins', '2')")
             webView.evalSync(typographyOverrideInjectionJs())
@@ -139,7 +131,7 @@ class TypographyOverrideWebViewTest {
 
     @Test
     fun marginsOverrideIsInertWhenUserVariableIsNotSet() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             webView.evalSync("document.documentElement.style.setProperty('--RS__pageGutter', '20px')")
             webView.evalSync(typographyOverrideInjectionJs())
             // No --USER__pageMargins → gate doesn't match → :root padding stays at fixture default (0).
@@ -152,7 +144,7 @@ class TypographyOverrideWebViewTest {
 
     @Test
     fun repeatedInjectionDoesNotAccumulateStyleElements() {
-        withFixture(hostileSboFixture) { webView ->
+        withWebViewFixture(hostileSboFixture) { webView ->
             repeat(5) { webView.evalSync(typographyOverrideInjectionJs()) }
             val count = webView.evalSync(
                 "document.querySelectorAll('#riffle-typography-override').length.toString()"
@@ -162,47 +154,6 @@ class TypographyOverrideWebViewTest {
     }
 
     // ---- helpers ----
-
-    private fun withFixture(html: String, block: (WebView) -> Unit) {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val ready = CountDownLatch(1)
-        val webViewHolder = arrayOfNulls<WebView>(1)
-        instrumentation.runOnMainSync {
-            val webView = WebView(context).also {
-                it.settings.javaScriptEnabled = true
-                it.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        ready.countDown()
-                    }
-                }
-            }
-            webViewHolder[0] = webView
-            webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-        }
-        assertTrue("Fixture page did not finish loading", ready.await(10, TimeUnit.SECONDS))
-        val webView = webViewHolder[0]!!
-        try {
-            block(webView)
-        } finally {
-            instrumentation.runOnMainSync { webView.destroy() }
-        }
-    }
-
-    private fun WebView.evalSync(script: String): String {
-        val latch = CountDownLatch(1)
-        val result = arrayOfNulls<String>(1)
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            evaluateJavascript(script) { value ->
-                result[0] = value
-                latch.countDown()
-            }
-        }
-        assertTrue("evaluateJavascript timed out for: $script", latch.await(5, TimeUnit.SECONDS))
-        val value = result[0]
-        assertNotNull("evaluateJavascript returned null for: $script", value)
-        return value!!
-    }
 
     // `getComputedStyle().lineHeight` returns either a px string or "normal" — we never want
     // "normal" in these tests (the fixture sets explicit values), so parse the px number.

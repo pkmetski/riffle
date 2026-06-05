@@ -22,21 +22,22 @@ class FragmentConfigurationMapperTest {
     }
 
     @Test
-    fun doublePageInPortraitReflowableUsesDefaultColumns() {
+    fun doublePageInPortraitReflowablePinsSingleColumn() {
+        // Double-page only triggers two columns in landscape; portrait stays single-column.
         val result = FormattingPreferences(doublePageSpread = true).toFragmentConfiguration(
             isLandscape = false,
             isFixedLayout = false,
         )
-        assertEquals(null, result.readiumCssRsProperties.colCount)
+        assertEquals(ColCount.ONE, result.readiumCssRsProperties.colCount)
     }
 
     @Test
-    fun doublePageOffInLandscapeReflowableUsesDefaultColumns() {
+    fun doublePageOffInLandscapeReflowablePinsSingleColumn() {
         val result = FormattingPreferences(doublePageSpread = false).toFragmentConfiguration(
             isLandscape = true,
             isFixedLayout = false,
         )
-        assertEquals(null, result.readiumCssRsProperties.colCount)
+        assertEquals(ColCount.ONE, result.readiumCssRsProperties.colCount)
     }
 
     @Test
