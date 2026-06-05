@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
@@ -106,6 +107,7 @@ private fun IsolatedRailForTest(
         segments = listOf(RailSegment(title = "Chapter 1", href = "ch1.xhtml")),
         activeIndex = 0,
         cursorPosition = cursor,
+        readerTheme = ReaderTheme.Light,
         onSegmentClick = {},
         modifier = modifier,
     )

@@ -520,6 +520,7 @@ private fun EpubChapterRailOverlay(
                     segments = railSegments,
                     activeIndex = activeRailSegmentIndex,
                     cursorPosition = cursorPosition,
+                    readerTheme = readerTheme,
                     onSegmentClick = viewModel::navigateToSegment,
                 )
             }
