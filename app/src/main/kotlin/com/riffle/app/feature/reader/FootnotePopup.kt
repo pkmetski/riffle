@@ -25,6 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -65,8 +70,29 @@ fun FootnotePopup(
             shadowElevation = 8.dp,
         ) {
             Box {
+                val linkColor = MaterialTheme.colorScheme.primary
+                val annotated = remember(state.content, linkColor) {
+                    buildAnnotatedString {
+                        append(state.content.text)
+                        state.content.links.forEach { link ->
+                            addLink(
+                                LinkAnnotation.Url(
+                                    link.url,
+                                    TextLinkStyles(
+                                        SpanStyle(
+                                            color = linkColor,
+                                            textDecoration = TextDecoration.Underline,
+                                        ),
+                                    ),
+                                ),
+                                link.start,
+                                link.end,
+                            )
+                        }
+                    }
+                }
                 Text(
-                    text = state.content,
+                    text = annotated,
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
                     modifier = Modifier
                         .padding(start = 16.dp, top = 16.dp, end = 48.dp, bottom = 16.dp)
