@@ -306,7 +306,13 @@ fun EpubReaderScreen(
                         TocPanel(
                             entries = tocEntries,
                             activeHref = locatorHref,
-                            onEntryClick = viewModel::navigateToEntry,
+                            // Jumping to a location is a "start reading there" intent, so drop
+                            // straight into immersive mode (system bars + TopAppBar hidden) the
+                            // same way opening the book does.
+                            onEntryClick = { entry ->
+                                viewModel.navigateToEntry(entry)
+                                immersiveState.hide()
+                            },
                             onDismiss = viewModel::closeToc,
                         )
                     }
@@ -618,6 +624,11 @@ private val sharedEpubNavigatorConfig by lazy { EpubNavigatorFactory.Configurati
 
 private const val BOUNDARY_POLL_INTERVAL_MS = 120L
 
+// How long to keep the navigation cover up after go()+snap, so the WebView paints the snapped
+// target underneath before the cover lifts (otherwise the cover could reveal a pre-snap frame —
+// the exact jump it exists to hide). A couple of frames is enough.
+private const val NAV_COVER_SETTLE_MS = 100L
+
 /**
  * Builds a Readium [Locator] from a readaloud fragment ref — "href#fragId", or a bare "href" when
  * the ref carries no fragment. The cssSelector targets the fragment id so Readium's EPUB decorator
@@ -699,6 +710,11 @@ private fun EpubNavigatorView(
     val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
+    // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
+    // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
+    // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
+    // masking the transition hides all of that so the jump looks instantaneous.
+    var navigating by remember { mutableStateOf(false) }
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
@@ -864,43 +880,101 @@ private fun EpubNavigatorView(
                     fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
                     fragment.evaluateJavascript(typographyOverrideInjectionJs())
                     fragment.evaluateJavascript(FootnoteAnchorBridge.INSTALL_SCRIPT)
+                    // NOTE: do NOT snap to the column grid here. The typography injection above
+                    // reflows the page asynchronously, so a snap at this point rounds a pre-reflow
+                    // position and lands close-but-not-exact. The post-go() snap in the navigation
+                    // handlers runs after the reflow has settled and is the authoritative one.
                 }
             }
         }
     }
 
     // Tap on an in-document anchor inside the WebView → look up the target in
-    // the cached spine doc; if it's a footnote, show the popup and tell JS to
-    // preventDefault. Otherwise return false and let the WebView scroll.
+    // the cached spine doc. A footnote shows the popup; a regular cross-
+    // reference ("Figure 4.1") scrolls to the target's column boundary so the
+    // figure lands snapped on the page grid instead of the WebView's default
+    // same-document scroll leaving the page split mid-column. In both cases we
+    // preventDefault (return true). Only an unresolved target (cache cold / id
+    // absent) falls through to the default scroll.
+    //
+    // We scroll via JS rather than go(): go(cssSelector) lands flush to the
+    // element's box (a little inside its column → next-column sliver), go-by-
+    // progression is imprecise, and goForward/goBackward report success without
+    // moving on Readium 3.3.0. A direct scrollLeft snap holds because the reader
+    // is sized so innerWidth == Readium's page-snap pitch (see readerWidthDp).
     DisposableEffect(Unit) {
         FootnoteAnchorBridge.setHandler { fragmentId ->
-            val text = FootnoteResolver.resolveAnchorTap(
-                currentHrefHolder[0], footnoteDocCache, fragmentId,
-            ) ?: return@setHandler false
-            // Called from the JS binder thread; hop to main for Compose state.
-            coroutineScope.launch(Dispatchers.Main) {
-                currentOnFootnoteTapped(text)
+            when (
+                val target = FootnoteResolver.classifyAnchorTap(
+                    currentHrefHolder[0], footnoteDocCache, fragmentId,
+                )
+            ) {
+                is FootnoteResolver.AnchorTarget.Footnote -> {
+                    // Called from the JS binder thread; hop to main for Compose state.
+                    coroutineScope.launch(Dispatchers.Main) {
+                        currentOnFootnoteTapped(target.text)
+                    }
+                    true
+                }
+                FootnoteResolver.AnchorTarget.CrossReference -> {
+                    coroutineScope.launch(Dispatchers.Main) {
+                        fragmentRef.value?.evaluateJavascript(scrollToColumnJs(fragmentId))
+                    }
+                    true
+                }
+                FootnoteResolver.AnchorTarget.Unresolved -> false
             }
-            true
         }
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
     LaunchedEffect(onNavigationEvents) {
         onNavigationEvents.collect { link ->
-            fragmentRef.value?.go(link)
+            val fragment = fragmentRef.value ?: return@collect
+            // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
+            // is instant and needs no mask.
+            val cover = link.href.toString().substringBefore('#') !=
+                currentHrefHolder[0]?.substringBefore('#')
+            navigating = cover
+            try {
+                fragment.go(link)
+                // For a cross-resource jump, wait for the new chapter's typography reflow to settle
+                // (under the cover) BEFORE snapping, so we round the final position, not a transient.
+                if (cover) delay(NAV_COVER_SETTLE_MS)
+                fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
+            } finally {
+                navigating = false
+            }
         }
     }
 
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
-            fragmentRef.value?.go(locator)
+            // Background position sync (peer/resume): snap but never cover — a cover here would
+            // flash unexpectedly mid-reading. Still wait for the new chapter's reflow on a
+            // cross-resource jump so we round the settled position, not a pre-reflow transient.
+            val fragment = fragmentRef.value ?: return@collect
+            val crossResource = locator.href.toString().substringBefore('#') !=
+                currentHrefHolder[0]?.substringBefore('#')
+            fragment.go(locator)
+            if (crossResource) delay(NAV_COVER_SETTLE_MS)
+            fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
         }
     }
 
     LaunchedEffect(searchNavigationEvents) {
         searchNavigationEvents.collect { locator ->
-            fragmentRef.value?.go(locator)
+            val fragment = fragmentRef.value ?: return@collect
+            val cover = locator.href.toString().substringBefore('#') !=
+                currentHrefHolder[0]?.substringBefore('#')
+            navigating = cover
+            try {
+                fragment.go(locator)
+                if (cover) delay(NAV_COVER_SETTLE_MS)
+                fragment.evaluateJavascript(SNAP_NEAREST_COLUMN_JS)
+            } finally {
+                navigating = false
+            }
         }
     }
 
@@ -1314,6 +1388,18 @@ private fun EpubNavigatorView(
                 ),
         ) {
             PullChip(forward = pullForward, progress = pullProgress)
+        }
+        // Masks the load/snap transition during a cross-resource jump. Drawn last so it sits above
+        // the reader; the page colour makes it read as a brief blank rather than a flash of the
+        // wrong page.
+        if (navigating) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(formattingPrefs.theme.palette.background)
+                    .testTag("reader_nav_cover")
+                    .semantics { contentDescription = "Loading" },
+            )
         }
     }
 }
