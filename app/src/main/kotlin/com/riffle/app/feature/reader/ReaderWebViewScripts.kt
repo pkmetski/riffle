@@ -129,14 +129,43 @@ internal fun scrollToColumnJs(fragmentId: String): String =
         "var abs=el.getBoundingClientRect().left+se.scrollLeft;" +
         "se.scrollLeft=Math.floor(abs/iw)*iw;})()"
 
-// Snaps the CURRENT scroll position to the nearest column boundary. Run after a go()-based jump
-// (TOC/search/resume): Readium positions those flush to the target element, a gutter inside its
-// column, so the page lands off the grid (leading text clipped). Rounds rather than floors because
-// go() can leave the viewport just shy of the next column. A no-op for an already-aligned page, so
-// it never disturbs a normal page turn. Holds for the same reason as [scrollToColumnJs].
-internal val SNAP_NEAREST_COLUMN_JS: String =
-    "(function(){var se=document.scrollingElement;var iw=window.innerWidth;" +
-        "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;})()"
+// Lands a go()-based jump (TOC/search/resume) on the column grid, and KEEPS it there until the
+// freshly-loaded chapter's typography reflow settles. Run once after go().
+//
+// Why this isn't a one-shot round-to-nearest: on a cross-resource jump the new chapter loads, then
+// the injected typography override (see onPageLoaded) reflows it ASYNCHRONOUSLY — growing
+// scrollWidth and pushing the target into a different column a few hundred ms later. A fixed-delay
+// snap that rounds the current scroll position locks onto the PRE-reflow column and never corrects,
+// leaving the page a page or more before/after the target (the "TOC is hit-and-miss" bug). Instead
+// we drive a requestAnimationFrame loop that, every frame, re-locates the target by its [fragmentId]
+// and FLOORS scrollLeft to the column the target currently occupies — so it tracks the target as the
+// reflow moves it — and stops only once scrollWidth has held steady for a few frames (reflow done) or
+// a safety cap elapses. Anchoring to the element (not the current scroll) also makes it robust to
+// where exactly go() landed. Same floor-to-grid math and innerWidth==page-pitch assumption as
+// [scrollToColumnJs] (see [alignedReaderWidthDp]).
+//
+// [fragmentId] is the target's element id (a TOC/search locator fragment). When null/empty the jump
+// targets a resource start, so we floor to column 0. If the id can't be found (e.g. Readium stripped
+// the element) we fall back to rounding the current position — best-effort alignment without yanking
+// the page to the top.
+internal fun snapToTargetColumnJs(fragmentId: String?): String {
+    val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
+    return "(function(){var id=$idLiteral;" +
+        "var se=document.scrollingElement;" +
+        "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
+        "var lastW=-1,stable=0,frames=0;" +
+        "function snap(){var iw=window.innerWidth;" +
+        "if(id){var el=document.getElementById(id);" +
+        "if(el){se.scrollLeft=Math.floor((el.getBoundingClientRect().left+se.scrollLeft)/iw)*iw;}" +
+        "else{se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;}}" +
+        "else{se.scrollLeft=0;}}" +
+        "function tick(){if(gen!==window.__riffleSnapGen)return;" + // a newer jump superseded us
+        "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
+        "snap();" +
+        "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" + // settled, or ~1.2s safety cap
+        "requestAnimationFrame(tick);}" +
+        "tick();})()"
+}
 
 /**
  * Finds the first narrated sentence visible on the current page. [highlights] are the sentence texts

@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,14 +23,34 @@ class ReaderWebViewScriptsTest {
         assertTrue(scrollToColumnJs("ftn.ch01fn01").contains("getElementById(\"ftn.ch01fn01\")"))
     }
 
-    // SNAP_NEAREST_COLUMN_JS rounds the current scroll position to the nearest column — for after a
-    // go()-based TOC/search jump. It must NOT depend on a specific element.
+    // snapToTargetColumnJs anchors a go()-based TOC/search jump to the column the TARGET occupies,
+    // re-applying it across the async typography reflow until scrollWidth settles — the fix for the
+    // "TOC lands a page before/after" bug where a one-shot snap locked onto the pre-reflow column.
     @Test
-    fun `SNAP_NEAREST_COLUMN_JS rounds the current scroll to the nearest column`() {
-        val js = SNAP_NEAREST_COLUMN_JS
-        assertTrue("rounds to the nearest column", js.contains("Math.round(se.scrollLeft/iw)*iw"))
+    fun `snapToTargetColumnJs floors to the target's column and waits for reflow to settle`() {
+        val js = snapToTargetColumnJs("creating_a_summary")
+        assertTrue("captures the target id", js.contains("var id=\"creating_a_summary\""))
+        assertTrue("looks up the target by id", js.contains("getElementById(id)"))
+        assertTrue("FLOORS to the target's column", js.contains("Math.floor(("))
         assertTrue("reads the live column pitch", js.contains("window.innerWidth"))
-        assertTrue("operates on the scroll container", js.contains("document.scrollingElement"))
-        assertFalse("must not target a specific element", js.contains("getElementById"))
+        assertTrue("re-applies across frames", js.contains("requestAnimationFrame"))
+        assertTrue("waits for scrollWidth to hold steady", js.contains("scrollWidth"))
+        assertTrue("bounded by a safety cap", js.contains("frames++>72"))
+        assertTrue("a newer jump supersedes it", js.contains("__riffleSnapGen"))
+    }
+
+    // A bare-href jump (no fragment) targets the resource start, so it floors to column 0 rather than
+    // hunting for an element id.
+    @Test
+    fun `snapToTargetColumnJs targets the resource start when there is no fragment`() {
+        val js = snapToTargetColumnJs(null)
+        assertTrue("id is null", js.contains("var id=null"))
+        assertTrue("snaps to column 0", js.contains("se.scrollLeft=0"))
+    }
+
+    // Dotted ids (O'Reilly-style "ftn.ch01fn01") must survive verbatim so getElementById matches them.
+    @Test
+    fun `snapToTargetColumnJs preserves dotted ids verbatim`() {
+        assertTrue(snapToTargetColumnJs("ftn.ch01fn01").contains("var id=\"ftn.ch01fn01\""))
     }
 }
