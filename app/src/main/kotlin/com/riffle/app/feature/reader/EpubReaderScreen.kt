@@ -904,6 +904,16 @@ private fun EpubNavigatorView(
     // highlight and auto-follow must re-run against the new layout.
     val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs to readaloudReservePx)
 
+    // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
+    // that reflowGeneration's timer heuristic only approximates — and the only one available after a
+    // device rotation, which recreates the Activity (no android:configChanges) and therefore the whole
+    // Compose tree: reflowGeneration resets to 0 and its first-composition skip means it never bumps,
+    // and the freshly-created fragment applies its initial decorations *before* onPageLoaded fires
+    // (proven on device), positioning them against an unsettled layout. The decoration effects key on
+    // this so they re-apply once the page has actually loaded. Page turns during normal reading also
+    // bump it; the re-applies are idempotent (same decoration id + locator), so that's harmless.
+    val pageLoadGeneration = remember { mutableStateOf(0) }
+
     // Injects, into each newly loaded reflowable page: the ClientRect.toJSON polyfill (see
     // RECT_TO_JSON_POLYFILL_JS), the selection-span tracker (SELECTION_SPAN_TRACKER_JS), the targeted
     // typography overrides (see TypographyOverride.kt), and the footnote-anchor install script. All are
@@ -913,6 +923,7 @@ private fun EpubNavigatorView(
     val paginationListener = remember {
         object : EpubNavigatorFragment.PaginationListener {
             override fun onPageLoaded() {
+                pageLoadGeneration.value += 1
                 val fragment = fragmentRef.value ?: return
                 coroutineScope.launch {
                     fragment.evaluateJavascript(RECT_TO_JSON_POLYFILL_JS)
@@ -1096,7 +1107,7 @@ private fun EpubNavigatorView(
     // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef, reflowGeneration, sentenceQuotes) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -1118,7 +1129,15 @@ private fun EpubNavigatorView(
                 isActive = false,
             ),
         )
+        // Clear the group before re-applying. After the fragment is recreated (rotation) or its page
+        // reloads, Readium's decoration controller for the new WebView loses track of the previously
+        // injected element, so applyDecorations([new]) ADDS without removing the old one and the
+        // highlights accumulate — the previous sentence stays lit while the current one plays. An
+        // empty apply runs the JS group's clear() (it removes the whole decoration container element),
+        // so the subsequent apply always leaves exactly one highlight. The two calls execute back to
+        // back on the main thread, so there is no visible gap on a normal sentence advance.
         withContext(Dispatchers.Main) {
+            fragment.applyDecorations(emptyList(), group = "readaloud")
             fragment.applyDecorations(listOf(decoration), group = "readaloud")
         }
         hasReadaloudDecoration.value = true
@@ -1129,7 +1148,7 @@ private fun EpubNavigatorView(
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of
     // every highlight when the book is reopened, and the immediate paint after a new highlight.
     val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, reflowGeneration) {
+    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         if (highlightRenders.isEmpty()) {
             if (!hasHighlightDecorations.value) return@LaunchedEffect
