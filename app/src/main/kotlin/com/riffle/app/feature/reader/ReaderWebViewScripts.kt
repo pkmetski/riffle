@@ -81,8 +81,8 @@ internal val SELECTION_SPAN_TRACKER_JS = """
  *    drifted between two columns, nor follows promptly when a sentence starts just past the edge.
  *    Snapping scrollLeft to floor(x / innerWidth) * innerWidth lands on the clean page grid every
  *    sentence. This holds because the reader is sized so innerWidth == Readium's page-snap pitch (see
- *    [alignedReaderWidthDp]), so the boundary we pick is exactly where Readium would rest anyway. This
- *    mirrors the navigation-path column snap (scrollToColumnJs) but locates by text, not span id.
+ *    [alignedReaderWidthDp]), so the boundary we pick is exactly where Readium would rest anyway —
+ *    here we locate the sentence by text (the span id is stripped) rather than by element.
  *
  * Returns "off" only when the text isn't on the current resource (sentence in another chapter) → the
  * Kotlin side's go() jumps chapters, as before.

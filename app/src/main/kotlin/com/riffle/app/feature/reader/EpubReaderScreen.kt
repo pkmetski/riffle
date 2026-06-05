@@ -1011,7 +1011,7 @@ private fun EpubNavigatorView(
     //    visibility: a go()-based snap lands flush to the element's box (a sliver of the next column
     //    shows), and a tolerance gate never re-aligns a page that's already drifted between columns.
     //    The snap holds because the reader is sized so innerWidth == Readium's page-snap pitch
-    //    ([alignedReaderWidthDp]) — the same column-snap the navigation path uses (scrollToColumnJs).
+    //    ([alignedReaderWidthDp]), so floor(x / innerWidth) * innerWidth is exactly a column boundary.
     //
     // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
