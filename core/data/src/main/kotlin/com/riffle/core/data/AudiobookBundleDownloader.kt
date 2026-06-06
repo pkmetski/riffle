@@ -63,7 +63,9 @@ class AudiobookBundleDownloader(
                                     if (n == -1) break
                                     sink.write(buffer, 0, n)
                                     written += n
-                                    onProgress(written, if (total > 0) total else written)
+                                    // Pass total verbatim — -1 when the server sent no length, so the
+                                    // UI shows an indeterminate spinner rather than a misleading 100%.
+                                    onProgress(written, total)
                                 }
                             }
                         }

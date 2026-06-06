@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
+import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
@@ -42,7 +43,7 @@ class EpubRepositoryTest {
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePositionStore
-    private lateinit var repo: EpubRepositoryImpl
+    private lateinit var repo: EpubRepository
 
     private val epubBytes = "PK fake epub content".toByteArray()
 

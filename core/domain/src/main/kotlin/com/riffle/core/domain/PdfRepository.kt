@@ -16,7 +16,10 @@ sealed class PdfDownloadResult {
 
 interface PdfRepository {
     suspend fun openPdf(item: LibraryItem): PdfOpenResult
-    suspend fun downloadPdf(item: LibraryItem): PdfDownloadResult
+    suspend fun downloadPdf(
+        item: LibraryItem,
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
+    ): PdfDownloadResult
     suspend fun removeDownload(serverId: String, itemId: String)
     fun isDownloaded(serverId: String, itemId: String): Boolean
     fun isCached(serverId: String, itemId: String): Boolean

@@ -141,7 +141,7 @@ class LibraryItemDetailViewModelTest {
     ) : EpubRepository {
         private var downloaded = initialDownloaded
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = throw UnsupportedOperationException()
-        override suspend fun downloadEpub(item: LibraryItem): EpubDownloadResult {
+        override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): EpubDownloadResult {
             if (downloadResult is EpubDownloadResult.Success) downloaded = true
             return downloadResult
         }
@@ -159,7 +159,7 @@ class LibraryItemDetailViewModelTest {
     private class FakePdfRepository : PdfRepository {
         private var downloaded = false
         override suspend fun openPdf(item: LibraryItem): PdfOpenResult = throw UnsupportedOperationException()
-        override suspend fun downloadPdf(item: LibraryItem): PdfDownloadResult {
+        override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): PdfDownloadResult {
             downloaded = true
             return PdfDownloadResult.Success
         }
