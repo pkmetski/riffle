@@ -122,8 +122,40 @@ into the unchanged planner on first Play.
   `Resume` when the current page matches the close page, and `PageTop` when it differs
   (the page-8 scenario). Phone-form-factor harness test via `make harness-test`.
 
+## Composition with `readaloud-progress-sync`
+
+The `pkmetski/readaloud-progress-sync` branch routes readaloud progress to the matched
+ABS items (ebook CFI → ebook item, audiobook `currentTime` → audiobook item) and, via
+three-peer sync, restores a **canonical reading position** that now folds in audiobook
+listening. The two features are orthogonal and compose at **different granularities**:
+
+- progress-sync restores the canonical position resolved to a CFI → a **page**;
+- this feature refines that to the **exact narrated sentence** only when the first Play
+  lands back on that same page.
+
+They compose through the planner's existing **"current page wins"** rule: the seeded
+local close-state is compared against the *live* restored locator. If the canonical
+position (e.g. audiobook listened ahead on another device) restored the reader to a
+different page, `PageTop` wins and the stale local sentence is ignored — no special
+casing. The audiobook clock cannot provide sentence precision regardless: the ABS
+audiobook is a different recording than the Storyteller readaloud bundle, so its
+`currentTime` maps to a page (via CFI), never to a Storyteller SMIL clip. No
+timestamp-recency guard is added — a millisecond-level `localUpdatedAt` comparison
+against the reading position would be fragile and break the base case; the page-level
+tiebreaker is the robust integration point. The same-page residual (audiobook advanced
+*within* the restored page since the local stop → resume rewinds a few seconds) is
+accepted as negligible.
+
+**Migration version coordination.** Both branches independently introduced a
+`MIGRATION_26_27` / `@Database(version = 27)` / `27.json`. This branch (implemented and
+merged first) **owns 26 → 27** (creates `readaloud_resume_positions`).
+`readaloud-progress-sync` must renumber its `hasAudio` change to **27 → 28** when it
+lands. The two are independent schema changes (new table vs new column), so sequential
+migrations suffice; no merge of the migrations themselves.
+
 ## Out of scope
 
 - Server-side sync of readaloud position (intentionally device-local).
 - Changing the planner's same-page/different-page logic.
 - Autoplay on re-entry.
+- A timestamp-recency guard against the canonical position (see Composition above).
