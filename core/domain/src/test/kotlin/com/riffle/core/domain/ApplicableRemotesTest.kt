@@ -12,7 +12,8 @@ class ApplicableRemotesTest {
     fun `an unmatched book syncs ABS ebook only`() {
         val state = BookSyncState(
             isMatched = false,
-            confirmedAbsLinkCount = 0,
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = false,
             prerequisitesCached = false,
         )
 
@@ -20,26 +21,51 @@ class ApplicableRemotesTest {
     }
 
     @Test
-    fun `a matched book with one ABS link and cached prerequisites runs three-peer`() {
-        val state = BookSyncState(isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = true)
+    fun `a matched book with both an ebook and an audio target runs all three peers`() {
+        val state = BookSyncState(
+            isMatched = true,
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = true,
+            prerequisitesCached = true,
+        )
 
         assertEquals(setOf(ABS_EBOOK, ABS_AUDIO, STORYTELLER), applicableRemotes(state))
     }
 
     @Test
-    fun `the multi-link guard excludes Storyteller and degrades to a two-peer ABS cycle`() {
+    fun `a matched book with no matched audio item omits the ABS audio remote`() {
         val state = BookSyncState(
             isMatched = true,
-            confirmedAbsLinkCount = 2,
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = false,
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO), applicableRemotes(state))
+        assertEquals(setOf(ABS_EBOOK, STORYTELLER), applicableRemotes(state))
+    }
+
+    @Test
+    fun `a split-library match still syncs Storyteller alongside both ABS items`() {
+        // Ebook item and audiobook item are distinct ABS items (separate libraries). They are the
+        // same logical book's two media, not two users sharing a position, so Storyteller stays in.
+        val state = BookSyncState(
+            isMatched = true,
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = true,
+            prerequisitesCached = true,
+        )
+
+        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO, STORYTELLER), applicableRemotes(state))
     }
 
     @Test
     fun `a matched book without cached prerequisites falls back to ABS ebook only`() {
-        val state = BookSyncState(isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = false)
+        val state = BookSyncState(
+            isMatched = true,
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = true,
+            prerequisitesCached = false,
+        )
 
         assertEquals(setOf(ABS_EBOOK), applicableRemotes(state))
     }

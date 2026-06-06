@@ -174,6 +174,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     readingProgress = progress,
                     ebookFormat = EbookFormat.from(dto.media.ebookFormat),
                     ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                    hasAudio = dto.media.hasAudio,
                     description = dto.media.metadata.description,
                     seriesName = dto.media.metadata.seriesName,
                     publishedYear = dto.media.metadata.publishedYear,

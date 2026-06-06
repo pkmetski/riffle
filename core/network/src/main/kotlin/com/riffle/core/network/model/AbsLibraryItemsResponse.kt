@@ -20,7 +20,12 @@ internal data class AbsLibraryItemsResponse(val results: List<AbsLibraryItemDto>
         val metadata: AbsMetadataDto,
         val ebookFormat: String? = null,
         val ebookFile: AbsEbookFileDto? = null,
-    )
+        val numAudioFiles: Int? = null,
+        val numTracks: Int? = null,
+    ) {
+        /** True when the item carries any audio — distinguishes an audiobook (or combined) item from an ebook-only one. */
+        val hasAudio: Boolean get() = (numAudioFiles ?: 0) > 0 || (numTracks ?: 0) > 0
+    }
 
     @Serializable
     data class AbsEbookFileDto(

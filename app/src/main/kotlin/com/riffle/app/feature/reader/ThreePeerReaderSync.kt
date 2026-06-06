@@ -109,8 +109,9 @@ internal class StorytellerSyncRemote(
  * cycle. The canonical position is the displayed-EPUB Locator JSON; [runCycle] returns the
  * Locator JSON the reader should jump to, or `null` for no jump.
  *
- * Both ABS remotes target the same media-progress record (it carries ebookLocation and
- * currentTime together); a peer that can't be built (missing endpoint) is simply skipped.
+ * The ABS ebook and audiobook remotes target their own matched ABS Library Item — the same item
+ * when it is a combined ebook+audiobook, or two separate items when a library splits ebooks and
+ * audiobooks (ADR 0019). A peer that can't be built (missing endpoint) is simply skipped.
  */
 /**
  * @param jumpLocatorJson the displayed-EPUB Locator JSON to jump the reader to, or `null` for
@@ -123,14 +124,17 @@ class ThreePeerReaderSyncCoordinator(
     private val bridge: ReaderPositionBridge,
     private val absApi: AbsSessionApi,
     private val storytellerApi: StorytellerPositionApi,
-    private val absEndpoint: AbsSyncEndpoint?,
+    // The ABS ebook and audiobook remotes target their own matched Library Item: one combined item
+    // (same endpoint) or two separate items when a library splits ebooks and audiobooks (ADR 0019).
+    private val absEbookEndpoint: AbsSyncEndpoint?,
+    private val absAudioEndpoint: AbsSyncEndpoint?,
     private val storytellerEndpoint: StorytellerSyncEndpoint?,
 ) {
     suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long): ThreePeerReaderCycleResult {
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
-                RemoteKind.ABS_EBOOK -> absEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
-                RemoteKind.ABS_AUDIO -> absEndpoint?.let { AbsAudiobookSyncRemote(absApi, it, bridge) }
+                RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
+                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookSyncRemote(absApi, it, bridge) }
                 RemoteKind.STORYTELLER -> storytellerEndpoint?.let { StorytellerSyncRemote(storytellerApi, it, bridge, localUpdatedAt) }
             }
         }

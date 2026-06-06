@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AnnotationEntity::class,
         ReadaloudResumePositionEntity::class,
     ],
-    version = 28,
+    version = 29,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -579,6 +579,17 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_27_28 = object : Migration(27, 28) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `language` TEXT")
+            }
+        }
+
+        // 28 → 29: record whether an ABS Library Item carries audio (audiobook or combined item).
+        // A readaloud's audiobook `currentTime` progress must reach a matched item that actually
+        // has audio — which may be a different item than the ebook being read when a library keeps
+        // ebooks and audiobooks as separate items (ADR 0019). Defaults to 0 (false); every library
+        // sync refreshes it from ABS's `numAudioFiles`/`numTracks`.
+        val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `hasAudio` INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

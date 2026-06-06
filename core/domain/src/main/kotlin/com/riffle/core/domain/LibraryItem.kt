@@ -11,6 +11,9 @@ data class LibraryItem(
     val isDownloaded: Boolean,
     val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
+    // True when the ABS item carries audio (audiobook or combined item). Drives which matched
+    // ABS item receives audiobook `currentTime` progress for a readaloud (ADR 0019).
+    val hasAudio: Boolean = false,
     val description: String? = null,
     val seriesName: String? = null,
     val publishedYear: String? = null,
