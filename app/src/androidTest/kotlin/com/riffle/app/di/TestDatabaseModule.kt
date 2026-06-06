@@ -12,6 +12,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
+import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
@@ -68,6 +69,10 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideReadingPositionDao(db: RiffleDatabase): ReadingPositionDao = db.readingPositionDao()
+
+    @Provides
+    @Singleton
+    fun provideReadaloudResumePositionDao(db: RiffleDatabase): ReadaloudResumePositionDao = db.readaloudResumePositionDao()
 
     @Provides
     @Singleton

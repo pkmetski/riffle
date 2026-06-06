@@ -20,6 +20,7 @@ import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
+import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.ServerRepositoryImpl
@@ -42,6 +43,7 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudReviewRepository
+import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
@@ -180,6 +182,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindReadingPositionStore(impl: ReadingPositionStoreImpl): ReadingPositionStore
+
+    @Binds
+    @Singleton
+    abstract fun bindReadaloudResumeStore(impl: ReadaloudResumeStoreImpl): ReadaloudResumeStore
 
     @Binds
     @Singleton

@@ -11,6 +11,7 @@ import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
+import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
@@ -56,6 +57,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_23_24,
                 RiffleDatabase.MIGRATION_24_25,
                 RiffleDatabase.MIGRATION_25_26,
+                RiffleDatabase.MIGRATION_26_27,
             )
             .build()
 
@@ -82,6 +84,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideReadingPositionDao(db: RiffleDatabase): ReadingPositionDao = db.readingPositionDao()
+
+    @Provides
+    @Singleton
+    fun provideReadaloudResumePositionDao(db: RiffleDatabase): ReadaloudResumePositionDao = db.readaloudResumePositionDao()
 
     @Provides
     @Singleton
