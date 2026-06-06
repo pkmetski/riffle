@@ -260,6 +260,11 @@ class EpubReaderViewModel @Inject constructor(
     // For a matched ABS book this is the linked Storyteller Server; otherwise the active Server.
     private var audioServerId: String = ""
 
+    // The reader's active Server id, resolved once on open. Keys the readaloud resume position (reader
+    // space, like the reading position) for both the seed-on-open load and the save-on-close — using
+    // one captured id keeps the two symmetric and avoids a per-close getActive() DB read.
+    private var readerServerId: String? = null
+
     // Whether the bottom mini-player / sheet is showing.
     private val _readaloudOpen = MutableStateFlow(false)
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
@@ -358,14 +363,15 @@ class EpubReaderViewModel @Inject constructor(
             }
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
+            readerServerId = activeServer?.id
 
             // Restore the readaloud resume position persisted when the book was last left, so the
             // first Play this session continues where narration stopped (same page) or starts at the
             // top of the current page (different page) — the same decision an in-session reopen makes.
             // Keyed by the reader's (serverId, itemId); seeding closeLocator makes the planner treat
             // this as a reopen rather than a first-ever play.
-            if (activeServer != null) {
-                readaloudResumeStore.load(activeServer.id, itemId)?.let { saved ->
+            readerServerId?.let { serverId ->
+                readaloudResumeStore.load(serverId, itemId)?.let { saved ->
                     closeLocator = saved.toCloseLocator()
                     resumeFragmentRef = saved.fragmentRef
                 }
@@ -542,13 +548,14 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = false
         syncJob?.cancel()
         storytellerSyncJob?.cancel()
+        if (closeSyncDone) return
+        closeSyncDone = true
         // Leaving the book without first pressing X: persist the sentence narrating now so re-entry
         // resumes there. (Pressing X already persisted via closeReadaloud, which closes the player.)
+        // Below the closeSyncDone guard so the ON_STOP + onDispose pair doesn't double-write.
         if (_readaloudOpen.value) {
             persistReadaloudResumePosition(lastLocator, playerCoordinator.activeFragmentRef.value)
         }
-        if (closeSyncDone) return
-        closeSyncDone = true
         val locator = lastLocator ?: return
         viewModelScope.launch {
             val payload = locator.toPayload()
@@ -943,9 +950,9 @@ class EpubReaderViewModel @Inject constructor(
      */
     private fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?) {
         val href = locator?.href?.toString() ?: return
+        val serverId = readerServerId ?: return
         val progression = locator.locations.progression
         viewModelScope.launch {
-            val serverId = serverRepository.getActive()?.id ?: return@launch
             readaloudResumeStore.save(serverId, itemId, ReadaloudResumePosition(href, progression, fragmentRef))
         }
     }
