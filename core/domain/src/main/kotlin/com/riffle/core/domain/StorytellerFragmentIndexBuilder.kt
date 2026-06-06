@@ -23,17 +23,27 @@ object StorytellerFragmentIndexBuilder {
         // relative to it (e.g. "../text/part6.html#s0") while spine chapter hrefs are root-relative
         // ("text/part6.html"). Key by a path with "."/".." segments resolved so the forms match.
         val chapterIndexByHref = chapters.withIndex().associate { (i, c) -> resolvePath(c.href) to i }
-        val result = LinkedHashMap<String, ChapterProgression>()
+
+        // Group fragments by chapter so each chapter's HTML is parsed once, not once per clip — a
+        // readaloud has thousands of clips, and re-parsing per clip is pathologically slow.
+        val fragsByChapter = LinkedHashMap<Int, MutableList<Pair<String, String>>>() // chapter → (ref, elementId)
         for (clip in clips) {
             val ref = clip.textFragmentRef
             val hash = ref.indexOf('#')
             if (hash < 0) continue
-            val href = ref.substring(0, hash)
-            val elementId = ref.substring(hash + 1)
-            val chapterIndex = chapterIndexByHref[resolvePath(href)] ?: continue
-            val progression = EpubTextChars.progressionOfElementId(chapters[chapterIndex].html, elementId)
-                ?: continue
-            result[ref] = ChapterProgression(chapterIndex, progression)
+            val chapterIndex = chapterIndexByHref[resolvePath(ref.substring(0, hash))] ?: continue
+            fragsByChapter.getOrPut(chapterIndex) { mutableListOf() }.add(ref to ref.substring(hash + 1))
+        }
+
+        val result = LinkedHashMap<String, ChapterProgression>()
+        for ((chapterIndex, frags) in fragsByChapter) {
+            val progressions = EpubTextChars.progressionsOfElementIds(
+                chapters[chapterIndex].html, frags.mapTo(HashSet()) { it.second },
+            )
+            for ((ref, elementId) in frags) {
+                val progression = progressions[elementId] ?: continue
+                result[ref] = ChapterProgression(chapterIndex, progression)
+            }
         }
         return result
     }
