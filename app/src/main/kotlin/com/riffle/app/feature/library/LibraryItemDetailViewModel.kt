@@ -47,12 +47,21 @@ sealed interface LibraryItemDetailUiState {
 
 sealed interface DownloadState {
     data object NotDownloaded : DownloadState
-    data object InProgress : DownloadState
+    /** [percent] is 0..100 when the download advertises a size; null means indeterminate (spinner). */
+    data class InProgress(val percent: Int? = null) : DownloadState
     data object Downloaded : DownloadState
 }
 
 internal fun readaloudDownloadStateFor(bundlePresent: Boolean): DownloadState =
     if (bundlePresent) DownloadState.Downloaded else DownloadState.NotDownloaded
+
+/**
+ * Maps raw byte counts from a download into a 0..100 percentage for the progress ring, or null when
+ * the total size is unknown (the server sent no content length) so the UI shows an indeterminate
+ * spinner instead of a misleading number.
+ */
+internal fun downloadPercent(downloaded: Long, total: Long): Int? =
+    if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else null
 
 @HiltViewModel
 class LibraryItemDetailViewModel @Inject constructor(
@@ -205,16 +214,19 @@ class LibraryItemDetailViewModel @Inject constructor(
     }
 
     fun startDownload() {
-        if (_downloadState.value == DownloadState.InProgress) return
+        if (_downloadState.value is DownloadState.InProgress) return
         val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
-        _downloadState.value = DownloadState.InProgress
+        _downloadState.value = DownloadState.InProgress()
         viewModelScope.launch {
+            val onProgress: (Long, Long) -> Unit = { downloaded, total ->
+                _downloadState.value = DownloadState.InProgress(downloadPercent(downloaded, total))
+            }
             val newDownloadState = when (item.ebookFormat) {
-                EbookFormat.Epub -> when (epubRepository.downloadEpub(item)) {
+                EbookFormat.Epub -> when (epubRepository.downloadEpub(item, onProgress)) {
                     EpubDownloadResult.Success, EpubDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
                     is EpubDownloadResult.NetworkError -> DownloadState.NotDownloaded
                 }
-                EbookFormat.Pdf -> when (pdfRepository.downloadPdf(item)) {
+                EbookFormat.Pdf -> when (pdfRepository.downloadPdf(item, onProgress)) {
                     PdfDownloadResult.Success, PdfDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
                     is PdfDownloadResult.NetworkError -> DownloadState.NotDownloaded
                 }
@@ -242,12 +254,14 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     fun onDownloadReadaloud() {
         val link = readaloudLink ?: return
-        if (_readaloudDownloadState.value == DownloadState.InProgress) return
-        _readaloudDownloadState.value = DownloadState.InProgress
+        if (_readaloudDownloadState.value is DownloadState.InProgress) return
+        _readaloudDownloadState.value = DownloadState.InProgress()
         viewModelScope.launch {
             val result = readaloudAudioRepository.downloadAudio(
                 link.storytellerServerId, link.storytellerBookId,
-            ) { _, _ -> }
+            ) { downloaded, total ->
+                _readaloudDownloadState.value = DownloadState.InProgress(downloadPercent(downloaded, total))
+            }
             _readaloudDownloadState.value = readaloudDownloadStateFor(
                 result is com.riffle.core.domain.AudioDownloadResult.Success,
             )

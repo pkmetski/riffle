@@ -47,11 +47,17 @@ class EpubRepositoryImpl(
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
     }
 
-    override suspend fun downloadEpub(item: LibraryItem): EpubDownloadResult {
+    override suspend fun downloadEpub(
+        item: LibraryItem,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): EpubDownloadResult {
         if (downloadsStore.get(item.serverId, item.id) != null) return EpubDownloadResult.AlreadyDownloaded
         val cached = cacheStore.get(item.serverId, item.id)
         if (cached != null) {
-            cached.inputStream().use { downloadsStore.save(item.serverId, item.id, it) }
+            val size = cached.length()
+            cached.inputStream().use {
+                downloadsStore.save(item.serverId, item.id, ProgressReportingInputStream(it, size, onProgress))
+            }
             cacheStore.delete(item.serverId, item.id)
             return EpubDownloadResult.Success
         }
@@ -67,7 +73,10 @@ class EpubRepositoryImpl(
         }
         return when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
             is NetworkEpubDownloadResult.Success -> {
-                result.body.use { body -> downloadsStore.save(item.serverId, item.id, body.byteStream()) }
+                result.body.use { body ->
+                    val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
+                    downloadsStore.save(item.serverId, item.id, stream)
+                }
                 EpubDownloadResult.Success
             }
             is NetworkEpubDownloadResult.NetworkError -> EpubDownloadResult.NetworkError(result.cause)

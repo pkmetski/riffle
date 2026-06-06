@@ -51,11 +51,17 @@ class PdfRepositoryImpl(
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = lastPosition)
     }
 
-    override suspend fun downloadPdf(item: LibraryItem): PdfDownloadResult {
+    override suspend fun downloadPdf(
+        item: LibraryItem,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): PdfDownloadResult {
         if (downloadsStore.get(item.serverId, item.id) != null) return PdfDownloadResult.AlreadyDownloaded
         val cached = cacheStore.get(item.serverId, item.id)
         if (cached != null) {
-            cached.inputStream().use { downloadsStore.save(item.serverId, item.id, it) }
+            val size = cached.length()
+            cached.inputStream().use {
+                downloadsStore.save(item.serverId, item.id, ProgressReportingInputStream(it, size, onProgress))
+            }
             cacheStore.delete(item.serverId, item.id)
             return PdfDownloadResult.Success
         }
@@ -71,7 +77,10 @@ class PdfRepositoryImpl(
         }
         return when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
             is NetworkEpubDownloadResult.Success -> {
-                result.body.use { body -> downloadsStore.save(item.serverId, item.id, body.byteStream()) }
+                result.body.use { body ->
+                    val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
+                    downloadsStore.save(item.serverId, item.id, stream)
+                }
                 PdfDownloadResult.Success
             }
             is NetworkEpubDownloadResult.NetworkError -> PdfDownloadResult.NetworkError(result.cause)

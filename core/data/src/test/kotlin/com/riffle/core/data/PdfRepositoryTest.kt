@@ -4,6 +4,7 @@ import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
+import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
@@ -35,7 +36,7 @@ class PdfRepositoryTest {
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var downloadsStore: LocalStoreImpl
     private lateinit var positionStore: FakePdfPositionStore
-    private lateinit var repo: PdfRepositoryImpl
+    private lateinit var repo: PdfRepository
 
     private val pdfBytes = "%PDF-1.4 fake pdf content\n%%EOF".toByteArray()
 

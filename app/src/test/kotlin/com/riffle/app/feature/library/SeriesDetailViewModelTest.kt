@@ -93,7 +93,7 @@ class SeriesDetailViewModelTest {
 
     private class FakeEpubRepository : EpubRepository {
         override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
-        override suspend fun downloadEpub(item: LibraryItem) = EpubDownloadResult.Success
+        override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
         override suspend fun removeDownload(serverId: String, itemId: String) {}
         override fun isDownloaded(serverId: String, itemId: String): Boolean = false
         override fun isCached(serverId: String, itemId: String): Boolean = false
@@ -102,7 +102,7 @@ class SeriesDetailViewModelTest {
 
     private class FakePdfRepository : PdfRepository {
         override suspend fun openPdf(item: LibraryItem) = PdfOpenResult.Offline
-        override suspend fun downloadPdf(item: LibraryItem) = PdfDownloadResult.Success
+        override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit) = PdfDownloadResult.Success
         override suspend fun removeDownload(serverId: String, itemId: String) {}
         override fun isDownloaded(serverId: String, itemId: String): Boolean = false
         override fun isCached(serverId: String, itemId: String): Boolean = false
