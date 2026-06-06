@@ -150,4 +150,11 @@ class ThreePeerReaderSyncCoordinator(
         val jump = result.jumpTo?.value?.takeIf { it.isNotEmpty() }
         return ThreePeerReaderCycleResult(jump, result.canonicalLastUpdate)
     }
+
+    /**
+     * The canonical position for an audiobook time, so a playing readaloud can drive the cycle from
+     * the audio clock (ADR 0019) instead of the displayed page. Null when [seconds] maps to no clip
+     * (e.g. unnarrated front matter) or the SMIL/index can't translate it.
+     */
+    fun audioSecondsToCanonical(seconds: Double): String? = bridge.audioSecondsToCanonical(seconds)
 }
