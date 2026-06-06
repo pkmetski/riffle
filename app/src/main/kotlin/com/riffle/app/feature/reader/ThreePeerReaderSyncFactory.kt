@@ -48,7 +48,7 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
         val linkedMedia = allLinks.mapNotNull { l ->
             val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
-            AbsLinkMedia(l, isSupported = item.isSupported, hasAudio = item.hasAudio)
+            AbsLinkMedia(l, isSupported = item.isSupported, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)
         // The reader displays the ABS EPUB (ADR 0026): no matched ebook item ⇒ nothing to display
@@ -83,7 +83,10 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         )
 
         val absEbookEndpoint = absEndpointFor(ebookLink.absServerId, ebookLink.absLibraryItemId)
-        val absAudioEndpoint = targets.audio?.let { absEndpointFor(it.absServerId, it.absLibraryItemId) }
+        val absAudioEndpoint = targets.audio?.let { a ->
+            val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == a.absLibraryItemId }?.audioDurationSec ?: 0.0
+            absEndpointFor(a.absServerId, a.absLibraryItemId, durationSec)
+        }
 
         return ThreePeerReaderSyncCoordinator(
             state = BookSyncState(
@@ -103,10 +106,10 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         )
     }
 
-    private suspend fun absEndpointFor(serverId: String, itemId: String): AbsSyncEndpoint? {
+    private suspend fun absEndpointFor(serverId: String, itemId: String, durationSec: Double = 0.0): AbsSyncEndpoint? {
         val server = serverRepository.getById(serverId) ?: return null
         val token = tokenStorage.getToken(serverId) ?: return null
-        return AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId)
+        return AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId, durationSec)
     }
 
     private fun cachedFile(serverId: String, itemId: String): java.io.File? =

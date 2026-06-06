@@ -22,9 +22,12 @@ internal data class AbsLibraryItemsResponse(val results: List<AbsLibraryItemDto>
         val ebookFile: AbsEbookFileDto? = null,
         val numAudioFiles: Int? = null,
         val numTracks: Int? = null,
+        val duration: Double? = null,
     ) {
         /** True when the item carries any audio — distinguishes an audiobook (or combined) item from an ebook-only one. */
         val hasAudio: Boolean get() = (numAudioFiles ?: 0) > 0 || (numTracks ?: 0) > 0
+        /** Total audio length in seconds, needed so the ABS audiobook progress record reports a real percentage. */
+        val audioDurationSec: Double get() = duration ?: 0.0
     }
 
     @Serializable

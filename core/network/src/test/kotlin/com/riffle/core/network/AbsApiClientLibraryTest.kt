@@ -114,7 +114,7 @@ class AbsApiClientLibraryTest {
                 .setBody(
                     """{"results":[""" +
                     """{"id":"ebook","libraryId":"lib-1","media":{"metadata":{"title":"Ebook","authorName":"A"},"ebookFormat":"epub"}},""" +
-                    """{"id":"audio","libraryId":"lib-1","media":{"metadata":{"title":"Audiobook","authorName":"B"},"numAudioFiles":6}},""" +
+                    """{"id":"audio","libraryId":"lib-1","media":{"metadata":{"title":"Audiobook","authorName":"B"},"numAudioFiles":6,"duration":39214.5}},""" +
                     """{"id":"audio-tracks","libraryId":"lib-1","media":{"metadata":{"title":"Audiobook2","authorName":"C"},"numTracks":3}},""" +
                     """{"id":"combined","libraryId":"lib-1","media":{"metadata":{"title":"Both","authorName":"D"},"ebookFormat":"epub","numAudioFiles":2}}""" +
                     """]}"""
@@ -129,6 +129,8 @@ class AbsApiClientLibraryTest {
         assertTrue(items.getValue("audio").hasAudio)
         assertTrue(items.getValue("audio-tracks").hasAudio)
         assertTrue(items.getValue("combined").hasAudio)
+        assertEquals(39214.5, items.getValue("audio").audioDurationSec, 0.001)
+        assertEquals(0.0, items.getValue("ebook").audioDurationSec, 0.001)
     }
 
     @Test

@@ -14,6 +14,9 @@ data class LibraryItem(
     // True when the ABS item carries audio (audiobook or combined item). Drives which matched
     // ABS item receives audiobook `currentTime` progress for a readaloud (ADR 0019).
     val hasAudio: Boolean = false,
+    // Total audio length in seconds (0 when no audio). Sent with audiobook progress so ABS reports
+    // a real percentage rather than 0% on the first sync.
+    val audioDurationSec: Double = 0.0,
     val description: String? = null,
     val seriesName: String? = null,
     val publishedYear: String? = null,

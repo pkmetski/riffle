@@ -36,6 +36,33 @@ class StorytellerFragmentIndexBuilderTest {
     }
 
     @Test
+    fun `resolves SMIL refs written relative to the SMIL directory (dot-dot prefix)`() {
+        // Storyteller's SMIL files live in their own directory and reference the text files as
+        // "../text/...", while the spine chapter hrefs are root-relative "text/...". The builder
+        // must resolve the relative path so the fragment maps to its chapter.
+        val chapters = listOf(
+            EpubChapterHtml(
+                href = "text/part0006_split_001.html",
+                html = "<html><body><p id=\"id191-s0\">AAAA</p><p id=\"id191-s1\">BBBB</p></body></html>",
+            ),
+        )
+        val clips = listOf(
+            MediaOverlayClip("../text/part0006_split_001.html#id191-s0", "a.mp3", 0.0, 1.0),
+            MediaOverlayClip("../text/part0006_split_001.html#id191-s1", "a.mp3", 1.0, 2.0),
+        )
+
+        val map = StorytellerFragmentIndexBuilder.build(chapters, clips)
+
+        assertEquals(
+            mapOf(
+                "../text/part0006_split_001.html#id191-s0" to ChapterProgression(0, 0.0),
+                "../text/part0006_split_001.html#id191-s1" to ChapterProgression(0, 0.5),
+            ),
+            map,
+        )
+    }
+
+    @Test
     fun `skips fragments whose chapter or element cannot be resolved`() {
         val chapters = listOf(
             EpubChapterHtml("chapter1.xhtml", "<html><body><p id=\"sent1\">AAAA</p></body></html>"),

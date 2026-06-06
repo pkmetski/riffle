@@ -119,6 +119,30 @@ gating on `LibraryItemDetailScreen` are untouched.
   server this needs a title matched to both — manufacture the second link via the review
   UI / manual match if auto-matching links only one.)
 
+## Addendum — additional fixes found during on-device verification
+
+Routing alone did not make audiobook progress sync. On-device tracing (matched book opened,
+three-peer active) surfaced three further blockers, now fixed and verified end-to-end against
+the live ABS server (sentinel overwritten with a real position):
+
+1. **Audiobook never matched when its library is disabled.** If the ABS Audiobooks library
+   isn't enabled in Riffle, its items aren't synced, so they're not match candidates and there
+   is no audio target. (Configuration, not code — but the symptom of "not synced".) Once the
+   library is enabled and synced, the matcher links both the ebook and audiobook (two links).
+
+2. **`StorytellerFragmentIndexBuilder` produced an empty map** (`fragProg=0` despite 11k SMIL
+   clips), so `canonicalToAudioSeconds` always returned null and no PATCH was sent. Cause: SMIL
+   fragment refs are written relative to the SMIL directory (`../text/part6.html#s0`) while spine
+   chapter hrefs are root-relative (`text/part6.html`); the builder matched them with an exact
+   string compare. Fix: resolve `.`/`..` path segments on both sides before matching. This was a
+   dormant bug — the audio leg was never reachable before the routing fix.
+
+3. **Audiobook progress reported 0% / duration 0.** The progress GET returns duration 0 until a
+   record exists, so the first PATCH sent duration 0; ABS also stores the `progress` fraction as
+   sent rather than computing it. Fix: capture each item's audio duration (`media.duration`) via
+   the same sync path as `hasAudio` (folded into migration 26→27 as `audioDurationSec`), send it
+   on the audiobook endpoint, and compute `progress = currentTime/duration` in the request.
+
 ## Out of scope
 
 - Audio-led canonical position (ADR 0019 §"Audio-led canonical position") — driving the

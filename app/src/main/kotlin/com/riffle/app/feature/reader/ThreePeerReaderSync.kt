@@ -16,8 +16,12 @@ import com.riffle.core.network.NetworkStorytellerPutResult
 import com.riffle.core.network.NetworkSyncSessionResult
 import com.riffle.core.network.StorytellerPositionApi
 
-/** Resolved ABS endpoint for the single matched ABS Library Item (its media-progress record). */
-data class AbsSyncEndpoint(val baseUrl: String, val token: String, val insecure: Boolean, val itemId: String)
+/**
+ * Resolved ABS endpoint for a matched ABS Library Item (its media-progress record). [durationSec]
+ * is the item's total audio length, sent with audiobook progress so ABS reports a real percentage;
+ * 0 for the ebook endpoint.
+ */
+data class AbsSyncEndpoint(val baseUrl: String, val token: String, val insecure: Boolean, val itemId: String, val durationSec: Double = 0.0)
 
 /** Resolved Storyteller endpoint for the matched readaloud book. */
 data class StorytellerSyncEndpoint(val baseUrl: String, val token: String, val insecure: Boolean, val bookId: String)
@@ -71,7 +75,9 @@ internal class AbsAudiobookSyncRemote(
 
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
         val seconds = bridge.canonicalToAudioSeconds(canonical.value) ?: return false
-        val payload = NetworkAudiobookProgressPayload(seconds, lastDuration)
+        // Prefer the matched item's known duration; the progress GET's duration is 0 until a record exists.
+        val duration = ep.durationSec.takeIf { it > 0.0 } ?: lastDuration
+        val payload = NetworkAudiobookProgressPayload(seconds, duration)
         return api.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) is NetworkSyncSessionResult.Success
     }
 }

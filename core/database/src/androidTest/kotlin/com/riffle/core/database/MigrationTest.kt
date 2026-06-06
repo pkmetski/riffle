@@ -1202,23 +1202,25 @@ class MigrationTest {
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 29, true, RiffleDatabase.MIGRATION_28_29)
 
-        // New hasAudio column defaults to 0 (false) and pre-existing data is preserved.
-        db.query("SELECT hasAudio, title, readingProgress FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        // New hasAudio / audioDurationSec columns default to 0 and pre-existing data is preserved.
+        db.query("SELECT hasAudio, audioDurationSec, title, readingProgress FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals(0, cursor.getInt(0))
-            assertEquals("Foundation's Edge", cursor.getString(1))
-            assertEquals(0.25f, cursor.getFloat(2), 0.0001f)
+            assertEquals(0.0, cursor.getDouble(1), 0.0001)
+            assertEquals("Foundation's Edge", cursor.getString(2))
+            assertEquals(0.25f, cursor.getFloat(3), 0.0001f)
         }
 
-        // The column is writable as a real boolean flag.
+        // The columns are writable as a real audio flag + duration.
         db.execSQL(
-            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
-                "VALUES ('s1', '2', 'libA', 'Audiobook', 'Asimov', NULL, 0.0, 'unsupported', '', 1)"
+            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio, audioDurationSec) " +
+                "VALUES ('s1', '2', 'libA', 'Audiobook', 'Asimov', NULL, 0.0, 'unsupported', '', 1, 39214.5)"
         )
-        db.query("SELECT hasAudio FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
+        db.query("SELECT hasAudio, audioDurationSec FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(1, cursor.getInt(0))
+            assertEquals(39214.5, cursor.getDouble(1), 0.0001)
         }
     }
 

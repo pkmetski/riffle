@@ -19,7 +19,10 @@ object StorytellerFragmentIndexBuilder {
         chapters: List<EpubChapterHtml>,
         clips: List<MediaOverlayClip>,
     ): Map<String, ChapterProgression> {
-        val chapterIndexByHref = chapters.withIndex().associate { (i, c) -> c.href to i }
+        // Storyteller's SMIL files live in their own directory, so their fragment refs are written
+        // relative to it (e.g. "../text/part6.html#s0") while spine chapter hrefs are root-relative
+        // ("text/part6.html"). Key by a path with "."/".." segments resolved so the forms match.
+        val chapterIndexByHref = chapters.withIndex().associate { (i, c) -> resolvePath(c.href) to i }
         val result = LinkedHashMap<String, ChapterProgression>()
         for (clip in clips) {
             val ref = clip.textFragmentRef
@@ -27,11 +30,26 @@ object StorytellerFragmentIndexBuilder {
             if (hash < 0) continue
             val href = ref.substring(0, hash)
             val elementId = ref.substring(hash + 1)
-            val chapterIndex = chapterIndexByHref[href] ?: continue
+            val chapterIndex = chapterIndexByHref[resolvePath(href)] ?: continue
             val progression = EpubTextChars.progressionOfElementId(chapters[chapterIndex].html, elementId)
                 ?: continue
             result[ref] = ChapterProgression(chapterIndex, progression)
         }
         return result
+    }
+
+    /** Collapses "." and ".." segments in a relative EPUB href so a SMIL-relative ref and the
+     *  spine-relative chapter href for the same file compare equal. Leading ".." that would escape
+     *  the root are dropped (Storyteller SMIL sits one directory below the text it references). */
+    private fun resolvePath(href: String): String {
+        val out = ArrayDeque<String>()
+        for (segment in href.split('/')) {
+            when (segment) {
+                "", "." -> {}
+                ".." -> if (out.isNotEmpty()) out.removeLast()
+                else -> out.addLast(segment)
+            }
+        }
+        return out.joinToString("/")
     }
 }

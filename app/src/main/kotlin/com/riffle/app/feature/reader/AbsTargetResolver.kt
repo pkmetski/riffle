@@ -3,7 +3,12 @@ package com.riffle.app.feature.reader
 import com.riffle.core.domain.ReadaloudLink
 
 /** A readaloud's ABS link paired with the media its Library Item carries. */
-data class AbsLinkMedia(val link: ReadaloudLink, val isSupported: Boolean, val hasAudio: Boolean)
+data class AbsLinkMedia(
+    val link: ReadaloudLink,
+    val isSupported: Boolean,
+    val hasAudio: Boolean,
+    val audioDurationSec: Double = 0.0,
+)
 
 /** The matched ABS items a readaloud cycle pushes each progress kind to (either may be absent). */
 data class ResolvedAbsTargets(val ebook: ReadaloudLink?, val audio: ReadaloudLink?)

@@ -582,14 +582,16 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // 28 → 29: record whether an ABS Library Item carries audio (audiobook or combined item).
-        // A readaloud's audiobook `currentTime` progress must reach a matched item that actually
-        // has audio — which may be a different item than the ebook being read when a library keeps
-        // ebooks and audiobooks as separate items (ADR 0019). Defaults to 0 (false); every library
-        // sync refreshes it from ABS's `numAudioFiles`/`numTracks`.
+        // 28 → 29: record an ABS Library Item's audio so a readaloud's audiobook progress can reach
+        // it. `hasAudio` decides which matched item is the audio target — possibly a different item
+        // than the ebook being read when a library splits ebooks and audiobooks (ADR 0019).
+        // `audioDurationSec` is sent with the progress so ABS reports a real percentage, not 0%.
+        // Both default to 0 and are refreshed from ABS (`numAudioFiles`/`numTracks`, `duration`) on
+        // every library sync.
         val MIGRATION_28_29 = object : Migration(28, 29) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `hasAudio` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `audioDurationSec` REAL NOT NULL DEFAULT 0")
             }
         }
     }
