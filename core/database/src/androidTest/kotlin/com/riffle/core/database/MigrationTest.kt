@@ -1202,25 +1202,59 @@ class MigrationTest {
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 29, true, RiffleDatabase.MIGRATION_28_29)
 
-        // New hasAudio / audioDurationSec columns default to 0 and pre-existing data is preserved.
-        db.query("SELECT hasAudio, audioDurationSec, title, readingProgress FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        // New hasAudio column defaults to 0 and pre-existing data is preserved.
+        db.query("SELECT hasAudio, title, readingProgress FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals(0, cursor.getInt(0))
-            assertEquals(0.0, cursor.getDouble(1), 0.0001)
-            assertEquals("Foundation's Edge", cursor.getString(2))
-            assertEquals(0.25f, cursor.getFloat(3), 0.0001f)
+            assertEquals("Foundation's Edge", cursor.getString(1))
+            assertEquals(0.25f, cursor.getFloat(2), 0.0001f)
         }
 
-        // The columns are writable as a real audio flag + duration.
+        // The column is writable as a real audio flag.
+        db.execSQL(
+            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
+                "VALUES ('s1', '2', 'libA', 'Audiobook', 'Asimov', NULL, 0.0, 'unsupported', '', 1)"
+        )
+        db.query("SELECT hasAudio FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+    }
+
+    @Test
+    fun migration29To30_addsAudioDurationSecColumn() {
+        helper.createDatabase(TEST_DB, 29).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libA', 'Books', 'book', 's1', 0)")
+            db.execSQL(
+                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
+                    "VALUES ('s1', '1', 'libA', 'Foundation''s Edge', 'Asimov', NULL, 0.25, 'epub', '', 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 30, true, RiffleDatabase.MIGRATION_29_30)
+
+        // New audioDurationSec column defaults to 0; pre-existing data (incl. hasAudio) preserved.
+        db.query("SELECT audioDurationSec, hasAudio, title FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(0.0, cursor.getDouble(0), 0.0001)
+            assertEquals(0, cursor.getInt(1))
+            assertEquals("Foundation's Edge", cursor.getString(2))
+        }
+
+        // The column is writable as a real duration.
         db.execSQL(
             "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio, audioDurationSec) " +
                 "VALUES ('s1', '2', 'libA', 'Audiobook', 'Asimov', NULL, 0.0, 'unsupported', '', 1, 39214.5)"
         )
-        db.query("SELECT hasAudio, audioDurationSec FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
+        db.query("SELECT audioDurationSec FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
             cursor.moveToFirst()
-            assertEquals(1, cursor.getInt(0))
-            assertEquals(39214.5, cursor.getDouble(1), 0.0001)
+            assertEquals(39214.5, cursor.getDouble(0), 0.0001)
         }
     }
 
@@ -1233,7 +1267,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 29, true,
+            TEST_DB, 30, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1262,6 +1296,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_26_27,
             RiffleDatabase.MIGRATION_27_28,
             RiffleDatabase.MIGRATION_28_29,
+            RiffleDatabase.MIGRATION_29_30,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

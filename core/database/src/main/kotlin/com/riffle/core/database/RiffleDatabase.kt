@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AnnotationEntity::class,
         ReadaloudResumePositionEntity::class,
     ],
-    version = 29,
+    version = 30,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -582,15 +582,22 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // 28 → 29: record an ABS Library Item's audio so a readaloud's audiobook progress can reach
-        // it. `hasAudio` decides which matched item is the audio target — possibly a different item
-        // than the ebook being read when a library splits ebooks and audiobooks (ADR 0019).
-        // `audioDurationSec` is sent with the progress so ABS reports a real percentage, not 0%.
-        // Both default to 0 and are refreshed from ABS (`numAudioFiles`/`numTracks`, `duration`) on
-        // every library sync.
+        // 28 → 29: record whether an ABS Library Item carries audio. `hasAudio` decides which matched
+        // item is the audio target — possibly a different item than the ebook being read when a
+        // library splits ebooks and audiobooks (ADR 0019). Defaults to 0; refreshed from ABS
+        // (`numAudioFiles`/`numTracks`) on every library sync.
         val MIGRATION_28_29 = object : Migration(28, 29) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `hasAudio` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // 29 → 30: the matched audiobook's total length, sent with audiobook progress so ABS reports
+        // a real percentage rather than 0%. Defaults to 0; refreshed from ABS `duration` on every
+        // library sync. Separate from 28 → 29 so a device already at v29 (which only added hasAudio)
+        // upgrades cleanly instead of mismatching the schema.
+        val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `audioDurationSec` REAL NOT NULL DEFAULT 0")
             }
         }
