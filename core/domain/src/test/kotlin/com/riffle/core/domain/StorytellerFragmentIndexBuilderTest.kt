@@ -63,6 +63,29 @@ class StorytellerFragmentIndexBuilderTest {
     }
 
     @Test
+    fun `resolves each chapter's HTML once, not once per clip (perf regression guard)`() {
+        // A readaloud chapter holds thousands of SMIL clips; parsing the chapter HTML per clip made
+        // opening a matched book take tens of seconds. The builder must resolve each chapter once.
+        val chapters = listOf(
+            EpubChapterHtml("c1.xhtml", "<html><body><p id=\"a\">AAAA</p><p id=\"b\">BBBB</p></body></html>"),
+            EpubChapterHtml("c2.xhtml", "<html><body><p id=\"a\">CCCC</p></body></html>"),
+        )
+        // 100 clips spread across chapter 1's two elements, plus one in chapter 2.
+        val clips = (0 until 100).map { i ->
+            MediaOverlayClip("c1.xhtml#${if (i % 2 == 0) "a" else "b"}", "x.mp3", i.toDouble(), i + 1.0)
+        } + MediaOverlayClip("c2.xhtml#a", "x.mp3", 100.0, 101.0)
+
+        var resolveCalls = 0
+        StorytellerFragmentIndexBuilder.build(chapters, clips) { html, ids ->
+            resolveCalls++
+            EpubTextChars.progressionsOfElementIds(html, ids)
+        }
+
+        // One resolve (= one parse) per chapter with fragments — not one per clip (would be 101).
+        assertEquals(2, resolveCalls)
+    }
+
+    @Test
     fun `skips fragments whose chapter or element cannot be resolved`() {
         val chapters = listOf(
             EpubChapterHtml("chapter1.xhtml", "<html><body><p id=\"sent1\">AAAA</p></body></html>"),

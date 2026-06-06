@@ -15,9 +15,17 @@ data class EpubChapterHtml(
  */
 object StorytellerFragmentIndexBuilder {
 
+    /**
+     * @param resolveProgressions resolves a chapter's HTML + the element ids it needs to each id's
+     *   within-chapter progression. Invoked **once per chapter** (not once per clip) — overridable
+     *   so tests can assert that O(chapters), not O(clips), parses happen. Defaults to the
+     *   single-parse [EpubTextChars.progressionsOfElementIds].
+     */
     fun build(
         chapters: List<EpubChapterHtml>,
         clips: List<MediaOverlayClip>,
+        resolveProgressions: (html: String, elementIds: Set<String>) -> Map<String, Double> =
+            EpubTextChars::progressionsOfElementIds,
     ): Map<String, ChapterProgression> {
         // Storyteller's SMIL files live in their own directory, so their fragment refs are written
         // relative to it (e.g. "../text/part6.html#s0") while spine chapter hrefs are root-relative
@@ -37,7 +45,7 @@ object StorytellerFragmentIndexBuilder {
 
         val result = LinkedHashMap<String, ChapterProgression>()
         for ((chapterIndex, frags) in fragsByChapter) {
-            val progressions = EpubTextChars.progressionsOfElementIds(
+            val progressions = resolveProgressions(
                 chapters[chapterIndex].html, frags.mapTo(HashSet()) { it.second },
             )
             for ((ref, elementId) in frags) {
