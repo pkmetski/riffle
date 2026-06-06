@@ -21,8 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadaloudDismissalEntity::class,
         CrossEpubIndexEntity::class,
         AnnotationEntity::class,
+        ReadaloudResumePositionEntity::class,
     ],
-    version = 26,
+    version = 27,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -38,6 +39,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun readaloudDismissalDao(): ReadaloudDismissalDao
     abstract fun crossEpubIndexDao(): CrossEpubIndexDao
     abstract fun annotationDao(): AnnotationDao
+    abstract fun readaloudResumePositionDao(): ReadaloudResumePositionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -545,6 +547,28 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_serverId` " +
                         "ON `book_formatting_preferences` (`serverId`)"
+                )
+            }
+        }
+
+        // Per-device readaloud resume position so narration resumes where it stopped after leaving
+        // and re-entering a book. Keyed like reading_positions; never synced.
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `readaloud_resume_positions` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`href` TEXT NOT NULL, " +
+                        "`progression` REAL, " +
+                        "`fragmentRef` TEXT, " +
+                        "`localUpdatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`serverId`, `itemId`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_readaloud_resume_positions_serverId` " +
+                        "ON `readaloud_resume_positions` (`serverId`)"
                 )
             }
         }

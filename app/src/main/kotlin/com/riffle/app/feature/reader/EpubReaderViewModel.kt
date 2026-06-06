@@ -33,6 +33,8 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.ReadaloudResumePosition
+import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.withResolvedTheme
@@ -111,6 +113,7 @@ class EpubReaderViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
+    private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
 ) : AndroidViewModel(application) {
 
@@ -356,6 +359,18 @@ class EpubReaderViewModel @Inject constructor(
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
 
+            // Restore the readaloud resume position persisted when the book was last left, so the
+            // first Play this session continues where narration stopped (same page) or starts at the
+            // top of the current page (different page) — the same decision an in-session reopen makes.
+            // Keyed by the reader's (serverId, itemId); seeding closeLocator makes the planner treat
+            // this as a reopen rather than a first-ever play.
+            if (activeServer != null) {
+                readaloudResumeStore.load(activeServer.id, itemId)?.let { saved ->
+                    closeLocator = saved.toCloseLocator()
+                    resumeFragmentRef = saved.fragmentRef
+                }
+            }
+
             val control = readaloudControlState(
                 isStoryteller = isStorytellerServer,
                 isMatchedAbs = link != null,
@@ -527,6 +542,11 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = false
         syncJob?.cancel()
         storytellerSyncJob?.cancel()
+        // Leaving the book without first pressing X: persist the sentence narrating now so re-entry
+        // resumes there. (Pressing X already persisted via closeReadaloud, which closes the player.)
+        if (_readaloudOpen.value) {
+            persistReadaloudResumePosition(lastLocator, playerCoordinator.activeFragmentRef.value)
+        }
         if (closeSyncDone) return
         closeSyncDone = true
         val locator = lastLocator ?: return
@@ -908,9 +928,39 @@ class EpubReaderViewModel @Inject constructor(
         // before close() — it nulls the active fragment.
         resumeFragmentRef = playerCoordinator.activeFragmentRef.value
         closeLocator = lastLocator
+        // Persist the same stopped position so it survives leaving the book / process death, not just
+        // an in-session reopen. Capture before close() nulls the active fragment.
+        persistReadaloudResumePosition(closeLocator, resumeFragmentRef)
         readaloudPrepared = false
         readaloudStarted = false
         playerCoordinator.close()
+    }
+
+    /**
+     * Saves where narration stopped for this book, keyed by the reader's (serverId, itemId). Skips
+     * when there is no reader page to resume to. Overwrites any previous row so the position persists
+     * indefinitely until the next stop — it is not cleared when consumed on resume.
+     */
+    private fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?) {
+        val href = locator?.href?.toString() ?: return
+        val progression = locator.locations.progression
+        viewModelScope.launch {
+            val serverId = serverRepository.getActive()?.id ?: return@launch
+            readaloudResumeStore.save(serverId, itemId, ReadaloudResumePosition(href, progression, fragmentRef))
+        }
+    }
+
+    /** Rebuilds the minimal reader [Locator] the resume planner reads — href + column progression. */
+    private fun ReadaloudResumePosition.toCloseLocator(): Locator? = try {
+        val locations = JSONObject().also { obj -> progression?.let { obj.put("progression", it) } }
+        Locator.fromJSON(
+            JSONObject()
+                .put("href", href)
+                .put("type", "application/xhtml+xml")
+                .put("locations", locations)
+        )
+    } catch (_: Exception) {
+        null
     }
 
     fun expandPlayer() { _readaloudExpanded.value = true }

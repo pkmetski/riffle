@@ -1086,6 +1086,73 @@ class MigrationTest {
     }
 
     @Test
+    fun migration26To27_addsReadaloudResumePositionsKeyedByServerAndItem() {
+        helper.createDatabase(TEST_DB, 26).use { db ->
+            // A server the resume position will reference (FK target), plus a pre-existing reading
+            // position that must survive the new table being added.
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server:8001', 1, 0, 'plamen', 'STORYTELLER')"
+            )
+            db.execSQL(
+                "INSERT INTO reading_positions (serverId, itemId, cfi, localUpdatedAt) " +
+                    "VALUES ('s1', 'item-1', 'epubcfi(/6/2!/4/1:0)', 1000)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 27, true, RiffleDatabase.MIGRATION_26_27)
+
+        // Pre-existing data survives.
+        db.query("SELECT cfi FROM reading_positions WHERE serverId = 's1' AND itemId = 'item-1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("epubcfi(/6/2!/4/1:0)", cursor.getString(0))
+        }
+
+        // New table exists and starts empty.
+        db.query("SELECT COUNT(*) FROM readaloud_resume_positions").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // A full resume row round-trips, including nullable progression/fragmentRef populated.
+        db.execSQL(
+            "INSERT INTO readaloud_resume_positions (serverId, itemId, href, progression, fragmentRef, localUpdatedAt) " +
+                "VALUES ('s1', 'item-1', 'chap03.xhtml', 0.42, 'chap03.xhtml#sent12', 5000)"
+        )
+        db.query(
+            "SELECT href, progression, fragmentRef, localUpdatedAt FROM readaloud_resume_positions " +
+                "WHERE serverId = 's1' AND itemId = 'item-1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("chap03.xhtml", cursor.getString(0))
+            assertEquals(0.42, cursor.getDouble(1), 1e-9)
+            assertEquals("chap03.xhtml#sent12", cursor.getString(2))
+            assertEquals(5000L, cursor.getLong(3))
+        }
+
+        // Nullable columns accept NULL (close with no resolvable column/sentence).
+        db.execSQL(
+            "INSERT INTO readaloud_resume_positions (serverId, itemId, href, progression, fragmentRef, localUpdatedAt) " +
+                "VALUES ('s1', 'item-2', 'chap01.xhtml', NULL, NULL, 6000)"
+        )
+        db.query("SELECT progression, fragmentRef FROM readaloud_resume_positions WHERE serverId = 's1' AND itemId = 'item-2'").use { cursor ->
+            cursor.moveToFirst()
+            assertTrue(cursor.isNull(0))
+            assertTrue(cursor.isNull(1))
+        }
+
+        // FK cascade: removing the server clears its resume positions.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 's1'")
+        db.query("SELECT COUNT(*) FROM readaloud_resume_positions").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1094,7 +1161,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 26, true,
+            TEST_DB, 27, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1120,6 +1187,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_23_24,
             RiffleDatabase.MIGRATION_24_25,
             RiffleDatabase.MIGRATION_25_26,
+            RiffleDatabase.MIGRATION_26_27,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
