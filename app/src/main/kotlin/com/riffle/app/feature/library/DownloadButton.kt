@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -49,32 +50,12 @@ fun DownloadButton(
             }
         }
         is DownloadState.InProgress -> {
-            Box(
-                modifier = modifier.size(size),
-                contentAlignment = Alignment.Center,
-            ) {
-                val percent = state.percent
-                if (percent == null) {
-                    // No advertised size — fall back to the indeterminate spinner.
-                    CircularProgressIndicator(modifier = Modifier.size(size))
-                } else {
-                    // Animate between reported steps so the ring sweeps smoothly rather than jumping.
-                    val animated by animateFloatAsState(
-                        targetValue = percent / 100f,
-                        label = "downloadProgress",
-                    )
-                    CircularProgressIndicator(
-                        progress = { animated },
-                        modifier = Modifier.size(size),
-                    )
-                    Text(
-                        text = "$percent%",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
+            DownloadProgressIndicator(
+                percent = state.percent,
+                size = size,
+                label = "downloadProgress",
+                modifier = modifier,
+            )
         }
         DownloadState.Downloaded -> {
             Box(
@@ -92,6 +73,36 @@ fun DownloadButton(
                     modifier = Modifier.size(20.dp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * The in-progress affordance shared by [DownloadButton] and [ReadaloudDownloadButton]: a determinate
+ * ring with the live percent centered inside, or an indeterminate spinner when [percent] is null
+ * (the download advertised no size). [label] names the animation for tooling.
+ */
+@Composable
+internal fun DownloadProgressIndicator(
+    percent: Int?,
+    size: Dp,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+        if (percent == null) {
+            CircularProgressIndicator(modifier = Modifier.size(size))
+        } else {
+            // animateFloatAsState remembers its Animatable across recompositions, so the ring sweeps
+            // smoothly from the current value toward each reported step rather than jumping.
+            val animated by animateFloatAsState(targetValue = percent / 100f, label = label)
+            CircularProgressIndicator(progress = { animated }, modifier = Modifier.size(size))
+            Text(
+                text = "$percent%",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }
