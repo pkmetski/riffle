@@ -507,10 +507,14 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * One unified three-peer reconciliation cycle (ADR 0019). The canonical position is the
-     * displayed-EPUB Locator; a remote win jumps the reader via the same channel the Storyteller
-     * path uses, and the winning timestamp is persisted as the canonical localUpdatedAt so the
-     * next cycle doesn't re-pull. Any failure is isolated to this cycle.
+     * One three-peer reconciliation cycle (ADR 0019). The canonical position is the displayed-EPUB
+     * reading position with its stored timestamp; a remote win jumps the reader, and the winning
+     * timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated to this cycle.
+     *
+     * The audio playback position must NEVER drive this shared canonical: when playback is behind the
+     * reading position (e.g. resolveStartClip falls back to the book start) it would propagate that
+     * backwards to the ebook and erase reading progress. Making the audiobook follow the audio is a
+     * separate, decoupled concern (audio→audiobook only) so it can never write the ebook.
      */
     private suspend fun runThreePeerCycle(locator: Locator?) {
         val coordinator = threePeer ?: return
