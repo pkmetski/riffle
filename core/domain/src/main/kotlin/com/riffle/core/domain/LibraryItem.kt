@@ -16,6 +16,7 @@ data class LibraryItem(
     val publishedYear: String? = null,
     val genres: List<String> = emptyList(),
     val publisher: String? = null,
+    val language: String? = null,
     val lastOpenedAt: Long? = null,
     val addedAt: Long? = null,
     val isbn: String? = null,

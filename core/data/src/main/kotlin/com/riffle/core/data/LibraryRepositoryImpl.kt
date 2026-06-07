@@ -103,6 +103,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getLibrary(libraryId: String): Library? =
         libraryDao.getById(libraryId)?.toDomain()
 
+    override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? =
+        seriesDao.findSeriesIdForItem(serverId, itemId)
+
     override suspend fun markItemOpened(itemId: String) {
         val serverId = serverRepository.getActive()?.id ?: return
         libraryItemDao.updateLastOpenedAt(serverId, itemId, System.currentTimeMillis())
@@ -163,6 +166,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             publishedYear = item.publishedYear,
                             genres = item.genres.joinToString(","),
                             publisher = item.publisher,
+                            language = item.language,
                             // Surface the most recent read activity across devices: pick whichever
                             // of (local stamp, server's mediaProgress.lastUpdate) is later. Either
                             // can lead — the local stamp wins between syncs on this device, the
@@ -266,6 +270,7 @@ class LibraryRepositoryImpl @Inject constructor(
         publishedYear = publishedYear,
         genres = genres.split(",").filter { it.isNotEmpty() },
         publisher = publisher,
+        language = language,
         lastOpenedAt = lastOpenedAt,
         addedAt = addedAt,
         isbn = isbn,

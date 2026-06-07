@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AnnotationEntity::class,
         ReadaloudResumePositionEntity::class,
     ],
-    version = 27,
+    version = 28,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -570,6 +570,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_readaloud_resume_positions_serverId` " +
                         "ON `readaloud_resume_positions` (`serverId`)"
                 )
+            }
+        }
+
+        // Adds the book's `language` to `library_items` (ABS metadata.language), surfaced on the
+        // Library Item Detail Screen and used as a Filtered Books facet (ADR 0027). Nullable — books
+        // with no language set carry NULL.
+        val MIGRATION_27_28 = object : Migration(27, 28) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `language` TEXT")
             }
         }
     }

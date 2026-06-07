@@ -1153,6 +1153,40 @@ class MigrationTest {
     }
 
     @Test
+    fun migration27To28_addsLanguageColumnToLibraryItems() {
+        helper.createDatabase(TEST_DB, 27).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib1', 'Books', 'book', 's1', 0)")
+            // A pre-existing item with all the columns the migration must preserve.
+            db.execSQL(
+                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, publishedYear) " +
+                    "VALUES ('s1', '1', 'lib1', 'The Colour of Magic', 'Terry Pratchett', NULL, 0.3, 'epub', 'Fiction', '1983')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 28, true, RiffleDatabase.MIGRATION_27_28)
+
+        // Pre-existing data preserved; new language column defaults to NULL.
+        db.query("SELECT title, publishedYear, language FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("The Colour of Magic", cursor.getString(0))
+            assertEquals("1983", cursor.getString(1))
+            assertTrue(cursor.isNull(2))
+        }
+
+        // The new column accepts a value.
+        db.execSQL("UPDATE library_items SET language = 'English' WHERE serverId = 's1' AND id = '1'")
+        db.query("SELECT language FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("English", cursor.getString(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1161,7 +1195,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 27, true,
+            TEST_DB, 28, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1188,6 +1222,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_24_25,
             RiffleDatabase.MIGRATION_25_26,
             RiffleDatabase.MIGRATION_26_27,
+            RiffleDatabase.MIGRATION_27_28,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

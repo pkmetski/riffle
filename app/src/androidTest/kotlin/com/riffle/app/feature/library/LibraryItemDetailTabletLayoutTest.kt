@@ -71,7 +71,7 @@ class LibraryItemDetailTabletLayoutTest {
         rightPane.assertIsDisplayed()
         // Left-pane content present.
         composeTestRule.onNodeWithText("A Test Book").assertIsDisplayed()
-        composeTestRule.onNodeWithText("By Test Author").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Test Author").assertIsDisplayed()
         // Right-pane content present.
         composeTestRule.onNodeWithText("Summary").assertIsDisplayed()
 

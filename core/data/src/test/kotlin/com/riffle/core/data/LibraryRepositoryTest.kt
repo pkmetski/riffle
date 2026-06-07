@@ -111,6 +111,8 @@ class LibraryRepositoryTest {
         override fun observeItemsBySeriesId(seriesId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
 
+        override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
+
         override suspend fun upsertAll(series: List<SeriesEntity>) {
             upsertedSeries.addAll(series)
             series.groupBy { it.libraryId }.forEach { (libraryId, list) ->

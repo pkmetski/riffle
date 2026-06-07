@@ -30,6 +30,9 @@ interface LibraryRepository {
     /** A specific Server's copy of an item — for cross-Server callers like the Downloads screen. */
     suspend fun getItem(serverId: String, itemId: String): LibraryItem?
     suspend fun getLibrary(libraryId: String): Library?
+
+    /** The id of the series the given item belongs to, or null if it is not in any series. */
+    suspend fun getSeriesIdForItem(serverId: String, itemId: String): String?
     suspend fun markItemOpened(itemId: String)
     suspend fun updateReadingProgress(itemId: String, progress: Float)
     suspend fun refreshLibraries(): LibraryRefreshResult
