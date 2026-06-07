@@ -43,7 +43,7 @@ fun ChapterNavigationRail(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(3.dp)
+            .height(4.dp)
             .testTag("chapter_navigation_rail")
             .semantics { contentDescription = "Active rail segment: $activeTitle" }
             .pointerInput(segments) {
