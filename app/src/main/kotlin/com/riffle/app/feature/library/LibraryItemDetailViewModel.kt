@@ -34,6 +34,10 @@ sealed interface LibraryItemDetailUiState {
     data object Loading : LibraryItemDetailUiState
     data class Ready(
         val item: LibraryItem,
+        // The id of the series this item belongs to, if any. Lets the series line tap through to
+        // the existing Series detail (the item carries only its seriesName string). Null = not in a
+        // series, or series data not yet synced.
+        val seriesId: String? = null,
         val isInToRead: Boolean = false,
         // True when the epub is available locally (cached or downloaded). Used by the UI to decide
         // whether to disable the Read button when offline (#35).
@@ -120,8 +124,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // below runs off the critical path so a slow/unreachable ABS server can't keep
                     // the detail screen stuck in Loading for the network timeout (~10s).
                     val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
+                    val seriesId = item.seriesName?.let { repository.getSeriesIdForItem(item.serverId, item.id) }
                     LibraryItemDetailUiState.Ready(
                         item = item,
+                        seriesId = seriesId,
                         isInToRead = isInToRead,
                         isCachedOrDownloaded = isCachedOrDownloaded,
                         isOffline = !connectivityObserver.isOnline.value,

@@ -36,6 +36,7 @@ internal data class AbsLibraryItemsResponse(val results: List<AbsLibraryItemDto>
         val publishedYear: String? = null,
         val genres: List<String> = emptyList(),
         val publisher: String? = null,
+        val language: String? = null,
         val isbn: String? = null,
         val asin: String? = null,
     )

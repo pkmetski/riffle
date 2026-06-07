@@ -21,6 +21,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.app.feature.library.CollectionDetailScreen
+import com.riffle.app.feature.library.FacetType
+import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
@@ -51,6 +53,7 @@ private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
+private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER = "epub_reader/{itemId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
@@ -337,6 +340,30 @@ fun MainScreen(
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
                     },
+                    onNavigateToFacet = { libraryId, facet, value ->
+                        val encoded = URLEncoder.encode(value, "UTF-8")
+                        navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
+                    },
+                    onNavigateToSeries = { libraryId, seriesId, seriesName ->
+                        val encodedName = URLEncoder.encode(seriesName, "UTF-8")
+                        navController.navigate("series_detail/$libraryId/$seriesId/$encodedName")
+                    },
+                )
+            }
+            composable(
+                route = FILTERED_BOOKS,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("facetType") { type = NavType.StringType },
+                    navArgument("facetValue") { type = NavType.StringType },
+                ),
+            ) {
+                FilteredBooksScreen(
+                    onItemSelected = { item ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
+                    },
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(

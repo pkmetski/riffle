@@ -78,6 +78,7 @@ class LibraryItemsViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries() = LibraryRefreshResult.Success
@@ -712,6 +713,7 @@ class LibraryItemsViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
         override suspend fun markItemOpened(itemId: String) {}
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override suspend fun refreshLibraries() = LibraryRefreshResult.Success

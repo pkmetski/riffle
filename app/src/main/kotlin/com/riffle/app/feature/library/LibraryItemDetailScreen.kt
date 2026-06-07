@@ -3,6 +3,7 @@ package com.riffle.app.feature.library
 import android.content.res.Configuration
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
@@ -59,6 +61,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -76,6 +81,8 @@ fun LibraryItemDetailScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onReadItem: (LibraryItem) -> Unit,
+    onNavigateToFacet: (libraryId: String, facet: FacetType, value: String) -> Unit = { _, _, _ -> },
+    onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit = { _, _, _ -> },
     viewModel: LibraryItemDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -148,9 +155,18 @@ fun LibraryItemDetailScreen(
                 }
                 val isExpanded =
                     windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+                val onFacet: (FacetType, String) -> Unit = { facet, value ->
+                    onNavigateToFacet(state.item.libraryId, facet, value)
+                }
+                val onSeriesClick: (String, String) -> Unit = { seriesId, seriesName ->
+                    onNavigateToSeries(state.item.libraryId, seriesId, seriesName)
+                }
                 if (isExpanded) {
                     LibraryItemDetailContentTablet(
                         item = state.item,
+                        seriesId = state.seriesId,
+                        onFacet = onFacet,
+                        onSeriesClick = onSeriesClick,
                         isInToRead = state.isInToRead,
                         token = viewModel.authToken,
                         downloadState = downloadState,
@@ -170,6 +186,9 @@ fun LibraryItemDetailScreen(
                 } else {
                     LibraryItemDetailContent(
                         item = state.item,
+                        seriesId = state.seriesId,
+                        onFacet = onFacet,
+                        onSeriesClick = onSeriesClick,
                         isInToRead = state.isInToRead,
                         token = viewModel.authToken,
                         downloadState = downloadState,
@@ -219,6 +238,9 @@ private fun CollapsibleDescription(description: String) {
 @Composable
 private fun LibraryItemDetailContent(
     item: LibraryItem,
+    seriesId: String?,
+    onFacet: (FacetType, String) -> Unit,
+    onSeriesClick: (String, String) -> Unit,
     isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
@@ -275,11 +297,15 @@ private fun LibraryItemDetailContent(
             onRemoveReadaloud = onRemoveReadaloud,
         )
 
-        TitleWithReadaloudIndicator(title = item.title, hasReadaloud = readaloudDownloadState != null)
-        Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
+        TitleWithReadaloudIndicator(
+            title = item.title,
+            hasReadaloud = readaloudDownloadState != null,
+            onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
+        )
+        AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
 
         item.seriesName?.let { series ->
-            Text(text = series, style = MaterialTheme.typography.bodyLarge)
+            SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
         }
 
         if (item.readingProgress > 0f) {
@@ -290,13 +316,16 @@ private fun LibraryItemDetailContent(
             CollapsibleDescription(desc)
         }
 
-        MetadataLines(item = item)
+        MetadataLines(item = item, onFacet = onFacet)
     }
 }
 
 @Composable
 internal fun LibraryItemDetailContentTablet(
     item: LibraryItem,
+    seriesId: String? = null,
+    onFacet: (FacetType, String) -> Unit = { _, _ -> },
+    onSeriesClick: (String, String) -> Unit = { _, _ -> },
     isInToRead: Boolean,
     token: String,
     downloadState: DownloadState,
@@ -342,8 +371,12 @@ internal fun LibraryItemDetailContentTablet(
                         .align(Alignment.CenterHorizontally),
                 )
             }
-            TitleWithReadaloudIndicator(title = item.title, hasReadaloud = readaloudDownloadState != null)
-            Text(text = "By ${item.author}", style = MaterialTheme.typography.titleLarge)
+            TitleWithReadaloudIndicator(
+                title = item.title,
+                hasReadaloud = readaloudDownloadState != null,
+                onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
+            )
+            AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress)
             }
@@ -377,27 +410,117 @@ internal fun LibraryItemDetailContentTablet(
                 CollapsibleDescription(desc)
             }
             item.seriesName?.let { series ->
-                Text(text = series, style = MaterialTheme.typography.bodyLarge)
+                SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
             }
-            MetadataLines(item = item)
+            MetadataLines(item = item, onFacet = onFacet)
         }
     }
 }
 
 @Composable
-private fun TitleWithReadaloudIndicator(title: String, hasReadaloud: Boolean) {
+private fun TitleWithReadaloudIndicator(
+    title: String,
+    hasReadaloud: Boolean,
+    onReadaloudClick: () -> Unit = {},
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text = title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f, fill = false))
         if (hasReadaloud) {
             Spacer(modifier = Modifier.width(8.dp))
+            // Tapping the badge is the sole entry point to the "Readalouds" Filtered Books Screen
+            // (ADR 0027) — self-gating, since the badge only shows when the book has a readaloud.
             Icon(
                 painter = painterResource(R.drawable.ic_readaloud),
-                contentDescription = "Has readaloud (synced narration)",
+                contentDescription = "Show all readalouds",
                 tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable(onClick = onReadaloudClick),
             )
         }
     }
+}
+
+/**
+ * The "By …" line. Splits the flattened author string on ", " so each author is an independent,
+ * tappable facet leading to that author's Filtered Books Screen (ADR 0027).
+ */
+@Composable
+private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
+    if (author.isBlank()) return
+    val authors = author.split(", ").filter { it.isNotBlank() }
+    ClickableTokenLine(
+        prefix = "By ",
+        tokens = authors,
+        style = MaterialTheme.typography.titleLarge,
+        onTokenClick = onAuthorClick,
+    )
+}
+
+/**
+ * A "<prefix> a, b, c" line where each comma-separated token is an independently tappable facet,
+ * rendered as a single wrapping [ClickableText] (no FlowRow — that API's 1.7 overload is the wrong
+ * one to depend on across foundation versions).
+ */
+@Composable
+private fun ClickableTokenLine(
+    prefix: String,
+    tokens: List<String>,
+    style: androidx.compose.ui.text.TextStyle,
+    onTokenClick: (String) -> Unit,
+) {
+    val linkColor = MaterialTheme.colorScheme.primary
+    val baseColor = LocalContentColor.current
+    val annotated = buildAnnotatedString {
+        append(prefix)
+        tokens.forEachIndexed { index, token ->
+            pushStringAnnotation(tag = "token", annotation = token)
+            withStyle(SpanStyle(color = linkColor)) { append(token) }
+            pop()
+            if (index < tokens.lastIndex) append(", ")
+        }
+    }
+    ClickableText(
+        text = annotated,
+        style = style.copy(color = baseColor),
+        onClick = { offset ->
+            annotated.getStringAnnotations(tag = "token", start = offset, end = offset)
+                .firstOrNull()?.let { onTokenClick(it.item) }
+        },
+    )
+}
+
+/**
+ * The series line, e.g. "The Stormlight Archive #1". Tappable through to the existing Series detail
+ * when the series id is known; the displayed text keeps the "#<sequence>" suffix but the series
+ * lookup is by bare name (the suffix is stripped for navigation).
+ */
+@Composable
+private fun SeriesLine(seriesName: String, seriesId: String?, onSeriesClick: (String, String) -> Unit) {
+    val bareName = seriesName.substringBeforeLast(" #").trim()
+    if (seriesId != null) {
+        FacetValue(
+            text = seriesName,
+            style = MaterialTheme.typography.bodyLarge,
+        ) { onSeriesClick(seriesId, bareName) }
+    } else {
+        Text(text = seriesName, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** A single tappable metadata value rendered in the primary colour. */
+@Composable
+private fun FacetValue(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = text,
+        style = style,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -510,17 +633,33 @@ private fun ReadingProgressIndicator(progress: Float) {
 }
 
 @Composable
-private fun MetadataLines(item: LibraryItem) {
-    val metadataItems = buildList {
-        item.publishedYear?.let { add("Published: $it") }
-        if (item.genres.isNotEmpty()) add("Genres: ${item.genres.joinToString(", ")}")
-        item.publisher?.let { add("Publisher: $it") }
-    }
-    if (metadataItems.isNotEmpty()) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            metadataItems.forEach { line ->
-                Text(text = line, style = MaterialTheme.typography.bodyMedium)
+private fun MetadataLines(item: LibraryItem, onFacet: (FacetType, String) -> Unit) {
+    val hasAny = item.publishedYear != null || item.genres.isNotEmpty() ||
+        !item.language.isNullOrBlank() || item.publisher != null
+    if (!hasAny) return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item.publishedYear?.let { year ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "Published: ", style = MaterialTheme.typography.bodyMedium)
+                FacetValue(text = year) { onFacet(FacetType.YEAR, year) }
             }
+        }
+        if (item.genres.isNotEmpty()) {
+            ClickableTokenLine(
+                prefix = "Genres: ",
+                tokens = item.genres,
+                style = MaterialTheme.typography.bodyMedium,
+                onTokenClick = { onFacet(FacetType.GENRE, it) },
+            )
+        }
+        item.language?.takeIf { it.isNotBlank() }?.let { language ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "Language: ", style = MaterialTheme.typography.bodyMedium)
+                FacetValue(text = language) { onFacet(FacetType.LANGUAGE, language) }
+            }
+        }
+        item.publisher?.let { publisher ->
+            Text(text = "Publisher: $publisher", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

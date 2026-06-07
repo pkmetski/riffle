@@ -21,6 +21,14 @@ interface SeriesDao {
     """)
     fun observeItemsBySeriesId(seriesId: String): Flow<List<LibraryItemEntity>>
 
+    /**
+     * The id of the series an item belongs to, if any. Used by the Library Item Detail Screen to
+     * make the series line tap through to the existing Series detail (an item carries only its
+     * `seriesName` string, not the series id).
+     */
+    @Query("SELECT seriesId FROM series_items WHERE serverId = :serverId AND itemId = :itemId LIMIT 1")
+    suspend fun findSeriesIdForItem(serverId: String, itemId: String): String?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(series: List<SeriesEntity>)
 

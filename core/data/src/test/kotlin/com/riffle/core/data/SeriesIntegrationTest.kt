@@ -89,6 +89,7 @@ class SeriesIntegrationTest {
             seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
         override fun observeItemsBySeriesId(seriesId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
+        override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
         override suspend fun upsertAll(series: List<SeriesEntity>) { upsertedSeries.addAll(series) }
         override suspend fun upsertAllItems(items: List<SeriesItemEntity>) { upsertedItems.addAll(items) }
         override suspend fun deleteByLibraryId(libraryId: String) {}
