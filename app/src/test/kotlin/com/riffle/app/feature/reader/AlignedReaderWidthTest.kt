@@ -49,6 +49,32 @@ class AlignedReaderWidthTest {
         assertEquals(408f, alignedReaderWidthDp(availDp = 411.4f, density = 2.75f))
     }
 
+    // Regression for the physical-device bug: a densityDpi coprime to 160 (here 411dpi -> 2.56875,
+    // reproducible on real hardware / after a "Display size" change) used to push the exact
+    // whole-pixel width 100+dp below availDp, producing huge asymmetric margins in paginated mode.
+    // The gutter must now stay within the budget regardless of how ugly the density is.
+    @Test
+    fun `bounds the gutter on a density coprime to 160`() {
+        val density = 411f / 160f // 2.56875 — whole-pixel widths are 160dp apart
+        val avail = 1080f / density // ~420.4dp
+        val w = alignedReaderWidthDp(avail, density)
+        assertTrue("gutter ${avail - w} must stay within budget", avail - w <= GUTTER_BUDGET_DP + 1f)
+        assertTrue(w <= avail)
+    }
+
+    // No matter the density, the alignment never costs more than the budget.
+    @Test
+    fun `gutter never exceeds the budget for any density`() {
+        var dpi = 120
+        while (dpi <= 640) {
+            val density = dpi / 160f
+            val avail = 1080f / density
+            val w = alignedReaderWidthDp(avail, density)
+            assertTrue("dpi=$dpi gutter=${avail - w}", avail - w <= GUTTER_BUDGET_DP + 1f)
+            dpi++
+        }
+    }
+
     @Test
     fun `returns input unchanged for non-positive arguments`() {
         assertEquals(0f, alignedReaderWidthDp(availDp = 0f, density = 2.625f))
