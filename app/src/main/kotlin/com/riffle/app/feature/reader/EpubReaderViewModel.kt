@@ -385,6 +385,20 @@ class EpubReaderViewModel @Inject constructor(
             _readaloudVisible.value = control.visible
             _readaloudAvailable.value = control.enabled
 
+            // Build the sentence-quote map eagerly once the readaloud bundle is known to be on disk, so
+            // the selection→sentence resolution ("Play from here") and the page-top start probe have it
+            // ready before the user can act. It was previously deferred until isPlaying to avoid starving
+            // ExoPlayer's audio-start I/O — but at book-open no audio is playing yet, so there's no
+            // contention, and a first "Play from here" (before any playback) would otherwise see an empty
+            // map and fall back to the chapter start. The isPlaying trigger stays as a backstop for the
+            // matched-ABS case where the bundle is downloaded later in the session.
+            if (control.enabled) {
+                readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
+                    quoteBundle = bundle
+                    buildSentenceQuotes(bundle)
+                }
+            }
+
             // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
             if (!isStorytellerServer && activeServer != null) {
                 annotationServerId = activeServer.id
@@ -914,12 +928,22 @@ class EpubReaderViewModel @Inject constructor(
 
     fun openReadaloud() {
         if (!_readaloudAvailable.value) return
-        _readaloudOpen.value = true
-        startStorytellerSync()
+        openReadaloudSession()
         // Pressing the reader's readaloud control plays immediately — no separate Play tap.
         // A matched ABS book only enables the control once the bundle is present, so this reaches
         // the bundle-present play path; a Storyteller book matches today's Play-tap behavior.
         onPlayTapped()
+    }
+
+    // Opens the readaloud session (shows the player, starts the sync loop) WITHOUT auto-playing.
+    // "Play from here" uses this instead of openReadaloud(): it drives its own seek to the selected
+    // sentence, and routing through onPlayTapped()'s resume planner would fire a SECOND, competing
+    // seek — to the saved resume position or the page-top fallback — that races the selection seek.
+    // Whichever landed last won nondeterministically, so "Play from here" sometimes started at the
+    // chapter top, sometimes at a stale resume point, sometimes at the selection (the unreliable bug).
+    private fun openReadaloudSession() {
+        _readaloudOpen.value = true
+        startStorytellerSync()
     }
 
     fun closeReadaloud() {
@@ -1013,19 +1037,25 @@ class EpubReaderViewModel @Inject constructor(
 
     /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
     fun playFromHere(fragmentRef: String) {
-        if (!_readaloudOpen.value) openReadaloud()
         val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
         if (bundle == null) {
-            // No bundle yet — fall through to the normal play path (prompt/notify) so the user is
+            // No bundle yet — route through the normal play path (prompt/notify) so the user is
             // told to download first.
-            onPlayTapped()
+            if (!_readaloudOpen.value) openReadaloud() else onPlayTapped()
             return
         }
+        // Open the session WITHOUT onPlayTapped()'s resume autoplay: the only seek this session must
+        // make is the one below, to the selected sentence. Going through openReadaloud() would race a
+        // resume/page-top seek against it (see openReadaloudSession).
+        if (!_readaloudOpen.value) openReadaloudSession()
         viewModelScope.launch {
             ensureOpened(bundle) ?: return@launch
             // Starting here counts as the session's first play, so a later pause/resume stays put
-            // rather than re-seeking to the reader position.
+            // rather than re-seeking. Consume any pending resume/close position so the resume planner
+            // can never re-seek away from the selection.
             readaloudStarted = true
+            resumeFragmentRef = null
+            closeLocator = null
             playerCoordinator.playFromHere(fragmentRef)
         }
     }
@@ -1100,14 +1130,14 @@ class EpubReaderViewModel @Inject constructor(
         )
         when (plan) {
             ReadaloudStartPlan.FromReaderPosition ->
-                // First play of this session: start narration from the reader's current position (the
-                // spec requires this), not the beginning of the book. Resolves to chapter granularity
-                // because the reader locator carries no sentence fragment.
+                // First play of this session: start at the first FULL sentence visible on the reader's
+                // current page — not the chapter top, and not the book start. The reader locator carries
+                // no sentence fragment, so we route through the same page-top probe the reopen path uses:
+                // it asks the WebView for the first narrated sentence whose start is on the page and
+                // replies via onPageTopResolved(), which starts playback there. Falls back to plain play
+                // only when there is no reader page at all.
                 if (loc != null) {
-                    playerCoordinator.playFromReaderPosition(
-                        href = loc.href.toString(),
-                        fragmentId = loc.locations.fragments.firstOrNull(),
-                    )
+                    _pageTopProbeChannel.trySend(loc.href.toString())
                 } else {
                     playerCoordinator.play()
                 }

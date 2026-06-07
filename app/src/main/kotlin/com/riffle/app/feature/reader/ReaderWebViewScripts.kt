@@ -46,6 +46,18 @@ internal val RECT_TO_JSON_POLYFILL_JS = """
 // overwrite on a fresh selection — never leave a previous selection's id behind — so a selection with
 // no sentence-span ancestor cleanly falls back to the chapter position rather than reusing a stale id.
 // Idempotent via the installed flag.
+//
+// NOTE: this DOM-id path only works on pages whose sentence spans survive into the served HTML
+// (pure-Storyteller rendering). When the reader renders the ABS EPUB, Readium STRIPS those id-only
+// spans (see [autoFollowSnapJs] / [ReadaloudTextQuotes]), so the walk never finds a sentence id and
+// "Play from here" would fall back to the chapter's first clip — i.e. restart the chapter. The menu
+// handler therefore prefers [resolveSelectionSentenceJs] (position based, span-stripping proof) and
+// only uses this stash as a fallback.
+//
+// The tracker also stashes the selection START's viewport rect in window.__riffleSelRect, which
+// [resolveSelectionSentenceJs] reads to resolve the narrated sentence by POSITION. We capture it here,
+// on selectionchange, because the live DOM selection is gone by the time the action-mode menu handler
+// runs. getClientRects()[0] is the rect of the selection's first glyph (its start).
 internal val SELECTION_SPAN_TRACKER_JS = """
     (function () {
       if (window.__riffleSelTrackerInstalled) return;
@@ -53,7 +65,8 @@ internal val SELECTION_SPAN_TRACKER_JS = """
       document.addEventListener('selectionchange', function () {
         var s = window.getSelection();
         if (!s || s.rangeCount === 0 || s.isCollapsed) return;
-        var n = s.getRangeAt(0).startContainer;
+        var rng = s.getRangeAt(0);
+        var n = rng.startContainer;
         if (n && n.nodeType === 3) n = n.parentElement;
         var id = '';
         while (n && n !== document.body) {
@@ -61,9 +74,80 @@ internal val SELECTION_SPAN_TRACKER_JS = """
           n = n.parentElement;
         }
         window.__riffleSelSpan = id;
+        try {
+          var rects = rng.getClientRects();
+          var rr = (rects && rects.length) ? rects[0] : rng.getBoundingClientRect();
+          window.__riffleSelRect = { top: rr.top, left: rr.left, bottom: rr.bottom };
+        } catch (e) { window.__riffleSelRect = null; }
       });
     })();
 """.trimIndent()
+
+/**
+ * Resolves a text selection to the narrated-sentence span id the user tapped into — by GEOMETRY, not by
+ * matching sentence text. This is what "Play from here" uses to start narration at the selected sentence.
+ *
+ * Why not by a DOM id: Readium strips Storyteller's `<span id="cNNN-sM">` wrappers from the ABS EPUB it
+ * serves (see [autoFollowSnapJs] / [ReadaloudTextQuotes]), so there is no sentence id under the selection
+ * to read — that path falls back to the chapter's first clip (the "restarts the chapter" bug).
+ *
+ * Why not by matching whole sentence text: the served (ABS) prose and the bundle's sentence text diverge
+ * just enough — smart quotes, dashes, inline markup, edition differences — that whole-sentence matching
+ * misses unpredictably, so the resolver either mis-seats to an earlier sentence or finds nothing at all.
+ *
+ * Geometry is robust. We reuse the exact primitive the production highlight-follow relies on
+ * ([autoFollowSnapJs] / [firstVisibleSentenceJs]): match each sentence's SHORT start prefix WITHIN A
+ * SINGLE text node. The prefix is 12 chars — the same length [autoFollowSnapJs] uses — short enough to
+ * sit before any inline markup the sentence's opening words run into (e.g. "Once we got " precedes the
+ * italic "<em>Hermes</em>"); a longer prefix would straddle that node boundary and never match. We only
+ * need to *locate* the start, not match the whole sentence, so the text-fidelity gaps don't matter. For each
+ * located start we take its on-screen rect and keep the one that is latest in reading order
+ * (top-to-bottom; left within a line) AT OR BEFORE the selection's start rect — i.e. the sentence the tap
+ * landed in. Only starts on the current page/column are considered, so off-page columns can't interfere.
+ * The selection rect is read from window.__riffleSelRect (stashed by [SELECTION_SPAN_TRACKER_JS] while the
+ * selection was live). Returns "" when nothing resolves; the caller then falls back to the span-id stash,
+ * then the chapter position.
+ *
+ * [sentences] is the book's narrated sentences as (span id → text), in reading order; sentences from other
+ * chapters aren't in this document's DOM, so their prefixes simply aren't found.
+ */
+internal fun resolveSelectionSentenceJs(sentences: List<Pair<String, String>>): String {
+    val sents = JSONArray(
+        sentences.map { (id, text) -> JSONArray(listOf(id, text.trim().take(12))) },
+    ).toString()
+    return """
+    (function(){
+      var sel=window.__riffleSelRect;
+      if(!sel) return "";
+      var sents=$sents;
+      var iw=window.innerWidth, ih=window.innerHeight;
+      var LH=Math.max(8, sel.bottom - sel.top);
+      var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
+      var bestId="", bestTop=-1e9, bestLeft=-1e9;
+      while(n=w.nextNode()){
+        var nv=n.nodeValue;
+        for(var k=0;k<sents.length;k++){
+          var key=sents[k][1];
+          if(!key) continue;
+          var i=nv.indexOf(key);
+          if(i<0) continue;
+          var g=document.createRange(); g.setStart(n,i); g.setEnd(n, Math.min(nv.length, i+1));
+          var r=g.getBoundingClientRect();
+          // Only sentence-starts on the current page/column.
+          if(!(r.left>=0 && r.left<iw && r.bottom>0 && r.top<ih)) continue;
+          // At or before the selection start in reading order (above it, or earlier on the same line).
+          var before=(r.top < sel.top - LH*0.5) || (Math.abs(r.top - sel.top) <= LH*0.5 && r.left <= sel.left + 1);
+          if(!before) continue;
+          // Keep the latest such start (greatest top, then greatest left) = the sentence the tap is in.
+          if(r.top > bestTop + LH*0.5 || (Math.abs(r.top - bestTop) <= LH*0.5 && r.left > bestLeft)){
+            bestTop=r.top; bestLeft=r.left; bestId=sents[k][0];
+          }
+        }
+      }
+      return bestId;
+    })()
+    """.trimIndent()
+}
 
 /**
  * The page-follow probe run on each narrated-sentence change (auto-follow). It locates the narrated
@@ -74,16 +158,15 @@ internal val SELECTION_SPAN_TRACKER_JS = """
  *
  *  - Scroll mode (document overflows the viewport): scrolls *vertically* to centre the sentence —
  *    the karaoke follow — and returns "on".
- *  - Paginated mode (page is exactly viewport-sized): snaps scrollLeft to the COLUMN BOUNDARY that
- *    contains the sentence's start, then returns "on". We snap here rather than report "off" and let
- *    the Kotlin side go(): go() resolves the locator by text/cssSelector and lands flush to the
- *    element's box — a little inside its column — so the page rests between two columns; and a binary
- *    "is it roughly visible?" gate (the old ±tolerance check) never re-aligns a page that's already
- *    drifted between two columns, nor follows promptly when a sentence starts just past the edge.
- *    Snapping scrollLeft to floor(x / innerWidth) * innerWidth lands on the clean page grid every
- *    sentence. This holds because the reader is sized so innerWidth == Readium's page-snap pitch (see
- *    [alignedReaderWidthDp]), so the boundary we pick is exactly where Readium would rest anyway —
- *    here we locate the sentence by text (the span id is stripped) rather than by element.
+ *  - Paginated mode (page is exactly viewport-sized): KEEP-VISIBLE follow. While the sentence's start
+ *    is on the current page it returns "on" and leaves the page untouched, so starting playback — and
+ *    the player-open reflow that re-runs this probe — never yanks a visible line onto a fresh column
+ *    boundary. Only once the sentence's start is off the current page does it snap scrollLeft to the
+ *    COLUMN BOUNDARY containing that start (floor(x / innerWidth) * innerWidth) and return "on". We snap
+ *    (rather than report "off" and let the Kotlin side go()) because go() lands flush to the element's
+ *    box — a little inside its column — so the page would rest between two columns. The floor snap lands
+ *    on the clean page grid; this holds because the reader is sized so innerWidth == Readium's page-snap
+ *    pitch (see [alignedReaderWidthDp]). The sentence is located by text (the span id is stripped).
  *
  * Returns "off" only when the text isn't on the current resource (sentence in another chapter) → the
  * Kotlin side's go() jumps chapters, as before.
@@ -110,6 +193,14 @@ internal fun autoFollowSnapJs(text: String): String {
         return "on";
       }
       var iw=window.innerWidth;
+      // Paged keep-visible follow: while the narrated sentence is visible on the current page, leave the
+      // page exactly where it is — starting playback (and the player-open reflow that re-runs this probe)
+      // must not yank a visible line onto a fresh column boundary. The sentence's START may have wrapped
+      // in from the PREVIOUS column (r.left < 0) while its body shows on this page — the column-spanning
+      // case — so a start anywhere from the previous column up to the current page's right edge counts as
+      // on-page. Only once narration moves FORWARD to a later column (start at/after the next column's
+      // left edge, r.left >= iw) do we flip to (snap onto) that column. Scroll mode keeps centring.
+      if(r.left >= -iw && r.left < iw) return "on";
       var absX=r.left + se.scrollLeft;
       se.scrollLeft=Math.floor(absX / iw) * iw;
       return "on";

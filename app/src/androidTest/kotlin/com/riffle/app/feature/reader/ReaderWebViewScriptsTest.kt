@@ -4,6 +4,7 @@ import android.webkit.WebView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -143,7 +144,166 @@ class ReaderWebViewScriptsTest {
         }
     }
 
+    // ---- resolveSelectionSentenceJs ----
+    //
+    // These exercise the GEOMETRY-based resolver against a real, sized WebView: we drive a real text
+    // selection (which fires selectionchange so the tracker stashes window.__riffleSelRect), then ask the
+    // resolver which narrated sentence the selection landed in. The fixtures mirror the DOM Readium serves
+    // for a readaloud (ABS) EPUB — the per-sentence span ids are stripped, leaving only prose — and the
+    // [resolveSentences] carry the bundle's flattened sentence text keyed by span id.
+
+    // "cat" recurs across sentences AND paragraphs, so resolving by the bare word would be ambiguous —
+    // the resolver must use the selection's POSITION.
+    private val strippedFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0">
+            <p>The cat sat on the mat. The cat ran away quickly.</p>
+            <p>Later the cat returned home. The dog barked twice.</p>
+          </body>
+        </html>
+    """.trimIndent()
+
+    private val strippedSentences = listOf(
+        "c1-s0" to "The cat sat on the mat.",
+        "c1-s1" to "The cat ran away quickly.",
+        "c1-s2" to "Later the cat returned home.",
+        "c1-s3" to "The dog barked twice.",
+    )
+
+    // Mirrors the real Project Hail Mary failure: the served page italicises the recurring ship name
+    // ("<em>Hermes</em>"), splitting each such sentence into multiple text nodes, and the bundle's
+    // sentence text ("…to Hermes." / "Once we got to Hermes, …") differs from the rendered run. Geometry
+    // sidesteps all of that. A selection on the LAST Hermes sentence must resolve to THAT sentence — not
+    // the earlier markup-free one (the bug: selected "Once we got to Hermes…", got "I guess I should…").
+    private val italicFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0">
+            <p>I guess I should explain how Mars missions work, for any layman who may be reading this.</p>
+            <p>We got to Earth orbit the normal way, through an ordinary ship to <em>Hermes</em>.</p>
+            <p>Once we got to <em>Hermes</em>, four additional unmanned missions brought us fuel.</p>
+          </body>
+        </html>
+    """.trimIndent()
+
+    private val italicSentences = listOf(
+        "s0" to "I guess I should explain how Mars missions work, for any layman who may be reading this.",
+        "s1" to "We got to Earth orbit the normal way, through an ordinary ship to Hermes.",
+        "s2" to "Once we got to Hermes, four additional unmanned missions brought us fuel.",
+    )
+
+    @Test
+    fun resolveSelectionResolvesTheSentenceContainingTheSelection() {
+        withSizedWebViewFixture(strippedFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            webView.selectNthOccurrence("sat", 1) // first sentence
+            assertTrue("tracker must stash a selection rect", webView.awaitSelRect())
+            assertEquals("c1-s0", webView.evalSync(resolveSelectionSentenceJs(strippedSentences)).trim('"'))
+        }
+    }
+
+    @Test
+    fun resolveSelectionPicksTheRightOccurrenceOfARecurringWord() {
+        withSizedWebViewFixture(strippedFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            // "cat" occurs in s0, s1, s2 (in reading order). The 3rd lands in s2 — bare word-matching
+            // would pick the 1st; geometry picks the sentence the tap is actually in.
+            webView.selectNthOccurrence("cat", 3)
+            assertTrue(webView.awaitSelRect())
+            assertEquals("c1-s2", webView.evalSync(resolveSelectionSentenceJs(strippedSentences)).trim('"'))
+        }
+    }
+
+    @Test
+    fun resolveSelectionPicksTheSecondSentenceForAWordOnlyItContains() {
+        withSizedWebViewFixture(strippedFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            webView.selectNthOccurrence("ran", 1) // only in s1
+            assertTrue(webView.awaitSelRect())
+            assertEquals("c1-s1", webView.evalSync(resolveSelectionSentenceJs(strippedSentences)).trim('"'))
+        }
+    }
+
+    @Test
+    fun resolveSelectionResolvesASentenceContainingInlineMarkup() {
+        withSizedWebViewFixture(italicFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            webView.selectNthOccurrence("Hermes", 2) // 2nd Hermes is in s2
+            assertTrue(webView.awaitSelRect())
+            assertEquals(
+                "the sentence with the italic ship name must resolve to itself, not the earlier sentence",
+                "s2",
+                webView.evalSync(resolveSelectionSentenceJs(italicSentences)).trim('"'),
+            )
+        }
+    }
+
+    @Test
+    fun resolveSelectionResolvesTheMiddleSentenceWithInlineMarkup() {
+        withSizedWebViewFixture(italicFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            webView.selectNthOccurrence("Hermes", 1) // 1st Hermes is in s1
+            assertTrue(webView.awaitSelRect())
+            assertEquals("s1", webView.evalSync(resolveSelectionSentenceJs(italicSentences)).trim('"'))
+        }
+    }
+
+    @Test
+    fun resolveSelectionReturnsEmptyWhenNoSelectionRectIsStashed() {
+        withSizedWebViewFixture(strippedFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // No selection has been made, so __riffleSelRect is unset → resolver yields "" (caller falls back).
+            assertEquals("", webView.evalSync(resolveSelectionSentenceJs(strippedSentences)).trim('"'))
+        }
+    }
+
     // ---- helpers ----
+
+    // Selects the [n]-th occurrence (1-based, document order) of [word], driving a real selection so the
+    // tracker's selectionchange listener fires and stashes window.__riffleSelRect — the realistic path.
+    private fun WebView.selectNthOccurrence(word: String, n: Int) {
+        evalSync(
+            """
+            (function () {
+              var word = ${org.json.JSONObject.quote(word)}, n = $n, count = 0;
+              var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), node;
+              while (node = w.nextNode()) {
+                var from = 0, i;
+                while ((i = node.nodeValue.indexOf(word, from)) >= 0) {
+                  count++;
+                  if (count === n) {
+                    var range = document.createRange();
+                    range.setStart(node, i);
+                    range.setEnd(node, i + word.length);
+                    var sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    return 'ok';
+                  }
+                  from = i + word.length;
+                }
+              }
+              return 'notfound';
+            })();
+            """.trimIndent(),
+        )
+    }
+
+    // Polls until the tracker has stashed a selection rect (selectionchange is dispatched asynchronously).
+    private fun WebView.awaitSelRect(timeoutMs: Long = 3_000): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (evalSync("window.__riffleSelRect ? 'y' : 'n'").trim('"') == "y") return true
+            Thread.sleep(30)
+        }
+        return false
+    }
 
     // Selects a word inside the text node of [spanId], so the selection's startContainer is a text
     // node — the realistic shape the tracker must handle.

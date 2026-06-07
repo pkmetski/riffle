@@ -82,6 +82,35 @@ class AutoFollowJsTest {
     }
 
     @Test
+    fun paginatedKeepsAVisibleSentenceInPlaceWithoutReSnapping() {
+        withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // Drift the page a few px off the column grid, with the on-page sentence still visible. The
+            // keep-visible follow must leave the page exactly where it is (the old always-snap behaviour
+            // would have pulled scrollLeft back to the grid at 0 — the "jump" when playback starts).
+            webView.evalSync("document.scrollingElement.scrollLeft=10")
+            val result = webView.evalSync(autoFollowSnapJs(onPageText)).trim('"')
+            assertEquals("a visible sentence keeps the page 'on'", "on", result)
+            assertEquals("a visible sentence must be left in place, not re-snapped to the grid", 10, webView.scrollX())
+        }
+    }
+
+    @Test
+    fun paginatedDoesNotSnapBackForASentenceWrappingInFromThePreviousColumn() {
+        withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // Drift the page forward so the on-page sentence's START sits just off the left edge while its
+            // body stays visible on this page — the column-spanning case (a narrated sentence wrapped in
+            // from the previous column). Keep-visible must leave the page put; the old probe snapped
+            // scrollLeft back to the start's column — the page "jump" when playback starts on such a line.
+            webView.evalSync("document.scrollingElement.scrollLeft=40")
+            val result = webView.evalSync(autoFollowSnapJs(onPageText)).trim('"')
+            assertEquals("a sentence wrapping in from the previous column stays on the page", "on", result)
+            assertEquals("a wrapped-in sentence must not snap the page back a column", 40, webView.scrollX())
+        }
+    }
+
+    @Test
     fun paginatedSnapsToTheColumnContainingTheSentence() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()

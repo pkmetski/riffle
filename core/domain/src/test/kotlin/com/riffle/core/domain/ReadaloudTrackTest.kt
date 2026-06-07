@@ -78,6 +78,33 @@ class ReadaloudTrackTest {
         assertEquals(null, chapterTrack.resolveStartClip("text/c9.html", null))
     }
 
+    // A matched-ABS book renders the publisher's ABS EPUB (ADR 0026), whose chapter hrefs differ from
+    // the Storyteller bundle the SMIL clips come from — here the rendered href ("xhtml/chapter1.xhtml")
+    // shares nothing with the clips' "OEBPS/text/part0001.xhtml". But Storyteller's sentence-span ids
+    // are unique within a book, and that span id is exactly what "Play from here" / the page-top probe
+    // resolves. So resolveStartClip must find the clip by the bare span id when the href portion can't
+    // match. Regression for "Play from here / session start jumps to the chapter start on matched-ABS
+    // books".
+    private val bundleHrefClips = listOf(
+        MediaOverlayClip("OEBPS/text/part0001.xhtml#c001-s0", "a.mp3", 0.0, 2.0),
+        MediaOverlayClip("OEBPS/text/part0001.xhtml#c001-s1", "a.mp3", 2.0, 5.0),
+        MediaOverlayClip("OEBPS/text/part0002.xhtml#c002-s0", "b.mp3", 5.0, 9.0),
+    )
+    private val bundleHrefTrack = ReadaloudTrack(bundleHrefClips)
+
+    @Test
+    fun `resolveStartClip matches by bare span id when the rendered href differs from the bundle href`() {
+        assertEquals(bundleHrefClips[1], bundleHrefTrack.resolveStartClip("xhtml/chapter1.xhtml", "c001-s1"))
+        assertEquals(bundleHrefClips[2], bundleHrefTrack.resolveStartClip("xhtml/chapter2.xhtml", "c002-s0"))
+    }
+
+    @Test
+    fun `resolveStartClip still prefers the exact href#id match over a bare-id match`() {
+        // Two clips could share a span id across chapters only by collision; the exact href#id match
+        // must win when the rendered href DOES line up with the bundle, so a matching book is unaffected.
+        assertEquals(chapterClips[1], chapterTrack.resolveStartClip("text/c1.html", "s2"))
+    }
+
     // Storyteller splits each chapter into an un-narrated heading page (…_split_000) plus narrated
     // body pages (…_split_001+). Navigating via the TOC lands the reader on the heading page, which
     // has no Media Overlay; starting narration must jump forward to the chapter's first narrated

@@ -848,17 +848,34 @@ private fun EpubNavigatorView(
                         coroutineScope.launch {
                             val selection = selectable.currentSelection() ?: return@launch
                             val loc = selection.locator
-                            // Storyteller wraps each narrated sentence in <span id="cNNN-sM"> — exactly the
-                            // SMIL clip target the player keys on. Readium's selection locator carries only
-                            // text + rect (no fragment id), so without that span id the player can't map the
-                            // selection to a clip and restarts the chapter from its first clip. The
-                            // selectionchange tracker (SELECTION_SPAN_TRACKER_JS, injected per page) stashes
-                            // the enclosing span id in window.__riffleSelSpan as the user selects; we read
-                            // that stash rather than the live DOM selection so the value is robust to the
-                            // action-mode teardown. Empty when the selection had no sentence-span ancestor →
-                            // falls back to the locator fragment, then the bare href (chapter start).
-                            val spanId = nav?.evaluateJavascript("window.__riffleSelSpan || ''")
-                                ?.trim('"')?.takeIf { it.isNotEmpty() }
+                            // We need the narrated-sentence span id (<span id="cNNN-sM">) the SMIL clips key
+                            // on; Readium's selection locator carries only text + rect (no fragment id), so
+                            // without that id the player can't map the selection to a clip and restarts the
+                            // chapter from its first clip.
+                            //
+                            // Preferred path — resolveSelectionSentenceJs: resolve the span id by POSITION
+                            // from the captured locator's text context. This survives Readium stripping the
+                            // sentence spans from the served HTML (the common case — the ABS EPUB; see
+                            // ReadaloudTextQuotes) because it locates the selection within the rendered prose
+                            // by text offset rather than reading a DOM id that isn't there. Needs the
+                            // sentence-text map, which is built off-thread after the track loads.
+                            //
+                            // Fallback — window.__riffleSelSpan: the selectionchange tracker
+                            // (SELECTION_SPAN_TRACKER_JS) stashes the enclosing span id, which only exists on
+                            // pages whose spans survived (pure-Storyteller rendering) or before the quotes
+                            // map is ready. Empty → falls back to the locator fragment, then the bare href
+                            // (chapter start).
+                            val sentences = currentSentenceQuotes.entries
+                                .map { it.key to it.value.highlight }
+                            val byText = if (sentences.isNotEmpty() && nav != null) {
+                                nav.evaluateJavascript(resolveSelectionSentenceJs(sentences))
+                                    ?.trim('"')?.takeIf { it.isNotEmpty() }
+                            } else {
+                                null
+                            }
+                            val spanId = byText
+                                ?: nav?.evaluateJavascript("window.__riffleSelSpan || ''")
+                                    ?.trim('"')?.takeIf { it.isNotEmpty() }
                             val fragId = spanId ?: loc.locations.fragments.firstOrNull()
                             val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
                             currentOnPlayFromHere(ref)
@@ -1181,19 +1198,19 @@ private fun EpubNavigatorView(
     //
     //  - Scroll (Vertical) mode — the document overflows the viewport, so we scroll it to KEEP THE
     //    SENTENCE CENTERED, the natural karaoke-follow.
-    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized (nothing to scroll), so the
-    //    probe SNAPS scrollLeft to the column boundary that contains the sentence's start (landing on
-    //    the page grid) and returns "on". It does this every sentence rather than gating on rough
-    //    visibility: a go()-based snap lands flush to the element's box (a sliver of the next column
-    //    shows), and a tolerance gate never re-aligns a page that's already drifted between columns.
-    //    The snap holds because the reader is sized so innerWidth == Readium's page-snap pitch
+    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized, KEEP-VISIBLE follow: while
+    //    the narrated sentence's start is on the current page the probe leaves the page in place, and
+    //    only flips (snaps scrollLeft onto the column grid) once the sentence's start moves off the
+    //    current page. This is what stops starting playback — and the player-open reflow that re-runs
+    //    this probe — from yanking the line the user pressed onto a fresh column boundary. The snap
+    //    holds because the reader is sized so innerWidth == Readium's page-snap pitch
     //    ([alignedReaderWidthDp]), so floor(x / innerWidth) * innerWidth is exactly a column boundary.
     //
     // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
     //
-    // Re-keys on reflowGeneration so that when opening the player re-paginates the page, the snap
-    // re-runs and re-centres the narrated sentence's (now moved) column.
+    // Re-keys on reflowGeneration so that when opening the player re-paginates the page, the probe
+    // re-runs — flipping only if the reflow pushed the narrated sentence off the current page.
     LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect

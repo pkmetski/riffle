@@ -638,4 +638,65 @@ class SearchPipelineTest {
         advanceTimeBy(400)
         assertEquals(2, searchCallCount)
     }
+
+    // --- "Play from here" must not race a resume seek ---------------------------------------------
+    //
+    // Regression for "Play from here lands in the wrong place / is unreliable — sometimes the chapter
+    // top, sometimes a few sentences off, sometimes the selected sentence." Root cause: the FIRST
+    // playFromHere() of a session opened the player via openReadaloud(), which auto-plays through the
+    // resume planner — firing a SECOND seek (to the saved resume position, or the page-top fallback)
+    // that raced the selection seek. Whichever landed last won, nondeterministically. The fix opens
+    // the session WITHOUT autoplay (openReadaloudSession), so the only seek is to the selection.
+    //
+    // EpubReaderViewModel itself can't be constructed in a JVM test (Readium needs android.net.Uri —
+    // see the file header), so, as the sibling race tests above do, these model the two control flows
+    // against a fake player that records seeks. They pin the invariant: opening a closed session for
+    // "Play from here" issues exactly one seek, to the selection — never the resume position.
+
+    private class FakePlayer { val seeks = mutableListOf<String>(); fun seek(ref: String) { seeks.add(ref) } }
+
+    // The OLD flow: openReadaloud() (resume autoplay) THEN the selection seek — two seeks, so the
+    // resume position can win. This documents the bug the fix removes.
+    @Test
+    fun `old play-from-here flow fires a competing resume seek`() {
+        val player = FakePlayer()
+        val savedResumeRef = "text/part0006_split_001.html#id191-s168"
+        val selectionRef = "text/part0006_split_001.html#id191-s178"
+        var sessionOpen = false
+
+        fun openReadaloudOldFlow() { sessionOpen = true; player.seek(savedResumeRef) } // onPlayTapped → resume
+        fun playFromHereOldFlow(ref: String) {
+            if (!sessionOpen) openReadaloudOldFlow()
+            player.seek(ref)
+        }
+
+        playFromHereOldFlow(selectionRef)
+
+        // Two seeks were issued; the resume position is among them — the race that misplaces playback.
+        assertEquals(listOf(savedResumeRef, selectionRef), player.seeks)
+        assertTrue(player.seeks.contains(savedResumeRef))
+    }
+
+    // The NEW flow: open the session without autoplay, seek only to the selection.
+    @Test
+    fun `play-from-here on a closed session seeks only to the selection, not the resume position`() {
+        val player = FakePlayer()
+        val savedResumeRef = "text/part0006_split_001.html#id191-s168"
+        val selectionRef = "text/part0006_split_001.html#id191-s178"
+        var sessionOpen = false
+        var resumeRef: String? = savedResumeRef
+
+        fun openReadaloudSession() { sessionOpen = true } // no onPlayTapped(): no resume autoplay
+        fun playFromHereNewFlow(ref: String) {
+            if (!sessionOpen) openReadaloudSession()
+            resumeRef = null // consumed so a later pause/resume can't re-seek away from the selection
+            player.seek(ref)
+        }
+
+        playFromHereNewFlow(selectionRef)
+
+        assertEquals(listOf(selectionRef), player.seeks)
+        assertFalse(player.seeks.contains(savedResumeRef))
+        assertNull(resumeRef)
+    }
 }

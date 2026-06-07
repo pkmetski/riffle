@@ -43,6 +43,13 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
         val target = href.trimStart('/')
         if (fragmentId != null) {
             clips.firstOrNull { it.textFragmentRef.trimStart('/') == "$target#$fragmentId" }?.let { return it }
+            // Fall back to the bare span id alone. The rendered publication (the ABS EPUB, ADR 0026) can
+            // carry different chapter hrefs than the Storyteller bundle the SMIL clips come from, so the
+            // href portions won't match even for the same sentence. Storyteller's sentence-span ids are
+            // unique within a book — the text-anchored highlight keys on them too (see ReadaloudTextQuotes)
+            // — so the id alone identifies the clip. Tried only after the exact match, so a book whose
+            // rendered hrefs DO line up is unaffected.
+            clips.firstOrNull { it.textFragmentRef.substringAfter('#', "") == fragmentId }?.let { return it }
         }
         fun chapterHref(clip: MediaOverlayClip) = clip.textFragmentRef.substringBefore('#').trimStart('/')
         clips.firstOrNull { chapterHref(it) == target }?.let { return it }
