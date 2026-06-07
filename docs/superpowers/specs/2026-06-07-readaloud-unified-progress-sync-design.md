@@ -31,13 +31,29 @@ reconciliation shape; it was **letting the audio write the ebook**.
 So the two representations are **decoupled**: page → ebook (full reconcile, can pull cross-device);
 audio → audiobook (push-only while playing). They are NOT kept in lockstep through one canonical.
 
+## The fourth bug (ebook written to ~end-of-book) — the audiobook was still a reconciled peer
+
+Symptom: the ebook server location was being set to ~end-of-book when reading from the beginning,
+and the reader jumped there. Root cause, **reproduced deterministically in an in-memory test**
+(`ThreePeerReaderSyncCoordinatorTest.an audiobook ahead of the reading position must NOT drive the
+ebook…`): the "decoupled push-only audiobook" was *not* decoupled. The audiobook (`RemoteKind.ABS_AUDIO`)
+was **still a reconciled inbound peer** in `applicableRemotes`. So the push wrote the audiobook
+`currentTime` with a fresh timestamp, and the **very next cycle read it back**, it won inbound (fresh
+timestamp), and its position was propagated to the **ebook** — the exact erase mechanism, now via a
+feedback loop through the audiobook record. Any audio-ahead-of-page divergence (a prior push, or
+another device) triggered it.
+
+Fix: **`ABS_AUDIO` is no longer a `RemoteKind` at all.** The reconcile set is `{ABS_EBOOK,
+STORYTELLER}`. The audiobook is written *only* by `pushAudiobookSeconds` and never read back, so it
+is structurally incapable of driving the ebook.
+
 ## Current state (shipped, safe)
 
 `runThreePeerCycle` is **page-led**: the canonical is the genuine reading position with its stored
-timestamp; it reconciles the ebook + Storyteller (+ the audiobook, page-derived) and can pull a
-genuinely-newer server position on open. The audio position is not involved, so it cannot erase the
-ebook. Consequence: the audiobook only advances to the **reading** position (on the 30s tick /
-close), not the live audio position — i.e. listening with the page still doesn't move it.
+timestamp; it reconciles **only the ebook + Storyteller** and can pull a genuinely-newer server
+position on open. The audiobook is not in the reconcile set, so neither the audio clock nor the
+audiobook record can ever erase the ebook. Consequence: the audiobook advances only via the
+push-only follow below (while listening); reading the page alone does not move the audiobook.
 
 ## Implemented: decoupled push-only audiobook-follow
 

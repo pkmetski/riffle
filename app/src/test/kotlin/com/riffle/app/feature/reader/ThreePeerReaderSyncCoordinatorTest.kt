@@ -104,24 +104,28 @@ class ThreePeerReaderSyncCoordinatorTest {
         assertNotNull("ABS ebook received the first write", abs.ebookPatch)
         assertTrue(abs.ebookPatch!!.ebookLocation.startsWith("epubcfi("))
         assertNotNull("Storyteller received the first write", st.put)
+        // Book-only reading (no audio push): the reconcile cycle must never write the audiobook.
+        assertNull("the cycle must not touch the audiobook record", abs.audioPatch)
     }
 
     @Test
-    fun `split libraries route ebook and audiobook progress to their own item ids`() = runTest {
+    fun `split libraries route ebook progress and the push-only audiobook to their own item ids`() = runTest {
         // Separate ABS items: an ebook item and an audiobook item, matched to the same bundle.
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
         val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
         val ebookEp = AbsSyncEndpoint("http://abs", "t", false, "ebook-item")
-        val audioEp = AbsSyncEndpoint("http://abs", "t", false, "audiobook-item")
+        val audioEp = AbsSyncEndpoint("http://abs", "t", false, "audiobook-item", durationSec = 100.0)
         val coordinator = ThreePeerReaderSyncCoordinator(state, bridge, abs, st, ebookEp, audioEp, stEp)
 
         coordinator.runCycle(locator(0.3), localUpdatedAt = 9_000L)
+        coordinator.pushAudiobookSeconds(42.0)
 
-        // The ebook remote writes ebook progress to the ebook item; the audio remote reads/targets
-        // the separate audiobook item (its PATCH is gated on SMIL, separately tested).
+        // The reconcile cycle writes ebook progress to the ebook item; it never reads or writes the
+        // audiobook item (push-only). The audiobook item is written only by the push.
         assertEquals("ebook-item", abs.ebookPatchItemId)
-        assertTrue("audio remote targets the audiobook item", "audiobook-item" in abs.getProgressItemIds)
         assertTrue("ebook remote targets the ebook item", "ebook-item" in abs.getProgressItemIds)
+        assertTrue("the cycle never reads the audiobook item", "audiobook-item" !in abs.getProgressItemIds)
+        assertEquals("the push targets the audiobook item", "audiobook-item", abs.audioPatchItemId)
     }
 
     @Test
@@ -141,6 +145,40 @@ class ThreePeerReaderSyncCoordinatorTest {
         // Decoupled: the ebook is never touched, so it can never be erased by the audio.
         assertNull(abs.ebookPatch)
         assertNull(abs.ebookPatchItemId)
+    }
+
+    @Test
+    fun `an audiobook ahead of the reading position must NOT drive the ebook to the audio position`() = runTest {
+        // THE bug ("ebook set to almost-end where it should be beginning"): the audio is ahead of the
+        // page (readaloud started behind, or a prior push wrote the live audio time). If the audiobook
+        // is a reconciled inbound peer, its fresh record wins the cycle and propagates to the ebook —
+        // erasing the reading position. The invariant: the audio must never drive the ebook.
+        // A SMIL/index so the audiobook's currentTime maps to a real near-end canonical.
+        val translator = CanonicalPositionTranslator(
+            smilClips = listOf(
+                com.riffle.core.domain.MediaOverlayClip("f9", "a.mp3", clipBeginSec = 90.0, clipEndSec = 100.0),
+            ),
+            index = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
+            fragmentProgressions = mapOf("f9" to com.riffle.core.domain.ChapterProgression(0, 0.9)),
+        )
+        val bridge = ReaderPositionBridge(
+            absSpineHrefs = listOf("c1.xhtml"),
+            absChapterHtml = { if (it == 0) absHtml else null },
+            storytellerSpineHrefs = listOf("c1.xhtml"),
+            storytellerChapterHtml = { if (it == 0) absHtml else null },
+            translator = translator,
+        )
+        // Combined item: ebook empty, audiobook at 95s (near-end) with a fresh timestamp.
+        val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", currentTime = 95.0, duration = 100.0, lastUpdate = 9_999L))
+        val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
+        val coordinator = ThreePeerReaderSyncCoordinator(state, bridge, abs, st, absEp, absEp, stEp)
+
+        // The reader is at the beginning, last saved earlier than the audiobook record.
+        val result = coordinator.runCycle(locator(0.0), localUpdatedAt = 1_000L)
+
+        assertNull("the reader must not jump to the audiobook position", result.jumpLocatorJson)
+        // The ebook, if written, must hold the reading position (beginning) — never the audio's near-end.
+        assertEquals("ebook progress must stay at the reading position", 0.0, abs.ebookPatch?.ebookProgress?.toDouble() ?: 0.0, 1e-9)
     }
 
     @Test

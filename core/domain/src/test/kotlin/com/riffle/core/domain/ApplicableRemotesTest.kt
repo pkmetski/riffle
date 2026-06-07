@@ -1,6 +1,5 @@
 package com.riffle.core.domain
 
-import com.riffle.core.domain.RemoteKind.ABS_AUDIO
 import com.riffle.core.domain.RemoteKind.ABS_EBOOK
 import com.riffle.core.domain.RemoteKind.STORYTELLER
 import org.junit.Assert.assertEquals
@@ -21,7 +20,9 @@ class ApplicableRemotesTest {
     }
 
     @Test
-    fun `a matched book with both an ebook and an audio target runs all three peers`() {
+    fun `a matched book reconciles the ebook and Storyteller — never the audiobook`() {
+        // The audiobook is push-only: it must never be a reconciled remote, or a divergent audio
+        // clock would win the cycle and drive the ebook to the audio position (data loss).
         val state = BookSyncState(
             isMatched = true,
             hasAbsEbookTarget = true,
@@ -29,11 +30,11 @@ class ApplicableRemotesTest {
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO, STORYTELLER), applicableRemotes(state))
+        assertEquals(setOf(ABS_EBOOK, STORYTELLER), applicableRemotes(state))
     }
 
     @Test
-    fun `a matched book with no matched audio item omits the ABS audio remote`() {
+    fun `a matched book with no matched audio item still reconciles ebook and Storyteller`() {
         val state = BookSyncState(
             isMatched = true,
             hasAbsEbookTarget = true,
@@ -45,9 +46,9 @@ class ApplicableRemotesTest {
     }
 
     @Test
-    fun `a split-library match still syncs Storyteller alongside both ABS items`() {
-        // Ebook item and audiobook item are distinct ABS items (separate libraries). They are the
-        // same logical book's two media, not two users sharing a position, so Storyteller stays in.
+    fun `a split-library match reconciles the ebook and Storyteller while the audiobook stays push-only`() {
+        // Ebook item and audiobook item are distinct ABS items (separate libraries). The audiobook is
+        // still push-only — only the ebook and Storyteller are reconciled.
         val state = BookSyncState(
             isMatched = true,
             hasAbsEbookTarget = true,
@@ -55,7 +56,7 @@ class ApplicableRemotesTest {
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO, STORYTELLER), applicableRemotes(state))
+        assertEquals(setOf(ABS_EBOOK, STORYTELLER), applicableRemotes(state))
     }
 
     @Test

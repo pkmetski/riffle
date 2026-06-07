@@ -55,32 +55,9 @@ internal class AbsEbookSyncRemote(
     }
 }
 
-/** ABS audiobook progress as a sync remote: a `currentTime` in seconds, bridged through the SMIL. */
-internal class AbsAudiobookSyncRemote(
-    private val api: AbsSessionApi,
-    private val ep: AbsSyncEndpoint,
-    private val bridge: ReaderPositionBridge,
-) : SyncRemote {
-    override val id = RemoteKind.ABS_AUDIO.name
-    private var lastDuration: Double = 0.0
-
-    override suspend fun tryGet(): RemoteRead? {
-        val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
-            ?.progress ?: return null
-        lastDuration = p.duration
-        if (p.lastUpdate <= 0L || p.currentTime <= 0.0) return EMPTY_REMOTE_READ // no audiobook position yet
-        val canonical = bridge.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_REMOTE_READ
-        return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
-    }
-
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
-        val seconds = bridge.canonicalToAudioSeconds(canonical.value) ?: return false
-        // Prefer the matched item's known duration; the progress GET's duration is 0 until a record exists.
-        val duration = ep.durationSec.takeIf { it > 0.0 } ?: lastDuration
-        val payload = NetworkAudiobookProgressPayload(seconds, duration)
-        return api.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) is NetworkSyncSessionResult.Success
-    }
-}
+// The ABS audiobook is NOT a reconciled remote — it is push-only (see RemoteKind /
+// ThreePeerReaderSyncCoordinator.pushAudiobookSeconds). Reading it back would let an audio clock
+// that diverges from the page drive the ebook, erasing reading progress.
 
 /** Storyteller position as a sync remote: a Readium Locator on the Storyteller EPUB. */
 internal class StorytellerSyncRemote(
@@ -140,7 +117,6 @@ class ThreePeerReaderSyncCoordinator(
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
                 RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
-                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookSyncRemote(absApi, it, bridge) }
                 RemoteKind.STORYTELLER -> storytellerEndpoint?.let { StorytellerSyncRemote(storytellerApi, it, bridge, localUpdatedAt) }
             }
         }
