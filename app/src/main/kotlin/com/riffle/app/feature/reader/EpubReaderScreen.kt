@@ -926,6 +926,12 @@ private fun EpubNavigatorView(
     // Opening/closing the player re-paginates, which moves the narrated sentence's column — the
     // highlight and auto-follow must re-run against the new layout.
     val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs to readaloudReservePx)
+    // Same settle-window generation but keyed ONLY on the formatting prefs, not the readaloud reserve.
+    // The auto-follow probe re-runs on this (plus page loads) to re-centre the narrated sentence after a
+    // font/margin/spacing/orientation reflow — but NOT after the player-open/close reserve reflow, which
+    // the reserve effect pins to the top-of-page line instead (re-following the narrated column there
+    // would re-introduce the "line jumps when the player opens" bug).
+    val followReflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
 
     // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
     // that reflowGeneration's timer heuristic only approximates — and the only one available after a
@@ -1229,12 +1235,12 @@ private fun EpubNavigatorView(
     // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
     //
-    // Deliberately NOT keyed on reflowGeneration: the readaloud-reserve reflow re-paginates the whole
-    // chapter, and re-snapping to the narrated sentence's column here would land the page on whatever
-    // text now precedes it (the "line jumps when the player opens" bug). The reserve effect above
-    // instead pins the line that was at the top of the page across the reflow; this probe only follows
-    // genuine narration advances (activeFragmentRef) and quote arrival.
-    LaunchedEffect(activeFragmentRef, sentenceQuotes) {
+    // Re-keys on followReflowGeneration (formatting reflows) and pageLoadGeneration (rotation / chapter
+    // load) so the narrated sentence is re-centred after those relayouts — but deliberately NOT on the
+    // readaloud-reserve reflow: re-snapping to the narrated sentence's column when the player opens would
+    // land the page on whatever text now precedes it (the "line jumps when the player opens" bug). The
+    // reserve effect above instead pins the line that was at the top of the page across that reflow.
+    LaunchedEffect(activeFragmentRef, sentenceQuotes, followReflowGeneration, pageLoadGeneration.value) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
