@@ -848,17 +848,34 @@ private fun EpubNavigatorView(
                         coroutineScope.launch {
                             val selection = selectable.currentSelection() ?: return@launch
                             val loc = selection.locator
-                            // Storyteller wraps each narrated sentence in <span id="cNNN-sM"> — exactly the
-                            // SMIL clip target the player keys on. Readium's selection locator carries only
-                            // text + rect (no fragment id), so without that span id the player can't map the
-                            // selection to a clip and restarts the chapter from its first clip. The
-                            // selectionchange tracker (SELECTION_SPAN_TRACKER_JS, injected per page) stashes
-                            // the enclosing span id in window.__riffleSelSpan as the user selects; we read
-                            // that stash rather than the live DOM selection so the value is robust to the
-                            // action-mode teardown. Empty when the selection had no sentence-span ancestor →
-                            // falls back to the locator fragment, then the bare href (chapter start).
-                            val spanId = nav?.evaluateJavascript("window.__riffleSelSpan || ''")
-                                ?.trim('"')?.takeIf { it.isNotEmpty() }
+                            // We need the narrated-sentence span id (<span id="cNNN-sM">) the SMIL clips key
+                            // on; Readium's selection locator carries only text + rect (no fragment id), so
+                            // without that id the player can't map the selection to a clip and restarts the
+                            // chapter from its first clip.
+                            //
+                            // Preferred path — resolveSelectionSentenceJs: resolve the span id by POSITION
+                            // from the captured locator's text context. This survives Readium stripping the
+                            // sentence spans from the served HTML (the common case — the ABS EPUB; see
+                            // ReadaloudTextQuotes) because it locates the selection within the rendered prose
+                            // by text offset rather than reading a DOM id that isn't there. Needs the
+                            // sentence-text map, which is built off-thread after the track loads.
+                            //
+                            // Fallback — window.__riffleSelSpan: the selectionchange tracker
+                            // (SELECTION_SPAN_TRACKER_JS) stashes the enclosing span id, which only exists on
+                            // pages whose spans survived (pure-Storyteller rendering) or before the quotes
+                            // map is ready. Empty → falls back to the locator fragment, then the bare href
+                            // (chapter start).
+                            val sentences = currentSentenceQuotes.entries
+                                .map { it.key to it.value.highlight }
+                            val byText = if (sentences.isNotEmpty() && nav != null) {
+                                nav.evaluateJavascript(resolveSelectionSentenceJs(sentences))
+                                    ?.trim('"')?.takeIf { it.isNotEmpty() }
+                            } else {
+                                null
+                            }
+                            val spanId = byText
+                                ?: nav?.evaluateJavascript("window.__riffleSelSpan || ''")
+                                    ?.trim('"')?.takeIf { it.isNotEmpty() }
                             val fragId = spanId ?: loc.locations.fragments.firstOrNull()
                             val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
                             currentOnPlayFromHere(ref)
@@ -909,6 +926,12 @@ private fun EpubNavigatorView(
     // Opening/closing the player re-paginates, which moves the narrated sentence's column — the
     // highlight and auto-follow must re-run against the new layout.
     val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs to readaloudReservePx)
+    // Same settle-window generation but keyed ONLY on the formatting prefs, not the readaloud reserve.
+    // The auto-follow probe re-runs on this (plus page loads) to re-centre the narrated sentence after a
+    // font/margin/spacing/orientation reflow — but NOT after the player-open/close reserve reflow, which
+    // the reserve effect pins to the top-of-page line instead (re-following the narrated column there
+    // would re-introduce the "line jumps when the player opens" bug).
+    val followReflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
 
     // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
     // that reflowGeneration's timer heuristic only approximates — and the only one available after a
@@ -952,12 +975,32 @@ private fun EpubNavigatorView(
 
     // Push the readaloud reserve to the live page the moment it changes (player opens/closes, rail
     // toggles, rotation) so the text re-paginates above the player without waiting for a page reload.
-    // The decoration/auto-follow effects re-run via reflowGeneration, which also keys on the reserve.
+    // The decoration effect re-runs via reflowGeneration to re-render the highlight onto the reflowed
+    // layout. The page POSITION through the reflow is handled here, not by the auto-follow probe: the
+    // reserve shrinks/grows every column, re-wrapping the whole text chain, so the page would otherwise
+    // land on different content (the "line jumps when the player opens" bug). We pin the line that was
+    // at the top of the page across the reflow: capture it before, re-anchor to it after as the layout
+    // settles. Only on a real live change (player opens/closes, rail toggles) — not the initial
+    // composition or a page-load re-apply, which have nothing to preserve.
+    var prevReservePx by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(readaloudReservePx) {
         val fragment = fragmentRef.value ?: return@LaunchedEffect
+        val prev = prevReservePx
+        prevReservePx = readaloudReservePx
         withContext(Dispatchers.Main) {
+            val anchor = if (prev != null && prev != readaloudReservePx) {
+                fragment.evaluateJavascript(reflowAnchorCaptureJs())?.trim('"').orEmpty()
+            } else {
+                ""
+            }
+            // Injecting the <style> doesn't reflow (the rule is inert until the class is added). Apply
+            // the reserve AND start the re-anchor in ONE evaluation so no frame paints between the
+            // re-pagination and the first snap — the re-anchor's first pass forces a synchronous layout
+            // and corrects scrollLeft before paint, so there's no flash of the reflowed-but-unscrolled page.
             fragment.evaluateJavascript(readaloudReserveInjectionJs())
-            fragment.evaluateJavascript(readaloudReserveApplyJs(readaloudReservePx))
+            val applyAndReAnchor = readaloudReserveApplyJs(readaloudReservePx) +
+                if (anchor.isNotEmpty()) "\n;" + reflowAnchorSnapJs(anchor) else ""
+            fragment.evaluateJavascript(applyAndReAnchor)
         }
     }
 
@@ -1181,20 +1224,23 @@ private fun EpubNavigatorView(
     //
     //  - Scroll (Vertical) mode — the document overflows the viewport, so we scroll it to KEEP THE
     //    SENTENCE CENTERED, the natural karaoke-follow.
-    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized (nothing to scroll), so the
-    //    probe SNAPS scrollLeft to the column boundary that contains the sentence's start (landing on
-    //    the page grid) and returns "on". It does this every sentence rather than gating on rough
-    //    visibility: a go()-based snap lands flush to the element's box (a sliver of the next column
-    //    shows), and a tolerance gate never re-aligns a page that's already drifted between columns.
-    //    The snap holds because the reader is sized so innerWidth == Readium's page-snap pitch
+    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized, KEEP-VISIBLE follow: while
+    //    the narrated sentence's start is on the current page the probe leaves the page in place, and
+    //    only flips (snaps scrollLeft onto the column grid) once the sentence's start moves off the
+    //    current page. This is what stops starting playback — and the player-open reflow that re-runs
+    //    this probe — from yanking the line the user pressed onto a fresh column boundary. The snap
+    //    holds because the reader is sized so innerWidth == Readium's page-snap pitch
     //    ([alignedReaderWidthDp]), so floor(x / innerWidth) * innerWidth is exactly a column boundary.
     //
     // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
     //
-    // Re-keys on reflowGeneration so that when opening the player re-paginates the page, the snap
-    // re-runs and re-centres the narrated sentence's (now moved) column.
-    LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration) {
+    // Re-keys on followReflowGeneration (formatting reflows) and pageLoadGeneration (rotation / chapter
+    // load) so the narrated sentence is re-centred after those relayouts — but deliberately NOT on the
+    // readaloud-reserve reflow: re-snapping to the narrated sentence's column when the player opens would
+    // land the page on whatever text now precedes it (the "line jumps when the player opens" bug). The
+    // reserve effect above instead pins the line that was at the top of the page across that reflow.
+    LaunchedEffect(activeFragmentRef, sentenceQuotes, followReflowGeneration, pageLoadGeneration.value) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
