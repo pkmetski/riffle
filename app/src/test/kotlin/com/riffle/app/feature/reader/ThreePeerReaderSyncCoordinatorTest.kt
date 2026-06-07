@@ -123,4 +123,34 @@ class ThreePeerReaderSyncCoordinatorTest {
         assertTrue("audio remote targets the audiobook item", "audiobook-item" in abs.getProgressItemIds)
         assertTrue("ebook remote targets the ebook item", "ebook-item" in abs.getProgressItemIds)
     }
+
+    @Test
+    fun `pushAudiobookSeconds writes only the audiobook item, never the ebook`() = runTest {
+        val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
+        val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
+        val ebookEp = AbsSyncEndpoint("http://abs", "t", false, "ebook-item")
+        val audioEp = AbsSyncEndpoint("http://abs", "t", false, "audiobook-item", durationSec = 39214.0)
+        val coordinator = ThreePeerReaderSyncCoordinator(state, bridge, abs, st, ebookEp, audioEp, stEp)
+
+        val ok = coordinator.pushAudiobookSeconds(1443.0)
+
+        assertTrue(ok)
+        assertEquals(1443.0, abs.audioPatch!!.currentTime, 1e-9)
+        assertEquals(39214.0, abs.audioPatch!!.duration, 1e-9)
+        assertEquals("audiobook-item", abs.audioPatchItemId)
+        // Decoupled: the ebook is never touched, so it can never be erased by the audio.
+        assertNull(abs.ebookPatch)
+        assertNull(abs.ebookPatchItemId)
+    }
+
+    @Test
+    fun `pushAudiobookSeconds is a no-op when there is no matched audiobook`() = runTest {
+        val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
+        val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
+        val ebookEp = AbsSyncEndpoint("http://abs", "t", false, "ebook-item")
+        val coordinator = ThreePeerReaderSyncCoordinator(state, bridge, abs, st, ebookEp, absAudioEndpoint = null, storytellerEndpoint = stEp)
+
+        assertEquals(false, coordinator.pushAudiobookSeconds(1443.0))
+        assertNull(abs.audioPatch)
+    }
 }

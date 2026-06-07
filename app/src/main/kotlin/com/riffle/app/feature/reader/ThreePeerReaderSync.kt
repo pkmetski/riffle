@@ -150,4 +150,18 @@ class ThreePeerReaderSyncCoordinator(
         val jump = result.jumpTo?.value?.takeIf { it.isNotEmpty() }
         return ThreePeerReaderCycleResult(jump, result.canonicalLastUpdate)
     }
+
+    /**
+     * Push-only update of the matched ABS audiobook's `currentTime` from the live audio position
+     * while readaloud plays. Decoupled from [runCycle]: it writes ONLY the audiobook item — never the
+     * ebook, the reading position, or a reader jump — so a behind/early audio clock can never erase
+     * or override reading progress (the failure mode of every "audio drives the canonical" attempt).
+     * No-op (returns false) when there is no matched audiobook target. ABS gets the percentage too,
+     * computed from the item's duration.
+     */
+    suspend fun pushAudiobookSeconds(seconds: Double): Boolean {
+        val ep = absAudioEndpoint ?: return false
+        val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
+        return absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) is NetworkSyncSessionResult.Success
+    }
 }

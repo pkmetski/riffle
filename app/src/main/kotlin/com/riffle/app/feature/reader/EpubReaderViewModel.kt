@@ -519,16 +519,28 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun runThreePeerCycle(locator: Locator?) {
         val coordinator = threePeer ?: return
         val serverId = threePeerServerId ?: return
-        val locJson = (locator ?: lastLocator)?.toJSON()?.toString() ?: return
-        val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
-        val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull() ?: return
-        result.jumpLocatorJson?.let { json ->
-            try {
-                Locator.fromJSON(JSONObject(json))?.let { _serverLocatorChannel.trySend(it) }
-            } catch (_: Exception) { /* malformed jump locator — skip */ }
+        val locJson = (locator ?: lastLocator)?.toJSON()?.toString()
+        if (locJson != null) {
+            val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
+            val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull()
+            if (result != null) {
+                result.jumpLocatorJson?.let { json ->
+                    try {
+                        Locator.fromJSON(JSONObject(json))?.let { _serverLocatorChannel.trySend(it) }
+                    } catch (_: Exception) { /* malformed jump locator — skip */ }
+                }
+                if (result.canonicalLastUpdate > localUpdatedAt) {
+                    readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
+                }
+            }
         }
-        if (result.canonicalLastUpdate > localUpdatedAt) {
-            readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
+        // Decoupled, push-only audiobook-follow: while readaloud is narrating a sentence, the
+        // audiobook currentTime tracks the live audio. This writes ONLY the audiobook item — never
+        // the ebook/reading position above — so it can never erase or override reading progress.
+        // (Single-file audiobooks: positionSec is the absolute offset; multi-file is a known TODO.)
+        val playback = playerCoordinator.state.value
+        if (playback.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
+            runCatching { coordinator.pushAudiobookSeconds(playback.positionSec) }
         }
     }
 
