@@ -969,12 +969,32 @@ private fun EpubNavigatorView(
 
     // Push the readaloud reserve to the live page the moment it changes (player opens/closes, rail
     // toggles, rotation) so the text re-paginates above the player without waiting for a page reload.
-    // The decoration/auto-follow effects re-run via reflowGeneration, which also keys on the reserve.
+    // The decoration effect re-runs via reflowGeneration to re-render the highlight onto the reflowed
+    // layout. The page POSITION through the reflow is handled here, not by the auto-follow probe: the
+    // reserve shrinks/grows every column, re-wrapping the whole text chain, so the page would otherwise
+    // land on different content (the "line jumps when the player opens" bug). We pin the line that was
+    // at the top of the page across the reflow: capture it before, re-anchor to it after as the layout
+    // settles. Only on a real live change (player opens/closes, rail toggles) — not the initial
+    // composition or a page-load re-apply, which have nothing to preserve.
+    var prevReservePx by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(readaloudReservePx) {
         val fragment = fragmentRef.value ?: return@LaunchedEffect
+        val prev = prevReservePx
+        prevReservePx = readaloudReservePx
         withContext(Dispatchers.Main) {
+            val anchor = if (prev != null && prev != readaloudReservePx) {
+                fragment.evaluateJavascript(reflowAnchorCaptureJs())?.trim('"').orEmpty()
+            } else {
+                ""
+            }
+            // Injecting the <style> doesn't reflow (the rule is inert until the class is added). Apply
+            // the reserve AND start the re-anchor in ONE evaluation so no frame paints between the
+            // re-pagination and the first snap — the re-anchor's first pass forces a synchronous layout
+            // and corrects scrollLeft before paint, so there's no flash of the reflowed-but-unscrolled page.
             fragment.evaluateJavascript(readaloudReserveInjectionJs())
-            fragment.evaluateJavascript(readaloudReserveApplyJs(readaloudReservePx))
+            val applyAndReAnchor = readaloudReserveApplyJs(readaloudReservePx) +
+                if (anchor.isNotEmpty()) "\n;" + reflowAnchorSnapJs(anchor) else ""
+            fragment.evaluateJavascript(applyAndReAnchor)
         }
     }
 
@@ -1209,9 +1229,12 @@ private fun EpubNavigatorView(
     // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
     //
-    // Re-keys on reflowGeneration so that when opening the player re-paginates the page, the probe
-    // re-runs — flipping only if the reflow pushed the narrated sentence off the current page.
-    LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration) {
+    // Deliberately NOT keyed on reflowGeneration: the readaloud-reserve reflow re-paginates the whole
+    // chapter, and re-snapping to the narrated sentence's column here would land the page on whatever
+    // text now precedes it (the "line jumps when the player opens" bug). The reserve effect above
+    // instead pins the line that was at the top of the page across the reflow; this probe only follows
+    // genuine narration advances (activeFragmentRef) and quote arrival.
+    LaunchedEffect(activeFragmentRef, sentenceQuotes) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect

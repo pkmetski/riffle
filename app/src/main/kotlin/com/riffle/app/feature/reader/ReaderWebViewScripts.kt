@@ -258,6 +258,52 @@ internal fun snapToTargetColumnJs(fragmentId: String?): String {
         "tick();})()"
 }
 
+// Captures a short text prefix of the line at the TOP of the current paginated page — the first text
+// node in reading order whose first character sits on the current page. Read before the readaloud
+// reserve re-paginates the columns, so [reflowAnchorSnapJs] can pin that same line back afterwards:
+// the reserve shrinks/grows every column's height, which re-wraps the whole text chain from column 1,
+// so without re-anchoring the page lands on different content (the "line jumps when the player opens"
+// bug). Returns "" when nothing on-page is found.
+internal fun reflowAnchorCaptureJs(): String =
+    """
+    (function(){
+      var iw=window.innerWidth, ih=window.innerHeight;
+      var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
+      while(n=w.nextNode()){
+        var t=n.nodeValue; if(t.replace(/\s/g,'').length < 4) continue;
+        var g=document.createRange(); g.setStart(n,0); g.setEnd(n, Math.min(t.length,1));
+        var r=g.getBoundingClientRect();
+        if(r.left >= 0 && r.left < iw && r.bottom > 0 && r.top < ih) return t.replace(/^\s+/, '').slice(0,24);
+      }
+      return "";
+    })()
+    """.trimIndent()
+
+// Re-pins the page to [anchorPrefix] (captured by [reflowAnchorCaptureJs]) while the readaloud reserve
+// re-paginates: a requestAnimationFrame loop that re-locates the prefix each frame and floors
+// scrollLeft to the column holding it, until scrollWidth holds steady (reflow done) or a safety cap.
+// Same floor-to-grid math and generation guard as [snapToTargetColumnJs] — and it shares
+// window.__riffleSnapGen, so a TOC/search jump and this re-anchor supersede each other instead of
+// fighting. No-op for an empty prefix.
+internal fun reflowAnchorSnapJs(anchorPrefix: String): String {
+    if (anchorPrefix.isEmpty()) return "(function(){})()"
+    val needle = JSONObject.quote(anchorPrefix)
+    return "(function(){var needle=$needle;" +
+        "var se=document.scrollingElement;" +
+        "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
+        "var lastW=-1,stable=0,frames=0;" +
+        "function locate(){var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false),n;" +
+        "while(n=w.nextNode()){var i=n.nodeValue.indexOf(needle);" +
+        "if(i>=0){var g=document.createRange();g.setStart(n,i);g.setEnd(n,Math.min(n.nodeValue.length,i+1));return g.getBoundingClientRect();}}return null;}" +
+        "function snap(){var iw=window.innerWidth;var r=locate();if(r)se.scrollLeft=Math.floor((r.left+se.scrollLeft)/iw)*iw;}" +
+        "function tick(){if(gen!==window.__riffleSnapGen)return;" +
+        "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
+        "snap();" +
+        "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" +
+        "requestAnimationFrame(tick);}" +
+        "tick();})()"
+}
+
 /**
  * Finds the first narrated sentence visible on the current page. [highlights] are the sentence texts
  * in reading order (whole book); only the current chapter's sentences exist in this document's DOM,
