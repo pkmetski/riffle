@@ -51,10 +51,12 @@ internal class AbsEbookSyncRemote(
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
         val cfi = bridge.canonicalToAbsCfi(canonical.value) ?: return null
         val payload = NetworkEbookProgressPayload(cfi, bridge.canonicalBookProgress(canonical.value))
-        // Return the timestamp ABS stamped the write with: it is later than our local clock, and the
-        // cycle adopts it so this write doesn't read back next cycle as a newer remote (the bounce).
-        return (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure)
-            as? NetworkSyncSessionResult.Success)?.lastUpdate
+        if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
+        // ABS's progress PATCH replies "OK" with no timestamp, so we GET the record to learn the
+        // server time the write was stored under. The cycle adopts it; without it this write reads
+        // back next cycle as a newer remote and bounces the reader (the "server overwrites local" bug).
+        return (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
+            ?.progress?.lastUpdate
     }
 }
 

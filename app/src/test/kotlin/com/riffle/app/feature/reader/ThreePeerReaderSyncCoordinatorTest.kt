@@ -53,9 +53,11 @@ class ThreePeerReaderSyncCoordinatorTest {
         .put("locations", JSONObject().put("progression", progression))
         .toString()
 
-    // A minimal in-memory ABS server: a write updates the stored record and stamps it with a fresh,
-    // monotonically-increasing lastUpdate (which it returns), and a read returns the current record —
-    // so a push is visible to the next cycle exactly as on the real server (the feedback path).
+    // A minimal in-memory ABS server modelled on the REAL one: a write stores the record stamped with
+    // a fresh, monotonically-increasing server `lastUpdate`, but the PATCH response is "OK" with NO
+    // timestamp (Success(0)) — exactly as ABS replies. The stored stamp is observable only via a
+    // follow-up GET. This is what makes the timestamp-adoption / feedback-loop logic real: code that
+    // relies on the PATCH returning a usable stamp will (correctly) fail here.
     private class FakeAbs(initial: NetworkServerProgress) : AbsSessionApi {
         var progress = initial
         private var clock = initial.lastUpdate
@@ -69,15 +71,13 @@ class ThreePeerReaderSyncCoordinatorTest {
 
         override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean): NetworkSyncSessionResult {
             ebookPatch = payload; ebookPatchItemId = libraryItemId
-            val stamp = nextStamp()
-            progress = progress.copy(ebookLocation = payload.ebookLocation, ebookProgress = payload.ebookProgress, lastUpdate = stamp)
-            return NetworkSyncSessionResult.Success(stamp)
+            progress = progress.copy(ebookLocation = payload.ebookLocation, ebookProgress = payload.ebookProgress, lastUpdate = nextStamp())
+            return NetworkSyncSessionResult.Success(0L) // ABS replies "OK" — no timestamp in the body
         }
         override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean): NetworkSyncSessionResult {
             audioPatch = payload; audioPatchItemId = libraryItemId
-            val stamp = nextStamp()
-            progress = progress.copy(currentTime = payload.currentTime, duration = payload.duration, lastUpdate = stamp)
-            return NetworkSyncSessionResult.Success(stamp)
+            progress = progress.copy(currentTime = payload.currentTime, duration = payload.duration, lastUpdate = nextStamp())
+            return NetworkSyncSessionResult.Success(0L) // ABS replies "OK" — no timestamp in the body
         }
         override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkGetProgressResult {
             getProgressItemIds += libraryItemId; return NetworkGetProgressResult.Success(progress)
