@@ -85,6 +85,32 @@ class CanonicalPositionTranslatorTest {
         assertNull(translator.storytellerToAbsProgression(ChapterProgression(9, 0.5)))
     }
 
+    @Test
+    fun `book-wide progress weights chapters by their character counts`() {
+        // Three chapters of 100, 300, 100 abs chars (total 500). Halfway through chapter 2 (index 1)
+        // is 100 + 0.5*300 = 250 chars → 250/500 = 0.5 of the book.
+        val translator = CanonicalPositionTranslator(
+            smilClips = emptyList(),
+            index = CrossEpubIndex(
+                listOf(
+                    ChapterCharMap(absChars = 100, storytellerChars = 100),
+                    ChapterCharMap(absChars = 300, storytellerChars = 300),
+                    ChapterCharMap(absChars = 100, storytellerChars = 100),
+                ),
+            ),
+        )
+
+        assertEquals(0.5, translator.absBookProgression(ChapterProgression(1, 0.5))!!, 1e-9)
+        assertEquals(0.0, translator.absBookProgression(ChapterProgression(0, 0.0))!!, 1e-9)
+        assertEquals(1.0, translator.absBookProgression(ChapterProgression(2, 1.0))!!, 1e-9)
+    }
+
+    @Test
+    fun `book-wide progress is null when the index has no character data`() {
+        val translator = CanonicalPositionTranslator(smilClips = emptyList())
+        assertNull(translator.absBookProgression(ChapterProgression(0, 0.5)))
+    }
+
     // ── Audio-seconds ↔ canonical (Storyteller) progression ────────────────────
     // Composes the SMIL clip lookup with each fragment's resolved within-chapter
     // progression in the Storyteller EPUB.

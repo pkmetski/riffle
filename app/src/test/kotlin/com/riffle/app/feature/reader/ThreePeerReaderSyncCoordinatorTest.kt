@@ -146,6 +146,9 @@ class ThreePeerReaderSyncCoordinatorTest {
         // that stamp so the propagated ebook doesn't bounce back next cycle.
         assertTrue("the winning timestamp is at least the audiobook's", result.canonicalLastUpdate >= 9_999L)
         assertNotNull("the ebook is moved to the listened position", abs.ebookPatch)
+        // The ebook progress is computed from the chapter char weights (0.9 here), NOT cleared to 0 —
+        // a remote-sourced position has no totalProgression on it.
+        assertEquals("ebook progress must not be cleared", 0.9, abs.ebookPatch!!.ebookProgress.toDouble(), 1e-6)
     }
 
     @Test

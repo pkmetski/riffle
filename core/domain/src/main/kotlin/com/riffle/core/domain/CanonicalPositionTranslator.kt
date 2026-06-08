@@ -55,6 +55,24 @@ class CanonicalPositionTranslator(
     fun absToStorytellerProgression(pos: ChapterProgression): ChapterProgression? =
         remap(pos, fromChars = { it.absChars }, toChars = { it.storytellerChars })
 
+    /**
+     * Book-wide progress (0..1) of an ABS-domain [pos], weighting each chapter by its readable-
+     * character count: the chars before the chapter plus the within-chapter offset, over the book
+     * total. Lets the ebook progress bar be filled correctly even for a position reconstructed from a
+     * remote (audiobook / Storyteller), whose canonical carries no book-wide progression — without
+     * this the propagated ebook write would clear the server's progress to 0. Returns `null` when the
+     * index has no character data to weight by.
+     */
+    fun absBookProgression(pos: ChapterProgression): Double? {
+        val chapters = index.perChapter
+        val chapter = chapters.getOrNull(pos.chapterIndex) ?: return null
+        val total = chapters.sumOf { it.absChars }
+        if (total <= 0L) return null
+        val before = chapters.take(pos.chapterIndex).sumOf { it.absChars }
+        val within = pos.progression.coerceIn(0.0, 1.0) * chapter.absChars
+        return ((before + within) / total).coerceIn(0.0, 1.0)
+    }
+
     private inline fun remap(
         pos: ChapterProgression,
         fromChars: (ChapterCharMap) -> Long,
