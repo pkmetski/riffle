@@ -48,10 +48,13 @@ internal class AbsEbookSyncRemote(
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
     }
 
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
-        val cfi = bridge.canonicalToAbsCfi(canonical.value) ?: return false
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
+        val cfi = bridge.canonicalToAbsCfi(canonical.value) ?: return null
         val payload = NetworkEbookProgressPayload(cfi, bridge.canonicalBookProgress(canonical.value))
-        return api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) is NetworkSyncSessionResult.Success
+        // Return the timestamp ABS stamped the write with: it is later than our local clock, and the
+        // cycle adopts it so this write doesn't read back next cycle as a newer remote (the bounce).
+        return (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure)
+            as? NetworkSyncSessionResult.Success)?.lastUpdate
     }
 }
 
@@ -80,7 +83,7 @@ internal class AbsAudiobookInboundRemote(
     }
 
     // Inbound-only: outbound to the audiobook is pushAudiobookSeconds, never the reconcile cycle.
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean = false
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? = null
 }
 
 /** Storyteller position as a sync remote: a Readium Locator on the Storyteller EPUB. */
@@ -104,9 +107,12 @@ internal class StorytellerSyncRemote(
         return RemoteRead(CanonicalReaderPosition(canonical), ts)
     }
 
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
-        val locator = bridge.canonicalToStorytellerLocator(canonical.value) ?: return false
-        return api.putPosition(ep.baseUrl, ep.bookId, locator, pushTimestamp, ep.token, ep.insecure) is NetworkStorytellerPutResult.Success
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
+        val locator = bridge.canonicalToStorytellerLocator(canonical.value) ?: return null
+        // Storyteller stores the timestamp we send, so the write reads back at exactly pushTimestamp.
+        return if (api.putPosition(ep.baseUrl, ep.bookId, locator, pushTimestamp, ep.token, ep.insecure) is NetworkStorytellerPutResult.Success) {
+            pushTimestamp
+        } else null
     }
 }
 

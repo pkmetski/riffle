@@ -142,8 +142,9 @@ class ThreePeerReaderSyncCoordinatorTest {
 
         assertNotNull("a newer audiobook must move the reader", result.jumpLocatorJson)
         assertEquals(0.9, JSONObject(result.jumpLocatorJson!!).getJSONObject("locations").getDouble("progression"), 1e-9)
-        assertEquals(9_999L, result.canonicalLastUpdate)
-        // The win propagates to the ebook so the location is reflected there too.
+        // The win propagates to the ebook, whose write the server stamps even later; the cycle adopts
+        // that stamp so the propagated ebook doesn't bounce back next cycle.
+        assertTrue("the winning timestamp is at least the audiobook's", result.canonicalLastUpdate >= 9_999L)
         assertNotNull("the ebook is moved to the listened position", abs.ebookPatch)
     }
 
@@ -165,6 +166,28 @@ class ThreePeerReaderSyncCoordinatorTest {
         assertNull("our own push must not jump the reader", result.jumpLocatorJson)
         // The ebook keeps the reading position (start), never the audio's near-end.
         assertEquals("ebook stays at the reading position", 0.0, abs.ebookPatch?.ebookProgress?.toDouble() ?: 0.0, 1e-9)
+    }
+
+    @Test
+    fun `a page written outbound must not read back as a newer server position next cycle`() = runTest {
+        // The "server always overwrites local" bug, ebook-specific: ABS stamps our ebook write with a
+        // server time LATER than the local page-turn time. If we don't adopt that timestamp, the next
+        // cycle reads our own write back as "newer" and bounces the reader to the position it just
+        // wrote. The cycle must fold the server's returned write timestamp into canonicalLastUpdate.
+        val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L)) // server stamps writes 1000, 2000, …
+        val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
+        val coordinator = coordinator(abs, st)
+
+        // Cycle 1: local (ts 500) is newer than the empty server, so the page is written out; ABS
+        // stamps that write 1000 (> 500).
+        val r1 = coordinator.runCycle(locator(0.3), localUpdatedAt = 500L)
+        assertNull(r1.jumpLocatorJson)
+
+        // The ViewModel records the cycle's returned timestamp as the new local timestamp.
+        val newLocal = maxOf(500L, r1.canonicalLastUpdate)
+        // Cycle 2: same reading position. Our own just-written ebook must NOT win and jump.
+        val r2 = coordinator.runCycle(locator(0.3), localUpdatedAt = newLocal)
+        assertNull("the just-written ebook must not read back as newer and bounce the reader", r2.jumpLocatorJson)
     }
 
     // ── push-only outbound ──────────────────────────────────────────────────────────

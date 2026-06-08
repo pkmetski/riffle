@@ -73,6 +73,24 @@ newest writes ebook+Storyteller but never the audiobook; **a genuinely-newer aud
 reader to the bundle page**; **our own push does not read back as newer (feedback closed)**; push
 returns the timestamp and touches only the audiobook; split-library item routing.
 
+## The fifth bug — "the server always overwrites local" (ebook-specific outbound bounce)
+
+Symptom: every cycle replaced the local reading position with the server's. Root cause: ABS stamps
+an ebook write with a **server** time later than the device's page-turn time, and the cycle threw
+that timestamp away (`tryPatch` returned `Boolean`). So we'd write the page out, then the next cycle
+read our *own* write back as "newer than local" and jump the reader to the position it had just
+written. The ebook was the only peer with this flaw — Storyteller sends its own timestamp, the
+audiobook push records its returned one.
+
+Fix: `SyncRemote.tryPatch` now returns the **server timestamp the write was stored under** (or `null`
+on failure / no-op), and `ThreePeerSyncCycle` folds the latest such timestamp into the canonical
+`lastUpdate` it returns (the ViewModel already persists that as `localUpdatedAt`). After writing, local
+adopts the server's stamp, so it stays the winner on the next tie — no bounce. The ebook returns
+ABS's stamp; Storyteller returns the timestamp it was sent; the inbound audiobook returns `null`.
+Covered in-memory: `ThreePeerSyncCycleTest.a write the server stamps later than the winner is adopted…`
+and `ThreePeerReaderSyncCoordinatorTest.a page written outbound must not read back as a newer server
+position next cycle`.
+
 ## Implemented: decoupled push-only audiobook-follow
 
 `ThreePeerReaderSyncCoordinator.pushAudiobookSeconds(seconds)` PATCHes **only** the ABS audiobook

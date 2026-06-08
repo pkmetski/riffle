@@ -11,9 +11,9 @@ class ProgressSyncStrategyTest {
     private class FakeRemote(override val id: String) : SyncRemote {
         var patchedWith: CanonicalReaderPosition? = null
         override suspend fun tryGet(): RemoteRead? = null
-        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
+        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
             patchedWith = canonical
-            return true
+            return 1L // non-null = stored; a fixed server timestamp
         }
     }
 

@@ -21,13 +21,19 @@ data class RemoteRead(val canonical: CanonicalReaderPosition, val lastUpdate: Lo
  * One reconcilable position holder (ABS ebook, ABS audiobook, or Storyteller). Both
  * operations are per-target isolated: [tryGet] returns `null` when the remote is
  * unreachable or its position cannot be translated to canonical (so it is left out of the
- * inbound comparison and not patched), and [tryPatch] returns `false` on failure without
- * affecting any other remote.
+ * inbound comparison and not patched).
+ *
+ * [tryPatch] returns the **server timestamp the write was stored under** (or `null` on
+ * failure / a deliberate no-op). The cycle folds that timestamp into the canonical
+ * `lastUpdate`: a remote that stamps the write later than the local clock (ABS stamps
+ * server-side) would otherwise read back next cycle as a "newer" position and bounce the
+ * reader to the very position it just wrote. Adopting the returned timestamp keeps local
+ * the winner on the next tie. A remote that stores the timestamp we sent simply returns it.
  */
 interface SyncRemote {
     val id: String
     suspend fun tryGet(): RemoteRead?
-    suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean
+    suspend fun tryPatch(canonical: CanonicalReaderPosition): Long?
 }
 
 /** Outcome of one reconciliation cycle. */
@@ -65,18 +71,26 @@ object ThreePeerSyncCycle {
         val jumpTo = if (winnerCanonical != local.position) winnerCanonical else null
 
         // Outbound: patch every successfully-read remote that is now stale, all from the
-        // single canonical winner. Unreachable remotes (null read) are left untouched.
+        // single canonical winner. Unreachable remotes (null read) are left untouched. Adopt the
+        // latest server timestamp any write was stored under, so a write the server stamps later
+        // than the local clock doesn't read back next cycle as a "newer" remote and bounce the
+        // reader to the position it just wrote (the "server always overwrites local" bug).
         val patched = mutableSetOf<String>()
+        var effectiveLastUpdate = canonicalLastUpdate
         for ((remote, read) in reads) {
             if (read != null && read.lastUpdate < canonicalLastUpdate) {
-                if (remote.tryPatch(winnerCanonical)) patched += remote.id
+                val stamp = remote.tryPatch(winnerCanonical)
+                if (stamp != null) {
+                    patched += remote.id
+                    if (stamp > effectiveLastUpdate) effectiveLastUpdate = stamp
+                }
             }
         }
 
         return ThreePeerCycleResult(
             jumpTo = jumpTo,
             patched = patched,
-            canonicalLastUpdate = canonicalLastUpdate,
+            canonicalLastUpdate = effectiveLastUpdate,
         )
     }
 }
