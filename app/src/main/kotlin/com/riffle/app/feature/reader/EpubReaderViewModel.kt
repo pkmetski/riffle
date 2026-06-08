@@ -542,9 +542,14 @@ class EpubReaderViewModel @Inject constructor(
             val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull()
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->
-                    try {
-                        Locator.fromJSON(JSONObject(json))?.let { _serverLocatorChannel.trySend(it) }
-                    } catch (_: Exception) { /* malformed jump locator — skip */ }
+                    runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()?.let { loc ->
+                        _serverLocatorChannel.trySend(loc)
+                        // A server sync (e.g. a newer audiobook listen) moved the reader; override the
+                        // readaloud resume position so the next play starts at the synced page rather
+                        // than a stale local stop. (No fragment — the planner resolves the page's first
+                        // sentence against the WebView.)
+                        persistReadaloudResumePosition(loc, fragmentRef = null)
+                    }
                 }
                 if (result.canonicalLastUpdate > localUpdatedAt) {
                     readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)

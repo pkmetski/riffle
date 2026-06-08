@@ -1064,7 +1064,10 @@ private fun EpubNavigatorView(
             // Background position sync (peer/resume): navigate and snap onto the target's column, tracked
             // through the new chapter's reflow, but never cover — a cover here would flash mid-reading.
             val fragment = fragmentRef.value ?: return@collect
-            ColumnSnap.goAndSnap(fragment, locator)
+            // A background sync (audiobook/peer) carries a within-chapter progression but no DOM
+            // fragment; preserve where go() landed (round to the column grid) instead of snapping to
+            // the chapter top, so the reader lands on the actual synced page.
+            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
         }
     }
 
