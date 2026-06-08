@@ -1,7 +1,8 @@
 # Readaloud progress sync — decoupled ebook vs audiobook
 
 **Date:** 2026-06-07 (revised after a third data-loss incident)
-**Status:** Page-led baseline + decoupled push-only audiobook-follow implemented. Needs real-device verification.
+**Status:** Page-led baseline + inbound audiobook reconcile (feedback loop closed via the push's
+returned server timestamp) + push-only audiobook-follow. Verified in-memory; needs real-device check.
 **Related:** ADR 0019 (three-peer sync), ADR 0026 (always-ABS reader),
 `2026-06-06-readaloud-audiobook-progress-routing-design.md`
 
@@ -31,29 +32,46 @@ reconciliation shape; it was **letting the audio write the ebook**.
 So the two representations are **decoupled**: page → ebook (full reconcile, can pull cross-device);
 audio → audiobook (push-only while playing). They are NOT kept in lockstep through one canonical.
 
-## The fourth bug (ebook written to ~end-of-book) — the audiobook was still a reconciled peer
+## The fourth bug (ebook written to ~end-of-book) — a feedback loop through the audiobook record
 
 Symptom: the ebook server location was being set to ~end-of-book when reading from the beginning,
-and the reader jumped there. Root cause, **reproduced deterministically in an in-memory test**
-(`ThreePeerReaderSyncCoordinatorTest.an audiobook ahead of the reading position must NOT drive the
-ebook…`): the "decoupled push-only audiobook" was *not* decoupled. The audiobook (`RemoteKind.ABS_AUDIO`)
-was **still a reconciled inbound peer** in `applicableRemotes`. So the push wrote the audiobook
-`currentTime` with a fresh timestamp, and the **very next cycle read it back**, it won inbound (fresh
-timestamp), and its position was propagated to the **ebook** — the exact erase mechanism, now via a
-feedback loop through the audiobook record. Any audio-ahead-of-page divergence (a prior push, or
-another device) triggered it.
+and the reader jumped there. Root cause, **reproduced deterministically in an in-memory test**: the
+"decoupled push-only audiobook" was *not* decoupled. The audiobook was **still a reconciled inbound
+peer**, so the push wrote the audiobook `currentTime` with a fresh server timestamp, and the **very
+next cycle read it back**, it won inbound, and its position propagated to the **ebook** — the erase
+mechanism, now via a feedback loop through the audiobook record.
 
-Fix: **`ABS_AUDIO` is no longer a `RemoteKind` at all.** The reconcile set is `{ABS_EBOOK,
-STORYTELLER}`. The audiobook is written *only* by `pushAudiobookSeconds` and never read back, so it
-is structurally incapable of driving the ebook.
+The first cut was a sledgehammer: drop `ABS_AUDIO` from the reconcile set entirely (push-only, never
+read back). That killed the erase but also killed **inbound** audiobook sync — a cross-device listen
+was no longer reflected locally, which the product needs.
 
-## Current state (shipped, safe)
+## Final design — audiobook reconciled INBOUND, feedback loop closed at the timestamp layer
 
-`runThreePeerCycle` is **page-led**: the canonical is the genuine reading position with its stored
-timestamp; it reconciles **only the ebook + Storyteller** and can pull a genuinely-newer server
-position on open. The audiobook is not in the reconcile set, so neither the audio clock nor the
-audiobook record can ever erase the ebook. Consequence: the audiobook advances only via the
-push-only follow below (while listening); reading the page alone does not move the audiobook.
+The real fault was timestamp hygiene, not the inbound direction. So the audiobook is a reconciled
+peer again, but:
+
+- **Inbound-only:** `AbsAudiobookInboundRemote.tryGet` reads `currentTime` → bundle-translated
+  canonical, so a genuinely-newer listen wins the cycle and moves the reader (and propagates to the
+  ebook — "if the audiobook is later, compute the page and override it too"). `tryPatch` is a **no-op**
+  — the cycle never writes the audiobook.
+- **Outbound is the push:** `pushAudiobookSeconds` writes only the audiobook `currentTime` from the
+  live audio clock, and **returns the server's `lastUpdate`**. The caller records that as the local
+  timestamp, so the inbound remote reads our own write back as **equal** (local wins ties), never
+  newer. Only a write from another client outranks the reading position. That single timestamp record
+  is what closes the loop without dropping inbound sync. All push callers (30s cycle, pause, close)
+  go through the one helper, so every push is covered.
+- **The ebook is never driven by the raw audio clock.** It moves only when a *genuinely-newer* peer
+  wins; a behind/early local audio clock can't, because its push reads back as equal-or-older.
+
+Triggers: open, **resume** (so a position updated on the server while the app sat paused/standby is
+pulled the moment the reader resumes, even with the book still open), and the 30s cycle. Active
+reading keeps `localUpdatedAt` fresh (page turns save), so the local position wins and there are no
+surprise mid-read jumps; an idle/standby reader lets a newer server position win.
+
+In-memory coverage (`ThreePeerReaderSyncCoordinatorTest`, no AVD): newer-Storyteller wins; local
+newest writes ebook+Storyteller but never the audiobook; **a genuinely-newer audiobook jumps the
+reader to the bundle page**; **our own push does not read back as newer (feedback closed)**; push
+returns the timestamp and touches only the audiobook; split-library item routing.
 
 ## Implemented: decoupled push-only audiobook-follow
 

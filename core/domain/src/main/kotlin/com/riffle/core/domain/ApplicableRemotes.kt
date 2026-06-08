@@ -3,15 +3,18 @@ package com.riffle.core.domain
 /**
  * A reconcilable position holder for the open book.
  *
- * The ABS **audiobook** is deliberately NOT a [RemoteKind]: it is never reconciled inbound. The
- * audio clock can run ahead of (or behind) the reading position — readaloud may start behind the
- * page, and the live audio time is pushed to the audiobook while listening. If the audiobook were a
- * reconciled peer, that fresh-but-divergent record would win the cycle and propagate the audio
- * position to the **ebook**, erasing the reading position (the repeated data-loss failure mode). The
- * audiobook is therefore written ONLY by a separate, push-only update of its `currentTime`
- * (`ThreePeerReaderSyncCoordinator.pushAudiobookSeconds`) — never read back, never driving the ebook.
+ * The ABS **audiobook** (`ABS_AUDIO`) is reconciled **inbound-only**: a sync cycle reads its
+ * `currentTime` so a genuinely-newer listen (from another device / the ABS app) can win and move the
+ * reader, but the cycle never *writes* it. Outbound to the audiobook is a separate, push-only update
+ * of its `currentTime` from the live audio clock (`ThreePeerReaderSyncCoordinator.pushAudiobookSeconds`).
+ *
+ * The feedback loop that erased the ebook (our own fresh-timestamped push read back as a "newer
+ * remote" and driving the ebook to the audio position) is closed at the timestamp layer, NOT by
+ * dropping the peer: the push records the server's returned `lastUpdate` as the local timestamp, so
+ * our own write reads back as equal (local wins ties), never newer. Only a position written by some
+ * other client outranks the reading position.
  */
-enum class RemoteKind { ABS_EBOOK, STORYTELLER }
+enum class RemoteKind { ABS_EBOOK, ABS_AUDIO, STORYTELLER }
 
 /**
  * The match- and prerequisite-state that decides a book's applicable remote set (ADR 0019, as
@@ -19,13 +22,13 @@ enum class RemoteKind { ABS_EBOOK, STORYTELLER }
  * the ABS EPUB and the single-peer set is always `{ABS ebook}`.
  *
  * The readaloud bundle is the hub: ebook progress (an `ebookLocation` CFI) flows to a matched item
- * that has an ebook. The audiobook is push-only (see [RemoteKind]); [hasAbsAudioTarget] only gates
- * whether a push endpoint is built, it does NOT add a reconciled remote.
+ * that has an ebook; the audiobook is reconciled inbound (see [RemoteKind]) so a cross-device listen
+ * is reflected locally.
  *
  * @param isMatched a Confirmed [ReadaloudLink] exists for the open book.
  * @param hasAbsEbookTarget a matched ABS item carries an ebook (→ the `ABS_EBOOK` remote).
- * @param hasAbsAudioTarget a matched ABS item carries audio (→ a push-only audiobook target, NOT a
- *   reconciled remote).
+ * @param hasAbsAudioTarget a matched ABS item carries audio (→ the inbound `ABS_AUDIO` remote and a
+ *   push-only outbound target).
  * @param prerequisitesCached the Storyteller EPUB bundle and cross-EPUB index are available.
  */
 data class BookSyncState(
@@ -36,14 +39,14 @@ data class BookSyncState(
 )
 
 /**
- * The set of remotes a sync cycle reconciles for the open book. The audiobook is never in this set
- * (push-only, see [RemoteKind]).
+ * The set of remotes a sync cycle reconciles for the open book.
  *
  * - Unmatched: single-peer `{ABS ebook}`.
  * - Matched, prerequisites not yet cached: single-peer `{ABS ebook}` (the displayed frame) until
  *   the prerequisites land, then it upgrades on a later cycle.
- * - Matched, prerequisites cached: `{ABS ebook, Storyteller}` (ebook only when a matched item has
- *   an ebook), plus Storyteller as the cross-EPUB text peer.
+ * - Matched, prerequisites cached: the remotes for whichever ABS targets are matched, plus
+ *   Storyteller. `ABS_AUDIO` is included when a matched item has audio — reconciled inbound-only
+ *   (the cycle reads it but never writes it; outbound is the push).
  */
 fun applicableRemotes(state: BookSyncState): Set<RemoteKind> {
     if (!state.isMatched) return setOf(RemoteKind.ABS_EBOOK)
@@ -52,6 +55,7 @@ fun applicableRemotes(state: BookSyncState): Set<RemoteKind> {
 
     return buildSet {
         if (state.hasAbsEbookTarget) add(RemoteKind.ABS_EBOOK)
+        if (state.hasAbsAudioTarget) add(RemoteKind.ABS_AUDIO)
         add(RemoteKind.STORYTELLER)
     }
 }

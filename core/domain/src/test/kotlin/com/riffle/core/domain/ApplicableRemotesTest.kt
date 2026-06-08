@@ -1,5 +1,6 @@
 package com.riffle.core.domain
 
+import com.riffle.core.domain.RemoteKind.ABS_AUDIO
 import com.riffle.core.domain.RemoteKind.ABS_EBOOK
 import com.riffle.core.domain.RemoteKind.STORYTELLER
 import org.junit.Assert.assertEquals
@@ -20,9 +21,9 @@ class ApplicableRemotesTest {
     }
 
     @Test
-    fun `a matched book reconciles the ebook and Storyteller — never the audiobook`() {
-        // The audiobook is push-only: it must never be a reconciled remote, or a divergent audio
-        // clock would win the cycle and drive the ebook to the audio position (data loss).
+    fun `a matched book with an ebook and audio target reconciles all three peers`() {
+        // ABS_AUDIO is in the set, reconciled inbound-only: the cycle reads it so a cross-device
+        // listen wins and moves the reader, but never writes it (outbound is the push).
         val state = BookSyncState(
             isMatched = true,
             hasAbsEbookTarget = true,
@@ -30,11 +31,11 @@ class ApplicableRemotesTest {
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, STORYTELLER), applicableRemotes(state))
+        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO, STORYTELLER), applicableRemotes(state))
     }
 
     @Test
-    fun `a matched book with no matched audio item still reconciles ebook and Storyteller`() {
+    fun `a matched book with no matched audio item omits the ABS audio remote`() {
         val state = BookSyncState(
             isMatched = true,
             hasAbsEbookTarget = true,
@@ -46,9 +47,9 @@ class ApplicableRemotesTest {
     }
 
     @Test
-    fun `a split-library match reconciles the ebook and Storyteller while the audiobook stays push-only`() {
-        // Ebook item and audiobook item are distinct ABS items (separate libraries). The audiobook is
-        // still push-only — only the ebook and Storyteller are reconciled.
+    fun `a split-library match reconciles Storyteller alongside both ABS items`() {
+        // Ebook item and audiobook item are distinct ABS items (separate libraries). They are the
+        // same logical book's two media, so all three peers are reconciled (the audiobook inbound).
         val state = BookSyncState(
             isMatched = true,
             hasAbsEbookTarget = true,
@@ -56,7 +57,7 @@ class ApplicableRemotesTest {
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, STORYTELLER), applicableRemotes(state))
+        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO, STORYTELLER), applicableRemotes(state))
     }
 
     @Test

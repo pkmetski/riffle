@@ -55,9 +55,33 @@ internal class AbsEbookSyncRemote(
     }
 }
 
-// The ABS audiobook is NOT a reconciled remote — it is push-only (see RemoteKind /
-// ThreePeerReaderSyncCoordinator.pushAudiobookSeconds). Reading it back would let an audio clock
-// that diverges from the page drive the ebook, erasing reading progress.
+/**
+ * ABS audiobook progress as an **inbound-only** sync remote: [tryGet] reads `currentTime` and
+ * bridges it through the SMIL so a genuinely-newer listen (another device / the ABS app) can win the
+ * cycle and move the reader. [tryPatch] is a deliberate no-op — the cycle must never write the
+ * audiobook, because an audio clock diverging from the page (readaloud can start behind) would then
+ * drive the ebook and erase reading progress. Outbound to the audiobook is the separate, push-only
+ * [ThreePeerReaderSyncCoordinator.pushAudiobookSeconds]; the feedback loop is closed by recording the
+ * server timestamp that push returns (so our own write never reads back here as newer than local).
+ */
+internal class AbsAudiobookInboundRemote(
+    private val api: AbsSessionApi,
+    private val ep: AbsSyncEndpoint,
+    private val bridge: ReaderPositionBridge,
+) : SyncRemote {
+    override val id = RemoteKind.ABS_AUDIO.name
+
+    override suspend fun tryGet(): RemoteRead? {
+        val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
+            ?.progress ?: return null
+        if (p.lastUpdate <= 0L || p.currentTime <= 0.0) return EMPTY_REMOTE_READ // no audiobook position yet
+        val canonical = bridge.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_REMOTE_READ
+        return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
+    }
+
+    // Inbound-only: outbound to the audiobook is pushAudiobookSeconds, never the reconcile cycle.
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean = false
+}
 
 /** Storyteller position as a sync remote: a Readium Locator on the Storyteller EPUB. */
 internal class StorytellerSyncRemote(
@@ -117,6 +141,7 @@ class ThreePeerReaderSyncCoordinator(
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
                 RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
+                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookInboundRemote(absApi, it, bridge) }
                 RemoteKind.STORYTELLER -> storytellerEndpoint?.let { StorytellerSyncRemote(storytellerApi, it, bridge, localUpdatedAt) }
             }
         }
@@ -129,15 +154,20 @@ class ThreePeerReaderSyncCoordinator(
 
     /**
      * Push-only update of the matched ABS audiobook's `currentTime` from the live audio position
-     * while readaloud plays. Decoupled from [runCycle]: it writes ONLY the audiobook item — never the
-     * ebook, the reading position, or a reader jump — so a behind/early audio clock can never erase
-     * or override reading progress (the failure mode of every "audio drives the canonical" attempt).
-     * No-op (returns false) when there is no matched audiobook target. ABS gets the percentage too,
+     * while readaloud plays. Writes ONLY the audiobook item — never the ebook, the reading position,
+     * or a reader jump — so a behind/early audio clock can never erase or override reading progress
+     * (the failure mode of every "audio drives the canonical" attempt). ABS gets the percentage too,
      * computed from the item's duration.
+     *
+     * Returns the server's `lastUpdate` for the write, or `null` on no-op / failure. The caller must
+     * record it as the local timestamp: the inbound [AbsAudiobookInboundRemote] reads this same
+     * record back next cycle, and only an equal-or-older read keeps the reading position the winner —
+     * this is what closes the feedback loop without dropping inbound audiobook sync.
      */
-    suspend fun pushAudiobookSeconds(seconds: Double): Boolean {
-        val ep = absAudioEndpoint ?: return false
+    suspend fun pushAudiobookSeconds(seconds: Double): Long? {
+        val ep = absAudioEndpoint ?: return null
         val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
-        return absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) is NetworkSyncSessionResult.Success
+        return (absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure)
+            as? NetworkSyncSessionResult.Success)?.lastUpdate
     }
 }

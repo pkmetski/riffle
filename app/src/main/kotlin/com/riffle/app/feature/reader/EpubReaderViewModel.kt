@@ -508,13 +508,14 @@ class EpubReaderViewModel @Inject constructor(
 
     /**
      * One three-peer reconciliation cycle (ADR 0019). The canonical position is the displayed-EPUB
-     * reading position with its stored timestamp; a remote win jumps the reader, and the winning
-     * timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated to this cycle.
+     * reading position with its stored timestamp; a remote win jumps the reader (including a
+     * genuinely-newer audiobook listened on another device, bridged through the bundle), and the
+     * winning timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated here.
      *
-     * The audio playback position must NEVER drive this shared canonical: when playback is behind the
-     * reading position (e.g. resolveStartClip falls back to the book start) it would propagate that
-     * backwards to the ebook and erase reading progress. Making the audiobook follow the audio is a
-     * separate, decoupled concern (audio→audiobook only) so it can never write the ebook.
+     * The audiobook is reconciled **inbound-only**: the cycle reads it (so a cross-device listen wins
+     * and moves the reader) but never writes it. The live audio clock reaches the audiobook only via
+     * the separate push below, which records its own server timestamp so it can't read back as a
+     * newer remote and drive the ebook — the feedback loop that previously erased reading progress.
      */
     private suspend fun runThreePeerCycle(locator: Locator?) {
         val coordinator = threePeer ?: return
@@ -534,9 +535,9 @@ class EpubReaderViewModel @Inject constructor(
                 }
             }
         }
-        // Decoupled, push-only audiobook-follow: while readaloud is narrating a sentence, the
-        // audiobook currentTime tracks the live audio. This writes ONLY the audiobook item — never
-        // the ebook/reading position above — so it can never erase or override reading progress.
+        // Push-only audiobook-follow: while readaloud is narrating a sentence, the audiobook
+        // currentTime tracks the live audio. Writes ONLY the audiobook item (then records its server
+        // timestamp to close the inbound feedback loop) — never the ebook/reading position above.
         val playback = playerCoordinator.state.value
         if (playback.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
             pushAudiobookSeconds(playback.positionSec)
@@ -545,13 +546,23 @@ class EpubReaderViewModel @Inject constructor(
 
     /**
      * Push-only audiobook-follow: PATCH only the matched ABS audiobook's currentTime to the audio
-     * position. Never touches the ebook/reading position, so it can never erase or override reading
-     * progress. No-op when the book isn't a three-peer match. (Single-file audiobooks: positionSec
-     * is the absolute offset; multi-file is a known TODO.)
+     * position. Never touches the ebook/reading position directly, so it can never erase or override
+     * reading progress. No-op when the book isn't a three-peer match. (Single-file audiobooks:
+     * positionSec is the absolute offset; multi-file is a known TODO.)
+     *
+     * Closes the inbound feedback loop: the audiobook is reconciled inbound, so without this our own
+     * write would read back next cycle as a "newer remote" and drive the ebook to the audio position.
+     * We record the server timestamp ABS returns for the write as the local timestamp, so the inbound
+     * read comes back equal (local wins ties), never newer. All push callers (cycle/pause/close) go
+     * through here, so every push is covered.
      */
     private suspend fun pushAudiobookSeconds(seconds: Double) {
         val coordinator = threePeer ?: return
-        runCatching { coordinator.pushAudiobookSeconds(seconds) }
+        val serverId = threePeerServerId ?: return
+        val stamp = runCatching { coordinator.pushAudiobookSeconds(seconds) }.getOrNull() ?: return
+        if (stamp > readingPositionStore.loadLocalUpdatedAt(serverId, itemId)) {
+            readingPositionStore.updateLocalTimestamp(serverId, itemId, stamp)
+        }
     }
 
     fun showFootnotePopup(content: FootnoteContent) {

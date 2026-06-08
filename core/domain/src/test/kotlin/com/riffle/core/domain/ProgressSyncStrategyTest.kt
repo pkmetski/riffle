@@ -20,7 +20,7 @@ class ProgressSyncStrategyTest {
     private val local = LocalCanonical(CanonicalReaderPosition("L"), lastUpdate = 100)
 
     @Test
-    fun `a matched state reconciles the ebook and Storyteller — never the audiobook`() = runTest {
+    fun `a matched state reconciles the ebook, the inbound audiobook, and Storyteller`() = runTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
@@ -32,9 +32,8 @@ class ProgressSyncStrategyTest {
         )
         strategy.runCycle(state, local)
 
-        // The audiobook is push-only; it is never built as a reconciled remote.
         assertEquals(
-            setOf(RemoteKind.ABS_EBOOK, RemoteKind.STORYTELLER),
+            setOf(RemoteKind.ABS_EBOOK, RemoteKind.ABS_AUDIO, RemoteKind.STORYTELLER),
             built.toSet(),
         )
     }
