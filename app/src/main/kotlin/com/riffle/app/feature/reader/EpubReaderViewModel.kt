@@ -559,10 +559,11 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * Responsive audiobook-follow: PATCH only the matched ABS audiobook's currentTime, derived from
-     * the current reading position through the bundle's SMIL (exact page→audio timestamp, absolute
-     * over the concatenated audio files). Never touches the ebook/reading position, so it can't erase
-     * or override reading progress. No-op when the book isn't a three-peer match.
+     * Responsive audiobook-follow: PATCH only the matched ABS audiobook's currentTime. While a
+     * sentence is narrating, it uses the **exact narrated fragment**'s audio time (so the audiobook
+     * matches the sentence the user hears, not the top of the page); otherwise it falls back to the
+     * reading position through the bundle's SMIL. Never touches the ebook/reading position, so it
+     * can't erase or override reading progress. No-op when the book isn't a three-peer match.
      *
      * Closes the inbound feedback loop: the audiobook is reconciled both ways, so without this our own
      * write would read back next cycle as a "newer remote" and drive the ebook. We record the server
@@ -572,8 +573,12 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun pushAudiobookFromReadingPosition() {
         val coordinator = threePeer ?: return
         val serverId = threePeerServerId ?: return
-        val locJson = lastLocator?.toJSON()?.toString() ?: return
-        val stamp = runCatching { coordinator.pushAudiobookProgress(locJson) }.getOrNull() ?: return
+        val locJson = lastLocator?.toJSON()?.toString()
+        val fragment = playerCoordinator.activeFragmentRef.value
+        val stamp = runCatching {
+            if (fragment != null) coordinator.pushAudiobookForFragment(fragment, locJson)
+            else locJson?.let { coordinator.pushAudiobookProgress(it) }
+        }.getOrNull() ?: return
         if (stamp > readingPositionStore.loadLocalUpdatedAt(serverId, itemId)) {
             readingPositionStore.updateLocalTimestamp(serverId, itemId, stamp)
         }

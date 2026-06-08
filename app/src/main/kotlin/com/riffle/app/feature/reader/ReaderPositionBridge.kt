@@ -127,6 +127,10 @@ class ReaderPositionBridge(
     fun canonicalToAudioSeconds(locatorJson: String): Double? =
         fromCanonical(locatorJson, Domain.ST)?.let { translator.storytellerProgressionToAudioSeconds(it) }
 
+    /** The exact absolute audio time the given narrated fragment (`href#id`) begins. */
+    fun audioSecondsForFragment(textFragmentRef: String): Double? =
+        translator.fragmentRefToAudioSeconds(textFragmentRef)
+
     private fun spineIndexOfHref(hrefs: List<String>, href: String): Int {
         val target = normalizeEpubHref(href)
         return hrefs.indexOfFirst { normalizeEpubHref(it) == target }

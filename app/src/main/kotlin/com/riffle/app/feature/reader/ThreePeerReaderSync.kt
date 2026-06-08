@@ -183,9 +183,24 @@ class ThreePeerReaderSyncCoordinator(
      * and only an equal-or-older read keeps the reading position the winner — this closes the feedback
      * loop without dropping inbound audiobook sync. ABS's PATCH carries no timestamp, so we GET it back.
      */
-    suspend fun pushAudiobookProgress(canonicalLocatorJson: String): Long? {
+    suspend fun pushAudiobookProgress(canonicalLocatorJson: String): Long? =
+        pushAudiobookAtSeconds(bridge.canonicalToAudioSeconds(canonicalLocatorJson))
+
+    /**
+     * Responsive audiobook update from the **exact narrated sentence** (the player's active fragment),
+     * not the page — so while readaloud plays, the audiobook `currentTime` matches the sentence the
+     * user hears, instead of lagging to the top of the page. Falls back to the page-derived position
+     * when the fragment can't be placed.
+     */
+    suspend fun pushAudiobookForFragment(fragmentRef: String, fallbackCanonicalJson: String?): Long? {
+        val seconds = bridge.audioSecondsForFragment(fragmentRef)
+            ?: fallbackCanonicalJson?.let { bridge.canonicalToAudioSeconds(it) }
+        return pushAudiobookAtSeconds(seconds)
+    }
+
+    private suspend fun pushAudiobookAtSeconds(seconds: Double?): Long? {
         val ep = absAudioEndpoint ?: return null
-        val seconds = bridge.canonicalToAudioSeconds(canonicalLocatorJson) ?: return null
+        if (seconds == null) return null
         val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
         if (absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
         return (absApi.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)

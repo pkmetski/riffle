@@ -112,6 +112,32 @@ class CanonicalPositionTranslatorTest {
     }
 
     @Test
+    fun `a narrated fragment maps to its exact audio time, path-form tolerant and distinct from the page top`() {
+        // Two sentences in one chapter: s1 narrated at 5s (10% in), s2 at 30s (50% in). SMIL refs carry
+        // a "../" the player's fragment refs don't.
+        val clips = listOf(
+            MediaOverlayClip("../text/c1.html#s1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
+            MediaOverlayClip("../text/c1.html#s2", "a.mp3", clipBeginSec = 30.0, clipEndSec = 40.0),
+        )
+        val frags = mapOf(
+            "../text/c1.html#s1" to ChapterProgression(0, 0.1),
+            "../text/c1.html#s2" to ChapterProgression(0, 0.5),
+        )
+        val translator = CanonicalPositionTranslator(smilClips = clips, fragmentProgressions = frags)
+
+        // Exact narrated sentence → its clip time, even though the ref form ("text/…") differs from the
+        // SMIL ref ("../text/…").
+        assertEquals(30.0, translator.fragmentRefToAudioSeconds("text/c1.html#s2")!!, 1e-9)
+        assertEquals(5.0, translator.fragmentRefToAudioSeconds("../text/c1.html#s1")!!, 1e-9)
+        assertNull(translator.fragmentRefToAudioSeconds("text/c1.html#nope"))
+
+        // The page-based mapping for a position partway down the page resolves only to the latest
+        // sentence at/before it (s1 → 5s) — so while s2 narrates, the page-top mapping lags by 25s.
+        // This is why the audiobook follow uses the exact fragment, not the page.
+        assertEquals(5.0, translator.storytellerProgressionToAudioSeconds(ChapterProgression(0, 0.3))!!, 1e-9)
+    }
+
+    @Test
     fun `multi-file SMIL clip times are made absolute over the concatenated audio`() {
         // Two audio files: file1 spans 0..10s, file2 spans 0..8s in its own clock. The ABS audiobook
         // is the files concatenated, so file2's clips live at 10..18s absolute. Without this, a clip in

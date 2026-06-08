@@ -40,6 +40,19 @@ class CanonicalPositionTranslator(
         }
     }
 
+    // Absolute clip-begin keyed by the fragment ref with "."/".." path segments collapsed, so a
+    // player-supplied ref ("text/x.html#id") matches the SMIL clip ref ("../text/x.html#id").
+    private val absSecondsByResolvedFragment: Map<String, Double> =
+        absoluteClips.associate { resolveFragmentPath(it.textFragmentRef) to it.clipBeginSec }
+
+    /**
+     * The exact absolute audio time a specific narrated fragment (`href#id`) begins, matching the
+     * player's currently-narrated sentence to its position in the concatenated audio. Path-form
+     * tolerant (resolves `./..`). Returns `null` for an unknown fragment.
+     */
+    fun fragmentRefToAudioSeconds(textFragmentRef: String): Double? =
+        absSecondsByResolvedFragment[resolveFragmentPath(textFragmentRef)]
+
     /**
      * Audio time → canonical (Storyteller-EPUB) progression: the narrated SMIL fragment
      * resolved to its within-chapter progression. Returns `null` when no clip covers the
@@ -91,6 +104,18 @@ class CanonicalPositionTranslator(
         val before = chapters.take(pos.chapterIndex).sumOf { it.absChars }
         val within = pos.progression.coerceIn(0.0, 1.0) * chapter.absChars
         return ((before + within) / total).coerceIn(0.0, 1.0)
+    }
+
+    // Collapse "." and ".." segments so a SMIL clip ref ("../text/x#id") and a player fragment ref
+    // ("text/x#id") for the same fragment compare equal. The "#id" rides along on the last segment.
+    private fun resolveFragmentPath(ref: String): String {
+        val out = ArrayDeque<String>()
+        for (segment in ref.split('/')) when (segment) {
+            "", "." -> {}
+            ".." -> if (out.isNotEmpty()) out.removeLast()
+            else -> out.addLast(segment)
+        }
+        return out.joinToString("/")
     }
 
     private inline fun remap(
