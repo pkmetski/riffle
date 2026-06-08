@@ -422,15 +422,15 @@ class EpubReaderViewModel @Inject constructor(
                     if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
                 }
         }
-        // Audiobook-follow: while readaloud narrates a sentence, push the live audio position to the
-        // matched ABS audiobook on a tight cadence (decoupled from the 30s ebook reconcile, so a
-        // listen reaches the server promptly). Push-only — never writes the ebook/reading position.
+        // Audiobook-follow: while readaloud narrates a sentence, push the audiobook position derived
+        // from the current reading position (which tracks the audio) through the bundle's SMIL, on a
+        // tight cadence decoupled from the 30s ebook reconcile so it reaches the server promptly.
+        // Writes only the audiobook item, from a page-derived position — never the ebook.
         viewModelScope.launch {
             while (true) {
                 delay(AUDIO_PUSH_INTERVAL_MS)
-                val pb = playerCoordinator.state.value
-                if (pb.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
-                    pushAudiobookSeconds(pb.positionSec)
+                if (playerCoordinator.state.value.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
+                    pushAudiobookFromReadingPosition()
                 }
             }
         }
@@ -554,21 +554,21 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * Push-only audiobook-follow: PATCH only the matched ABS audiobook's currentTime to the audio
-     * position. Never touches the ebook/reading position directly, so it can never erase or override
-     * reading progress. No-op when the book isn't a three-peer match. (Single-file audiobooks:
-     * positionSec is the absolute offset; multi-file is a known TODO.)
+     * Responsive audiobook-follow: PATCH only the matched ABS audiobook's currentTime, derived from
+     * the current reading position through the bundle's SMIL (exact page→audio timestamp, absolute
+     * over the concatenated audio files). Never touches the ebook/reading position, so it can't erase
+     * or override reading progress. No-op when the book isn't a three-peer match.
      *
-     * Closes the inbound feedback loop: the audiobook is reconciled inbound, so without this our own
-     * write would read back next cycle as a "newer remote" and drive the ebook to the audio position.
-     * We record the server timestamp ABS returns for the write as the local timestamp, so the inbound
-     * read comes back equal (local wins ties), never newer. All push callers (cycle/pause/close) go
-     * through here, so every push is covered.
+     * Closes the inbound feedback loop: the audiobook is reconciled both ways, so without this our own
+     * write would read back next cycle as a "newer remote" and drive the ebook. We record the server
+     * timestamp ABS returns as the local timestamp, so the read comes back equal (local wins ties),
+     * never newer. All responsive push callers (loop/pause/close) go through here.
      */
-    private suspend fun pushAudiobookSeconds(seconds: Double) {
+    private suspend fun pushAudiobookFromReadingPosition() {
         val coordinator = threePeer ?: return
         val serverId = threePeerServerId ?: return
-        val stamp = runCatching { coordinator.pushAudiobookSeconds(seconds) }.getOrNull() ?: return
+        val locJson = lastLocator?.toJSON()?.toString() ?: return
+        val stamp = runCatching { coordinator.pushAudiobookProgress(locJson) }.getOrNull() ?: return
         if (stamp > readingPositionStore.loadLocalUpdatedAt(serverId, itemId)) {
             readingPositionStore.updateLocalTimestamp(serverId, itemId, stamp)
         }
@@ -1011,14 +1011,13 @@ class EpubReaderViewModel @Inject constructor(
         // Persist the same stopped position so it survives leaving the book / process death, not just
         // an in-session reopen. Capture before close() nulls the active fragment.
         persistReadaloudResumePosition(closeLocator, resumeFragmentRef)
-        // Capture the audio position before close() resets it, then push it to the audiobook so
-        // stopping the readaloud records where you stopped listening.
-        val audioSeconds = playerCoordinator.state.value.positionSec
+        // Record where we stopped on the audiobook too, derived from the reading position via the
+        // bundle (lastLocator survives close(), so no need to capture the audio clock first).
         val hadFragment = resumeFragmentRef != null
         readaloudPrepared = false
         readaloudStarted = false
         playerCoordinator.close()
-        if (hadFragment) viewModelScope.launch { pushAudiobookSeconds(audioSeconds) }
+        if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition() }
     }
 
     /**
@@ -1053,12 +1052,11 @@ class EpubReaderViewModel @Inject constructor(
 
     fun togglePlayPause() {
         if (playbackState.value.isPlaying) {
-            // Capture where we paused before pause() freezes isPlaying, then push it to the audiobook
-            // (the periodic push is gated on isPlaying, which is about to go false).
-            val seconds = playbackState.value.positionSec
+            // Record the audiobook position on pause too (the follow loop is gated on isPlaying, which
+            // is about to go false), derived from the reading position via the bundle.
             val hadFragment = playerCoordinator.activeFragmentRef.value != null
             playerCoordinator.pause()
-            if (hadFragment) viewModelScope.launch { pushAudiobookSeconds(seconds) }
+            if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition() }
         } else {
             onPlayTapped()
         }

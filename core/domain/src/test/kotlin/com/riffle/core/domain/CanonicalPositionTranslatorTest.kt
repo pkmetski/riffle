@@ -111,6 +111,27 @@ class CanonicalPositionTranslatorTest {
         assertNull(translator.absBookProgression(ChapterProgression(0, 0.5)))
     }
 
+    @Test
+    fun `multi-file SMIL clip times are made absolute over the concatenated audio`() {
+        // Two audio files: file1 spans 0..10s, file2 spans 0..8s in its own clock. The ABS audiobook
+        // is the files concatenated, so file2's clips live at 10..18s absolute. Without this, a clip in
+        // file2 reads as a small per-file time and lands a fraction of the way into the ABS timeline.
+        val clips = listOf(
+            MediaOverlayClip("c1#a", "file1.mp3", clipBeginSec = 0.0, clipEndSec = 5.0),
+            MediaOverlayClip("c1#b", "file1.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
+            MediaOverlayClip("c2#a", "file2.mp3", clipBeginSec = 0.0, clipEndSec = 4.0),
+            MediaOverlayClip("c2#b", "file2.mp3", clipBeginSec = 4.0, clipEndSec = 8.0),
+        )
+        val translator = CanonicalPositionTranslator(smilClips = clips)
+
+        // file1 duration = 10 (its max clipEnd) → file2 is offset by 10.
+        assertEquals(10.0, translator.textFragmentToAudioSeconds("c2#a")!!, 1e-9)
+        assertEquals(14.0, translator.textFragmentToAudioSeconds("c2#b")!!, 1e-9)
+        // An absolute time of 12s falls in file2's first clip (abs 10..14), not file1.
+        assertEquals("c2#a", translator.audioSecondsToTextFragment(12.0))
+        assertEquals("c1#b", translator.audioSecondsToTextFragment(6.0))
+    }
+
     // ── Audio-seconds ↔ canonical (Storyteller) progression ────────────────────
     // Composes the SMIL clip lookup with each fragment's resolved within-chapter
     // progression in the Storyteller EPUB.

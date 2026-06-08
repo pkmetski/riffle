@@ -15,10 +15,30 @@ package com.riffle.core.domain
  * cycle to a deferred PATCH instead of a wrong one.
  */
 class CanonicalPositionTranslator(
-    private val smilClips: List<MediaOverlayClip>,
+    smilClips: List<MediaOverlayClip>,
     private val index: CrossEpubIndex = CrossEpubIndex(emptyList()),
     private val fragmentProgressions: Map<String, ChapterProgression> = emptyMap(),
 ) {
+
+    /**
+     * SMIL clip times are **per audio file** — each file's clips restart near 0. The ABS audiobook is
+     * those files concatenated into one timeline, so to translate a clip to an absolute ABS
+     * `currentTime` we add the cumulative duration of every file before it, in playback (document)
+     * order. A file's duration is taken as its largest `clipEnd`. A single-file bundle is unchanged
+     * (every offset is 0). Without this, a clip time from file N is sent as an absolute time and lands
+     * a fraction of the way in (e.g. 1/8 instead of 1/2).
+     */
+    private val absoluteClips: List<MediaOverlayClip> = run {
+        val fileOrder = LinkedHashSet<String>().apply { smilClips.forEach { add(it.audioSrc) } }
+        val fileDuration = smilClips.groupBy { it.audioSrc }.mapValues { e -> e.value.maxOf { it.clipEndSec } }
+        val offsetOf = HashMap<String, Double>()
+        var acc = 0.0
+        for (file in fileOrder) { offsetOf[file] = acc; acc += fileDuration[file] ?: 0.0 }
+        smilClips.map { c ->
+            val offset = offsetOf[c.audioSrc] ?: 0.0
+            if (offset == 0.0) c else c.copy(clipBeginSec = c.clipBeginSec + offset, clipEndSec = c.clipEndSec + offset)
+        }
+    }
 
     /**
      * Audio time → canonical (Storyteller-EPUB) progression: the narrated SMIL fragment
@@ -91,7 +111,7 @@ class CanonicalPositionTranslator(
      * last clip).
      */
     fun audioSecondsToTextFragment(seconds: Double): String? =
-        smilClips.firstOrNull { seconds >= it.clipBeginSec && seconds < it.clipEndSec }
+        absoluteClips.firstOrNull { seconds >= it.clipBeginSec && seconds < it.clipEndSec }
             ?.textFragmentRef
 
     /**
@@ -99,5 +119,5 @@ class CanonicalPositionTranslator(
      * `null` when no clip narrates [textFragmentRef].
      */
     fun textFragmentToAudioSeconds(textFragmentRef: String): Double? =
-        smilClips.firstOrNull { it.textFragmentRef == textFragmentRef }?.clipBeginSec
+        absoluteClips.firstOrNull { it.textFragmentRef == textFragmentRef }?.clipBeginSec
 }

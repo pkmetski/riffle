@@ -61,15 +61,18 @@ internal class AbsEbookSyncRemote(
 }
 
 /**
- * ABS audiobook progress as an **inbound-only** sync remote: [tryGet] reads `currentTime` and
- * bridges it through the SMIL so a genuinely-newer listen (another device / the ABS app) can win the
- * cycle and move the reader. [tryPatch] is a deliberate no-op — the cycle must never write the
- * audiobook, because an audio clock diverging from the page (readaloud can start behind) would then
- * drive the ebook and erase reading progress. Outbound to the audiobook is the separate, push-only
- * [ThreePeerReaderSyncCoordinator.pushAudiobookSeconds]; the feedback loop is closed by recording the
- * server timestamp that push returns (so our own write never reads back here as newer than local).
+ * ABS audiobook progress as a sync remote, translated through the readaloud bundle's SMIL media
+ * overlay — the exact page↔audio-timestamp mapping. [tryGet] turns the audiobook `currentTime` into a
+ * reading position (so a newer listen on another device moves the reader); [tryPatch] turns the
+ * winning reading position into an audiobook `currentTime` (so reading advances the audiobook). The
+ * SMIL times are made absolute over the concatenated audio files in [CanonicalPositionTranslator], so
+ * `currentTime` matches the ABS audiobook's single-file timeline rather than a per-file offset.
+ *
+ * The raw audio *clock* is never written here — only positions derived from the canonical reading
+ * position — so a behind/early playback clock cannot drive the ebook. The feedback loop is closed by
+ * adopting the server timestamp each write returns (the cycle / push records it as the local time).
  */
-internal class AbsAudiobookInboundRemote(
+internal class AbsAudiobookSyncRemote(
     private val api: AbsSessionApi,
     private val ep: AbsSyncEndpoint,
     private val bridge: ReaderPositionBridge,
@@ -84,8 +87,15 @@ internal class AbsAudiobookInboundRemote(
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
     }
 
-    // Inbound-only: outbound to the audiobook is pushAudiobookSeconds, never the reconcile cycle.
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? = null
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
+        val seconds = bridge.canonicalToAudioSeconds(canonical.value) ?: return null
+        val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
+        if (api.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
+        // ABS's PATCH returns no timestamp; GET the record back so the cycle adopts the real server
+        // time (otherwise this write reads back next cycle as a newer remote — the feedback loop).
+        return (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
+            ?.progress?.lastUpdate
+    }
 }
 
 /** Storyteller position as a sync remote: a Readium Locator on the Storyteller EPUB. */
@@ -149,7 +159,7 @@ class ThreePeerReaderSyncCoordinator(
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
                 RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
-                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookInboundRemote(absApi, it, bridge) }
+                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookSyncRemote(absApi, it, bridge) }
                 RemoteKind.STORYTELLER -> storytellerEndpoint?.let { StorytellerSyncRemote(storytellerApi, it, bridge, localUpdatedAt) }
             }
         }
@@ -161,26 +171,23 @@ class ThreePeerReaderSyncCoordinator(
     }
 
     /**
-     * Push-only update of the matched ABS audiobook's `currentTime` from the live audio position
-     * while readaloud plays. Writes ONLY the audiobook item — never the ebook, the reading position,
-     * or a reader jump — so a behind/early audio clock can never erase or override reading progress
-     * (the failure mode of every "audio drives the canonical" attempt). ABS gets the percentage too,
-     * computed from the item's duration.
+     * Responsive update of the matched ABS audiobook's `currentTime` from the current **reading
+     * position**, translated through the bundle's SMIL ([ReaderPositionBridge.canonicalToAudioSeconds],
+     * absolute over the concatenated audio files). Used by the audiobook-follow loop while readaloud
+     * plays (the page tracks the audio) so the audiobook reaches the server between reconcile cycles.
+     * Writes ONLY the audiobook item, from a page-derived position — never the raw audio clock — so it
+     * can never erase or override reading progress.
      *
      * Returns the server's `lastUpdate` for the write, or `null` on no-op / failure. The caller must
-     * record it as the local timestamp: the inbound [AbsAudiobookInboundRemote] reads this same
-     * record back next cycle, and only an equal-or-older read keeps the reading position the winner —
-     * this is what closes the feedback loop without dropping inbound audiobook sync.
+     * record it as the local timestamp: the audiobook remote reads this same record back next cycle,
+     * and only an equal-or-older read keeps the reading position the winner — this closes the feedback
+     * loop without dropping inbound audiobook sync. ABS's PATCH carries no timestamp, so we GET it back.
      */
-    suspend fun pushAudiobookSeconds(seconds: Double): Long? {
+    suspend fun pushAudiobookProgress(canonicalLocatorJson: String): Long? {
         val ep = absAudioEndpoint ?: return null
+        val seconds = bridge.canonicalToAudioSeconds(canonicalLocatorJson) ?: return null
         val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
-        val result = absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure)
-        if (result !is NetworkSyncSessionResult.Success) return null
-        // ABS's progress-sync response omits lastUpdate (it returns Success with no usable timestamp),
-        // so we GET the record back to learn the server time our write was stored under. The caller
-        // records it as the local timestamp; without it the inbound audiobook remote would read our
-        // own push back as a newer remote and drive the ebook to the audio position.
+        if (absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
         return (absApi.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
             ?.progress?.lastUpdate
     }

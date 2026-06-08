@@ -25,13 +25,16 @@ import org.junit.Test
 
 class ThreePeerReaderSyncCoordinatorTest {
 
-    // Identity cross-EPUB index → Storyteller and ABS progressions coincide. The SMIL maps audio
-    // seconds to a real near-end text position so inbound-audiobook behaviour is exercised: clip f9
-    // (90–100s) narrates progression 0.9.
+    // Identity cross-EPUB index → Storyteller and ABS progressions coincide. The SMIL maps both ways:
+    // clip f1 (5–10s) narrates progression 0.2, clip f9 (90–100s) narrates progression 0.9. Single
+    // audio file, so absolute == per-file here (the multi-file offsetting is tested in the translator).
     private val translator = CanonicalPositionTranslator(
-        smilClips = listOf(MediaOverlayClip("f9", "a.mp3", clipBeginSec = 90.0, clipEndSec = 100.0)),
+        smilClips = listOf(
+            MediaOverlayClip("f1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
+            MediaOverlayClip("f9", "a.mp3", clipBeginSec = 90.0, clipEndSec = 100.0),
+        ),
         index = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
-        fragmentProgressions = mapOf("f9" to ChapterProgression(0, 0.9)),
+        fragmentProgressions = mapOf("f1" to ChapterProgression(0, 0.2), "f9" to ChapterProgression(0, 0.9)),
     )
     private val absHtml = "<html><body><p>${"x".repeat(100)}</p></body></html>"
     private val bridge = ReaderPositionBridge(
@@ -113,7 +116,7 @@ class ThreePeerReaderSyncCoordinatorTest {
     }
 
     @Test
-    fun `when local is newest there is no jump and the ebook and Storyteller get the page`() = runTest {
+    fun `when local is newest there is no jump and every peer gets the reading position`() = runTest {
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
         val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
 
@@ -123,9 +126,10 @@ class ThreePeerReaderSyncCoordinatorTest {
         assertNotNull("ABS ebook received the first write", abs.ebookPatch)
         assertTrue(abs.ebookPatch!!.ebookLocation.startsWith("epubcfi("))
         assertNotNull("Storyteller received the first write", st.put)
-        // The audiobook is inbound-only: the cycle reads it but never writes it.
-        assertTrue("the cycle reads the audiobook inbound", "abs-item" in abs.getProgressItemIds)
-        assertNull("the cycle must not write the audiobook", abs.audioPatch)
+        // Reading advances the audiobook too: the page (0.3) translates through the bundle SMIL to the
+        // fragment narrated at 0.2 → its absolute clip start (5s). The raw audio clock is never used.
+        assertNotNull("the cycle writes the audiobook from the page", abs.audioPatch)
+        assertEquals(5.0, abs.audioPatch!!.currentTime, 1e-9)
     }
 
     // ── inbound audiobook (the feature) ─────────────────────────────────────────────
@@ -153,15 +157,15 @@ class ThreePeerReaderSyncCoordinatorTest {
 
     @Test
     fun `our own audiobook push does not read back as a newer remote (feedback loop closed)`() = runTest {
-        // The exact erase mechanism: we push the live audio (95s → near-end) to the audiobook, then a
-        // cycle runs. Without the timestamp-recording fix the audiobook reads back newer than the page
-        // and drives the ebook to the audio position. With it, the caller records the push's server
-        // timestamp as localUpdatedAt, so the read comes back EQUAL and the reading position wins.
+        // The exact erase mechanism: we push the audiobook (here for a near-end reading position), then
+        // a cycle runs. Without the timestamp-recording fix the audiobook reads back newer than the
+        // page and drives the ebook. With it, the caller records the push's server timestamp as
+        // localUpdatedAt, so the read comes back EQUAL and the reading position wins.
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 1_000L))
         val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
         val coordinator = coordinator(abs, st)
 
-        val pushStamp = coordinator.pushAudiobookSeconds(95.0) // audio ran ahead of the page
+        val pushStamp = coordinator.pushAudiobookProgress(locator(0.9)) // → audio 90s
         assertNotNull(pushStamp)
         // The caller (the ViewModel) records pushStamp as the local timestamp; simulate that here.
         val result = coordinator.runCycle(locator(0.0), localUpdatedAt = pushStamp!!)
@@ -193,35 +197,35 @@ class ThreePeerReaderSyncCoordinatorTest {
         assertNull("the just-written ebook must not read back as newer and bounce the reader", r2.jumpLocatorJson)
     }
 
-    // ── push-only outbound ──────────────────────────────────────────────────────────
+    // ── responsive audiobook-follow push (from the reading position) ─────────────────
 
     @Test
-    fun `pushAudiobookSeconds writes only the audiobook item and returns the server timestamp`() = runTest {
+    fun `pushAudiobookProgress writes only the audiobook item from the page and returns the server timestamp`() = runTest {
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
         val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
         val ebookEp = AbsSyncEndpoint("http://abs", "t", false, "ebook-item")
         val audioEp = AbsSyncEndpoint("http://abs", "t", false, "audiobook-item", durationSec = 39214.0)
         val coordinator = coordinator(abs, st, ebookEp, audioEp)
 
-        val stamp = coordinator.pushAudiobookSeconds(1443.0)
+        val stamp = coordinator.pushAudiobookProgress(locator(0.9)) // page 0.9 → fragment f9 → 90s
 
         assertNotNull("a successful push returns the server timestamp", stamp)
-        assertEquals(1443.0, abs.audioPatch!!.currentTime, 1e-9)
+        assertEquals(90.0, abs.audioPatch!!.currentTime, 1e-9)
         assertEquals(39214.0, abs.audioPatch!!.duration, 1e-9)
         assertEquals("audiobook-item", abs.audioPatchItemId)
-        // Decoupled: the ebook is never touched, so it can never be erased by the audio.
+        // Derived from the page, never the raw audio clock; the ebook is never touched.
         assertNull(abs.ebookPatch)
         assertNull(abs.ebookPatchItemId)
     }
 
     @Test
-    fun `pushAudiobookSeconds is a no-op when there is no matched audiobook`() = runTest {
+    fun `pushAudiobookProgress is a no-op when there is no matched audiobook`() = runTest {
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
         val st = FakeStoryteller(NetworkStorytellerPositionResult.NoPosition)
         val ebookEp = AbsSyncEndpoint("http://abs", "t", false, "ebook-item")
         val coordinator = coordinator(abs, st, ebookEp, audioEp = null)
 
-        assertNull(coordinator.pushAudiobookSeconds(1443.0))
+        assertNull(coordinator.pushAudiobookProgress(locator(0.9)))
         assertNull(abs.audioPatch)
     }
 
@@ -236,11 +240,11 @@ class ThreePeerReaderSyncCoordinatorTest {
         val coordinator = coordinator(abs, st, ebookEp, audioEp)
 
         coordinator.runCycle(locator(0.3), localUpdatedAt = 9_000L)
-        coordinator.pushAudiobookSeconds(42.0)
+        coordinator.pushAudiobookProgress(locator(0.3))
 
         assertEquals("ebook progress goes to the ebook item", "ebook-item", abs.ebookPatchItemId)
         assertTrue("the cycle reads the ebook item", "ebook-item" in abs.getProgressItemIds)
-        assertTrue("the cycle reads the audiobook item inbound", "audiobook-item" in abs.getProgressItemIds)
-        assertEquals("the push targets the audiobook item", "audiobook-item", abs.audioPatchItemId)
+        assertTrue("the cycle reconciles the audiobook item", "audiobook-item" in abs.getProgressItemIds)
+        assertEquals("audiobook writes target the audiobook item", "audiobook-item", abs.audioPatchItemId)
     }
 }
