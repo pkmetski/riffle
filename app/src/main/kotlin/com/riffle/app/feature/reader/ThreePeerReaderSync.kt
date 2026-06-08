@@ -173,7 +173,13 @@ class ThreePeerReaderSyncCoordinator(
     suspend fun pushAudiobookSeconds(seconds: Double): Long? {
         val ep = absAudioEndpoint ?: return null
         val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
-        return (absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure)
-            as? NetworkSyncSessionResult.Success)?.lastUpdate
+        val result = absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure)
+        if (result !is NetworkSyncSessionResult.Success) return null
+        // ABS's progress-sync response omits lastUpdate (it returns Success with no usable timestamp),
+        // so we GET the record back to learn the server time our write was stored under. The caller
+        // records it as the local timestamp; without it the inbound audiobook remote would read our
+        // own push back as a newer remote and drive the ebook to the audio position.
+        return (absApi.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
+            ?.progress?.lastUpdate
     }
 }

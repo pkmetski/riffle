@@ -78,6 +78,9 @@ import java.util.zip.ZipFile
 import javax.inject.Inject
 
 private const val SYNC_INTERVAL_MS = 30_000L
+// The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
+// listen reaches the server within seconds rather than only on the next ebook tick.
+private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -419,6 +422,18 @@ class EpubReaderViewModel @Inject constructor(
                     if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
                 }
         }
+        // Audiobook-follow: while readaloud narrates a sentence, push the live audio position to the
+        // matched ABS audiobook on a tight cadence (decoupled from the 30s ebook reconcile, so a
+        // listen reaches the server promptly). Push-only — never writes the ebook/reading position.
+        viewModelScope.launch {
+            while (true) {
+                delay(AUDIO_PUSH_INTERVAL_MS)
+                val pb = playerCoordinator.state.value
+                if (pb.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
+                    pushAudiobookSeconds(pb.positionSec)
+                }
+            }
+        }
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
             _searchQuery
@@ -514,8 +529,9 @@ class EpubReaderViewModel @Inject constructor(
      *
      * The audiobook is reconciled **inbound-only**: the cycle reads it (so a cross-device listen wins
      * and moves the reader) but never writes it. The live audio clock reaches the audiobook only via
-     * the separate push below, which records its own server timestamp so it can't read back as a
-     * newer remote and drive the ebook — the feedback loop that previously erased reading progress.
+     * the separate audiobook-follow loop (see init), which records its own server timestamp so it
+     * can't read back as a newer remote and drive the ebook — the feedback loop that previously
+     * erased reading progress.
      */
     private suspend fun runThreePeerCycle(locator: Locator?) {
         val coordinator = threePeer ?: return
@@ -534,13 +550,6 @@ class EpubReaderViewModel @Inject constructor(
                     readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
                 }
             }
-        }
-        // Push-only audiobook-follow: while readaloud is narrating a sentence, the audiobook
-        // currentTime tracks the live audio. Writes ONLY the audiobook item (then records its server
-        // timestamp to close the inbound feedback loop) — never the ebook/reading position above.
-        val playback = playerCoordinator.state.value
-        if (playback.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
-            pushAudiobookSeconds(playback.positionSec)
         }
     }
 
