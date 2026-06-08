@@ -30,6 +30,12 @@ data class StorytellerSyncEndpoint(val baseUrl: String, val token: String, val i
 // to any local progress, so the cycle still pushes the reader's first position to it.
 internal val EMPTY_REMOTE_READ = RemoteRead(CanonicalReaderPosition(""), 0L)
 
+// ABS's progress PATCH replies "OK" with no timestamp, so after a write we GET the record back to
+// learn the server time it was stored under. Callers record it as the local timestamp; without it a
+// write reads back next cycle as a "newer remote" and overwrites local progress (the feedback loop).
+internal suspend fun AbsSessionApi.serverStamp(ep: AbsSyncEndpoint): Long? =
+    (getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)?.progress?.lastUpdate
+
 /** ABS ebook progress as a sync remote: an ebookLocation CFI on the ABS EPUB. */
 internal class AbsEbookSyncRemote(
     private val api: AbsSessionApi,
@@ -52,11 +58,7 @@ internal class AbsEbookSyncRemote(
         val cfi = bridge.canonicalToAbsCfi(canonical.value) ?: return null
         val payload = NetworkEbookProgressPayload(cfi, bridge.canonicalBookProgress(canonical.value))
         if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
-        // ABS's progress PATCH replies "OK" with no timestamp, so we GET the record to learn the
-        // server time the write was stored under. The cycle adopts it; without it this write reads
-        // back next cycle as a newer remote and bounces the reader (the "server overwrites local" bug).
-        return (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
-            ?.progress?.lastUpdate
+        return api.serverStamp(ep)
     }
 }
 
@@ -91,10 +93,7 @@ internal class AbsAudiobookSyncRemote(
         val seconds = bridge.canonicalToAudioSeconds(canonical.value) ?: return null
         val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
         if (api.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
-        // ABS's PATCH returns no timestamp; GET the record back so the cycle adopts the real server
-        // time (otherwise this write reads back next cycle as a newer remote — the feedback loop).
-        return (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
-            ?.progress?.lastUpdate
+        return api.serverStamp(ep)
     }
 }
 
@@ -203,7 +202,6 @@ class ThreePeerReaderSyncCoordinator(
         if (seconds == null) return null
         val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
         if (absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
-        return (absApi.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
-            ?.progress?.lastUpdate
+        return absApi.serverStamp(ep)
     }
 }
