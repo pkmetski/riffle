@@ -162,7 +162,7 @@ private fun DrawerSheetContent(
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Riffle v${BuildConfig.VERSION_NAME}",
+            text = "Riffle v${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_SHA})",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier

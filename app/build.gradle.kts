@@ -24,6 +24,17 @@ val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
+// Short git SHA of the build, surfaced in the nav drawer so a tester can confirm exactly which commit
+// an installed APK was built from. Appends "-dirty" when the working tree had uncommitted changes.
+// Uses providers.exec (configuration-cache friendly); falls back to "unknown" outside a git checkout.
+val gitSha: String = runCatching {
+    val sha = providers.exec { commandLine("git", "rev-parse", "--short", "HEAD") }
+        .standardOutput.asText.get().trim()
+    val dirty = providers.exec { commandLine("git", "status", "--porcelain") }
+        .standardOutput.asText.get().isNotBlank()
+    if (sha.isBlank()) "unknown" else if (dirty) "$sha-dirty" else sha
+}.getOrDefault("unknown")
+
 android {
     namespace = "com.riffle.app"
     compileSdk = 36
@@ -47,6 +58,9 @@ android {
         // Resolved Readium version, surfaced so ReadiumVersionPinTest can flag any future bump
         // (Readium 3.2.0+ regresses the readaloud highlight — see that test).
         buildConfigField("String", "READIUM_VERSION", "\"${libs.versions.readium.get()}\"")
+
+        // Build commit SHA shown in the nav drawer (see gitSha above).
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH")
