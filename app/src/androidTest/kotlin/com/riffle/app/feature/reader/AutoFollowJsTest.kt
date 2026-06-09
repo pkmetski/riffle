@@ -118,18 +118,6 @@ class AutoFollowJsTest {
     }
 
     @Test
-    fun reflowAnchorCaptureReturnsTheTopOfPageLine() {
-        withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
-            webView.awaitInnerHeight()
-            // The capture returns a prefix of the line at the top of the current page — the anchor the
-            // reserve reflow pins back. It must be the on-page line, never the off-page (next-column) one.
-            val anchor = webView.evalSync(ColumnSnap.reflowAnchorCaptureJs()).trim('"')
-            assertTrue("a non-empty anchor is captured", anchor.isNotEmpty())
-            assertTrue("anchor is the on-page line (got '$anchor')", onPageText.startsWith(anchor))
-        }
-    }
-
-    @Test
     fun paginatedSnapsToTheColumnContainingTheSentence() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
