@@ -749,6 +749,23 @@ class ReadingProgressLabelSourceTest {
 
         assertEquals("must hold the last real total, never show the chapter-local 0.9", 0.1f, s.totalProgression.value)
     }
+
+    // Mirrors EpubChapterRailOverlay's display selection:
+    //   labelProgress = if (totalProgress > 0f) totalProgress else cursorPosition
+    // Guards against the label sticking at 0% when a publication's positions never compute (so
+    // totalProgression stays absent) — fall back to the chapter-weighted rail cursor there.
+    private fun labelProgress(total: Float, cursor: Float): Float = if (total > 0f) total else cursor
+
+    @Test
+    fun `label falls back to the rail cursor when no whole-book total has been observed`() {
+        // Positions never computed → total stays 0; show the chapter-weighted estimate, not 0%.
+        assertEquals(0.42f, labelProgress(total = 0f, cursor = 0.42f))
+    }
+
+    @Test
+    fun `a real whole-book total wins over the rail cursor once it arrives`() {
+        assertEquals(0.11f, labelProgress(total = 0.11f, cursor = 0.42f))
+    }
 }
 
 /**

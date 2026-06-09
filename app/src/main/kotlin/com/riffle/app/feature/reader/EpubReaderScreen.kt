@@ -529,6 +529,12 @@ private fun EpubChapterRailOverlay(
     // Whole-book progress for the "% read" label — matches book details. Kept separate from
     // cursorPosition, which places the cursor inside the active (chapter-weighted) rail segment.
     val totalProgress by viewModel.currentLocatorTotalProgression.collectAsState()
+    // totalProgression is absent until Readium computes positions, and stays absent for the whole
+    // session if a publication's positions never compute. Fall back to the chapter-weighted rail
+    // cursor then so the label shows a sensible estimate instead of sticking at 0%. Once a real
+    // whole-book value arrives it wins (and matches book details). At genuine 0% the rail cursor is
+    // also ~0, so the fallback is indistinguishable there.
+    val labelProgress = if (totalProgress > 0f) totalProgress else cursorPosition
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         // Backdrop is the exact reader-theme page colour so the strip reads as page margin,
@@ -544,7 +550,7 @@ private fun EpubChapterRailOverlay(
                     activeChapterIndex = activeRailSegmentIndex,
                     chapterCount = railSegments.size,
                     activeChapterTitle = railSegments.getOrNull(activeRailSegmentIndex)?.title.orEmpty(),
-                    totalProgress = totalProgress,
+                    totalProgress = labelProgress,
                     readerTheme = readerTheme,
                     showCountAndPercent = showProgressLabels,
                     showChapterName = showChapterNameLabel,
