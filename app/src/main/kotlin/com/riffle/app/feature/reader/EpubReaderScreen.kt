@@ -1033,7 +1033,11 @@ private fun EpubNavigatorView(
                 currentHrefHolder[0]?.substringBefore('#')
             navigating = cover
             try {
-                ColumnSnap.goAndSnap(fragment, locator)
+                // Search locators carry an occurrence-specific progression but no #fragment, so go()
+                // lands on the right hit and we must round THAT page to the grid — not snap to column 0
+                // (the default), which would yank to the chapter top and lose the hit. Same route as the
+                // resume/peer background sync above.
+                ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
                 if (cover) delay(NAV_COVER_SETTLE_MS)
             } finally {
                 navigating = false

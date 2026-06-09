@@ -39,78 +39,77 @@ column.
   another read-along format may appear later.
 - Search must work fully on books with no readaloud.
 
-## Design
+## Why NOT text-anchoring (a flaw caught during implementation)
 
-### Dependency shape
+The first design draft proposed bringing the hit into view by **text-anchoring
+on `locator.text.highlight`**, the way readaloud follows a narrated sentence.
+This is wrong for search:
 
-Three independent highlight clients, one shared **format-neutral** primitive.
-No client imports another.
+- Readaloud's follow primitive (`autoFollowSnapJs`) locates text by walking the
+  DOM and matching the **first** occurrence of a 12-char prefix in document
+  order. That is unambiguous for a long, near-unique sentence.
+- A search term is short and **repeats** — the reporting screenshot shows
+  "watney", result **4 of 224**. Text-anchoring on "watney" would always snap to
+  the *first* "watney" in the chapter, never the 4th hit the user navigated to.
+- Readaloud is *forced* to text-anchor because Readium strips its sentence spans.
+  **Search is not**: Readium's `SearchService` gives each result locator an
+  **occurrence-specific `progression`** (position within the resource). Text-
+  anchoring would throw that precision away and regress to the wrong occurrence.
+
+So search must use its locator's precise position, not a text search.
+
+## Design (Option X — minimal, occurrence-correct)
+
+`go(locator)` already scrolls to the **correct occurrence** via the locator's
+progression. The only bug is the snap that runs afterwards.
+
+Search currently calls `ColumnSnap.goAndSnap(fragment, locator)` with the default
+`landAtStartWhenNoTarget = true`. Because search locators have no `#fragment`,
+the post-`go()` snap runs `scrollLeft = 0` and yanks to the chapter top, undoing
+`go()`'s correct within-chapter scroll.
+
+**The fix:** pass `landAtStartWhenNoTarget = false` — the *exact route* the
+resume/peer background-sync already uses (`EpubReaderScreen.kt:1070`). With no
+DOM target it rounds the page `go()` landed on to the column grid (flush — fixes
+the misalignment) instead of yanking to the chapter top (fixes the navigation).
+It is occurrence-correct because `go()` used the progression.
 
 ```
-        ┌─────────────────────────────────────────┐
-        │  ColumnSnap (existing, format-neutral)    │
-        │  • applyDecorations on an isolated group  │
-        │  • bringTextIntoView(text): keep-visible  │  ← the shared rule
-        └─────────────────────────────────────────┘
+        ┌──────────────────────────────────────────────┐
+        │  ColumnSnap.goAndSnap(locator, landAtStart…)   │  ← the shared nav route
+        └──────────────────────────────────────────────┘
               ▲              ▲                 ▲
-       readaloud         search          persisted highlights
-   (text from           (text from       (paint only, no follow)
-    Storyteller         Readium
-    bundle)             SearchService)
+            TOC          resume / peer       search
+        (=true,         (=false, round    (NOW =false, round
+         chapter top)    to grid)          to grid)
 ```
 
-The into-view primitive already lives in `ColumnSnap` and already takes a plain
-`String` — it knows nothing about Storyteller, media overlays, or the readaloud
-bundle. `ColumnSnap`'s own doc names it the single owner of column-snapping for
-"TOC / search / resume / read-aloud follow". Search becomes a **peer** of
-readaloud, sourcing its text from Readium's own search result
-(`locator.text.highlight`, which already carries before/highlight/after context).
-
-If a third read-along format appears, it is simply a third client of the same
-neutral primitive.
+This is the real consolidation: search joins the **existing shared `goAndSnap`
+nav route** alongside TOC/resume/peer. It introduces **no coupling to readaloud**
+and **no new primitive** — the opposite of the discarded text-anchor draft.
 
 ### Into-view behavior: keep-visible (Option B / "Option 1")
 
-It is enough that the matched word is **visible** on the page; it does not need
-to be centered.
-
-Reuse the existing readaloud follow primitive **unchanged**:
-
-- Match already on the current page → no movement, **except** the existing
-  drift-correction nudge that floors a visibly-off-grid page flush (a fix, not a
-  jump).
-- Match off the current page → floor `scrollLeft` to the matched word's column
-  so it lands visible.
-
-No new branch is added; multiple hits sharing a page do not produce disruptive
-jumps because the primitive already no-ops when the matched column is the current
-page.
+It is enough that the matched word is **visible** on the page; it need not be
+centered. `go(progression)` lands on the occurrence's page (Readium snaps to its
+own page boundary); the no-target round-to-grid then floors that to the column
+grid — a no-op when already flush, the Option-1 drift-correction when resting a
+few px off-grid. Hits already on the current page do not produce a disruptive
+jump.
 
 ### Changes
 
-1. **`ColumnSnap`** — neutralize the readaloud-specific naming (pure rename, no
-   behavior change):
-   - `followNarratedSentence(fragment, text)` → `bringTextIntoView(fragment, text)`
-   - internal `autoFollowSnapJs(text)` → `snapTextColumnJs(text)`
-   - Readaloud's call site (`EpubReaderScreen.kt:1251`) updates to the new name.
-   This makes "search calls a readaloud-named function" structurally impossible —
-   it is now a neutral primitive both call.
+1. **Search navigation** (`EpubReaderScreen` `searchNavigationEvents`,
+   `:1074–1087`): change the single call
+   `ColumnSnap.goAndSnap(fragment, locator)` →
+   `ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)`.
+   Nothing else in the effect changes (cover detection, cover delay unchanged).
 
-2. **Search navigation** (`EpubReaderScreen` `searchNavigationEvents`, currently
-   `:1074–1087`) becomes the structural twin of readaloud's auto-follow effect:
-   - **Same chapter** (hit is in the loaded resource): skip `go()` entirely; call
-     `ColumnSnap.bringTextIntoView(fragment, locator.text.highlight)`. Avoids
-     `go(cssSelector)`'s flush-to-element sliver.
-   - **Different chapter** (cover jump): `go(locator)` to load the chapter, then a
-     follow effect keyed on `pageLoadGeneration` (and the current result) re-runs
-     `bringTextIntoView` once the new chapter paints — exactly how readaloud
-     re-snaps after a chapter load. The `scrollLeft = 0` chapter-top yank is gone.
-   - `bringTextIntoView` returning `"off"` (text not yet painted) is not an error:
-     the `pageLoadGeneration` re-key re-runs it after load, mirroring readaloud.
-
-3. **Decoration painting is unchanged.** `searchResults` →
+2. **Decoration painting is unchanged.** `searchResults` →
    `applyDecorations(group = "search")` (`EpubReaderScreen.kt:1113–1141`) already
    works; only the *into-view* step was broken.
+
+No rename, no new `ColumnSnap` primitive, no readaloud changes.
 
 ## Caveat (verify, don't assume)
 
@@ -120,16 +119,28 @@ the word even when the page is snapped flush — this change will not fix it. Th
 is treated as a separate follow-up. We will **not** claim the misalignment is
 fixed without observing it on a device.
 
+Cross-chapter reflow tracking is whatever resume/peer already get from this route
+(the no-target branch rounds the current scroll to the grid through the reflow-
+settle loop, not anchored to the occurrence). If cross-chapter hits drift after
+the new chapter's typography reflow, escalate to **Option Y**: a new `ColumnSnap`
+primitive that snaps to the hit's progression and tracks it through reflow.
+
 ## Testing
 
-- **JS unit tests** (harness script tests) for `snapTextColumnJs` already exist
-  from the readaloud follow; they now cover the shared primitive directly. Add a
-  search-flavored case: multiple hits on one page → no page move; a hit off-page
-  → snaps flush to the matched word's column.
-- **Device verification** (harness, paginated mode): search a frequent word, step
-  Next across pages and across a chapter boundary; confirm each hit lands visible
-  and the highlight sits on the word. This is where the rect-offset caveat above
-  is checked.
+- **Characterization unit test** (`ReaderWebViewScriptsTest`, pure JVM): the
+  existing test covers `snapToTargetColumnJs(null)` (default `true` → `scrollLeft
+  = 0`). Add the `landAtStartWhenNoTarget = false` no-target case search now
+  depends on: it rounds the current scroll to the grid
+  (`Math.round(se.scrollLeft/iw)*iw`) rather than snapping to column 0. (This
+  passes against existing production code — the `false` branch already exists; it
+  locks the contract search now relies on, it is not red-green TDD, because
+  Option X adds no new production logic, only routes search through an existing
+  tested path.)
+- **Device verification** (harness, paginated mode): search a frequent word
+  ("watney"), step Next across pages and across a chapter boundary; confirm each
+  hit lands on its own page (not the first occurrence, not the chapter top),
+  visible, with the highlight on the word. This is where the rect-offset caveat
+  above is checked.
 
 ## Out of scope
 
