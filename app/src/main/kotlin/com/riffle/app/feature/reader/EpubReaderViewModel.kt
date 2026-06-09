@@ -170,6 +170,12 @@ class EpubReaderViewModel @Inject constructor(
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
     private var initialLocatorSeen = false
+    // Set to the winning server timestamp when the cycle drives a remote-win jump; consumed by the
+    // jump's resulting onPositionChanged. That emission persists the CFI (so a reopen lands on the
+    // synced page) but keeps this server timestamp instead of stamping `now` — the jump is not a
+    // genuine local edit, and stamping `now` would make it read back next cycle as a newer LOCAL
+    // change, bouncing the reader and pushing the audiobook back over a newer server position.
+    private var pendingServerJumpStamp: Long? = null
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -554,6 +560,10 @@ class EpubReaderViewModel @Inject constructor(
                         lastLocator = loc
                         closeLocator = null
                         resumeFragmentRef = null
+                        // The jump's own onPositionChanged must keep this adopted server time, not
+                        // stamp `now` — else our own sync-move reads back next cycle as a newer local
+                        // edit and bounces / pushes the audiobook back. Consumed by that emission.
+                        pendingServerJumpStamp = result.canonicalLastUpdate
                         // The exact narrated sentence at the synced position, so a following "start
                         // readaloud" begins there (not the page top). The column-snap shifts the reader's
                         // progression off the synced point, so the planner's page check can't be relied on
@@ -612,8 +622,16 @@ class EpubReaderViewModel @Inject constructor(
             initialLocatorSeen = true
             return
         }
+        // If this emission is the reader settling onto a position the cycle jumped it to (a remote
+        // win), persist the CFI but restore the server timestamp the cycle adopted — see
+        // pendingServerJumpStamp. A genuine user navigation leaves the flag null and stamps `now`.
+        val serverJumpStamp = pendingServerJumpStamp
+        pendingServerJumpStamp = null
         viewModelScope.launch {
             positionSaveCoordinator.onChanged(locator.toJSON().toString())
+            if (serverJumpStamp != null) {
+                threePeerServerId?.let { readingPositionStore.updateLocalTimestamp(it, itemId, serverJumpStamp) }
+            }
         }
     }
 
