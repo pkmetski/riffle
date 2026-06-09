@@ -37,12 +37,20 @@ class AutoFollowJsTest {
 
     // A viewport-sized page → paginated mode. The on-page sentence is fully visible; the off-page one
     // sits far to the right (a later column/page), so following it requires a horizontal column snap.
+    // The trailing spacer extends the scrollable width well beyond the offright column. On fractional-
+    // density emulators getBoundingClientRect() reports coordinates in a space inflated relative to
+    // scrollWidth (~1.25× on the 7.1.1 AVD: the offright element at CSS left:5000 measures ~6236), so the
+    // column-follow snap computes its target in that inflated space while the scroll clamp is in CSS
+    // space. Without slack between the target and end-of-content, the snap clamps short and the target
+    // never reaches flush-left. The spacer provides that slack so the invariant under test holds on any
+    // density. (Empty, so it never matches the text-probe treewalker.)
     private val shortFixture = """
         <!DOCTYPE html>
         <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
           <body style="margin:0; height:40px; position:relative">
             <div id="onpage"  style="position:absolute; left:20px;    top:5px; width:240px; height:25px">$onPageText</div>
             <div id="offright" style="position:absolute; left:5000px;  top:5px; width:240px; height:25px">$offRightText</div>
+            <div id="spacer"   style="position:absolute; left:8000px;  top:5px; width:240px; height:25px"></div>
           </body>
         </html>
     """.trimIndent()
@@ -131,12 +139,16 @@ class AutoFollowJsTest {
             val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(offRightText)).trim('"')
             assertEquals("a sentence on another page is followed by snapping → on", "on", result)
 
-            // After the snap the sentence's column is flush-left: its first char's client-left equals
-            // (absX mod iw), which lands in [0, iw) exactly when scrollLeft is a whole multiple of iw
-            // — i.e. the page is on the column grid, not resting between two columns.
-            val left = webView.rectLeft("offright")
-            assertTrue("sentence should be snapped onto the page grid (left=$left, iw=$iw)", left in 0 until iw)
-            assertTrue("snapping a next-page sentence must move the page", webView.scrollX() > 0)
+            // The invariant: following an off-page sentence lands the page ON the column grid — scrollLeft
+            // a whole multiple of innerWidth — so the page never rests between two columns. Assert that in
+            // scroll space directly. (The earlier getBoundingClientRect()-based proxy assumed rect space
+            // and scroll space coincide; on fractional-density emulators they differ by a constant factor,
+            // so the proxy reported the column off-grid even when scrollLeft was a clean multiple. The
+            // spacer in shortFixture keeps the target off the end-of-content clamp so the snap reaches a
+            // clean column rather than clamping to a non-grid max.)
+            val sx = webView.scrollX()
+            assertTrue("snapping a next-page sentence must move the page", sx > 0)
+            assertEquals("page must land on the column grid (scrollX=$sx, iw=$iw)", 0, sx % iw)
         }
     }
 
