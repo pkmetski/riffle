@@ -295,6 +295,7 @@ fun EpubReaderScreen(
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
+                        onNarratedSentenceFollowed = viewModel::onNarratedSentenceFollowed,
                         readaloudAvailable = readaloudAvailable,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -732,6 +733,7 @@ private fun EpubNavigatorView(
     pageTopProbeRequests: Flow<String>,
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
+    onNarratedSentenceFollowed: () -> Unit,
     readaloudAvailable: Boolean,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -1245,7 +1247,13 @@ private fun EpubNavigatorView(
         // column itself in paginated mode; "off" comes back only when the text isn't on this resource
         // (another chapter), where we fall back to a text-anchored go() to load it.
         val where = ColumnSnap.followNarratedSentence(fragment, quote.highlight)
-        if (where != "off") return@LaunchedEffect
+        if (where != "off") {
+            // The narrated sentence is on screen now. If a chapter jump paused playback to wait for
+            // this chapter's (slow) load, resume here — so playback resumes on the chapter's first
+            // sentence instead of having run on past it during the load.
+            onNarratedSentenceFollowed()
+            return@LaunchedEffect
+        }
         fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
     }
 

@@ -1125,9 +1125,39 @@ class EpubReaderViewModel @Inject constructor(
 
     fun forward() = playerCoordinator.forward()
 
-    fun previousChapter() = playerCoordinator.previousChapter()
+    fun previousChapter() = navigateChapter(forward = false)
 
-    fun nextChapter() = playerCoordinator.nextChapter()
+    fun nextChapter() = navigateChapter(forward = true)
+
+    // Set when a chapter jump crossed into a different chapter's document while playing, so the
+    // reader resumes playback once that (slow-loading) chapter is on screen — see [navigateChapter].
+    private var pendingChapterResume = false
+
+    /**
+     * Jumps a chapter and, when crossing into a different chapter's document while playing, freezes
+     * playback until that chapter has loaded. The page-follow has to load the destination document
+     * (slow), and audio left running would advance past the often-short first sentence — so the page
+     * settled on the SECOND sentence. Pausing here and resuming in [onNarratedSentenceFollowed]
+     * keeps audio and the highlight together on the chapter's first sentence. A same-chapter restart
+     * (no document change) loads nothing, so it is never frozen.
+     */
+    private fun navigateChapter(forward: Boolean) {
+        val wasPlaying = playbackState.value.isPlaying
+        val beforeIndex = playbackState.value.currentChapterIndex
+        if (forward) playerCoordinator.nextChapter() else playerCoordinator.previousChapter()
+        if (wasPlaying && playbackState.value.currentChapterIndex != beforeIndex) {
+            playerCoordinator.pause()
+            pendingChapterResume = true
+        }
+    }
+
+    /** The reader reports the narrated sentence is on screen; resume a chapter jump frozen for its load. */
+    fun onNarratedSentenceFollowed() {
+        if (pendingChapterResume) {
+            pendingChapterResume = false
+            playerCoordinator.play()
+        }
+    }
 
     /**
      * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when
