@@ -107,6 +107,33 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getLibraryItems sets hasAudio from numAudioFiles and numTracks, false when absent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"results":[""" +
+                    """{"id":"ebook","libraryId":"lib-1","media":{"metadata":{"title":"Ebook","authorName":"A"},"ebookFormat":"epub"}},""" +
+                    """{"id":"audio","libraryId":"lib-1","media":{"metadata":{"title":"Audiobook","authorName":"B"},"numAudioFiles":6,"duration":39214.5}},""" +
+                    """{"id":"audio-tracks","libraryId":"lib-1","media":{"metadata":{"title":"Audiobook2","authorName":"C"},"numTracks":3}},""" +
+                    """{"id":"combined","libraryId":"lib-1","media":{"metadata":{"title":"Both","authorName":"D"},"ebookFormat":"epub","numAudioFiles":2}}""" +
+                    """]}"""
+                )
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getLibraryItems(
+            server.url("/").toString().trimEnd('/'), "lib-1", "token-abc", false
+        )
+        val items = (result as NetworkLibraryItemsResult.Success).items.associateBy { it.id }
+        assertFalse(items.getValue("ebook").hasAudio)
+        assertTrue(items.getValue("audio").hasAudio)
+        assertTrue(items.getValue("audio-tracks").hasAudio)
+        assertTrue(items.getValue("combined").hasAudio)
+        assertEquals(39214.5, items.getValue("audio").audioDurationSec, 0.001)
+        assertEquals(0.0, items.getValue("ebook").audioDurationSec, 0.001)
+    }
+
+    @Test
     fun `getLibraryItems uses 0 progress when userMediaProgress is null`() = runTest {
         server.enqueue(
             MockResponse()

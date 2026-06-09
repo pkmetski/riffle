@@ -72,16 +72,15 @@ class PlayerCoordinator @Inject constructor(
 
     /**
      * Starts playback at the reader's current position: the sentence under the cursor ([fragmentId])
-     * if it maps to a clip, else the first clip of [href]'s chapter. Falls back to plain play (book
-     * start) only when the position can't be resolved at all.
+     * if it maps to a clip, else the first clip of [href]'s chapter, else the nearest narrated clip
+     * after it. Does NOT fall back to plain `play()` when nothing resolves: on a freshly-prepared
+     * session the controller sits at position 0, so `play()` would start the book over — and the
+     * reader's auto-follow would then drag the reading position back to the start, erasing progress.
+     * Not starting is strictly safer than restarting the book.
      */
     fun playFromReaderPosition(href: String, fragmentId: String?) {
-        val clip = track?.resolveStartClip(href, fragmentId)
-        if (clip != null) {
-            controller.playFromFragment(clip.textFragmentRef)
-        } else {
-            controller.play()
-        }
+        val clip = track?.resolveStartClip(href, fragmentId) ?: return
+        controller.playFromFragment(clip.textFragmentRef)
     }
 
     fun play() = controller.play()

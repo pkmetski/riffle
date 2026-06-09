@@ -69,9 +69,10 @@ class LibraryItemDetailTabletLayoutTest {
 
         leftPane.assertIsDisplayed()
         rightPane.assertIsDisplayed()
-        // Left-pane content present.
+        // Left-pane content present. The author is rendered as a tappable facet line ("By <author>",
+        // a single ClickableText per ADR 0027), so match the name as a substring rather than exact text.
         composeTestRule.onNodeWithText("A Test Book").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Test Author").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Test Author", substring = true).assertIsDisplayed()
         // Right-pane content present.
         composeTestRule.onNodeWithText("Summary").assertIsDisplayed()
 

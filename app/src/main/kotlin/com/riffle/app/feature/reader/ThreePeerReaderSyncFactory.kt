@@ -8,10 +8,9 @@ import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.ExtractedEpub
+import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
@@ -33,6 +32,7 @@ class ThreePeerReaderSyncFactory @Inject constructor(
     private val indexStore: CrossEpubIndexStore,
     private val absSessionApi: AbsSessionApi,
     private val storytellerPositionApi: StorytellerPositionApi,
+    private val libraryRepository: LibraryRepository,
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
 ) {
@@ -43,18 +43,23 @@ class ThreePeerReaderSyncFactory @Inject constructor(
     suspend fun createIfApplicable(itemId: String): ThreePeerReaderSyncCoordinator? {
         val active = serverRepository.getActive() ?: return null
 
-        // Resolve the single Confirmed link; three-peer requires exactly one ABS link.
-        val link = linkRepository.findByAbsItem(active.id, itemId) ?: return null
-        val absLinkCount = linkRepository.findByStorytellerBook(link.storytellerServerId, link.storytellerBookId).size
-        if (absLinkCount != 1) return null
+        // The readaloud bundle is the hub: route progress to whichever ABS items are matched to it.
+        val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
+        val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
+        val linkedMedia = allLinks.mapNotNull { l ->
+            val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
+            AbsLinkMedia(l, isSupported = item.isSupported, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
+        }
+        val targets = resolveAbsTargets(itemId, linkedMedia)
+        // The reader displays the ABS EPUB (ADR 0026): no matched ebook item ⇒ nothing to display
+        // and no frame for the cross-EPUB index, so three-peer can't apply.
+        val ebookLink = targets.ebook ?: return null
 
-        val absServer = serverRepository.getById(link.absServerId) ?: return null
-        val absToken = tokenStorage.getToken(link.absServerId) ?: return null
-        val storytellerServer = serverRepository.getById(link.storytellerServerId) ?: return null
-        val storytellerToken = tokenStorage.getToken(link.storytellerServerId) ?: return null
+        val storytellerServer = serverRepository.getById(openedLink.storytellerServerId) ?: return null
+        val storytellerToken = tokenStorage.getToken(openedLink.storytellerServerId) ?: return null
 
-        val absFile = cachedFile(link.absServerId, link.absLibraryItemId) ?: return null
-        val storytellerFile = cachedFile(link.storytellerServerId, link.storytellerBookId) ?: return null
+        val absFile = cachedFile(ebookLink.absServerId, ebookLink.absLibraryItemId) ?: return null
+        val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId) ?: return null
 
         // The index must already be built for these exact bytes (checksum-keyed); otherwise the
         // background builder hasn't caught up — stay single-peer until it has. Checksums stream the
@@ -77,20 +82,35 @@ class ThreePeerReaderSyncFactory @Inject constructor(
             translator = translator,
         )
 
+        val absEbookEndpoint = absEndpointFor(ebookLink.absServerId, ebookLink.absLibraryItemId)
+        val absAudioEndpoint = targets.audio?.let { a ->
+            val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == a.absLibraryItemId }?.audioDurationSec ?: 0.0
+            absEndpointFor(a.absServerId, a.absLibraryItemId, durationSec)
+        }
+
         return ThreePeerReaderSyncCoordinator(
-            state = BookSyncState(isMatched = true, confirmedAbsLinkCount = 1, prerequisitesCached = true),
+            state = BookSyncState(
+                isMatched = true,
+                hasAbsEbookTarget = absEbookEndpoint != null,
+                hasAbsAudioTarget = absAudioEndpoint != null,
+                prerequisitesCached = true,
+            ),
             bridge = bridge,
             absApi = absSessionApi,
             storytellerApi = storytellerPositionApi,
-            absEndpoint = endpoint(absServer, absToken, link.absLibraryItemId),
+            absEbookEndpoint = absEbookEndpoint,
+            absAudioEndpoint = absAudioEndpoint,
             storytellerEndpoint = StorytellerSyncEndpoint(
-                storytellerServer.url.value, storytellerToken, storytellerServer.insecureConnectionAllowed, link.storytellerBookId,
+                storytellerServer.url.value, storytellerToken, storytellerServer.insecureConnectionAllowed, openedLink.storytellerBookId,
             ),
         )
     }
 
-    private fun endpoint(server: Server, token: String, itemId: String) =
-        AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId)
+    private suspend fun absEndpointFor(serverId: String, itemId: String, durationSec: Double = 0.0): AbsSyncEndpoint? {
+        val server = serverRepository.getById(serverId) ?: return null
+        val token = tokenStorage.getToken(serverId) ?: return null
+        return AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId, durationSec)
+    }
 
     private fun cachedFile(serverId: String, itemId: String): java.io.File? =
         downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)

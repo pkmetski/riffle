@@ -37,6 +37,7 @@ import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +79,9 @@ import java.util.zip.ZipFile
 import javax.inject.Inject
 
 private const val SYNC_INTERVAL_MS = 30_000L
+// The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
+// listen reaches the server within seconds rather than only on the next ebook tick.
+private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -166,6 +170,12 @@ class EpubReaderViewModel @Inject constructor(
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
     private var initialLocatorSeen = false
+    // Set to the winning server timestamp when the cycle drives a remote-win jump; consumed by the
+    // jump's resulting onPositionChanged. That emission persists the CFI (so a reopen lands on the
+    // synced page) but keeps this server timestamp instead of stamping `now` — the jump is not a
+    // genuine local edit, and stamping `now` would make it read back next cycle as a newer LOCAL
+    // change, bouncing the reader and pushing the audiobook back over a newer server position.
+    private var pendingServerJumpStamp: Long? = null
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -419,6 +429,19 @@ class EpubReaderViewModel @Inject constructor(
                     if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
                 }
         }
+        // Audiobook-follow: while readaloud narrates a sentence, push the audiobook position derived
+        // from the current reading position (which tracks the audio) through the bundle's SMIL, on a
+        // tight cadence decoupled from the 30s ebook reconcile so it reaches the server promptly.
+        // Writes only the audiobook item, from a page-derived position — never the ebook.
+        viewModelScope.launch {
+            while (true) {
+                delay(AUDIO_PUSH_INTERVAL_MS)
+                val playingFragment = playerCoordinator.activeFragmentRef.value
+                if (playerCoordinator.state.value.isPlaying && playingFragment != null) {
+                    pushAudiobookFromReadingPosition(playingFragment)
+                }
+            }
+        }
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
             _searchQuery
@@ -507,24 +530,84 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * One unified three-peer reconciliation cycle (ADR 0019). The canonical position is the
-     * displayed-EPUB Locator; a remote win jumps the reader via the same channel the Storyteller
-     * path uses, and the winning timestamp is persisted as the canonical localUpdatedAt so the
-     * next cycle doesn't re-pull. Any failure is isolated to this cycle.
+     * One three-peer reconciliation cycle (ADR 0019). The canonical position is the displayed-EPUB
+     * reading position with its stored timestamp; a remote win jumps the reader (including a
+     * genuinely-newer audiobook listened on another device, bridged through the bundle), and the
+     * winning timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated here.
+     *
+     * The audiobook is reconciled **both ways**: the cycle reads it (a cross-device listen wins and
+     * moves the reader) and writes it when the reading position wins (reading advances it forward); a
+     * separate follow loop (see init) also pushes it from the exact narrated sentence while readaloud
+     * plays. Every write records the server's returned timestamp as localUpdatedAt — and a remote-win
+     * jump keeps that adopted time instead of re-stamping `now` (pendingServerJumpStamp) — so our own
+     * write never reads back as a newer remote and drives the ebook (the loop that erased progress).
      */
     private suspend fun runThreePeerCycle(locator: Locator?) {
         val coordinator = threePeer ?: return
         val serverId = threePeerServerId ?: return
-        val locJson = (locator ?: lastLocator)?.toJSON()?.toString() ?: return
-        val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
-        val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull() ?: return
-        result.jumpLocatorJson?.let { json ->
-            try {
-                Locator.fromJSON(JSONObject(json))?.let { _serverLocatorChannel.trySend(it) }
-            } catch (_: Exception) { /* malformed jump locator — skip */ }
+        val locJson = (locator ?: lastLocator)?.toJSON()?.toString()
+        if (locJson != null) {
+            val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
+            val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull()
+            if (result != null) {
+                result.jumpLocatorJson?.let { json ->
+                    runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()?.let { loc ->
+                        _serverLocatorChannel.trySend(loc)
+                        // A server sync (e.g. a newer audiobook listen) moved the reader. Make the synced
+                        // position the reader's position for EVERY readaloud-start input, not just the
+                        // persisted resume row: the tracked locator, and the in-memory close/resume state
+                        // the planner reads (both seeded at book-open, before this sync). Without this, a
+                        // later "start readaloud" resumes the STALE pre-sync sentence and jumps the reader
+                        // (and the synced ebook+audiobook) back to the old position — the erase.
+                        lastLocator = loc
+                        closeLocator = null
+                        resumeFragmentRef = null
+                        // The jump's own onPositionChanged must keep this adopted server time, not
+                        // stamp `now` — else our own sync-move reads back next cycle as a newer local
+                        // edit and bounces / pushes the audiobook back. Consumed by that emission.
+                        pendingServerJumpStamp = result.canonicalLastUpdate
+                        // The exact narrated sentence at the synced position, so a following "start
+                        // readaloud" begins there (not the page top). The column-snap shifts the reader's
+                        // progression off the synced point, so the planner's page check can't be relied on
+                        // — start from the fragment directly instead. Only when not already narrating.
+                        val syncedFragment = coordinator.fragmentForCanonical(json)
+                        if (!playerCoordinator.state.value.isPlaying) pendingStartFragmentRef = syncedFragment
+                        persistReadaloudResumePosition(loc, fragmentRef = syncedFragment)
+                    }
+                }
+                if (result.canonicalLastUpdate > localUpdatedAt) {
+                    readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
+                }
+            }
         }
-        if (result.canonicalLastUpdate > localUpdatedAt) {
-            readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
+    }
+
+    /**
+     * Responsive audiobook-follow: PATCH only the matched ABS audiobook's currentTime. While a
+     * sentence is narrating, it uses the **exact narrated fragment**'s audio time (so the audiobook
+     * matches the sentence the user hears, not the top of the page); otherwise it falls back to the
+     * reading position through the bundle's SMIL. Never touches the ebook/reading position, so it
+     * can't erase or override reading progress. No-op when the book isn't a three-peer match.
+     *
+     * Closes the inbound feedback loop: the audiobook is reconciled both ways, so without this our own
+     * write would read back next cycle as a "newer remote" and drive the ebook. We record the server
+     * timestamp ABS returns as the local timestamp, so the read comes back equal (local wins ties),
+     * never newer. All responsive push callers (loop/pause/close) go through here.
+     */
+    // [fragment] is the narrating sentence to derive the audiobook time from — the exact clip, not the
+    // page top. Callers that fire AFTER the player is torn down (close) or paused must pass the value
+    // captured BEFORE teardown; passing the now-null live value would silently fall back to the coarse
+    // page-based push and send the chapter top to the server.
+    private suspend fun pushAudiobookFromReadingPosition(fragment: String?) {
+        val coordinator = threePeer ?: return
+        val serverId = threePeerServerId ?: return
+        val locJson = lastLocator?.toJSON()?.toString()
+        val stamp = runCatching {
+            if (fragment != null) coordinator.pushAudiobookForFragment(fragment, locJson)
+            else locJson?.let { coordinator.pushAudiobookProgress(it) }
+        }.getOrNull() ?: return
+        if (stamp > readingPositionStore.loadLocalUpdatedAt(serverId, itemId)) {
+            readingPositionStore.updateLocalTimestamp(serverId, itemId, stamp)
         }
     }
 
@@ -544,8 +627,16 @@ class EpubReaderViewModel @Inject constructor(
             initialLocatorSeen = true
             return
         }
+        // If this emission is the reader settling onto a position the cycle jumped it to (a remote
+        // win), persist the CFI but restore the server timestamp the cycle adopted — see
+        // pendingServerJumpStamp. A genuine user navigation leaves the flag null and stamps `now`.
+        val serverJumpStamp = pendingServerJumpStamp
+        pendingServerJumpStamp = null
         viewModelScope.launch {
             positionSaveCoordinator.onChanged(locator.toJSON().toString())
+            if (serverJumpStamp != null) {
+                threePeerServerId?.let { readingPositionStore.updateLocalTimestamp(it, itemId, serverJumpStamp) }
+            }
         }
     }
 
@@ -965,9 +1056,16 @@ class EpubReaderViewModel @Inject constructor(
         // Persist the same stopped position so it survives leaving the book / process death, not just
         // an in-session reopen. Capture before close() nulls the active fragment.
         persistReadaloudResumePosition(closeLocator, resumeFragmentRef)
+        // Record where we stopped on the audiobook too, derived from the reading position via the
+        // bundle (lastLocator survives close(), so no need to capture the audio clock first).
+        val hadFragment = resumeFragmentRef != null
+        pendingStartFragmentRef = null
         readaloudPrepared = false
         readaloudStarted = false
         playerCoordinator.close()
+        // Use the fragment captured above — close() has nulled the live one. Passing the live value
+        // here would push the page top (chapter start) instead of the sentence we stopped on.
+        if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition(resumeFragmentRef) }
     }
 
     /**
@@ -1001,7 +1099,15 @@ class EpubReaderViewModel @Inject constructor(
     fun collapsePlayer() { _readaloudExpanded.value = false }
 
     fun togglePlayPause() {
-        if (playbackState.value.isPlaying) playerCoordinator.pause() else onPlayTapped()
+        if (playbackState.value.isPlaying) {
+            // Record the audiobook position on pause too (the follow loop is gated on isPlaying, which
+            // is about to go false), derived from the reading position via the bundle.
+            val pausedFragment = playerCoordinator.activeFragmentRef.value
+            playerCoordinator.pause()
+            if (pausedFragment != null) viewModelScope.launch { pushAudiobookFromReadingPosition(pausedFragment) }
+        } else {
+            onPlayTapped()
+        }
     }
 
     fun setSpeed(speed: Float) = playerCoordinator.setSpeed(speed)
@@ -1108,6 +1214,11 @@ class EpubReaderViewModel @Inject constructor(
     private var closeLocator: Locator? = null
     private var resumeFragmentRef: String? = null
 
+    // The exact narrated sentence a server sync placed the reader at (set in runThreePeerCycle on an
+    // inbound jump). The next "start readaloud" begins here so it matches the synced audiobook
+    // position precisely, instead of the page top. Ignored once the reader leaves that chapter.
+    private var pendingStartFragmentRef: String? = null
+
     private suspend fun ensurePreparedAndPlay(bundle: File) {
         ensureOpened(bundle) ?: return
         if (readaloudStarted) {
@@ -1116,8 +1227,40 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         readaloudStarted = true
-        // Consume the remembered close position so a later first-of-session play (after dispose) or a
-        // mid-chapter pause doesn't reuse a stale page.
+
+        // Matched (3-peer) book: readaloud starts at the reconciled reading position. There is no
+        // separate "first sentence of the page" concept — Play resumes where listening/reading last
+        // was; a specific sentence is reached via Play-from-here. (A matched audiobook is optional —
+        // when present it's the source of #1 below; without one the reconcile is just ebook↔Storyteller
+        // and Play falls through to the local readaloud position.) The start resolves, in order:
+        //   1. the exact remote sentence a server sync just placed the reader at (pendingStartFragmentRef,
+        //      set in runThreePeerCycle when a remote peer — typically the audiobook — won the reconcile)
+        //      — only while still in that chapter, else the reader has moved on and it's stale;
+        //   2. the local last-played sentence saved on close (resumeFragmentRef);
+        //   3. the sentence the current reading position falls in (fragmentAt via the bundle).
+        // Falls back to the reading position's chapter only when nothing narrated anchors it (e.g. front
+        // matter); resolveStartClip declines rather than restarting the book.
+        threePeer?.let { coordinator ->
+            val pending = pendingStartFragmentRef?.takeIf { p ->
+                lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
+            }
+            val startFragment = pending
+                ?: resumeFragmentRef
+                ?: lastLocator?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
+            pendingStartFragmentRef = null
+            closeLocator = null
+            resumeFragmentRef = null
+            if (startFragment != null) {
+                playerCoordinator.playFromHere(startFragment)
+            } else {
+                lastLocator?.href?.let { playerCoordinator.playFromReaderPosition(it.toString(), null) }
+            }
+            return
+        }
+
+        // Storyteller-only readaloud (no 3-peer reconciliation): there is no reconciled position to
+        // anchor to, so the page-top probe remains the way to find the page's first sentence on a first
+        // play / reopen-elsewhere, with resumeFragmentRef for an in-place reopen.
         val closed = closeLocator
         val resume = resumeFragmentRef
         closeLocator = null

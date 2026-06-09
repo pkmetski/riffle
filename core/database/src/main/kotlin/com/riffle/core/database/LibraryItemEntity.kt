@@ -29,6 +29,8 @@ data class LibraryItemEntity(
     val readingProgress: Float,
     val ebookFileIno: String? = null,
     val ebookFormat: String = "unsupported",
+    val hasAudio: Boolean = false,
+    val audioDurationSec: Double = 0.0,
     val description: String? = null,
     val seriesName: String? = null,
     val publishedYear: String? = null,

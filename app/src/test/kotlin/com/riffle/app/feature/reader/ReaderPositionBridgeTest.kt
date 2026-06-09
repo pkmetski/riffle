@@ -78,4 +78,22 @@ class ReaderPositionBridgeTest {
     fun `an unmappable fragment yields no canonical position`() {
         assertNull(bridge.audioSecondsToCanonical(99.0))
     }
+
+    @Test
+    fun `book progress uses the locator's totalProgression when present`() {
+        val locator = JSONObject()
+            .put("href", "c1.xhtml")
+            .put("locations", JSONObject().put("progression", 0.4).put("totalProgression", 0.33))
+            .toString()
+
+        assertEquals(0.33f, bridge.canonicalBookProgress(locator), 1e-6f)
+    }
+
+    @Test
+    fun `book progress is computed from chars for a remote-sourced canonical (no totalProgression)`() {
+        // A canonical reconstructed from a remote carries only within-chapter progression. With one
+        // chapter, book progress equals that progression — and is NOT cleared to 0.
+        val remoteCanonical = bridge.audioSecondsToCanonical(2.0)!! // progression 0.125, no totalProgression
+        assertEquals(0.125f, bridge.canonicalBookProgress(remoteCanonical), 1e-6f)
+    }
 }

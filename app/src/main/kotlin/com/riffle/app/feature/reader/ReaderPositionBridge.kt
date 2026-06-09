@@ -84,10 +84,20 @@ class ReaderPositionBridge(
         return "epubcfi(/6/$spineStep!$docPath)"
     }
 
-    /** Book-wide progress float for the ABS progress bar; best-effort from the canonical locator. */
-    fun canonicalBookProgress(locatorJson: String): Float =
-        runCatching { JSONObject(locatorJson).optJSONObject("locations")?.optDouble("totalProgression", 0.0) ?: 0.0 }
-            .getOrDefault(0.0).toFloat()
+    /**
+     * Book-wide progress float for the ABS progress bar. A local reading position carries an explicit
+     * `totalProgression`; a canonical reconstructed from a remote (audiobook / Storyteller) does not,
+     * so we compute it from the chapter character weights. Without that fallback, propagating a
+     * remote win to the ebook would write progress 0 and clear the server's progress bar.
+     */
+    fun canonicalBookProgress(locatorJson: String): Float {
+        val locations = runCatching { JSONObject(locatorJson).optJSONObject("locations") }.getOrNull()
+        if (locations != null && locations.has("totalProgression")) {
+            return locations.optDouble("totalProgression", 0.0).toFloat()
+        }
+        val p = canonicalToDisplayedProgression(locatorJson) ?: return 0f
+        return (translator.absBookProgression(p) ?: p.progression).toFloat()
+    }
 
     // ── Storyteller (Locator on the Storyteller EPUB) ───────────────────────────────
 
@@ -116,6 +126,15 @@ class ReaderPositionBridge(
 
     fun canonicalToAudioSeconds(locatorJson: String): Double? =
         fromCanonical(locatorJson, Domain.ST)?.let { translator.storytellerProgressionToAudioSeconds(it) }
+
+    /** The exact absolute audio time the given narrated fragment (`href#id`) begins. */
+    fun audioSecondsForFragment(textFragmentRef: String): Double? =
+        translator.fragmentRefToAudioSeconds(textFragmentRef)
+
+    /** The narrated Storyteller fragment (`href#id`) a canonical reading position falls in — the
+     *  sentence readaloud should start at when a server sync placed the reader here. */
+    fun canonicalToFragmentRef(locatorJson: String): String? =
+        fromCanonical(locatorJson, Domain.ST)?.let { translator.fragmentAt(it) }
 
     private fun spineIndexOfHref(hrefs: List<String>, href: String): Int {
         val target = normalizeEpubHref(href)

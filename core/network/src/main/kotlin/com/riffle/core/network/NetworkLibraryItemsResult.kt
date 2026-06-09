@@ -10,6 +10,8 @@ data class NetworkLibraryItem(
     val readingProgress: Float?,
     val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
+    val hasAudio: Boolean = false,
+    val audioDurationSec: Double = 0.0,
     val description: String? = null,
     val seriesName: String? = null,
     val publishedYear: String? = null,

@@ -8,10 +8,11 @@ import org.junit.Test
 
 class ThreePeerSyncCycleTest {
 
-    /** A fake remote with injectable GET result and a recorded PATCH. */
+    /** A fake remote with injectable GET result, recorded PATCH, and the timestamp the PATCH stores. */
     private class FakeRemote(
         override val id: String,
         private val getResult: RemoteRead?,
+        private val patchStamp: Long = 1L,
     ) : SyncRemote {
         var patchedWith: CanonicalReaderPosition? = null
             private set
@@ -24,10 +25,10 @@ class ThreePeerSyncCycleTest {
             return getResult
         }
 
-        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
-            if (patchFails) return false
+        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
+            if (patchFails) return null
             patchedWith = canonical
-            return true
+            return patchStamp
         }
     }
 
@@ -64,6 +65,20 @@ class ThreePeerSyncCycleTest {
         assertEquals(pos("L"), ebook.patchedWith)
         assertEquals(pos("L"), storyteller.patchedWith)
         assertEquals(setOf("ABS_EBOOK", "STORYTELLER"), result.patched)
+    }
+
+    @Test
+    fun `a write the server stamps later than the winner is adopted as the canonical lastUpdate`() = runTest {
+        // ABS stamps an ebook write with a server time later than the local clock. The cycle must
+        // adopt it, so the write doesn't read back next cycle as a newer remote and bounce the reader.
+        val local = LocalCanonical(pos("L"), lastUpdate = 200)
+        val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90), patchStamp = 5_000)
+
+        val result = ThreePeerSyncCycle.run(local, listOf(ebook))
+
+        assertNull("local won, so no jump", result.jumpTo)
+        assertEquals(pos("L"), ebook.patchedWith)
+        assertEquals("the server write timestamp is adopted", 5_000L, result.canonicalLastUpdate)
     }
 
     @Test

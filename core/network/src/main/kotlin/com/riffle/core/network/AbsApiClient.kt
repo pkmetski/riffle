@@ -174,6 +174,8 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     readingProgress = progress,
                     ebookFormat = EbookFormat.from(dto.media.ebookFormat),
                     ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                    hasAudio = dto.media.hasAudio,
+                    audioDurationSec = dto.media.audioDurationSec,
                     description = dto.media.metadata.description,
                     seriesName = dto.media.metadata.seriesName,
                     publishedYear = dto.media.metadata.publishedYear,
@@ -537,7 +539,8 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         insecureAllowed: Boolean,
     ): NetworkSyncSessionResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val body = json.encodeToString(AbsAudiobookProgressRequest(payload.currentTime, payload.duration))
+        val progress = if (payload.duration > 0.0) (payload.currentTime / payload.duration).coerceIn(0.0, 1.0) else 0.0
+        val body = json.encodeToString(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress))
             .toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/me/progress/$libraryItemId")

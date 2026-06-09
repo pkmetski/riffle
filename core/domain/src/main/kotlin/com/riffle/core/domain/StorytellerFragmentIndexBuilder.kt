@@ -15,23 +15,45 @@ data class EpubChapterHtml(
  */
 object StorytellerFragmentIndexBuilder {
 
+    /**
+     * @param resolveProgressions resolves a chapter's HTML + the element ids it needs to each id's
+     *   within-chapter progression. Invoked **once per chapter** (not once per clip) — overridable
+     *   so tests can assert that O(chapters), not O(clips), parses happen. Defaults to the
+     *   single-parse [EpubTextChars.progressionsOfElementIds].
+     */
     fun build(
         chapters: List<EpubChapterHtml>,
         clips: List<MediaOverlayClip>,
+        resolveProgressions: (html: String, elementIds: Set<String>) -> Map<String, Double> =
+            EpubTextChars::progressionsOfElementIds,
     ): Map<String, ChapterProgression> {
-        val chapterIndexByHref = chapters.withIndex().associate { (i, c) -> c.href to i }
-        val result = LinkedHashMap<String, ChapterProgression>()
+        // Storyteller's SMIL files live in their own directory, so their fragment refs are written
+        // relative to it (e.g. "../text/part6.html#s0") while spine chapter hrefs are root-relative
+        // ("text/part6.html"). Key by a path with "."/".." segments resolved so the forms match.
+        val chapterIndexByHref = chapters.withIndex().associate { (i, c) -> resolveEpubHref(c.href) to i }
+
+        // Group fragments by chapter so each chapter's HTML is parsed once, not once per clip — a
+        // readaloud has thousands of clips, and re-parsing per clip is pathologically slow.
+        val fragsByChapter = LinkedHashMap<Int, MutableList<Pair<String, String>>>() // chapter → (ref, elementId)
         for (clip in clips) {
             val ref = clip.textFragmentRef
             val hash = ref.indexOf('#')
             if (hash < 0) continue
-            val href = ref.substring(0, hash)
-            val elementId = ref.substring(hash + 1)
-            val chapterIndex = chapterIndexByHref[href] ?: continue
-            val progression = EpubTextChars.progressionOfElementId(chapters[chapterIndex].html, elementId)
-                ?: continue
-            result[ref] = ChapterProgression(chapterIndex, progression)
+            val chapterIndex = chapterIndexByHref[resolveEpubHref(ref.substring(0, hash))] ?: continue
+            fragsByChapter.getOrPut(chapterIndex) { mutableListOf() }.add(ref to ref.substring(hash + 1))
+        }
+
+        val result = LinkedHashMap<String, ChapterProgression>()
+        for ((chapterIndex, frags) in fragsByChapter) {
+            val progressions = resolveProgressions(
+                chapters[chapterIndex].html, frags.mapTo(HashSet()) { it.second },
+            )
+            for ((ref, elementId) in frags) {
+                val progression = progressions[elementId] ?: continue
+                result[ref] = ChapterProgression(chapterIndex, progression)
+            }
         }
         return result
     }
+
 }

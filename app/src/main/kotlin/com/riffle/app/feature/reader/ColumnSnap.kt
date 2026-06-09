@@ -44,10 +44,23 @@ internal object ColumnSnap {
         fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(link.href.toString())))
     }
 
-    /** [goAndSnap] for a [Locator] target (search hits, resume/peer-sync positions). */
-    suspend fun goAndSnap(fragment: EpubNavigatorFragment, locator: Locator) {
+    /**
+     * [goAndSnap] for a [Locator] target (search hits, resume/peer-sync positions).
+     *
+     * [landAtStartWhenNoTarget] controls the no-DOM-fragment case: a chapter-level jump (TOC/search) lands
+     * at the chapter top (true, the default), but a background sync (audiobook/peer) whose locator is a
+     * within-chapter progression with no #fragment must instead round to the column grid where go() landed
+     * (false) — otherwise the post-go snap yanks the reader to the chapter top, off the actual synced page.
+     */
+    suspend fun goAndSnap(
+        fragment: EpubNavigatorFragment,
+        locator: Locator,
+        landAtStartWhenNoTarget: Boolean = true,
+    ) {
         fragment.go(locator)
-        fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(locator.href.toString())))
+        fragment.evaluateJavascript(
+            snapToTargetColumnJs(navTargetFragmentId(locator.href.toString()), landAtStartWhenNoTarget),
+        )
     }
 
     /**
@@ -183,10 +196,16 @@ internal object ColumnSnap {
     // the target by its [fragmentId] and FLOORS scrollLeft to the column the target currently occupies — so
     // it tracks the target as the reflow moves it (the fix for the "TOC is hit-and-miss" bug) — stopping once
     // scrollWidth has held steady for a few frames or a safety cap elapses. Anchoring to the element (not the
-    // current scroll) makes it robust to where go() landed. [fragmentId] null/empty → floor to column 0; an
-    // id that can't be found → best-effort round of the current position.
-    internal fun snapToTargetColumnJs(fragmentId: String?): String {
+    // current scroll) makes it robust to where go() landed. [fragmentId] null/empty → see
+    // [landAtStartWhenNoTarget]; an id that can't be found → best-effort round of the current position.
+    //
+    // [landAtStartWhenNoTarget] decides the no-DOM-target landing: a chapter-level jump (TOC/search) floors
+    // to column 0 (true, the default); a position-based jump (a background sync that already go()'d to a
+    // within-chapter progression) rounds the current scroll to the column grid instead (false), preserving
+    // where go() landed rather than yanking to the chapter top.
+    internal fun snapToTargetColumnJs(fragmentId: String?, landAtStartWhenNoTarget: Boolean = true): String {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
+        val noTargetSnap = if (landAtStartWhenNoTarget) "se.scrollLeft=0;" else "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
         return "(function(){var id=$idLiteral;" +
             "var se=document.scrollingElement;" +
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
@@ -195,7 +214,7 @@ internal object ColumnSnap {
             "if(id){var el=document.getElementById(id);" +
             "if(el){se.scrollLeft=Math.floor((el.getBoundingClientRect().left+se.scrollLeft)/iw)*iw;}" +
             "else{se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;}}" +
-            "else{se.scrollLeft=0;}}" +
+            "else{$noTargetSnap}}" +
             "function tick(){if(gen!==window.__riffleSnapGen)return;" + // a newer jump superseded us
             "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
             "snap();" +

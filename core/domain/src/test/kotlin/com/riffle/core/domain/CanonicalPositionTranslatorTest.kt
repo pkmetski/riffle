@@ -85,6 +85,94 @@ class CanonicalPositionTranslatorTest {
         assertNull(translator.storytellerToAbsProgression(ChapterProgression(9, 0.5)))
     }
 
+    @Test
+    fun `book-wide progress weights chapters by their character counts`() {
+        // Three chapters of 100, 300, 100 abs chars (total 500). Halfway through chapter 2 (index 1)
+        // is 100 + 0.5*300 = 250 chars → 250/500 = 0.5 of the book.
+        val translator = CanonicalPositionTranslator(
+            smilClips = emptyList(),
+            index = CrossEpubIndex(
+                listOf(
+                    ChapterCharMap(absChars = 100, storytellerChars = 100),
+                    ChapterCharMap(absChars = 300, storytellerChars = 300),
+                    ChapterCharMap(absChars = 100, storytellerChars = 100),
+                ),
+            ),
+        )
+
+        assertEquals(0.5, translator.absBookProgression(ChapterProgression(1, 0.5))!!, 1e-9)
+        assertEquals(0.0, translator.absBookProgression(ChapterProgression(0, 0.0))!!, 1e-9)
+        assertEquals(1.0, translator.absBookProgression(ChapterProgression(2, 1.0))!!, 1e-9)
+    }
+
+    @Test
+    fun `book-wide progress is null when the index has no character data`() {
+        val translator = CanonicalPositionTranslator(smilClips = emptyList())
+        assertNull(translator.absBookProgression(ChapterProgression(0, 0.5)))
+    }
+
+    @Test
+    fun `a narrated fragment maps to its exact audio time, path-form tolerant and distinct from the page top`() {
+        // Two sentences in one chapter: s1 narrated at 5s (10% in), s2 at 30s (50% in). SMIL refs carry
+        // a "../" the player's fragment refs don't.
+        val clips = listOf(
+            MediaOverlayClip("../text/c1.html#s1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
+            MediaOverlayClip("../text/c1.html#s2", "a.mp3", clipBeginSec = 30.0, clipEndSec = 40.0),
+        )
+        val frags = mapOf(
+            "../text/c1.html#s1" to ChapterProgression(0, 0.1),
+            "../text/c1.html#s2" to ChapterProgression(0, 0.5),
+        )
+        val translator = CanonicalPositionTranslator(smilClips = clips, fragmentProgressions = frags)
+
+        // Exact narrated sentence → its clip time, even though the ref form ("text/…") differs from the
+        // SMIL ref ("../text/…").
+        assertEquals(30.0, translator.fragmentRefToAudioSeconds("text/c1.html#s2")!!, 1e-9)
+        assertEquals(5.0, translator.fragmentRefToAudioSeconds("../text/c1.html#s1")!!, 1e-9)
+        assertNull(translator.fragmentRefToAudioSeconds("text/c1.html#nope"))
+
+        // The page-based mapping for a position partway down the page resolves only to the latest
+        // sentence at/before it (s1 → 5s) — so while s2 narrates, the page-top mapping lags by 25s.
+        // This is why the audiobook follow uses the exact fragment, not the page.
+        assertEquals(5.0, translator.storytellerProgressionToAudioSeconds(ChapterProgression(0, 0.3))!!, 1e-9)
+    }
+
+    @Test
+    fun `fragmentAt returns the narrated sentence a reading position falls in`() {
+        val frags = mapOf(
+            "c1#s1" to ChapterProgression(0, 0.1),
+            "c1#s2" to ChapterProgression(0, 0.5),
+            "c1#s3" to ChapterProgression(0, 0.8),
+        )
+        val translator = CanonicalPositionTranslator(smilClips = emptyList(), fragmentProgressions = frags)
+
+        assertEquals("c1#s2", translator.fragmentAt(ChapterProgression(0, 0.6)))  // latest at/before 0.6
+        assertEquals("c1#s1", translator.fragmentAt(ChapterProgression(0, 0.1)))  // exact boundary
+        assertNull("nothing narrated before 0.05", translator.fragmentAt(ChapterProgression(0, 0.05)))
+        assertNull("wrong chapter", translator.fragmentAt(ChapterProgression(1, 0.6)))
+    }
+
+    @Test
+    fun `multi-file SMIL clip times are made absolute over the concatenated audio`() {
+        // Two audio files: file1 spans 0..10s, file2 spans 0..8s in its own clock. The ABS audiobook
+        // is the files concatenated, so file2's clips live at 10..18s absolute. Without this, a clip in
+        // file2 reads as a small per-file time and lands a fraction of the way into the ABS timeline.
+        val clips = listOf(
+            MediaOverlayClip("c1#a", "file1.mp3", clipBeginSec = 0.0, clipEndSec = 5.0),
+            MediaOverlayClip("c1#b", "file1.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
+            MediaOverlayClip("c2#a", "file2.mp3", clipBeginSec = 0.0, clipEndSec = 4.0),
+            MediaOverlayClip("c2#b", "file2.mp3", clipBeginSec = 4.0, clipEndSec = 8.0),
+        )
+        val translator = CanonicalPositionTranslator(smilClips = clips)
+
+        // file1 duration = 10 (its max clipEnd) → file2 is offset by 10.
+        assertEquals(10.0, translator.textFragmentToAudioSeconds("c2#a")!!, 1e-9)
+        assertEquals(14.0, translator.textFragmentToAudioSeconds("c2#b")!!, 1e-9)
+        // An absolute time of 12s falls in file2's first clip (abs 10..14), not file1.
+        assertEquals("c2#a", translator.audioSecondsToTextFragment(12.0))
+        assertEquals("c1#b", translator.audioSecondsToTextFragment(6.0))
+    }
+
     // ── Audio-seconds ↔ canonical (Storyteller) progression ────────────────────
     // Composes the SMIL clip lookup with each fragment's resolved within-chapter
     // progression in the Storyteller EPUB.

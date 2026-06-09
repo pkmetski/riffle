@@ -11,22 +11,23 @@ class ProgressSyncStrategyTest {
     private class FakeRemote(override val id: String) : SyncRemote {
         var patchedWith: CanonicalReaderPosition? = null
         override suspend fun tryGet(): RemoteRead? = null
-        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Boolean {
+        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
             patchedWith = canonical
-            return true
+            return 1L // non-null = stored; a fixed server timestamp
         }
     }
 
     private val local = LocalCanonical(CanonicalReaderPosition("L"), lastUpdate = 100)
 
     @Test
-    fun `a three-peer state reconciles over all three remotes`() = runTest {
+    fun `a matched state reconciles the ebook, the inbound audiobook, and Storyteller`() = runTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
         val state = BookSyncState(
             isMatched = true,
-            confirmedAbsLinkCount = 1,
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = true,
             prerequisitesCached = true,
         )
         strategy.runCycle(state, local)
@@ -38,19 +39,19 @@ class ProgressSyncStrategyTest {
     }
 
     @Test
-    fun `the multi-link guard never constructs or reconciles the Storyteller remote`() = runTest {
+    fun `an ebook-only match reconciles the ebook and Storyteller`() = runTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
         val state = BookSyncState(
             isMatched = true,
-            confirmedAbsLinkCount = 2, // collision → Storyteller excluded
+            hasAbsEbookTarget = true,
+            hasAbsAudioTarget = false, // no matched audio item
             prerequisitesCached = true,
         )
         strategy.runCycle(state, local)
 
-        assertTrue(RemoteKind.STORYTELLER !in built)
-        assertEquals(setOf(RemoteKind.ABS_EBOOK, RemoteKind.ABS_AUDIO), built.toSet())
+        assertEquals(setOf(RemoteKind.ABS_EBOOK, RemoteKind.STORYTELLER), built.toSet())
     }
 
     @Test
@@ -58,7 +59,7 @@ class ProgressSyncStrategyTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
-        val state = BookSyncState(false, 0, prerequisitesCached = false)
+        val state = BookSyncState(isMatched = false, hasAbsEbookTarget = true, hasAbsAudioTarget = false, prerequisitesCached = false)
         strategy.runCycle(state, local)
 
         assertEquals(listOf(RemoteKind.ABS_EBOOK), built)
@@ -71,7 +72,7 @@ class ProgressSyncStrategyTest {
             if (kind == RemoteKind.STORYTELLER) null else FakeRemote(kind.name)
         }
 
-        val state = BookSyncState(true, 1, prerequisitesCached = true)
+        val state = BookSyncState(isMatched = true, hasAbsEbookTarget = true, hasAbsAudioTarget = true, prerequisitesCached = true)
         val result = strategy.runCycle(state, local)
 
         // No remote was newer than local and none can be read, so no jump; cycle still completes.

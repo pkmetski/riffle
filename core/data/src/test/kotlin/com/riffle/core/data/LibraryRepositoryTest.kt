@@ -515,6 +515,35 @@ class LibraryRepositoryTest {
         assertTrue(result is LibraryRefreshResult.NetworkError)
     }
 
+    @Test
+    fun `refreshLibraryItems persists hasAudio from network`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Foundation's Edge", "Asimov", null, ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertTrue(dao.upserted[0].hasAudio)
+    }
+
+    @Test
+    fun `hasAudio maps from entity to domain`() = runTest {
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Audiobook", "Author", null, 0f, hasAudio = true)))
+        val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
+        assertTrue(item.hasAudio)
+    }
+
     // ── observeLibraryItems ───────────────────────────────────────────────────
 
     @Test

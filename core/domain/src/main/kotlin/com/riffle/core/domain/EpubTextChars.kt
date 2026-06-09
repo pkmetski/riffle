@@ -42,6 +42,37 @@ object EpubTextChars {
         return (before.toDouble() / total).coerceIn(0.0, 1.0)
     }
 
+    /**
+     * Within-chapter progressions (0..1) for many element ids in a single parse and document-order
+     * walk — the start offset of each id's element over the chapter's readable-character total.
+     * Equivalent to calling [progressionOfElementId] per id but O(chapter) instead of O(ids ×
+     * chapter): a readaloud chapter has thousands of SMIL fragments, so per-id re-parsing is
+     * pathological. Ids absent from the document (or a chapter with no readable text) are omitted.
+     */
+    fun progressionsOfElementIds(html: String, elementIds: Set<String>): Map<String, Double> {
+        if (elementIds.isEmpty()) return emptyMap()
+        val body = Jsoup.parse(html).body() ?: return emptyMap()
+        val total = countReadableChars(body)
+        if (total == 0L) return emptyMap()
+        val result = HashMap<String, Double>(elementIds.size)
+        var count = 0L
+        fun visit(node: Node) {
+            when (node) {
+                is TextNode -> if (node.wholeText.isNotBlank()) count += node.wholeText.length
+                is Element -> {
+                    val id = node.id()
+                    // Record at element entry, before its own text — readable chars *before* it.
+                    if (id.isNotEmpty() && id in elementIds && id !in result) {
+                        result[id] = (count.toDouble() / total).coerceIn(0.0, 1.0)
+                    }
+                    node.childNodes().forEach { visit(it) }
+                }
+            }
+        }
+        body.childNodes().forEach { visit(it) }
+        return result
+    }
+
     /** Readable characters before [target] in document order, or -1 if not found. */
     private fun countReadableCharsBefore(body: Element, target: Element): Long {
         var count = 0L
