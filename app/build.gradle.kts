@@ -44,7 +44,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
-        versionName = findProperty("versionName") as String? ?: "0.1.0"
+        versionName = findProperty("versionName") as String? ?: "0.0.0-dev"
 
         testInstrumentationRunner = "com.riffle.app.HiltTestRunner"
         vectorDrawables {
@@ -59,8 +59,9 @@ android {
         // (Readium 3.2.0+ regresses the readaloud highlight — see that test).
         buildConfigField("String", "READIUM_VERSION", "\"${libs.versions.readium.get()}\"")
 
-        // Build commit SHA shown in the nav drawer (see gitSha above).
-        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
+        // Build commit SHA shown in the nav drawer (see gitSha above). Empty by default so
+        // published (release) builds carry no SHA; the debug build type fills in the real value.
+        buildConfigField("String", "GIT_SHA", "\"\"")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH")
@@ -80,6 +81,8 @@ android {
             buildConfigField("String", "DEV_SERVER_URL", "\"${localProps.getProperty("dev.serverUrl", "")}\"")
             buildConfigField("String", "DEV_USERNAME",   "\"${localProps.getProperty("dev.username", "")}\"")
             buildConfigField("String", "DEV_PASSWORD",   "\"${localProps.getProperty("dev.password", "")}\"")
+            // SHA is debug-only — release builds keep the empty default from defaultConfig.
+            buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
         }
         release {
             if (keystorePath != null) {
