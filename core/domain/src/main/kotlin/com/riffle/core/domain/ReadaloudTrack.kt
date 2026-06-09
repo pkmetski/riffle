@@ -43,16 +43,34 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
         val target = href.trimStart('/')
         if (fragmentId != null) {
             clips.firstOrNull { it.textFragmentRef.trimStart('/') == "$target#$fragmentId" }?.let { return it }
-            // Fall back to the bare span id alone. The rendered publication (the ABS EPUB, ADR 0026) can
-            // carry different chapter hrefs than the Storyteller bundle the SMIL clips come from, so the
-            // href portions won't match even for the same sentence. Storyteller's sentence-span ids are
-            // unique within a book — the text-anchored highlight keys on them too (see ReadaloudTextQuotes)
-            // — so the id alone identifies the clip. Tried only after the exact match, so a book whose
-            // rendered hrefs DO line up is unaffected.
-            clips.firstOrNull { it.textFragmentRef.substringAfter('#', "") == fragmentId }?.let { return it }
+            // Fall back to the bare span id. The rendered publication (the ABS EPUB, ADR 0026) can carry
+            // different chapter hrefs than the Storyteller bundle the SMIL clips come from, so the href
+            // portions won't match even for the same sentence. But sentence-span ids are only unique
+            // WITHIN a document — they recur across chapters — so a plain bare-id match would return the
+            // earliest book-wide occurrence and jump narration to an identically-id'd sentence in an
+            // earlier chapter (the "Play-from-here reset my progress" bug). So among the clips sharing the
+            // id, prefer the one in the reader's chapter; only when the chapter can't be matched (the two
+            // EPUBs share nothing) do we fall back to the first occurrence, so a book whose hrefs don't
+            // line up still plays the right sentence when the id happens to be unique.
+            val sharingId = clips.filter { it.textFragmentRef.substringAfter('#', "") == fragmentId }
+            sharingId.firstOrNull { sameChapter(it, target) }?.let { return it }
+            sharingId.firstOrNull()?.let { return it }
         }
         fun chapterHref(clip: MediaOverlayClip) = clip.textFragmentRef.substringBefore('#').trimStart('/')
         clips.firstOrNull { chapterHref(it) == target }?.let { return it }
         return clips.firstOrNull { chapterHref(it) >= target }
+    }
+
+    /**
+     * Whether [clip]'s chapter is [targetHref], tolerant of the differing href schemes the same chapter
+     * carries across the pipeline: the player track's full zip path ("OEBPS/text/x.xhtml"), a bundle
+     * spine href ("text/x.xhtml"), and a raw SMIL ref ("../text/x.xhtml"). [resolveEpubHref] collapses
+     * `.`/`..`; the suffix test absorbs a leading directory (the OPF folder) one side carries and the
+     * other doesn't. Chapter hrefs are unique per book, so the suffix can't cross-match two chapters.
+     */
+    private fun sameChapter(clip: MediaOverlayClip, targetHref: String): Boolean {
+        val c = resolveEpubHref(clip.textFragmentRef.substringBefore('#')).trimStart('/')
+        val t = resolveEpubHref(targetHref).trimStart('/')
+        return c == t || c.endsWith("/$t") || t.endsWith("/$c")
     }
 }

@@ -105,6 +105,34 @@ class ReadaloudTrackTest {
         assertEquals(chapterClips[1], chapterTrack.resolveStartClip("text/c1.html", "s2"))
     }
 
+    // Storyteller sentence-span ids are per-document and recur across chapters (the split fixture below
+    // reuses "s1" in four chapters). On a matched-ABS book the rendered ABS href never equals the bundle
+    // href, so resolveStartClip can't use the exact match — and a plain bare-id match returns the
+    // EARLIEST clip carrying that id, jumping "Play from here" to an identically-id'd sentence in an
+    // earlier chapter ("play-from-here reset my progress"). Given the reader's chapter (the caller maps
+    // the ABS href to the bundle href via ReaderPositionBridge), it must resolve to THAT chapter's clip.
+    private val collidingIdClips = listOf(
+        MediaOverlayClip("OEBPS/text/part0003.xhtml#s5", "a.mp3", 0.0, 2.0),    // earlier chapter (e.g. SOL 34)
+        MediaOverlayClip("OEBPS/text/part0050.xhtml#s5", "z.mp3", 900.0, 903.0), // the chapter the reader is on
+    )
+    private val collidingIdTrack = ReadaloudTrack(collidingIdClips)
+
+    @Test
+    fun `resolveStartClip with a span id shared across chapters resolves to the reader's chapter`() {
+        // The bundle href the bridge supplies is OPF-relative ("text/…"); the clips' hrefs are full
+        // zip paths ("OEBPS/text/…"). The chapter match must tolerate that scheme difference and still
+        // pick the reader's chapter rather than the first book-wide occurrence of the id.
+        assertEquals(collidingIdClips[1], collidingIdTrack.resolveStartClip("text/part0050.xhtml", "s5"))
+        assertEquals(collidingIdClips[0], collidingIdTrack.resolveStartClip("text/part0003.xhtml", "s5"))
+    }
+
+    @Test
+    fun `resolveStartClip falls back to a bare-id match when the chapter href cannot be matched`() {
+        // Degrade gracefully: when the target href shares nothing with the bundle, still resolve a
+        // uniquely-id'd sentence by its bare id so a book whose hrefs don't line up keeps working.
+        assertEquals(bundleHrefClips[2], bundleHrefTrack.resolveStartClip("xhtml/chapter2.xhtml", "c002-s0"))
+    }
+
     // Storyteller splits each chapter into an un-narrated heading page (…_split_000) plus narrated
     // body pages (…_split_001+). Navigating via the TOC lands the reader on the heading page, which
     // has no Media Overlay; starting narration must jump forward to the chapter's first narrated

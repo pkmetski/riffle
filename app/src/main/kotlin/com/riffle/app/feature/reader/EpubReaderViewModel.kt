@@ -1165,7 +1165,14 @@ class EpubReaderViewModel @Inject constructor(
             readaloudStarted = true
             resumeFragmentRef = null
             closeLocator = null
-            playerCoordinator.playFromHere(fragmentRef)
+            // The selection ref is the displayed ABS "href#spanId". On a matched-ABS book the rendered
+            // ABS hrefs differ from the Storyteller bundle the clips come from, and span ids recur across
+            // chapters — so seeking by the bare id alone lands on the first book-wide occurrence (an
+            // earlier chapter), resetting reading progress. Re-key the ref onto the bundle chapter the
+            // selection sits in so the player resolves the selected sentence's own clip. Falls back to
+            // the original ref when there's no match (unmatched book, or the chapter can't be mapped).
+            val seekRef = threePeer?.bundleFragmentRefForSelection(fragmentRef) ?: fragmentRef
+            playerCoordinator.playFromHere(seekRef)
         }
     }
 
