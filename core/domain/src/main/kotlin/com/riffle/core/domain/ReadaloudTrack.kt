@@ -25,6 +25,96 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
     fun clipForFragment(textFragmentRef: String): MediaOverlayClip? =
         indexByFragment[textFragmentRef]?.let { clips[it] }
 
+    // ── skip + chapter navigation ──
+
+    /** A resolved seek target: which queued audio file, and the offset within it. */
+    data class Position(val audioSrc: String, val positionSec: Double)
+
+    private fun chapterHrefOf(clip: MediaOverlayClip): String =
+        clip.textFragmentRef.substringBefore('#').trimStart('/')
+
+    /** Distinct chapter hrefs in reading order (clips are already in reading order). */
+    private val chapterHrefs: List<String> = clips.map(::chapterHrefOf).distinct()
+
+    /** Distinct audio files in playlist order — the same order [clips] is queued in. */
+    private val fileOrder: List<String> = clips.map { it.audioSrc }.distinct()
+
+    /** Each file's duration, approximated by the end of its last clip. */
+    private val fileDuration: Map<String, Double> =
+        clips.groupBy { it.audioSrc }.mapValues { (_, cs) -> cs.maxOf { it.clipEndSec } }
+
+    /** Global start offset of each file on the concatenated timeline. */
+    private val fileStart: Map<String, Double> = buildMap {
+        var acc = 0.0
+        for (src in fileOrder) {
+            put(src, acc)
+            acc += fileDuration[src] ?: 0.0
+        }
+    }
+
+    private val totalDuration: Double = fileOrder.sumOf { fileDuration[it] ?: 0.0 }
+
+    /** Number of chapters in the readaloud. */
+    val chapterCount: Int get() = chapterHrefs.size
+
+    /** Maps a live playback position to a global timeline offset, or null if [audioSrc] is unknown. */
+    private fun globalOf(audioSrc: String?, positionSec: Double): Double? {
+        val start = audioSrc?.let { fileStart[it] } ?: return null
+        return start + positionSec
+    }
+
+    /** Inverse of [globalOf]: maps a clamped global offset back to a [Position]. */
+    private fun positionAt(global: Double): Position {
+        val g = global.coerceIn(0.0, totalDuration)
+        // Last file whose start is <= g; offset is the remainder, clamped to that file's duration.
+        val src = fileOrder.lastOrNull { (fileStart[it] ?: 0.0) <= g } ?: fileOrder.first()
+        val within = (g - (fileStart[src] ?: 0.0)).coerceIn(0.0, fileDuration[src] ?: 0.0)
+        return Position(src, within)
+    }
+
+    /**
+     * The chapter index containing the live position, or -1 when nothing is playing. Uses the active
+     * clip when the position sits inside one; otherwise the chapter of the latest clip at or before
+     * the global position (covers inter-clip gaps).
+     */
+    fun chapterIndexAt(audioSrc: String?, positionSec: Double): Int {
+        if (audioSrc == null) return -1
+        activeClipAt(audioSrc, positionSec)?.let { return chapterHrefs.indexOf(chapterHrefOf(it)) }
+        val global = globalOf(audioSrc, positionSec) ?: return -1
+        val clip = clips.lastOrNull { (globalOf(it.audioSrc, it.clipBeginSec) ?: Double.MAX_VALUE) <= global }
+            ?: return -1
+        return chapterHrefs.indexOf(chapterHrefOf(clip))
+    }
+
+    /** The first clip of chapter [index], or null when [index] is out of range. */
+    fun firstClipOfChapter(index: Int): MediaOverlayClip? {
+        val href = chapterHrefs.getOrNull(index) ?: return null
+        return clips.firstOrNull { chapterHrefOf(it) == href }
+    }
+
+    /** Resolves a relative skip of [deltaSec] from the live position, clamped to the whole readaloud. */
+    fun resolveRelativeSkip(audioSrc: String?, positionSec: Double, deltaSec: Double): Position? {
+        val global = globalOf(audioSrc, positionSec) ?: return null
+        return positionAt(global + deltaSec)
+    }
+
+    /**
+     * Resolves a chapter jump. [forward] true -> the next chapter's first clip (null at the last
+     * chapter). [forward] false -> restart the current chapter, unless the live position is within
+     * [nearStartSec] of the current chapter's start, in which case go to the previous chapter (or
+     * restart the first chapter when there is none).
+     */
+    fun resolveChapterSkip(audioSrc: String?, positionSec: Double, forward: Boolean, nearStartSec: Double): MediaOverlayClip? {
+        val index = chapterIndexAt(audioSrc, positionSec)
+        if (index < 0) return null
+        if (forward) return firstClipOfChapter(index + 1)
+        val currentFirst = firstClipOfChapter(index) ?: return null
+        val global = globalOf(audioSrc, positionSec) ?: return currentFirst
+        val chapterStart = globalOf(currentFirst.audioSrc, currentFirst.clipBeginSec) ?: 0.0
+        val nearStart = (global - chapterStart) <= nearStartSec
+        return if (nearStart && index > 0) firstClipOfChapter(index - 1) else currentFirst
+    }
+
     /**
      * The clip to start narration from for a reader position given by its chapter [href] and
      * optional [fragmentId]. Prefers an exact "href#fragmentId" match (the sentence under the
