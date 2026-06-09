@@ -1129,33 +1129,28 @@ class EpubReaderViewModel @Inject constructor(
 
     fun nextChapter() = navigateChapter(forward = true)
 
-    // Set when a chapter jump crossed into a different chapter's document while playing, so the
-    // reader resumes playback once that (slow-loading) chapter is on screen — see [navigateChapter].
+    // Set when a cross-chapter jump froze playback to wait for that chapter's (slow) load, so the
+    // reader resumes once the new chapter's first sentence is on screen — see [navigateChapter].
     private var pendingChapterResume = false
 
     /**
-     * Jumps a chapter and, when crossing into a different chapter's document while playing, freezes
-     * playback until that chapter has loaded. The page-follow has to load the destination document
-     * (slow), and audio left running would advance past the often-short first sentence — so the page
-     * settled on the SECOND sentence. Pausing here and resuming in [onNarratedSentenceFollowed]
-     * keeps audio and the highlight together on the chapter's first sentence. A same-chapter restart
-     * (no document change) loads nothing, so it is never frozen.
+     * Jumps a chapter. The controller freezes playback when the jump crosses into a different
+     * chapter's document while playing (so the audio can't run past the often-short first sentence
+     * while that document loads — which left the page on the SECOND sentence); we resume in
+     * [onNarratedSentenceFollowed] once the new chapter's first sentence is on screen. A same-chapter
+     * restart loads nothing and isn't frozen.
      */
     private fun navigateChapter(forward: Boolean) {
-        val wasPlaying = playbackState.value.isPlaying
-        val beforeIndex = playbackState.value.currentChapterIndex
-        if (forward) playerCoordinator.nextChapter() else playerCoordinator.previousChapter()
-        if (wasPlaying && playbackState.value.currentChapterIndex != beforeIndex) {
-            playerCoordinator.pause()
-            pendingChapterResume = true
-        }
+        pendingChapterResume =
+            if (forward) playerCoordinator.nextChapter() else playerCoordinator.previousChapter()
+        android.util.Log.d("RIFFLE_RA", "navigateChapter fwd=$forward froze=$pendingChapterResume")
     }
 
     /** The reader reports the narrated sentence is on screen; resume a chapter jump frozen for its load. */
     fun onNarratedSentenceFollowed() {
         if (pendingChapterResume) {
             pendingChapterResume = false
-            playerCoordinator.play()
+            playerCoordinator.resumeAfterChapterLoad()
         }
     }
 

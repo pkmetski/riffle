@@ -92,6 +92,9 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
         return clips.firstOrNull { chapterHrefOf(it) == href }
     }
 
+    /** The chapter index [clip] belongs to (-1 if it isn't in this track). */
+    fun chapterIndexOfClip(clip: MediaOverlayClip): Int = chapterHrefs.indexOf(chapterHrefOf(clip))
+
     /** Resolves a relative skip of [deltaSec] from the live position, clamped to the whole readaloud. */
     fun resolveRelativeSkip(audioSrc: String?, positionSec: Double, deltaSec: Double): Position? {
         val global = globalOf(audioSrc, positionSec) ?: return null

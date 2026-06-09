@@ -190,6 +190,12 @@ class ReadaloudTrackTest {
     }
 
     @Test
+    fun `chapterIndexOfClip returns the clip's chapter index`() {
+        assertEquals(0, skipTrack.chapterIndexOfClip(skipClips[1]))
+        assertEquals(1, skipTrack.chapterIndexOfClip(skipClips[3]))
+    }
+
+    @Test
     fun `resolveRelativeSkip seeks within the current file`() {
         // at c1 3.0s, +4s -> c1 7.0s
         assertEquals(ReadaloudTrack.Position("c1.mp3", 7.0), skipTrack.resolveRelativeSkip("c1.mp3", 3.0, 4.0))

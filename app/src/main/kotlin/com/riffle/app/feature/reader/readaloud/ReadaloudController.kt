@@ -117,20 +117,48 @@ class ReadaloudController @Inject constructor(
         pushState()
     }
 
-    /** Jumps to the first clip of an adjacent chapter (see [ReadaloudTrack.resolveChapterSkip]). */
-    fun skipChapter(forward: Boolean) {
+    // Non-null while a cross-chapter jump waits for its (slow-loading) document: (audioSrc, sec) of the
+    // destination chapter's first sentence. While set, pushState() reports THIS position instead of
+    // controller.currentPosition — a cross-item seek's currentPosition lags, and pause() fires a
+    // listener that re-runs pushState(), which would otherwise clobber the highlight back to the old
+    // chapter and the page would never follow to the new one. Cleared by [resumeAfterChapterLoad].
+    private var chapterFreeze: ReadaloudTrack.Position? = null
+
+    /**
+     * Jumps to the first clip of an adjacent chapter (see [ReadaloudTrack.resolveChapterSkip]). Returns
+     * true when it crossed into a DIFFERENT chapter's document WHILE PLAYING — in that case it freezes
+     * playback on the new chapter's first sentence so the audio can't run past it during the document
+     * load; the caller resumes via [resumeAfterChapterLoad] once that sentence is on screen.
+     */
+    fun skipChapter(forward: Boolean): Boolean {
+        val t = track ?: return false
         val s = _state.value
-        val clip = track?.resolveChapterSkip(
-            s.currentAudioSrc, s.positionSec, forward, NEAR_START_SEC,
-        ) ?: return
+        val currentIdx = t.chapterIndexAt(s.currentAudioSrc, s.positionSec)
+        val clip = t.resolveChapterSkip(s.currentAudioSrc, s.positionSec, forward, NEAR_START_SEC)
+            ?: return false
+        val targetIdx = t.chapterIndexOfClip(clip)
+        val freeze = targetIdx != currentIdx && controller?.isPlaying == true
+        // Set the freeze BEFORE the seek so a listener callback racing the seek can't clobber the state.
+        if (freeze) chapterFreeze = ReadaloudTrack.Position(clip.audioSrc, clip.clipBeginSec)
         seekToAudio(clip.audioSrc, clip.clipBeginSec)
+        if (freeze) controller?.pause()
         pushState()
+        Log.d(LOG, "skipChapter fwd=$forward $currentIdx->$targetIdx freeze=$freeze pos=${clip.clipBeginSec}")
+        return freeze
+    }
+
+    /** Resumes playback frozen by a cross-chapter [skipChapter] once the new chapter is on screen. */
+    fun resumeAfterChapterLoad() {
+        if (chapterFreeze == null) return
+        Log.d(LOG, "resumeAfterChapterLoad")
+        chapterFreeze = null
+        play()
     }
 
     fun rewind() = skipBy(-REWIND_SEC)
     fun forward() = skipBy(FORWARD_SEC)
-    fun previousChapter() = skipChapter(forward = false)
-    fun nextChapter() = skipChapter(forward = true)
+    fun previousChapter(): Boolean = skipChapter(forward = false)
+    fun nextChapter(): Boolean = skipChapter(forward = true)
 
     /** Starts playback at the clip narrating [fragmentRef] (the "Play from here" entry point). */
     fun playFromFragment(fragmentRef: String) {
@@ -190,8 +218,11 @@ class ReadaloudController @Inject constructor(
     private fun pushState() {
         val c = controller
         val t = track
-        val audioSrc = c?.currentMediaItem?.mediaId
-        val positionSec = (c?.currentPosition ?: 0L) / 1000.0
+        // While frozen for a chapter load, report the destination first sentence, not the lagging
+        // (and pause-clobbered) controller position — see [chapterFreeze].
+        val freeze = chapterFreeze
+        val audioSrc = freeze?.audioSrc ?: c?.currentMediaItem?.mediaId
+        val positionSec = freeze?.positionSec ?: ((c?.currentPosition ?: 0L) / 1000.0)
         _state.value = PlaybackState(
             connected = c != null,
             isPlaying = c?.isPlaying == true,
