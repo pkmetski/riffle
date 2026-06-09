@@ -535,11 +535,12 @@ class EpubReaderViewModel @Inject constructor(
      * genuinely-newer audiobook listened on another device, bridged through the bundle), and the
      * winning timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated here.
      *
-     * The audiobook is reconciled **inbound-only**: the cycle reads it (so a cross-device listen wins
-     * and moves the reader) but never writes it. The live audio clock reaches the audiobook only via
-     * the separate audiobook-follow loop (see init), which records its own server timestamp so it
-     * can't read back as a newer remote and drive the ebook — the feedback loop that previously
-     * erased reading progress.
+     * The audiobook is reconciled **both ways**: the cycle reads it (a cross-device listen wins and
+     * moves the reader) and writes it when the reading position wins (reading advances it forward); a
+     * separate follow loop (see init) also pushes it from the exact narrated sentence while readaloud
+     * plays. Every write records the server's returned timestamp as localUpdatedAt — and a remote-win
+     * jump keeps that adopted time instead of re-stamping `now` (pendingServerJumpStamp) — so our own
+     * write never reads back as a newer remote and drives the ebook (the loop that erased progress).
      */
     private suspend fun runThreePeerCycle(locator: Locator?) {
         val coordinator = threePeer ?: return

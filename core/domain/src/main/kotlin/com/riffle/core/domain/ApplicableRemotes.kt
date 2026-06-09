@@ -3,16 +3,18 @@ package com.riffle.core.domain
 /**
  * A reconcilable position holder for the open book.
  *
- * The ABS **audiobook** (`ABS_AUDIO`) is reconciled **inbound-only**: a sync cycle reads its
- * `currentTime` so a genuinely-newer listen (from another device / the ABS app) can win and move the
- * reader, but the cycle never *writes* it. Outbound to the audiobook is a separate, push-only update
- * of its `currentTime` from the live audio clock (`ThreePeerReaderSyncCoordinator.pushAudiobookSeconds`).
+ * The ABS **audiobook** (`ABS_AUDIO`) is reconciled **both ways**, like the other peers: the cycle
+ * reads its `currentTime` (a genuinely-newer listen on another device / the ABS app wins and moves the
+ * reader) and writes it when the reading position is the winner (so reading advances the audiobook
+ * forward). A separate responsive push (`ThreePeerReaderSyncCoordinator.pushAudiobook*`) also writes it
+ * on a tight cadence while readaloud plays, from the exact narrated sentence.
  *
- * The feedback loop that erased the ebook (our own fresh-timestamped push read back as a "newer
- * remote" and driving the ebook to the audio position) is closed at the timestamp layer, NOT by
- * dropping the peer: the push records the server's returned `lastUpdate` as the local timestamp, so
- * our own write reads back as equal (local wins ties), never newer. Only a position written by some
- * other client outranks the reading position.
+ * The feedback loop that erased the ebook (our own fresh-timestamped write read back next cycle as a
+ * "newer remote" and drove the ebook to the audio position) is closed at the timestamp layer: every
+ * write records the server's returned `lastUpdate` as the local timestamp, so it reads back as equal
+ * (local wins ties), never newer — and a remote-win jump keeps that adopted server time rather than
+ * re-stamping `now` (see EpubReaderViewModel.pendingServerJumpStamp). Only a position genuinely written
+ * by some other client outranks the reading position.
  */
 enum class RemoteKind { ABS_EBOOK, ABS_AUDIO, STORYTELLER }
 
@@ -22,13 +24,13 @@ enum class RemoteKind { ABS_EBOOK, ABS_AUDIO, STORYTELLER }
  * the ABS EPUB and the single-peer set is always `{ABS ebook}`.
  *
  * The readaloud bundle is the hub: ebook progress (an `ebookLocation` CFI) flows to a matched item
- * that has an ebook; the audiobook is reconciled inbound (see [RemoteKind]) so a cross-device listen
- * is reflected locally.
+ * that has an ebook; the audiobook is reconciled both ways (see [RemoteKind]) so a cross-device listen
+ * is reflected locally and reading advances it forward.
  *
  * @param isMatched a Confirmed [ReadaloudLink] exists for the open book.
  * @param hasAbsEbookTarget a matched ABS item carries an ebook (→ the `ABS_EBOOK` remote).
- * @param hasAbsAudioTarget a matched ABS item carries audio (→ the inbound `ABS_AUDIO` remote and a
- *   push-only outbound target).
+ * @param hasAbsAudioTarget a matched ABS item carries audio (→ the `ABS_AUDIO` remote, reconciled both
+ *   ways, plus the responsive playback push).
  * @param prerequisitesCached the Storyteller EPUB bundle and cross-EPUB index are available.
  */
 data class BookSyncState(
@@ -45,8 +47,8 @@ data class BookSyncState(
  * - Matched, prerequisites not yet cached: single-peer `{ABS ebook}` (the displayed frame) until
  *   the prerequisites land, then it upgrades on a later cycle.
  * - Matched, prerequisites cached: the remotes for whichever ABS targets are matched, plus
- *   Storyteller. `ABS_AUDIO` is included when a matched item has audio — reconciled inbound-only
- *   (the cycle reads it but never writes it; outbound is the push).
+ *   Storyteller. `ABS_AUDIO` is included when a matched item has audio — reconciled both ways (the
+ *   cycle reads and writes it), with a separate responsive push while readaloud plays.
  */
 fun applicableRemotes(state: BookSyncState): Set<RemoteKind> {
     if (!state.isMatched) return setOf(RemoteKind.ABS_EBOOK)

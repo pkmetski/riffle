@@ -36,6 +36,15 @@ internal val EMPTY_REMOTE_READ = RemoteRead(CanonicalReaderPosition(""), 0L)
 internal suspend fun AbsSessionApi.serverStamp(ep: AbsSyncEndpoint): Long? =
     (getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)?.progress?.lastUpdate
 
+// Write the matched audiobook's currentTime and read back the server timestamp it was stored under.
+// One definition for both the cycle peer's outbound patch and the responsive follow-loop push, so the
+// payload shape and the stamp read-back can never drift apart. `null` on failure.
+internal suspend fun AbsSessionApi.writeAudiobookSeconds(ep: AbsSyncEndpoint, seconds: Double): Long? {
+    val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
+    if (syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
+    return serverStamp(ep)
+}
+
 /** ABS ebook progress as a sync remote: an ebookLocation CFI on the ABS EPUB. */
 internal class AbsEbookSyncRemote(
     private val api: AbsSessionApi,
@@ -91,9 +100,7 @@ internal class AbsAudiobookSyncRemote(
 
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
         val seconds = bridge.canonicalToAudioSeconds(canonical.value) ?: return null
-        val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
-        if (api.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
-        return api.serverStamp(ep)
+        return api.writeAudiobookSeconds(ep, seconds)
     }
 }
 
@@ -205,8 +212,6 @@ class ThreePeerReaderSyncCoordinator(
     private suspend fun pushAudiobookAtSeconds(seconds: Double?): Long? {
         val ep = absAudioEndpoint ?: return null
         if (seconds == null) return null
-        val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
-        if (absApi.syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
-        return absApi.serverStamp(ep)
+        return absApi.writeAudiobookSeconds(ep, seconds)
     }
 }
