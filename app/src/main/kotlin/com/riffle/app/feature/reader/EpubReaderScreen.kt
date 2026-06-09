@@ -656,13 +656,6 @@ private const val BOUNDARY_POLL_INTERVAL_MS = 120L
 // (which can finish well after this), so the cover is purely cosmetic.
 private const val NAV_COVER_SETTLE_MS = 250L
 
-// The element id a TOC/search/resume locator points at (its href fragment), or null for a jump to a
-// resource start. Drives [snapToTargetColumnJs] so the landing snaps to the column the target itself
-// occupies — robust to where go() landed and to the post-load reflow.
-private fun navTargetFragmentId(href: String): String? =
-    href.substringAfter('#', "").ifEmpty { null }
-        ?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }
-
 /**
  * Builds a Readium [Locator] from a readaloud fragment ref — "href#fragId", or a bare "href" when
  * the ref carries no fragment. The cssSelector targets the fragment id so Readium's EPUB decorator
@@ -959,6 +952,10 @@ private fun EpubNavigatorView(
                     fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
                     fragment.evaluateJavascript(typographyOverrideInjectionJs())
                     fragment.evaluateJavascript(FootnoteAnchorBridge.INSTALL_SCRIPT)
+                    // Install the at-rest column-snap backstop: once scrolling settles off-grid in
+                    // paginated mode it rounds to the nearest column, so the page can never REST between
+                    // two pages no matter what moved it. Idempotent; defers to the rAF trackers.
+                    ColumnSnap.installBackstop(fragment)
                     // NOTE: do NOT snap to the column grid here. The typography injection above
                     // reflows the page asynchronously, so a snap at this point rounds a pre-reflow
                     // position and lands close-but-not-exact. The post-go() snap in the navigation
@@ -989,7 +986,7 @@ private fun EpubNavigatorView(
         prevReservePx = readaloudReservePx
         withContext(Dispatchers.Main) {
             val anchor = if (prev != null && prev != readaloudReservePx) {
-                fragment.evaluateJavascript(reflowAnchorCaptureJs())?.trim('"').orEmpty()
+                ColumnSnap.captureReflowAnchor(fragment)
             } else {
                 ""
             }
@@ -999,7 +996,7 @@ private fun EpubNavigatorView(
             // and corrects scrollLeft before paint, so there's no flash of the reflowed-but-unscrolled page.
             fragment.evaluateJavascript(readaloudReserveInjectionJs())
             val applyAndReAnchor = readaloudReserveApplyJs(readaloudReservePx) +
-                if (anchor.isNotEmpty()) "\n;" + reflowAnchorSnapJs(anchor) else ""
+                ColumnSnap.reflowReSnapScript(anchor)
             fragment.evaluateJavascript(applyAndReAnchor)
         }
     }
@@ -1033,7 +1030,7 @@ private fun EpubNavigatorView(
                 }
                 FootnoteResolver.AnchorTarget.CrossReference -> {
                     coroutineScope.launch(Dispatchers.Main) {
-                        fragmentRef.value?.evaluateJavascript(scrollToColumnJs(fragmentId))
+                        fragmentRef.value?.let { ColumnSnap.snapToElementColumn(it, fragmentId) }
                     }
                     true
                 }
@@ -1052,10 +1049,9 @@ private fun EpubNavigatorView(
                 currentHrefHolder[0]?.substringBefore('#')
             navigating = cover
             try {
-                fragment.go(link)
-                // Snap to the target's column and keep it pinned through the new chapter's async
-                // typography reflow (see snapToTargetColumnJs). The cover is just cosmetic now.
-                fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(link.href.toString())))
+                // Navigate and snap onto the target's column, tracked through the new chapter's async
+                // typography reflow (ColumnSnap owns the grid math). The cover is just cosmetic now.
+                ColumnSnap.goAndSnap(fragment, link)
                 if (cover) delay(NAV_COVER_SETTLE_MS)
             } finally {
                 navigating = false
@@ -1065,12 +1061,10 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(serverLocatorEvents) {
         serverLocatorEvents.collect { locator ->
-            // Background position sync (peer/resume): snap to the target's column and keep it pinned
-            // through the new chapter's reflow, but never cover — a cover here would flash
-            // unexpectedly mid-reading (see snapToTargetColumnJs).
+            // Background position sync (peer/resume): navigate and snap onto the target's column, tracked
+            // through the new chapter's reflow, but never cover — a cover here would flash mid-reading.
             val fragment = fragmentRef.value ?: return@collect
-            fragment.go(locator)
-            fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(locator.href.toString())))
+            ColumnSnap.goAndSnap(fragment, locator)
         }
     }
 
@@ -1081,8 +1075,7 @@ private fun EpubNavigatorView(
                 currentHrefHolder[0]?.substringBefore('#')
             navigating = cover
             try {
-                fragment.go(locator)
-                fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(locator.href.toString())))
+                ColumnSnap.goAndSnap(fragment, locator)
                 if (cover) delay(NAV_COVER_SETTLE_MS)
             } finally {
                 navigating = false
@@ -1252,7 +1245,7 @@ private fun EpubNavigatorView(
         // Locate the sentence by its text (spans are stripped). The probe snaps to the sentence's
         // column itself in paginated mode; "off" comes back only when the text isn't on this resource
         // (another chapter), where we fall back to a text-anchored go() to load it.
-        val where = fragment.evaluateJavascript(autoFollowSnapJs(quote.highlight))?.trim('"')
+        val where = ColumnSnap.followNarratedSentence(fragment, quote.highlight)
         if (where != "off") return@LaunchedEffect
         fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
     }

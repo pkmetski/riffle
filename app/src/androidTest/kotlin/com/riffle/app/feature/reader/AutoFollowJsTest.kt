@@ -53,7 +53,7 @@ class AutoFollowJsTest {
             val h = webView.awaitInnerHeight()
             assertTrue("viewport must have a real height", h > 100)
 
-            val result = webView.evalSync(autoFollowSnapJs(targetText)).trim('"')
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(targetText)).trim('"')
             assertEquals("a sentence in an overflowing document is followed by scrolling → on", "on", result)
 
             val center = webView.rectCenterY("target")
@@ -65,7 +65,7 @@ class AutoFollowJsTest {
     fun scrollModeNeverScrollsHorizontally() {
         withSizedWebViewFixture(tallFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            webView.evalSync(autoFollowSnapJs(targetText))
+            webView.evalSync(ColumnSnap.autoFollowSnapJs(targetText))
             assertEquals("auto-follow must not move the page sideways", 0, webView.scrollX())
         }
     }
@@ -74,7 +74,7 @@ class AutoFollowJsTest {
     fun paginatedReturnsOnForAVisibleSentenceWithoutScrolling() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            val result = webView.evalSync(autoFollowSnapJs(onPageText)).trim('"')
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(onPageText)).trim('"')
             assertEquals("a fully visible sentence on the current page → on", "on", result)
             assertEquals("paginated mode must not scroll horizontally", 0, webView.scrollX())
             assertEquals("paginated mode must not scroll vertically", 0, webView.scrollY())
@@ -82,31 +82,30 @@ class AutoFollowJsTest {
     }
 
     @Test
-    fun paginatedKeepsAVisibleSentenceInPlaceWithoutReSnapping() {
+    fun paginatedSnapsAVisibleSentenceToItsGridAlignedColumn() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            // Drift the page a few px off the column grid, with the on-page sentence still visible. The
-            // keep-visible follow must leave the page exactly where it is (the old always-snap behaviour
-            // would have pulled scrollLeft back to the grid at 0 — the "jump" when playback starts).
+            // Drift the page a few px off the column grid with the sentence on the current page. Following
+            // floors scrollLeft to the sentence's column, which lands flush on the grid — so the page can
+            // never rest between two pages (the "shifted left, sliver of the next page showing" readaloud bug).
             webView.evalSync("document.scrollingElement.scrollLeft=10")
-            val result = webView.evalSync(autoFollowSnapJs(onPageText)).trim('"')
-            assertEquals("a visible sentence keeps the page 'on'", "on", result)
-            assertEquals("a visible sentence must be left in place, not re-snapped to the grid", 10, webView.scrollX())
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(onPageText)).trim('"')
+            assertEquals("following a visible sentence returns 'on'", "on", result)
+            assertEquals("a visible sentence snaps to its grid-aligned column", 0, webView.scrollX())
         }
     }
 
     @Test
-    fun paginatedDoesNotSnapBackForASentenceWrappingInFromThePreviousColumn() {
+    fun paginatedFollowsToTheSentencesColumnSymmetrically() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            // Drift the page forward so the on-page sentence's START sits just off the left edge while its
-            // body stays visible on this page — the column-spanning case (a narrated sentence wrapped in
-            // from the previous column). Keep-visible must leave the page put; the old probe snapped
-            // scrollLeft back to the start's column — the page "jump" when playback starts on such a line.
+            // With the page scrolled off the grid, following floors to the column that contains the sentence
+            // — the same column move it makes whichever way the reader had paged (no asymmetric keep-visible
+            // window). Here that lands back on the grid at 0.
             webView.evalSync("document.scrollingElement.scrollLeft=40")
-            val result = webView.evalSync(autoFollowSnapJs(onPageText)).trim('"')
-            assertEquals("a sentence wrapping in from the previous column stays on the page", "on", result)
-            assertEquals("a wrapped-in sentence must not snap the page back a column", 40, webView.scrollX())
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(onPageText)).trim('"')
+            assertEquals("following the sentence returns 'on'", "on", result)
+            assertEquals("follows to the sentence's grid-aligned column", 0, webView.scrollX())
         }
     }
 
@@ -116,7 +115,7 @@ class AutoFollowJsTest {
             webView.awaitInnerHeight()
             // The capture returns a prefix of the line at the top of the current page — the anchor the
             // reserve reflow pins back. It must be the on-page line, never the off-page (next-column) one.
-            val anchor = webView.evalSync(reflowAnchorCaptureJs()).trim('"')
+            val anchor = webView.evalSync(ColumnSnap.reflowAnchorCaptureJs()).trim('"')
             assertTrue("a non-empty anchor is captured", anchor.isNotEmpty())
             assertTrue("anchor is the on-page line (got '$anchor')", onPageText.startsWith(anchor))
         }
@@ -129,7 +128,7 @@ class AutoFollowJsTest {
             val iw = webView.innerWidth()
             assertTrue("viewport must have a real width", iw > 100)
 
-            val result = webView.evalSync(autoFollowSnapJs(offRightText)).trim('"')
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(offRightText)).trim('"')
             assertEquals("a sentence on another page is followed by snapping → on", "on", result)
 
             // After the snap the sentence's column is flush-left: its first char's client-left equals
@@ -145,7 +144,7 @@ class AutoFollowJsTest {
     fun returnsOffForTextNotOnThePage() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            assertEquals("off", webView.evalSync(autoFollowSnapJs("Zzz nonexistent sentence text")).trim('"'))
+            assertEquals("off", webView.evalSync(ColumnSnap.autoFollowSnapJs("Zzz nonexistent sentence text")).trim('"'))
         }
     }
 
@@ -153,7 +152,7 @@ class AutoFollowJsTest {
     fun emptyTextDisablesTheProbe() {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
-            assertEquals("empty/unknown text → off (caller falls back to go())", "off", webView.evalSync(autoFollowSnapJs("")).trim('"'))
+            assertEquals("empty/unknown text → off (caller falls back to go())", "off", webView.evalSync(ColumnSnap.autoFollowSnapJs("")).trim('"'))
         }
     }
 
