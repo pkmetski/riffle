@@ -366,6 +366,9 @@ fun EpubReaderScreen(
                         speed = playbackState.speed,
                         offlineMessage = readaloudOfflineMessage,
                         downloadProgress = downloadProgress,
+                        canPreviousChapter = playbackState.currentChapterIndex > 0,
+                        canNextChapter = playbackState.currentChapterIndex >= 0 &&
+                            playbackState.currentChapterIndex < playbackState.chapterCount - 1,
                         containerColor = readerPalette.background.copy(alpha = 0.65f),
                         contentColor = readerPalette.foreground,
                         onPlayPause = viewModel::togglePlayPause,
@@ -375,6 +378,10 @@ fun EpubReaderScreen(
                             val idx = speeds.indexOfFirst { kotlin.math.abs(it - playbackState.speed) < 0.001f }
                             viewModel.setSpeed(if (idx < 0) 1f else speeds[(idx + 1) % speeds.size])
                         },
+                        onRewind = viewModel::rewind,
+                        onForward = viewModel::forward,
+                        onPreviousChapter = viewModel::previousChapter,
+                        onNextChapter = viewModel::nextChapter,
                         onClose = viewModel::closeReadaloud,
                         onExpand = viewModel::expandPlayer,
                     )
