@@ -16,8 +16,8 @@ interface LibraryDao {
     @Query("SELECT id FROM libraries WHERE serverId = :serverId")
     suspend fun libraryIdsForServer(serverId: String): List<String>
 
-    @Query("SELECT * FROM libraries WHERE id = :libraryId LIMIT 1")
-    suspend fun getById(libraryId: String): LibraryEntity?
+    @Query("SELECT * FROM libraries WHERE serverId = :serverId AND id = :libraryId LIMIT 1")
+    suspend fun getById(serverId: String, libraryId: String): LibraryEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(libraries: List<LibraryEntity>)
@@ -31,6 +31,6 @@ interface LibraryDao {
         upsertAll(libraries)
     }
 
-    @Query("UPDATE libraries SET isUnsupported = :isUnsupported WHERE id = :libraryId")
-    suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean)
+    @Query("UPDATE libraries SET isUnsupported = :isUnsupported WHERE serverId = :serverId AND id = :libraryId")
+    suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean)
 }

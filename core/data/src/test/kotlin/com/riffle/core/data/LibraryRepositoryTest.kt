@@ -79,8 +79,8 @@ class LibraryRepositoryTest {
         override suspend fun libraryIdsForServer(serverId: String): List<String> =
             roomData[serverId]?.value.orEmpty().map { it.id }
 
-        override suspend fun getById(libraryId: String): LibraryEntity? =
-            roomData.values.flatMap { it.value }.firstOrNull { it.id == libraryId }
+        override suspend fun getById(serverId: String, libraryId: String): LibraryEntity? =
+            roomData[serverId]?.value.orEmpty().firstOrNull { it.id == libraryId }
 
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {
             upserted.addAll(libraries)
@@ -93,9 +93,9 @@ class LibraryRepositoryTest {
             roomData[serverId]?.value = emptyList()
         }
 
-        override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {
-            val current = roomData[libraryId]?.value ?: return
-            roomData[libraryId]?.value = current.map { it.copy(isUnsupported = isUnsupported) }
+        override suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean) {
+            val flow = roomData[serverId] ?: return
+            flow.value = flow.value.map { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }
         }
     }
 

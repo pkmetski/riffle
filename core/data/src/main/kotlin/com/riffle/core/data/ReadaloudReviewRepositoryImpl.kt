@@ -67,8 +67,12 @@ class ReadaloudReviewRepositoryImpl(
         val candidatesByBook = candidates.groupBy { it.storytellerBookId }
 
         val libraryNameCache = mutableMapOf<String, String>()
-        suspend fun libraryName(libraryId: String): String =
-            libraryNameCache.getOrPut(libraryId) { libraryDao.getById(libraryId)?.name ?: libraryId }
+        // Library ids are unique only within a Server (issue #113) — key the cache and the lookup
+        // by (serverId, libraryId) so two Servers' same-id libraries resolve to their own names.
+        suspend fun libraryName(serverId: String, libraryId: String): String =
+            libraryNameCache.getOrPut("$serverId|$libraryId") {
+                libraryDao.getById(serverId, libraryId)?.name ?: libraryId
+            }
 
         // Group per readaloud so Unlink detaches the whole match (ebook + audiobook stub) at once.
         val confirmed = linksForServer
@@ -80,7 +84,7 @@ class ReadaloudReviewRepositoryImpl(
                         absServerId = link.absServerId,
                         absLibraryItemId = link.absLibraryItemId,
                         absTitle = abs.title,
-                        absLibraryName = libraryName(abs.libraryId),
+                        absLibraryName = libraryName(abs.serverId, abs.libraryId),
                     )
                 }
                 if (targets.isEmpty()) return@mapNotNull null
@@ -107,7 +111,7 @@ class ReadaloudReviewRepositoryImpl(
                             absLibraryItemId = cand.absLibraryItemId,
                             absTitle = abs.title,
                             absAuthor = abs.author,
-                            absLibraryName = libraryName(abs.libraryId),
+                            absLibraryName = libraryName(abs.serverId, abs.libraryId),
                             coverUrl = abs.coverUrl,
                             score = cand.score,
                         )
@@ -216,8 +220,8 @@ class ReadaloudReviewRepositoryImpl(
             .sortedBy { it.title.lowercase() }
             .mapNotNull { row ->
                 val abs: LibraryItemEntity = libraryItemDao.getById(row.serverId, row.itemId) ?: return@mapNotNull null
-                val name = libraryNameCache.getOrPut(abs.libraryId) {
-                    libraryDao.getById(abs.libraryId)?.name ?: abs.libraryId
+                val name = libraryNameCache.getOrPut("${abs.serverId}|${abs.libraryId}") {
+                    libraryDao.getById(abs.serverId, abs.libraryId)?.name ?: abs.libraryId
                 }
                 AbsPickerItem(
                     absServerId = row.serverId,

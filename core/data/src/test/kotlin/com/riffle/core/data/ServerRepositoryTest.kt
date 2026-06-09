@@ -82,13 +82,11 @@ class ServerRepositoryTest {
             flowOf(rows[serverId].orEmpty().toList())
         override suspend fun libraryIdsForServer(serverId: String): List<String> =
             rows[serverId].orEmpty().map { it.id }
-        override suspend fun getById(libraryId: String): LibraryEntity? =
-            rows.values.flatten().firstOrNull { it.id == libraryId }
+        override suspend fun getById(serverId: String, libraryId: String): LibraryEntity? =
+            rows[serverId].orEmpty().firstOrNull { it.id == libraryId }
         override suspend fun deleteByServerId(serverId: String) { rows.remove(serverId) }
-        override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {
-            rows.values.forEach { list ->
-                list.replaceAll { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }
-            }
+        override suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean) {
+            rows[serverId]?.replaceAll { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }
         }
         fun allEntities(): List<LibraryEntity> = rows.values.flatten()
     }
