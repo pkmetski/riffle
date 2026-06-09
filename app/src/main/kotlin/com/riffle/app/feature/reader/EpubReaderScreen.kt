@@ -1069,12 +1069,16 @@ private fun EpubNavigatorView(
     // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
     val hasActiveDecorations = remember { mutableStateOf(false) }
 
-    // Re-keys on reflowGeneration + pageLoadGeneration for the SAME reason the readaloud and annotations
-    // decoration effects do: Readium fixes a decoration's rects at applyDecorations time. Applied once
-    // (before the chapter's typography reflow settles, or before a freshly navigated chapter has loaded),
-    // the search highlight is positioned against the compact default layout; the text then reflows larger
-    // and shifts DOWN, but the rect stays put — so the highlight lands several lines too high (on the
-    // wrong word). Re-applying after the layout settles re-resolves the rects against the real pagination.
+    // Readium fixes a decoration's rects at applyDecorations time and never re-positions them. When a
+    // search result is navigated to, the landing page's layout is still settling as the decoration is
+    // applied (the page snaps to the column grid and the search top bar's inset resolves AFTER the first
+    // apply), so the box is placed against the pre-settle layout and the text then shifts out from under
+    // it — verified on device as a constant ~152px vertical offset onto the wrong word (same column, same
+    // width: a placement-timing bug, not a fuzzy mis-resolution). readaloud never shows this because it
+    // re-applies its decoration on every audio tick; search applies once per navigation. We therefore
+    // re-apply across a short settle window after each (re)apply so the boxes track the final layout. The
+    // re-applies are idempotent (same id + locator). Re-keys on reflow/pageLoad as well for rotation and
+    // formatting reflows, matching the readaloud and annotations decoration effects.
     LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         if (searchResults.isEmpty()) {
             if (!hasActiveDecorations.value) return@LaunchedEffect
@@ -1099,10 +1103,19 @@ private fun EpubNavigatorView(
                     Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
             )
         }
+        // Apply immediately, then re-apply across the post-navigation settle window so Readium re-resolves
+        // the box positions against the final layout (the column snap + search-bar inset land after the
+        // first apply). Without this the active result's box stays where the page was mid-settle.
         withContext(Dispatchers.Main) {
             fragment.applyDecorations(decorations, group = "search")
         }
         hasActiveDecorations.value = true
+        for (settleDelayMs in longArrayOf(200L, 300L, 350L)) {
+            delay(settleDelayMs)
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(decorations, group = "search")
+            }
+        }
     }
 
     // ---- Readaloud synced highlight --------------------------------------------------------
