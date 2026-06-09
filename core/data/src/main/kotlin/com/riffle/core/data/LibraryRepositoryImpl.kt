@@ -97,6 +97,16 @@ class LibraryRepositoryImpl @Inject constructor(
         return libraryItemDao.getById(serverId, itemId)?.toDomain()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeItem(itemId: String): Flow<LibraryItem?> =
+        serverRepository.observeAll()
+            .map { servers -> servers.firstOrNull { it.isActive }?.id }
+            .distinctUntilChanged()
+            .flatMapLatest { serverId ->
+                if (serverId == null) flowOf(null)
+                else libraryItemDao.observeById(serverId, itemId).map { it?.toDomain() }
+            }
+
     override suspend fun getItem(serverId: String, itemId: String): LibraryItem? =
         libraryItemDao.getById(serverId, itemId)?.toDomain()
 

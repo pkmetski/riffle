@@ -68,7 +68,10 @@ class LibraryItemDetailViewModelTest {
         ebookFormat = EbookFormat.Epub,
     )
 
-    private fun fakeRepo(item: LibraryItem? = null): LibraryRepository = object : LibraryRepository {
+    private fun fakeRepo(
+        item: LibraryItem? = null,
+        itemFlow: MutableStateFlow<LibraryItem?> = MutableStateFlow(item),
+    ): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -82,6 +85,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = item
+        override fun observeItem(itemId: String): Flow<LibraryItem?> = itemFlow
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
@@ -107,6 +111,7 @@ class LibraryItemDetailViewModelTest {
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = throw RuntimeException("DB unavailable")
+        override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(null)
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
@@ -289,6 +294,25 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(LibraryItemDetailUiState.Error, vm.uiState.value)
+    }
+
+    // Regression for "book details shows a different (stale) progress than the reader." The screen
+    // is retained on the back stack while the user reads; the reader persists new readingProgress to
+    // the DB on close. A one-shot getItem snapshot would keep showing the pre-reading value, so the
+    // VM observes the item row and patches the live progress into the Ready state.
+    @Test
+    fun `readingProgress updates reactively when the item row changes after reading`() = runTest {
+        val itemFlow = MutableStateFlow<LibraryItem?>(knownItem) // starts at 0.5
+        val vm = makeVm(fakeRepo(knownItem, itemFlow))
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0.5f, (vm.uiState.value as Ready).item.readingProgress)
+
+        // Reader closes and writes 0.8 to the DB; the observed row re-emits.
+        itemFlow.value = knownItem.copy(readingProgress = 0.8f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0.8f, (vm.uiState.value as Ready).item.readingProgress)
     }
 
     // --- downloadState tests ---

@@ -34,6 +34,10 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
     suspend fun getById(serverId: String, itemId: String): LibraryItemEntity?
 
+    /** Reactive single-item read — re-emits when the row changes (e.g. readingProgress on reader close). */
+    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
+    fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?>
+
     /**
      * The Server that owns an item id. Used by the one-time on-disk file migration (ADR 0025) to
      * relocate legacy flat `<itemId>` files under their owning Server. Pre-migration item ids were

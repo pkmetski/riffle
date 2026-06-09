@@ -119,6 +119,7 @@ class ServerRepositoryTest {
         override fun observeRecentlyAdded(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override fun observeAllBooks(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override suspend fun getById(serverId: String, itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
+        override fun observeById(serverId: String, itemId: String) = flowOf(rows.values.flatten().firstOrNull { it.id == itemId })
         override suspend fun findServerIdForItem(itemId: String): String? = rows.values.flatten().firstOrNull { it.id == itemId }?.serverId
         override suspend fun upsertAll(items: List<com.riffle.core.database.LibraryItemEntity>) {
             items.groupBy { it.libraryId }.forEach { (libraryId, entities) ->
