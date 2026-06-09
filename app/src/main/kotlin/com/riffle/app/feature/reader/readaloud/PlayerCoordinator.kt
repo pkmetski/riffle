@@ -89,6 +89,14 @@ class PlayerCoordinator @Inject constructor(
 
     fun setSpeed(speed: Float) = controller.setSpeed(speed)
 
+    fun rewind() = controller.rewind()
+
+    fun forward() = controller.forward()
+
+    fun previousChapter() = controller.previousChapter()
+
+    fun nextChapter() = controller.nextChapter()
+
     /** Stops playback and tears the session down — the active fragment clears, so does the highlight. */
     fun close() {
         track = null
