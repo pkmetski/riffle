@@ -238,6 +238,8 @@ fun EpubReaderScreen(
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val railSegments by viewModel.railSegments.collectAsState()
+    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
 
     // The readaloud player floats over the bottom of the page: it does NOT reserve space or
     // re-paginate, so the page stays static when the player opens. Its translucent backdrop lets the
@@ -295,7 +297,7 @@ fun EpubReaderScreen(
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
-                        onNarratedSentenceFollowed = viewModel::onNarratedSentenceFollowed,
+                        chapterPlayRequests = viewModel.chapterPlayRequests,
                         readaloudAvailable = readaloudAvailable,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -367,9 +369,8 @@ fun EpubReaderScreen(
                         speed = playbackState.speed,
                         offlineMessage = readaloudOfflineMessage,
                         downloadProgress = downloadProgress,
-                        canPreviousChapter = playbackState.currentChapterIndex > 0,
-                        canNextChapter = playbackState.currentChapterIndex >= 0 &&
-                            playbackState.currentChapterIndex < playbackState.chapterCount - 1,
+                        canPreviousChapter = activeRailSegmentIndex > 0,
+                        canNextChapter = activeRailSegmentIndex < railSegments.size - 1,
                         containerColor = readerPalette.background.copy(alpha = 0.65f),
                         contentColor = readerPalette.foreground,
                         onPlayPause = viewModel::togglePlayPause,
@@ -733,7 +734,7 @@ private fun EpubNavigatorView(
     pageTopProbeRequests: Flow<String>,
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
-    onNarratedSentenceFollowed: () -> Unit,
+    chapterPlayRequests: Flow<Link>,
     readaloudAvailable: Boolean,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
@@ -755,6 +756,10 @@ private fun EpubNavigatorView(
     // Non-State holder for current href — written by the locator coroutine, read inside
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
+    // While a readaloud chapter jump navigates the reader, the outgoing (paused) narration's
+    // auto-follow must not yank the page back to the old sentence on the new chapter's page-load.
+    // Held true across the jump's navigate→probe→play, then cleared. Plain array to avoid recomposition.
+    val suppressAutoFollowHolder = remember { arrayOf(false) }
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
     val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
@@ -1073,6 +1078,62 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Readaloud chapter jump (prev/next chapter buttons): navigate the reader to the destination
+    // chapter, wait for it to settle, then resolve that chapter's first narrated sentence and start
+    // narration there — the same page-top probe the reopen path uses. Driven by the reader's real TOC
+    // chapters (not the Storyteller bundle's clip hrefs, which are misaligned with the rendered EPUB).
+    LaunchedEffect(chapterPlayRequests) {
+        chapterPlayRequests.collect { link ->
+            val fragment = fragmentRef.value ?: return@collect
+            // Suppress auto-follow so the outgoing (paused) sentence doesn't yank the page back when the
+            // new chapter loads.
+            suppressAutoFollowHolder[0] = true
+            try {
+                val preHref = currentHrefHolder[0]
+                ColumnSnap.goAndSnap(fragment, link)
+                // Wait for the new resource to actually load (currentHrefHolder is set by onPositionChanged)
+                // before probing — go() returns before the new DOM is ready.
+                var waited = 0
+                while (currentHrefHolder[0] == preHref && waited < 2000) { delay(50); waited += 50 }
+                delay(150)
+                // Resolve the chapter's first narrated sentence against the resource the reader LANDED on
+                // (the rendered ABS href — NOT the TOC link href, which the SMIL clips can't be matched to,
+                // ADR 0026). The TOC chapter often lands on an un-narrated heading page (…_split_000) with
+                // no sentence; in that case page forward to the chapter's body and probe again.
+                var fragmentId: String? = null
+                var href = currentHrefHolder[0] ?: link.href.toString()
+                val ordered = currentSentenceQuotes.entries.toList()
+                for (attempt in 0 until 3) {
+                    href = currentHrefHolder[0] ?: href
+                    // Poll until this just-loaded resource actually has a narrated sentence in its text
+                    // (the DOM lags the navigation), so an empty too-early probe can't trigger a spurious
+                    // goForward that overshoots the chapter's real first sentence.
+                    var probe = ""
+                    var w = 0
+                    while (w < 1500 && ordered.isNotEmpty()) {
+                        probe = fragment.evaluateJavascript(
+                            firstSentenceInDocumentJs(ordered.map { it.value.highlight }),
+                        )?.trim('"').orEmpty()
+                        if (probe.isNotEmpty()) break
+                        delay(100); w += 100
+                    }
+                    fragmentId = probe.toIntOrNull()?.let { ordered.getOrNull(it)?.key }
+                    // Found the chapter's first narrated sentence — stop. Otherwise this resource is a
+                    // pure heading page (no narration); advance to the chapter body and probe again.
+                    if (fragmentId != null) break
+                    fragment.goForward(animated = false)
+                    delay(300)
+                }
+                onPageTopResolved(href, fragmentId)
+                // Let the seek land and activeFragmentRef settle on the new chapter before re-enabling
+                // follow, so it resumes tracking the NEW sentence rather than the stale outgoing one.
+                delay(400)
+            } finally {
+                suppressAutoFollowHolder[0] = false
+            }
+        }
+    }
+
     // Tracks whether we have live search decorations painted in the WebView.
     // Prevents calling applyDecorations on initial composition (before WebView content loads),
     // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
@@ -1235,6 +1296,7 @@ private fun EpubNavigatorView(
     // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
     // no longer reflows it, so opening it doesn't move the narrated sentence's column.
     LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
+        if (suppressAutoFollowHolder[0]) return@LaunchedEffect
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
@@ -1247,13 +1309,7 @@ private fun EpubNavigatorView(
         // column itself in paginated mode; "off" comes back only when the text isn't on this resource
         // (another chapter), where we fall back to a text-anchored go() to load it.
         val where = ColumnSnap.followNarratedSentence(fragment, quote.highlight)
-        if (where != "off") {
-            // The narrated sentence is on screen now. If a chapter jump paused playback to wait for
-            // this chapter's (slow) load, resume here — so playback resumes on the chapter's first
-            // sentence instead of having run on past it during the load.
-            onNarratedSentenceFollowed()
-            return@LaunchedEffect
-        }
+        if (where != "off") return@LaunchedEffect
         fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
     }
 

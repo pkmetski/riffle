@@ -158,6 +158,25 @@ internal fun resolveSelectionSentenceJs(sentences: List<Pair<String, String>>): 
  * page-top without dragging it. "Visible" uses the same containment test as autoFollow's paginated
  * branch (within a tolerance) and, in scroll mode, any vertical overlap with the viewport.
  */
+/**
+ * Index of the first narrated sentence present ANYWHERE in the current document (reading order),
+ * regardless of which paginated column it sits in — unlike [firstVisibleSentenceJs] which is
+ * page-relative. Used by chapter navigation to find the destination chapter's true first sentence
+ * (the chapter heading's first column often shows no sentence). Returns "" if the document has no
+ * narrated sentence at all (e.g. a pure heading page), so the caller can advance to the body.
+ */
+internal fun firstSentenceInDocumentJs(highlights: List<String>): String {
+    val keys = JSONArray(highlights.map { it.trim().take(12) }).toString()
+    return """
+    (function(){
+      var keys=$keys;
+      var t=document.body.innerText||"";
+      for(var k=0;k<keys.length;k++){ if(keys[k] && t.indexOf(keys[k])>=0) return String(k); }
+      return "";
+    })()
+    """.trimIndent()
+}
+
 internal fun firstVisibleSentenceJs(highlights: List<String>): String {
     // Same key shape as autoFollowSnapJs: a short near-unique prefix matched within one text node.
     val keys = JSONArray(highlights.map { it.trim().take(12) }).toString()

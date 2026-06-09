@@ -93,14 +93,6 @@ class PlayerCoordinator @Inject constructor(
 
     fun forward() = controller.forward()
 
-    /** @return true when the jump froze playback for a cross-chapter load (resume via [resumeAfterChapterLoad]). */
-    fun previousChapter(): Boolean = controller.previousChapter()
-
-    /** @return true when the jump froze playback for a cross-chapter load (resume via [resumeAfterChapterLoad]). */
-    fun nextChapter(): Boolean = controller.nextChapter()
-
-    fun resumeAfterChapterLoad() = controller.resumeAfterChapterLoad()
-
     /** Stops playback and tears the session down — the active fragment clears, so does the highlight. */
     fun close() {
         track = null

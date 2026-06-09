@@ -43,8 +43,6 @@ class ReadaloudController @Inject constructor(
         val speed: Float = 1f,
         val currentAudioSrc: String? = null,
         val positionSec: Double = 0.0,
-        val currentChapterIndex: Int = -1,
-        val chapterCount: Int = 0,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -117,48 +115,8 @@ class ReadaloudController @Inject constructor(
         pushState()
     }
 
-    // Non-null while a cross-chapter jump waits for its (slow-loading) document: (audioSrc, sec) of the
-    // destination chapter's first sentence. While set, pushState() reports THIS position instead of
-    // controller.currentPosition — a cross-item seek's currentPosition lags, and pause() fires a
-    // listener that re-runs pushState(), which would otherwise clobber the highlight back to the old
-    // chapter and the page would never follow to the new one. Cleared by [resumeAfterChapterLoad].
-    private var chapterFreeze: ReadaloudTrack.Position? = null
-
-    /**
-     * Jumps to the first clip of an adjacent chapter (see [ReadaloudTrack.resolveChapterSkip]). Returns
-     * true when it crossed into a DIFFERENT chapter's document WHILE PLAYING — in that case it freezes
-     * playback on the new chapter's first sentence so the audio can't run past it during the document
-     * load; the caller resumes via [resumeAfterChapterLoad] once that sentence is on screen.
-     */
-    fun skipChapter(forward: Boolean): Boolean {
-        val t = track ?: return false
-        val s = _state.value
-        val currentIdx = t.chapterIndexAt(s.currentAudioSrc, s.positionSec)
-        val clip = t.resolveChapterSkip(s.currentAudioSrc, s.positionSec, forward, NEAR_START_SEC)
-            ?: return false
-        val targetIdx = t.chapterIndexOfClip(clip)
-        val freeze = targetIdx != currentIdx && controller?.isPlaying == true
-        // Set the freeze BEFORE the seek so a listener callback racing the seek can't clobber the state.
-        if (freeze) chapterFreeze = ReadaloudTrack.Position(clip.audioSrc, clip.clipBeginSec)
-        seekToAudio(clip.audioSrc, clip.clipBeginSec)
-        if (freeze) controller?.pause()
-        pushState()
-        Log.d(LOG, "skipChapter fwd=$forward $currentIdx->$targetIdx freeze=$freeze pos=${clip.clipBeginSec}")
-        return freeze
-    }
-
-    /** Resumes playback frozen by a cross-chapter [skipChapter] once the new chapter is on screen. */
-    fun resumeAfterChapterLoad() {
-        if (chapterFreeze == null) return
-        Log.d(LOG, "resumeAfterChapterLoad")
-        chapterFreeze = null
-        play()
-    }
-
     fun rewind() = skipBy(-REWIND_SEC)
     fun forward() = skipBy(FORWARD_SEC)
-    fun previousChapter(): Boolean = skipChapter(forward = false)
-    fun nextChapter(): Boolean = skipChapter(forward = true)
 
     /** Starts playback at the clip narrating [fragmentRef] (the "Play from here" entry point). */
     fun playFromFragment(fragmentRef: String) {
@@ -217,20 +175,12 @@ class ReadaloudController @Inject constructor(
 
     private fun pushState() {
         val c = controller
-        val t = track
-        // While frozen for a chapter load, report the destination first sentence, not the lagging
-        // (and pause-clobbered) controller position — see [chapterFreeze].
-        val freeze = chapterFreeze
-        val audioSrc = freeze?.audioSrc ?: c?.currentMediaItem?.mediaId
-        val positionSec = freeze?.positionSec ?: ((c?.currentPosition ?: 0L) / 1000.0)
         _state.value = PlaybackState(
             connected = c != null,
             isPlaying = c?.isPlaying == true,
             speed = c?.playbackParameters?.speed ?: 1f,
-            currentAudioSrc = audioSrc,
-            positionSec = positionSec,
-            currentChapterIndex = t?.chapterIndexAt(audioSrc, positionSec) ?: -1,
-            chapterCount = t?.chapterCount ?: 0,
+            currentAudioSrc = c?.currentMediaItem?.mediaId,
+            positionSec = (c?.currentPosition ?: 0L) / 1000.0,
         )
     }
 
@@ -238,7 +188,6 @@ class ReadaloudController @Inject constructor(
         val SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
         const val REWIND_SEC = 15.0
         const val FORWARD_SEC = 30.0
-        private const val NEAR_START_SEC = 3.0
         private const val POLL_INTERVAL_MS = 250L
         private const val LOG = "RIFFLE_RA"
     }

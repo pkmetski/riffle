@@ -1125,33 +1125,33 @@ class EpubReaderViewModel @Inject constructor(
 
     fun forward() = playerCoordinator.forward()
 
-    fun previousChapter() = navigateChapter(forward = false)
+    fun previousChapter() = jumpChapter(-1)
 
-    fun nextChapter() = navigateChapter(forward = true)
+    fun nextChapter() = jumpChapter(+1)
 
-    // Set when a cross-chapter jump froze playback to wait for that chapter's (slow) load, so the
-    // reader resumes once the new chapter's first sentence is on screen — see [navigateChapter].
-    private var pendingChapterResume = false
+    private val _chapterPlayChannel = Channel<Link>(Channel.CONFLATED)
+    /**
+     * A readaloud chapter jump: the screen navigates the reader to this chapter's link, then resolves
+     * the chapter's first narrated sentence on the freshly-loaded page and starts narration there via
+     * [onPageTopResolved]. Chapters are the reader's real TOC chapters ([railSegments]) — NOT the
+     * Storyteller bundle's per-fragment clip hrefs, which are misaligned with the rendered ABS EPUB
+     * and would land the jump a sentence or two into the chapter.
+     */
+    val chapterPlayRequests: Flow<Link> = _chapterPlayChannel.receiveAsFlow()
 
     /**
-     * Jumps a chapter. The controller freezes playback when the jump crosses into a different
-     * chapter's document while playing (so the audio can't run past the often-short first sentence
-     * while that document loads — which left the page on the SECOND sentence); we resume in
-     * [onNarratedSentenceFollowed] once the new chapter's first sentence is on screen. A same-chapter
-     * restart loads nothing and isn't frozen.
+     * Jumps [delta] chapters from the active rail segment and starts narration at the destination
+     * chapter's first sentence. Pauses first so the outgoing audio (and the highlight auto-follow it
+     * drives) can't fight the reader navigation; the screen resumes playback once the new chapter's
+     * first sentence is located (see [chapterPlayRequests] → [onPageTopResolved]).
      */
-    private fun navigateChapter(forward: Boolean) {
-        pendingChapterResume =
-            if (forward) playerCoordinator.nextChapter() else playerCoordinator.previousChapter()
-        android.util.Log.d("RIFFLE_RA", "navigateChapter fwd=$forward froze=$pendingChapterResume")
-    }
-
-    /** The reader reports the narrated sentence is on screen; resume a chapter jump frozen for its load. */
-    fun onNarratedSentenceFollowed() {
-        if (pendingChapterResume) {
-            pendingChapterResume = false
-            playerCoordinator.resumeAfterChapterLoad()
-        }
+    private fun jumpChapter(delta: Int) {
+        val segments = railSegments.value
+        val target = segments.getOrNull(activeRailSegmentIndex.value + delta) ?: return
+        val pub = (state.value as? ReaderState.Ready)?.publication ?: return
+        val link = pub.tableOfContents.findLinkByHref(target.href) ?: return
+        playerCoordinator.pause()
+        _chapterPlayChannel.trySend(link)
     }
 
     /**
