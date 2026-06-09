@@ -54,7 +54,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -240,19 +239,9 @@ fun EpubReaderScreen(
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
-    // Measured height (px) of the floating bottom overlay stack (readaloud player + chapter rail).
-    // While the player is open AND the reader is paginated, that height is reserved as bottom padding
-    // inside the page so Readium re-paginates the text above the player — the bug where, in landscape
-    // especially, the player covered the last lines. The reserve is injected as CSS (live re-pagination,
-    // see ReadaloudReserve.kt); a native resize would be ignored once the page is laid out. Scroll mode
-    // and a closed player reserve nothing — the page renders edge to edge.
-    var bottomOverlayHeightPx by remember { mutableStateOf(0) }
-    val density = LocalDensity.current
-    val readaloudReservePx: Int = readaloudReserveCssPx(
-        playerOpen = readaloudOpen,
-        paginated = formattingPrefs.orientation != ReaderOrientation.Vertical,
-        overlayHeightDp = bottomOverlayHeightPx / density.density,
-    )
+    // The readaloud player floats over the bottom of the page: it does NOT reserve space or
+    // re-paginate, so the page stays static when the player opens. Its translucent backdrop lets the
+    // covered last line or two — and the narrated highlight — show through.
 
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
@@ -310,7 +299,6 @@ fun EpubReaderScreen(
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
-                        readaloudReservePx = readaloudReservePx,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -361,21 +349,24 @@ fun EpubReaderScreen(
                 )
         if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
             Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .onSizeChanged { bottomOverlayHeightPx = it.height },
+                modifier = Modifier.align(Alignment.BottomCenter),
             ) {
                 if (readaloudOpen) {
                     // Reference the reader-theme palette so the player matches the chapter-rail
                     // overlay backdrop (which paints readerTheme.palette.background) and the two
                     // read as one continuous, theme-following strip.
+                    //
+                    // The player floats over the page (it no longer reserves space / re-paginates), so
+                    // it can sit over the last line or two. Paint its backdrop semi-transparent so that
+                    // covered text — and the narrated highlight — stays visible through the bar. The
+                    // controls are Surface CONTENT, unaffected by this alpha, so they remain opaque.
                     val readerPalette = formattingPrefs.theme.palette
                     ReadaloudMiniPlayer(
                         isPlaying = playbackState.isPlaying,
                         speed = playbackState.speed,
                         offlineMessage = readaloudOfflineMessage,
                         downloadProgress = downloadProgress,
-                        containerColor = readerPalette.background,
+                        containerColor = readerPalette.background.copy(alpha = 0.65f),
                         contentColor = readerPalette.foreground,
                         onPlayPause = viewModel::togglePlayPause,
                         onCycleSpeed = {
@@ -738,7 +729,6 @@ private fun EpubNavigatorView(
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
-    readaloudReservePx: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -771,9 +761,6 @@ private fun EpubNavigatorView(
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     val currentPublication by rememberUpdatedState(state.publication)
-    // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
-    // freshly loaded page re-applies the current value.
-    val currentReadaloudReservePx by rememberUpdatedState(readaloudReservePx)
 
     // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
     // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
@@ -923,17 +910,11 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Bumps whenever a formatting change OR a readaloud reserve change reflows the layout so the
-    // decoration effects below re-apply onto the new pagination (see rememberReflowReapplyGeneration).
-    // Opening/closing the player re-paginates, which moves the narrated sentence's column — the
-    // highlight and auto-follow must re-run against the new layout.
-    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs to readaloudReservePx)
-    // Same settle-window generation but keyed ONLY on the formatting prefs, not the readaloud reserve.
-    // The auto-follow probe re-runs on this (plus page loads) to re-centre the narrated sentence after a
-    // font/margin/spacing/orientation reflow — but NOT after the player-open/close reserve reflow, which
-    // the reserve effect pins to the top-of-page line instead (re-following the narrated column there
-    // would re-introduce the "line jumps when the player opens" bug).
-    val followReflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
+    // Bumps whenever a formatting change (font/margin/spacing/orientation) reflows the layout so the
+    // decoration effects and the auto-follow probe below re-apply / re-centre onto the new pagination
+    // (see rememberReflowReapplyGeneration). The readaloud player floats over the page and no longer
+    // reflows it, so opening it is not a reflow trigger.
+    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
 
     // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
     // that reflowGeneration's timer heuristic only approximates — and the only one available after a
@@ -969,46 +950,11 @@ private fun EpubNavigatorView(
                     // reflows the page asynchronously, so a snap at this point rounds a pre-reflow
                     // position and lands close-but-not-exact. The post-go() snap in the navigation
                     // handlers runs after the reflow has settled and is the authoritative one.
-                    // Reserve the bottom strip for the readaloud player on this freshly loaded page
-                    // (paginated only; see ReadaloudReserve.kt). Inject the rule, then apply the
-                    // current value so the page lands already paginated above the player.
-                    fragment.evaluateJavascript(readaloudReserveInjectionJs())
-                    fragment.evaluateJavascript(readaloudReserveApplyJs(currentReadaloudReservePx))
                 }
             }
         }
     }
 
-    // Push the readaloud reserve to the live page the moment it changes (player opens/closes, rail
-    // toggles, rotation) so the text re-paginates above the player without waiting for a page reload.
-    // The decoration effect re-runs via reflowGeneration to re-render the highlight onto the reflowed
-    // layout. The page POSITION through the reflow is handled here, not by the auto-follow probe: the
-    // reserve shrinks/grows every column, re-wrapping the whole text chain, so the page would otherwise
-    // land on different content (the "line jumps when the player opens" bug). We pin the line that was
-    // at the top of the page across the reflow: capture it before, re-anchor to it after as the layout
-    // settles. Only on a real live change (player opens/closes, rail toggles) — not the initial
-    // composition or a page-load re-apply, which have nothing to preserve.
-    var prevReservePx by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(readaloudReservePx) {
-        val fragment = fragmentRef.value ?: return@LaunchedEffect
-        val prev = prevReservePx
-        prevReservePx = readaloudReservePx
-        withContext(Dispatchers.Main) {
-            val anchor = if (prev != null && prev != readaloudReservePx) {
-                ColumnSnap.captureReflowAnchor(fragment)
-            } else {
-                ""
-            }
-            // Injecting the <style> doesn't reflow (the rule is inert until the class is added). Apply
-            // the reserve AND start the re-anchor in ONE evaluation so no frame paints between the
-            // re-pagination and the first snap — the re-anchor's first pass forces a synchronous layout
-            // and corrects scrollLeft before paint, so there's no flash of the reflowed-but-unscrolled page.
-            fragment.evaluateJavascript(readaloudReserveInjectionJs())
-            val applyAndReAnchor = readaloudReserveApplyJs(readaloudReservePx) +
-                ColumnSnap.reflowReSnapScript(anchor)
-            fragment.evaluateJavascript(applyAndReAnchor)
-        }
-    }
 
     // Tap on an in-document anchor inside the WebView → look up the target in
     // the cached spine doc. A footnote shows the popup; a regular cross-
@@ -1240,12 +1186,10 @@ private fun EpubNavigatorView(
     // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
     // chapters, so cross-chapter follow falls out for free in both modes.
     //
-    // Re-keys on followReflowGeneration (formatting reflows) and pageLoadGeneration (rotation / chapter
-    // load) so the narrated sentence is re-centred after those relayouts — but deliberately NOT on the
-    // readaloud-reserve reflow: re-snapping to the narrated sentence's column when the player opens would
-    // land the page on whatever text now precedes it (the "line jumps when the player opens" bug). The
-    // reserve effect above instead pins the line that was at the top of the page across that reflow.
-    LaunchedEffect(activeFragmentRef, sentenceQuotes, followReflowGeneration, pageLoadGeneration.value) {
+    // Re-keys on reflowGeneration (formatting reflows) and pageLoadGeneration (rotation / chapter load)
+    // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
+    // no longer reflows it, so opening it doesn't move the narrated sentence's column.
+    LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect

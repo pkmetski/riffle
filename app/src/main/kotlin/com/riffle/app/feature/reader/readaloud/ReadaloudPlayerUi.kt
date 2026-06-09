@@ -65,7 +65,8 @@ fun ReadaloudMiniPlayer(
 ) {
     // Colours come from the reader-theme palette (the same page colour the chapter-rail overlay
     // paints as its backdrop), so the player, the progress labels, and the rail read as one
-    // continuous, theme-following strip rather than separate chrome.
+    // continuous, theme-following strip rather than separate chrome. The bar [containerColor] is
+    // slightly translucent so the floating player lets the covered text/highlight show through.
     Surface(
         color = containerColor,
         contentColor = contentColor,

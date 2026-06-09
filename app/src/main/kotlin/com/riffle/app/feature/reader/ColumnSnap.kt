@@ -9,14 +9,14 @@ import org.readium.r2.shared.publication.Locator
 /**
  * The single owner of paginated column-snapping for the EPUB reader. Every place that needs the page to
  * rest flush on the column grid goes through this object — navigation routes (TOC / search / resume),
- * in-document cross-references, the read-aloud follow, the player-open reflow, and the at-rest backstop —
- * so a NEW navigation route gets correct snapping just by calling [goAndSnap]; it never re-implements the
- * grid math, the reflow-tracking rAF loop, or the `innerWidth == page-snap pitch` assumption.
+ * in-document cross-references, the read-aloud follow, and the at-rest backstop — so a NEW navigation
+ * route gets correct snapping just by calling [goAndSnap]; it never re-implements the grid math, the
+ * reflow-tracking rAF loop, or the `innerWidth == page-snap pitch` assumption.
  *
  * All snapping holds because the reader is sized so `window.innerWidth` equals Readium's page-snap pitch
  * (see ReaderViewportAlignment) — `floor(x / innerWidth) * innerWidth` is therefore exactly a column
- * boundary. The rAF-based operations ([goAndSnap], [reflowReSnapScript]) share `window.__riffleSnapGen`
- * so a later snap supersedes an in-flight one instead of fighting it.
+ * boundary. The rAF-based operation [goAndSnap] shares `window.__riffleSnapGen` so a later snap
+ * supersedes an in-flight one instead of fighting it.
  *
  * The Kotlin entry points are the API; the `…Js` builders below are the implementation primitives
  * (internal so the script tests can exercise them directly).
@@ -70,21 +70,6 @@ internal object ColumnSnap {
     suspend fun snapToElementColumn(fragment: EpubNavigatorFragment, fragmentId: String) {
         fragment.evaluateJavascript(scrollToColumnJs(fragmentId))
     }
-
-    /**
-     * Captures a prefix of the top-of-page line BEFORE a read-aloud-reserve reflow, so [reflowReSnapScript]
-     * can pin that same line back as the columns re-paginate. Returns "" when nothing on-page is found.
-     */
-    suspend fun captureReflowAnchor(fragment: EpubNavigatorFragment): String =
-        fragment.evaluateJavascript(reflowAnchorCaptureJs())?.trim('"').orEmpty()
-
-    /**
-     * The JS that re-pins [anchor] (from [captureReflowAnchor]) through the reserve reflow. Returned as a
-     * snippet so the caller can append it to the reserve-apply evaluation — running both in ONE
-     * evaluateJavascript so no frame paints between the re-pagination and the first re-snap. "" → no-op.
-     */
-    fun reflowReSnapScript(anchor: String): String =
-        if (anchor.isNotEmpty()) "\n;" + reflowAnchorSnapJs(anchor) else ""
 
     /**
      * Follows the narrated sentence [text] to its column on a sentence change. Returns "on" (followed, or
@@ -142,8 +127,8 @@ internal object ColumnSnap {
           //    sliver of the next page showing" readaloud bug — flooring to the column lands flush on the grid),
           //  - a real PAGE MOVE, forward OR back, when narration has moved to another column — so the view
           //    always returns to the highlight when it changes, identically whichever way the reader had paged.
-          // Player-open reflow is handled elsewhere (this probe deliberately does not re-run on the reserve
-          // reflow; reflowAnchorSnap pins the top line there). Scroll mode keeps centring (handled above).
+          // The player floats over the page and never reflows it, so opening it doesn't move the
+          // narrated column. Scroll mode keeps centring (handled above).
           var absX=r.left + se.scrollLeft;
           se.scrollLeft=Math.floor(absX / iw) * iw;
           return "on";
@@ -167,7 +152,7 @@ internal object ColumnSnap {
     //
     // NEAREST (not floor) because at rest no target is known: a few px of drift rounds back to the SAME
     // column (imperceptible) while a half-turned page rounds to the closest clean page. It does NOT fight the
-    // rAF trackers ([snapToTargetColumnJs], [reflowAnchorSnapJs]): those scroll every frame while a reflow
+    // rAF tracker [snapToTargetColumnJs]: it scrolls every frame while a reflow
     // settles, re-arming this debounce, so it never fires mid-track; once a tracker finishes it has left the
     // page on the grid, so the debounce then rounds a no-op. Vertical (scroll) mode is skipped. Re-setting
     // scrollLeft re-fires 'scroll', but the next settle finds the page on-grid → one harmless no-op, no loop.
@@ -219,49 +204,6 @@ internal object ColumnSnap {
             "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
             "snap();" +
             "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" + // settled, or ~1.2s safety cap
-            "requestAnimationFrame(tick);}" +
-            "tick();})()"
-    }
-
-    // Captures a short text prefix of the line at the TOP of the current paginated page — read before the
-    // read-aloud reserve re-paginates the columns, so [reflowAnchorSnapJs] can pin that same line back
-    // afterwards (else the page lands on different content — the "line jumps when the player opens" bug).
-    // Returns "" when nothing on-page is found.
-    internal fun reflowAnchorCaptureJs(): String =
-        """
-        (function(){
-          var iw=window.innerWidth, ih=window.innerHeight;
-          var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
-          while(n=w.nextNode()){
-            var t=n.nodeValue; if(t.replace(/\s/g,'').length < 4) continue;
-            var g=document.createRange(); g.setStart(n,0); g.setEnd(n, Math.min(t.length,1));
-            var r=g.getBoundingClientRect();
-            if(r.left >= 0 && r.left < iw && r.bottom > 0 && r.top < ih) return t.replace(/^\s+/, '').slice(0,24);
-          }
-          return "";
-        })()
-        """.trimIndent()
-
-    // Re-pins the page to [anchorPrefix] (from [reflowAnchorCaptureJs]) while the read-aloud reserve
-    // re-paginates: a requestAnimationFrame loop that re-locates the prefix each frame and floors scrollLeft
-    // to the column holding it, until scrollWidth holds steady or a safety cap. Shares window.__riffleSnapGen
-    // with [snapToTargetColumnJs], so a TOC/search jump and this re-anchor supersede each other instead of
-    // fighting. No-op for an empty prefix.
-    internal fun reflowAnchorSnapJs(anchorPrefix: String): String {
-        if (anchorPrefix.isEmpty()) return "(function(){})()"
-        val needle = JSONObject.quote(anchorPrefix)
-        return "(function(){var needle=$needle;" +
-            "var se=document.scrollingElement;" +
-            "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
-            "var lastW=-1,stable=0,frames=0;" +
-            "function locate(){var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false),n;" +
-            "while(n=w.nextNode()){var i=n.nodeValue.indexOf(needle);" +
-            "if(i>=0){var g=document.createRange();g.setStart(n,i);g.setEnd(n,Math.min(n.nodeValue.length,i+1));return g.getBoundingClientRect();}}return null;}" +
-            "function snap(){var iw=window.innerWidth;var r=locate();if(r)se.scrollLeft=Math.floor((r.left+se.scrollLeft)/iw)*iw;}" +
-            "function tick(){if(gen!==window.__riffleSnapGen)return;" +
-            "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
-            "snap();" +
-            "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" +
             "requestAnimationFrame(tick);}" +
             "tick();})()"
     }
