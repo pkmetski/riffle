@@ -1033,7 +1033,11 @@ private fun EpubNavigatorView(
                 currentHrefHolder[0]?.substringBefore('#')
             navigating = cover
             try {
-                ColumnSnap.goAndSnap(fragment, locator)
+                // Search locators carry an occurrence-specific progression but no #fragment, so go()
+                // lands on the right hit and we must round THAT page to the grid — not snap to column 0
+                // (the default), which would yank to the chapter top and lose the hit. Same route as the
+                // resume/peer background sync above.
+                ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
                 if (cover) delay(NAV_COVER_SETTLE_MS)
             } finally {
                 navigating = false
@@ -1065,7 +1069,17 @@ private fun EpubNavigatorView(
     // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
     val hasActiveDecorations = remember { mutableStateOf(false) }
 
-    LaunchedEffect(searchResults, currentSearchIndex) {
+    // Readium fixes a decoration's rects at applyDecorations time and never re-positions them. When a
+    // search result is navigated to, the landing page's layout is still settling as the decoration is
+    // applied (the page snaps to the column grid and the search top bar's inset resolves AFTER the first
+    // apply), so the box is placed against the pre-settle layout and the text then shifts out from under
+    // it — verified on device as a constant ~152px vertical offset onto the wrong word (same column, same
+    // width: a placement-timing bug, not a fuzzy mis-resolution). readaloud never shows this because it
+    // re-applies its decoration on every audio tick; search applies once per navigation. We therefore
+    // re-apply across a short settle window after each (re)apply so the boxes track the final layout. The
+    // re-applies are idempotent (same id + locator). Re-keys on reflow/pageLoad as well for rotation and
+    // formatting reflows, matching the readaloud and annotations decoration effects.
+    LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         if (searchResults.isEmpty()) {
             if (!hasActiveDecorations.value) return@LaunchedEffect
             val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
@@ -1078,7 +1092,8 @@ private fun EpubNavigatorView(
             hasActiveDecorations.value = false
             return@LaunchedEffect
         }
-        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        val navFragment = fragmentRef.value ?: return@LaunchedEffect
+        val fragment = navFragment as? DecorableNavigator ?: return@LaunchedEffect
         val decorations = searchResults.mapIndexed { index, locator ->
             Decoration(
                 id = "search_$index",
@@ -1089,10 +1104,31 @@ private fun EpubNavigatorView(
                     Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
             )
         }
+        // Apply immediately for the first paint; the re-resolve loop below then tracks the page as it
+        // settles (see its comment for the why). "The first result is highlighted, the next ones aren't"
+        // was this exact bug on navigated results — the landing page is still moving when the box lands.
         withContext(Dispatchers.Main) {
             fragment.applyDecorations(decorations, group = "search")
         }
         hasActiveDecorations.value = true
+        // Re-resolve the box positions across the post-navigation settle window. Two things matter here:
+        //  1) Readium re-positions a decoration only when its set CHANGES — re-applying the identical list
+        //     is a no-op diff, so the box keeps its first (pre-settle) position. We therefore CLEAR then
+        //     re-apply (back to back on the main thread, no visible gap — the same trick the readaloud
+        //     group uses), which forces Readium to re-run its locator→range resolver against the current,
+        //     settled DOM.
+        //  2) The layout keeps moving after the first apply (go() + the column-snap rAF loop ~1.2s + the
+        //     async typography reflow), so we repeat the clear+re-apply on a SPACED schedule out to ~2.6s.
+        //     Spaced (not a tight poll): a 100ms loop floods the still-navigating WebView and can blank the
+        //     page (ADR 0015); a handful of spaced re-applies is as safe as the first one.
+        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
+            delay(settleDelayMs)
+            if (fragmentRef.value !== navFragment) break // navigated away / fragment recreated — newer effect owns it
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "search")
+                fragment.applyDecorations(decorations, group = "search")
+            }
+        }
     }
 
     // ---- Readaloud synced highlight --------------------------------------------------------

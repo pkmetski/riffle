@@ -161,8 +161,9 @@ private fun DrawerSheetContent(
                 .padding(top = 8.dp, bottom = 2.dp),
             textAlign = TextAlign.Center,
         )
+        val sha = BuildConfig.GIT_SHA.takeIf { it.isNotEmpty() }
         Text(
-            text = "Riffle v${BuildConfig.VERSION_NAME}",
+            text = "Riffle v${BuildConfig.VERSION_NAME}" + (sha?.let { " ($it)" } ?: ""),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier

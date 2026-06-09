@@ -53,4 +53,17 @@ class ReaderWebViewScriptsTest {
     fun `snapToTargetColumnJs preserves dotted ids verbatim`() {
         assertTrue(ColumnSnap.snapToTargetColumnJs("ftn.ch01fn01").contains("var id=\"ftn.ch01fn01\""))
     }
+
+    // A no-fragment jump that must PRESERVE where go() landed (search hits, resume/peer sync) passes
+    // landAtStartWhenNoTarget=false: with no DOM target it ROUNDS the current scroll to the column grid
+    // instead of snapping to column 0. This is the contract search navigation relies on so a search hit
+    // (located by its occurrence-specific progression via go()) lands flush on its own page rather than
+    // being yanked to the chapter top.
+    @Test
+    fun `snapToTargetColumnJs rounds the current scroll to the grid when no target and not landing at start`() {
+        val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false)
+        assertTrue("id is null", js.contains("var id=null"))
+        assertTrue("rounds the current scroll to the grid", js.contains("se.scrollLeft=Math.round(se.scrollLeft/iw)*iw"))
+        assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
+    }
 }
