@@ -5,19 +5,21 @@ import org.junit.Test
 
 class VolumeKeyEventHandlerTest {
 
-    // Helper so tests read naturally: handle(volumeDown, readerActive, navEnabled, invert, panelOpen)
+    // Helper so tests read naturally: handle(volumeDown, readerActive, navEnabled, invert, panelOpen, audioPlaying)
     private fun handle(
         isVolumeDown: Boolean,
         isReaderActive: Boolean = true,
         volumeNavEnabled: Boolean = true,
         invertVolumeKeys: Boolean = false,
         isPanelOpen: Boolean = false,
+        isAudioPlaying: Boolean = false,
     ) = VolumeKeyEventHandler.handle(
         isVolumeDown = isVolumeDown,
         isReaderActive = isReaderActive,
         volumeNavEnabled = volumeNavEnabled,
         invertVolumeKeys = invertVolumeKeys,
         isPanelOpen = isPanelOpen,
+        isAudioPlaying = isAudioPlaying,
     )
 
     @Test
@@ -36,6 +38,28 @@ class VolumeKeyEventHandlerTest {
     fun `returns Swallow when a panel is open`() {
         assertEquals(VolumeKeyAction.Swallow, handle(isVolumeDown = true, isPanelOpen = true))
         assertEquals(VolumeKeyAction.Swallow, handle(isVolumeDown = false, isPanelOpen = true))
+    }
+
+    @Test
+    fun `returns PassThrough while audio is playing, even when nav is enabled`() {
+        assertEquals(VolumeKeyAction.PassThrough, handle(isVolumeDown = true, isAudioPlaying = true))
+        assertEquals(VolumeKeyAction.PassThrough, handle(isVolumeDown = false, isAudioPlaying = true))
+    }
+
+    @Test
+    fun `audio playback wins over an open panel`() {
+        assertEquals(
+            VolumeKeyAction.PassThrough,
+            handle(isVolumeDown = true, isPanelOpen = true, isAudioPlaying = true),
+        )
+    }
+
+    @Test
+    fun `audio playback wins regardless of invert setting`() {
+        assertEquals(
+            VolumeKeyAction.PassThrough,
+            handle(isVolumeDown = true, invertVolumeKeys = true, isAudioPlaying = true),
+        )
     }
 
     @Test

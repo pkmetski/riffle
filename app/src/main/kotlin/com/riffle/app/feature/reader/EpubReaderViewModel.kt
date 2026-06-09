@@ -414,6 +414,8 @@ class EpubReaderViewModel @Inject constructor(
                 .map { it.isPlaying }
                 .distinctUntilChanged()
                 .collect { isPlaying ->
+                    // Hand the volume keys to system volume while audio plays; revert on pause/stop.
+                    readerStateHolder.isAudioPlaying = isPlaying
                     if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
                 }
         }
@@ -560,6 +562,7 @@ class EpubReaderViewModel @Inject constructor(
     fun onReaderClosed() {
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
+        readerStateHolder.isAudioPlaying = false
         syncJob?.cancel()
         storytellerSyncJob?.cancel()
         if (closeSyncDone) return
