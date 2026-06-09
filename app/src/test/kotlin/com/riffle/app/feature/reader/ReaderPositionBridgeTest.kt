@@ -96,4 +96,26 @@ class ReaderPositionBridgeTest {
         val remoteCanonical = bridge.audioSecondsToCanonical(2.0)!! // progression 0.125, no totalProgression
         assertEquals(0.125f, bridge.canonicalBookProgress(remoteCanonical), 1e-6f)
     }
+
+    // The two EPUBs are spine-aligned by index but carry different chapter hrefs (ADR 0026): a
+    // "Play from here" selection arrives as the rendered ABS href, but the player's clips are keyed
+    // by the Storyteller bundle href. This maps one to the other so the right chapter's clip is found.
+    private val splitHrefBridge = ReaderPositionBridge(
+        absSpineHrefs = listOf("xhtml/chapter1.xhtml", "xhtml/chapter2.xhtml"),
+        absChapterHtml = { null },
+        storytellerSpineHrefs = listOf("text/part0001.xhtml", "text/part0002.xhtml"),
+        storytellerChapterHtml = { null },
+        translator = translator,
+    )
+
+    @Test
+    fun `displayedHrefToBundleHref maps the ABS chapter href to the spine-aligned bundle href`() {
+        assertEquals("text/part0002.xhtml", splitHrefBridge.displayedHrefToBundleHref("xhtml/chapter2.xhtml"))
+        assertEquals("text/part0001.xhtml", splitHrefBridge.displayedHrefToBundleHref("/xhtml/chapter1.xhtml"))
+    }
+
+    @Test
+    fun `displayedHrefToBundleHref is null for an href outside the ABS spine`() {
+        assertNull(splitHrefBridge.displayedHrefToBundleHref("xhtml/nope.xhtml"))
+    }
 }

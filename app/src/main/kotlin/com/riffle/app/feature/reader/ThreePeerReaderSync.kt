@@ -182,6 +182,19 @@ class ThreePeerReaderSyncCoordinator(
         bridge.canonicalToFragmentRef(canonicalLocatorJson)
 
     /**
+     * Re-keys a "Play from here" selection ref (the displayed ABS `href#spanId`) onto the Storyteller
+     * bundle chapter the selection sits in, so the player resolves the clip in THAT chapter rather than
+     * the first book-wide occurrence of the span id (ids recur across chapters — the "Play-from-here
+     * reset my progress" bug). Returns the bundle-href ref, or `null` when the chapter can't be mapped
+     * or the ref carries no span id; the caller then plays the original ref unchanged.
+     */
+    fun bundleFragmentRefForSelection(displayedRef: String): String? {
+        val spanId = displayedRef.substringAfter('#', "").takeIf { it.isNotEmpty() } ?: return null
+        val bundleHref = bridge.displayedHrefToBundleHref(displayedRef.substringBefore('#')) ?: return null
+        return "$bundleHref#$spanId"
+    }
+
+    /**
      * Responsive update of the matched ABS audiobook's `currentTime` from the current **reading
      * position**, translated through the bundle's SMIL ([ReaderPositionBridge.canonicalToAudioSeconds],
      * absolute over the concatenated audio files). Used by the audiobook-follow loop while readaloud

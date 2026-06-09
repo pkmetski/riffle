@@ -136,6 +136,19 @@ class ReaderPositionBridge(
     fun canonicalToFragmentRef(locatorJson: String): String? =
         fromCanonical(locatorJson, Domain.ST)?.let { translator.fragmentAt(it) }
 
+    /**
+     * The Storyteller-bundle spine href for the displayed (ABS) chapter [displayedHref] — spine-aligned
+     * by index (ADR 0019). "Play from here" carries the rendered ABS href plus a Storyteller span id;
+     * since span ids recur across chapters, the player needs the bundle chapter the selection sits in to
+     * pick the right clip. Null when the href isn't a known ABS spine entry, so the caller keeps the
+     * original ref (the player then falls back to a bare-id match). The chapter index is shared between
+     * the two EPUBs; only the href scheme differs, which [ReadaloudTrack] reconciles.
+     */
+    fun displayedHrefToBundleHref(displayedHref: String): String? {
+        val idx = spineIndexOfHref(absSpineHrefs, displayedHref).takeIf { it >= 0 } ?: return null
+        return storytellerSpineHrefs.getOrNull(idx)
+    }
+
     private fun spineIndexOfHref(hrefs: List<String>, href: String): Int {
         val target = normalizeEpubHref(href)
         return hrefs.indexOfFirst { normalizeEpubHref(it) == target }
