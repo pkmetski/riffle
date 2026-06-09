@@ -99,10 +99,10 @@ class SeriesIntegrationTest {
     private class FakeLibraryDao : LibraryDao {
         override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> = MutableStateFlow(emptyList())
         override suspend fun libraryIdsForServer(serverId: String): List<String> = emptyList()
-        override suspend fun getById(libraryId: String): LibraryEntity? = null
+        override suspend fun getById(serverId: String, libraryId: String): LibraryEntity? = null
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {}
         override suspend fun deleteByServerId(serverId: String) {}
-        override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) {}
+        override suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean) {}
     }
 
     private class FakeLibraryItemDao : LibraryItemDao {

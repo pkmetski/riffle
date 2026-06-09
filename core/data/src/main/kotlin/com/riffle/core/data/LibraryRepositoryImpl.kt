@@ -100,8 +100,12 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getItem(serverId: String, itemId: String): LibraryItem? =
         libraryItemDao.getById(serverId, itemId)?.toDomain()
 
-    override suspend fun getLibrary(libraryId: String): Library? =
-        libraryDao.getById(libraryId)?.toDomain()
+    // Library ids are only unique within a Server (issue #113); resolve against the active Server's
+    // copy, mirroring how [getItem] keys item reads. No active Server → nothing to resolve.
+    override suspend fun getLibrary(libraryId: String): Library? {
+        val serverId = serverRepository.getActive()?.id ?: return null
+        return libraryDao.getById(serverId, libraryId)?.toDomain()
+    }
 
     override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? =
         seriesDao.findSeriesIdForItem(serverId, itemId)
@@ -181,7 +185,7 @@ class LibraryRepositoryImpl @Inject constructor(
                     }
                 libraryItemDao.replaceAllForLibrary(libraryId, entities)
                 val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
-                libraryDao.setUnsupported(libraryId, isUnsupported)
+                libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
                 storytellerReadaloudSyncer.syncStale()
                 readaloudMatchingService.reconcileLinks()
                 LibraryRefreshResult.Success

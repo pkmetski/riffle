@@ -1259,6 +1259,59 @@ class MigrationTest {
     }
 
     @Test
+    fun migration30To31_reKeysLibrariesByServerIdAndId() {
+        helper.createDatabase(TEST_DB, 30).use { db ->
+            // Two Servers on the same Audiobookshelf instance (issue #113).
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s2', 'http://media-server', 0, 0, 'plamen', 'AUDIOBOOKSHELF')"
+            )
+            // A pre-existing library owned by s1. Under the v30 bare-id PK only one row per id can
+            // exist, so the collision can't be pre-seeded here — the migration must enable it.
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib', 'Books', 'book', 's1', 1)")
+            // An orphan whose serverId references no Server — dropped so the new FK holds.
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('orphan', 'Ghost', 'book', 'ghost', 0)")
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 31, true, RiffleDatabase.MIGRATION_30_31)
+
+        // s1's library is preserved with all its column values.
+        db.query("SELECT name, mediaType, isUnsupported FROM libraries WHERE serverId = 's1' AND id = 'lib'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("Books", cursor.getString(0))
+            assertEquals("book", cursor.getString(1))
+            assertEquals(1, cursor.getInt(2))
+        }
+        // The orphan row was dropped.
+        db.query("SELECT COUNT(*) FROM libraries WHERE id = 'orphan'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        // The composite key now lets the other Server own a same-id library — the heart of #113.
+        db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib', 'Audiobooks', 'book', 's2', 0)")
+        db.query("SELECT name FROM libraries WHERE id = 'lib' ORDER BY serverId").use { cursor ->
+            assertEquals(2, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("Books", cursor.getString(0))
+            cursor.moveToNext()
+            assertEquals("Audiobooks", cursor.getString(0))
+        }
+        // FK cascade: removing a Server clears its libraries (and only its own).
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 's1'")
+        db.query("SELECT serverId FROM libraries WHERE id = 'lib'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s2", cursor.getString(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1267,7 +1320,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 30, true,
+            TEST_DB, 31, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1297,6 +1350,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_27_28,
             RiffleDatabase.MIGRATION_28_29,
             RiffleDatabase.MIGRATION_29_30,
+            RiffleDatabase.MIGRATION_30_31,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

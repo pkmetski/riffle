@@ -33,8 +33,8 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
 internal object ThrowingLibraryDao : LibraryDao {
     override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> = flowOf(emptyList())
     override suspend fun libraryIdsForServer(serverId: String): List<String> = emptyList()
-    override suspend fun getById(libraryId: String): LibraryEntity? = null
+    override suspend fun getById(serverId: String, libraryId: String): LibraryEntity? = null
     override suspend fun upsertAll(libraries: List<LibraryEntity>) = Unit
     override suspend fun deleteByServerId(serverId: String) = Unit
-    override suspend fun setUnsupported(libraryId: String, isUnsupported: Boolean) = Unit
+    override suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean) = Unit
 }

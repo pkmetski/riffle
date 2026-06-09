@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AnnotationEntity::class,
         ReadaloudResumePositionEntity::class,
     ],
-    version = 30,
+    version = 31,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -599,6 +599,38 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_29_30 = object : Migration(29, 30) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `audioDurationSec` REAL NOT NULL DEFAULT 0")
+            }
+        }
+
+        // Re-keys `libraries` from (id) to (serverId, id). Library ids are unique only within an
+        // Audiobookshelf instance, so two Servers pointing at the same instance emit identical ids
+        // (issue #113); the bare-id PK let one Server's libraries overwrite the other's. Adds the
+        // serverId FK-cascade (libraries previously relied on manual cleanup in ServerRepository)
+        // and a serverId index, matching `library_items`. Orphan rows whose serverId no longer
+        // references a Server are dropped so the new FK holds.
+        val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `libraries_new` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`mediaType` TEXT NOT NULL, " +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`isUnsupported` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`serverId`, `id`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "INSERT INTO `libraries_new` (id, name, mediaType, serverId, isUnsupported) " +
+                        "SELECT id, name, mediaType, serverId, isUnsupported FROM `libraries` " +
+                        "WHERE serverId IN (SELECT id FROM `servers`)"
+                )
+                db.execSQL("DROP TABLE `libraries`")
+                db.execSQL("ALTER TABLE `libraries_new` RENAME TO `libraries`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_libraries_serverId` ON `libraries` (`serverId`)"
+                )
             }
         }
     }
