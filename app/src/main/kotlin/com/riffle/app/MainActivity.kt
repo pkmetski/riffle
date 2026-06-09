@@ -99,6 +99,7 @@ class MainActivity : FragmentActivity() {
             volumeNavEnabled = volumeNavEnabled.value,
             invertVolumeKeys = invertVolumeKeys.value,
             isPanelOpen = readerStateHolder.isPanelOpen,
+            isAudioPlaying = readerStateHolder.isAudioPlaying,
         )
         return when (action) {
             VolumeKeyAction.NavigateForward -> {
