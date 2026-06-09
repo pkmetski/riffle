@@ -4,20 +4,17 @@ package com.riffle.app.feature.reader.readaloud
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
@@ -38,14 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.riffle.app.R
 
 /** Formats the speed as the spec wants it: 1×, 1.25×, 0.75×, … (trailing zeros trimmed). */
 private fun speedLabel(speed: Float): String {
@@ -53,35 +50,6 @@ private fun speedLabel(speed: Float): String {
     return "${s}×"
 }
 
-/**
- * A circular-arrow skip glyph with the seconds count overlaid. Material ships Forward30 but no
- * Replay15, so both fine-skip buttons share this drawing for a matched look: a counter-clockwise
- * [Icons.Filled.Replay] for rewind, mirrored horizontally for forward.
- */
-@Composable
-private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color) {
-    Box(contentAlignment = Alignment.Center) {
-        Icon(
-            imageVector = Icons.Filled.Replay,
-            contentDescription = null,
-            tint = tint,
-            // Larger arrow so the overlaid numeral has room to read. Only the arrow mirrors for
-            // forward; the numeral is a separate child, so it stays upright.
-            modifier = Modifier
-                .size(28.dp)
-                .then(if (forward) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
-        )
-        Text(
-            // Nudged up onto the arrow's open centre and set extra-bold so it doesn't collide with
-            // the arrowhead the way the old 8sp centred numeral did.
-            text = seconds.toString(),
-            color = tint,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.offset(y = (-1).dp),
-        )
-    }
-}
 
 /**
  * Bottom mini-player bar. Tapping the bar body (not a control) expands to the full sheet.
@@ -153,7 +121,11 @@ fun ReadaloudMiniPlayer(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = onRewind, modifier = Modifier.testTag("readaloud_rewind")) {
-                    SkipIcon(seconds = 15, forward = false, tint = contentColor)
+                    Icon(
+                        painter = painterResource(R.drawable.ic_replay_15),
+                        contentDescription = "Rewind 15 seconds",
+                        tint = contentColor,
+                    )
                 }
                 IconButton(
                     onClick = onPreviousChapter,
@@ -176,7 +148,11 @@ fun ReadaloudMiniPlayer(
                     Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter")
                 }
                 IconButton(onClick = onForward, modifier = Modifier.testTag("readaloud_forward")) {
-                    SkipIcon(seconds = 30, forward = true, tint = contentColor)
+                    Icon(
+                        imageVector = Icons.Filled.Forward30,
+                        contentDescription = "Forward 30 seconds",
+                        tint = contentColor,
+                    )
                 }
                 Spacer(modifier = Modifier.weight(1f))
             }
