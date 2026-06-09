@@ -1121,6 +1121,14 @@ class EpubReaderViewModel @Inject constructor(
 
     fun setSpeed(speed: Float) = playerCoordinator.setSpeed(speed)
 
+    fun rewind() = playerCoordinator.rewind()
+
+    fun forward() = playerCoordinator.forward()
+
+    fun previousChapter() = playerCoordinator.previousChapter()
+
+    fun nextChapter() = playerCoordinator.nextChapter()
+
     /**
      * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when
      * online, probe the download size and surface the confirm dialog; when offline, surface the
