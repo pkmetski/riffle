@@ -12,6 +12,12 @@ plugins {
 // via the stub in app/src/main/java/android/support/v4/util/ArrayMap.java instead.
 configurations.all {
     exclude(group = "com.android.support")
+    // Hilt's aggregating annotation processor bundles an older kotlin-metadata-jvm that only
+    // reads Kotlin metadata up to 2.3.0 and fails on Kotlin 2.4.0 output ("maximum supported
+    // version is 2.3.0"). Force the matching version so the processor can read the new metadata.
+    resolutionStrategy {
+        force("org.jetbrains.kotlin:kotlin-metadata-jvm:${libs.versions.kotlin.get()}")
+    }
 }
 
 val localProps = Properties().apply {
