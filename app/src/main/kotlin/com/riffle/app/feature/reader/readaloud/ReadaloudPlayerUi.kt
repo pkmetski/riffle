@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
@@ -63,13 +65,20 @@ private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color) {
             imageVector = Icons.Filled.Replay,
             contentDescription = null,
             tint = tint,
-            modifier = if (forward) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier,
+            // Larger arrow so the overlaid numeral has room to read. Only the arrow mirrors for
+            // forward; the numeral is a separate child, so it stays upright.
+            modifier = Modifier
+                .size(28.dp)
+                .then(if (forward) Modifier.scale(scaleX = -1f, scaleY = 1f) else Modifier),
         )
         Text(
+            // Nudged up onto the arrow's open centre and set extra-bold so it doesn't collide with
+            // the arrowhead the way the old 8sp centred numeral did.
             text = seconds.toString(),
             color = tint,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.offset(y = (-1).dp),
         )
     }
 }
