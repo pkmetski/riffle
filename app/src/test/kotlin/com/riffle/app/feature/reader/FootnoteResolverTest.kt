@@ -297,6 +297,76 @@ class FootnoteResolverTest {
         )
     }
 
+    // The "footnote page" bug (Lean Customer Development): the chapter renders its
+    // notes inline at the end of the same resource. Each entry begins with a
+    // back-marker that links to the in-text noteref:
+    //   in body:   <sup>[<a id="ch01fn02" href="#ftn.ch01fn02" class="footnote">4</a>]</sup>
+    //   note entry: <div class="footnote" id="ftn.ch01fn02">
+    //                 <p><sup>[<a href="#ch01fn02" class="para">4</a>] </sup> …url…</p>
+    //               </div>
+    // Tapping the note entry's back-marker fires the JS bridge with the body
+    // noteref id "ch01fn02". getElementById lands on that body <a>, which carries
+    // class="footnote" *itself* (so looksLikeFootnote is true) but sits in prose,
+    // not in a note container. We must NOT climb to its <sup> and return "[4]" —
+    // there is no note body there. Returning null lets the reader treat it as a
+    // backlink and navigate to the in-text reference instead.
+    @Test
+    fun `back-marker resolving to an in-prose noteref is not a footnote`() {
+        val html = """
+            <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+              <p>Market matters most.<sup>[<a id="ch01fn02" href="#ftn.ch01fn02" class="footnote">4</a>]</sup></p>
+              <div class="footnote" id="ftn.ch01fn02">
+                <p><sup>[<a href="#ch01fn02" class="para">4</a>] </sup>
+                  <a class="ulink" href="http://blog.pmarca.com/x">http://blog.pmarca.com/x</a></p>
+              </div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        // The body noteref id — what the back-marker's href points at.
+        assertNull(FootnoteResolver.extractFootnoteContent(doc, "ch01fn02"))
+    }
+
+    // The complement of the above: tapping the in-text noteref (whose href is the
+    // note entry's id) still resolves to the full note body with its url.
+    @Test
+    fun `in-text noteref still resolves to the note body`() {
+        val html = """
+            <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+              <p>Market matters most.<sup>[<a id="ch01fn02" href="#ftn.ch01fn02" class="footnote">4</a>]</sup></p>
+              <div class="footnote" id="ftn.ch01fn02">
+                <p><sup>[<a href="#ch01fn02" class="para">4</a>] </sup>
+                  <a class="ulink" href="http://blog.pmarca.com/x">http://blog.pmarca.com/x</a></p>
+              </div>
+            </body></html>
+        """.trimIndent()
+        val doc = FootnoteResolver.parse(html)
+        val content = FootnoteResolver.extractFootnoteContent(doc, "ftn.ch01fn02")
+        assertNotNull(content)
+        assertEquals("[4] http://blog.pmarca.com/x", content!!.text)
+        assertEquals("http://blog.pmarca.com/x", content.links.single().url)
+    }
+
+    // End-to-end: tapping the note entry's back-marker classifies as a
+    // CrossReference, so the reader snaps to the in-text noteref's column
+    // (navigating back to the reference) instead of opening a "[4]"-only popup.
+    @Test
+    fun `classifyAnchorTap treats a note back-marker as CrossReference`() {
+        val html = """
+            <html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+              <p>Market matters most.<sup>[<a id="ch01fn02" href="#ftn.ch01fn02" class="footnote">4</a>]</sup></p>
+              <div class="footnote" id="ftn.ch01fn02">
+                <p><sup>[<a href="#ch01fn02" class="para">4</a>] </sup>
+                  <a class="ulink" href="http://blog.pmarca.com/x">http://blog.pmarca.com/x</a></p>
+              </div>
+            </body></html>
+        """.trimIndent()
+        val cache = mapOf("OEBPS/ch01.html" to FootnoteResolver.parse(html))
+        assertEquals(
+            FootnoteResolver.AnchorTarget.CrossReference,
+            FootnoteResolver.classifyAnchorTap("OEBPS/ch01.html", cache, "ch01fn02"),
+        )
+    }
+
     // The screenshot bug: brackets are plain text, the number is a back-reference
     // anchor. Stripping the anchor left an orphaned "[]". The number must survive.
     @Test

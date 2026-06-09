@@ -101,8 +101,13 @@ internal object FootnoteResolver {
         // reference at the note's inner back-reference anchor — an <a> whose
         // text is just the marker ("1.") — rather than the note entry itself.
         // Landing there yields a popup that shows only the number, so climb to
-        // the enclosing note entry before reading the body.
-        val block = if (isBackReference(target)) noteEntryFor(target) else target
+        // the enclosing note entry before reading the body. When the marker has
+        // no note-entry ancestor it isn't note content at all but an in-prose
+        // noteref (Lean Customer Development's <a class="footnote"> markers carry
+        // the signal themselves yet sit in body text): bail so the reader treats
+        // the tap as a backlink and navigates to the reference instead of
+        // showing a "[4]"-only popup.
+        val block = if (isBackReference(target)) noteEntryFor(target) ?: return null else target
         return noteContent(block).takeIf { it.text.isNotEmpty() }
     }
 
@@ -287,14 +292,17 @@ internal object FootnoteResolver {
 
     // Climbs from a marker anchor to the enclosing note entry: the nearest
     // ancestor that itself carries a footnote signal (so a single <aside>, not
-    // the plural <section epub:type="rearnotes"> that wraps every note).
-    private fun noteEntryFor(marker: Element): Element {
+    // the plural <section epub:type="rearnotes"> that wraps every note). Returns
+    // null when no ancestor carries a footnote signal — the marker is then an
+    // in-prose noteref/backlink, not the inner marker of a note entry, and has
+    // no body to show.
+    private fun noteEntryFor(marker: Element): Element? {
         var node: Element? = marker.parent()
         while (node != null) {
             if (carriesFootnoteSignal(node)) return node
             node = node.parent()
         }
-        return marker.parent() ?: marker
+        return null
     }
 
     private fun looksLikeFootnote(element: Element): Boolean {
