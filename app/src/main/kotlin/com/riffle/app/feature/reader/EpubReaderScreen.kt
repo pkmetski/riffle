@@ -1069,7 +1069,13 @@ private fun EpubNavigatorView(
     // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
     val hasActiveDecorations = remember { mutableStateOf(false) }
 
-    LaunchedEffect(searchResults, currentSearchIndex) {
+    // Re-keys on reflowGeneration + pageLoadGeneration for the SAME reason the readaloud and annotations
+    // decoration effects do: Readium fixes a decoration's rects at applyDecorations time. Applied once
+    // (before the chapter's typography reflow settles, or before a freshly navigated chapter has loaded),
+    // the search highlight is positioned against the compact default layout; the text then reflows larger
+    // and shifts DOWN, but the rect stays put — so the highlight lands several lines too high (on the
+    // wrong word). Re-applying after the layout settles re-resolves the rects against the real pagination.
+    LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         if (searchResults.isEmpty()) {
             if (!hasActiveDecorations.value) return@LaunchedEffect
             val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
