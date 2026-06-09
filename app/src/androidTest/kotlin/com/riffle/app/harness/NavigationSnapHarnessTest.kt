@@ -366,7 +366,7 @@ class NavigationSnapHarnessTest {
         showTopAppBar()
         composeTestRule.onNodeWithContentDescription("Table of Contents").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag("toc_panel").fetchSemanticsNodes().isNotEmpty()
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_TOC_PANEL).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(entryText).performClick()
     }
