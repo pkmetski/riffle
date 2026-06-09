@@ -526,6 +526,9 @@ private fun EpubChapterRailOverlay(
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    // Whole-book progress for the "% read" label — matches book details. Kept separate from
+    // cursorPosition, which places the cursor inside the active (chapter-weighted) rail segment.
+    val totalProgress by viewModel.currentLocatorTotalProgression.collectAsState()
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         // Backdrop is the exact reader-theme page colour so the strip reads as page margin,
@@ -541,7 +544,7 @@ private fun EpubChapterRailOverlay(
                     activeChapterIndex = activeRailSegmentIndex,
                     chapterCount = railSegments.size,
                     activeChapterTitle = railSegments.getOrNull(activeRailSegmentIndex)?.title.orEmpty(),
-                    totalProgress = cursorPosition,
+                    totalProgress = totalProgress,
                     readerTheme = readerTheme,
                     showCountAndPercent = showProgressLabels,
                     showChapterName = showChapterNameLabel,
