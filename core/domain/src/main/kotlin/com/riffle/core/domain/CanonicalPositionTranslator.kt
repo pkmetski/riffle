@@ -66,14 +66,19 @@ class CanonicalPositionTranslator(
      * the latest narrated fragment at or before [pos] within the same chapter. Returns
      * `null` when no narrated fragment precedes [pos].
      */
-    fun storytellerProgressionToAudioSeconds(pos: ChapterProgression): Double? {
-        val fragment = fragmentProgressions.entries
+    fun storytellerProgressionToAudioSeconds(pos: ChapterProgression): Double? =
+        fragmentAt(pos)?.let { textFragmentToAudioSeconds(it) }
+
+    /**
+     * The narrated fragment ref at or before [pos] within the same chapter — the sentence a reader
+     * position falls in (or the most recent one before it). Lets readaloud start exactly where a
+     * server sync placed the reader, rather than at the page top. `null` when no fragment precedes it.
+     */
+    fun fragmentAt(pos: ChapterProgression): String? =
+        fragmentProgressions.entries
             .filter { it.value.chapterIndex == pos.chapterIndex && it.value.progression <= pos.progression }
             .maxByOrNull { it.value.progression }
             ?.key
-            ?: return null
-        return textFragmentToAudioSeconds(fragment)
-    }
 
     /**
      * A within-chapter progression in the Storyteller EPUB → the same logical point as

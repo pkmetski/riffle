@@ -169,6 +169,11 @@ class ThreePeerReaderSyncCoordinator(
         return ThreePeerReaderCycleResult(jump, result.canonicalLastUpdate)
     }
 
+    /** The narrated fragment a canonical reading position falls in, so readaloud can start exactly
+     *  where a server-sync jump placed the reader rather than at the page top. */
+    fun fragmentForCanonical(canonicalLocatorJson: String): String? =
+        bridge.canonicalToFragmentRef(canonicalLocatorJson)
+
     /**
      * Responsive update of the matched ABS audiobook's `currentTime` from the current **reading
      * position**, translated through the bundle's SMIL ([ReaderPositionBridge.canonicalToAudioSeconds],

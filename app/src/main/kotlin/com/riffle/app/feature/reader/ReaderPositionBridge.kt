@@ -131,6 +131,11 @@ class ReaderPositionBridge(
     fun audioSecondsForFragment(textFragmentRef: String): Double? =
         translator.fragmentRefToAudioSeconds(textFragmentRef)
 
+    /** The narrated Storyteller fragment (`href#id`) a canonical reading position falls in — the
+     *  sentence readaloud should start at when a server sync placed the reader here. */
+    fun canonicalToFragmentRef(locatorJson: String): String? =
+        fromCanonical(locatorJson, Domain.ST)?.let { translator.fragmentAt(it) }
+
     private fun spineIndexOfHref(hrefs: List<String>, href: String): Int {
         val target = normalizeEpubHref(href)
         return hrefs.indexOfFirst { normalizeEpubHref(it) == target }

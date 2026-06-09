@@ -37,6 +37,7 @@ import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -553,7 +554,13 @@ class EpubReaderViewModel @Inject constructor(
                         lastLocator = loc
                         closeLocator = null
                         resumeFragmentRef = null
-                        persistReadaloudResumePosition(loc, fragmentRef = null)
+                        // The exact narrated sentence at the synced position, so a following "start
+                        // readaloud" begins there (not the page top). The column-snap shifts the reader's
+                        // progression off the synced point, so the planner's page check can't be relied on
+                        // — start from the fragment directly instead. Only when not already narrating.
+                        val syncedFragment = coordinator.fragmentForCanonical(json)
+                        if (!playerCoordinator.state.value.isPlaying) pendingStartFragmentRef = syncedFragment
+                        persistReadaloudResumePosition(loc, fragmentRef = syncedFragment)
                     }
                 }
                 if (result.canonicalLastUpdate > localUpdatedAt) {
@@ -1029,6 +1036,7 @@ class EpubReaderViewModel @Inject constructor(
         // Record where we stopped on the audiobook too, derived from the reading position via the
         // bundle (lastLocator survives close(), so no need to capture the audio clock first).
         val hadFragment = resumeFragmentRef != null
+        pendingStartFragmentRef = null
         readaloudPrepared = false
         readaloudStarted = false
         playerCoordinator.close()
@@ -1181,6 +1189,11 @@ class EpubReaderViewModel @Inject constructor(
     private var closeLocator: Locator? = null
     private var resumeFragmentRef: String? = null
 
+    // The exact narrated sentence a server sync placed the reader at (set in runThreePeerCycle on an
+    // inbound jump). The next "start readaloud" begins here so it matches the synced audiobook
+    // position precisely, instead of the page top. Ignored once the reader leaves that chapter.
+    private var pendingStartFragmentRef: String? = null
+
     private suspend fun ensurePreparedAndPlay(bundle: File) {
         ensureOpened(bundle) ?: return
         if (readaloudStarted) {
@@ -1189,6 +1202,19 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         readaloudStarted = true
+        // A server sync just placed the reader at a precise audiobook position: start narration exactly
+        // there (by its fragment), as long as the reader is still in that chapter. This overrides the
+        // page-top probe, which would otherwise start at the top of the page rather than the synced
+        // sentence. Consumed once.
+        pendingStartFragmentRef?.let { pending ->
+            pendingStartFragmentRef = null
+            if (lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(pending.substringBefore('#'))) {
+                closeLocator = null
+                resumeFragmentRef = null
+                playerCoordinator.playFromHere(pending)
+                return
+            }
+        }
         // Consume the remembered close position so a later first-of-session play (after dispose) or a
         // mid-chapter pause doesn't reuse a stale page.
         val closed = closeLocator

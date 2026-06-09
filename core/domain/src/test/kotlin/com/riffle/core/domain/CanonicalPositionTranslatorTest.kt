@@ -138,6 +138,21 @@ class CanonicalPositionTranslatorTest {
     }
 
     @Test
+    fun `fragmentAt returns the narrated sentence a reading position falls in`() {
+        val frags = mapOf(
+            "c1#s1" to ChapterProgression(0, 0.1),
+            "c1#s2" to ChapterProgression(0, 0.5),
+            "c1#s3" to ChapterProgression(0, 0.8),
+        )
+        val translator = CanonicalPositionTranslator(smilClips = emptyList(), fragmentProgressions = frags)
+
+        assertEquals("c1#s2", translator.fragmentAt(ChapterProgression(0, 0.6)))  // latest at/before 0.6
+        assertEquals("c1#s1", translator.fragmentAt(ChapterProgression(0, 0.1)))  // exact boundary
+        assertNull("nothing narrated before 0.05", translator.fragmentAt(ChapterProgression(0, 0.05)))
+        assertNull("wrong chapter", translator.fragmentAt(ChapterProgression(1, 0.6)))
+    }
+
+    @Test
     fun `multi-file SMIL clip times are made absolute over the concatenated audio`() {
         // Two audio files: file1 spans 0..10s, file2 spans 0..8s in its own clock. The ABS audiobook
         // is the files concatenated, so file2's clips live at 10..18s absolute. Without this, a clip in
