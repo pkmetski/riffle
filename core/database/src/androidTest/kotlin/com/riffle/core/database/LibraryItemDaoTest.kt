@@ -3,11 +3,15 @@ package com.riffle.core.database
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -144,17 +148,21 @@ class LibraryItemDaoTest {
     // A6 — replaceAllForLibrary must never expose an empty intermediate state to observers.
     // If @Transaction is removed the delete emits before the insert, causing a visible flicker.
     @Test
-    fun replaceAllForLibrary_neverEmitsEmptyIntermediateState() = runTest {
+    fun replaceAllForLibrary_neverEmitsEmptyIntermediateState() = runBlocking {
         dao.upsertAll(listOf(item("a", 0.3f), item("b", 0.6f)))
 
-        val emittedStates = mutableListOf<List<LibraryItemEntity>>()
-        val collectJob = launch {
+        // Room emits on its own query executor, not this coroutine's scheduler, so we wait for
+        // emissions deterministically (with a timeout) rather than racing them with yield().
+        val emittedStates = CopyOnWriteArrayList<List<LibraryItemEntity>>()
+        val collectJob = launch(Dispatchers.IO) {
             dao.observeAllBooks("lib1").collect { emittedStates.add(it.toList()) }
         }
-        yield() // let the initial emission land before we replace
+        withTimeout(5_000) { while (emittedStates.isEmpty()) delay(10) }
 
         dao.replaceAllForLibrary("lib1", listOf(item("c", 0f), item("d", 0.5f), item("e", 1f)))
-        yield()
+        withTimeout(5_000) {
+            while (emittedStates.last().map { it.id }.toSet() != setOf("c", "d", "e")) delay(10)
+        }
 
         collectJob.cancel()
 

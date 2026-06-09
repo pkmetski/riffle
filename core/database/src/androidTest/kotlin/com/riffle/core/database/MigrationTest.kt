@@ -201,7 +201,9 @@ class MigrationTest {
     fun migration8To9() {
         helper.createDatabase(TEST_DB, 8).use { db ->
             db.execSQL(
-                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded, isSupported, ebookFileIno, ebookFormat) VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 0, 1, NULL, 'epub')"
+                // genres (added at 7→8, NOT NULL) has only a Kotlin default, not a SQL one, so it
+                // isn't in the generated CREATE — the seed must supply it.
+                "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded, isSupported, ebookFileIno, ebookFormat, genres) VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 0, 1, NULL, 'epub', '')"
             )
             db.execSQL(
                 "INSERT INTO reading_positions (itemId, cfi) VALUES ('item-1', 'epubcfi(/6/4!/4/1:0)')"
