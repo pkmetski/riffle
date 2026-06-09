@@ -239,9 +239,9 @@ fun EpubReaderScreen(
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
-    // The readaloud player floats over the bottom of the page (it does NOT reserve space / re-paginate
-    // — see ReadaloudReserve). Its translucent backdrop lets the covered last line or two, and the
-    // narrated highlight, show through, while the page stays static when the player opens.
+    // The readaloud player floats over the bottom of the page: it does NOT reserve space or
+    // re-paginate, so the page stays static when the player opens. Its translucent backdrop lets the
+    // covered last line or two — and the narrated highlight — show through.
 
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
@@ -356,11 +356,10 @@ fun EpubReaderScreen(
                     // overlay backdrop (which paints readerTheme.palette.background) and the two
                     // read as one continuous, theme-following strip.
                     //
-                    // The player floats over the page (it no longer reserves space — see
-                    // ReadaloudReserve), so it can sit over the last line or two. Paint its backdrop
-                    // semi-transparent so that covered text — and the narrated highlight — stays
-                    // visible through the bar. The controls are Surface CONTENT, unaffected by this
-                    // alpha, so they remain fully opaque and legible.
+                    // The player floats over the page (it no longer reserves space / re-paginates), so
+                    // it can sit over the last line or two. Paint its backdrop semi-transparent so that
+                    // covered text — and the narrated highlight — stays visible through the bar. The
+                    // controls are Surface CONTENT, unaffected by this alpha, so they remain opaque.
                     val readerPalette = formattingPrefs.theme.palette
                     ReadaloudMiniPlayer(
                         isPlaying = playbackState.isPlaying,
@@ -904,8 +903,8 @@ private fun EpubNavigatorView(
 
     // Bumps whenever a formatting change (font/margin/spacing/orientation) reflows the layout so the
     // decoration effects and the auto-follow probe below re-apply / re-centre onto the new pagination
-    // (see rememberReflowReapplyGeneration). The readaloud player no longer reflows the page (it floats,
-    // see ReadaloudReserve), so opening it is not a reflow trigger.
+    // (see rememberReflowReapplyGeneration). The readaloud player floats over the page and no longer
+    // reflows it, so opening it is not a reflow trigger.
     val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
 
     // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
@@ -1179,8 +1178,8 @@ private fun EpubNavigatorView(
     // chapters, so cross-chapter follow falls out for free in both modes.
     //
     // Re-keys on reflowGeneration (formatting reflows) and pageLoadGeneration (rotation / chapter load)
-    // so the narrated sentence is re-centred after those relayouts. The player no longer reflows the page
-    // (it floats, see ReadaloudReserve), so opening it doesn't move the narrated sentence's column.
+    // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
+    // no longer reflows it, so opening it doesn't move the narrated sentence's column.
     LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect

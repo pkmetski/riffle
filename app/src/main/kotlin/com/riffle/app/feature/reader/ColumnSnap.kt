@@ -127,8 +127,8 @@ internal object ColumnSnap {
           //    sliver of the next page showing" readaloud bug — flooring to the column lands flush on the grid),
           //  - a real PAGE MOVE, forward OR back, when narration has moved to another column — so the view
           //    always returns to the highlight when it changes, identically whichever way the reader had paged.
-          // The player floats over the page (it never reflows it — see ReadaloudReserve), so opening it
-          // doesn't move the narrated column. Scroll mode keeps centring (handled above).
+          // The player floats over the page and never reflows it, so opening it doesn't move the
+          // narrated column. Scroll mode keeps centring (handled above).
           var absX=r.left + se.scrollLeft;
           se.scrollLeft=Math.floor(absX / iw) * iw;
           return "on";
