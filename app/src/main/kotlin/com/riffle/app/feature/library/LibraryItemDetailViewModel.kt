@@ -155,6 +155,21 @@ class LibraryItemDetailViewModel @Inject constructor(
             }
         }
 
+        // Keep the rendered progress current: the reader persists new readingProgress to the DB on
+        // close, but this screen — retained on the back stack while the user reads — would otherwise
+        // keep showing the one-shot snapshot taken in init. Observing the item patches the live row
+        // (e.g. readingProgress) into the existing Ready state so book details matches where the
+        // reader left off. Only patches once Ready, so it never pre-empts the Error/enrichment path.
+        repository.observeItem(itemId)
+            .onEach { latest ->
+                if (latest == null) return@onEach
+                val current = _uiState.value
+                if (current is LibraryItemDetailUiState.Ready && current.item != latest) {
+                    _uiState.value = current.copy(item = latest)
+                }
+            }
+            .launchIn(viewModelScope)
+
         // Reactively update isOffline in Ready state when connectivity changes.
         connectivityObserver.isOnline
             .onEach { online ->

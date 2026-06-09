@@ -702,6 +702,73 @@ class SearchPipelineTest {
 }
 
 /**
+ * Regression for "book progress in book details differs from the % shown above the chapter map."
+ *
+ * Book details shows the persisted `ebookProgress`, which is the locator's whole-book
+ * `totalProgression`. The reading label used to show `railCursorPosition` — a *chapter-weighted*
+ * fraction over TOC segments only — so the two numbers measured different things and diverged.
+ *
+ * The fix drives the label from a dedicated flow fed by `locator.locations.totalProgression` (the
+ * same coordinate book details stores), updated ONLY when present so a null never falls back to the
+ * within-chapter `progression`. EpubReaderViewModel can't be constructed in a JVM test (Readium needs
+ * android.net.Uri — see the file header), so this fake mirrors onPositionChanged's two progression
+ * flows one-to-one; a regression here maps directly to the ViewModel.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class ReadingProgressLabelSourceTest {
+
+    // Mirrors EpubReaderViewModel.onPositionChanged:
+    //   _currentLocatorProgression      = locations.progression       → rail cursor within-segment placement
+    //   _currentLocatorTotalProgression = locations.totalProgression  → "% read" label (updated only when present)
+    private class LabelSource {
+        val withinChapterProgression = MutableStateFlow(0f)
+        val totalProgression = MutableStateFlow(0f)
+        fun onPositionChanged(progression: Float?, total: Float?) {
+            withinChapterProgression.value = progression ?: 0f
+            total?.let { totalProgression.value = it } // never substitute the within-chapter number
+        }
+    }
+
+    @Test
+    fun `label reads whole-book totalProgression, not the within-chapter progression`() {
+        val s = LabelSource()
+        // Halfway through chapter 1, but only 3% through the whole book.
+        s.onPositionChanged(progression = 0.5f, total = 0.03f)
+
+        assertEquals(0.03f, s.totalProgression.value)
+        assertNotEquals(s.withinChapterProgression.value, s.totalProgression.value)
+    }
+
+    @Test
+    fun `a null totalProgression holds the last whole-book value rather than falling back to progression`() {
+        val s = LabelSource()
+        s.onPositionChanged(progression = 0.2f, total = 0.1f)
+
+        // Positions not yet computed: total is null while the within-chapter number jumps to 0.9.
+        s.onPositionChanged(progression = 0.9f, total = null)
+
+        assertEquals("must hold the last real total, never show the chapter-local 0.9", 0.1f, s.totalProgression.value)
+    }
+
+    // Mirrors EpubChapterRailOverlay's display selection:
+    //   labelProgress = if (totalProgress > 0f) totalProgress else cursorPosition
+    // Guards against the label sticking at 0% when a publication's positions never compute (so
+    // totalProgression stays absent) — fall back to the chapter-weighted rail cursor there.
+    private fun labelProgress(total: Float, cursor: Float): Float = if (total > 0f) total else cursor
+
+    @Test
+    fun `label falls back to the rail cursor when no whole-book total has been observed`() {
+        // Positions never computed → total stays 0; show the chapter-weighted estimate, not 0%.
+        assertEquals(0.42f, labelProgress(total = 0f, cursor = 0.42f))
+    }
+
+    @Test
+    fun `a real whole-book total wins over the rail cursor once it arrives`() {
+        assertEquals(0.11f, labelProgress(total = 0.11f, cursor = 0.42f))
+    }
+}
+
+/**
  * Unit tests for the three-peer sync invariants that live in EpubReaderViewModel's
  * onPositionChanged / push / readaloud-start control flow. The ViewModel itself can't be constructed
  * in a JVM test (Readium needs android.net.Uri — see the file header), so each fake mirrors the exact

@@ -27,6 +27,13 @@ interface LibraryRepository {
     /** The active Server's copy of an item (item ids are only unique within a Server, ADR 0025). */
     suspend fun getItem(itemId: String): LibraryItem?
 
+    /**
+     * Reactive view of the active Server's copy of an item. Re-emits when the row changes — notably
+     * when the reader persists new readingProgress on close — so screens stay current instead of
+     * showing a one-shot snapshot taken before the user read.
+     */
+    fun observeItem(itemId: String): Flow<LibraryItem?>
+
     /** A specific Server's copy of an item — for cross-Server callers like the Downloads screen. */
     suspend fun getItem(serverId: String, itemId: String): LibraryItem?
     suspend fun getLibrary(libraryId: String): Library?

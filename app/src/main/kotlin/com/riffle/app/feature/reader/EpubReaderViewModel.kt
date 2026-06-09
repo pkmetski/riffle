@@ -623,6 +623,7 @@ class EpubReaderViewModel @Inject constructor(
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
         _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
+        locator.locations.totalProgression?.toFloat()?.let { _currentLocatorTotalProgression.value = it }
         if (!initialLocatorSeen) {
             initialLocatorSeen = true
             return
@@ -825,6 +826,14 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _currentLocatorProgression = MutableStateFlow(0f)
     val currentLocatorProgression: StateFlow<Float> = _currentLocatorProgression
+
+    // Whole-book progress (0..1) for the reading "% read" label — the same coordinate persisted as
+    // ebookProgress and shown in book details. Distinct from railCursorPosition, which is a
+    // chapter-weighted fraction over TOC segments only and so diverges from the stored progress.
+    // Updated only when the navigator emits a non-null totalProgression: a null (positions not yet
+    // computed) holds the last real value rather than falling back to the within-chapter progression.
+    private val _currentLocatorTotalProgression = MutableStateFlow(0f)
+    val currentLocatorTotalProgression: StateFlow<Float> = _currentLocatorTotalProgression
 
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
