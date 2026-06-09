@@ -1104,14 +1104,9 @@ private fun EpubNavigatorView(
                     Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
             )
         }
-        // Apply immediately for the first paint, then re-apply ONCE the navigated page's layout has
-        // stopped moving. Readium fixes a decoration box's position at applyDecorations time and never
-        // re-positions it; after navigating to a result the page keeps shifting for up to ~1.5s (go() +
-        // the column-snap rAF loop + the async typography reflow), so the first apply lands the box against
-        // a pre-settle layout and the text then slides out from under it — the reported "the first result
-        // is highlighted, the next ones aren't" (a fixed re-apply window was too short for cross-page
-        // jumps). Poll scrollWidth+scrollLeft until they hold steady (a few reads) or a safety cap, then
-        // re-resolve positions with a final re-apply. readaloud avoids this by re-applying every audio tick.
+        // Apply immediately for the first paint; the re-resolve loop below then tracks the page as it
+        // settles (see its comment for the why). "The first result is highlighted, the next ones aren't"
+        // was this exact bug on navigated results — the landing page is still moving when the box lands.
         withContext(Dispatchers.Main) {
             fragment.applyDecorations(decorations, group = "search")
         }
