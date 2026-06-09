@@ -544,10 +544,15 @@ class EpubReaderViewModel @Inject constructor(
                 result.jumpLocatorJson?.let { json ->
                     runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()?.let { loc ->
                         _serverLocatorChannel.trySend(loc)
-                        // A server sync (e.g. a newer audiobook listen) moved the reader; override the
-                        // readaloud resume position so the next play starts at the synced page rather
-                        // than a stale local stop. (No fragment — the planner resolves the page's first
-                        // sentence against the WebView.)
+                        // A server sync (e.g. a newer audiobook listen) moved the reader. Make the synced
+                        // position the reader's position for EVERY readaloud-start input, not just the
+                        // persisted resume row: the tracked locator, and the in-memory close/resume state
+                        // the planner reads (both seeded at book-open, before this sync). Without this, a
+                        // later "start readaloud" resumes the STALE pre-sync sentence and jumps the reader
+                        // (and the synced ebook+audiobook) back to the old position — the erase.
+                        lastLocator = loc
+                        closeLocator = null
+                        resumeFragmentRef = null
                         persistReadaloudResumePosition(loc, fragmentRef = null)
                     }
                 }
