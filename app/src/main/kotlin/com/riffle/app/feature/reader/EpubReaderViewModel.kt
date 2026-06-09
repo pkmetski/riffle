@@ -1202,21 +1202,40 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         readaloudStarted = true
-        // A server sync just placed the reader at a precise audiobook position: start narration exactly
-        // there (by its fragment), as long as the reader is still in that chapter. This overrides the
-        // page-top probe, which would otherwise start at the top of the page rather than the synced
-        // sentence. Consumed once.
-        pendingStartFragmentRef?.let { pending ->
-            pendingStartFragmentRef = null
-            if (lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(pending.substringBefore('#'))) {
-                closeLocator = null
-                resumeFragmentRef = null
-                playerCoordinator.playFromHere(pending)
-                return
+
+        // Matched (3-peer) book: readaloud starts at the reconciled reading position. There is no
+        // separate "first sentence of the page" concept — Play resumes where listening/reading last
+        // was; a specific sentence is reached via Play-from-here. (A matched audiobook is optional —
+        // when present it's the source of #1 below; without one the reconcile is just ebook↔Storyteller
+        // and Play falls through to the local readaloud position.) The start resolves, in order:
+        //   1. the exact remote sentence a server sync just placed the reader at (pendingStartFragmentRef,
+        //      set in runThreePeerCycle when a remote peer — typically the audiobook — won the reconcile)
+        //      — only while still in that chapter, else the reader has moved on and it's stale;
+        //   2. the local last-played sentence saved on close (resumeFragmentRef);
+        //   3. the sentence the current reading position falls in (fragmentAt via the bundle).
+        // Falls back to the reading position's chapter only when nothing narrated anchors it (e.g. front
+        // matter); resolveStartClip declines rather than restarting the book.
+        threePeer?.let { coordinator ->
+            val pending = pendingStartFragmentRef?.takeIf { p ->
+                lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
             }
+            val startFragment = pending
+                ?: resumeFragmentRef
+                ?: lastLocator?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
+            pendingStartFragmentRef = null
+            closeLocator = null
+            resumeFragmentRef = null
+            if (startFragment != null) {
+                playerCoordinator.playFromHere(startFragment)
+            } else {
+                lastLocator?.href?.let { playerCoordinator.playFromReaderPosition(it.toString(), null) }
+            }
+            return
         }
-        // Consume the remembered close position so a later first-of-session play (after dispose) or a
-        // mid-chapter pause doesn't reuse a stale page.
+
+        // Storyteller-only readaloud (no 3-peer reconciliation): there is no reconciled position to
+        // anchor to, so the page-top probe remains the way to find the page's first sentence on a first
+        // play / reopen-elsewhere, with resumeFragmentRef for an in-place reopen.
         val closed = closeLocator
         val resume = resumeFragmentRef
         closeLocator = null
