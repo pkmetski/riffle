@@ -3,11 +3,14 @@ package com.riffle.core.database
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -42,17 +45,21 @@ class CollectionDaoTest {
 
     // C1 — replaceAllForLibrary must never expose an empty intermediate state to collection observers.
     @Test
-    fun replaceAllForLibrary_neverEmitsEmptyIntermediateState() = runTest {
+    fun replaceAllForLibrary_neverEmitsEmptyIntermediateState() = runBlocking {
         dao.upsertAll(listOf(collection("c1"), collection("c2")))
 
-        val emittedStates = mutableListOf<List<CollectionEntity>>()
-        val collectJob = launch {
+        // Room emits on its own query executor, not this coroutine's scheduler, so we wait for
+        // emissions deterministically (with a timeout) rather than racing them with yield().
+        val emittedStates = CopyOnWriteArrayList<List<CollectionEntity>>()
+        val collectJob = launch(Dispatchers.IO) {
             dao.observeByLibraryId("lib1").collect { emittedStates.add(it.toList()) }
         }
-        yield()
+        withTimeout(5_000) { while (emittedStates.isEmpty()) delay(10) }
 
         dao.replaceAllForLibrary("lib1", listOf(collection("c3"), collection("c4")), emptyList())
-        yield()
+        withTimeout(5_000) {
+            while (emittedStates.last().map { it.id }.toSet() != setOf("c3", "c4")) delay(10)
+        }
 
         collectJob.cancel()
 

@@ -6,7 +6,7 @@
     "entities": [
       {
         "tableName": "servers",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `url` TEXT NOT NULL, `displayName` TEXT NOT NULL, `isActive` INTEGER NOT NULL, `insecureConnectionAllowed` INTEGER NOT NULL, `username` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `url` TEXT NOT NULL, `displayName` TEXT NOT NULL, `isActive` INTEGER NOT NULL, `insecureConnectionAllowed` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -36,12 +36,6 @@
             "fieldPath": "insecureConnectionAllowed",
             "columnName": "insecureConnectionAllowed",
             "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "username",
-            "columnName": "username",
-            "affinity": "TEXT",
             "notNull": true
           }
         ],
@@ -96,7 +90,7 @@
       },
       {
         "tableName": "library_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `lastOpenedAt` INTEGER, `addedAt` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -173,6 +167,11 @@
           {
             "fieldPath": "lastOpenedAt",
             "columnName": "lastOpenedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
             "affinity": "INTEGER"
           }
         ],
