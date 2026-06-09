@@ -436,8 +436,9 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(AUDIO_PUSH_INTERVAL_MS)
-                if (playerCoordinator.state.value.isPlaying && playerCoordinator.activeFragmentRef.value != null) {
-                    pushAudiobookFromReadingPosition()
+                val playingFragment = playerCoordinator.activeFragmentRef.value
+                if (playerCoordinator.state.value.isPlaying && playingFragment != null) {
+                    pushAudiobookFromReadingPosition(playingFragment)
                 }
             }
         }
@@ -592,11 +593,14 @@ class EpubReaderViewModel @Inject constructor(
      * timestamp ABS returns as the local timestamp, so the read comes back equal (local wins ties),
      * never newer. All responsive push callers (loop/pause/close) go through here.
      */
-    private suspend fun pushAudiobookFromReadingPosition() {
+    // [fragment] is the narrating sentence to derive the audiobook time from — the exact clip, not the
+    // page top. Callers that fire AFTER the player is torn down (close) or paused must pass the value
+    // captured BEFORE teardown; passing the now-null live value would silently fall back to the coarse
+    // page-based push and send the chapter top to the server.
+    private suspend fun pushAudiobookFromReadingPosition(fragment: String?) {
         val coordinator = threePeer ?: return
         val serverId = threePeerServerId ?: return
         val locJson = lastLocator?.toJSON()?.toString()
-        val fragment = playerCoordinator.activeFragmentRef.value
         val stamp = runCatching {
             if (fragment != null) coordinator.pushAudiobookForFragment(fragment, locJson)
             else locJson?.let { coordinator.pushAudiobookProgress(it) }
@@ -1058,7 +1062,9 @@ class EpubReaderViewModel @Inject constructor(
         readaloudPrepared = false
         readaloudStarted = false
         playerCoordinator.close()
-        if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition() }
+        // Use the fragment captured above — close() has nulled the live one. Passing the live value
+        // here would push the page top (chapter start) instead of the sentence we stopped on.
+        if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition(resumeFragmentRef) }
     }
 
     /**
@@ -1095,9 +1101,9 @@ class EpubReaderViewModel @Inject constructor(
         if (playbackState.value.isPlaying) {
             // Record the audiobook position on pause too (the follow loop is gated on isPlaying, which
             // is about to go false), derived from the reading position via the bundle.
-            val hadFragment = playerCoordinator.activeFragmentRef.value != null
+            val pausedFragment = playerCoordinator.activeFragmentRef.value
             playerCoordinator.pause()
-            if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition() }
+            if (pausedFragment != null) viewModelScope.launch { pushAudiobookFromReadingPosition(pausedFragment) }
         } else {
             onPlayTapped()
         }
