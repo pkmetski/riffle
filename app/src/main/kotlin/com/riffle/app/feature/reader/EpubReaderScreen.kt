@@ -1092,7 +1092,8 @@ private fun EpubNavigatorView(
             hasActiveDecorations.value = false
             return@LaunchedEffect
         }
-        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        val navFragment = fragmentRef.value ?: return@LaunchedEffect
+        val fragment = navFragment as? DecorableNavigator ?: return@LaunchedEffect
         val decorations = searchResults.mapIndexed { index, locator ->
             Decoration(
                 id = "search_$index",
@@ -1103,16 +1104,33 @@ private fun EpubNavigatorView(
                     Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
             )
         }
-        // Apply immediately, then re-apply across the post-navigation settle window so Readium re-resolves
-        // the box positions against the final layout (the column snap + search-bar inset land after the
-        // first apply). Without this the active result's box stays where the page was mid-settle.
+        // Apply immediately for the first paint, then re-apply ONCE the navigated page's layout has
+        // stopped moving. Readium fixes a decoration box's position at applyDecorations time and never
+        // re-positions it; after navigating to a result the page keeps shifting for up to ~1.5s (go() +
+        // the column-snap rAF loop + the async typography reflow), so the first apply lands the box against
+        // a pre-settle layout and the text then slides out from under it — the reported "the first result
+        // is highlighted, the next ones aren't" (a fixed re-apply window was too short for cross-page
+        // jumps). Poll scrollWidth+scrollLeft until they hold steady (a few reads) or a safety cap, then
+        // re-resolve positions with a final re-apply. readaloud avoids this by re-applying every audio tick.
         withContext(Dispatchers.Main) {
             fragment.applyDecorations(decorations, group = "search")
         }
         hasActiveDecorations.value = true
-        for (settleDelayMs in longArrayOf(200L, 300L, 350L)) {
+        // Re-resolve the box positions across the post-navigation settle window. Two things matter here:
+        //  1) Readium re-positions a decoration only when its set CHANGES — re-applying the identical list
+        //     is a no-op diff, so the box keeps its first (pre-settle) position. We therefore CLEAR then
+        //     re-apply (back to back on the main thread, no visible gap — the same trick the readaloud
+        //     group uses), which forces Readium to re-run its locator→range resolver against the current,
+        //     settled DOM.
+        //  2) The layout keeps moving after the first apply (go() + the column-snap rAF loop ~1.2s + the
+        //     async typography reflow), so we repeat the clear+re-apply on a SPACED schedule out to ~2.6s.
+        //     Spaced (not a tight poll): a 100ms loop floods the still-navigating WebView and can blank the
+        //     page (ADR 0015); a handful of spaced re-applies is as safe as the first one.
+        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
             delay(settleDelayMs)
+            if (fragmentRef.value !== navFragment) break // navigated away / fragment recreated — newer effect owns it
             withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "search")
                 fragment.applyDecorations(decorations, group = "search")
             }
         }
