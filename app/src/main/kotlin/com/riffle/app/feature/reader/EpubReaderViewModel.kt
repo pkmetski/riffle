@@ -1983,6 +1983,8 @@ class EpubReaderViewModel @Inject constructor(
     // the sidecar stands in for the bundle (track + highlight quotes). Null after an attempt → bundle.
     private var streamingSession: com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory.Session? = null
     private var streamingAttempted = false
+    // Guards the one-time background eager audio completion (ADR 0028) for a streamed book.
+    private var streamingDownloadStarted = false
 
     // True once playback has been started this session, so the first play seeks to the reader's
     // position while a later resume-after-pause stays where it was.
@@ -2130,6 +2132,21 @@ class EpubReaderViewModel @Inject constructor(
             val session = streamingSession
             if (session != null) {
                 playerCoordinator.openStreaming(session.streaming, track)
+                // Eager-complete the audio download in the background (ADR 0028): the file finishes
+                // ahead of the playhead while the user listens, so the book becomes fully offline
+                // regardless of how far they get — not just the spans played.
+                if (!streamingDownloadStarted) {
+                    streamingDownloadStarted = true
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching {
+                            com.riffle.app.feature.reader.readaloud.StreamingAudioDownloader.download(
+                                getApplication(),
+                                session.streaming.itemsByMediaId.values.toList(),
+                                session.absToken,
+                            )
+                        }
+                    }
+                }
             } else {
                 playerCoordinator.open(audioBookId, bundle!!, track)
             }

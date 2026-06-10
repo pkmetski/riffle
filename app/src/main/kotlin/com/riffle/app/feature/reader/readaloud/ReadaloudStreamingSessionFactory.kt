@@ -32,8 +32,16 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) {
-    /** [sidecarFile] stands in for the bundle for the track, highlight quotes, and cross-EPUB index. */
-    data class Session(val track: ReadaloudTrack, val streaming: SharedBundle.Streaming, val sidecarFile: File)
+    /**
+     * [sidecarFile] stands in for the bundle for the track, highlight quotes, and cross-EPUB index;
+     * [absToken] lets the caller eager-complete the audio download while playing (ADR 0028).
+     */
+    data class Session(
+        val track: ReadaloudTrack,
+        val streaming: SharedBundle.Streaming,
+        val sidecarFile: File,
+        val absToken: String,
+    )
 
     suspend fun tryBuild(storytellerServerId: String, storytellerBookId: String): Session? = withContext(Dispatchers.IO) {
         // 1. Resolve the ABS audiobook linked to this readaloud. No audiobook → not streamable.
@@ -65,6 +73,6 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
             ?: return@withContext null
 
         val httpFactory = StreamingAudioCache.dataSourceFactory(context, absToken)
-        Session(setup.track, SharedBundle.Streaming(httpFactory, setup.items.associateBy { it.audioSrc }), sidecarFile)
+        Session(setup.track, SharedBundle.Streaming(httpFactory, setup.items.associateBy { it.audioSrc }), sidecarFile, absToken)
     }
 }
