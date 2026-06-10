@@ -1125,34 +1125,9 @@ class EpubReaderViewModel @Inject constructor(
 
     fun forward() = playerCoordinator.forward()
 
-    fun previousChapter() = jumpChapter(-1)
+    fun previousChapter() = playerCoordinator.previousChapter()
 
-    fun nextChapter() = jumpChapter(+1)
-
-    private val _chapterPlayChannel = Channel<Link>(Channel.CONFLATED)
-    /**
-     * A readaloud chapter jump: the screen navigates the reader to this chapter's link, then resolves
-     * the chapter's first narrated sentence on the freshly-loaded page and starts narration there via
-     * [onPageTopResolved]. Chapters are the reader's real TOC chapters ([railSegments]) — NOT the
-     * Storyteller bundle's per-fragment clip hrefs, which are misaligned with the rendered ABS EPUB
-     * and would land the jump a sentence or two into the chapter.
-     */
-    val chapterPlayRequests: Flow<Link> = _chapterPlayChannel.receiveAsFlow()
-
-    /**
-     * Jumps [delta] chapters from the active rail segment and starts narration at the destination
-     * chapter's first sentence. Pauses first so the outgoing audio (and the highlight auto-follow it
-     * drives) can't fight the reader navigation; the screen resumes playback once the new chapter's
-     * first sentence is located (see [chapterPlayRequests] → [onPageTopResolved]).
-     */
-    private fun jumpChapter(delta: Int) {
-        val segments = railSegments.value
-        val target = segments.getOrNull(activeRailSegmentIndex.value + delta) ?: return
-        val pub = (state.value as? ReaderState.Ready)?.publication ?: return
-        val link = pub.tableOfContents.findLinkByHref(target.href) ?: return
-        playerCoordinator.pause()
-        _chapterPlayChannel.trySend(link)
-    }
+    fun nextChapter() = playerCoordinator.nextChapter()
 
     /**
      * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when

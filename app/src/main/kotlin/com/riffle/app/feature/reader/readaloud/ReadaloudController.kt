@@ -43,6 +43,8 @@ class ReadaloudController @Inject constructor(
         val speed: Float = 1f,
         val currentAudioSrc: String? = null,
         val positionSec: Double = 0.0,
+        val currentChapterIndex: Int = -1,
+        val chapterCount: Int = 0,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -115,8 +117,20 @@ class ReadaloudController @Inject constructor(
         pushState()
     }
 
+    /** Jumps to the first clip of an adjacent chapter (see [ReadaloudTrack.resolveChapterSkip]). */
+    fun skipChapter(forward: Boolean) {
+        val s = _state.value
+        val clip = track?.resolveChapterSkip(
+            s.currentAudioSrc, s.positionSec, forward, NEAR_START_SEC,
+        ) ?: return
+        seekToAudio(clip.audioSrc, clip.clipBeginSec)
+        pushState()
+    }
+
     fun rewind() = skipBy(-REWIND_SEC)
     fun forward() = skipBy(FORWARD_SEC)
+    fun previousChapter() = skipChapter(forward = false)
+    fun nextChapter() = skipChapter(forward = true)
 
     /** Starts playback at the clip narrating [fragmentRef] (the "Play from here" entry point). */
     fun playFromFragment(fragmentRef: String) {
@@ -175,12 +189,17 @@ class ReadaloudController @Inject constructor(
 
     private fun pushState() {
         val c = controller
+        val t = track
+        val audioSrc = c?.currentMediaItem?.mediaId
+        val positionSec = (c?.currentPosition ?: 0L) / 1000.0
         _state.value = PlaybackState(
             connected = c != null,
             isPlaying = c?.isPlaying == true,
             speed = c?.playbackParameters?.speed ?: 1f,
-            currentAudioSrc = c?.currentMediaItem?.mediaId,
-            positionSec = (c?.currentPosition ?: 0L) / 1000.0,
+            currentAudioSrc = audioSrc,
+            positionSec = positionSec,
+            currentChapterIndex = t?.chapterIndexAt(audioSrc, positionSec) ?: -1,
+            chapterCount = t?.chapterCount ?: 0,
         )
     }
 
@@ -188,6 +207,7 @@ class ReadaloudController @Inject constructor(
         val SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
         const val REWIND_SEC = 15.0
         const val FORWARD_SEC = 30.0
+        private const val NEAR_START_SEC = 3.0
         private const val POLL_INTERVAL_MS = 250L
         private const val LOG = "RIFFLE_RA"
     }
