@@ -41,6 +41,42 @@ class SegmentTrackMapperTest {
     }
 
     @Test
+    fun `placements map each segment to a whole ABS track (1 to 1)`() {
+        val map = SegmentTrackMapper.align(clips, listOf(5.0, 3.0))!!
+        assertEquals(
+            listOf(
+                SegmentPlacement("c1.mp3", 0, 0.0, 5.0),
+                SegmentPlacement("c2.mp3", 1, 0.0, 3.0),
+            ),
+            map.segmentPlacements(),
+        )
+    }
+
+    @Test
+    fun `placements skip a dropped leading track`() {
+        val map = SegmentTrackMapper.align(clips, listOf(1.0, 5.0, 3.0))!!
+        assertEquals(
+            listOf(
+                SegmentPlacement("c1.mp3", 1, 0.0, 5.0),
+                SegmentPlacement("c2.mp3", 2, 0.0, 3.0),
+            ),
+            map.segmentPlacements(),
+        )
+    }
+
+    @Test
+    fun `placements clip segments into a single ABS file by offset`() {
+        val map = SegmentTrackMapper.align(clips, listOf(8.0))!!
+        assertEquals(
+            listOf(
+                SegmentPlacement("c1.mp3", 0, 0.0, 5.0),
+                SegmentPlacement("c2.mp3", 0, 5.0, 3.0),
+            ),
+            map.segmentPlacements(),
+        )
+    }
+
+    @Test
     fun `returns null when the audio durations cannot be reconciled`() {
         // Segments total 8s but ABS only has 3s — not the same recording.
         assertNull(SegmentTrackMapper.align(clips, absTrackDurationsSec = listOf(3.0)))

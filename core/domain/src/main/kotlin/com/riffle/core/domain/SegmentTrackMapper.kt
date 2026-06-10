@@ -4,6 +4,18 @@ package com.riffle.core.domain
 data class AbsAudioPosition(val trackIndex: Int, val offsetSec: Double)
 
 /**
+ * Where one Storyteller segment sits on the ABS timeline: which track, the start offset, and how
+ * long. Lets the player queue one media item per segment (preserving the existing clip/highlight
+ * machinery) pointed at the ABS track, clipped to `[startSec, startSec + durationSec]` (ADR 0028).
+ */
+data class SegmentPlacement(
+    val audioSrc: String,
+    val absTrackIndex: Int,
+    val startSec: Double,
+    val durationSec: Double,
+)
+
+/**
  * Reconciles Storyteller's audio segments (one per distinct `audioSrc`, in clip order) with the
  * ABS audiobook's tracks, so a Media Overlay clip can be played from ABS. Two regimes (ADR 0028):
  *
@@ -29,6 +41,21 @@ class SegmentTrackMap internal constructor(
         val track = absCumulative.indexOfLast { it <= global + TOLERANCE_SEC }
         if (track < 0) return null
         return AbsAudioPosition(track, global - absCumulative[track])
+    }
+
+    /** One placement per Storyteller segment, in order — the streaming media plan (ADR 0028). */
+    fun segmentPlacements(): List<SegmentPlacement> {
+        if (perTrackStart != null) {
+            return segmentOrder.mapIndexed { k, src ->
+                SegmentPlacement(src, perTrackStart + k, 0.0, segmentDurations[k])
+            }
+        }
+        var global = 0.0
+        return segmentOrder.mapIndexed { k, src ->
+            val track = absCumulative.indexOfLast { it <= global + TOLERANCE_SEC }.coerceAtLeast(0)
+            SegmentPlacement(src, track, global - absCumulative[track], segmentDurations[k])
+                .also { global += segmentDurations[k] }
+        }
     }
 
     internal companion object {
