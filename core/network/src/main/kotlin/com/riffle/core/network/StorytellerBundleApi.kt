@@ -41,9 +41,26 @@ fun interface StorytellerBundleProbeApi {
     ): NetworkStorytellerBundleSizeResult
 }
 
+sealed interface NetworkRangeResult {
+    data class Success(val bytes: ByteArray) : NetworkRangeResult
+    data class NetworkError(val cause: Throwable) : NetworkRangeResult
+}
+
+/** Reads a byte range of the `/synced` bundle — the transport behind sidecar extraction (ADR 0028). */
+fun interface StorytellerRangeApi {
+    suspend fun readBundleRange(
+        baseUrl: String,
+        bookId: String,
+        token: String,
+        insecureAllowed: Boolean,
+        offset: Long,
+        length: Int,
+    ): NetworkRangeResult
+}
+
 class StorytellerBundleApiImpl(
     private val client: OkHttpClient,
-) : StorytellerBundleApi, StorytellerBundleProbeApi {
+) : StorytellerBundleApi, StorytellerBundleProbeApi, StorytellerRangeApi {
 
     // Bundles can be hundreds of MB; the default 10s read timeout times out mid-stream
     // on anything but the smallest aligned EPUBs. readTimeout(0) = no idle-read timeout
@@ -122,6 +139,34 @@ class StorytellerBundleApiImpl(
             }
         } catch (e: IOException) {
             NetworkStorytellerBundleSizeResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun readBundleRange(
+        baseUrl: String,
+        bookId: String,
+        token: String,
+        insecureAllowed: Boolean,
+        offset: Long,
+        length: Int,
+    ): NetworkRangeResult = withContext(Dispatchers.IO) {
+        val effectiveClient = if (insecureAllowed) bundleClient.trustAllCerts() else bundleClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/books/$bookId/synced")
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Range", "bytes=$offset-${offset + length - 1}")
+            .build()
+        try {
+            effectiveClient.newCall(request).execute().use { response ->
+                if (response.code != 206 && response.code != 200) {
+                    return@withContext NetworkRangeResult.NetworkError(IOException("HTTP ${response.code}"))
+                }
+                val bytes = response.body?.bytes()
+                    ?: return@withContext NetworkRangeResult.NetworkError(IOException("Empty range body"))
+                NetworkRangeResult.Success(bytes)
+            }
+        } catch (e: IOException) {
+            NetworkRangeResult.NetworkError(e)
         }
     }
 
