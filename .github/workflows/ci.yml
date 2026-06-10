@@ -135,7 +135,7 @@ jobs:
   # Instrumented Room tests (migrations + DAOs) need an emulator, so they run here on a
   # hardware-accelerated AVD rather than in the JVM jobs above.
   connected-test:
-    name: Connected Tests (core:database)
+    name: Database tests (core:database)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
