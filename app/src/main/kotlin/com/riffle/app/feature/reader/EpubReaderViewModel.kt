@@ -12,6 +12,9 @@ import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
@@ -114,6 +117,8 @@ class EpubReaderViewModel @Inject constructor(
     private val storytellerSyncController: StorytellerPositionSyncController,
     private val serverRepository: ServerRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,
+    private val audioIdentityResolver: AudioIdentityResolver,
+    private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
     private val connectivityObserver: ConnectivityObserver,
     private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
@@ -270,6 +275,12 @@ class EpubReaderViewModel @Inject constructor(
     // For a matched ABS book this is the linked Storyteller Server; otherwise the active Server.
     private var audioServerId: String = ""
 
+    // The audio-settings key (ADR 0028) — the linked audiobook's id when present, else the Storyteller
+    // readaloud id. Distinct from audioBookId/audioServerId, which still locate the readaloud *bundle*.
+    private var audioSettingsIdentity: AudioIdentity = AudioIdentity("", itemId)
+    // The per-book speed to apply when the player is prepared; the fixed 1x default until loaded.
+    private var initialSpeed: Float = AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+
     // The reader's active Server id, resolved once on open. Keys the readaloud resume position (reader
     // space, like the reading position) for both the seed-on-open load and the save-on-close — using
     // one captured id keeps the two symmetric and avoids a per-close getActive() DB read.
@@ -374,6 +385,16 @@ class EpubReaderViewModel @Inject constructor(
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
             readerServerId = activeServer?.id
+
+            // Resolve the audio-settings key and load the saved speed (ADR 0028). With a link, the
+            // resolver prefers the linked audiobook's id; without one, settings key on this ABS item.
+            audioSettingsIdentity = if (link != null) {
+                audioIdentityResolver.resolveForStorytellerBook(link.storytellerServerId, link.storytellerBookId)
+            } else {
+                AudioIdentity(activeServer?.id ?: "", itemId)
+            }
+            initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
+                ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
 
             // Restore the readaloud resume position persisted when the book was last left, so the
             // first Play this session continues where narration stopped (same page) or starts at the
@@ -1119,7 +1140,10 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    fun setSpeed(speed: Float) = playerCoordinator.setSpeed(speed)
+    fun setSpeed(speed: Float) {
+        playerCoordinator.setSpeed(speed)
+        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+    }
 
     fun rewind() = playerCoordinator.rewind()
 
@@ -1332,6 +1356,9 @@ class EpubReaderViewModel @Inject constructor(
         val track = ensureTrack(bundle) ?: return null
         if (!readaloudPrepared) {
             playerCoordinator.open(audioBookId, bundle, track)
+            // Apply the persisted per-book speed to the freshly-prepared session. Use the coordinator
+            // directly (not the VM's setSpeed) so restoring the saved value doesn't re-save it.
+            playerCoordinator.setSpeed(initialSpeed)
             readaloudPrepared = true
         }
         return track

@@ -3,6 +3,7 @@ package com.riffle.core.data.di
 import android.content.Context
 import androidx.room.Room
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
@@ -62,6 +63,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_28_29,
                 RiffleDatabase.MIGRATION_29_30,
                 RiffleDatabase.MIGRATION_30_31,
+                RiffleDatabase.MIGRATION_31_32,
             )
             .build()
 
@@ -96,6 +98,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideBookFormattingPreferencesDao(db: RiffleDatabase): BookFormattingPreferencesDao = db.bookFormattingPreferencesDao()
+
+    @Provides
+    @Singleton
+    fun provideAudioPlaybackPreferencesDao(db: RiffleDatabase): AudioPlaybackPreferencesDao = db.audioPlaybackPreferencesDao()
 
     @Provides
     @Singleton

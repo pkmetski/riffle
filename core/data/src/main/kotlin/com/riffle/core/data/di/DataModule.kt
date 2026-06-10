@@ -3,6 +3,8 @@ package com.riffle.core.data.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.riffle.core.data.AudioIdentityResolverImpl
+import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
@@ -29,6 +31,8 @@ import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReportRepository
@@ -198,6 +202,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindBookFormattingPreferencesStore(impl: BookFormattingPreferencesStoreImpl): BookFormattingPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAudioPlaybackPreferencesStore(impl: AudioPlaybackPreferencesStoreImpl): AudioPlaybackPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAudioIdentityResolver(impl: AudioIdentityResolverImpl): AudioIdentityResolver
 
     @Binds
     @Singleton

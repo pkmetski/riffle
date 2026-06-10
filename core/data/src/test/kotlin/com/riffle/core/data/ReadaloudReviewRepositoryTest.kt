@@ -1,11 +1,15 @@
 package com.riffle.core.data
 
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudCandidateEntity
 import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
+import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -131,18 +135,92 @@ class ReadaloudReviewRepositoryTest {
         assertTrue("manual pairing overrides 'don't ask again'", !dismissals.isBookDismissed("st-1", "42"))
     }
 
+    @Test
+    fun `linking an audiobook migrates the saved speed onto the audiobook id`() = runTest {
+        // Speed was set during readaloud (no audiobook yet) → keyed by the Storyteller id.
+        val links = RecordingLinkDao()
+        val items = RecordingLibraryItemDao().apply { seed(audiobook("abs-1", "audio")) }
+        val audio = FakeAudioPlaybackPreferencesStore().apply {
+            store[AudioIdentity("st-1", "42")] = 1.5f
+        }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items, audioPrefs = audio)
+
+        repo.confirmCandidate("st-1", "42", "abs-1", "audio")
+
+        assertNull(audio.store[AudioIdentity("st-1", "42")])
+        assertEquals(1.5f, audio.store[AudioIdentity("abs-1", "audio")])
+    }
+
+    @Test
+    fun `unlinking the audiobook migrates the speed back to the readaloud id`() = runTest {
+        val links = RecordingLinkDao().apply { seed(link("abs-1", "audio", "st-1", "42", userConfirmed = true)) }
+        val items = RecordingLibraryItemDao().apply { seed(audiobook("abs-1", "audio")) }
+        val audio = FakeAudioPlaybackPreferencesStore().apply {
+            store[AudioIdentity("abs-1", "audio")] = 2f
+        }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items, audioPrefs = audio)
+
+        repo.unlinkBook("st-1", "42")
+
+        assertNull(audio.store[AudioIdentity("abs-1", "audio")])
+        assertEquals(2f, audio.store[AudioIdentity("st-1", "42")])
+    }
+
+    @Test
+    fun `linking an ebook does not move the speed`() = runTest {
+        val links = RecordingLinkDao()
+        val items = RecordingLibraryItemDao().apply { seed(ebook("abs-1", "ebook")) }
+        val audio = FakeAudioPlaybackPreferencesStore().apply {
+            store[AudioIdentity("st-1", "42")] = 1.25f
+        }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items, audioPrefs = audio)
+
+        repo.confirmCandidate("st-1", "42", "abs-1", "ebook")
+
+        assertEquals(1.25f, audio.store[AudioIdentity("st-1", "42")])
+    }
+
     private fun repo(
         links: RecordingLinkDao,
         candidates: RecordingCandidateDao,
         dismissals: RecordingDismissalDao = RecordingDismissalDao(),
+        libraryItemDao: LibraryItemDao = ThrowingLibraryItemDao,
+        audioPrefs: FakeAudioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(),
     ) = ReadaloudReviewRepositoryImpl(
-        libraryItemDao = ThrowingLibraryItemDao,
+        libraryItemDao = libraryItemDao,
         libraryDao = ThrowingLibraryDao,
         linkDao = links,
         candidateDao = candidates,
         dismissalDao = dismissals,
+        audioIdentityResolver = AudioIdentityResolverImpl(links, libraryItemDao),
+        audioPlaybackPreferencesStore = audioPrefs,
         clock = { 1000L },
     )
+
+    private fun audiobook(serverId: String, id: String) =
+        LibraryItemEntity(serverId, id, "lib", "Title", "Author", null, 0f, hasAudio = true)
+
+    private fun ebook(serverId: String, id: String) =
+        LibraryItemEntity(serverId, id, "lib", "Title", "Author", null, 0f, hasAudio = false)
+
+    private class RecordingLibraryItemDao : LibraryItemDao by ThrowingLibraryItemDao {
+        private val items = mutableMapOf<Pair<String, String>, LibraryItemEntity>()
+        fun seed(e: LibraryItemEntity) { items[e.serverId to e.id] = e }
+        override suspend fun getById(serverId: String, itemId: String) = items[serverId to itemId]
+    }
+
+    private class FakeAudioPlaybackPreferencesStore : AudioPlaybackPreferencesStore {
+        val store = mutableMapOf<AudioIdentity, Float>()
+        override suspend fun load(identity: AudioIdentity) = store[identity]
+        override suspend fun save(identity: AudioIdentity, speed: Float) {
+            if (speed == AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED) store.remove(identity) else store[identity] = speed
+        }
+        override suspend fun clear(identity: AudioIdentity) { store.remove(identity) }
+        override suspend fun rekey(old: AudioIdentity, new: AudioIdentity) {
+            val v = store.remove(old) ?: return
+            store[if (old == new) old else new] = v
+        }
+    }
 
     private fun link(
         absServerId: String,
