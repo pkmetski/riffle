@@ -264,11 +264,12 @@ class ReadaloudReviewRepositoryImpl(
             .sortedBy { it.title.lowercase() }
             .mapNotNull { row ->
                 val abs: LibraryItemEntity = libraryItemDao.getById(row.serverId, row.itemId) ?: return@mapNotNull null
+                val hasEbook = abs.hasEbook()
                 // Strict filter: tapping the ebook slot only offers items with an ebook, and the
                 // audio slot only items with audio (a combined item satisfies both).
                 val keep = when (filter) {
                     AbsFormatFilter.ANY -> true
-                    AbsFormatFilter.EBOOK -> abs.hasEbook()
+                    AbsFormatFilter.EBOOK -> hasEbook
                     AbsFormatFilter.AUDIO -> abs.hasAudio
                 }
                 if (!keep) return@mapNotNull null
@@ -282,7 +283,7 @@ class ReadaloudReviewRepositoryImpl(
                     author = abs.author,
                     libraryName = name,
                     coverUrl = abs.coverUrl,
-                    hasEbook = abs.hasEbook(),
+                    hasEbook = hasEbook,
                     hasAudio = abs.hasAudio,
                 )
             }

@@ -87,15 +87,21 @@ fun ReadaloudMatchesScreen(
             )
         },
     ) { padding ->
+        // A confirmed readaloud is "Matched" only when both an ebook and an audiobook are linked;
+        // otherwise it's "Partially matched" (one side still missing).
+        val (partiallyMatched, matched) = remember(review.confirmed) {
+            review.confirmed.partition { it.isIncomplete }
+        }
+        // Opens the manual picker for a readaloud, scoped to the slot that was tapped.
+        val openPicker = { bookId: String, filter: AbsFormatFilter ->
+            viewModel.setPickerFilter(filter)
+            pairingBookId = bookId
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            // A confirmed readaloud is "Matched" only when both an ebook and an audiobook are linked;
-            // otherwise it's "Partially matched" (one side still missing).
-            val (partiallyMatched, matched) = review.confirmed.partition { it.isIncomplete }
-
             sectionHeader("Unmatched (${review.unmatched.size})")
             if (review.unmatched.isEmpty()) {
                 emptyRow("Every readaloud is matched or suggested.")
@@ -104,10 +110,7 @@ fun ReadaloudMatchesScreen(
                     UnmatchedReadaloudRow(
                         book = book,
                         tokens = tokens,
-                        onMatchManually = {
-                            viewModel.setPickerFilter(AbsFormatFilter.ANY)
-                            pairingBookId = book.storytellerBookId
-                        },
+                        onMatchManually = { openPicker(book.storytellerBookId, AbsFormatFilter.ANY) },
                     )
                     HorizontalDivider()
                 }
@@ -129,45 +132,28 @@ fun ReadaloudMatchesScreen(
                 }
             }
 
-            sectionHeader("Partially matched (${partiallyMatched.size})")
-            if (partiallyMatched.isEmpty()) {
-                emptyRow("Every match has both an ebook and an audiobook.")
-            } else {
-                items(partiallyMatched, key = { it.storytellerBookId }) { link ->
-                    ConfirmedReadaloudRow(
-                        link = link,
-                        onUnlink = { viewModel.unlinkBook(link) },
-                        onAddMissing = { filter ->
-                            viewModel.setPickerFilter(filter)
-                            pairingBookId = link.storytellerBookId
-                        },
-                    )
-                    HorizontalDivider()
-                }
-            }
+            confirmedSection(
+                title = "Partially matched",
+                links = partiallyMatched,
+                emptyText = "Every match has both an ebook and an audiobook.",
+                onUnlink = { viewModel.unlinkBook(it) },
+                onAddMissing = { link, filter -> openPicker(link.storytellerBookId, filter) },
+            )
 
-            sectionHeader("Matched (${matched.size})")
-            if (matched.isEmpty()) {
-                emptyRow("No fully matched readalouds yet.")
-            } else {
-                items(matched, key = { it.storytellerBookId }) { link ->
-                    ConfirmedReadaloudRow(
-                        link = link,
-                        onUnlink = { viewModel.unlinkBook(link) },
-                        onAddMissing = { filter ->
-                            viewModel.setPickerFilter(filter)
-                            pairingBookId = link.storytellerBookId
-                        },
-                    )
-                    HorizontalDivider()
-                }
-            }
+            confirmedSection(
+                title = "Matched",
+                links = matched,
+                emptyText = "No fully matched readalouds yet.",
+                onUnlink = { viewModel.unlinkBook(it) },
+                onAddMissing = { link, filter -> openPicker(link.storytellerBookId, filter) },
+            )
         }
     }
 
     pairingBookId?.let { bookId ->
         val query by viewModel.pickerQuery.collectAsState()
         val results by viewModel.pickerResults.collectAsState()
+        val filter by viewModel.pickerFilter.collectAsState()
         // Reactively reflects links as they're added/removed so the picker can stay open and let
         // the user attach several ABS items (e.g. ebook + audiobook) to one readaloud.
         val linkedItemIds = review.confirmed
@@ -177,12 +163,16 @@ fun ReadaloudMatchesScreen(
         AbsPickerDialog(
             query = query,
             results = results,
+            filter = filter,
             tokens = tokens,
             linkedItemIds = linkedItemIds,
             onQueryChange = viewModel::onPickerQueryChange,
             onLink = { item -> viewModel.pairManually(bookId, item) },
             onUnlink = { item -> viewModel.unlinkAbsItem(item) },
-            onDismiss = { pairingBookId = null },
+            onDismiss = {
+                pairingBookId = null
+                viewModel.closePicker()
+            },
         )
     }
 }
@@ -206,6 +196,29 @@ private fun LazyListScope.emptyRow(text: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         )
+    }
+}
+
+/** A "Partially matched" / "Matched" section: a header plus one two-slot row per confirmed match. */
+private fun LazyListScope.confirmedSection(
+    title: String,
+    links: List<ConfirmedReadaloud>,
+    emptyText: String,
+    onUnlink: (ConfirmedReadaloud) -> Unit,
+    onAddMissing: (ConfirmedReadaloud, AbsFormatFilter) -> Unit,
+) {
+    sectionHeader("$title (${links.size})")
+    if (links.isEmpty()) {
+        emptyRow(emptyText)
+    } else {
+        items(links, key = { it.storytellerBookId }) { link ->
+            ConfirmedReadaloudRow(
+                link = link,
+                onUnlink = { onUnlink(link) },
+                onAddMissing = { filter -> onAddMissing(link, filter) },
+            )
+            HorizontalDivider()
+        }
     }
 }
 
@@ -398,6 +411,7 @@ private fun Modifier.dashedBorder(color: Color): Modifier =
 private fun AbsPickerDialog(
     query: String,
     results: List<AbsPickerItem>,
+    filter: AbsFormatFilter,
     tokens: Map<String, String>,
     linkedItemIds: Set<String>,
     onQueryChange: (String) -> Unit,
@@ -405,12 +419,24 @@ private fun AbsPickerDialog(
     onUnlink: (AbsPickerItem) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // When opened from an empty slot the list is filtered to that format — say so, otherwise an
+    // empty result reads as "nothing found" rather than "filtered to ebooks/audiobooks".
+    val title = when (filter) {
+        AbsFormatFilter.EBOOK -> "Link an ebook"
+        AbsFormatFilter.AUDIO -> "Link an audiobook"
+        AbsFormatFilter.ANY -> "Match manually"
+    }
+    val subtitle = when (filter) {
+        AbsFormatFilter.EBOOK -> "Showing ABS items that have an ebook."
+        AbsFormatFilter.AUDIO -> "Showing ABS items that have an audiobook."
+        AbsFormatFilter.ANY -> "A readaloud can link to more than one book (e.g. an ebook and an audiobook)."
+    }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("Match manually", style = MaterialTheme.typography.titleMedium)
+                Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "A readaloud can link to more than one book (e.g. an ebook and an audiobook).",
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

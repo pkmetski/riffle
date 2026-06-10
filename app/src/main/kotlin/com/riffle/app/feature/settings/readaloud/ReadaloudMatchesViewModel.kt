@@ -56,6 +56,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
     // Scopes the picker to the slot it was opened for: EBOOK / AUDIO from a Confirmed match's empty
     // slot, ANY from an Unmatched row's "Match manually…".
     private val _pickerFilter = MutableStateFlow(AbsFormatFilter.ANY)
+    val pickerFilter: StateFlow<AbsFormatFilter> = _pickerFilter.asStateFlow()
 
     private val _pickerResults = MutableStateFlow<List<AbsPickerItem>>(emptyList())
     val pickerResults: StateFlow<List<AbsPickerItem>> = _pickerResults.asStateFlow()
@@ -84,6 +85,12 @@ class ReadaloudMatchesViewModel @Inject constructor(
     fun setPickerFilter(filter: AbsFormatFilter) {
         _pickerQuery.value = ""
         _pickerFilter.value = filter
+    }
+
+    /** Clears picker state when the dialog is dismissed so the next open starts unfiltered. */
+    fun closePicker() {
+        _pickerQuery.value = ""
+        _pickerFilter.value = AbsFormatFilter.ANY
     }
 
     fun confirm(book: PendingReadaloud, candidate: AbsCandidate) {
