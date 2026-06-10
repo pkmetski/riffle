@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AbsCandidate
+import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -51,6 +53,10 @@ class ReadaloudMatchesViewModel @Inject constructor(
     private val _pickerQuery = MutableStateFlow("")
     val pickerQuery: StateFlow<String> = _pickerQuery.asStateFlow()
 
+    // Scopes the picker to the slot it was opened for: EBOOK / AUDIO from a Confirmed match's empty
+    // slot, ANY from an Unmatched row's "Match manually…".
+    private val _pickerFilter = MutableStateFlow(AbsFormatFilter.ANY)
+
     private val _pickerResults = MutableStateFlow<List<AbsPickerItem>>(emptyList())
     val pickerResults: StateFlow<List<AbsPickerItem>> = _pickerResults.asStateFlow()
 
@@ -64,10 +70,20 @@ class ReadaloudMatchesViewModel @Inject constructor(
             _tokensByServer.value = map
         }
         viewModelScope.launch {
-            _pickerQuery
-                .debounce(200)
-                .collect { query -> _pickerResults.value = reviewRepository.searchAbsItems(query) }
+            combine(_pickerQuery.debounce(200), _pickerFilter) { query, filter -> query to filter }
+                .collect { (query, filter) ->
+                    _pickerResults.value = reviewRepository.searchAbsItems(query, filter)
+                }
         }
+    }
+
+    /**
+     * Opens the picker scoped to [filter] (called from a Confirmed match's empty slot or an
+     * Unmatched row). Resets the query so stale results don't flash with a different filter.
+     */
+    fun setPickerFilter(filter: AbsFormatFilter) {
+        _pickerQuery.value = ""
+        _pickerFilter.value = filter
     }
 
     fun confirm(book: PendingReadaloud, candidate: AbsCandidate) {

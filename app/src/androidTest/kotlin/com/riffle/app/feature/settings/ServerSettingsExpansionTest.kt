@@ -97,15 +97,15 @@ class ServerSettingsExpansionTest {
             ServerSettingsExpansion(
                 server = server(ServerType.STORYTELLER, active = true),
                 libraryItems = emptyList(),
-                summary = ReadaloudMatchSummary(confirmedCount = 3, pendingCount = 1, unmatchedCount = 2),
+                summary = ReadaloudMatchSummary(unmatchedCount = 2, suggestedCount = 1, partiallyMatchedCount = 1, matchedCount = 3),
                 onSetLibraryVisible = { _, _ -> },
                 onOpenReadaloudMatches = { opened = true },
             )
         }
 
         composeTestRule.onNodeWithText("Readaloud matches").assertIsDisplayed()
-        composeTestRule.onNodeWithText("3 confirmed · 1 pending review · 2 unmatched").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Review & pair readalouds").performClick()
+        composeTestRule.onNodeWithText("2 unmatched · 1 suggested · 1 partially matched · 3 matched").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Review & match readalouds").performClick()
 
         assertTrue(opened)
     }

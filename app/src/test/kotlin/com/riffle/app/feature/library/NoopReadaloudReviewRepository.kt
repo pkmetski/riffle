@@ -1,5 +1,6 @@
 package com.riffle.app.feature.library
 
+import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
@@ -15,5 +16,5 @@ internal object NoopReadaloudReviewRepository : ReadaloudReviewRepository {
     override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) = Unit
     override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
     override suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
-    override suspend fun searchAbsItems(query: String): List<AbsPickerItem> = emptyList()
+    override suspend fun searchAbsItems(query: String, filter: AbsFormatFilter): List<AbsPickerItem> = emptyList()
 }

@@ -1,5 +1,9 @@
 package com.riffle.app.feature.settings.readaloud
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
@@ -48,6 +57,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.riffle.core.domain.AbsCandidate
+import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
@@ -82,9 +92,30 @@ fun ReadaloudMatchesScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            sectionHeader("Pending Review (${review.pending.size})")
+            // A confirmed readaloud is "Matched" only when both an ebook and an audiobook are linked;
+            // otherwise it's "Partially matched" (one side still missing).
+            val (partiallyMatched, matched) = review.confirmed.partition { it.isIncomplete }
+
+            sectionHeader("Unmatched (${review.unmatched.size})")
+            if (review.unmatched.isEmpty()) {
+                emptyRow("Every readaloud is matched or suggested.")
+            } else {
+                items(review.unmatched, key = { it.storytellerBookId }) { book ->
+                    UnmatchedReadaloudRow(
+                        book = book,
+                        tokens = tokens,
+                        onMatchManually = {
+                            viewModel.setPickerFilter(AbsFormatFilter.ANY)
+                            pairingBookId = book.storytellerBookId
+                        },
+                    )
+                    HorizontalDivider()
+                }
+            }
+
+            sectionHeader("Suggested (${review.pending.size})")
             if (review.pending.isEmpty()) {
-                emptyRow("Nothing waiting for review.")
+                emptyRow("No suggested matches right now.")
             } else {
                 items(review.pending, key = { it.storytellerBookId }) { book ->
                     PendingReadaloudCard(
@@ -98,28 +129,35 @@ fun ReadaloudMatchesScreen(
                 }
             }
 
-            sectionHeader("Unmatched (${review.unmatched.size})")
-            if (review.unmatched.isEmpty()) {
-                emptyRow("Every readaloud is matched or under review.")
+            sectionHeader("Partially matched (${partiallyMatched.size})")
+            if (partiallyMatched.isEmpty()) {
+                emptyRow("Every match has both an ebook and an audiobook.")
             } else {
-                items(review.unmatched, key = { it.storytellerBookId }) { book ->
-                    UnmatchedReadaloudRow(
-                        book = book,
-                        tokens = tokens,
-                        onMatchManually = { pairingBookId = book.storytellerBookId },
+                items(partiallyMatched, key = { it.storytellerBookId }) { link ->
+                    ConfirmedReadaloudRow(
+                        link = link,
+                        onUnlink = { viewModel.unlinkBook(link) },
+                        onAddMissing = { filter ->
+                            viewModel.setPickerFilter(filter)
+                            pairingBookId = link.storytellerBookId
+                        },
                     )
                     HorizontalDivider()
                 }
             }
 
-            sectionHeader("Confirmed (${review.confirmed.size})")
-            if (review.confirmed.isEmpty()) {
-                emptyRow("No confirmed links yet.")
+            sectionHeader("Matched (${matched.size})")
+            if (matched.isEmpty()) {
+                emptyRow("No fully matched readalouds yet.")
             } else {
-                items(review.confirmed, key = { it.storytellerBookId }) { link ->
+                items(matched, key = { it.storytellerBookId }) { link ->
                     ConfirmedReadaloudRow(
                         link = link,
                         onUnlink = { viewModel.unlinkBook(link) },
+                        onAddMissing = { filter ->
+                            viewModel.setPickerFilter(filter)
+                            pairingBookId = link.storytellerBookId
+                        },
                     )
                     HorizontalDivider()
                 }
@@ -257,24 +295,103 @@ private fun UnmatchedReadaloudRow(
 private fun ConfirmedReadaloudRow(
     link: ConfirmedReadaloud,
     onUnlink: () -> Unit,
+    onAddMissing: (AbsFormatFilter) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                link.title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onUnlink) { Text("Unlink") }
+        }
+        Spacer(Modifier.height(8.dp))
+        // Two fixed slots — a combined ABS item fills both; a one-sided match leaves the other
+        // slot empty and tappable so the missing side can be linked in place.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FormatSlot(
+                label = "📖 Ebook",
+                targets = link.targets.filter { it.hasEbook },
+                onAdd = { onAddMissing(AbsFormatFilter.EBOOK) },
+                modifier = Modifier.weight(1f),
+            )
+            FormatSlot(
+                label = "🎧 Audiobook",
+                targets = link.targets.filter { it.hasAudio },
+                onAdd = { onAddMissing(AbsFormatFilter.AUDIO) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FormatSlot(
+    label: String,
+    targets: List<ConfirmedReadaloud.ConfirmedTarget>,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    val isEmpty = targets.isEmpty()
+    // A missing slot is flagged with a warning amber (Material3 has no warning role). Tinted fill +
+    // amber dashed border + amber label so the gap reads as "needs attention", not a normal item.
+    val amber = if (isSystemInDarkTheme()) Color(0xFFE6B450) else Color(0xFF9A6700)
+    val amberFill = Color(0xFFFFC107).copy(alpha = if (isSystemInDarkTheme()) 0.10f else 0.16f)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .then(
+                if (isEmpty) {
+                    Modifier
+                        .background(amberFill, shape)
+                        .dashedBorder(amber)
+                        .clickable(onClick = onAdd)
+                } else {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                }
+            )
+            .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(link.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            link.targets.forEach { target ->
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isEmpty) amber else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(3.dp))
+        if (isEmpty) {
+            Text(
+                "＋ Not linked",
+                style = MaterialTheme.typography.bodyMedium,
+                color = amber,
+            )
+        } else {
+            targets.forEach { target ->
                 Text(
-                    "Linked to: ${target.absTitle} · ${target.absLibraryName}",
+                    "${target.absTitle} · ${target.absLibraryName}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        TextButton(onClick = onUnlink) { Text("Unlink") }
     }
 }
+
+/** A rounded dashed outline, used to render an empty (missing) format slot as a fill-me affordance. */
+private fun Modifier.dashedBorder(color: Color): Modifier =
+    drawBehind {
+        val stroke = Stroke(
+            width = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f),
+        )
+        drawRoundRect(
+            color = color,
+            style = stroke,
+            cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()),
+        )
+    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -2,15 +2,19 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudCandidateEntity
 import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
+import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
+import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -178,6 +182,146 @@ class ReadaloudReviewRepositoryTest {
         repo.confirmCandidate("st-1", "42", "abs-1", "ebook")
 
         assertEquals(1.25f, audio.store[AudioIdentity("st-1", "42")])
+    }
+
+    // ── format slots: missing-side detection (Confirmed two-slot UI) ─────────
+
+    @Test
+    fun `confirmed targets carry ebook and audio flags so a missing side is detectable`() = runTest {
+        // An ebook entry + an audiobook stub linked to the same readaloud. Each target must report
+        // which slot it fills so the UI can leave the other slot empty when one is absent.
+        val items = MatchableLibraryItemDao(
+            listOf(absEbook("ebook"), absAudiobook("audio"), storytellerBook("42")),
+            absServerIds = setOf("abs"),
+            storytellerServerIds = setOf("st"),
+        )
+        val links = RecordingLinkDao().apply {
+            seed(link("abs", "ebook", "st", "42", userConfirmed = true))
+            seed(link("abs", "audio", "st", "42", userConfirmed = true))
+        }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items)
+
+        val match = repo.observeReview("st").first().confirmed.single { it.storytellerBookId == "42" }
+
+        val ebookTarget = match.targets.single { it.absLibraryItemId == "ebook" }
+        assertTrue("ebook entry fills the ebook slot", ebookTarget.hasEbook)
+        assertTrue("ebook entry is not audio", !ebookTarget.hasAudio)
+        val audioTarget = match.targets.single { it.absLibraryItemId == "audio" }
+        assertTrue("audiobook stub fills the audio slot", audioTarget.hasAudio)
+        assertTrue("audiobook stub is not an ebook", !audioTarget.hasEbook)
+    }
+
+    @Test
+    fun `a combined item reports both slots filled`() = runTest {
+        val items = MatchableLibraryItemDao(
+            listOf(absCombined("both"), storytellerBook("7")),
+            absServerIds = setOf("abs"),
+            storytellerServerIds = setOf("st"),
+        )
+        val links = RecordingLinkDao().apply { seed(link("abs", "both", "st", "7", userConfirmed = true)) }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items)
+
+        val target = repo.observeReview("st").first().confirmed.single().targets.single()
+
+        assertTrue(target.hasEbook)
+        assertTrue(target.hasAudio)
+    }
+
+    @Test
+    fun `confirmed matches are alphabetical and isIncomplete partitions them for the UI sections`() = runTest {
+        // The screen splits confirmed into "Partially matched" (isIncomplete) and "Matched". The repo
+        // returns one alphabetical list; partitioning by isIncomplete must keep each section in order.
+        val items = MatchableLibraryItemDao(
+            listOf(
+                absCombined("alpha"), storytellerBook("a").copy(title = "Alpha"),
+                absCombined("mango"), storytellerBook("m").copy(title = "Mango"),
+                absAudiobook("zebra"), storytellerBook("z").copy(title = "Zebra"),
+            ),
+            absServerIds = setOf("abs"),
+            storytellerServerIds = setOf("st"),
+        )
+        val links = RecordingLinkDao().apply {
+            seed(link("abs", "alpha", "st", "a", userConfirmed = true))
+            seed(link("abs", "mango", "st", "m", userConfirmed = true))
+            seed(link("abs", "zebra", "st", "z", userConfirmed = true))
+        }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items)
+
+        val confirmed = repo.observeReview("st").first().confirmed
+
+        assertEquals(listOf("Alpha", "Mango", "Zebra"), confirmed.map { it.title })
+        val (incomplete, complete) = confirmed.partition { it.isIncomplete }
+        assertEquals(listOf("Zebra"), incomplete.map { it.title })
+        assertEquals(listOf("Alpha", "Mango"), complete.map { it.title })
+    }
+
+    @Test
+    fun `searchAbsItems EBOOK filter keeps ebook and combined, drops audio-only`() = runTest {
+        val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
+
+        val result = repo.searchAbsItems("", AbsFormatFilter.EBOOK)
+
+        assertEquals(setOf("ebook", "both"), result.map { it.absLibraryItemId }.toSet())
+        assertTrue("every offered item can supply an ebook", result.all { it.hasEbook })
+    }
+
+    @Test
+    fun `searchAbsItems AUDIO filter keeps audiobook and combined, drops ebook-only`() = runTest {
+        val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
+
+        val result = repo.searchAbsItems("", AbsFormatFilter.AUDIO)
+
+        assertEquals(setOf("audio", "both"), result.map { it.absLibraryItemId }.toSet())
+        assertTrue("every offered item can supply audio", result.all { it.hasAudio })
+    }
+
+    @Test
+    fun `searchAbsItems ANY returns all with correct format flags`() = runTest {
+        val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
+
+        val byId = repo.searchAbsItems("").associateBy { it.absLibraryItemId }
+
+        assertEquals(setOf("ebook", "audio", "both"), byId.keys)
+        assertEquals(true to false, byId.getValue("ebook").let { it.hasEbook to it.hasAudio })
+        assertEquals(false to true, byId.getValue("audio").let { it.hasEbook to it.hasAudio })
+        assertEquals(true to true, byId.getValue("both").let { it.hasEbook to it.hasAudio })
+    }
+
+    private fun absSearchDao() = MatchableLibraryItemDao(
+        listOf(absEbook("ebook"), absAudiobook("audio"), absCombined("both")),
+        absServerIds = setOf("abs"),
+        storytellerServerIds = emptySet(),
+    )
+
+    private fun absEbook(id: String) =
+        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "epub", hasAudio = false)
+
+    private fun absAudiobook(id: String) =
+        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "unsupported", hasAudio = true)
+
+    private fun absCombined(id: String) =
+        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "epub", hasAudio = true)
+
+    private fun storytellerBook(id: String) =
+        LibraryItemEntity("st", id, "lib", "Book $id", "Author", null, 0f)
+
+    /** A [LibraryItemDao] backing both `getById` lookups and `listMatchableByServerType` scans. */
+    private class MatchableLibraryItemDao(
+        private val items: List<LibraryItemEntity>,
+        private val absServerIds: Set<String>,
+        private val storytellerServerIds: Set<String>,
+    ) : LibraryItemDao by ThrowingLibraryItemDao {
+        override suspend fun getById(serverId: String, itemId: String) =
+            items.firstOrNull { it.serverId == serverId && it.id == itemId }
+        override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> {
+            val serverIds = when (serverType) {
+                ServerType.AUDIOBOOKSHELF.name -> absServerIds
+                ServerType.STORYTELLER.name -> storytellerServerIds
+                else -> emptySet()
+            }
+            return items.filter { it.serverId in serverIds }
+                .map { MatchableItemRow(it.id, it.serverId, it.title, it.author, null, null) }
+        }
     }
 
     private fun repo(
