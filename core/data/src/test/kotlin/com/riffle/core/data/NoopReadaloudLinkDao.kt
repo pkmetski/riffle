@@ -19,6 +19,7 @@ internal object NoopReadaloudLinkDao : ReadaloudLinkDao {
     override suspend fun countForServer(serverId: String): Int = 0
     override suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String) = Unit
     override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) = Unit
+    override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String) = Unit
 }
 
 internal object NoopReadaloudCandidateDao : ReadaloudCandidateDao {

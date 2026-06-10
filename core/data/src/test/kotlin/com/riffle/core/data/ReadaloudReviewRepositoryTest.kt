@@ -378,6 +378,7 @@ class ReadaloudReviewRepositoryTest {
     )
 
     private class RecordingLinkDao : ReadaloudLinkDao {
+        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String) = Unit
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()
         fun seed(e: ReadaloudLinkEntity) { store[e.absServerId to e.absLibraryItemId] = e }
         override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absServerId to entity.absLibraryItemId] = entity }
