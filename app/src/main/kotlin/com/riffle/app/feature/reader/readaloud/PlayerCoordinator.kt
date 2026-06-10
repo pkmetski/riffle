@@ -69,6 +69,12 @@ class PlayerCoordinator @Inject constructor(
         controller.prepare(bundleFile, track)
     }
 
+    /** Streaming counterpart of [open] (ADR 0028): audio streams from ABS, same [track] machinery. */
+    internal suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
+        this.track = track
+        controller.prepareStreaming(streaming, track)
+    }
+
     /**
      * "Play from here" from the text-selection menu. [fragmentRef] is the selection's
      * "href#fragmentId" (or a bare "href" when the selection carries no fragment). Resolves exactly

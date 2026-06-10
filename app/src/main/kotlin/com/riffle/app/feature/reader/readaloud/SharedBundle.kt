@@ -20,7 +20,7 @@ import java.io.IOException
  * the player never needs to be rebuilt when switching. There is only ever one Readaloud at a time.
  */
 @OptIn(UnstableApi::class)
-internal object SharedBundle {
+object SharedBundle {
     @Volatile
     var current: File? = null
 

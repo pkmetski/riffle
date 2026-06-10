@@ -23,7 +23,7 @@ import javax.inject.Inject
  * caller falls back to the bundle. Streaming is built only when an ABS audiobook is linked AND its
  * recording identity is VERIFIED against Storyteller's ingested source — so a mismatch never streams.
  */
-internal class ReadaloudStreamingSessionFactory @Inject constructor(
+class ReadaloudStreamingSessionFactory @Inject constructor(
     @ApplicationContext private val context: Context,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val absApi: AbsLibraryApi,
@@ -32,7 +32,8 @@ internal class ReadaloudStreamingSessionFactory @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) {
-    data class Session(val track: ReadaloudTrack, val streaming: SharedBundle.Streaming)
+    /** [sidecarFile] stands in for the bundle for the track, highlight quotes, and cross-EPUB index. */
+    data class Session(val track: ReadaloudTrack, val streaming: SharedBundle.Streaming, val sidecarFile: File)
 
     suspend fun tryBuild(storytellerServerId: String, storytellerBookId: String): Session? = withContext(Dispatchers.IO) {
         // 1. Resolve the ABS audiobook linked to this readaloud. No audiobook → not streamable.
@@ -67,6 +68,6 @@ internal class ReadaloudStreamingSessionFactory @Inject constructor(
             ?: return@withContext null
 
         val httpFactory = StreamingAudioCache.dataSourceFactory(context, absToken)
-        Session(setup.track, SharedBundle.Streaming(httpFactory, setup.items.associateBy { it.audioSrc }))
+        Session(setup.track, SharedBundle.Streaming(httpFactory, setup.items.associateBy { it.audioSrc }), sidecarFile)
     }
 }

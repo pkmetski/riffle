@@ -18,9 +18,11 @@ class ReadaloudControlStateTest {
         )
     }
 
-    @Test fun matched_abs_without_bundle_is_visible_but_disabled() {
+    @Test fun matched_abs_without_bundle_is_visible_and_enabled() {
+        // ADR 0028: the control is tappable even without a bundle — tapping streams when eligible,
+        // else prompts the download. No longer gated on a present bundle.
         assertEquals(
-            ReadaloudControlState(visible = true, enabled = false),
+            ReadaloudControlState(visible = true, enabled = true),
             readaloudControlState(isStoryteller = false, isMatchedAbs = true, bundlePresent = false),
         )
     }

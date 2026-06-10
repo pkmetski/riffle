@@ -133,6 +133,7 @@ class EpubReaderViewModel @Inject constructor(
     private val timeProvider: TimeProvider,
     private val readerStateHolder: ReaderStateHolder,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
+    private val streamingSessionFactory: com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory,
     private val playerCoordinator: PlayerCoordinator,
     private val storytellerSyncController: StorytellerPositionSyncController,
     private val serverRepository: ServerRepository,
@@ -1843,27 +1844,27 @@ class EpubReaderViewModel @Inject constructor(
      */
     fun onPlayTapped() {
         _readaloudOfflineMessage.value = false
-        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
-        if (bundle != null) {
-            viewModelScope.launch { ensurePreparedAndPlay(bundle) }
-            return
-        }
-        // A matched ABS book's bundle is provisioned from the book's detail screen against the
-        // linked Storyteller server (the active server here is ABS and can't serve it). The reader
-        // control is disabled until the bundle exists; this also guards the "Play from here"
-        // selection path, which can reach onPlayTapped() directly. So: no local bundle + matched
-        // ABS book → do nothing (no wrong-server probe/download).
-        if (audioBookId != itemId) return
-        if (!connectivityObserver.isOnline.value) {
-            _readaloudOfflineMessage.value = true
-            return
-        }
         viewModelScope.launch {
-            // NOTE: probe/download here use the ACTIVE server. The matched-ABS case (audioBookId !=
-            // itemId) is handled by the guard above, so only Storyteller books (active server ==
-            // Storyteller) reach this path, and audioBookId resolves correctly.
-            // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
-            // the user can still choose to download.
+            // Streaming (ADR 0028): a matched book whose ABS audiobook is linked and identity-verified
+            // plays from ABS with no bundle download. Built once; null → not streamable → bundle path.
+            if (ensureStreamingSession() != null) {
+                ensurePreparedAndPlay(bundle = null)
+                return@launch
+            }
+            val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+            if (bundle != null) {
+                ensurePreparedAndPlay(bundle)
+                return@launch
+            }
+            // A matched ABS book's bundle is provisioned from the book's detail screen against the
+            // linked Storyteller server (the active server here is ABS and can't serve it). So: no
+            // stream, no local bundle, matched ABS book → do nothing (no wrong-server probe/download).
+            if (audioBookId != itemId) return@launch
+            if (!connectivityObserver.isOnline.value) {
+                _readaloudOfflineMessage.value = true
+                return@launch
+            }
+            // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt.
             _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioServerId, audioBookId) ?: 0L
         }
     }
@@ -1893,6 +1894,15 @@ class EpubReaderViewModel @Inject constructor(
             closeLocator = null
             playerCoordinator.playFromSecond(globalSec)
         }
+    }
+
+    /** Builds (once) the streaming session for this book, or null when it isn't streamable (ADR 0028). */
+    private suspend fun ensureStreamingSession(): com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory.Session? {
+        streamingSession?.let { return it }
+        if (streamingAttempted) return null
+        streamingAttempted = true
+        streamingSession = runCatching { streamingSessionFactory.tryBuild(audioServerId, audioBookId) }.getOrNull()
+        return streamingSession
     }
 
     /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
@@ -1967,6 +1977,11 @@ class EpubReaderViewModel @Inject constructor(
     // pause doesn't re-prepare (which would reset playback to the start).
     private var readaloudPrepared = false
 
+    // Streaming session for this book (ADR 0028), built once. Non-null → audio streams from ABS and
+    // the sidecar stands in for the bundle (track + highlight quotes). Null after an attempt → bundle.
+    private var streamingSession: com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory.Session? = null
+    private var streamingAttempted = false
+
     // True once playback has been started this session, so the first play seeks to the reader's
     // position while a later resume-after-pause stays where it was.
     private var readaloudStarted = false
@@ -1989,7 +2004,7 @@ class EpubReaderViewModel @Inject constructor(
     // position precisely, instead of the page top. Ignored once the reader leaves that chapter.
     private var pendingStartFragmentRef: String? = null
 
-    private suspend fun ensurePreparedAndPlay(bundle: File) {
+    private suspend fun ensurePreparedAndPlay(bundle: File?) {
         ensureOpened(bundle) ?: return
         // Record the active readaloud so a media-notification tap reopens this book's reader.
         nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Readaloud(itemId))
@@ -2107,10 +2122,15 @@ class EpubReaderViewModel @Inject constructor(
         playerCoordinator.playFromReaderPosition(href, fragmentId)
     }
 
-    private suspend fun ensureOpened(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
+    private suspend fun ensureOpened(bundle: File?): com.riffle.core.domain.ReadaloudTrack? {
         val track = ensureTrack(bundle) ?: return null
         if (!readaloudPrepared) {
-            playerCoordinator.open(audioBookId, bundle, track)
+            val session = streamingSession
+            if (session != null) {
+                playerCoordinator.openStreaming(session.streaming, track)
+            } else {
+                playerCoordinator.open(audioBookId, bundle!!, track)
+            }
             // Apply the persisted per-book speed to the freshly-prepared session. Use the coordinator
             // directly (not the VM's setSpeed) so restoring the saved value doesn't re-save it.
             playerCoordinator.setSpeed(initialSpeed)
@@ -2119,15 +2139,23 @@ class EpubReaderViewModel @Inject constructor(
         return track
     }
 
-    private suspend fun ensureTrack(bundle: File): com.riffle.core.domain.ReadaloudTrack? {
+    private suspend fun ensureTrack(bundle: File?): com.riffle.core.domain.ReadaloudTrack? {
         readaloudTrack?.let { return it }
-        val track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
+        // Streaming (ADR 0028): track comes from the sidecar (already parsed); the sidecar also feeds
+        // the highlight quotes, standing in for the bundle. Otherwise read the track from the bundle.
+        val session = streamingSession
+        val track: com.riffle.core.domain.ReadaloudTrack
+        if (session != null) {
+            track = session.track
+            quoteBundle = session.sidecarFile
+        } else {
+            val b = bundle ?: return null
+            track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
+            // Defer the (heavy, whole-bundle) sentence-quote parse until audio is actually playing, so it
+            // never competes with ExoPlayer's audio-start I/O on the same multi-hundred-MB zip.
+            quoteBundle = b
+        }
         readaloudTrack = track
-        _readaloudTrackFlow.value = track
-        // Defer the (heavy, whole-bundle) sentence-quote parse until audio is actually playing, so it
-        // never competes with ExoPlayer's audio-start I/O on the same multi-hundred-MB zip. The
-        // highlight is only meaningful once playback is running anyway, so a beat's delay is invisible.
-        quoteBundle = bundle
         return track
     }
 
