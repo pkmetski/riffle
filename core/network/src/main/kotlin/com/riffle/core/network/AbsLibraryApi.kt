@@ -129,4 +129,13 @@ interface AbsLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkAudiobookFingerprintResult =
         NetworkAudiobookFingerprintResult.NetworkError(NotImplementedError("getAudiobookFingerprint"))
+
+    /** The ABS audiobook's streamable tracks (ino + duration) for streaming playback (ADR 0028). */
+    suspend fun getAudiobookTracks(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookTracksResult =
+        NetworkAudiobookTracksResult.NetworkError(NotImplementedError("getAudiobookTracks"))
 }

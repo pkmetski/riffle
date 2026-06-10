@@ -56,4 +56,17 @@ class AudiobookFingerprintClientTest {
         assertEquals(listOf(2204.0, 1721.0), (result as NetworkAudiobookFingerprintResult.Success).fingerprint.trackDurationsSec)
         assertEquals("/api/items/abc?expanded=1", server.takeRequest().path)
     }
+
+    @Test
+    fun `abs fetches streamable tracks with ino`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"id":"abc","media":{"audioFiles":[
+                   {"ino":"7963985","index":1,"duration":39214.464}]}}""",
+            ),
+        )
+        val result = AbsApiClient(OkHttpClient()).getAudiobookTracks(baseUrl(), "abc", "tok", false)
+        assertTrue(result is NetworkAudiobookTracksResult.Success)
+        assertEquals("7963985", (result as NetworkAudiobookTracksResult.Success).tracks.single().ino)
+    }
 }

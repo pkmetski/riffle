@@ -516,6 +516,34 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun getAudiobookTracks(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookTracksResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/items/$itemId?expanded=1")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext NetworkAudiobookTracksResult.NetworkError(IOException("HTTP ${response.code}"))
+                }
+                val raw = response.body?.string()
+                    ?: return@withContext NetworkAudiobookTracksResult.NetworkError(IOException("Empty response body"))
+                val tracks = json.decodeFromString<AbsItemResponse>(raw).audiobookTracks()
+                if (tracks.isEmpty()) NetworkAudiobookTracksResult.NoAudiobook
+                else NetworkAudiobookTracksResult.Success(tracks)
+            }
+        } catch (e: IOException) {
+            NetworkAudiobookTracksResult.NetworkError(e)
+        }
+    }
+
     override suspend fun downloadEpub(
         baseUrl: String,
         itemId: String,
