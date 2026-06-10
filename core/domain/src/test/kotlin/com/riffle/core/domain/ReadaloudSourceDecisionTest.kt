@@ -4,25 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Chooses, per book, where Readaloud audio comes from (ADR 0028). Streaming is taken only when the
- * audiobook is linked AND its identity is verified AND the (dark-launch) switch is on — so with the
- * switch off, every book falls back to the bundle and runtime behaviour is unchanged.
+ * Chooses, per book, where Readaloud audio comes from (ADR 0028). Streaming requires a linked ABS
+ * audiobook whose identity is verified; anything else falls back to the (always-correct) bundle.
  */
 class ReadaloudSourceDecisionTest {
 
     @Test
-    fun `streams when linked, verified and enabled`() {
+    fun `streams when the audiobook is linked and verified`() {
         assertEquals(
             ReadaloudAudioSource.STREAM,
-            ReadaloudSourceDecision.decide(audiobookLinked = true, identityVerified = true, streamingEnabled = true),
-        )
-    }
-
-    @Test
-    fun `the dark switch off forces the bundle even when otherwise eligible`() {
-        assertEquals(
-            ReadaloudAudioSource.BUNDLE,
-            ReadaloudSourceDecision.decide(audiobookLinked = true, identityVerified = true, streamingEnabled = false),
+            ReadaloudSourceDecision.decide(audiobookLinked = true, identityVerified = true),
         )
     }
 
@@ -30,7 +21,7 @@ class ReadaloudSourceDecisionTest {
     fun `no audiobook link falls back to the bundle`() {
         assertEquals(
             ReadaloudAudioSource.BUNDLE,
-            ReadaloudSourceDecision.decide(audiobookLinked = false, identityVerified = true, streamingEnabled = true),
+            ReadaloudSourceDecision.decide(audiobookLinked = false, identityVerified = true),
         )
     }
 
@@ -38,7 +29,7 @@ class ReadaloudSourceDecisionTest {
     fun `failed identity falls back to the bundle`() {
         assertEquals(
             ReadaloudAudioSource.BUNDLE,
-            ReadaloudSourceDecision.decide(audiobookLinked = true, identityVerified = false, streamingEnabled = true),
+            ReadaloudSourceDecision.decide(audiobookLinked = true, identityVerified = false),
         )
     }
 }

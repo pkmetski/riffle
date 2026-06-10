@@ -4,19 +4,17 @@ package com.riffle.core.domain
 enum class ReadaloudAudioSource { STREAM, BUNDLE }
 
 /**
- * The per-book source choice and the dark-launch kill switch in one place. Streaming requires all
- * three of: a linked ABS audiobook, a verified identity ([AudiobookIdentity]), and the streaming
- * switch on. `streamingEnabled` defaults off in production, so until it is flipped every book —
- * including those that *could* stream — resolves to [ReadaloudAudioSource.BUNDLE] and nothing about
- * the existing path changes.
+ * The per-book source choice (ADR 0028). Streaming is taken only when the ABS audiobook is linked
+ * AND its identity is verified ([AudiobookIdentity]); everything else falls back to the bundle, so a
+ * name-matched-but-different audiobook never silently mis-syncs. This per-book gate — not a global
+ * switch — is the safety mechanism.
  */
 object ReadaloudSourceDecision {
     fun decide(
         audiobookLinked: Boolean,
         identityVerified: Boolean,
-        streamingEnabled: Boolean,
     ): ReadaloudAudioSource =
-        if (audiobookLinked && identityVerified && streamingEnabled) {
+        if (audiobookLinked && identityVerified) {
             ReadaloudAudioSource.STREAM
         } else {
             ReadaloudAudioSource.BUNDLE
