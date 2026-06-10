@@ -154,4 +154,99 @@ class ReadaloudTrackTest {
     fun `resolveStartClip past all narrated content returns null`() {
         assertEquals(null, splitTrack.resolveStartClip("text/part0099_split_000.html", null))
     }
+
+    // ── skip + chapter math (rewind/forward, prev/next chapter) ──
+
+    // Two chapters across two files. Global timeline: c1 -> [0,9), c2 -> [9,13).
+    private val skipClips = listOf(
+        MediaOverlayClip("text/c1.html#s1", "c1.mp3", 0.0, 2.0),
+        MediaOverlayClip("text/c1.html#s2", "c1.mp3", 2.0, 5.0),
+        MediaOverlayClip("text/c1.html#s3", "c1.mp3", 5.0, 9.0),
+        MediaOverlayClip("text/c2.html#s1", "c2.mp3", 0.0, 4.0),
+    )
+    private val skipTrack = ReadaloudTrack(skipClips)
+
+    @Test
+    fun `chapterCount counts distinct chapter hrefs in order`() {
+        assertEquals(2, skipTrack.chapterCount)
+    }
+
+    @Test
+    fun `chapterIndexAt maps an in-file position to its chapter`() {
+        assertEquals(0, skipTrack.chapterIndexAt("c1.mp3", 3.0))
+        assertEquals(1, skipTrack.chapterIndexAt("c2.mp3", 1.0))
+    }
+
+    @Test
+    fun `chapterIndexAt returns -1 when nothing is playing`() {
+        assertEquals(-1, skipTrack.chapterIndexAt(null, 0.0))
+    }
+
+    @Test
+    fun `firstClipOfChapter returns the chapter's opening clip`() {
+        assertEquals(skipClips[0], skipTrack.firstClipOfChapter(0))
+        assertEquals(skipClips[3], skipTrack.firstClipOfChapter(1))
+        assertNull(skipTrack.firstClipOfChapter(2))
+    }
+
+    @Test
+    fun `resolveRelativeSkip seeks within the current file`() {
+        // at c1 3.0s, +4s -> c1 7.0s
+        assertEquals(ReadaloudTrack.Position("c1.mp3", 7.0), skipTrack.resolveRelativeSkip("c1.mp3", 3.0, 4.0))
+        // at c1 7.0s, -4s -> c1 3.0s
+        assertEquals(ReadaloudTrack.Position("c1.mp3", 3.0), skipTrack.resolveRelativeSkip("c1.mp3", 7.0, -4.0))
+    }
+
+    @Test
+    fun `resolveRelativeSkip rolls forward across a file boundary`() {
+        // at c1 8.0s, +3s -> global 11.0 -> c2 2.0s
+        assertEquals(ReadaloudTrack.Position("c2.mp3", 2.0), skipTrack.resolveRelativeSkip("c1.mp3", 8.0, 3.0))
+    }
+
+    @Test
+    fun `resolveRelativeSkip rolls backward across a file boundary`() {
+        // at c2 1.0s (global 10.0), -3s -> global 7.0 -> c1 7.0s
+        assertEquals(ReadaloudTrack.Position("c1.mp3", 7.0), skipTrack.resolveRelativeSkip("c2.mp3", 1.0, -3.0))
+    }
+
+    @Test
+    fun `resolveRelativeSkip clamps at the start and end of the readaloud`() {
+        // rewind before zero
+        assertEquals(ReadaloudTrack.Position("c1.mp3", 0.0), skipTrack.resolveRelativeSkip("c1.mp3", 1.0, -30.0))
+        // forward past the end (total 13.0) clamps to the last file's end
+        assertEquals(ReadaloudTrack.Position("c2.mp3", 4.0), skipTrack.resolveRelativeSkip("c2.mp3", 1.0, 30.0))
+    }
+
+    @Test
+    fun `resolveRelativeSkip returns null when nothing is playing`() {
+        assertNull(skipTrack.resolveRelativeSkip(null, 0.0, 30.0))
+    }
+
+    @Test
+    fun `next chapter jumps to the following chapter's first clip`() {
+        assertEquals(skipClips[3], skipTrack.resolveChapterSkip("c1.mp3", 3.0, forward = true, nearStartSec = 3.0))
+    }
+
+    @Test
+    fun `next chapter on the last chapter returns null`() {
+        assertNull(skipTrack.resolveChapterSkip("c2.mp3", 1.0, forward = true, nearStartSec = 3.0))
+    }
+
+    @Test
+    fun `previous chapter restarts the current chapter when past the near-start window`() {
+        // c1 4.0s is > 3s into chapter 0 -> restart chapter 0
+        assertEquals(skipClips[0], skipTrack.resolveChapterSkip("c1.mp3", 4.0, forward = false, nearStartSec = 3.0))
+    }
+
+    @Test
+    fun `previous chapter jumps to the prior chapter when within the near-start window`() {
+        // c2 1.0s is within 3s of chapter 1's start -> go to chapter 0
+        assertEquals(skipClips[0], skipTrack.resolveChapterSkip("c2.mp3", 1.0, forward = false, nearStartSec = 3.0))
+    }
+
+    @Test
+    fun `previous chapter at the first chapter near its start restarts the first chapter`() {
+        // chapter 0 near start: no prior chapter, so restart chapter 0 (effective no-op seek to 0)
+        assertEquals(skipClips[0], skipTrack.resolveChapterSkip("c1.mp3", 0.5, forward = false, nearStartSec = 3.0))
+    }
 }

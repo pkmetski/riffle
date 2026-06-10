@@ -12,8 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,16 +37,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.riffle.app.R
 
 /** Formats the speed as the spec wants it: 1×, 1.25×, 0.75×, … (trailing zeros trimmed). */
 private fun speedLabel(speed: Float): String {
     val s = if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0').trimEnd('.')
     return "${s}×"
 }
+
 
 /**
  * Bottom mini-player bar. Tapping the bar body (not a control) expands to the full sheet.
@@ -55,10 +61,16 @@ fun ReadaloudMiniPlayer(
     speed: Float,
     offlineMessage: Boolean,
     downloadProgress: Float?,
+    canPreviousChapter: Boolean,
+    canNextChapter: Boolean,
     containerColor: Color,
     contentColor: Color,
     onPlayPause: () -> Unit,
     onCycleSpeed: () -> Unit,
+    onRewind: () -> Unit,
+    onForward: () -> Unit,
+    onPreviousChapter: () -> Unit,
+    onNextChapter: () -> Unit,
     onClose: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
@@ -100,17 +112,46 @@ fun ReadaloudMiniPlayer(
                         .testTag("readaloud_downloading"),
                 )
             } else {
+                TextButton(onClick = onCycleSpeed, modifier = Modifier.testTag("readaloud_speed")) {
+                    Text(
+                        speedLabel(speed),
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = onRewind, modifier = Modifier.testTag("readaloud_rewind")) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_replay_15),
+                        contentDescription = "Rewind 15 seconds",
+                        tint = contentColor,
+                    )
+                }
+                IconButton(
+                    onClick = onPreviousChapter,
+                    enabled = canPreviousChapter,
+                    modifier = Modifier.testTag("readaloud_prev_chapter"),
+                ) {
+                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous chapter")
+                }
                 IconButton(onClick = onPlayPause, modifier = Modifier.testTag("readaloud_play_pause")) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
                     )
                 }
-                TextButton(onClick = onCycleSpeed, modifier = Modifier.testTag("readaloud_speed")) {
-                    Text(
-                        speedLabel(speed),
-                        color = contentColor,
-                        fontWeight = FontWeight.SemiBold,
+                IconButton(
+                    onClick = onNextChapter,
+                    enabled = canNextChapter,
+                    modifier = Modifier.testTag("readaloud_next_chapter"),
+                ) {
+                    Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter")
+                }
+                IconButton(onClick = onForward, modifier = Modifier.testTag("readaloud_forward")) {
+                    Icon(
+                        imageVector = Icons.Filled.Forward30,
+                        contentDescription = "Forward 30 seconds",
+                        tint = contentColor,
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
