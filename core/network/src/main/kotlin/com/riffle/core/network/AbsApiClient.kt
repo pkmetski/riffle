@@ -488,6 +488,34 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun getAudiobookFingerprint(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookFingerprintResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/items/$itemId?expanded=1")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext NetworkAudiobookFingerprintResult.NetworkError(IOException("HTTP ${response.code}"))
+                }
+                val raw = response.body?.string()
+                    ?: return@withContext NetworkAudiobookFingerprintResult.NetworkError(IOException("Empty response body"))
+                val fingerprint = json.decodeFromString<AbsItemResponse>(raw).audiobookFingerprint()
+                if (fingerprint == null) NetworkAudiobookFingerprintResult.NoAudiobook
+                else NetworkAudiobookFingerprintResult.Success(fingerprint)
+            }
+        } catch (e: IOException) {
+            NetworkAudiobookFingerprintResult.NetworkError(e)
+        }
+    }
+
     override suspend fun downloadEpub(
         baseUrl: String,
         itemId: String,

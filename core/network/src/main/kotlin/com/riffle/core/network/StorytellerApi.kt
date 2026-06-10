@@ -30,4 +30,16 @@ interface StorytellerLibraryApi {
     ): NetworkStorytellerBookResult
 
     fun coverUrl(baseUrl: String, bookId: Long): String
+
+    /**
+     * The ingested-source audiobook fingerprint from `/api/v2/books/{id}` (ADR 0028). Default
+     * returns an error so existing fakes need no change; the real client overrides it.
+     */
+    suspend fun getAudiobookFingerprint(
+        baseUrl: String,
+        bookId: Long,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookFingerprintResult =
+        NetworkAudiobookFingerprintResult.NetworkError(NotImplementedError("getAudiobookFingerprint"))
 }
