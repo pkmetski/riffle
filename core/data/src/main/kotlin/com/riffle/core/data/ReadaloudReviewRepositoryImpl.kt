@@ -11,6 +11,8 @@ import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsCandidate
 import com.riffle.core.domain.AbsPickerItem
+import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
@@ -35,6 +37,8 @@ class ReadaloudReviewRepositoryImpl(
     private val linkDao: ReadaloudLinkDao,
     private val candidateDao: ReadaloudCandidateDao,
     private val dismissalDao: ReadaloudDismissalDao,
+    private val audioIdentityResolver: AudioIdentityResolver,
+    private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
     private val clock: () -> Long,
 ) : ReadaloudReviewRepository {
 
@@ -44,7 +48,12 @@ class ReadaloudReviewRepositoryImpl(
         linkDao: ReadaloudLinkDao,
         candidateDao: ReadaloudCandidateDao,
         dismissalDao: ReadaloudDismissalDao,
-    ) : this(libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao, System::currentTimeMillis)
+        audioIdentityResolver: AudioIdentityResolver,
+        audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+    ) : this(
+        libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao,
+        audioIdentityResolver, audioPlaybackPreferencesStore, System::currentTimeMillis,
+    )
 
     override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
         combine(
@@ -153,9 +162,11 @@ class ReadaloudReviewRepositoryImpl(
         absServerId: String,
         absLibraryItemId: String,
     ) {
-        createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-        // The book is now Confirmed; drop all of its Pending-Review candidates.
-        candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
+            createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+            // The book is now Confirmed; drop all of its Pending-Review candidates.
+            candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+        }
     }
 
     override suspend fun dismissCandidate(
@@ -188,11 +199,20 @@ class ReadaloudReviewRepositoryImpl(
     }
 
     override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) {
-        linkDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
+            linkDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+        }
     }
 
     override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) {
-        linkDao.deleteByAbsItem(absServerId, absLibraryItemId)
+        val link = linkDao.findByAbsItem(absServerId, absLibraryItemId)
+        if (link == null) {
+            linkDao.deleteByAbsItem(absServerId, absLibraryItemId)
+            return
+        }
+        rekeyAudioSettingsAround(link.storytellerServerId, link.storytellerBookId) {
+            linkDao.deleteByAbsItem(absServerId, absLibraryItemId)
+        }
     }
 
     override suspend fun pairManually(
@@ -201,10 +221,28 @@ class ReadaloudReviewRepositoryImpl(
         absServerId: String,
         absLibraryItemId: String,
     ) {
-        createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-        // Manual pairing overrides any prior "don't ask again" and clears stale candidates.
-        dismissalDao.clearBookDismissal(storytellerServerId, storytellerBookId)
-        candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
+            createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+            // Manual pairing overrides any prior "don't ask again" and clears stale candidates.
+            dismissalDao.clearBookDismissal(storytellerServerId, storytellerBookId)
+            candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+        }
+    }
+
+    /**
+     * Runs [mutate] (a link/unlink change), then migrates the per-book audio-settings record if the
+     * change moved the readaloud's canonical audio identity (ADR 0028) — e.g. linking an audiobook
+     * moves the saved speed from the Storyteller id onto the audiobook id; unlinking moves it back.
+     */
+    private suspend fun rekeyAudioSettingsAround(
+        storytellerServerId: String,
+        storytellerBookId: String,
+        mutate: suspend () -> Unit,
+    ) {
+        val before = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
+        mutate()
+        val after = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
+        if (before != after) audioPlaybackPreferencesStore.rekey(before, after)
     }
 
     override suspend fun searchAbsItems(query: String): List<AbsPickerItem> {

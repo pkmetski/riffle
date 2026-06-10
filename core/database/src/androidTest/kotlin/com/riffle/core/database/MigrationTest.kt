@@ -1314,6 +1314,42 @@ class MigrationTest {
     }
 
     @Test
+    fun migration31To32_addsAudioPlaybackPreferencesTable() {
+        helper.createDatabase(TEST_DB, 31).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 32, true, RiffleDatabase.MIGRATION_31_32)
+
+        // The new table exists and is empty (no rows are backfilled — absence means the 1x default).
+        db.query("SELECT COUNT(*) FROM audio_playback_preferences").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // A per-book speed override is writable and reads back.
+        db.execSQL(
+            "INSERT INTO audio_playback_preferences (serverId, bookId, speed) VALUES ('s1', '42', 1.5)"
+        )
+        db.query("SELECT speed FROM audio_playback_preferences WHERE serverId = 's1' AND bookId = '42'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(1.5, cursor.getDouble(0), 0.0001)
+        }
+
+        // FK cascade: removing the Server clears its audio settings.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("DELETE FROM servers WHERE id = 's1'")
+        db.query("SELECT COUNT(*) FROM audio_playback_preferences").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1322,7 +1358,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 31, true,
+            TEST_DB, 32, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1353,6 +1389,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_28_29,
             RiffleDatabase.MIGRATION_29_30,
             RiffleDatabase.MIGRATION_30_31,
+            RiffleDatabase.MIGRATION_31_32,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
