@@ -497,6 +497,11 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideStorytellerSidecarFetcher(api: StorytellerBundleApiImpl): com.riffle.core.data.StorytellerSidecarFetcher =
+            com.riffle.core.data.StorytellerSidecarFetcher(probe = api, range = api)
+
+        @Provides
+        @Singleton
         fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
             AudiobookBundleApiImpl(okHttpClient)
 
