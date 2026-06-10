@@ -67,7 +67,7 @@ class SettingsViewModel @Inject constructor(
         .map { list -> list.filter { it.serverType == ServerType.STORYTELLER }.map { it.id } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Readaloud-matches counts (confirmed / pending / unmatched) for each Storyteller server. */
+    /** Readaloud-matches counts (unmatched / suggested / partially matched / matched) per server. */
     val readaloudSummaries: StateFlow<Map<String, ReadaloudMatchSummary>> = storytellerServerIds
         .flatMapLatest { ids ->
             if (ids.isEmpty()) {
@@ -76,10 +76,12 @@ class SettingsViewModel @Inject constructor(
                 combine(
                     ids.map { id ->
                         readaloudReviewRepository.observeReview(id).map { review ->
+                            val partiallyMatched = review.confirmed.count { it.isIncomplete }
                             id to ReadaloudMatchSummary(
-                                confirmedCount = review.confirmed.size,
-                                pendingCount = review.pending.size,
                                 unmatchedCount = review.unmatched.size,
+                                suggestedCount = review.pending.size,
+                                partiallyMatchedCount = partiallyMatched,
+                                matchedCount = review.confirmed.size - partiallyMatched,
                             )
                         }
                     }
@@ -194,9 +196,10 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
-/** Counts shown in a Storyteller server's expanded "Readaloud matches" summary. */
+/** Counts shown in a Storyteller server's expanded "Readaloud matches" summary (gradient order). */
 data class ReadaloudMatchSummary(
-    val confirmedCount: Int,
-    val pendingCount: Int,
     val unmatchedCount: Int,
+    val suggestedCount: Int,
+    val partiallyMatchedCount: Int,
+    val matchedCount: Int,
 )

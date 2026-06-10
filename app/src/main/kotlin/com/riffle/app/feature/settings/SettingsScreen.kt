@@ -316,18 +316,19 @@ internal fun ServerSettingsExpansion(
             }
             ServerType.STORYTELLER -> {
                 ExpansionHeader("Readaloud matches")
-                val counts = summary ?: ReadaloudMatchSummary(0, 0, 0)
+                val counts = summary ?: ReadaloudMatchSummary(0, 0, 0, 0)
                 ListItem(
                     colors = transparentColors,
                     modifier = Modifier
                         .padding(start = 24.dp)
                         .clickable { onOpenReadaloudMatches() },
-                    headlineContent = { Text("Review & pair readalouds") },
+                    headlineContent = { Text("Review & match readalouds") },
                     supportingContent = {
                         Text(
-                            "${counts.confirmedCount} confirmed · " +
-                                "${counts.pendingCount} pending review · " +
-                                "${counts.unmatchedCount} unmatched",
+                            "${counts.unmatchedCount} unmatched · " +
+                                "${counts.suggestedCount} suggested · " +
+                                "${counts.partiallyMatchedCount} partially matched · " +
+                                "${counts.matchedCount} matched",
                         )
                     },
                     trailingContent = {

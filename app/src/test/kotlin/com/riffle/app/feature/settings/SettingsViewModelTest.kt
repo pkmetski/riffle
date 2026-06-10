@@ -165,7 +165,7 @@ class SettingsViewModelTest {
         override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) = Unit
         override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun searchAbsItems(query: String): List<AbsPickerItem> = emptyList()
+        override suspend fun searchAbsItems(query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
 
     private fun makeViewModel(report: CrashReport? = null) = SettingsViewModel(
@@ -342,13 +342,14 @@ class SettingsViewModelTest {
     // --- readaloud matches summary ---
 
     @Test
-    fun `readaloudSummaries reports per-server confirmed pending and unmatched counts`() = runTest {
+    fun `readaloudSummaries reports per-server unmatched suggested partially-matched and matched counts`() = runTest {
         serversFlow.value = listOf(server("st-1", active = true, serverType = ServerType.STORYTELLER))
         reviewsFlow.value = mapOf(
             "st-1" to ReadaloudReview(
                 pending = listOf(pending("b1")),
                 unmatched = listOf(unmatched("b2"), unmatched("b3")),
-                confirmed = listOf(confirmed("b4"), confirmed("b5"), confirmed("b6")),
+                // b4/b5 fully matched; b6 missing its ebook → partially matched.
+                confirmed = listOf(confirmed("b4"), confirmed("b5"), confirmed("b6", hasEbook = false)),
             )
         )
         val vm = makeViewModel()
@@ -356,7 +357,10 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val summary = vm.readaloudSummaries.value["st-1"]
-        assertEquals(ReadaloudMatchSummary(confirmedCount = 3, pendingCount = 1, unmatchedCount = 2), summary)
+        assertEquals(
+            ReadaloudMatchSummary(unmatchedCount = 2, suggestedCount = 1, partiallyMatchedCount = 1, matchedCount = 2),
+            summary,
+        )
     }
 
     @Test
@@ -379,9 +383,14 @@ class SettingsViewModelTest {
         title = bookId, author = "", coverUrl = null,
     )
 
-    private fun confirmed(bookId: String) = ConfirmedReadaloud(
-        storytellerServerId = "st-1", storytellerBookId = bookId,
-        title = bookId, targets = emptyList(),
+    private fun confirmed(bookId: String, hasEbook: Boolean = true, hasAudio: Boolean = true) = ConfirmedReadaloud(
+        storytellerServerId = "st-1", storytellerBookId = bookId, title = bookId,
+        targets = listOf(
+            ConfirmedReadaloud.ConfirmedTarget(
+                absServerId = "abs", absLibraryItemId = bookId, absTitle = bookId,
+                absLibraryName = "lib", hasEbook = hasEbook, hasAudio = hasAudio,
+            )
+        ),
     )
 
     // --- volume key preferences ---

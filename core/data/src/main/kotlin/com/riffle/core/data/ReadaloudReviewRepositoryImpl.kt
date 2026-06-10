@@ -10,8 +10,10 @@ import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsCandidate
+import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
@@ -94,6 +96,8 @@ class ReadaloudReviewRepositoryImpl(
                         absLibraryItemId = link.absLibraryItemId,
                         absTitle = abs.title,
                         absLibraryName = libraryName(abs.serverId, abs.libraryId),
+                        hasEbook = abs.hasEbook(),
+                        hasAudio = abs.hasAudio,
                     )
                 }
                 if (targets.isEmpty()) return@mapNotNull null
@@ -105,6 +109,8 @@ class ReadaloudReviewRepositoryImpl(
                     targets = targets.sortedBy { it.absLibraryName.lowercase() },
                 )
             }
+            // Alphabetical by title; the screen splits these into "Partially matched" vs "Matched"
+            // sections via ConfirmedReadaloud.isIncomplete, so each section stays in name order.
             .sortedBy { it.title.lowercase() }
 
         val pending = books
@@ -245,7 +251,7 @@ class ReadaloudReviewRepositoryImpl(
         if (before != after) audioPlaybackPreferencesStore.rekey(before, after)
     }
 
-    override suspend fun searchAbsItems(query: String): List<AbsPickerItem> {
+    override suspend fun searchAbsItems(query: String, filter: AbsFormatFilter): List<AbsPickerItem> {
         val trimmed = query.trim()
         val all = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
         val matched = if (trimmed.isEmpty()) {
@@ -258,6 +264,15 @@ class ReadaloudReviewRepositoryImpl(
             .sortedBy { it.title.lowercase() }
             .mapNotNull { row ->
                 val abs: LibraryItemEntity = libraryItemDao.getById(row.serverId, row.itemId) ?: return@mapNotNull null
+                val hasEbook = abs.hasEbook()
+                // Strict filter: tapping the ebook slot only offers items with an ebook, and the
+                // audio slot only items with audio (a combined item satisfies both).
+                val keep = when (filter) {
+                    AbsFormatFilter.ANY -> true
+                    AbsFormatFilter.EBOOK -> hasEbook
+                    AbsFormatFilter.AUDIO -> abs.hasAudio
+                }
+                if (!keep) return@mapNotNull null
                 val name = libraryNameCache.getOrPut("${abs.serverId}|${abs.libraryId}") {
                     libraryDao.getById(abs.serverId, abs.libraryId)?.name ?: abs.libraryId
                 }
@@ -268,9 +283,15 @@ class ReadaloudReviewRepositoryImpl(
                     author = abs.author,
                     libraryName = name,
                     coverUrl = abs.coverUrl,
+                    hasEbook = hasEbook,
+                    hasAudio = abs.hasAudio,
                 )
             }
     }
+
+    /** True when this ABS item carries a readable ebook (epub/pdf), i.e. not an audio-only stub. */
+    private fun LibraryItemEntity.hasEbook(): Boolean =
+        EbookFormat.from(ebookFormat) != EbookFormat.Unsupported
 
     private suspend fun createUserConfirmedLink(
         storytellerServerId: String,

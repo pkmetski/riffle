@@ -51,11 +51,24 @@ data class ConfirmedReadaloud(
     val title: String,
     val targets: List<ConfirmedTarget>,
 ) {
+    /** True when at least one linked item supplies an ebook (a combined item counts). */
+    val hasEbook: Boolean get() = targets.any { it.hasEbook }
+
+    /** True when at least one linked item supplies audio (a combined item counts). */
+    val hasAudio: Boolean get() = targets.any { it.hasAudio }
+
+    /** Missing one of the two sides — surfaced above complete matches so the gap is easy to spot. */
+    val isIncomplete: Boolean get() = !hasEbook || !hasAudio
+
     data class ConfirmedTarget(
         val absServerId: String,
         val absLibraryItemId: String,
         val absTitle: String,
         val absLibraryName: String,
+        // Which side(s) of the readaloud this ABS item supplies. A "combined" item carries both,
+        // so it fills both slots; a one-sided match leaves the other slot empty (the missing side).
+        val hasEbook: Boolean,
+        val hasAudio: Boolean,
     )
 }
 
@@ -67,4 +80,13 @@ data class AbsPickerItem(
     val author: String,
     val libraryName: String,
     val coverUrl: String?,
+    val hasEbook: Boolean,
+    val hasAudio: Boolean,
 )
+
+/**
+ * Restricts the manual picker to items that can fill a specific missing slot of a Confirmed match:
+ * [EBOOK] / [AUDIO] keep only items supplying that side; [ANY] is the unfiltered "Match manually…"
+ * flow used from Unmatched rows.
+ */
+enum class AbsFormatFilter { ANY, EBOOK, AUDIO }

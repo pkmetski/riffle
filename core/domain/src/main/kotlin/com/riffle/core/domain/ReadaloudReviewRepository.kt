@@ -50,6 +50,13 @@ interface ReadaloudReviewRepository {
         absLibraryItemId: String,
     )
 
-    /** Search ABS Library Items across every configured ABS Server by title/author. */
-    suspend fun searchAbsItems(query: String): List<AbsPickerItem>
+    /**
+     * Search ABS Library Items across every configured ABS Server by title/author. [filter] narrows
+     * results to items that can fill a specific missing slot (ebook / audio) of a Confirmed match;
+     * [AbsFormatFilter.ANY] is the unfiltered manual-pairing search.
+     */
+    suspend fun searchAbsItems(
+        query: String,
+        filter: AbsFormatFilter = AbsFormatFilter.ANY,
+    ): List<AbsPickerItem>
 }
