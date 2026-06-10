@@ -61,6 +61,9 @@ class AudioPlayerService : MediaSessionService() {
                 /* handleAudioFocus = */ true,
             )
             .setHandleAudioBecomingNoisy(true)
+            // DefaultMediaSourceFactory (not ProgressiveMediaSource.Factory) so the streaming path's
+            // per-segment MediaItem.clippingConfiguration is honoured. Bundle items carry no clipping,
+            // so their behaviour is unchanged.
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingDataSourceFactory()))
             .build()
         mediaSession = MediaSession.Builder(this, player)
@@ -124,9 +127,23 @@ class AudioPlayerService : MediaSessionService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> {
+            val streaming = SharedBundle.streaming
             val restored = mediaItems.map { item ->
                 if (item.localConfiguration != null || item.mediaId.isEmpty()) {
-                    item
+                    return@map item
+                }
+                val streamItem = streaming?.itemsByMediaId?.get(item.mediaId)
+                if (streamItem != null) {
+                    // Streaming: point at the ABS track, clipped to this segment's window.
+                    item.buildUpon()
+                        .setUri(streamItem.url)
+                        .setClippingConfiguration(
+                            MediaItem.ClippingConfiguration.Builder()
+                                .setStartPositionMs(streamItem.clipStartMs)
+                                .setEndPositionMs(streamItem.clipEndMs)
+                                .build(),
+                        )
+                        .build()
                 } else {
                     // An Audiobook track's mediaId is its full URL — HTTP(S) when streaming, or a
                     // file:// URL when downloaded for offline (ADR 0029); a Readaloud clip's is the

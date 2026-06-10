@@ -90,6 +90,7 @@ open class ReadaloudController @Inject constructor(
         this.track = track
         SharedBundle.current = bundle
         val t0 = System.currentTimeMillis()
+        SharedBundle.streaming = null
         val c = ensureConnected() ?: return
         Log.d(HANDOFF, "RA.prepare ensureConnected +${System.currentTimeMillis() - t0}ms")
 
@@ -105,6 +106,29 @@ open class ReadaloudController @Inject constructor(
         c.setMediaItems(items)
         c.prepare()
         Log.d(HANDOFF, "RA.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms")
+        pushState()
+    }
+
+    /**
+     * Streaming counterpart of [prepare] (ADR 0028): points the service at the ABS audio source and
+     * queues one item per segment keyed by `audioSrc`, exactly as the bundle path does — so the clip,
+     * highlight, skip and chapter machinery is identical. The per-segment ABS URL + clip window are
+     * restored from [streaming] in the service's session callback.
+     */
+    internal suspend fun prepareStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
+        this.track = track
+        SharedBundle.current = null
+        SharedBundle.streaming = streaming
+        val c = ensureConnected() ?: return
+
+        audioIndex.clear()
+        val items = ArrayList<MediaItem>()
+        track.clips.map { it.audioSrc }.distinct().forEachIndexed { index, audioSrc ->
+            audioIndex[audioSrc] = index
+            items += MediaItem.Builder().setMediaId(audioSrc).build()
+        }
+        c.setMediaItems(items)
+        c.prepare()
         pushState()
     }
 
@@ -222,6 +246,7 @@ open class ReadaloudController @Inject constructor(
         track = null
         preWarmedPosition = null
         SharedBundle.current = null
+        SharedBundle.streaming = null
         _state.value = PlaybackState()
     }
 
