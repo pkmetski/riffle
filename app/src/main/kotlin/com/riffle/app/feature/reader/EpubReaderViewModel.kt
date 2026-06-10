@@ -1907,18 +1907,20 @@ class EpubReaderViewModel @Inject constructor(
 
     /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
     fun playFromHere(fragmentRef: String) {
-        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
-        if (bundle == null) {
-            // No bundle yet — route through the normal play path (prompt/notify) so the user is
-            // told to download first.
-            if (!_readaloudOpen.value) openReadaloud() else onPlayTapped()
-            return
-        }
-        // Open the session WITHOUT onPlayTapped()'s resume autoplay: the only seek this session must
-        // make is the one below, to the selected sentence. Going through openReadaloud() would race a
-        // resume/page-top seek against it (see openReadaloudSession).
-        if (!_readaloudOpen.value) openReadaloudSession()
         viewModelScope.launch {
+            // Streaming (ADR 0028) takes precedence over a local bundle, mirroring onPlayTapped.
+            val streaming = ensureStreamingSession() != null
+            val bundle = if (streaming) null else readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+            if (!streaming && bundle == null) {
+                // No source yet — route through the normal play path (prompt/notify) so the user is
+                // told to download first.
+                if (!_readaloudOpen.value) openReadaloud() else onPlayTapped()
+                return@launch
+            }
+            // Open the session WITHOUT onPlayTapped()'s resume autoplay: the only seek this session must
+            // make is the one below, to the selected sentence. Going through openReadaloud() would race a
+            // resume/page-top seek against it (see openReadaloudSession).
+            if (!_readaloudOpen.value) openReadaloudSession()
             ensureOpened(bundle) ?: return@launch
             // Starting here counts as the session's first play, so a later pause/resume stays put
             // rather than re-seeking. Consume any pending resume/close position so the resume planner
