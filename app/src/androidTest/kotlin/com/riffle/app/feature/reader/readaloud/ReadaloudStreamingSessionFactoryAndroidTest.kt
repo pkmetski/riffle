@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.data.AudioIdentityResolverImpl
+import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.database.LibraryItemEntity
@@ -155,6 +156,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             sidecarStore = ReadaloudSidecarStore(ctx, fetcher, repo, StubTokenStorage),
             serverRepository = repo,
             tokenStorage = StubTokenStorage,
+            linkRepository = ReadaloudLinkRepositoryImpl(db.readaloudLinkDao()),
         )
     }
 
@@ -172,6 +174,8 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         assertEquals("$baseUrl/api/items/$AUDIOBOOK_ITEM/file/ino-a", item!!.url)
         assertEquals(0L, item.clipStartMs)
         assertEquals(5000L, item.clipEndMs)
+        // The verdict is persisted on the link (ADR 0028) so the matches screen can show "Streaming".
+        assertEquals("VERIFIED", db.readaloudLinkDao().findByAbsItem(ABS_SERVER, AUDIOBOOK_ITEM)!!.identityResult)
     }
 
     @Test
@@ -180,6 +184,8 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         seed(withAudiobook = true)
 
         assertNull("a recording mismatch must not stream", factory().tryBuild(ST_SERVER, ST_BOOK))
+        // The mismatch verdict is persisted → matches screen shows "Download only · audio doesn't match".
+        assertEquals("MISMATCH", db.readaloudLinkDao().findByAbsItem(ABS_SERVER, AUDIOBOOK_ITEM)!!.identityResult)
     }
 
     @Test

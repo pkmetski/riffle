@@ -83,6 +83,12 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideReadaloudOfflineDownloader(
+        impl: com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloaderImpl,
+    ): com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader = impl
+
+    @Provides
+    @Singleton
     fun providePublicationOpener(
         @ApplicationContext context: Context,
         httpClient: DefaultHttpClient,

@@ -98,6 +98,8 @@ class ReadaloudReviewRepositoryImpl(
                         absLibraryName = libraryName(abs.serverId, abs.libraryId),
                         hasEbook = abs.hasEbook(),
                         hasAudio = abs.hasAudio,
+                        identityResult = runCatching { com.riffle.core.domain.AudiobookIdentityResult.valueOf(link.identityResult) }
+                            .getOrDefault(com.riffle.core.domain.AudiobookIdentityResult.UNKNOWN),
                     )
                 }
                 if (targets.isEmpty()) return@mapNotNull null

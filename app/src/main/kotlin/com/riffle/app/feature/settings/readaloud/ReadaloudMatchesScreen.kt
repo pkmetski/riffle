@@ -338,6 +338,16 @@ private fun ConfirmedReadaloudRow(
                 modifier = Modifier.weight(1f),
             )
         }
+        // Streaming status (ADR 0028): how this book's audio is delivered.
+        when (link.streamingStatus) {
+            ConfirmedReadaloud.StreamingStatus.STREAMING ->
+                Text("Streaming", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            ConfirmedReadaloud.StreamingStatus.DOWNLOAD_ONLY_NO_AUDIOBOOK ->
+                Text("Download only · no audiobook linked", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ConfirmedReadaloud.StreamingStatus.DOWNLOAD_ONLY_MISMATCH ->
+                Text("Download only · audio doesn't match", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+            ConfirmedReadaloud.StreamingStatus.UNKNOWN -> Unit
+        }
     }
 }
 

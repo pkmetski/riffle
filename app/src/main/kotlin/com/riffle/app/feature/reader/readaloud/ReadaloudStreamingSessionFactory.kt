@@ -6,6 +6,7 @@ import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StreamingSetupBuilder
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudiobookIdentityResult
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -31,6 +32,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     private val sidecarStore: ReadaloudSidecarStore,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
+    private val linkRepository: ReadaloudLinkRepository,
 ) {
     /**
      * [sidecarFile] stands in for the bundle for the track, highlight quotes, and cross-EPUB index;
@@ -57,7 +59,9 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         // 2. Recording-identity gate: only stream when ABS audio is provably Storyteller's source.
         val stFp = storytellerApi.getAudiobookFingerprint(stServer.url.value, bookId, stToken, stServer.insecureConnectionAllowed)
         val absFp = absApi.getAudiobookFingerprint(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)
-        if (AudiobookIdentityResolver.resolve(stFp, absFp) != AudiobookIdentityResult.VERIFIED) return@withContext null
+        val verdict = AudiobookIdentityResolver.resolve(stFp, absFp)
+        linkRepository.updateIdentityResult(audiobook.serverId, audiobook.bookId, verdict)
+        if (verdict != AudiobookIdentityResult.VERIFIED) return@withContext null
 
         // 3. ABS audiobook tracks (ino + duration).
         val tracks = when (val r = absApi.getAudiobookTracks(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)) {

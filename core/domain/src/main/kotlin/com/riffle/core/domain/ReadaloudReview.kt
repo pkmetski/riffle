@@ -69,7 +69,22 @@ data class ConfirmedReadaloud(
         // so it fills both slots; a one-sided match leaves the other slot empty (the missing side).
         val hasEbook: Boolean,
         val hasAudio: Boolean,
+        val identityResult: AudiobookIdentityResult = AudiobookIdentityResult.UNKNOWN,
     )
+
+    /** Derived streaming status for the matches screen (ADR 0028). */
+    val streamingStatus: StreamingStatus
+        get() {
+            val audiobook = targets.firstOrNull { it.hasAudio }
+            return when {
+                audiobook == null -> StreamingStatus.DOWNLOAD_ONLY_NO_AUDIOBOOK
+                audiobook.identityResult == AudiobookIdentityResult.VERIFIED -> StreamingStatus.STREAMING
+                audiobook.identityResult == AudiobookIdentityResult.MISMATCH -> StreamingStatus.DOWNLOAD_ONLY_MISMATCH
+                else -> StreamingStatus.UNKNOWN
+            }
+        }
+
+    enum class StreamingStatus { STREAMING, DOWNLOAD_ONLY_NO_AUDIOBOOK, DOWNLOAD_ONLY_MISMATCH, UNKNOWN }
 }
 
 /** A searchable ABS Library Item shown in the "Match manually…" picker, across every ABS Server. */

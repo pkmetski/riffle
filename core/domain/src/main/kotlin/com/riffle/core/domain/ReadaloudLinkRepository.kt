@@ -16,4 +16,7 @@ interface ReadaloudLinkRepository {
     suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String)
 
     suspend fun countForServer(serverId: String): Int
+
+    /** Persist the streaming identity verdict for an ABS item (ADR 0028). */
+    suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
 }

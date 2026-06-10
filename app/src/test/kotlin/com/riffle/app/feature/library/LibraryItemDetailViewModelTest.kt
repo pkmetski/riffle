@@ -267,6 +267,10 @@ class LibraryItemDetailViewModelTest {
         readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = readaloudAudioRepository,
         audiobookDownloadRepository = NoopAudiobookDownloadRepository,
+        readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
+            // Not streaming-eligible in these tests → null routes to the bundle download path.
+            override suspend fun download(storytellerServerId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
+        },
         connectivityObserver = connectivityObserver,
         downloadManager = downloadManager,
         crossEpubIndexBuildTrigger = crossEpubIndexBuildTrigger,
