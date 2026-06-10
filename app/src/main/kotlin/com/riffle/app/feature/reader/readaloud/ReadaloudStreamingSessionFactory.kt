@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader.readaloud
 
 import android.content.Context
 import com.riffle.core.data.AudiobookIdentityResolver
-import com.riffle.core.data.StorytellerSidecarFetcher
+import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StreamingSetupBuilder
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudiobookIdentityResult
@@ -28,7 +28,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     private val audioIdentityResolver: AudioIdentityResolver,
     private val absApi: AbsLibraryApi,
     private val storytellerApi: StorytellerLibraryApi,
-    private val sidecarFetcher: StorytellerSidecarFetcher,
+    private val sidecarStore: ReadaloudSidecarStore,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) {
@@ -57,11 +57,8 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
             else -> return@withContext null
         }
 
-        // 4. The sidecar (SMIL + text), range-extracted and cached on disk.
-        val sidecarBytes = sidecarFetcher.fetch(stServer.url.value, storytellerBookId, stToken, stServer.insecureConnectionAllowed)
-            ?: return@withContext null
-        val sidecarFile = File(context.cacheDir, "ra-sidecar-$storytellerServerId-$storytellerBookId.epub")
-            .apply { writeBytes(sidecarBytes) }
+        // 4. The sidecar (SMIL + text), range-extracted and cached on disk — shared with the index builder.
+        val sidecarFile = sidecarStore.get(storytellerServerId, storytellerBookId) ?: return@withContext null
 
         // 5. Reconcile segments to tracks; null when timelines disagree → bundle.
         val setup = StreamingSetupBuilder().build(sidecarFile, tracks, absServer.url.value, audiobook.bookId)

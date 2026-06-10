@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.data.AudioIdentityResolverImpl
+import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadaloudLinkEntity
@@ -143,15 +144,19 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         }
     }
 
-    private fun factory() = ReadaloudStreamingSessionFactory(
-        context = ctx,
-        audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
-        absApi = AbsApiClient(OkHttpClient()),
-        storytellerApi = StorytellerApiClient(OkHttpClient()),
-        sidecarFetcher = StorytellerBundleApiImpl(OkHttpClient()).let { StorytellerSidecarFetcher(it, it) },
-        serverRepository = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl)),
-        tokenStorage = StubTokenStorage,
-    )
+    private fun factory(): ReadaloudStreamingSessionFactory {
+        val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
+        val fetcher = StorytellerBundleApiImpl(OkHttpClient()).let { StorytellerSidecarFetcher(it, it) }
+        return ReadaloudStreamingSessionFactory(
+            context = ctx,
+            audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
+            absApi = AbsApiClient(OkHttpClient()),
+            storytellerApi = StorytellerApiClient(OkHttpClient()),
+            sidecarStore = ReadaloudSidecarStore(ctx, fetcher, repo, StubTokenStorage),
+            serverRepository = repo,
+            tokenStorage = StubTokenStorage,
+        )
+    }
 
     @Test
     fun verified_match_builds_a_streaming_session() = runBlocking {

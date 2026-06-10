@@ -50,6 +50,7 @@ class CrossEpubIndexBuilderService(
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
     private val store: CrossEpubIndexStore,
+    private val sidecarStore: ReadaloudSidecarStore,
     private val clock: () -> Long,
 ) : CrossEpubIndexBuildTrigger {
     @Inject constructor(
@@ -59,7 +60,8 @@ class CrossEpubIndexBuilderService(
         @EpubCacheStore cacheStore: LocalStore,
         @EpubDownloadsStore downloadsStore: LocalStore,
         store: CrossEpubIndexStore,
-    ) : this(serverRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, System::currentTimeMillis)
+        sidecarStore: ReadaloudSidecarStore,
+    ) : this(serverRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inFlight = Collections.synchronizedSet(mutableSetOf<Pair<String, String>>())
@@ -86,11 +88,13 @@ class CrossEpubIndexBuilderService(
     suspend fun ensureBuilt(link: ReadaloudLink): CrossEpubIndexBuildOutcome = service.buildOnConfirm(link)
 
     private suspend fun loadInputs(link: ReadaloudLink): CrossEpubBuildInputs? {
-        // Storyteller synced bundle: locally-present only, never proactively downloaded (see the class
-        // doc). Absent → defer the build until readaloud has been downloaded for this book. Checked
-        // first (it's a cheap local lookup) so a not-yet-downloaded match doesn't even pull the ABS
-        // publisher EPUB — nothing it produces could be used until the bundle arrives anyway.
-        val storytellerFile = cachedFile(link.storytellerServerId, link.storytellerBookId) ?: return null
+        // Storyteller text for the index: the downloaded bundle if present, otherwise the ~1 MB sidecar
+        // (ADR 0028) — the sidecar is the Storyteller EPUB minus audio, so it feeds the index identically
+        // and lets a streamed book (no bundle) get the same three-peer sync as a bundle book. Absent
+        // both ways (offline / unavailable) → defer the build; nothing it produces could be used yet.
+        val storytellerFile = cachedFile(link.storytellerServerId, link.storytellerBookId)
+            ?: sidecarStore.get(link.storytellerServerId, link.storytellerBookId)
+            ?: return null
 
         val absServer = serverRepository.getById(link.absServerId) ?: return null
         val absToken = tokenStorage.getToken(link.absServerId) ?: return null
