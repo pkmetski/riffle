@@ -74,6 +74,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
+import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.ui.theme.RiffleTheme
@@ -305,6 +307,7 @@ fun EpubReaderScreen(
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
                         sentenceQuotes = sentenceQuotes,
+                        narrationProgress = viewModel.narrationProgress,
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
@@ -729,6 +732,7 @@ private fun EpubNavigatorView(
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
+    narrationProgress: Flow<PlayerCoordinator.NarrationProgress?>,
     pageTopProbeRequests: Flow<String>,
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
@@ -1270,6 +1274,37 @@ private fun EpubNavigatorView(
         val where = ColumnSnap.followNarratedSentence(fragment, quote.highlight)
         if (where != "off") return@LaunchedEffect
         fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
+    }
+
+    // INTRA-sentence page follow (paginated): the effect above snaps to the column holding the
+    // sentence's START on each sentence change, but a sentence whose text wraps across the column
+    // boundary leaves its tail on the next page while the voice keeps reading it. Read-aloud timing is
+    // per-sentence, so we estimate the crossing from the elapsed fraction of the sentence's clip:
+    // [NarratedColumnProgression] maps that fraction onto the sentence's measured column layout and
+    // tells us when to turn — only ON A CHANGE, so position polls between break points (and a manual
+    // page-turn) are left alone, and a backward seek turns back.
+    //
+    // The sentence is re-measured whenever it changes OR a relayout moves the columns (reflow /
+    // rotation / chapter load), so re-keying on those generations also re-asserts the right column
+    // after the start-snap above has yanked back to column 0.
+    val columnProgression = remember { NarratedColumnProgression() }
+    LaunchedEffect(sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
+        var measuredRef: String? = null
+        narrationProgress.collect { progress ->
+            val fragment = fragmentRef.value ?: return@collect
+            if (progress == null) { columnProgression.reset(); measuredRef = null; return@collect }
+            val ref = progress.fragmentRef
+            if (ref.indexOf('#') < 0) return@collect
+            val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@collect
+            if (ref != measuredRef) {
+                // New sentence (or a relayout restarted this effect): measure how it spans columns.
+                columnProgression.onSentence(ColumnSnap.measureNarratedColumns(fragment, quote.highlight))
+                measuredRef = ref
+            }
+            columnProgression.advance(progress.fraction)?.let { column ->
+                ColumnSnap.snapNarratedColumn(fragment, quote.highlight, column)
+            }
+        }
     }
 
     LaunchedEffect(volumeNavEvents) {

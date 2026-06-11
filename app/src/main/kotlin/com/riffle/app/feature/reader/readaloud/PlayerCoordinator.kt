@@ -37,14 +37,27 @@ class PlayerCoordinator @Inject constructor(
     /** The text fragment currently narrated, or null when nothing is playing/prepared. */
     val activeFragmentRef: StateFlow<String?> = _activeFragmentRef.asStateFlow()
 
+    private val _narrationProgress = MutableStateFlow<NarrationProgress?>(null)
+    /**
+     * How far the live position has advanced THROUGH the currently-narrated sentence's clip, or null
+     * when nothing is playing. Read-aloud timing is per-sentence, so this elapsed fraction is the only
+     * within-sentence signal available — the reader uses it to turn the page when a sentence spans more
+     * than one paginated column (see NarratedColumnProgression).
+     */
+    val narrationProgress: StateFlow<NarrationProgress?> = _narrationProgress.asStateFlow()
+
     init {
         scope.launch {
             controller.state.collect { s ->
                 val t = track
-                _activeFragmentRef.value = if (t != null && s.currentAudioSrc != null) {
-                    t.activeClipAt(s.currentAudioSrc, s.positionSec)?.textFragmentRef
+                val clip = if (t != null && s.currentAudioSrc != null) {
+                    t.activeClipAt(s.currentAudioSrc, s.positionSec)
                 } else {
                     null
+                }
+                _activeFragmentRef.value = clip?.textFragmentRef
+                _narrationProgress.value = clip?.let {
+                    NarrationProgress(it.textFragmentRef, it.progressAt(s.positionSec))
                 }
             }
         }
@@ -102,6 +115,7 @@ class PlayerCoordinator @Inject constructor(
         track = null
         controller.stop()
         _activeFragmentRef.value = null
+        _narrationProgress.value = null
     }
 
     /** Cancels the state-collection scope. Call when the owning ViewModel is cleared (not on a
@@ -109,4 +123,10 @@ class PlayerCoordinator @Inject constructor(
     fun dispose() {
         scope.cancel()
     }
+
+    /**
+     * How far narration has advanced through [fragmentRef]'s sentence clip, in `[0, 1]`. The reader
+     * follows this to turn the page mid-sentence when the sentence spans multiple paginated columns.
+     */
+    data class NarrationProgress(val fragmentRef: String, val fraction: Double)
 }
