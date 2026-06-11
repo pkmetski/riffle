@@ -299,6 +299,10 @@ class EpubReaderViewModel @Inject constructor(
     // The text fragment currently narrated — drives the synced highlight. Null clears it.
     val activeFragmentRef: StateFlow<String?> = playerCoordinator.activeFragmentRef
 
+    // How far the live position has advanced through the narrated sentence — drives intra-sentence
+    // page turns when a sentence spans more than one paginated column.
+    val narrationProgress: StateFlow<PlayerCoordinator.NarrationProgress?> = playerCoordinator.narrationProgress
+
     // The track is parsed once on first play and reused.
     private var readaloudTrack: com.riffle.core.domain.ReadaloudTrack? = null
 

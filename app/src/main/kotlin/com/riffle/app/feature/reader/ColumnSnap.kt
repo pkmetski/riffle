@@ -79,6 +79,35 @@ internal object ColumnSnap {
     suspend fun followNarratedSentence(fragment: EpubNavigatorFragment, text: String): String? =
         fragment.evaluateJavascript(autoFollowSnapJs(text))?.trim('"')
 
+    /**
+     * Measures how the narrated sentence [text] is laid out across paginated columns: the CUMULATIVE
+     * fraction of its rendered width that falls in each column it spans, in reading order (e.g.
+     * `[0.62, 1.0]` for a sentence whose first 62% of width is on the current page and the rest on the
+     * next). Drives [NarratedColumnProgression] so intra-sentence page turns track the narration.
+     *
+     * Empty when the sentence fits a single column, isn't on this resource, or the reader is in scroll
+     * mode (vertical follow handles that) — all of which mean "don't turn within the sentence".
+     */
+    suspend fun measureNarratedColumns(fragment: EpubNavigatorFragment, text: String): List<Double> {
+        val raw = fragment.evaluateJavascript(measureNarratedColumnsJs(text))?.trim('"')?.trim() ?: return emptyList()
+        if (raw == "off" || raw == "scroll" || !raw.startsWith("[")) return emptyList()
+        // The JS returns a JSON number array; it was double-encoded as a JS string, so unescape \" → ".
+        return runCatching {
+            val arr = org.json.JSONArray(raw.replace("\\\"", "\""))
+            List(arr.length()) { arr.getDouble(it) }
+        }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Snaps the page to the [columnIndex]-th column the narrated sentence [text] spans (clamped to the
+     * range it actually occupies), landing flush on the column grid. The companion to
+     * [measureNarratedColumns]: the progression decides the index, this performs the turn. Re-locates
+     * the sentence each call so it is robust to a reflow having moved the columns since measurement.
+     */
+    suspend fun snapNarratedColumn(fragment: EpubNavigatorFragment, text: String, columnIndex: Int) {
+        fragment.evaluateJavascript(snapNarratedColumnJs(text, columnIndex))
+    }
+
     // ── Snapping primitives (JS builders) — implementation, internal for the script tests ────
 
     // The element id a TOC/search/resume locator points at (its href fragment), or null for a jump to a
@@ -143,6 +172,82 @@ internal object ColumnSnap {
         })()
         """.trimIndent()
     }
+
+    // Locate-and-group prelude shared by [measureNarratedColumnsJs] and [snapNarratedColumnJs]. Runs
+    // inside an IIFE and leaves in scope, on success: `se` (scrolling element), `order` (the ascending
+    // list of column-boundary scrollLeft values the sentence spans, each a multiple of innerWidth),
+    // `wmap` (boundary → summed rect width), and `total` (their sum). It locates the sentence by a
+    // 12-char prefix of [text] (Readium strips the media-overlay span ids, so getElementById misses),
+    // extends a Range across the sentence's characters — walking forward through text nodes so inline
+    // children (italics, etc.) don't truncate it — and buckets the Range's client rects into columns by
+    // the SAME floor(x / innerWidth) math the rest of ColumnSnap trusts. Early-returns "off" (sentence
+    // not on this resource) or "scroll" (vertical mode → no column grid; the caller centres instead).
+    private fun narratedColumnsPreludeJs(text: String): String {
+        val full = JSONObject.quote(text.trim())
+        return """
+          var full=$full; if(!full) return "off";
+          var key=full.slice(0,12);
+          var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, sn=null, so=0;
+          while(n=w.nextNode()){ var i=n.nodeValue.indexOf(key); if(i>=0){ sn=n; so=i; break; } }
+          if(!sn) return "off";
+          var se=document.scrollingElement||document.documentElement;
+          if(se && se.scrollHeight > window.innerHeight + 4) return "scroll";
+          var iw=window.innerWidth; if(!(iw>0)) return "off";
+          var rng=document.createRange(); rng.setStart(sn, so);
+          var endNode=sn, endOff=Math.min(sn.nodeValue.length, so + full.length), remaining=full.length - (endOff - so);
+          if(remaining > 0){
+            var w2=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), m;
+            while(m=w2.nextNode()){ if(m===sn) break; }
+            var node;
+            while(remaining > 0 && (node=w2.nextNode())){
+              var len=node.nodeValue.length;
+              if(len >= remaining){ endNode=node; endOff=remaining; remaining=0; }
+              else { remaining-=len; endNode=node; endOff=len; }
+            }
+          }
+          rng.setEnd(endNode, endOff);
+          var rects=rng.getClientRects(), order=[], wmap={};
+          for(var k=0;k<rects.length;k++){
+            var rc=rects[k]; if(rc.width<=0 || rc.height<=0) continue;
+            var b=Math.floor((rc.left + se.scrollLeft) / iw) * iw;
+            if(!(b in wmap)){ wmap[b]=0; order.push(b); }
+            wmap[b]+=rc.width;
+          }
+          if(order.length===0) return "off";
+          order.sort(function(a,b){return a-b;});
+          var total=0; for(var j=0;j<order.length;j++) total+=wmap[order[j]];
+          if(!(total>0)) return "off";
+        """.trimIndent()
+    }
+
+    /**
+     * Returns a JSON array of the narrated sentence's cumulative per-column width fractions (last ≈ 1.0),
+     * or the bare strings "off"/"scroll". See [measureNarratedColumns] for the Kotlin-side contract.
+     */
+    internal fun measureNarratedColumnsJs(text: String): String =
+        """
+        (function(){
+        ${narratedColumnsPreludeJs(text)}
+          var cum=0, fr=[];
+          for(var j=0;j<order.length;j++){ cum+=wmap[order[j]]; fr.push(cum/total); }
+          return JSON.stringify(fr);
+        })()
+        """.trimIndent()
+
+    /**
+     * Snaps scrollLeft to the [columnIndex]-th column the narrated sentence occupies (clamped), landing
+     * flush on the grid. Returns "on", or "off"/"scroll" when there's nothing to snap. See
+     * [snapNarratedColumn].
+     */
+    internal fun snapNarratedColumnJs(text: String, columnIndex: Int): String =
+        """
+        (function(){
+        ${narratedColumnsPreludeJs(text)}
+          var idx=$columnIndex; if(idx<0) idx=0; if(idx>order.length-1) idx=order.length-1;
+          se.scrollLeft=order[idx];
+          return "on";
+        })()
+        """.trimIndent()
 
     // Scrolls the current resource so the column CONTAINING [fragmentId] sits flush at the viewport's
     // left edge — for an in-document cross-reference tap ("Figure 4.1"). go(cssSelector) lands flush to
