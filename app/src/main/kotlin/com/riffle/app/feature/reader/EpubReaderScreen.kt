@@ -237,9 +237,16 @@ fun EpubReaderScreen(
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
-    // The readaloud player floats over the bottom of the page: it does NOT reserve space or
-    // re-paginate, so the page stays static when the player opens. Its translucent backdrop lets the
-    // covered last line or two — and the narrated highlight — show through.
+    // Reserve a fixed bottom strip for the readaloud mini-player whenever readaloud is AVAILABLE
+    // (a downloaded/usable match) and the reader is paginated. The reserve is held for the whole
+    // session — NOT gated on the player being open — so toggling the player (Play-from-here, the play
+    // button, close) never re-paginates and the page can never jump. Non-readaloud books, and ABS
+    // matches whose bundle isn't downloaded yet, reserve nothing and render edge to edge. Scroll mode
+    // needs no reserve (the player floats over a freely-scrollable page). See ReadaloudReserve.kt.
+    val readaloudReservePx: Int = readaloudReserveDp(
+        readaloudAvailable = readaloudAvailable,
+        paginated = formattingPrefs.orientation != ReaderOrientation.Vertical,
+    )
 
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
@@ -294,6 +301,7 @@ fun EpubReaderScreen(
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         readaloudAvailable = readaloudAvailable,
+                        readaloudReservePx = readaloudReservePx,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
@@ -354,10 +362,13 @@ fun EpubReaderScreen(
                     // overlay backdrop (which paints readerTheme.palette.background) and the two
                     // read as one continuous, theme-following strip.
                     //
-                    // The player floats over the page (it no longer reserves space / re-paginates), so
-                    // it can sit over the last line or two. Paint its backdrop semi-transparent so that
-                    // covered text — and the narrated highlight — stays visible through the bar. The
-                    // controls are Surface CONTENT, unaffected by this alpha, so they remain opaque.
+                    // In paginated mode the page reserves this bar's height at the bottom (see
+                    // readaloudReservePx / ReadaloudReserve.kt), so the player sits over an empty strip
+                    // rather than live text. The backdrop is kept slightly translucent so that in the
+                    // cases without a reserve — scroll mode, or when the chapter rail also shows and
+                    // lifts the bar above the reserved strip — the covered text and the narrated
+                    // highlight still read through. Controls are Surface CONTENT, unaffected by the
+                    // alpha, so they stay opaque.
                     val readerPalette = formattingPrefs.theme.palette
                     ReadaloudMiniPlayer(
                         isPlaying = playbackState.isPlaying,
@@ -719,6 +730,7 @@ private fun EpubNavigatorView(
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
     readaloudAvailable: Boolean,
+    readaloudReservePx: Int = 0,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
@@ -753,6 +765,9 @@ private fun EpubNavigatorView(
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
+    // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
+    // freshly loaded page re-applies the current value.
+    val currentReadaloudReservePx by rememberUpdatedState(readaloudReservePx)
     val currentPublication by rememberUpdatedState(state.publication)
 
     // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
@@ -905,9 +920,10 @@ private fun EpubNavigatorView(
 
     // Bumps whenever a formatting change (font/margin/spacing/orientation) reflows the layout so the
     // decoration effects and the auto-follow probe below re-apply / re-centre onto the new pagination
-    // (see rememberReflowReapplyGeneration). The readaloud player floats over the page and no longer
-    // reflows it, so opening it is not a reflow trigger.
-    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs)
+    // (see rememberReflowReapplyGeneration). Also keyed on the readaloud reserve: it's constant across
+    // the session in the common case (so opening the player is NOT a reflow trigger), but it flips once
+    // if an ABS bundle finishes downloading mid-session — that one re-paginates, so re-apply then too.
+    val reflowGeneration = rememberReflowReapplyGeneration(formattingPrefs to readaloudReservePx)
 
     // Bumps every time a page finishes loading. This is the precise "the layout is now settled" signal
     // that reflowGeneration's timer heuristic only approximates — and the only one available after a
@@ -935,6 +951,12 @@ private fun EpubNavigatorView(
                     fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
                     fragment.evaluateJavascript(typographyOverrideInjectionJs())
                     fragment.evaluateJavascript(FootnoteAnchorBridge.INSTALL_SCRIPT)
+                    // Reserve the bottom strip for the readaloud player on this freshly loaded page
+                    // (paginated + readaloud-available only; see ReadaloudReserve.kt). Inject the rule,
+                    // then apply the current value so the page lands already paginated above the strip —
+                    // no reflow when the player is later opened.
+                    fragment.evaluateJavascript(readaloudReserveInjectionJs())
+                    fragment.evaluateJavascript(readaloudReserveApplyJs(currentReadaloudReservePx))
                     // Install the at-rest column-snap backstop: once scrolling settles off-grid in
                     // paginated mode it rounds to the nearest column, so the page can never REST between
                     // two pages no matter what moved it. Idempotent; defers to the rAF trackers.
@@ -948,6 +970,18 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Push the reserve to the live page if it changes without a page reload — readaloud becoming
+    // available mid-session (an ABS bundle finishes downloading) or the reader switching to/from scroll
+    // mode. In the common case the value is set at the first page load and never changes here, so this
+    // is a no-op. Unlike the earlier open-gated reserve, there is no top-of-page anchor to capture: the
+    // reserve isn't tied to the player opening, so this transition isn't one the user is staring at.
+    LaunchedEffect(readaloudReservePx) {
+        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        withContext(Dispatchers.Main) {
+            fragment.evaluateJavascript(readaloudReserveInjectionJs())
+            fragment.evaluateJavascript(readaloudReserveApplyJs(readaloudReservePx))
+        }
+    }
 
     // Tap on an in-document anchor inside the WebView → look up the target in
     // the cached spine doc. A footnote shows the popup; a regular cross-
