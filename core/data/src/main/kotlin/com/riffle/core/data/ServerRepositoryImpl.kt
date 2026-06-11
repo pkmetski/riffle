@@ -12,6 +12,7 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.READALOUD_MEDIA_TYPE
 import com.riffle.core.domain.Server
+import com.riffle.core.domain.ServerFilesCleaner
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
@@ -38,6 +39,7 @@ class ServerRepositoryImpl @Inject constructor(
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
+    private val filesCleaner: ServerFilesCleaner,
 ) : ServerRepository {
 
     override fun observeAll(): Flow<List<Server>> =
@@ -184,6 +186,9 @@ class ServerRepositoryImpl @Inject constructor(
         libraryDao.deleteByServerId(serverId)
         dao.deleteById(serverId)
         tokenStorage.deleteToken(serverId)
+        // The file stores live outside Room, so the FK cascade above doesn't touch them — purge the
+        // Server's downloaded/cached files here so they don't leak on disk after removal.
+        filesCleaner.deleteAllForServer(serverId)
     }
 
     override suspend fun getServerVersion(serverId: String): String? {

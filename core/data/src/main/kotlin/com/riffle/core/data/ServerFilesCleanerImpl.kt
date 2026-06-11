@@ -1,0 +1,25 @@
+package com.riffle.core.data
+
+import com.riffle.core.domain.LocalStore
+import com.riffle.core.domain.ServerFilesCleaner
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/**
+ * Purges a Server's files across all on-disk stores (ADR 0025). [stores] are the EPUB/PDF
+ * download+cache [LocalStore]s; [audiobookDownloadsDir] is the audiobook download root, which is a
+ * directory-per-item tree rather than a [LocalStore] (ADR 0029) but follows the same
+ * `<root>/<serverId>/…` layout, so it too is removed as a per-Server subtree.
+ */
+class ServerFilesCleanerImpl(
+    private val stores: List<LocalStore>,
+    private val audiobookDownloadsDir: File,
+) : ServerFilesCleaner {
+
+    override suspend fun deleteAllForServer(serverId: String) = withContext(Dispatchers.IO) {
+        stores.forEach { it.deleteServer(serverId) }
+        File(audiobookDownloadsDir, serverId).deleteRecursively()
+        Unit
+    }
+}

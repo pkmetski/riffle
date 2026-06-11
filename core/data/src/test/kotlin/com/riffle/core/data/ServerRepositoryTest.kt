@@ -10,6 +10,7 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.ServerFilesCleaner
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
@@ -103,6 +104,13 @@ class ServerRepositoryTest {
         }
     }
 
+    private class RecordingFilesCleaner : ServerFilesCleaner {
+        val cleanedServerIds = mutableListOf<String>()
+        override suspend fun deleteAllForServer(serverId: String) { cleanedServerIds += serverId }
+    }
+
+    private fun fakeFilesCleaner() = RecordingFilesCleaner()
+
     private fun fakeLibraryItemDao() = object : com.riffle.core.database.LibraryItemDao {
         val deletedLibraryIds = mutableListOf<String>()
         private val rows = mutableMapOf<String, MutableList<com.riffle.core.database.LibraryItemEntity>>()
@@ -177,7 +185,7 @@ class ServerRepositoryTest {
                 )
             )
         )
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
         val url = ServerUrl.parse("https://abs.example.com")!!
 
         val result = repo.authenticate(url, "admin", "pass", insecureAllowed = false)
@@ -196,7 +204,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("nope") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
 
@@ -212,7 +220,7 @@ class ServerRepositoryTest {
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.Success("uid", "tok", "u") }
         val cause = RuntimeException("boom")
         val libsApi = libsApiReturning(NetworkLibrariesResult.NetworkError(cause))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.authenticate(ServerUrl.parse("https://x")!!, "u", "p", false)
 
@@ -226,7 +234,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.authenticate(ServerUrl.parse("https://abs.example.com")!!, "admin", "pass", insecureAllowed = false)
 
@@ -238,7 +246,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val url = ServerUrl.parse("https://abs.example.com")!!
         val pending = PendingServer(
@@ -268,7 +276,7 @@ class ServerRepositoryTest {
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
         val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.Success("tok-st"))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.authenticate(
             ServerUrl.parse("http://media-server:8001")!!, "plamen", "pw", insecureAllowed = false,
@@ -291,7 +299,7 @@ class ServerRepositoryTest {
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
         val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.WrongCredentials("Incorrect username or password"))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val result = repo.authenticate(
             ServerUrl.parse("http://media-server:8001")!!, "plamen", "wrong", insecureAllowed = false,
@@ -307,7 +315,7 @@ class ServerRepositoryTest {
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val storyteller = storytellerApiReturning(NetworkStorytellerLoginResult.Success("tok-st"))
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pendingA = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -355,7 +363,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -380,7 +388,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -404,7 +412,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
-        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility)
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
@@ -429,11 +437,28 @@ class ServerRepositoryTest {
         tokens.tokens["srv-1"] = "tok"
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
         )
         repo.remove("srv-1")
         assertTrue("token not deleted", tokens.tokens.isEmpty())
         assertNull("entity not deleted from store", dao.getActive())
+    }
+
+    @Test
+    fun `remove deletes the server's downloaded and cached files on disk`() = runTest {
+        val entity = ServerEntity("srv-1", "https://abs.example.com", true, false, username = "")
+        val dao = fakeDao(entity)
+        val tokens = fakeTokenStorage()
+        tokens.tokens["srv-1"] = "tok"
+        val cleaner = fakeFilesCleaner()
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), cleaner
+        )
+
+        repo.remove("srv-1")
+
+        assertEquals("on-disk files not cleaned for the removed server", listOf("srv-1"), cleaner.cleanedServerIds)
     }
 
     @Test
@@ -452,7 +477,7 @@ class ServerRepositoryTest {
         ))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = ServerRepositoryImpl(
-            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore(), fakeFilesCleaner()
         )
 
         repo.remove("st-1")
@@ -480,7 +505,7 @@ class ServerRepositoryTest {
         itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-2", "lib-2", "Foundation", "Asimov", null, 0f)))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = ServerRepositoryImpl(
-            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore(), fakeFilesCleaner()
         )
 
         repo.remove("abs-1")
@@ -497,7 +522,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(e1, e2)
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
+            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
         )
         repo.setActive("s2")
         assertEquals("s2", dao.getActive()?.id)
@@ -510,7 +535,7 @@ class ServerRepositoryTest {
         val dao = fakeDao(abs, st)
         val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
         val repo = ServerRepositoryImpl(
-            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore()
+            dao, fakeTokenStorage(), absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
         )
 
         repo.setActive("st")

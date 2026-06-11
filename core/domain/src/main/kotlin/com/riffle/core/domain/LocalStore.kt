@@ -13,6 +13,10 @@ interface LocalStore {
     fun get(serverId: String, itemId: String): File?
     suspend fun save(serverId: String, itemId: String, stream: InputStream): File
     fun delete(serverId: String, itemId: String)
+
+    /** Deletes every file owned by [serverId] (its whole `dir/<serverId>/` subtree). */
+    fun deleteServer(serverId: String)
+
     fun clear()
     fun listItems(): List<StoredItemRef>
 }
