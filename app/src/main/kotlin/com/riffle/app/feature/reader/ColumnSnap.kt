@@ -91,9 +91,9 @@ internal object ColumnSnap {
     suspend fun measureNarratedColumns(fragment: EpubNavigatorFragment, text: String): List<Double> {
         val raw = fragment.evaluateJavascript(measureNarratedColumnsJs(text))?.trim('"')?.trim() ?: return emptyList()
         if (raw == "off" || raw == "scroll" || !raw.startsWith("[")) return emptyList()
-        // The JS returns a JSON number array; it was double-encoded as a JS string, so unescape \" → ".
+        // The JS returns a JSON number array (no quote chars to unescape).
         return runCatching {
-            val arr = org.json.JSONArray(raw.replace("\\\"", "\""))
+            val arr = org.json.JSONArray(raw)
             List(arr.length()) { arr.getDouble(it) }
         }.getOrDefault(emptyList())
     }

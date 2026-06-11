@@ -91,6 +91,17 @@ class NarratedColumnProgressionTest {
         assertEquals(1, lead.advance(0.56)) // 0.56 + 0.06 ≥ 0.60 → turns early
     }
 
+    @Test fun leadNeverTurnsOffTheFirstColumnAtTheVeryStart() {
+        // A sentence beginning in the last sliver of a page: its first column holds <lead of the width.
+        // The lead must not yank the page off column 0 at fraction 0 (it would fight the start-snap and
+        // flicker); the lead is capped to half the (tiny) column, so the turn still happens — just not
+        // before narration has actually entered the sentence.
+        val p = NarratedColumnProgression(lead = NarratedColumnProgression.DEFAULT_LEAD)
+        p.onSentence(listOf(0.04, 1.0)) // 4% of the width on column 0, 96% on column 1
+        assertNull("must start on column 0, not jump to column 1 at the sentence's first tick", p.advance(0.0))
+        assertEquals(1, p.advance(0.05)) // turns once narration is genuinely into the sentence
+    }
+
     // ── clamping ────────────────────────────────────────────────────────────────────────────────
 
     @Test fun fractionPastTheEndClampsToTheLastColumn() {

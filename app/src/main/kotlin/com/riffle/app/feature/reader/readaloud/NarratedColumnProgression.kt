@@ -51,9 +51,16 @@ class NarratedColumnProgression(private val lead: Double = DEFAULT_LEAD) {
     fun columnAt(fraction: Double): Int {
         val n = boundaries.size
         if (n <= 1) return 0
-        val f = fraction + lead
+        var prev = 0.0
         for (i in 0 until n - 1) {
-            if (f < boundaries[i]) return i
+            // Turn into column i+1 slightly before narration reaches the break, to absorb estimate
+            // drift. The lead is capped at half the column we're leaving so a column narrower than the
+            // lead can't turn at its very start — otherwise a sentence beginning in the last sliver of
+            // a page (a tiny first column) would jump off column 0 at fraction 0, fighting the
+            // sentence-start snap.
+            val effectiveLead = minOf(lead, (boundaries[i] - prev) / 2)
+            if (fraction < boundaries[i] - effectiveLead) return i
+            prev = boundaries[i]
         }
         return n - 1
     }
