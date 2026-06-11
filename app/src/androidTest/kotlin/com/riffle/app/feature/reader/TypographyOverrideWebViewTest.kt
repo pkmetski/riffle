@@ -106,7 +106,7 @@ class TypographyOverrideWebViewTest {
     // Margins override targets :root (not body) so every column in paginated mode gets equal
     // top/bottom whitespace. Without --USER__pageMargins set the gate doesn't match and :root
     // padding stays at the fixture default. With it set, padding-top/bottom should resolve to
-    // calc(--RS__pageGutter * --USER__pageMargins * 0.5). We simulate Readium's gutter with
+    // calc(--RS__pageGutter * --USER__pageMargins * 0.8). We simulate Readium's gutter with
     // an explicit --RS__pageGutter on :root so the calc has a concrete value.
     @Test
     fun marginsOverrideAppliesVerticalPaddingToRootWhenUserVariableIsSet() {
@@ -120,11 +120,10 @@ class TypographyOverrideWebViewTest {
             val paddingBottom = webView.evalSync(
                 "window.getComputedStyle(document.documentElement).paddingBottom"
             ).toCssPx()
-            // Top is 0.5× the horizontal gutter (narrower than sides — conventional book
-            // typography); bottom is 1.0× so the chapter-rail overlay has breathing room above
-            // the running text. See TypographyOverride.kt "margins" entry.
-            // 20px gutter × 2 (pageMargins) × 0.5 = 20px top; × 1.0 = 40px bottom.
-            assertEquals("padding-top should reflect --USER__pageMargins × gutter × 0.5", 20.0, paddingTop, 0.5)
+            // Top is 0.8× the horizontal gutter — slightly narrower than the side margins and
+            // the bottom (both 1.0×). See TypographyOverride.kt "margins" entry.
+            // 20px gutter × 2 (pageMargins) × 0.8 = 32px top; × 1.0 = 40px bottom.
+            assertEquals("padding-top should reflect --USER__pageMargins × gutter × 0.8", 32.0, paddingTop, 0.5)
             assertEquals("padding-bottom should reflect --USER__pageMargins × gutter × 1.0", 40.0, paddingBottom, 0.5)
         }
     }

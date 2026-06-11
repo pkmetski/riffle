@@ -76,14 +76,14 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
     // `:root` is `height: auto`, so this becomes whitespace at the start/end of each loaded
     // resource — still the desired "margin" semantics.
     //
-    // Top stays at 0.5× the horizontal gutter (narrower than sides — conventional book
-    // typography). Bottom is 1.0× so the chapter-rail overlay has clear breathing room above
-    // the running text. Both scale with --USER__pageMargins, so cranking up margins keeps the
-    // top/bottom ratio constant.
+    // Top is 0.8× the horizontal gutter — close to the left/right side margins (Readium's
+    // built-in body padding, 1.0×) and the bottom (1.0×), but slightly narrower per conventional
+    // book typography. Both scale with --USER__pageMargins, so cranking up margins keeps the
+    // ratio constant.
     "margins" to TypographyOverride(
         userPropertyName = "--USER__pageMargins",
         declarations = listOf(
-            "padding-top" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 0.5)",
+            "padding-top" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 0.8)",
             "padding-bottom" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 1.0)",
         ),
         elements = "",  // empty → rule targets `:root` itself, not a descendant
