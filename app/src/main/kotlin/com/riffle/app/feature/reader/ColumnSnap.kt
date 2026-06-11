@@ -114,8 +114,16 @@ internal object ColumnSnap {
           if(!r) return "off";
           var se=document.scrollingElement||document.documentElement;
           if(se && se.scrollHeight > window.innerHeight + 4){
-            var delta=Math.round((r.top+r.bottom)/2 - window.innerHeight/2);
-            if(Math.abs(delta) > 8) window.scrollBy(0, delta);
+            // KEEP-VISIBLE follow, not re-centre-every-sentence. Only scroll when the narrated sentence
+            // has drifted OUT of a central comfort band (the middle half of the viewport), then recentre
+            // it. Two adjacent sentences both inside the band — which is what a small audio-position
+            // jitter that flaps the active sentence back and forth across a clip boundary produces —
+            // move the page by nothing, so it no longer jiggles a line up-and-down on each change. This
+            // mirrors the deliberate keep-visible policy paginated mode already uses to avoid the same
+            // jitter. Forward reading still scrolls (in calm half-viewport steps) as the sentence nears
+            // an edge, and an off-screen sentence (e.g. after a seek) still recentres.
+            var h=window.innerHeight, mid=(r.top+r.bottom)/2, band=h*0.25;
+            if(mid < band || mid > h - band) window.scrollBy(0, Math.round(mid - h/2));
             return "on";
           }
           var iw=window.innerWidth;
