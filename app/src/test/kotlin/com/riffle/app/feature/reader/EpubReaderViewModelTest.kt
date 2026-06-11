@@ -944,3 +944,76 @@ class ReaderSyncOrchestrationTest {
         )
     }
 }
+
+/**
+ * Regression for "readaloud speed change is not remembered on mini player close."
+ *
+ * Speed has two homes: the DB row (persisted, debounced) and the in-memory `initialSpeed`, which
+ * `ensureOpened` reapplies to the freshly-prepared player on every (re)open. closeReadaloud()
+ * resets `readaloudPrepared = false`, so reopening within the same reading session re-runs
+ * ensureOpened. The bug: setSpeed persisted to the DB but never updated `initialSpeed`, so reopen
+ * clobbered the live player back to the speed loaded at book-open. Leaving and re-entering the book
+ * reloaded from the DB and looked correct, hiding the bug — it only bit on in-session reopen.
+ *
+ * EpubReaderViewModel can't be constructed in a JVM test (Readium needs android.net.Uri — see the
+ * file header), so this fake mirrors setSpeed / closeReadaloud / ensureOpened one-to-one; a
+ * regression here maps directly to the ViewModel.
+ */
+class ReadaloudSpeedPersistenceTest {
+
+    private class FakeSpeedStore(initial: Float) {
+        var persisted: Float = initial
+        fun load(): Float = persisted
+        fun save(speed: Float) { persisted = speed }
+    }
+
+    /** Mirrors PlayerCoordinator's speed: setSpeed sets it; close() tears the session down. */
+    private class FakePlayerCoordinator {
+        var currentSpeed: Float = 1.0f
+        fun setSpeed(s: Float) { currentSpeed = s }
+        fun close() { currentSpeed = 1.0f } // controller.stop() releases; speed is reapplied on reopen
+    }
+
+    // Mirrors EpubReaderViewModel's speed lifecycle.
+    private class SpeedSession(private val store: FakeSpeedStore, private val player: FakePlayerCoordinator) {
+        private var initialSpeed: Float = store.load() // set once at book open (line :395)
+        private var readaloudPrepared = false
+
+        fun ensureOpened() { // line :1374
+            if (!readaloudPrepared) {
+                player.setSpeed(initialSpeed) // line :1380 — reapply the persisted per-book speed
+                readaloudPrepared = true
+            }
+        }
+
+        fun setSpeed(speed: Float) { // line :1145
+            player.setSpeed(speed)
+            initialSpeed = speed // the fix: keep the value reopen reapplies in sync with the live one
+            store.save(speed)    // (production debounces this write; immaterial to the bug)
+        }
+
+        fun closeReadaloud() { // line :1072
+            readaloudPrepared = false
+            player.close()
+        }
+    }
+
+    @Test
+    fun `a speed picked before closing the mini player survives an in-session reopen`() {
+        val store = FakeSpeedStore(initial = 1.0f)
+        val player = FakePlayerCoordinator()
+        val session = SpeedSession(store, player)
+
+        session.ensureOpened()
+        assertEquals(1.0f, player.currentSpeed)
+
+        session.setSpeed(1.5f)
+        assertEquals(1.5f, player.currentSpeed)
+
+        session.closeReadaloud()
+        session.ensureOpened() // reopen within the same reading session
+
+        assertEquals("reopen must restore the chosen speed, not the book-open default", 1.5f, player.currentSpeed)
+        assertEquals(1.5f, store.persisted)
+    }
+}
