@@ -127,6 +127,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readingPositionStore: ReadingPositionStore,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
+    private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -837,6 +838,8 @@ class EpubReaderViewModel @Inject constructor(
         epubZip = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
+        // Readaloud can't outlive the reader, so this session is no longer playing.
+        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Readaloud && it.itemId == itemId }
         // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
         playerCoordinator.dispose()
     }
@@ -1292,6 +1295,8 @@ class EpubReaderViewModel @Inject constructor(
 
     private suspend fun ensurePreparedAndPlay(bundle: File) {
         ensureOpened(bundle) ?: return
+        // Record the active readaloud so a media-notification tap reopens this book's reader.
+        nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Readaloud(itemId))
         if (readaloudStarted) {
             // Resume after a pause: ExoPlayer kept its place, just play.
             playerCoordinator.play()

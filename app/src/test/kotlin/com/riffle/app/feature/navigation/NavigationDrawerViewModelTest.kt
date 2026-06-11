@@ -129,6 +129,8 @@ class NavigationDrawerViewModelTest {
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         connectivityObserver = fakeConnectivity(),
+        nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
+        nowPlayingStore = com.riffle.app.playback.NowPlayingStore(),
     )
 
     @Test
