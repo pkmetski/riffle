@@ -24,10 +24,38 @@ class AutoFollowJsTest {
     private val offRightText = "Offright next page sentence here"
     private val targetText = "Narrated target sentence deep in the page"
 
-    // Distinct in their first 12 chars (the probe keys on a 12-char prefix), so each resolves to its
-    // own element rather than colliding on a shared "Adjacent sen…" prefix.
+    // Distinct sentences (the probe matches the WHOLE sentence text), so each resolves to its own
+    // element rather than colliding.
     private val adjacentA = "Alpha narrated line on screen"
     private val adjacentB = "Bravo narrated line on screen"
+
+    // A chapter-opening dateline of the kind The Martian uses on nearly every chapter ("LOG ENTRY: SOL
+    // N"). Two of them share the first 12 chars "LOG ENTRY: S" — the prefix the probe used to key on —
+    // so following the NEW chapter's dateline while the OLD chapter's is still on screen must NOT match
+    // the old one (the "shows the old chapter, corrects on the 2nd sentence" bug).
+    private val oldDateline = "LOG ENTRY: SOL 37"
+    private val newDateline = "LOG ENTRY: SOL 38"
+    private val datelineFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0; height:6000px; position:relative">
+            <div id="dateline" style="position:absolute; left:20px; top:60px; width:300px; height:40px">$oldDateline</div>
+            <div id="prose"    style="position:absolute; left:20px; top:120px; width:300px; height:40px">The Hab is now a bomb.</div>
+          </body>
+        </html>
+    """.trimIndent()
+
+    // A sentence broken across text nodes by inline markup (an <em>), the case the old short-prefix probe
+    // was built to tolerate. Whole-sentence matching must still find it across the node boundary.
+    private val splitSentence = "Once we got Hermes moving we coasted"
+    private val splitNodeFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0; height:6000px; position:relative">
+            <div id="split" style="position:absolute; left:20px; top:3000px; width:320px; height:40px">Once we got <em>Hermes</em> moving we coasted, burning fuel.</div>
+          </body>
+        </html>
+    """.trimIndent()
 
     // A tall (scroll-mode) document with two sentences one line apart, deep in the page. Used to prove
     // that following flaps back and forth between two ALREADY-VISIBLE adjacent sentences (what a small
@@ -199,6 +227,40 @@ class AutoFollowJsTest {
         withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
             webView.awaitInnerHeight()
             assertEquals("empty/unknown text → off (caller falls back to go())", "off", webView.evalSync(ColumnSnap.autoFollowSnapJs("")).trim('"'))
+        }
+    }
+
+    @Test
+    fun datelineCollisionDoesNotFalseMatchThePreviousChaptersDateline() {
+        withSizedWebViewFixture(datelineFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // The new chapter's first narrated sentence is "LOG ENTRY: SOL 38" but the OUTGOING resource
+            // still shows "LOG ENTRY: SOL 37". A 12-char-prefix probe matched "LOG ENTRY: S" here and
+            // wrongly returned "on", suppressing the caller's cross-resource go() — the bug. Whole-sentence
+            // matching must report the SOL 38 sentence as NOT on this page → "off" → caller go()s.
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(newDateline)).trim('"')
+            assertEquals("a different chapter's dateline must NOT match this page → off", "off", result)
+        }
+    }
+
+    @Test
+    fun datelinePresentOnItsOwnPageStillFollows() {
+        withSizedWebViewFixture(datelineFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // The matching dateline IS on this page → followed normally.
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(oldDateline)).trim('"')
+            assertEquals("the dateline that IS on the page is followed → on", "on", result)
+        }
+    }
+
+    @Test
+    fun followsASentenceSplitAcrossInlineMarkupNodes() {
+        withSizedWebViewFixture(splitNodeFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // The sentence's text is broken into "Once we got " / "Hermes" / " moving we coasted…" by an
+            // <em>; whole-sentence matching over the canonical node concatenation must still locate it.
+            val result = webView.evalSync(ColumnSnap.autoFollowSnapJs(splitSentence)).trim('"')
+            assertEquals("a sentence split across inline-markup text nodes is still found → on", "on", result)
         }
     }
 
