@@ -45,9 +45,10 @@ internal fun readaloudReserveDp(readaloudAvailable: Boolean, paginated: Boolean)
 
 /**
  * The reserve rule. Active only while `<html>` carries [RESERVE_ACTIVE_CLASS]. The bottom padding is
- * the page's own bottom margin (the SAME calc as the margins override — `--RS__pageGutter *
- * --USER__pageMargins` — so the gap above the player tracks the margins slider exactly, staying
- * symmetric with the top margin) PLUS the strip height carried in [RESERVE_VAR] (the player bar). The
+ * the page's own bottom margin — the SAME `--RS__pageGutter * --USER__pageMargins` calc the margins
+ * override uses for its `padding-bottom` (the 1.0× bottom factor; the override's top is 0.5×, so this
+ * is NOT symmetric with the top), so the gap above the player tracks the margins slider exactly —
+ * PLUS the strip height carried in [RESERVE_VAR] (the player bar). The
  * doubled `:root` raises specificity to (0,3,0) so it beats both Readium's `:root{padding:0}` (0,1,0)
  * and the margins override (0,2,0) regardless of source order. `--USER__pageMargins` defaults to 1 so
  * the `calc()` stays valid on books left at the default margin (an unset var with no fallback would
