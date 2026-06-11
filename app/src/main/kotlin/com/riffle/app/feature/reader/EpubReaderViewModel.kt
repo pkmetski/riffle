@@ -1146,6 +1146,10 @@ class EpubReaderViewModel @Inject constructor(
         // Apply to the live player immediately; persist debounced so a granular scrub/slide (which
         // fires many intermediate values) only writes the settled speed, not every 0.05 step.
         playerCoordinator.setSpeed(speed)
+        // Keep the value ensureOpened() reapplies on reopen in sync with the live speed. closeReadaloud
+        // resets readaloudPrepared, so an in-session reopen re-runs ensureOpened and would otherwise
+        // restore the stale book-open speed — losing the change the user just made.
+        initialSpeed = speed
         pendingSpeed = speed
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
