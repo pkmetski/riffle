@@ -237,6 +237,14 @@ fun EpubReaderScreen(
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
+    // Starting (or resuming) readaloud is a "lean back and listen" intent, so drop into
+    // immersive mode. See ImmersiveOnReadaloudPlay for the why (hides system bars + TopAppBar
+    // together, one-way, plays nicely with rotation/sleep-resume restore).
+    ImmersiveOnReadaloudPlay(
+        isReadaloudPlaying = playbackState.isPlaying,
+        immersiveState = immersiveState,
+    )
+
     // Reserve a fixed bottom strip for the readaloud mini-player whenever readaloud is AVAILABLE
     // (a downloaded/usable match) and the reader is paginated. The reserve is held for the whole
     // session — NOT gated on the player being open — so toggling the player (Play-from-here, the play
