@@ -290,10 +290,6 @@ class EpubReaderViewModel @Inject constructor(
     private val _readaloudOpen = MutableStateFlow(false)
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
 
-    // Mini-player (false) vs full-height bottom sheet (true).
-    private val _readaloudExpanded = MutableStateFlow(false)
-    val readaloudExpanded: StateFlow<Boolean> = _readaloudExpanded
-
     // Mirrors the controller's playback state for the bar/sheet controls.
     val playbackState: StateFlow<ReadaloudController.PlaybackState> = playerCoordinator.state
 
@@ -1072,7 +1068,6 @@ class EpubReaderViewModel @Inject constructor(
 
     fun closeReadaloud() {
         _readaloudOpen.value = false
-        _readaloudExpanded.value = false
         _downloadPromptBytes.value = null
         _readaloudOfflineMessage.value = false
         storytellerSyncJob?.cancel()
@@ -1124,9 +1119,6 @@ class EpubReaderViewModel @Inject constructor(
     } catch (_: Exception) {
         null
     }
-
-    fun expandPlayer() { _readaloudExpanded.value = true }
-    fun collapsePlayer() { _readaloudExpanded.value = false }
 
     fun togglePlayPause() {
         if (playbackState.value.isPlaying) {

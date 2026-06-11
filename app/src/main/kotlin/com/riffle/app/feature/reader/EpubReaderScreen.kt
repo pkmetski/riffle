@@ -75,7 +75,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
-import com.riffle.app.feature.reader.readaloud.ReadaloudExpandedSheet
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
@@ -231,7 +230,6 @@ fun EpubReaderScreen(
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
-    val readaloudExpanded by viewModel.readaloudExpanded.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
     val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
@@ -383,7 +381,6 @@ fun EpubReaderScreen(
                         onPreviousChapter = viewModel::previousChapter,
                         onNextChapter = viewModel::nextChapter,
                         onClose = viewModel::closeReadaloud,
-                        onExpand = viewModel::expandPlayer,
                     )
                 }
                 if (showRailOverlay) {
@@ -396,17 +393,6 @@ fun EpubReaderScreen(
                     )
                 }
             }
-        }
-
-        if (readaloudOpen && readaloudExpanded) {
-            ReadaloudExpandedSheet(
-                isPlaying = playbackState.isPlaying,
-                speed = playbackState.speed,
-                positionSec = playbackState.positionSec,
-                onPlayPause = viewModel::togglePlayPause,
-                onSpeedSelected = viewModel::setSpeed,
-                onDismiss = viewModel::collapsePlayer,
-            )
         }
 
         downloadPromptBytes?.let { bytes ->

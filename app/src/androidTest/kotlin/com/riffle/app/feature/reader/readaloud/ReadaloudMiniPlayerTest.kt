@@ -44,7 +44,6 @@ class ReadaloudMiniPlayerTest {
                 onPreviousChapter = onPreviousChapter,
                 onNextChapter = onNextChapter,
                 onClose = {},
-                onExpand = {},
             )
         }
     }
@@ -105,7 +104,6 @@ class ReadaloudMiniPlayerTest {
                 onPreviousChapter = {},
                 onNextChapter = {},
                 onClose = {},
-                onExpand = {},
             )
         }
         rule.onNodeWithTag("readaloud_rewind").assertDoesNotExist()
