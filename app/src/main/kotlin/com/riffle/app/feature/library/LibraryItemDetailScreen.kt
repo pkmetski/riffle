@@ -61,8 +61,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -225,12 +227,13 @@ fun LibraryItemDetailScreen(
 private fun CollapsibleDescription(description: String) {
     var expanded by remember { mutableStateOf(false) }
     var isOverflowing by remember { mutableStateOf(false) }
+    val formatted = remember(description) { AnnotatedString.fromHtml(description) }
 
     Column(modifier = Modifier.animateContentSize()) {
         Text(text = "Summary", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = description,
+            text = formatted,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = if (expanded) Int.MAX_VALUE else 5,
             overflow = TextOverflow.Ellipsis,

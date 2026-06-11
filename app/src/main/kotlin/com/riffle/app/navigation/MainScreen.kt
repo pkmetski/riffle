@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -99,9 +100,7 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
             val encoded = URLEncoder.encode(library.name, "UTF-8")
-            navController.navigate("library_items/${library.id}/$encoded") {
-                popUpTo(HOME) { inclusive = true }
-            }
+            navController.navigateAsRoot("library_items/${library.id}/$encoded")
             viewModel.setActiveLibrary(library.id)
         }
     }
@@ -119,15 +118,13 @@ fun MainScreen(
         onServerSelected = { server ->
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
-            navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+            navController.navigateAsRoot(HOME)
         },
         onLibrarySelected = { library ->
             viewModel.setActiveLibrary(library.id)
             scope.launch { drawerState.close() }
             val encoded = URLEncoder.encode(library.name, "UTF-8")
-            navController.navigate("library_items/${library.id}/$encoded") {
-                popUpTo(HOME) { inclusive = true }
-            }
+            navController.navigateAsRoot("library_items/${library.id}/$encoded")
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
@@ -142,16 +139,12 @@ fun MainScreen(
             composable(HOME) {
                 HomeScreen(
                     onNavigateToAddServer = {
-                        navController.navigate(ADD_SERVER) {
-                            popUpTo(HOME) { inclusive = true }
-                        }
+                        navController.navigateAsRoot(ADD_SERVER)
                     },
                     onNavigateToLibrary = { libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
                         val encoded = URLEncoder.encode(libraryName, "UTF-8")
-                        navController.navigate("library_items/$libraryId/$encoded") {
-                            popUpTo(HOME) { inclusive = true }
-                        }
+                        navController.navigateAsRoot("library_items/$libraryId/$encoded")
                     },
                 )
             }
@@ -164,14 +157,14 @@ fun MainScreen(
                     AddServerScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
-                            navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                            navController.navigateAsRoot(HOME)
                         },
                         onAuthenticated = { pending ->
                             setupVm.pendingServer = pending
                             navController.navigate(SELECT_LIBRARIES)
                         },
                         onAutoCompleted = {
-                            navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                            navController.navigateAsRoot(HOME)
                         },
                     )
                 }
@@ -189,7 +182,7 @@ fun MainScreen(
                             windowSizeClass = windowSizeClass,
                             onNavigateBack = { navController.popBackStack() },
                             onContinueComplete = {
-                                navController.navigate(HOME) { popUpTo(HOME) { inclusive = true } }
+                                navController.navigateAsRoot(HOME)
                             },
                         )
                     }
@@ -397,6 +390,22 @@ fun MainScreen(
                 AudiobookPlayerScreen(onNavigateBack = { navController.popBackStack() })
             }
         }
+    }
+}
+
+// Resets the back stack so [route] becomes the sole root. Used by every "switch the active
+// surface" navigation — launch router, server/library switch, redirect, server-setup completion.
+//
+// We deliberately do NOT anchor on popUpTo(HOME): HOME is the graph's start destination but it is
+// popped inclusively the moment a library resolves at launch, so popUpTo(HOME) afterwards matches
+// nothing ("Ignoring popBackStack to route home"), the inclusive pop is skipped, and each switch
+// pushes a duplicate root instead of replacing it. Backing out of those accumulated roots can empty
+// the stack entirely, leaving the NavHost with no destination — a blank white screen. Popping the
+// root graph id clears the whole stack regardless of whether HOME is still present.
+internal fun NavController.navigateAsRoot(route: String) {
+    navigate(route) {
+        popUpTo(graph.id) { inclusive = true }
+        launchSingleTop = true
     }
 }
 
