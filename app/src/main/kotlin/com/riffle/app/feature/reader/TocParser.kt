@@ -18,3 +18,14 @@ fun findActiveEntry(entries: List<TocEntry>, currentHref: String): TocEntry? {
     }
     return null
 }
+
+/**
+ * Index into [entries] (the top-level list rendered by the TOC's `LazyColumn`) of the entry whose
+ * subtree contains [currentHref], or null if nothing matches. A nested child resolves to the index
+ * of its top-level ancestor, since children are rendered within their ancestor's list item.
+ */
+fun findActiveTopLevelIndex(entries: List<TocEntry>, currentHref: String?): Int? {
+    if (currentHref == null) return null
+    val index = entries.indexOfFirst { findActiveEntry(listOf(it), currentHref) != null }
+    return index.takeIf { it >= 0 }
+}
