@@ -256,6 +256,13 @@ private fun PdfNavigatorView(
                 ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
                     WindowInsetsCompat.CONSUMED
                 }
+                // Claim the side edges from the system back gesture so a side-edge page-turn
+                // swipe doesn't trigger predictive-back, which would reveal the system bars and
+                // exit immersive mode. The PDF reader is always paged. Re-run on every layout so
+                // size/rotation/inset changes recompute the strips.
+                addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                    applySideEdgeGestureExclusion(enabled = true)
+                }
             }
         },
         update = { containerView ->

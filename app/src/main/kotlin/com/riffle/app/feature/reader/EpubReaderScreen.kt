@@ -1410,10 +1410,21 @@ private fun EpubNavigatorView(
                     onPullProgress = { p -> pullProgress = p }
                     val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                     addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                    // Claim the side edges from the system back gesture in paged mode so a
+                    // side-edge page-turn swipe doesn't trigger predictive-back, which would
+                    // reveal the system bars and exit immersive mode. Re-run on every layout so
+                    // size/rotation/inset changes recompute the strips. Scroll mode keeps the
+                    // back gesture (side swipes aren't page turns there).
+                    addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                        applySideEdgeGestureExclusion(enabled = !isScrollMode)
+                    }
                 }.also { containerRef.value = it }
             },
             update = { container ->
                 container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+                // Mode can flip without a relayout, so re-apply here too (the layout listener
+                // covers size/rotation changes).
+                container.applySideEdgeGestureExclusion(enabled = !container.isScrollMode)
 
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
