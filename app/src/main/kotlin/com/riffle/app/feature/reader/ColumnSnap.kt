@@ -98,19 +98,53 @@ internal object ColumnSnap {
      * only when the text isn't on the current resource (another chapter) → the caller go()s to load it.
      */
     internal fun autoFollowSnapJs(text: String): String {
-        // A short, near-unique prefix of the sentence; matched within a single text node (sentence starts
-        // almost never split across nodes). Empty text disables the lookup → "off" (caller's go() fallback).
-        val probe = text.trim().take(24)
+        // Locate the narrated sentence by its TEXT (Readium strips the media-overlay span ids, so
+        // getElementById can't find it). We match the WHOLE sentence, not a short prefix: chapter-opening
+        // sentences in some books are recurring datelines — "LOG ENTRY: SOL 38", "LOG ENTRY: SOL 37", … —
+        // whose first 12 chars are identical, so a prefix match finds the PREVIOUS chapter's dateline still
+        // on the outgoing resource, reports the sentence as already on-page, and SUPPRESSES the caller's
+        // cross-resource go(). The reader then hangs on the old chapter until a later, distinctive sentence
+        // plays — the "shows the old chapter, corrects on the 2nd sentence" bug.
+        //
+        // Whole-sentence matching is robust only if it survives the two reasons a short prefix was used
+        // before: (a) inline markup splits a sentence across text nodes ("Once we got " then an italic
+        // "<em>Hermes</em>"), and (b) the served ABS prose diverges slightly from the bundle's sentence text
+        // — smart vs straight quotes, en/em dashes, runs of whitespace. So we match over a CANONICAL
+        // concatenation of the body's text nodes (whitespace collapsed to single spaces; curly quotes and
+        // dashes folded to ASCII), keeping an index map from each canonical char back to its (node, offset)
+        // so the hit still yields a real DOM range for the column/scroll math. Not found on this resource →
+        // "off", and the caller go()s to the chapter that holds the sentence. This is the same text-fidelity
+        // contract the decoration highlight's TextQuoteAnchor already relies on. Empty text → "off".
         return """
         (function(){
-          var needle=${JSONObject.quote(probe)};
-          if(!needle) return "off";
-          var key=needle.slice(0,12);
-          var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, r=null;
-          while(n=w.nextNode()){
-            var i=n.nodeValue.indexOf(key);
-            if(i>=0){ var g=document.createRange(); g.setStart(n,i); g.setEnd(n, Math.min(n.nodeValue.length, i+1)); r=g.getBoundingClientRect(); break; }
+          function isWs(c){return c===32||c===9||c===10||c===13||c===12||c===160;}
+          function canon(ch){var c=ch.charCodeAt(0);
+            if(c===0x2018||c===0x2019||c===0x201A||c===0x2032||c===0x60||c===0xB4) return "'";
+            if(c===0x201C||c===0x201D||c===0x201E||c===0x2033) return '"';
+            if(c===0x2013||c===0x2014||c===0x2212) return '-';
+            return ch;}
+          var raw=${JSONObject.quote(text)};
+          var needle="", sp=false;
+          for(var a=0;a<raw.length;a++){
+            if(isWs(raw.charCodeAt(a))){ if(!sp && needle.length){ needle+=" "; sp=true; } continue; }
+            sp=false; needle+=canon(raw[a]);
           }
+          needle=needle.replace(/ ${'$'}/,"");
+          if(!needle) return "off";
+          var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
+          var buf="", bn=[], bo=[], bsp=false;
+          while(n=w.nextNode()){
+            var v=n.nodeValue;
+            for(var j=0;j<v.length;j++){
+              if(isWs(v.charCodeAt(j))){ if(bsp) continue; buf+=" "; bsp=true; bn.push(n); bo.push(j); continue; }
+              bsp=false; buf+=canon(v[j]); bn.push(n); bo.push(j);
+            }
+          }
+          var pos=buf.indexOf(needle);
+          if(pos<0) return "off";
+          var node=bn[pos], off=bo[pos];
+          var g=document.createRange(); g.setStart(node,off); g.setEnd(node, Math.min(node.nodeValue.length, off+1));
+          var r=g.getBoundingClientRect();
           if(!r) return "off";
           var se=document.scrollingElement||document.documentElement;
           if(se && se.scrollHeight > window.innerHeight + 4){
