@@ -144,3 +144,7 @@ harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run non-tablet h
 .PHONY: harness-test-tablet
 harness-test-tablet: wrapper fonts ## Boot "Harness Medium Tablet" AVD, run @TabletLayout tests only, then shut it down
 	@$(call run_harness_tests,$(TABLET_AVD),-Pandroid.testInstrumentationRunnerArguments.annotation=$(TABLET_ANNOTATION))
+
+.PHONY: harness-test-class
+harness-test-class: wrapper fonts ## Boot the phone AVD and run a single test CLASS=<fqcn> (or pkg.Class#method), then shut it down
+	@$(call run_harness_tests,$(PHONE_AVD),-Pandroid.testInstrumentationRunnerArguments.class=$(CLASS))

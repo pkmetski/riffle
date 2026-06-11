@@ -381,12 +381,7 @@ fun EpubReaderScreen(
                         containerColor = readerPalette.background.copy(alpha = 0.65f),
                         contentColor = readerPalette.foreground,
                         onPlayPause = viewModel::togglePlayPause,
-                        onCycleSpeed = {
-                            // Cycle 0.75× → 1× → 1.25× → 1.5× → 2× → 0.75×.
-                            val speeds = com.riffle.app.feature.reader.readaloud.ReadaloudController.SPEEDS
-                            val idx = speeds.indexOfFirst { kotlin.math.abs(it - playbackState.speed) < 0.001f }
-                            viewModel.setSpeed(if (idx < 0) 1f else speeds[(idx + 1) % speeds.size])
-                        },
+                        onSpeedChange = viewModel::setSpeed,
                         onRewind = viewModel::rewind,
                         onForward = viewModel::forward,
                         onPreviousChapter = viewModel::previousChapter,

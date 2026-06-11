@@ -85,6 +85,9 @@ private const val SYNC_INTERVAL_MS = 30_000L
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
 private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
+// Debounce window for persisting a playback-speed change, so a granular scrub/slide settles to a
+// single write rather than one per intermediate 0.05× value.
+private const val SPEED_SAVE_DEBOUNCE_MS = 400L
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -1132,9 +1135,17 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    private var speedSaveJob: Job? = null
+
     fun setSpeed(speed: Float) {
+        // Apply to the live player immediately; persist debounced so a granular scrub/slide (which
+        // fires many intermediate values) only writes the settled speed, not every 0.05 step.
         playerCoordinator.setSpeed(speed)
-        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+        speedSaveJob?.cancel()
+        speedSaveJob = viewModelScope.launch {
+            delay(SPEED_SAVE_DEBOUNCE_MS)
+            audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
+        }
     }
 
     fun rewind() = playerCoordinator.rewind()
