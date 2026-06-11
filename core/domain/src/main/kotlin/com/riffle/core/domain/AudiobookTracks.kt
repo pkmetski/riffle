@@ -34,4 +34,22 @@ object AudiobookTracks {
         val track = tracks.getOrNull(index) ?: return offsetInTrackSec.coerceAtLeast(0.0)
         return track.startOffsetSec + offsetInTrackSec.coerceAtLeast(0.0)
     }
+
+    /**
+     * Resolves a book-absolute resume position to the (track index, in-track offset) start point to
+     * seed into the player's *initial* media-item list, so playback buffers from the resume point
+     * rather than starting at track 0 / offset 0 and audibly snapping forward (ADR 0029). [absoluteSec]
+     * is clamped into `[0, durationSec]` (or `[0, absoluteSec]` when the duration is unknown).
+     */
+    fun startPositionFor(
+        absoluteSec: Double,
+        durationSec: Double,
+        tracks: List<AudiobookTrackSpan>,
+    ): StartPosition {
+        val clamped = absoluteSec.coerceIn(0.0, if (durationSec > 0) durationSec else absoluteSec)
+        return StartPosition(trackIndexAt(clamped, tracks), (offsetInTrackSec(clamped, tracks) * 1000).toLong())
+    }
 }
+
+/** A resolved player start point: which track and the offset within it (ms), for `setMediaItems`. */
+data class StartPosition(val trackIndex: Int, val offsetMs: Long)

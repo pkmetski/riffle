@@ -58,10 +58,13 @@ class AudiobookController @Inject constructor(
     private var spans: List<AudiobookTrackSpan> = emptyList()
     private var durationSec: Double = 0.0
     private var prepared = false
-    private var playWhenPrepared = false
+    private var wantsToPlay = false
 
     private val listener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) = pushState()
+        override fun onEvents(player: Player, events: Player.Events) {
+            maybeStart(player)
+            pushState()
+        }
         override fun onPlayerError(error: PlaybackException) {
             Log.e(LOG, "playback error code=${error.errorCodeName} src=${controller?.currentMediaItem?.mediaId}", error)
         }
@@ -83,32 +86,37 @@ class AudiobookController @Inject constructor(
         val items = trackUrls.map { url ->
             MediaItem.Builder().setMediaId(url).setUri(url).build()
         }
-        c.setMediaItems(items)
+        // Seed the start position *into* setMediaItems rather than seeking after prepare(): a seek
+        // after prepare() lets ExoPlayer briefly buffer/play the first track from 0 before the seek
+        // lands. Passing the resolved track index + offset makes it buffer from the resume point.
+        val start = AudiobookTracks.startPositionFor(startAtSec, durationSec, spans)
+        c.setMediaItems(items, start.trackIndex, start.offsetMs)
         c.prepare()
-        seekTo(startAtSec)
         prepared = true
-        // If the user pressed play before preparation finished, honour it now so playback starts as
-        // soon as it's pressed rather than being silently dropped.
-        if (playWhenPrepared) {
-            playWhenPrepared = false
-            c.play()
-            startPolling()
-        }
+        // If the user pressed play before preparation finished, honour it now — but only once the
+        // player is ready (see [ResumePlaybackGate]); otherwise the listener starts it on STATE_READY.
+        maybeStart(c)
         pushState()
     }
 
     fun play() {
-        val c = controller
-        if (!prepared || c == null) {
-            // Not connected/prepared yet — latch the intent; prepare() starts playback when ready.
-            playWhenPrepared = true
-            return
+        // Latch the intent; [maybeStart] / the STATE_READY gate starts playback once the player is
+        // buffered at the resume position (see [ResumePlaybackGate]).
+        wantsToPlay = true
+        controller?.let { if (prepared) maybeStart(it) }
+    }
+
+    /** Starts playback iff a play intent is latched and the player has buffered to its position. */
+    private fun maybeStart(player: Player) {
+        if (ResumePlaybackGate.shouldStart(wantsToPlay, player.playbackState == Player.STATE_READY)) {
+            wantsToPlay = false
+            player.play()
+            startPolling()
         }
-        c.play()
-        startPolling()
     }
 
     fun pause() {
+        wantsToPlay = false
         controller?.pause()
         pollJob?.cancel()
         pollJob = null
@@ -150,7 +158,7 @@ class AudiobookController @Inject constructor(
         controller = null
         spans = emptyList()
         prepared = false
-        playWhenPrepared = false
+        wantsToPlay = false
         _state.value = PlaybackState()
     }
 

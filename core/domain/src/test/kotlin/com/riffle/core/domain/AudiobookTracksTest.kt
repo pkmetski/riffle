@@ -43,4 +43,41 @@ class AudiobookTracksTest {
         assertEquals(42.0, AudiobookTracks.offsetInTrackSec(42.0, emptyList()), 0.0)
         assertEquals(42.0, AudiobookTracks.absoluteSec(0, 42.0, emptyList()), 0.0)
     }
+
+    @Test
+    fun `startPositionFor resumes mid-track at the right track and offset, not track 0`() {
+        // The bug: opening at a saved mid-book position briefly played from track 0 / offset 0. The
+        // resolved start must land on the containing track with the in-track offset in millis.
+        val start = AudiobookTracks.startPositionFor(absoluteSec = 325.0, durationSec = 600.0, tracks = tracks)
+        assertEquals(2, start.trackIndex)
+        assertEquals(25_000L, start.offsetMs)
+    }
+
+    @Test
+    fun `startPositionFor at a track boundary starts that track at offset 0`() {
+        val start = AudiobookTracks.startPositionFor(absoluteSec = 100.0, durationSec = 600.0, tracks = tracks)
+        assertEquals(1, start.trackIndex)
+        assertEquals(0L, start.offsetMs)
+    }
+
+    @Test
+    fun `startPositionFor from the very beginning is track 0 offset 0`() {
+        val start = AudiobookTracks.startPositionFor(absoluteSec = 0.0, durationSec = 600.0, tracks = tracks)
+        assertEquals(0, start.trackIndex)
+        assertEquals(0L, start.offsetMs)
+    }
+
+    @Test
+    fun `startPositionFor clamps a beyond-duration position to the last track`() {
+        val start = AudiobookTracks.startPositionFor(absoluteSec = 10_000.0, durationSec = 600.0, tracks = tracks)
+        assertEquals(2, start.trackIndex)
+        assertEquals(300_000L, start.offsetMs) // clamped to 600s -> 300s into track 2
+    }
+
+    @Test
+    fun `startPositionFor clamps a negative position to the start`() {
+        val start = AudiobookTracks.startPositionFor(absoluteSec = -5.0, durationSec = 600.0, tracks = tracks)
+        assertEquals(0, start.trackIndex)
+        assertEquals(0L, start.offsetMs)
+    }
 }
