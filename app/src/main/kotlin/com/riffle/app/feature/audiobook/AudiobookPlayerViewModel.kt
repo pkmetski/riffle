@@ -3,6 +3,9 @@ package com.riffle.app.feature.audiobook
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.LibraryRepository
@@ -52,6 +55,8 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val controller: AudiobookController,
+    private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+    private val audioIdentityResolver: AudioIdentityResolver,
     private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val crossEpubIndexBuilder: com.riffle.core.data.CrossEpubIndexBuilderService,
@@ -64,6 +69,16 @@ class AudiobookPlayerViewModel @Inject constructor(
     )
     private var timeline: AudiobookTimeline = AudiobookTimeline(0.0)
     private var serverId: String = ""
+
+    // The per-book audio-settings key (ADR 0028). The audiobook's own (serverId, itemId) IS the
+    // canonical key when an audiobook exists, and a linked Readaloud resolves to that same id, so the
+    // speed is shared between them automatically; an audiobook with no bundle gets its own row.
+    private var audioSettingsIdentity: AudioIdentity = AudioIdentity("", itemId)
+    // Debounced-save bookkeeping for the granular speed sheet (mirrors EpubReaderViewModel): the
+    // settled value is written once rather than per intermediate 0.05× step. `pendingSpeed` holds the
+    // not-yet-persisted value so onCleared can flush it.
+    private var pendingSpeed: Float? = null
+    private var speedSaveJob: kotlinx.coroutines.Job? = null
 
     // Non-null for a matched book whose readaloud prerequisites (ABS EPUB + bundle + cross-EPUB
     // index) are cached: playback then drives the canonical reconciliation cycle **audio-led**, so a
@@ -121,6 +136,19 @@ class AudiobookPlayerViewModel @Inject constructor(
                 return@launch
             }
             timeline = session.timeline
+            // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
+            // key the *same* way the reader does — via the resolver on this audiobook's link — so both
+            // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
+            // settings key on this ABS item (an audiobook with no bundle gets its own row). Loaded
+            // before prepare so it's applied to the freshly-connected controller below; absent ⇒ 1×.
+            val link = readaloudLinkRepository.findByAbsItem(serverId, itemId)
+            audioSettingsIdentity = if (link != null) {
+                audioIdentityResolver.resolveForStorytellerBook(link.storytellerServerId, link.storytellerBookId)
+            } else {
+                AudioIdentity(serverId, itemId)
+            }
+            val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
+                ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
             meta.value = AudiobookPlayerUiState(
                 loading = false,
                 title = item.title,
@@ -137,13 +165,22 @@ class AudiobookPlayerViewModel @Inject constructor(
                 durationSec = session.timeline.durationSec,
                 startAtSec = session.serverCurrentTimeSec,
             )
+            // Apply the persisted per-book speed to the freshly-prepared (singleton) controller, which
+            // would otherwise retain the previous book's speed. Set directly on the controller (not the
+            // VM's setSpeed) so restoring the saved value doesn't re-save it.
+            controller.setSpeed(initialSpeed)
             reconciledResumeSec = session.serverCurrentTimeSec
+            // Opening the player is itself a "play" intent (the user tapped Listen), so start playback
+            // immediately rather than landing on a paused player. A genuinely-newer remote resume is
+            // still honoured: attachReaderSync's inbound-only reconcile seeks the already-playing
+            // position to the reconciled point (ADR 0029).
+            controller.play()
 
             // Ebook sync needs the cross-EPUB index (ABS EPUB + bundle SMIL). The match is confirmed
             // *before* the readaloud bundle is downloaded, so that build defers; re-enqueue it here so a
             // matched audiobook starts driving the ebook once the bundle is present and the index lands
             // (ADR 0029). Idempotent + background.
-            readaloudLinkRepository.findByAbsItem(serverId, itemId)?.let { crossEpubIndexBuilder.enqueueBuild(it) }
+            link?.let { crossEpubIndexBuilder.enqueueBuild(it) }
 
             // Attach the matched 2-peer cycle if its prerequisites are already cached (the follow loop
             // re-attaches later if the index is still building).
@@ -253,8 +290,31 @@ class AudiobookPlayerViewModel @Inject constructor(
         timeline.nextChapterTargetSec(controller.currentAbsoluteSec())?.let { reconciledResumeSec = it; controller.seekTo(it) }
     }
 
-    /** Set playback speed to a granular value (the shared speed sheet snaps to 0.05× steps). */
-    fun setSpeed(speed: Float) = controller.setSpeed(speed)
+    /**
+     * Set playback speed to a granular value (the shared speed sheet snaps to 0.05× steps). Applied to
+     * the live player immediately; persisted per book (ADR 0028) debounced so a scrub through many
+     * intermediate values writes only the settled speed, not every step.
+     */
+    fun setSpeed(speed: Float) {
+        controller.setSpeed(speed)
+        if (serverId.isEmpty()) return
+        pendingSpeed = speed
+        speedSaveJob?.cancel()
+        speedSaveJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(SPEED_SAVE_DEBOUNCE_MS)
+            audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
+            pendingSpeed = null
+        }
+    }
+
+    /** Persist a speed change that the debounce window hadn't flushed yet (e.g. on close). */
+    private fun flushPendingSpeed() {
+        val speed = pendingSpeed ?: return
+        speedSaveJob?.cancel()
+        pendingSpeed = null
+        if (serverId.isEmpty()) return
+        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+    }
 
     /**
      * Push the just-stopped listen position. Matched (bundle present) → one audio-led cycle stamped
@@ -289,6 +349,7 @@ class AudiobookPlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         followJob?.cancel()
+        flushPendingSpeed()
         pushProgressOnStop()
         controller.stop()
         super.onCleared()
@@ -296,6 +357,9 @@ class AudiobookPlayerViewModel @Inject constructor(
 
     private companion object {
         const val FOLLOW_INTERVAL_MS = 10_000L
+        // Debounce window for persisting a speed change, so a granular scrub settles to a single write
+        // rather than one per intermediate 0.05× value (matches EpubReaderViewModel).
+        const val SPEED_SAVE_DEBOUNCE_MS = 400L
         // How far below the reconciled resume a position may sit and still be treated as "settled"
         // (covers a seek/buffer landing within a tick); anything further behind is a transient that
         // must not lead. Small, so a genuine book-start 0 can never drive the ebook.
