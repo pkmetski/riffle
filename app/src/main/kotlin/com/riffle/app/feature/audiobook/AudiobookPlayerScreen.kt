@@ -172,39 +172,44 @@ private fun PlayerBody(state: AudiobookPlayerUiState, viewModel: AudiobookPlayer
 
 @Composable
 private fun TransportRow(state: AudiobookPlayerUiState, viewModel: AudiobookPlayerViewModel) {
+    // Comfortable sizing: secondary controls at a 56dp touch target with 30dp glyphs (up from the
+    // 48dp/24dp default) and a 60dp primary play circle with a 32dp glyph, separated by 10dp gaps.
+    val secondaryButton = 56.dp
+    val secondaryIcon = 30.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = viewModel::rewind) {
-            Icon(painterResource(R.drawable.ic_replay_15), contentDescription = "Rewind 15 seconds")
+        IconButton(onClick = viewModel::rewind, modifier = Modifier.size(secondaryButton)) {
+            Icon(painterResource(R.drawable.ic_replay_15), contentDescription = "Rewind 15 seconds", modifier = Modifier.size(secondaryIcon))
         }
-        Spacer(Modifier.size(8.dp))
-        IconButton(onClick = viewModel::previousChapter, enabled = state.canPreviousChapter) {
-            Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous chapter")
+        Spacer(Modifier.size(10.dp))
+        IconButton(onClick = viewModel::previousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {
+            Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous chapter", modifier = Modifier.size(secondaryIcon))
         }
-        Spacer(Modifier.size(8.dp))
+        Spacer(Modifier.size(10.dp))
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(72.dp),
+            modifier = Modifier.size(60.dp),
         ) {
             IconButton(onClick = viewModel::togglePlayPause) {
                 Icon(
                     if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     contentDescription = if (state.isPlaying) "Pause" else "Play",
                     tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(32.dp),
                 )
             }
         }
-        Spacer(Modifier.size(8.dp))
-        IconButton(onClick = viewModel::nextChapter, enabled = state.canNextChapter) {
-            Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter")
+        Spacer(Modifier.size(10.dp))
+        IconButton(onClick = viewModel::nextChapter, enabled = state.canNextChapter, modifier = Modifier.size(secondaryButton)) {
+            Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter", modifier = Modifier.size(secondaryIcon))
         }
-        Spacer(Modifier.size(8.dp))
-        IconButton(onClick = viewModel::forward) {
-            Icon(Icons.Filled.Forward30, contentDescription = "Forward 30 seconds")
+        Spacer(Modifier.size(10.dp))
+        IconButton(onClick = viewModel::forward, modifier = Modifier.size(secondaryButton)) {
+            Icon(Icons.Filled.Forward30, contentDescription = "Forward 30 seconds", modifier = Modifier.size(secondaryIcon))
         }
     }
 }
