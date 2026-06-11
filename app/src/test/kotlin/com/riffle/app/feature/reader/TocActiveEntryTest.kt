@@ -42,4 +42,24 @@ class TocActiveEntryTest {
     fun `returns null for empty list`() {
         assertNull(findActiveEntry(emptyList(), "chapter1.xhtml"))
     }
+
+    @Test
+    fun `active top-level index matches the entry itself`() {
+        assertEquals(1, findActiveTopLevelIndex(toc, "chapter2.xhtml"))
+    }
+
+    @Test
+    fun `active top-level index resolves a nested child to its top-level ancestor`() {
+        assertEquals(0, findActiveTopLevelIndex(toc, "chapter1.xhtml#s2"))
+    }
+
+    @Test
+    fun `active top-level index is null when nothing matches`() {
+        assertNull(findActiveTopLevelIndex(toc, "chapter4.xhtml"))
+    }
+
+    @Test
+    fun `active top-level index is null for null href`() {
+        assertNull(findActiveTopLevelIndex(toc, null))
+    }
 }
