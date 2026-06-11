@@ -40,6 +40,7 @@ import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
+import com.riffle.app.playback.NowPlaying
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -95,6 +96,21 @@ fun MainScreen(
     // (e.g. LibraryItemsScreen) don't override it.
     BackHandler(enabled = !usePermanentDrawer && drawerState.isOpen) {
         scope.launch { drawerState.close() }
+    }
+
+    // A media-notification tap jumps to whatever is playing. launchSingleTop makes this a no-op when
+    // that screen is already current (the common case, since audio only plays while its screen is) —
+    // so playback is never restarted; otherwise it opens the right player.
+    LaunchedEffect(Unit) {
+        viewModel.openNowPlayingRequests.collect {
+            val target = viewModel.currentNowPlaying() ?: return@collect
+            val encoded = URLEncoder.encode(target.itemId, "UTF-8")
+            val route = when (target) {
+                is NowPlaying.Audiobook -> "audiobook_player/$encoded"
+                is NowPlaying.Readaloud -> "epub_reader/$encoded"
+            }
+            navController.navigate(route) { launchSingleTop = true }
+        }
     }
 
     LaunchedEffect(Unit) {

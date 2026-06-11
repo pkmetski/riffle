@@ -60,6 +60,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val crossEpubIndexBuilder: com.riffle.core.data.CrossEpubIndexBuilderService,
+    private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -165,6 +166,8 @@ class AudiobookPlayerViewModel @Inject constructor(
                 durationSec = session.timeline.durationSec,
                 startAtSec = session.serverCurrentTimeSec,
             )
+            // Record the active session so a media-notification tap reopens this audiobook player.
+            nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
             // Apply the persisted per-book speed to the freshly-prepared (singleton) controller, which
             // would otherwise retain the previous book's speed. Set directly on the controller (not the
             // VM's setSpeed) so restoring the saved value doesn't re-save it.
@@ -352,6 +355,8 @@ class AudiobookPlayerViewModel @Inject constructor(
         flushPendingSpeed()
         pushProgressOnStop()
         controller.stop()
+        // Leaving the player stops playback (no mini-bar), so this session is no longer playing.
+        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
         super.onCleared()
     }
 

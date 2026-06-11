@@ -10,6 +10,9 @@ import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.isReadaloud
+import com.riffle.app.playback.NowPlaying
+import com.riffle.app.playback.NowPlayingNavigator
+import com.riffle.app.playback.NowPlayingStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +36,14 @@ class NavigationDrawerViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val connectivityObserver: ConnectivityObserver,
+    nowPlayingNavigator: NowPlayingNavigator,
+    private val nowPlayingStore: NowPlayingStore,
 ) : ViewModel() {
+
+    // A media-notification tap asks to open the active player; MainScreen reads [currentNowPlaying].
+    val openNowPlayingRequests: Flow<Unit> = nowPlayingNavigator.events
+
+    fun currentNowPlaying(): NowPlaying? = nowPlayingStore.current
 
     // Storyteller is a Settings-only readaloud backend (ADR 0026): it never appears in the Server
     // Switcher and can never become the active browsable Server.

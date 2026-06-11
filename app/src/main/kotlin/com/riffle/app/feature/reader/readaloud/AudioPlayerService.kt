@@ -1,6 +1,9 @@
 package com.riffle.app.feature.reader.readaloud
 
+import android.app.PendingIntent
+import android.content.Intent
 import android.net.Uri
+import com.riffle.app.MainActivity
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -56,7 +59,27 @@ class AudioPlayerService : MediaSessionService() {
             .build()
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(MediaItemUriRestoringCallback)
+            .setSessionActivity(openRiffleIntent())
             .build()
+    }
+
+    /**
+     * Tapping the media notification or lock-screen player reopens Riffle on the active player view.
+     * The intent carries no per-item data — a constant action — because the player is paged through a
+     * single Compose [MainActivity]: it consults [com.riffle.app.playback.NowPlayingStore] at tap time
+     * to route to the audiobook player or the reader's readaloud session. [Intent.FLAG_ACTIVITY_SINGLE_TOP]
+     * plus the activity's `singleTop` launch mode reuses the running instance via `onNewIntent`.
+     */
+    private fun openRiffleIntent(): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_OPEN_NOW_PLAYING)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     /**

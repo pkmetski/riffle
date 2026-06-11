@@ -1,5 +1,6 @@
 package com.riffle.app
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -23,6 +24,7 @@ import com.riffle.app.feature.reader.VolumeKeyEventHandler
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.navigation.MainScreen
+import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.ui.BottomNavBarScrim
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -39,6 +41,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var volumeNavigationController: VolumeNavigationController
     @Inject lateinit var readerStateHolder: ReaderStateHolder
     @Inject lateinit var volumeKeyPreferencesStore: VolumeKeyPreferencesStore
+    @Inject lateinit var nowPlayingNavigator: NowPlayingNavigator
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
@@ -74,6 +77,7 @@ class MainActivity : FragmentActivity() {
             window.isNavigationBarContrastEnforced = false
             window.isStatusBarContrastEnforced = false
         }
+        handleIntent(intent)
         setContent {
             RiffleTheme {
                 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
@@ -123,6 +127,27 @@ class MainActivity : FragmentActivity() {
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (consumedVolumeKeyCodes.remove(keyCode)) return true
         return super.onKeyUp(keyCode, event)
+    }
+
+    // Reused instance (singleTop) — the media-notification tap arrives here while the app is running.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    /** Routes a media-notification tap to the active player; [MainScreen] reads NowPlayingStore. */
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == ACTION_OPEN_NOW_PLAYING) {
+            nowPlayingNavigator.requestOpen()
+            // The activity retains its launch intent, so consume the action — otherwise a later
+            // recreation (e.g. rotation) would re-fire this and yank the user back to the player.
+            intent.action = null
+        }
+    }
+
+    companion object {
+        const val ACTION_OPEN_NOW_PLAYING = "com.riffle.app.action.OPEN_NOW_PLAYING"
     }
 }
 
