@@ -24,6 +24,24 @@ class AutoFollowJsTest {
     private val offRightText = "Offright next page sentence here"
     private val targetText = "Narrated target sentence deep in the page"
 
+    // Distinct in their first 12 chars (the probe keys on a 12-char prefix), so each resolves to its
+    // own element rather than colliding on a shared "Adjacent sen…" prefix.
+    private val adjacentA = "Alpha narrated line on screen"
+    private val adjacentB = "Bravo narrated line on screen"
+
+    // A tall (scroll-mode) document with two sentences one line apart, deep in the page. Used to prove
+    // that following flaps back and forth between two ALREADY-VISIBLE adjacent sentences (what a small
+    // audio-position jitter across a clip boundary produces) does not bounce the page up and down.
+    private val twoAdjacentFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0; height:6000px; position:relative">
+            <div id="adjA" style="position:absolute; left:20px; top:2980px; width:320px; height:40px">$adjacentA</div>
+            <div id="adjB" style="position:absolute; left:20px; top:3040px; width:320px; height:40px">$adjacentB</div>
+          </body>
+        </html>
+    """.trimIndent()
+
     // A document much taller than the viewport → scroll (karaoke) mode. The narrated sentence sits
     // far down the page so following it requires a real vertical scroll.
     private val tallFixture = """
@@ -66,6 +84,34 @@ class AutoFollowJsTest {
 
             val center = webView.rectCenterY("target")
             assertTrue("sentence should be vertically centred (center=$center, half=${h / 2})", Math.abs(center - h / 2) <= 12)
+        }
+    }
+
+    @Test
+    fun scrollModeDoesNotBounceBetweenAdjacentVisibleSentences() {
+        withSizedWebViewFixture(twoAdjacentFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            // Centre sentence A first (so A is at mid-viewport and B is one line below it — both well
+            // inside the central comfort band, whatever the device's CSS innerHeight works out to).
+            val ih = webView.evalSync("window.innerHeight").trim('"').toDouble()
+            webView.evalSync("document.scrollingElement.scrollTop=${(2980 + 20 - ih / 2).toInt()}")
+            val y0 = webView.scrollY()
+
+            // Simulate the active sentence flapping A → B → A (a backward position blip across the clip
+            // boundary). Each follow must leave the page where it is — no re-centre, no up/down bounce.
+            webView.evalSync(ColumnSnap.autoFollowSnapJs(adjacentA))
+            val ya = webView.scrollY()
+            webView.evalSync(ColumnSnap.autoFollowSnapJs(adjacentB))
+            val yb = webView.scrollY()
+            webView.evalSync(ColumnSnap.autoFollowSnapJs(adjacentA))
+            val yc = webView.scrollY()
+
+            val maxDev = maxOf(Math.abs(ya - y0), Math.abs(yb - y0), Math.abs(yc - y0))
+            assertTrue(
+                "auto-follow must not bounce the page when the active sentence flaps between two " +
+                    "already-visible adjacent sentences (y0=$y0 ya=$ya yb=$yb yc=$yc maxDev=$maxDev)",
+                maxDev <= 8,
+            )
         }
     }
 

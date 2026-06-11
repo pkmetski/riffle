@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -20,8 +21,10 @@ class ReadaloudMiniPlayerTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private fun setPlayer(
+        speed: Float = 1f,
         canPreviousChapter: Boolean = true,
         canNextChapter: Boolean = true,
+        onSpeedChange: (Float) -> Unit = {},
         onRewind: () -> Unit = {},
         onForward: () -> Unit = {},
         onPreviousChapter: () -> Unit = {},
@@ -30,7 +33,7 @@ class ReadaloudMiniPlayerTest {
         rule.setContent {
             ReadaloudMiniPlayer(
                 isPlaying = false,
-                speed = 1f,
+                speed = speed,
                 offlineMessage = false,
                 downloadProgress = null,
                 canPreviousChapter = canPreviousChapter,
@@ -38,7 +41,7 @@ class ReadaloudMiniPlayerTest {
                 containerColor = Color.LightGray,
                 contentColor = Color.Black,
                 onPlayPause = {},
-                onCycleSpeed = {},
+                onSpeedChange = onSpeedChange,
                 onRewind = onRewind,
                 onForward = onForward,
                 onPreviousChapter = onPreviousChapter,
@@ -80,6 +83,29 @@ class ReadaloudMiniPlayerTest {
     }
 
     @Test
+    fun tappingTheValue_opensTheSpeedSheet() {
+        setPlayer(speed = 1.4f)
+        rule.onNodeWithTag("readaloud_speed_slider_card").assertDoesNotExist()
+        rule.onNodeWithTag("readaloud_speed").performClick()
+        rule.onNodeWithTag("readaloud_speed_slider").assertIsDisplayed()
+    }
+
+    @Test
+    fun presetChip_setsThatSpeed() {
+        var requested = -1f
+        setPlayer(speed = 1.4f, onSpeedChange = { requested = it })
+        rule.onNodeWithTag("readaloud_speed").performClick()
+        rule.onNodeWithTag("readaloud_speed_preset_1.25×").performClick()
+        assertEquals(1.25f, requested, 0.0001f)
+    }
+
+    @Test
+    fun speedLabel_showsGranularValues() {
+        setPlayer(speed = 1.4f)
+        rule.onNodeWithText("1.4×").assertIsDisplayed()
+    }
+
+    @Test
     fun nextChapter_isDisabledAtTheLastChapter() {
         setPlayer(canNextChapter = false)
         rule.onNodeWithTag("readaloud_next_chapter").assertIsNotEnabled()
@@ -98,7 +124,7 @@ class ReadaloudMiniPlayerTest {
                 containerColor = Color.LightGray,
                 contentColor = Color.Black,
                 onPlayPause = {},
-                onCycleSpeed = {},
+                onSpeedChange = {},
                 onRewind = {},
                 onForward = {},
                 onPreviousChapter = {},
