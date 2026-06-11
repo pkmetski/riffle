@@ -378,7 +378,7 @@ fun EpubReaderScreen(
                         canPreviousChapter = playbackState.currentChapterIndex > 0,
                         canNextChapter = playbackState.currentChapterIndex >= 0 &&
                             playbackState.currentChapterIndex < playbackState.chapterCount - 1,
-                        containerColor = readerPalette.background.copy(alpha = 0.65f),
+                        containerColor = readerPalette.background.copy(alpha = 0.85f),
                         contentColor = readerPalette.foreground,
                         onPlayPause = viewModel::togglePlayPause,
                         onSpeedChange = viewModel::setSpeed,
