@@ -1,0 +1,1 @@
+Release v1.6.0 — see https://github.com/pkmetski/riffle/releases/tag/v1.6.0
