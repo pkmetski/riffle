@@ -10,16 +10,34 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.readium.adapter.pdfium.document.PdfiumDocumentFactory
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.http.DefaultHttpClient
 import org.readium.r2.streamer.PublicationOpener
 import org.readium.r2.streamer.parser.DefaultPublicationParser
+import javax.inject.Qualifier
 import javax.inject.Singleton
+
+/**
+ * Application-lifetime [CoroutineScope] for work that must outlive any single screen — e.g. downloads
+ * started on the detail screen that should keep running after the user navigates away (the screen's
+ * `viewModelScope` would otherwise cancel them on back).
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DownloadScope
 
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    @Provides
+    @Singleton
+    @DownloadScope
+    fun provideDownloadScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Provides
     @Singleton

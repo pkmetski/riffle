@@ -31,8 +31,8 @@ import kotlin.coroutines.resume
  * queues one [MediaItem] per distinct audio file in the [ReadaloudTrack], and surfaces a polled
  * [PlaybackState] the reader observes to drive the synced highlight and auto-page-turn.
  *
- * Playback speed is granular: any [SPEED_STEP] multiple in [[SPEED_MIN], [SPEED_MAX]] (so 1.4× is
- * reachable), set from the mini-player's stepper / hold-to-slide control.
+ * Playback speed is granular (any 0.05× step in 0.5–3.0×, so 1.4× is reachable), set from the
+ * mini-player's shared speed sheet; see [com.riffle.app.feature.audio.PlaybackSpeed].
  */
 @Singleton
 class ReadaloudController @Inject constructor(
@@ -205,18 +205,6 @@ class ReadaloudController @Inject constructor(
     }
 
     companion object {
-        // Granular speed range for the fine stepper / scrub slider. Steps land on 0.05× multiples
-        // (so 1.4× is reachable), bounded to what stays intelligible at the extremes.
-        const val SPEED_MIN = 0.5f
-        const val SPEED_MAX = 3.0f
-        const val SPEED_STEP = 0.05f
-
-        /** Clamps to [[SPEED_MIN], [SPEED_MAX]] and snaps to the nearest [SPEED_STEP], free of float drift. */
-        fun snapSpeed(raw: Float): Float {
-            val stepped = Math.round(raw / SPEED_STEP) * SPEED_STEP
-            return stepped.coerceIn(SPEED_MIN, SPEED_MAX)
-        }
-
         const val REWIND_SEC = 15.0
         const val FORWARD_SEC = 30.0
         private const val NEAR_START_SEC = 3.0

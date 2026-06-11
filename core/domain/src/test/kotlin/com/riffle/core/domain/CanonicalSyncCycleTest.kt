@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ThreePeerSyncCycleTest {
+class CanonicalSyncCycleTest {
 
     /** A fake remote with injectable GET result, recorded PATCH, and the timestamp the PATCH stores. */
     private class FakeRemote(
@@ -41,7 +41,7 @@ class ThreePeerSyncCycleTest {
         val audio = FakeRemote("ABS_AUDIO", RemoteRead(pos("B"), lastUpdate = 80))
         val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
-        val result = ThreePeerSyncCycle.run(local, listOf(ebook, audio, storyteller))
+        val result = CanonicalSyncCycle.run(local, listOf(ebook, audio, storyteller))
 
         // One inbound winner, one jump, to the Storyteller position.
         assertEquals(pos("S"), result.jumpTo)
@@ -59,7 +59,7 @@ class ThreePeerSyncCycleTest {
         val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
         val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
-        val result = ThreePeerSyncCycle.run(local, listOf(ebook, storyteller))
+        val result = CanonicalSyncCycle.run(local, listOf(ebook, storyteller))
 
         assertNull(result.jumpTo)
         assertEquals(pos("L"), ebook.patchedWith)
@@ -74,7 +74,7 @@ class ThreePeerSyncCycleTest {
         val local = LocalCanonical(pos("L"), lastUpdate = 200)
         val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90), patchStamp = 5_000)
 
-        val result = ThreePeerSyncCycle.run(local, listOf(ebook))
+        val result = CanonicalSyncCycle.run(local, listOf(ebook))
 
         assertNull("local won, so no jump", result.jumpTo)
         assertEquals(pos("L"), ebook.patchedWith)
@@ -88,7 +88,7 @@ class ThreePeerSyncCycleTest {
         val audio = FakeRemote("ABS_AUDIO", getResult = null) // unreachable
         val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
-        val result = ThreePeerSyncCycle.run(local, listOf(ebook, audio, storyteller))
+        val result = CanonicalSyncCycle.run(local, listOf(ebook, audio, storyteller))
 
         assertEquals(pos("S"), result.jumpTo)
         // The unreachable remote is neither compared nor patched (we don't know its state).
@@ -102,7 +102,7 @@ class ThreePeerSyncCycleTest {
         val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90)).apply { patchFails = true }
         val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
-        val result = ThreePeerSyncCycle.run(local, listOf(ebook, storyteller))
+        val result = CanonicalSyncCycle.run(local, listOf(ebook, storyteller))
 
         assertEquals(setOf("STORYTELLER"), result.patched)
         assertEquals(pos("L"), storyteller.patchedWith)

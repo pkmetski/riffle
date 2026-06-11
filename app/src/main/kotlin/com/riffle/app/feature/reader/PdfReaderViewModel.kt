@@ -70,7 +70,7 @@ class PdfReaderViewModel @Inject constructor(
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
 
-    private val positionSaveCoordinator = PositionSaveCoordinator(
+    private val positionSaveCoordinator = PositionSaveCoordinator<String>(
         savePosition = { cfi -> pdfRepository.saveReadingPosition(itemId, cfi) },
         updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
     )

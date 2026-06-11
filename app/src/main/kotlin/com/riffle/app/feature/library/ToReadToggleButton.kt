@@ -28,7 +28,7 @@ fun ToReadToggleButton(
             .size(40.dp)
             .clip(CircleShape)
             .then(
-                if (isInToRead) Modifier.background(MaterialTheme.colorScheme.primaryContainer)
+                if (isInToRead) Modifier.background(MaterialTheme.colorScheme.primary)
                 else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
             )
             .clickable(onClick = onToggle),
@@ -37,7 +37,7 @@ fun ToReadToggleButton(
         Icon(
             imageVector = if (isInToRead) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
             contentDescription = if (isInToRead) "Remove from To Read" else "Add to To Read",
-            tint = if (isInToRead) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.outline,
+            tint = if (isInToRead) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )
     }

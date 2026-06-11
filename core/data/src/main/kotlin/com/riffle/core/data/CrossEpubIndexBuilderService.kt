@@ -38,8 +38,8 @@ import javax.inject.Singleton
  * this service never downloads it proactively: it builds only once that bundle is already present
  * locally (i.e. after the user has downloaded readaloud for the book). Pulling and caching one synced
  * bundle per Confirmed match in the background would fill the device's storage, starving real user
- * downloads and truncating in-flight ones. This isn't a functional regression: three-peer sync
- * ([ThreePeerReaderSyncFactory]) already gates on that same locally-present bundle, so an index built
+ * downloads and truncating in-flight ones. This isn't a functional regression: the canonical reconciliation cycle
+ * ([ReaderSyncFactory]) already gates on that same locally-present bundle, so an index built
  * before the bundle exists could never be used anyway.
  */
 @Singleton

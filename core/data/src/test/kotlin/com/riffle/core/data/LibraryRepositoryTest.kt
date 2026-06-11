@@ -556,42 +556,42 @@ class LibraryRepositoryTest {
         assertFalse(result[0].isCached)
     }
 
-    // ── toDomain: ebookFormat → isSupported (regression) ─────────────────────
+    // ── toDomain: ebookFormat → isReadable (regression) ─────────────────────
 
     @Test
-    fun `epub ebookFormat maps to isSupported true`() = runTest {
+    fun `epub ebookFormat maps to isReadable true`() = runTest {
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "epub")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Epub, item.ebookFormat)
-        assertTrue(item.isSupported)
+        assertTrue(item.isReadable)
     }
 
     @Test
-    fun `pdf ebookFormat maps to isSupported true`() = runTest {
+    fun `pdf ebookFormat maps to isReadable true`() = runTest {
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "pdf")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Pdf, item.ebookFormat)
-        assertTrue(item.isSupported)
+        assertTrue(item.isReadable)
     }
 
     @Test
-    fun `unsupported ebookFormat maps to isSupported false`() = runTest {
+    fun `unsupported ebookFormat maps to isReadable false`() = runTest {
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "unsupported")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
-        assertFalse(item.isSupported)
+        assertFalse(item.isReadable)
     }
 
     @Test
-    fun `unknown ebookFormat string maps to isSupported false`() = runTest {
+    fun `unknown ebookFormat string maps to isReadable false`() = runTest {
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Comic", "Author", null, 0f, ebookFormat = "cbz")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
-        assertFalse(item.isSupported)
+        assertFalse(item.isReadable)
     }
 
     // ── refreshLibraryItems: format round-trip ────────────────────────────────
@@ -617,7 +617,7 @@ class LibraryRepositoryTest {
         repo.refreshLibraryItems("lib-1")
         val item = repo.observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Epub, item.ebookFormat)
-        assertTrue(item.isSupported)
+        assertTrue(item.isReadable)
     }
 
     @Test
@@ -641,7 +641,7 @@ class LibraryRepositoryTest {
         repo.refreshLibraryItems("lib-1")
         val item = repo.observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
-        assertFalse(item.isSupported)
+        assertFalse(item.isReadable)
     }
 
     // ── refreshSeries ─────────────────────────────────────────────────────────

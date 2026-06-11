@@ -32,5 +32,17 @@ data class LibraryItem(
     // tests) that don't care; the real value is set when mapping from the DB entity.
     val serverId: String = "",
 ) {
-    val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
+    /** Has an ebook file Riffle can open in the reader (EPUB or PDF). */
+    val isReadable: Boolean get() = ebookFormat != EbookFormat.Unsupported
+
+    /** Has audio Riffle can play in the audiobook player — an Audiobook (ADR 0029). */
+    val isListenable: Boolean get() = hasAudio
+
+    /**
+     * The item has at least one thing Riffle can open — readable or listenable. Replaces the old
+     * `isSupported`, which conflated "has an ebook" with "is openable at all"; audiobook-only items
+     * are now openable (they Listen), so library surfaces gate on this, while ebook-target selection
+     * gates specifically on [isReadable].
+     */
+    val isPlayable: Boolean get() = isReadable || isListenable
 }

@@ -172,6 +172,10 @@ class LibraryRepositoryImpl @Inject constructor(
                             title = item.title,
                             author = item.author,
                             coverUrl = "${server.url.value}/api/items/${item.id}/cover",
+                            // For an audiobook-only item the ABS user-progress fallback already maps
+                            // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
+                            // progress), so this single field is the unified "how far through this
+                            // item" value that surfaces audiobooks in In Progress too (ADR 0029).
                             readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: localProgressMap[item.id] ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),

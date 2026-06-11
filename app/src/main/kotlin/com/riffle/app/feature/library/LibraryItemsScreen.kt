@@ -56,8 +56,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -99,6 +101,15 @@ import com.riffle.core.domain.Series
 
 private const val SECTION_PREVIEW_LIMIT = 5
 
+/**
+ * True within an audiobooks-only library, so cover tiles that carry no per-item audio signal —
+ * [SeriesCoverTile], [CollectionCoverTile], [SeeMoreTile] — render square like the audiobook covers
+ * around them (ADR 0029). Provided once at the library screen root from the ViewModel.
+ */
+internal val LocalCoversAreSquare = staticCompositionLocalOf { false }
+
+private fun coverAspectRatio(square: Boolean): Float = if (square) 1f else 2f / 3f
+
 @Composable
 fun LibraryItemsScreen(
     libraryName: String,
@@ -126,6 +137,7 @@ fun LibraryItemsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
 
+    val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     val focusManager = LocalFocusManager.current
@@ -163,6 +175,7 @@ fun LibraryItemsScreen(
         }
     }
 
+    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
     Scaffold(
         topBar = {
             LibrarySearchHeader(
@@ -239,6 +252,7 @@ fun LibraryItemsScreen(
                 }
             }
         }
+    }
     }
 }
 
@@ -404,17 +418,23 @@ fun BookCoverTile(
     onClick: () -> Unit,
     hasReadaloudLink: Boolean = false,
 ) {
-    val alpha = if (!item.isSupported) 0.38f else 1f
+    val alpha = if (!item.isPlayable) 0.38f else 1f
+    // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
+    // ratio so an audiobook tile is genuinely square, not a square letterboxed inside a 2:3 box
+    // (ADR 0029).
+    val isAudiobookOnly = item.isListenable && !item.isReadable
+    val coverAspect = coverAspectRatio(isAudiobookOnly || LocalCoversAreSquare.current)
     Column(
         modifier = Modifier
             .alpha(alpha)
-            .clickable(enabled = item.isSupported, onClick = onClick),
+            .clickable(enabled = item.isPlayable, onClick = onClick),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(4.dp)),
+                .aspectRatio(coverAspect)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
@@ -454,6 +474,8 @@ fun BookCoverTile(
                     )
                 }
             }
+            // No medium glyph: the square cover already distinguishes an Audiobook from a 2:3 ebook
+            // (and a glyph would collide with the readaloud badge above).
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -490,7 +512,7 @@ fun SeriesCoverTile(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(2f / 3f)
+                .aspectRatio(coverAspectRatio(LocalCoversAreSquare.current))
                 .clip(RoundedCornerShape(4.dp)),
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -515,7 +537,7 @@ fun CollectionCoverTile(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(2f / 3f)
+                .aspectRatio(coverAspectRatio(LocalCoversAreSquare.current))
                 .clip(RoundedCornerShape(4.dp))
                 .drawBehind {
                     drawRoundRect(
@@ -578,7 +600,7 @@ fun SeeMoreTile(overflowCount: Int, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(2f / 3f)
+                .aspectRatio(coverAspectRatio(LocalCoversAreSquare.current))
                 .clip(RoundedCornerShape(4.dp))
                 .drawBehind {
                     val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 4.dp.toPx()), 0f)
@@ -775,7 +797,9 @@ internal fun LibraryItemCard(
     onClick: (() -> Unit)? = null,
     hasReadaloudLink: Boolean = false,
 ) {
-    val alpha = if (!item.isSupported) 0.38f else 1f
+    val alpha = if (!item.isPlayable) 0.38f else 1f
+    // Square thumbnail for an audiobook (1:1), 2:3 for an ebook (ADR 0029).
+    val isAudiobookOnly = item.isListenable && !item.isReadable
     Surface(
         modifier = if (onClick != null)
             Modifier.fillMaxWidth().alpha(alpha).clickable(onClick = onClick)
@@ -795,7 +819,7 @@ internal fun LibraryItemCard(
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(width = 48.dp, height = 72.dp)
+                    .size(width = 48.dp, height = if (isAudiobookOnly) 48.dp else 72.dp)
                     .clip(RoundedCornerShape(4.dp)),
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -826,7 +850,7 @@ internal fun LibraryItemCard(
                                 modifier = Modifier.size(16.dp),
                             )
                         }
-                        if (!item.isSupported) {
+                        if (!item.isPlayable) {
                             Text(
                                 text = "Not supported",
                                 style = MaterialTheme.typography.labelSmall,

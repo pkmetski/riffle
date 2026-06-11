@@ -13,6 +13,8 @@ import com.riffle.core.data.DownloadsRepositoryImpl
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.KeystoreTokenStorage
+import com.riffle.core.data.AudiobookDownloadRepositoryImpl
+import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
@@ -40,6 +42,8 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalStore
@@ -70,6 +74,7 @@ import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import dagger.Binds
@@ -117,6 +122,10 @@ annotation class EpubDownloadsStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class AudiobookDownloadsDir
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class PdfCacheStore
 
 @Qualifier
@@ -134,6 +143,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindLibraryRepository(impl: LibraryRepositoryImpl): LibraryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookRepository(impl: AudiobookRepositoryImpl): AudiobookRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookDownloadRepository(impl: AudiobookDownloadRepositoryImpl): AudiobookDownloadRepository
 
     @Binds
     @Singleton
@@ -170,6 +187,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAbsServerInfoApi(impl: AbsApiClient): AbsServerInfoApi
+
+    @Binds
+    @Singleton
+    abstract fun bindAbsPlaybackApi(impl: AbsApiClient): AbsPlaybackApi
 
     @Binds
     @Singleton
@@ -267,6 +288,12 @@ abstract class DataModule {
         @EpubDownloadsStore
         fun provideEpubDownloadsStore(@ApplicationContext context: Context): LocalStore =
             LocalStoreImpl(context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }, ".epub")
+
+        @Provides
+        @Singleton
+        @AudiobookDownloadsDir
+        fun provideAudiobookDownloadsDir(@ApplicationContext context: Context): java.io.File =
+            context.filesDir.resolve("downloads/audiobooks").also { it.mkdirs() }
 
         @Provides
         @Singleton

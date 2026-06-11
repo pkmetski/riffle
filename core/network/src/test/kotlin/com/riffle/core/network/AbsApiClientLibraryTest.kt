@@ -245,6 +245,29 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getUserProgress surfaces audiobook progress even when ebookProgress is zero`() = runTest {
+        // An audiobook entry: real listen `progress`, with `ebookProgress` 0 (no ebook). The mapping
+        // must not let the 0 ebookProgress shadow the listen position (ADR 0029) — regression for
+        // "audiobook progress not visible in the library".
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"mediaProgress":[
+                        {"libraryItemId":"audio-1","mediaItemType":"book",
+                         "progress":0.42,"ebookProgress":0.0,"isFinished":false,"lastUpdate":1780170049396}
+                    ]}""".trimIndent()
+                )
+        )
+
+        val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
+
+        val byItemId = (result as NetworkUserProgressResult.Success).byItemId
+        assertEquals(0.42f, byItemId["audio-1"]?.ebookProgress)
+    }
+
+    @Test
     fun `getUserProgress yields null lastUpdate when field is absent`() = runTest {
         server.enqueue(
             MockResponse()

@@ -769,13 +769,13 @@ class ReadingProgressLabelSourceTest {
 }
 
 /**
- * Unit tests for the three-peer sync invariants that live in EpubReaderViewModel's
+ * Unit tests for the the canonical reconciliation cycle invariants that live in EpubReaderViewModel's
  * onPositionChanged / push / readaloud-start control flow. The ViewModel itself can't be constructed
  * in a JVM test (Readium needs android.net.Uri — see the file header), so each fake mirrors the exact
  * production control flow one-to-one, so a regression here maps directly to the ViewModel.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class ThreePeerSyncOrchestrationTest {
+class ReaderSyncOrchestrationTest {
 
     // ── A remote-win jump must not re-stamp localUpdatedAt = now ─────────────────────────────────
     //
@@ -785,7 +785,7 @@ class ThreePeerSyncOrchestrationTest {
     // server time, so our own sync-move read back next cycle as a newer LOCAL edit and bounced/pushed
     // back. Fix: the jump sets pendingServerJumpStamp, and that emission keeps the server time.
     //
-    // Mirrors EpubReaderViewModel.runThreePeerCycle (sets the flag on a jump) + onPositionChanged
+    // Mirrors EpubReaderViewModel.runReaderSyncCycle (sets the flag on a jump) + onPositionChanged
     // (consumes it: persist the CFI, restore the server stamp instead of now).
 
     private class PositionStore {
@@ -798,7 +798,7 @@ class ThreePeerSyncOrchestrationTest {
     private class ReaderSync(val store: PositionStore, val clientNow: Long) {
         var pendingServerJumpStamp: Long? = null
 
-        // EpubReaderViewModel.runThreePeerCycle: a remote win jumps the reader and adopts the server time.
+        // EpubReaderViewModel.runReaderSyncCycle: a remote win jumps the reader and adopts the server time.
         fun onRemoteWinJump(serverStamp: Long) {
             store.updateTimestamp(serverStamp)        // line :565 — adopt the server's time
             pendingServerJumpStamp = serverStamp      // and tell the resulting emission to keep it
