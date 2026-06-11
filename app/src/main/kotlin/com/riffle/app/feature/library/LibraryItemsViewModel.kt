@@ -117,6 +117,13 @@ class LibraryItemsViewModel @Inject constructor(
     private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // An audiobooks-only library: every item is a listen-only Audiobook. Drives square covers across
+    // every tile in the library — including Series / Collection / "+ N more" tiles that carry no
+    // per-item audio signal of their own (ADR 0029).
+    val coversAreSquare: StateFlow<Boolean> = allItems
+        .map { items -> items.isNotEmpty() && items.all { it.isListenable && !it.isReadable } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     // Backed by SavedStateHandle so the query survives both book-detail round-trips and process
     // death (issue #60).
     val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")

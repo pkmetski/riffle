@@ -2,8 +2,8 @@ package com.riffle.core.domain
 
 /**
  * Selects the applicable remote set for the open book (ADR 0019) and runs the unified
- * reconciliation [ThreePeerSyncCycle] over it — the same code path for single-peer
- * (one remote), two-peer (the multi-link guard), and three-peer cases. This is the
+ * reconciliation [CanonicalSyncCycle] over it — the same code path for single-peer
+ * (one remote), two-peer (the multi-link guard), and matched (two ABS peers) cases. This is the
  * strategy [ProgressSyncController] delegates to once it knows the book's [BookSyncState];
  * the open side feeds only into [applicableRemotes], never into the cycle itself.
  *
@@ -14,8 +14,8 @@ package com.riffle.core.domain
 class ProgressSyncStrategy(
     private val remoteFor: (RemoteKind) -> SyncRemote?,
 ) {
-    suspend fun runCycle(state: BookSyncState, local: LocalCanonical): ThreePeerCycleResult {
+    suspend fun runCycle(state: BookSyncState, local: LocalCanonical): SyncCycleResult {
         val remotes = applicableRemotes(state).mapNotNull { remoteFor(it) }
-        return ThreePeerSyncCycle.run(local, remotes)
+        return CanonicalSyncCycle.run(local, remotes)
     }
 }

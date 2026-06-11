@@ -55,6 +55,7 @@ fun ReadaloudDownloadButton(
                 modifier = modifier,
                 contentDescription = "Download readaloud",
                 tint = MaterialTheme.colorScheme.outline,
+                badgeTint = MaterialTheme.colorScheme.outline,
                 circleModifier = Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape),
                 enabled = enabled,
                 onClick = onDownload,
@@ -64,8 +65,11 @@ fun ReadaloudDownloadButton(
             BadgedDownloadCircle(
                 modifier = modifier,
                 contentDescription = "Remove readaloud download",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                circleModifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer),
+                tint = MaterialTheme.colorScheme.onPrimary,
+                // The badge sits on a surface-colored chip, so it keeps a surface-readable tint
+                // rather than the circle's onPrimary content color.
+                badgeTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                circleModifier = Modifier.background(MaterialTheme.colorScheme.primary),
                 enabled = true,
                 onClick = onRemove,
             )
@@ -78,6 +82,7 @@ private fun BadgedDownloadCircle(
     modifier: Modifier,
     contentDescription: String,
     tint: Color,
+    badgeTint: Color,
     circleModifier: Modifier,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -115,7 +120,7 @@ private fun BadgedDownloadCircle(
             Icon(
                 painter = painterResource(R.drawable.ic_readaloud),
                 contentDescription = null,
-                tint = tint,
+                tint = badgeTint,
                 modifier = Modifier.size(16.dp),
             )
         }

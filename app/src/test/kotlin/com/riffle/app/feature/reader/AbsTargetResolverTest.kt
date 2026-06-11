@@ -14,7 +14,7 @@ class AbsTargetResolverTest {
 
     @Test
     fun `combined item is both the ebook and the audio target`() {
-        val items = listOf(AbsLinkMedia(link("combined"), isSupported = true, hasAudio = true))
+        val items = listOf(AbsLinkMedia(link("combined"), isReadable = true, hasAudio = true))
 
         val resolved = resolveAbsTargets(openedItemId = "combined", items = items)
 
@@ -25,8 +25,8 @@ class AbsTargetResolverTest {
     @Test
     fun `split libraries resolve the ebook item and the audiobook item separately`() {
         val items = listOf(
-            AbsLinkMedia(link("ebook"), isSupported = true, hasAudio = false),
-            AbsLinkMedia(link("audiobook"), isSupported = false, hasAudio = true),
+            AbsLinkMedia(link("ebook"), isReadable = true, hasAudio = false),
+            AbsLinkMedia(link("audiobook"), isReadable = false, hasAudio = true),
         )
 
         val resolved = resolveAbsTargets(openedItemId = "ebook", items = items)
@@ -38,8 +38,8 @@ class AbsTargetResolverTest {
     @Test
     fun `the opened item is preferred as the ebook target when several have ebooks`() {
         val items = listOf(
-            AbsLinkMedia(link("other-ebook"), isSupported = true, hasAudio = false),
-            AbsLinkMedia(link("opened-ebook"), isSupported = true, hasAudio = false),
+            AbsLinkMedia(link("other-ebook"), isReadable = true, hasAudio = false),
+            AbsLinkMedia(link("opened-ebook"), isReadable = true, hasAudio = false),
         )
 
         val resolved = resolveAbsTargets(openedItemId = "opened-ebook", items = items)
@@ -49,7 +49,7 @@ class AbsTargetResolverTest {
 
     @Test
     fun `an ebook-only match has no audio target`() {
-        val items = listOf(AbsLinkMedia(link("ebook"), isSupported = true, hasAudio = false))
+        val items = listOf(AbsLinkMedia(link("ebook"), isReadable = true, hasAudio = false))
 
         val resolved = resolveAbsTargets(openedItemId = "ebook", items = items)
 

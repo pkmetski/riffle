@@ -145,10 +145,14 @@ class LibraryItemDetailViewModelTest {
         var downloadResult: EpubDownloadResult = EpubDownloadResult.Success,
         private val initialDownloaded: Boolean = false,
         private val cachedIds: Set<String> = emptySet(),
+        // When set, downloadEpub suspends on this gate before completing — models an in-flight
+        // download so a test can observe InProgress and then release it.
+        private val gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
     ) : EpubRepository {
         private var downloaded = initialDownloaded
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): EpubDownloadResult {
+            gate?.await()
             if (downloadResult is EpubDownloadResult.Success) downloaded = true
             return downloadResult
         }
@@ -235,6 +239,7 @@ class LibraryItemDetailViewModelTest {
         toReadRepo: ToReadRepository = FakeToReadRepository(),
         serverRepository: ServerRepository = noOpServerRepo,
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
+        downloadManager: DownloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         repository = repo,
@@ -246,7 +251,9 @@ class LibraryItemDetailViewModelTest {
         toReadRepository = toReadRepo,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,
+        audiobookDownloadRepository = NoopAudiobookDownloadRepository,
         connectivityObserver = connectivityObserver,
+        downloadManager = downloadManager,
     )
 
     private fun serverRepoReturning(server: Server) = object : ServerRepository {
@@ -359,6 +366,38 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(DownloadState.NotDownloaded, vm.downloadState.value)
+    }
+
+    // The reported bug: starting a download then navigating away (which clears the ViewModel and its
+    // viewModelScope) killed the download. Downloads now run on the app-scoped DownloadManager, so a
+    // freshly recreated VM for the same item must still observe the in-flight download and its
+    // completion.
+    @Test
+    fun `a download survives navigation - a recreated VM still sees it in progress then completing`() = runTest {
+        val manager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val epub = FakeEpubRepository(gate = gate)
+
+        val vm1 = makeVm(fakeRepo(knownItem), epubRepository = epub, downloadManager = manager)
+        backgroundScope.launch { vm1.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm1.startDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue("download should be in progress", vm1.downloadState.value is DownloadState.InProgress)
+
+        // User navigates away; a new VM is created for the same item, sharing the singleton manager.
+        val vm2 = makeVm(fakeRepo(knownItem), epubRepository = epub, downloadManager = manager)
+        backgroundScope.launch { vm2.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(
+            "recreated VM should observe the still-running download",
+            vm2.downloadState.value is DownloadState.InProgress,
+        )
+
+        // The download finishes while we're on the recreated screen.
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Downloaded, vm2.downloadState.value)
     }
 
     @Test

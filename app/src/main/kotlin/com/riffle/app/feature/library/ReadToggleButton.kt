@@ -30,7 +30,7 @@ fun ReadToggleButton(
             .size(40.dp)
             .clip(CircleShape)
             .then(
-                if (isRead) Modifier.background(MaterialTheme.colorScheme.primaryContainer)
+                if (isRead) Modifier.background(MaterialTheme.colorScheme.primary)
                 else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
             )
             .clickable(onClick = if (isRead) onMarkAsUnread else onMarkAsRead),
@@ -39,7 +39,7 @@ fun ReadToggleButton(
         Icon(
             imageVector = Icons.Default.Check,
             contentDescription = if (isRead) "Mark as unread" else "Mark as read",
-            tint = if (isRead) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.outline,
+            tint = if (isRead) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),
         )
     }

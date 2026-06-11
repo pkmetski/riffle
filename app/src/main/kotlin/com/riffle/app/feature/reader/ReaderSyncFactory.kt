@@ -15,23 +15,21 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.StorytellerPositionApi
 import javax.inject.Inject
 
 /**
- * Assembles a [ThreePeerReaderSyncCoordinator] for the open book when, and only when, all of
- * ADR 0019's three-peer prerequisites are met: the book is a Confirmed match with **exactly
+ * Assembles a [ReaderSyncCoordinator] for the open book when, and only when, all of
+ * ADR 0019's reconciliation prerequisites are met: the book is a Confirmed match with **exactly
  * one** ABS link, both EPUBs are cached, and the cross-EPUB index for their current checksums
  * is built. Any miss returns `null`, leaving the reader on its existing single-peer path — so
- * three-peer is strictly additive and never degrades the non-matched case.
+ * the reconciliation cycle is strictly additive and never degrades the non-matched case.
  */
-class ThreePeerReaderSyncFactory @Inject constructor(
+class ReaderSyncFactory @Inject constructor(
     private val linkRepository: ReadaloudLinkRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val indexStore: CrossEpubIndexStore,
     private val absSessionApi: AbsSessionApi,
-    private val storytellerPositionApi: StorytellerPositionApi,
     private val libraryRepository: LibraryRepository,
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
@@ -40,7 +38,7 @@ class ThreePeerReaderSyncFactory @Inject constructor(
      * @param itemId the ABS Library Item id the reader opened. A book is always read from the ABS
      *   side (ADR 0026), so the link is resolved by ABS item.
      */
-    suspend fun createIfApplicable(itemId: String): ThreePeerReaderSyncCoordinator? {
+    suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? {
         val active = serverRepository.getActive() ?: return null
 
         // The readaloud bundle is the hub: route progress to whichever ABS items are matched to it.
@@ -48,15 +46,12 @@ class ThreePeerReaderSyncFactory @Inject constructor(
         val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
         val linkedMedia = allLinks.mapNotNull { l ->
             val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
-            AbsLinkMedia(l, isSupported = item.isSupported, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
+            AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)
         // The reader displays the ABS EPUB (ADR 0026): no matched ebook item ⇒ nothing to display
-        // and no frame for the cross-EPUB index, so three-peer can't apply.
+        // and no frame for the cross-EPUB index, so the reconciliation cycle can't apply.
         val ebookLink = targets.ebook ?: return null
-
-        val storytellerServer = serverRepository.getById(openedLink.storytellerServerId) ?: return null
-        val storytellerToken = tokenStorage.getToken(openedLink.storytellerServerId) ?: return null
 
         val absFile = cachedFile(ebookLink.absServerId, ebookLink.absLibraryItemId) ?: return null
         val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId) ?: return null
@@ -88,7 +83,7 @@ class ThreePeerReaderSyncFactory @Inject constructor(
             absEndpointFor(a.absServerId, a.absLibraryItemId, durationSec)
         }
 
-        return ThreePeerReaderSyncCoordinator(
+        return ReaderSyncCoordinator(
             state = BookSyncState(
                 isMatched = true,
                 hasAbsEbookTarget = absEbookEndpoint != null,
@@ -97,12 +92,8 @@ class ThreePeerReaderSyncFactory @Inject constructor(
             ),
             bridge = bridge,
             absApi = absSessionApi,
-            storytellerApi = storytellerPositionApi,
             absEbookEndpoint = absEbookEndpoint,
             absAudioEndpoint = absAudioEndpoint,
-            storytellerEndpoint = StorytellerSyncEndpoint(
-                storytellerServer.url.value, storytellerToken, storytellerServer.insecureConnectionAllowed, openedLink.storytellerBookId,
-            ),
         )
     }
 

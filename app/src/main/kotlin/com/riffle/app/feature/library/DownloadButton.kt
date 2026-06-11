@@ -29,6 +29,7 @@ fun DownloadButton(
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val size = 40.dp
     when (state) {
@@ -38,7 +39,7 @@ fun DownloadButton(
                     .size(size)
                     .clip(CircleShape)
                     .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    .clickable(onClick = onDownload),
+                    .clickable(enabled = enabled, onClick = onDownload),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

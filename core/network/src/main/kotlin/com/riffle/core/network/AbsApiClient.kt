@@ -14,6 +14,9 @@ import com.riffle.core.network.model.AbsLibraryItemsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
 import com.riffle.core.network.model.AbsMeResponse
+import com.riffle.core.network.model.AbsPlayDeviceInfo
+import com.riffle.core.network.model.AbsPlayRequest
+import com.riffle.core.network.model.AbsPlaySessionResponse
 import com.riffle.core.network.model.AbsPlaylistItemRequest
 import com.riffle.core.network.model.AbsPlaylistsResponse
 import com.riffle.core.network.model.AbsProgressResponse
@@ -43,7 +46,7 @@ sealed class NetworkLoginResult {
     data class InsecureConnection(val type: InsecureConnectionType) : NetworkLoginResult()
 }
 
-class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi {
+class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -131,7 +134,12 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 .filter { it.libraryItemId.isNotEmpty() }
                 .associate {
                     it.libraryItemId to NetworkUserMediaProgress(
-                        ebookProgress = it.ebookProgress ?: it.progress,
+                        // ABS reports completion in two fields: an ebook carries a precise
+                        // `ebookProgress` (CFI-based, can exceed `progress`); an audiobook carries
+                        // `progress` (currentTime/duration) with `ebookProgress` 0/absent. Prefer a
+                        // real (>0) `ebookProgress`, else fall back to `progress` — so a 0
+                        // `ebookProgress` no longer shadows a real audiobook position (ADR 0029).
+                        ebookProgress = it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress,
                         lastUpdate = it.lastUpdate,
                     )
                 }
@@ -164,8 +172,9 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             )
             val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
             NetworkLibraryItemsResult.Success(parsed.results.map { dto ->
-                val progress = dto.userMediaProgress?.ebookProgress
-                    ?: dto.userMediaProgress?.progress
+                // Prefer a real (>0) ebook position, else the audiobook `progress`; a 0 `ebookProgress`
+                // must not shadow a real audiobook position (ADR 0029). Null when no progress record.
+                val progress = dto.userMediaProgress?.let { it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress }
                 NetworkLibraryItem(
                     id = dto.id,
                     libraryId = dto.libraryId,
@@ -596,6 +605,64 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             }
         } catch (e: IOException) {
             NetworkGetProgressResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun openPlaybackSession(
+        baseUrl: String,
+        libraryItemId: String,
+        deviceId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkPlaybackSessionResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val payload = AbsPlayRequest(
+            deviceInfo = AbsPlayDeviceInfo(deviceId = deviceId),
+            // The MIME types Media3/ExoPlayer plays directly; ABS transcodes only if none match.
+            supportedMimeTypes = listOf(
+                "audio/mpeg", "audio/mp4", "audio/aac", "audio/flac", "audio/ogg", "audio/x-m4a", "audio/x-m4b",
+            ),
+        )
+        val body = json.encodeToString(payload).toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/items/$libraryItemId/play")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext NetworkPlaybackSessionResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string()
+            if (raw.isNullOrEmpty()) {
+                return@withContext NetworkPlaybackSessionResult.NetworkError(IOException("Empty play session response"))
+            }
+            val parsed = json.decodeFromString<AbsPlaySessionResponse>(raw)
+            val tracks = parsed.audioTracks.map { t ->
+                NetworkAudioTrack(
+                    index = t.index,
+                    startOffsetSec = t.startOffset,
+                    durationSec = t.duration,
+                    contentUrl = t.contentUrl,
+                    mimeType = t.mimeType,
+                )
+            }
+            // ABS sometimes omits a top-level duration; fall back to the summed track durations.
+            val duration = if (parsed.duration > 0.0) parsed.duration else tracks.sumOf { it.durationSec }
+            NetworkPlaybackSessionResult.Success(
+                NetworkPlaybackSession(
+                    sessionId = parsed.id,
+                    tracks = tracks,
+                    chapters = parsed.chapters.map { c ->
+                        NetworkAudioChapter(id = c.id, startSec = c.start, endSec = c.end, title = c.title)
+                    },
+                    currentTimeSec = parsed.currentTime,
+                    durationSec = duration,
+                )
+            )
+        } catch (e: IOException) {
+            NetworkPlaybackSessionResult.NetworkError(e)
         }
     }
 

@@ -37,7 +37,7 @@ interface SyncRemote {
 }
 
 /** Outcome of one reconciliation cycle. */
-data class ThreePeerCycleResult(
+data class SyncCycleResult(
     val jumpTo: CanonicalReaderPosition?,
     val patched: Set<String>,
     val canonicalLastUpdate: Long,
@@ -48,9 +48,9 @@ data class ThreePeerCycleResult(
  * applicable to the open book. Invariant: one inbound winner, at most one reader jump, and
  * every outbound PATCH derived from the same canonical position.
  */
-object ThreePeerSyncCycle {
+object CanonicalSyncCycle {
 
-    suspend fun run(local: LocalCanonical, remotes: List<SyncRemote>): ThreePeerCycleResult {
+    suspend fun run(local: LocalCanonical, remotes: List<SyncRemote>): SyncCycleResult {
         // GET each remote in parallel, isolating per-target failures (null = excluded).
         val reads = coroutineScope {
             remotes.map { remote -> remote to async { remote.tryGet() } }
@@ -87,7 +87,7 @@ object ThreePeerSyncCycle {
             }
         }
 
-        return ThreePeerCycleResult(
+        return SyncCycleResult(
             jumpTo = jumpTo,
             patched = patched,
             canonicalLastUpdate = effectiveLastUpdate,

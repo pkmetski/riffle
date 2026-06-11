@@ -20,7 +20,7 @@ class ProgressSyncStrategyTest {
     private val local = LocalCanonical(CanonicalReaderPosition("L"), lastUpdate = 100)
 
     @Test
-    fun `a matched state reconciles the ebook, the inbound audiobook, and Storyteller`() = runTest {
+    fun `a matched state reconciles the ebook and the audiobook`() = runTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
@@ -33,13 +33,13 @@ class ProgressSyncStrategyTest {
         strategy.runCycle(state, local)
 
         assertEquals(
-            setOf(RemoteKind.ABS_EBOOK, RemoteKind.ABS_AUDIO, RemoteKind.STORYTELLER),
+            setOf(RemoteKind.ABS_EBOOK, RemoteKind.ABS_AUDIO),
             built.toSet(),
         )
     }
 
     @Test
-    fun `an ebook-only match reconciles the ebook and Storyteller`() = runTest {
+    fun `an ebook-only match reconciles the ebook only`() = runTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
 
@@ -51,7 +51,7 @@ class ProgressSyncStrategyTest {
         )
         strategy.runCycle(state, local)
 
-        assertEquals(setOf(RemoteKind.ABS_EBOOK, RemoteKind.STORYTELLER), built.toSet())
+        assertEquals(setOf(RemoteKind.ABS_EBOOK), built.toSet())
     }
 
     @Test
@@ -67,9 +67,9 @@ class ProgressSyncStrategyTest {
 
     @Test
     fun `a remote the factory cannot build is skipped without poisoning the cycle`() = runTest {
-        // Prerequisites cached but the Storyteller remote can't be constructed (e.g. bundle gone).
+        // Prerequisites cached but the audiobook remote can't be constructed (e.g. bundle gone).
         val strategy = ProgressSyncStrategy { kind ->
-            if (kind == RemoteKind.STORYTELLER) null else FakeRemote(kind.name)
+            if (kind == RemoteKind.ABS_AUDIO) null else FakeRemote(kind.name)
         }
 
         val state = BookSyncState(isMatched = true, hasAbsEbookTarget = true, hasAbsAudioTarget = true, prerequisitesCached = true)

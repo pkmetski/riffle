@@ -123,7 +123,7 @@ class EpubReaderViewModel @Inject constructor(
     private val audioIdentityResolver: AudioIdentityResolver,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
     private val connectivityObserver: ConnectivityObserver,
-    private val threePeerSyncFactory: ThreePeerReaderSyncFactory,
+    private val readerSyncFactory: ReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
@@ -153,7 +153,7 @@ class EpubReaderViewModel @Inject constructor(
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
 
-    private val positionSaveCoordinator = PositionSaveCoordinator(
+    private val positionSaveCoordinator = PositionSaveCoordinator<String>(
         savePosition = { cfi -> epubRepository.saveReadingPosition(itemId, cfi) },
         updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
     )
@@ -169,11 +169,11 @@ class EpubReaderViewModel @Inject constructor(
     private val chapterHtmlCache = mutableMapOf<Int, String>()
     private var syncJob: Job? = null
     private var closeSyncDone = false
-    // Non-null once a matched book's three-peer prerequisites are cached: the unified cycle then
-    // replaces the single-peer ABS/Storyteller paths. [threePeerServerId] is the active server
+    // Non-null once a matched book's reconciliation prerequisites are cached: the unified cycle then
+    // replaces the single-peer ABS/Storyteller paths. [readerSyncServerId] is the active server
     // (the displayed side) that keys the canonical localUpdatedAt.
-    private var threePeer: ThreePeerReaderSyncCoordinator? = null
-    private var threePeerServerId: String? = null
+    private var readerSync: ReaderSyncCoordinator? = null
+    private var readerSyncServerId: String? = null
     // True after the navigator emits its first locator (the restored position on open).
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
@@ -511,15 +511,15 @@ class EpubReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
-                // A matched book with cached prerequisites runs the three-peer cycle instead of
+                // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
-                threePeer = runCatching { threePeerSyncFactory.createIfApplicable(itemId) }.getOrNull()
-                threePeerServerId = serverRepository.getActive()?.id
+                readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
+                readerSyncServerId = serverRepository.getActive()?.id
 
                 // Sync immediately while localUpdatedAt is still the genuine stored value —
                 // before the navigator restore emits and would stamp localUpdatedAt = now.
-                if (threePeer != null) {
-                    runThreePeerCycle(locator)
+                if (readerSync != null) {
+                    runReaderSyncCycle(locator)
                 } else {
                     progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
                 }
@@ -544,13 +544,13 @@ class EpubReaderViewModel @Inject constructor(
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
         viewModelScope.launch {
-            if (threePeer != null) runThreePeerCycle(locator)
+            if (readerSync != null) runReaderSyncCycle(locator)
             else progressSyncController.sync(itemId, locator.toPayload())
         }
     }
 
     /**
-     * One three-peer reconciliation cycle (ADR 0019). The canonical position is the displayed-EPUB
+     * One canonical reconciliation cycle (ADR 0019). The canonical position is the displayed-EPUB
      * reading position with its stored timestamp; a remote win jumps the reader (including a
      * genuinely-newer audiobook listened on another device, bridged through the bundle), and the
      * winning timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated here.
@@ -562,9 +562,9 @@ class EpubReaderViewModel @Inject constructor(
      * jump keeps that adopted time instead of re-stamping `now` (pendingServerJumpStamp) — so our own
      * write never reads back as a newer remote and drives the ebook (the loop that erased progress).
      */
-    private suspend fun runThreePeerCycle(locator: Locator?) {
-        val coordinator = threePeer ?: return
-        val serverId = threePeerServerId ?: return
+    private suspend fun runReaderSyncCycle(locator: Locator?) {
+        val coordinator = readerSync ?: return
+        val serverId = readerSyncServerId ?: return
         val locJson = (locator ?: lastLocator)?.toJSON()?.toString()
         if (locJson != null) {
             val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
@@ -607,7 +607,7 @@ class EpubReaderViewModel @Inject constructor(
      * sentence is narrating, it uses the **exact narrated fragment**'s audio time (so the audiobook
      * matches the sentence the user hears, not the top of the page); otherwise it falls back to the
      * reading position through the bundle's SMIL. Never touches the ebook/reading position, so it
-     * can't erase or override reading progress. No-op when the book isn't a three-peer match.
+     * can't erase or override reading progress. No-op when the book isn't a matched-reconciliation book.
      *
      * Closes the inbound feedback loop: the audiobook is reconciled both ways, so without this our own
      * write would read back next cycle as a "newer remote" and drive the ebook. We record the server
@@ -619,8 +619,8 @@ class EpubReaderViewModel @Inject constructor(
     // captured BEFORE teardown; passing the now-null live value would silently fall back to the coarse
     // page-based push and send the chapter top to the server.
     private suspend fun pushAudiobookFromReadingPosition(fragment: String?) {
-        val coordinator = threePeer ?: return
-        val serverId = threePeerServerId ?: return
+        val coordinator = readerSync ?: return
+        val serverId = readerSyncServerId ?: return
         val locJson = lastLocator?.toJSON()?.toString()
         val stamp = runCatching {
             if (fragment != null) coordinator.pushAudiobookForFragment(fragment, locJson)
@@ -656,7 +656,7 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             positionSaveCoordinator.onChanged(locator.toJSON().toString())
             if (serverJumpStamp != null) {
-                threePeerServerId?.let { readingPositionStore.updateLocalTimestamp(it, itemId, serverJumpStamp) }
+                readerSyncServerId?.let { readingPositionStore.updateLocalTimestamp(it, itemId, serverJumpStamp) }
             }
         }
     }
@@ -689,7 +689,7 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
-            if (threePeer != null) runThreePeerCycle(locator)
+            if (readerSync != null) runReaderSyncCycle(locator)
             else progressSyncController.sync(itemId, payload)
         }
     }
@@ -1231,7 +1231,7 @@ class EpubReaderViewModel @Inject constructor(
             // earlier chapter), resetting reading progress. Re-key the ref onto the bundle chapter the
             // selection sits in so the player resolves the selected sentence's own clip. Falls back to
             // the original ref when there's no match (unmatched book, or the chapter can't be mapped).
-            val seekRef = threePeer?.bundleFragmentRefForSelection(fragmentRef) ?: fragmentRef
+            val seekRef = readerSync?.bundleFragmentRefForSelection(fragmentRef) ?: fragmentRef
             playerCoordinator.playFromHere(seekRef)
         }
     }
@@ -1281,7 +1281,7 @@ class EpubReaderViewModel @Inject constructor(
     private var closeLocator: Locator? = null
     private var resumeFragmentRef: String? = null
 
-    // The exact narrated sentence a server sync placed the reader at (set in runThreePeerCycle on an
+    // The exact narrated sentence a server sync placed the reader at (set in runReaderSyncCycle on an
     // inbound jump). The next "start readaloud" begins here so it matches the synced audiobook
     // position precisely, instead of the page top. Ignored once the reader leaves that chapter.
     private var pendingStartFragmentRef: String? = null
@@ -1295,19 +1295,19 @@ class EpubReaderViewModel @Inject constructor(
         }
         readaloudStarted = true
 
-        // Matched (3-peer) book: readaloud starts at the reconciled reading position. There is no
+        // Matched book: readaloud starts at the reconciled reading position. There is no
         // separate "first sentence of the page" concept — Play resumes where listening/reading last
         // was; a specific sentence is reached via Play-from-here. (A matched audiobook is optional —
         // when present it's the source of #1 below; without one the reconcile is just ebook↔Storyteller
         // and Play falls through to the local readaloud position.) The start resolves, in order:
         //   1. the exact remote sentence a server sync just placed the reader at (pendingStartFragmentRef,
-        //      set in runThreePeerCycle when a remote peer — typically the audiobook — won the reconcile)
+        //      set in runReaderSyncCycle when a remote peer — typically the audiobook — won the reconcile)
         //      — only while still in that chapter, else the reader has moved on and it's stale;
         //   2. the local last-played sentence saved on close (resumeFragmentRef);
         //   3. the sentence the current reading position falls in (fragmentAt via the bundle).
         // Falls back to the reading position's chapter only when nothing narrated anchors it (e.g. front
         // matter); resolveStartClip declines rather than restarting the book.
-        threePeer?.let { coordinator ->
+        readerSync?.let { coordinator ->
             val pending = pendingStartFragmentRef?.takeIf { p ->
                 lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
             }
@@ -1325,7 +1325,7 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
 
-        // Storyteller-only readaloud (no 3-peer reconciliation): there is no reconciled position to
+        // Storyteller-only readaloud (no canonical reconciliation): there is no reconciled position to
         // anchor to, so the page-top probe remains the way to find the page's first sentence on a first
         // play / reopen-elsewhere, with resumeFragmentRef for an in-place reopen.
         val closed = closeLocator
@@ -1424,8 +1424,8 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun startStorytellerSync() {
         if (!isStorytellerServer) return
-        // Three-peer reconciles Storyteller itself; don't also run the single-peer Storyteller loop.
-        if (threePeer != null) return
+        // A matched book runs the canonical reconciliation cycle; don't also run the standalone Storyteller loop.
+        if (readerSync != null) return
         if (storytellerSyncJob?.isActive == true) return
         storytellerSyncJob = viewModelScope.launch {
             while (true) {

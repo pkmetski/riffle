@@ -81,6 +81,7 @@ fun LibraryItemDetailScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onReadItem: (LibraryItem) -> Unit,
+    onListenItem: (LibraryItem) -> Unit = {},
     onNavigateToFacet: (libraryId: String, facet: FacetType, value: String) -> Unit = { _, _, _ -> },
     onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit = { _, _, _ -> },
     viewModel: LibraryItemDetailViewModel = hiltViewModel(),
@@ -88,6 +89,7 @@ fun LibraryItemDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
     val readaloudDownloadState by viewModel.readaloudDownloadState.collectAsState()
+    val audiobookDownloadState by viewModel.audiobookDownloadState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -173,7 +175,9 @@ fun LibraryItemDetailScreen(
                         isCachedOrDownloaded = state.isCachedOrDownloaded,
                         isOffline = state.isOffline,
                         readaloudDownloadState = readaloudDownloadState,
+                        audiobookDownloadState = audiobookDownloadState,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                        onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
@@ -181,6 +185,8 @@ fun LibraryItemDetailScreen(
                         onRemove = onRemove,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
                         onRemoveReadaloud = viewModel::onRemoveReadaloud,
+                        onDownloadAudiobook = viewModel::onDownloadAudiobook,
+                        onRemoveAudiobook = viewModel::onRemoveAudiobook,
                         modifier = Modifier.padding(padding),
                     )
                 } else {
@@ -195,7 +201,9 @@ fun LibraryItemDetailScreen(
                         isCachedOrDownloaded = state.isCachedOrDownloaded,
                         isOffline = state.isOffline,
                         readaloudDownloadState = readaloudDownloadState,
+                        audiobookDownloadState = audiobookDownloadState,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                        onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
@@ -203,6 +211,8 @@ fun LibraryItemDetailScreen(
                         onRemove = onRemove,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
                         onRemoveReadaloud = viewModel::onRemoveReadaloud,
+                        onDownloadAudiobook = viewModel::onDownloadAudiobook,
+                        onRemoveAudiobook = viewModel::onRemoveAudiobook,
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -247,7 +257,9 @@ private fun LibraryItemDetailContent(
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
     readaloudDownloadState: DownloadState?,
+    audiobookDownloadState: DownloadState? = null,
     onReadItem: (LibraryItem) -> Unit,
+    onListenItem: (LibraryItem) -> Unit = {},
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -255,6 +267,8 @@ private fun LibraryItemDetailContent(
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
     onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -287,7 +301,9 @@ private fun LibraryItemDetailContent(
             isCachedOrDownloaded = isCachedOrDownloaded,
             isOffline = isOffline,
             readaloudDownloadState = readaloudDownloadState,
+            audiobookDownloadState = audiobookDownloadState,
             onReadItem = onReadItem,
+            onListenItem = onListenItem,
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
             onToggleToRead = onToggleToRead,
@@ -295,6 +311,8 @@ private fun LibraryItemDetailContent(
             onRemove = onRemove,
             onDownloadReadaloud = onDownloadReadaloud,
             onRemoveReadaloud = onRemoveReadaloud,
+            onDownloadAudiobook = onDownloadAudiobook,
+            onRemoveAudiobook = onRemoveAudiobook,
         )
 
         TitleWithReadaloudIndicator(
@@ -308,8 +326,12 @@ private fun LibraryItemDetailContent(
             SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
         }
 
+        if (item.isListenable && item.audioDurationSec > 0) {
+            AudiobookDurationLine(item.audioDurationSec)
+        }
+
         if (item.readingProgress > 0f) {
-            ReadingProgressIndicator(progress = item.readingProgress)
+            ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
         }
 
         item.description?.takeIf { it.isNotBlank() }?.let { desc ->
@@ -317,6 +339,27 @@ private fun LibraryItemDetailContent(
         }
 
         MetadataLines(item = item, onFacet = onFacet)
+    }
+}
+
+/** Total audiobook length on the detail screen (ADR 0029). */
+@Composable
+private fun AudiobookDurationLine(durationSec: Double) {
+    Text(
+        text = "Audiobook · ${formatAudiobookDuration(durationSec)}",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun formatAudiobookDuration(durationSec: Double): String {
+    val total = durationSec.toLong().coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    return when {
+        h > 0 && m > 0 -> "${h}h ${m}m"
+        h > 0 -> "${h}h"
+        else -> "${m}m"
     }
 }
 
@@ -332,7 +375,9 @@ internal fun LibraryItemDetailContentTablet(
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
     readaloudDownloadState: DownloadState?,
+    audiobookDownloadState: DownloadState? = null,
     onReadItem: (LibraryItem) -> Unit,
+    onListenItem: (LibraryItem) -> Unit = {},
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -340,6 +385,8 @@ internal fun LibraryItemDetailContentTablet(
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
     onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -377,8 +424,11 @@ internal fun LibraryItemDetailContentTablet(
                 onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
             )
             AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
+            if (item.isListenable && item.audioDurationSec > 0) {
+                AudiobookDurationLine(item.audioDurationSec)
+            }
             if (item.readingProgress > 0f) {
-                ReadingProgressIndicator(progress = item.readingProgress)
+                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
             }
             ActionRow(
                 item = item,
@@ -387,7 +437,9 @@ internal fun LibraryItemDetailContentTablet(
                 isCachedOrDownloaded = isCachedOrDownloaded,
                 isOffline = isOffline,
                 readaloudDownloadState = readaloudDownloadState,
+                audiobookDownloadState = audiobookDownloadState,
                 onReadItem = onReadItem,
+                onListenItem = onListenItem,
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
                 onToggleToRead = onToggleToRead,
@@ -395,6 +447,8 @@ internal fun LibraryItemDetailContentTablet(
                 onRemove = onRemove,
                 onDownloadReadaloud = onDownloadReadaloud,
                 onRemoveReadaloud = onRemoveReadaloud,
+                onDownloadAudiobook = onDownloadAudiobook,
+                onRemoveAudiobook = onRemoveAudiobook,
             )
         }
         Column(
@@ -532,7 +586,9 @@ private fun ActionRow(
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
     readaloudDownloadState: DownloadState?,
+    audiobookDownloadState: DownloadState? = null,
     onReadItem: (LibraryItem) -> Unit,
+    onListenItem: (LibraryItem) -> Unit,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -540,13 +596,26 @@ private fun ActionRow(
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
     onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
 ) {
-    if (item.isSupported) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    // An item may be readable (has an ebook), listenable (an Audiobook — ADR 0029), both (a
+    // combined item), or neither. The action row offers Read and Listen independently; only a wholly
+    // un-openable item shows the empty-state message.
+    if (!item.isPlayable) {
+        Text(
+            text = "Nothing to read or listen to for this item on the server.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (item.isReadable) {
             // Offline with no local copy: the book can't be fetched, so disable Read with a hint
             // rather than letting the tap fall through to an error screen.
             val readDisabledByOffline = isOffline && !isCachedOrDownloaded
@@ -570,55 +639,97 @@ private fun ActionRow(
                     Text("Read")
                 }
             }
-            ReadToggleButton(
-                isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
-                onMarkAsRead = onMarkAsRead,
-                onMarkAsUnread = onMarkAsUnread,
-            )
-            ToReadToggleButton(
-                isInToRead = isInToRead,
-                onToggle = onToggleToRead,
-            )
-            // The base DownloadButton manages the ABS EPUB. A matched ABS item additionally gets the
-            // ReadaloudDownloadButton below, which fetches the Storyteller synced bundle (ADR 0023/0026,
-            // keyed by the linked Storyteller book id) for audio + highlight.
+        }
+        if (item.isListenable) {
+            // The audiobook player streams from ABS (ADR 0029) unless it's been downloaded, in which
+            // case it plays the local files — so Listen needs connectivity only when not downloaded.
+            val listenBlockedOffline = isOffline && audiobookDownloadState != DownloadState.Downloaded
+            if (listenBlockedOffline) {
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text("Connect to stream audio") } },
+                    state = rememberTooltipState(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                        Text("Listen")
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { onListenItem(item) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Listen")
+                }
+            }
+        }
+        ReadToggleButton(
+            isRead = item.readingProgress >= READ_PROGRESS_THRESHOLD,
+            onMarkAsRead = onMarkAsRead,
+            onMarkAsUnread = onMarkAsUnread,
+        )
+        ToReadToggleButton(
+            isInToRead = isInToRead,
+            onToggle = onToggleToRead,
+        )
+        // The base DownloadButton manages the ABS EPUB, so it only applies to a readable item. A
+        // matched ABS item additionally gets the ReadaloudDownloadButton below, which fetches the
+        // Storyteller synced bundle (ADR 0023/0026) for audio + highlight.
+        if (item.isReadable) {
             DownloadButton(
                 state = downloadState,
                 onDownload = onDownload,
                 onRemove = onRemove,
             )
-            if (readaloudDownloadState != null) {
-                val readaloudOfflineBlocked = isOffline && readaloudDownloadState == DownloadState.NotDownloaded
-                val readaloudButton: @Composable () -> Unit = {
-                    ReadaloudDownloadButton(
-                        state = readaloudDownloadState,
-                        onDownload = onDownloadReadaloud,
-                        onRemove = onRemoveReadaloud,
-                        enabled = !readaloudOfflineBlocked,
-                    )
-                }
-                if (readaloudOfflineBlocked) {
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                        tooltip = { PlainTooltip { Text("Connect to download readaloud audio") } },
-                        state = rememberTooltipState(),
-                    ) { readaloudButton() }
-                } else {
-                    readaloudButton()
-                }
+        }
+        // A listenable item gets its own download control: the ABS audiobook tracks for offline play
+        // (ADR 0029). Disabled offline when not yet downloaded (can't fetch).
+        if (item.isListenable && audiobookDownloadState != null) {
+            val audioOfflineBlocked = isOffline && audiobookDownloadState == DownloadState.NotDownloaded
+            val audioButton: @Composable () -> Unit = {
+                DownloadButton(
+                    state = audiobookDownloadState,
+                    onDownload = onDownloadAudiobook,
+                    onRemove = onRemoveAudiobook,
+                    enabled = !audioOfflineBlocked,
+                )
+            }
+            if (audioOfflineBlocked) {
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text("Connect to download audiobook") } },
+                    state = rememberTooltipState(),
+                ) { audioButton() }
+            } else {
+                audioButton()
             }
         }
-    } else {
-        Text(
-            text = "No ebook file is available for this item on the server.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (readaloudDownloadState != null) {
+            val readaloudOfflineBlocked = isOffline && readaloudDownloadState == DownloadState.NotDownloaded
+            val readaloudButton: @Composable () -> Unit = {
+                ReadaloudDownloadButton(
+                    state = readaloudDownloadState,
+                    onDownload = onDownloadReadaloud,
+                    onRemove = onRemoveReadaloud,
+                    enabled = !readaloudOfflineBlocked,
+                )
+            }
+            if (readaloudOfflineBlocked) {
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text("Connect to download readaloud audio") } },
+                    state = rememberTooltipState(),
+                ) { readaloudButton() }
+            } else {
+                readaloudButton()
+            }
+        }
     }
 }
 
 @Composable
-private fun ReadingProgressIndicator(progress: Float) {
+private fun ReadingProgressIndicator(progress: Float, listened: Boolean = false) {
     Column {
         LinearProgressIndicator(
             progress = { progress },
@@ -626,7 +737,7 @@ private fun ReadingProgressIndicator(progress: Float) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "${(progress * 100).toInt()}% read",
+            text = "${(progress * 100).toInt()}% ${if (listened) "listened" else "read"}",
             style = MaterialTheme.typography.bodyMedium,
         )
     }

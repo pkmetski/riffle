@@ -23,6 +23,7 @@ import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.FacetType
 import com.riffle.app.feature.library.FilteredBooksScreen
+import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibrarySectionScreen
@@ -57,6 +58,7 @@ private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{face
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER = "epub_reader/{itemId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
+private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}"
 
 @Composable
 fun MainScreen(
@@ -340,6 +342,10 @@ fun MainScreen(
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
                     },
+                    onListenItem = { item ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("audiobook_player/$encodedId")
+                    },
                     onNavigateToFacet = { libraryId, facet, value ->
                         val encoded = URLEncoder.encode(value, "UTF-8")
                         navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
@@ -381,6 +387,14 @@ fun MainScreen(
                 )
             ) {
                 PdfReaderScreen(onNavigateBack = { navController.popBackStack() })
+            }
+            composable(
+                route = AUDIOBOOK_PLAYER,
+                arguments = listOf(
+                    navArgument("itemId") { type = NavType.StringType },
+                )
+            ) {
+                AudiobookPlayerScreen(onNavigateBack = { navController.popBackStack() })
             }
         }
     }
