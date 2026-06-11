@@ -27,6 +27,7 @@ import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
+import com.riffle.core.data.ServerFilesCleanerImpl
 import com.riffle.core.data.ServerRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
@@ -40,6 +41,7 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DownloadsRepository
+import com.riffle.core.domain.ServerFilesCleaner
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.AudiobookDownloadRepository
@@ -412,6 +414,19 @@ abstract class DataModule {
             @PdfCacheStore pdfCacheStore: LocalStore,
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
         ): DownloadsRepository = DownloadsRepositoryImpl(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore)
+
+        @Provides
+        @Singleton
+        fun provideServerFilesCleaner(
+            @EpubCacheStore epubCacheStore: LocalStore,
+            @EpubDownloadsStore epubDownloadsStore: LocalStore,
+            @PdfCacheStore pdfCacheStore: LocalStore,
+            @PdfDownloadsStore pdfDownloadsStore: LocalStore,
+            @AudiobookDownloadsDir audiobookDownloadsDir: File,
+        ): ServerFilesCleaner = ServerFilesCleanerImpl(
+            stores = listOf(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore),
+            audiobookDownloadsDir = audiobookDownloadsDir,
+        )
 
         @Provides
         @Singleton

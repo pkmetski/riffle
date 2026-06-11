@@ -36,6 +36,10 @@ class LocalStoreImpl(private val dir: File, private val extension: String) : Loc
         fileFor(serverId, itemId).delete()
     }
 
+    override fun deleteServer(serverId: String) {
+        dir.resolve(serverId).deleteRecursively()
+    }
+
     override fun clear() {
         dir.listFiles()?.forEach { it.deleteRecursively() }
     }
