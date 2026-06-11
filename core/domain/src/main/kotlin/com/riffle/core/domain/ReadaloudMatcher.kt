@@ -198,12 +198,19 @@ object ReadaloudMatcher {
      * produce the same set, which is how the spec's name-order equivalence is satisfied. Any
      * non-alphanumeric character is treated as a separator so OPF-junk like "Andy Weir;"
      * collapses to {andy, weir}.
+     *
+     * Single-character tokens (middle initials) are dropped: a side that spells out a middle
+     * initial ("Stephen W. Hawking") would otherwise carry a "w" token the other side lacks,
+     * breaking [authorsOverlap]'s subset rule. When that is combined with a genuine co-author
+     * present on only one side, neither set is a subset of the other and a real match is lost.
+     * Dropping the initial leaves the substantive name tokens, which the subset/Dice rules
+     * already handle. Two-letter initialisms ("JD Jackson") are kept.
      */
     private fun authorTokens(raw: String): Set<String> =
         raw.lowercase()
             .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
             .joinToString("")
             .split(Regex("\\s+"))
-            .filter { it.isNotEmpty() }
+            .filter { it.length > 1 }
             .toSet()
 }

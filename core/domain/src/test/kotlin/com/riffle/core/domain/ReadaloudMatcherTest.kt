@@ -228,6 +228,22 @@ class ReadaloudMatcherTest {
         assertEquals(confirmed("abs-1" to "item-1"), ReadaloudMatcher.match(book, listOf(abs)))
     }
 
+    @Test
+    fun `middle initial plus an ABS-only co-author still matches the ebook`() {
+        // Real data — "The Grand Design": the Storyteller readaloud lists the author both ways
+        // ("Stephen Hawking" + "Stephen W. Hawking"), contributing a middle-initial "w" the ABS
+        // ebook lacks, while the ABS ebook adds the curated co-author "Leonard Mlodinow" the
+        // readaloud omits. Flatten-and-subset breaks both directions, so the ebook was dropped
+        // and only the bare-{stephen,hawking} audiobook matched.
+        val book = storytellerBook(title = "The Grand Design", author = "Stephen Hawking, Stephen W. Hawking")
+        val ebook = absItem(serverUuid = "abs-1", libraryItemId = "ebook", title = "The Grand Design", author = "Stephen Hawking, Leonard Mlodinow")
+        val audio = absItem(serverUuid = "abs-2", libraryItemId = "audio", title = "The Grand Design", author = "Stephen Hawking")
+
+        val result = ReadaloudMatcher.match(book, listOf(ebook, audio))
+
+        assertEquals(setOf(Confirmed("abs-1", "ebook"), Confirmed("abs-2", "audio")), confirmedLinks(result))
+    }
+
     // ---- Tier 3: fuzzy → Pending Review ----------------------------------------------------
 
     @Test
