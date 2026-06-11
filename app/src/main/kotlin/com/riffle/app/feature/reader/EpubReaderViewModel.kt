@@ -1073,6 +1073,8 @@ class EpubReaderViewModel @Inject constructor(
         _readaloudOpen.value = false
         _downloadPromptBytes.value = null
         _readaloudOfflineMessage.value = false
+        // Persist any speed change still sitting in the debounce window before the session goes away.
+        flushPendingSpeed()
         storytellerSyncJob?.cancel()
         storytellerSyncJob = null
         // Remember where we stopped before tearing the session down: the sentence narrating now and
@@ -1136,16 +1138,30 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private var speedSaveJob: Job? = null
+    // The speed whose persistence is still pending behind the debounce, so close can flush it
+    // (null once written).
+    private var pendingSpeed: Float? = null
 
     fun setSpeed(speed: Float) {
         // Apply to the live player immediately; persist debounced so a granular scrub/slide (which
         // fires many intermediate values) only writes the settled speed, not every 0.05 step.
         playerCoordinator.setSpeed(speed)
+        pendingSpeed = speed
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
             delay(SPEED_SAVE_DEBOUNCE_MS)
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
+            pendingSpeed = null
         }
+    }
+
+    /** Persist a debounced-but-not-yet-written speed immediately, so the value a user picks just
+     * before dismissing the player isn't lost inside the debounce window. */
+    private fun flushPendingSpeed() {
+        val speed = pendingSpeed ?: return
+        speedSaveJob?.cancel()
+        pendingSpeed = null
+        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
     fun rewind() = playerCoordinator.rewind()

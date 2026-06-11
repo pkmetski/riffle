@@ -225,7 +225,8 @@ private class AboveAnchorPositionProvider(private val gapPx: Int) : PopupPositio
     ): IntOffset {
         val x = ((windowSize.width - popupContentSize.width) / 2)
             .coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
-        val y = anchorBounds.top - popupContentSize.height - gapPx
+        // Float above the anchor, but never let the top clip off-screen on a short viewport.
+        val y = (anchorBounds.top - popupContentSize.height - gapPx).coerceAtLeast(0)
         return IntOffset(x, y)
     }
 }
