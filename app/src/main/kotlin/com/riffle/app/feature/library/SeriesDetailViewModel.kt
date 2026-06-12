@@ -7,12 +7,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
-import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,8 +32,7 @@ class SeriesDetailViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
-    private val epubRepository: EpubRepository,
-    private val pdfRepository: PdfRepository,
+    private val offlineAvailability: LibraryItemOfflineAvailability,
     private val connectivityObserver: ConnectivityObserver,
 ) : ViewModel() {
 
@@ -55,7 +52,7 @@ class SeriesDetailViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val items: StateFlow<List<LibraryItem>> = combine(allItems, isOffline) { items, offline ->
-        if (offline) items.filter { isAvailableOffline(it) } else items
+        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var authToken: String by mutableStateOf("")
@@ -97,12 +94,6 @@ class SeriesDetailViewModel @Inject constructor(
 
     private suspend fun runRefresh() {
         _refreshFailed.value = libraryRepository.refreshSeries(libraryId) is LibraryRefreshResult.NetworkError
-    }
-
-    private fun isAvailableOffline(item: LibraryItem): Boolean = when (item.ebookFormat) {
-        EbookFormat.Epub -> epubRepository.isDownloaded(item.serverId, item.id) || epubRepository.isCached(item.serverId, item.id)
-        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.serverId, item.id) || pdfRepository.isCached(item.serverId, item.id)
-        else -> false
     }
 
     private companion object {

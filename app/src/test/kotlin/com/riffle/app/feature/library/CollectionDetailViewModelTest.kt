@@ -1,6 +1,9 @@
 package com.riffle.app.feature.library
 
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.AudiobookDownloadResult
+import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EbookFormat
@@ -9,6 +12,7 @@ import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfDownloadResult
@@ -137,6 +141,14 @@ class CollectionDetailViewModelTest {
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
+    private class FakeAudiobookDownloadRepository : AudiobookDownloadRepository {
+        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
+        override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
+        override suspend fun download(serverId: String, itemId: String, onProgress: (Long, Long) -> Unit) =
+            AudiobookDownloadResult.Success
+        override suspend fun remove(serverId: String, itemId: String): Long = 0L
+    }
+
     private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
         val state = MutableStateFlow(online)
         override val isOnline: StateFlow<Boolean> = state
@@ -151,8 +163,11 @@ class CollectionDetailViewModelTest {
         libraryRepository = libraryRepository,
         serverRepository = noOpServerRepo,
         tokenStorage = noOpTokenStorage,
-        epubRepository = epubRepository,
-        pdfRepository = FakePdfRepository(),
+        offlineAvailability = LibraryItemOfflineAvailability(
+            epubRepository,
+            FakePdfRepository(),
+            FakeAudiobookDownloadRepository(),
+        ),
         connectivityObserver = connectivityObserver,
     )
 
