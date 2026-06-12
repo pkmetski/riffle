@@ -99,6 +99,18 @@ internal class AbsAudiobookSyncRemote(
 }
 
 /**
+ * Wraps a remote so the cycle still READS it (a genuinely-newer remote still wins inbound) but never
+ * PATCHes it. Used while the reader is parked on the sentence readaloud stopped on: readaloud already
+ * wrote the precise audiobook position on close, so the cycle's page-derived outbound push must not
+ * regress it to the page top (ADR 0031). Outbound resumes once the user navigates off that page.
+ */
+private class InboundOnlyRemote(private val inner: SyncRemote) : SyncRemote {
+    override val id = inner.id
+    override suspend fun tryGet(): RemoteRead? = inner.tryGet()
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? = null
+}
+
+/**
  * Drives one matched readaloud book's two-ABS-peer reconciliation (ADR 0019, as amended by ADR 0029
  * which dropped the Storyteller position peer). Builds the live
  * [SyncRemote]s for the applicable peer set and runs the unified [ProgressSyncStrategy] each
@@ -131,11 +143,19 @@ class ReaderSyncCoordinator(
     private val absEbookEndpoint: AbsSyncEndpoint?,
     private val absAudioEndpoint: AbsSyncEndpoint?,
 ) {
-    suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long): ReaderSyncCycleResult {
+    /**
+     * @param pushAudio when `false`, the audiobook peer is reconciled **inbound-only** (read, never
+     *   patched) — readaloud owns the precise audiobook write while the reader is parked on the
+     *   sentence it stopped on, so the page-derived outbound can't regress it (ADR 0031).
+     */
+    suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long, pushAudio: Boolean = true): ReaderSyncCycleResult {
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
                 RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
-                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookSyncRemote(absApi, it, bridge) }
+                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let {
+                    val remote = AbsAudiobookSyncRemote(absApi, it, bridge)
+                    if (pushAudio) remote else InboundOnlyRemote(remote)
+                }
             }
         }
         val local = LocalCanonical(CanonicalReaderPosition(displayedLocatorJson), localUpdatedAt)

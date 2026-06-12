@@ -16,19 +16,26 @@ object ReadaloudAudioAnchor {
      * @param activeFragment the sentence currently narrated (`null` between clips / before start).
      * @param readaloudOpen whether a readaloud session is active. When `true`, a null [activeFragment]
      *   is transient and must NOT fall back to the page — we skip rather than write a page-top position.
+     * @param parkedFragment the sentence readaloud last **stopped** on (close/pause), retained until the
+     *   user navigates to a different page. When set, the reader is still parked on that exact sentence,
+     *   so reading→audiobook uses it — NOT the page-top, which would regress the audiobook below where
+     *   readaloud stopped (the post-close clobber; ADR 0031). The page-top is only for *genuine* silent
+     *   reading where no sentence is known.
      * @param fragmentSeconds resolves a fragment ref to its absolute audio second (bundle SMIL). Only
      *   ever called for a non-null fragment.
      * @param pageSeconds the page/canonical-derived second (page-top sentence). Only consulted for
-     *   silent reading (no active readaloud); never evaluated while readaloud is open.
+     *   silent reading with no known sentence; never evaluated while readaloud is open or parked.
      */
     inline fun audiobookSeconds(
         activeFragment: String?,
         readaloudOpen: Boolean,
+        parkedFragment: String? = null,
         fragmentSeconds: (String) -> Double?,
         pageSeconds: () -> Double?,
     ): Double? = when {
-        activeFragment != null -> fragmentSeconds(activeFragment) // sentence-sharp; no page fallback
+        activeFragment != null -> fragmentSeconds(activeFragment) // live narration: sentence-sharp
         readaloudOpen -> null                                     // race: fragment not ready — skip
+        parkedFragment != null -> fragmentSeconds(parkedFragment) // parked on the stop sentence: precise
         else -> pageSeconds()                                     // silent reading: page-top is fine
     }
 }

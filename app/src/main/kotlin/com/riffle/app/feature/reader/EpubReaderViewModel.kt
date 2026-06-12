@@ -82,6 +82,9 @@ import java.util.zip.ZipFile
 import javax.inject.Inject
 
 private const val SYNC_INTERVAL_MS = 30_000L
+// A reading-position progression change beyond this (or any href change) counts as navigating off the
+// page readaloud was parked on; smaller deltas are settle jitter on the same page (ADR 0031).
+private const val PARK_PAGE_EPS = 0.001
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
 private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
@@ -602,7 +605,11 @@ class EpubReaderViewModel @Inject constructor(
         val locJson = (locator ?: lastLocator)?.toJSON()?.toString()
         if (locJson != null) {
             val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
-            val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt) }.getOrNull()
+            // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
+            // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
+            // regress it to the page top (ADR 0031). Outbound resumes once the user navigates off the page.
+            val pushAudio = parkedFragmentRef == null
+            val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt, pushAudio) }.getOrNull()
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->
                     runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()?.let { loc ->
@@ -668,7 +675,7 @@ class EpubReaderViewModel @Inject constructor(
         val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
         val seconds = readerSync?.audioSecondsForFragment(fragmentRef, lastLocator?.toJSON()?.toString())
             ?: audiobookFollow?.secondsForFragment(fragmentRef)
-        if (seconds == null) return
+            ?: return
         val snap = readingSyncStore.snapshot(serverId, itemId)
         audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
@@ -685,6 +692,7 @@ class EpubReaderViewModel @Inject constructor(
         val seconds = ReadaloudAudioAnchor.audiobookSeconds(
             activeFragment = playerCoordinator.activeFragmentRef.value,
             readaloudOpen = _readaloudOpen.value,
+            parkedFragment = parkedFragmentRef,
             fragmentSeconds = { f ->
                 readerSync?.audioSecondsForFragment(f, fallbackCanonicalJson = null)
                     ?: audiobookFollow?.secondsForFragment(f)
@@ -743,6 +751,17 @@ class EpubReaderViewModel @Inject constructor(
         _currentLocatorHref.value = locator.href.toString()
         _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
         locator.locations.totalProgression?.toFloat()?.let { _currentLocatorTotalProgression.value = it }
+        // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
+        // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
+        if (parkedFragmentRef != null) {
+            val movedOffPage = locator.href.toString() != parkedLocatorHref ||
+                kotlin.math.abs((locator.locations.progression ?: 0.0) - (parkedProgression ?: 0.0)) > PARK_PAGE_EPS
+            if (movedOffPage) {
+                parkedFragmentRef = null
+                parkedLocatorHref = null
+                parkedProgression = null
+            }
+        }
         if (!initialLocatorSeen) {
             initialLocatorSeen = true
             return
@@ -1193,6 +1212,11 @@ class EpubReaderViewModel @Inject constructor(
         // before close() — it nulls the active fragment.
         resumeFragmentRef = playerCoordinator.activeFragmentRef.value
         closeLocator = lastLocator
+        // Park on the stopped sentence so the audiobook isn't re-derived from the page top until the
+        // user navigates off this page (ADR 0031). Keyed by the reader page we're parked on.
+        parkedFragmentRef = resumeFragmentRef
+        parkedLocatorHref = lastLocator?.href?.toString()
+        parkedProgression = lastLocator?.locations?.progression
         // Persist the same stopped position so it survives leaving the book / process death, not just
         // an in-session reopen. Capture before close() nulls the active fragment.
         persistReadaloudResumePosition(closeLocator, resumeFragmentRef)
@@ -1208,9 +1232,13 @@ class EpubReaderViewModel @Inject constructor(
         // On the flush scope, not viewModelScope: closing readaloud is routinely followed by leaving
         // the book at once, which cancels viewModelScope and would abort this PATCH mid-write.
         if (hadFragment) progressFlushScope.flush {
-            pushAudiobookFromReadingPosition(resumeFragmentRef)
-            // Persist the sentence-precise ebook + local audiobook position too (ADR 0031).
+            // Durable LOCAL writes FIRST, network PATCH second. Opening the audiobook right after closing
+            // readaloud fires its own ABS GET that races this PATCH; if the local audiobook row weren't
+            // already written, the entry reconcile would see stale-vs-stale and resume at the old position.
+            // Local-first makes the durable row authoritative regardless of the network race or being
+            // offline — the ABS push then converges the server (ADR 0030/0031).
             flushReadaloudPositionToStores(resumeFragmentRef)
+            pushAudiobookFromReadingPosition(resumeFragmentRef)
         }
     }
 
@@ -1250,8 +1278,9 @@ class EpubReaderViewModel @Inject constructor(
             // Flush scope (see closeReadaloud): a pause is often immediately followed by leaving the
             // book, which would cancel a viewModelScope-launched PATCH before it reaches ABS.
             if (pausedFragment != null) progressFlushScope.flush {
-                pushAudiobookFromReadingPosition(pausedFragment)
+                // Local-first, then PATCH — same race fix as closeReadaloud (ADR 0031).
                 flushReadaloudPositionToStores(pausedFragment)
+                pushAudiobookFromReadingPosition(pausedFragment)
             }
         } else {
             onPlayTapped()
@@ -1405,6 +1434,14 @@ class EpubReaderViewModel @Inject constructor(
     // Non-null only after a close (not a pause): they drive the resume-vs-page-top decision on reopen.
     private var closeLocator: Locator? = null
     private var resumeFragmentRef: String? = null
+
+    // "Parked" on the sentence readaloud last stopped on (set on close, while the reader stays on that
+    // page). While parked, reading→audiobook uses THIS sentence — not the page-top — so a debounced
+    // reading-save or a reconcile cycle firing after close can't regress the audiobook below where
+    // readaloud stopped (ADR 0031). Cleared on the first genuine navigation off the parked page.
+    private var parkedFragmentRef: String? = null
+    private var parkedLocatorHref: String? = null
+    private var parkedProgression: Double? = null
 
     // The exact narrated sentence a server sync placed the reader at (set in runReaderSyncCycle on an
     // inbound jump). The next "start readaloud" begins here so it matches the synced audiobook
