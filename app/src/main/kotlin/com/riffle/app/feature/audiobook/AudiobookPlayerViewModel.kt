@@ -366,6 +366,11 @@ class AudiobookPlayerViewModel @Inject constructor(
     private fun pushProgressOnStop() {
         if (serverId.isEmpty()) return
         val pos = controller.currentAbsoluteSec()
+        // Only persist/push a genuine, settled position. A pause/teardown before the resume seek has
+        // settled leaves currentAbsoluteSec() at a transient book-start value; now that the position is
+        // durably stored locally AND pushed to ABS, writing that transient would regress the resume to
+        // 0 on the next open — the same fresh-stamped-0 erase the follow loop already guards against.
+        if (pos < reconciledResumeSec - SETTLE_EPS_SEC) return
         val fraction = audiobookProgressFraction(pos, timeline.durationSec)
         viewModelScope.launch {
             // Backend (ABS) sync — outside the coordinator, like the reader's progress-sync cycle.
