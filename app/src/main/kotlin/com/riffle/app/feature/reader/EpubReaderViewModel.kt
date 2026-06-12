@@ -1409,6 +1409,20 @@ class EpubReaderViewModel @Inject constructor(
         }
         readaloudStarted = true
 
+        // Reconcile the readaloud start against the LOCAL audiobook position (ADR 0031): if the
+        // audiobook was advanced more recently than the reading position (e.g. an offline listen, or a
+        // listen whose ABS push hasn't landed), start readaloud at that listen position's sentence —
+        // derived bundle-SMIL-only (audio seconds → fragment), so it works even without the cross-EPUB
+        // index or an ABS round-trip. Last-update-wins across the two local stores.
+        val localAudioStartFragment: String? = run {
+            val sid = readerSyncServerId ?: return@run null
+            val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return@run null
+            val audioSnap = audioSyncStore.snapshot(sid, audioItemId)
+            val seconds = audioSnap.position ?: return@run null
+            if (audioSnap.localUpdatedAt <= readingSyncStore.snapshot(sid, itemId).localUpdatedAt) return@run null
+            readerSync?.fragmentForAudioSeconds(seconds) ?: audiobookFollow?.fragmentForAudioSeconds(seconds)
+        }
+
         // Matched book: readaloud starts at the reconciled reading position. There is no
         // separate "first sentence of the page" concept — Play resumes where listening/reading last
         // was; a specific sentence is reached via Play-from-here. (A matched audiobook is optional —
@@ -1425,7 +1439,8 @@ class EpubReaderViewModel @Inject constructor(
             val pending = pendingStartFragmentRef?.takeIf { p ->
                 lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
             }
-            val startFragment = pending
+            val startFragment = localAudioStartFragment
+                ?: pending
                 ?: resumeFragmentRef
                 ?: lastLocator?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
             pendingStartFragmentRef = null
@@ -1436,6 +1451,17 @@ class EpubReaderViewModel @Inject constructor(
             } else {
                 lastLocator?.href?.let { playerCoordinator.playFromReaderPosition(it.toString(), null) }
             }
+            return
+        }
+
+        // Matched book without the full coordinator (no cross-EPUB index): a newer local listen still
+        // seeds the readaloud start from the bundle SMIL (ADR 0031) — closes the audiobook→readaloud
+        // asymmetry index-free.
+        if (localAudioStartFragment != null) {
+            pendingStartFragmentRef = null
+            closeLocator = null
+            resumeFragmentRef = null
+            playerCoordinator.playFromHere(localAudioStartFragment)
             return
         }
 

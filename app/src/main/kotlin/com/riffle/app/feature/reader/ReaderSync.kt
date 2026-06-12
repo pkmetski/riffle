@@ -193,6 +193,10 @@ class ReaderSyncCoordinator(
         bridge.audioSecondsForFragment(fragmentRef)
             ?: fallbackCanonicalJson?.let { bridge.canonicalToAudioSeconds(it) }
 
+    /** The narrated sentence an absolute audio second falls in (bundle SMIL, index-free) — seeds the
+     *  readaloud start from a local listen position (ADR 0031). */
+    fun fragmentForAudioSeconds(seconds: Double): String? = bridge.fragmentForAudioSeconds(seconds)
+
     /** The reading-position locator JSON an audiobook second maps to (bundle SMIL) — the counterpart
      *  for the audiobook player's dual-write onto the reading store. `null` if untranslatable. */
     fun canonicalForAudioSeconds(seconds: Double): String? =
@@ -279,6 +283,11 @@ class AudiobookFollow(
 ) {
     /** The absolute audio second the narrated sentence begins (bundle SMIL), or `null` if unknown. */
     fun secondsForFragment(fragmentRef: String): Double? = translator.fragmentRefToAudioSeconds(fragmentRef)
+
+    /** The narrated sentence an absolute audio second falls in (bundle SMIL, index-free) — seeds the
+     *  readaloud start from a local listen position even with no cross-EPUB index (ADR 0031). */
+    fun fragmentForAudioSeconds(seconds: Double): String? =
+        translator.audioSecondsToStorytellerProgression(seconds)?.let { translator.fragmentAt(it) }
 
     /** PATCH the ABS audiobook record from the narrated sentence; returns the server stamp or `null`. */
     suspend fun pushFragment(fragmentRef: String): Long? =

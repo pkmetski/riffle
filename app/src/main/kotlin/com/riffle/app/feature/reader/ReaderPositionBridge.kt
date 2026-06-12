@@ -131,6 +131,11 @@ class ReaderPositionBridge(
     fun audioSecondsForFragment(textFragmentRef: String): Double? =
         translator.fragmentRefToAudioSeconds(textFragmentRef)
 
+    /** The narrated Storyteller fragment (`href#id`) an absolute audio time falls in — bundle-SMIL
+     *  only (no cross-EPUB index), so a listen position can seed the readaloud start (ADR 0031). */
+    fun fragmentForAudioSeconds(seconds: Double): String? =
+        translator.audioSecondsToStorytellerProgression(seconds)?.let { translator.fragmentAt(it) }
+
     /** The narrated Storyteller fragment (`href#id`) a canonical reading position falls in — the
      *  sentence readaloud should start at when a server sync placed the reader here. */
     fun canonicalToFragmentRef(locatorJson: String): String? =
