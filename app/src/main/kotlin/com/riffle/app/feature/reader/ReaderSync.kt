@@ -186,10 +186,33 @@ class ReaderSyncCoordinator(
     fun audioSecondsForCanonical(canonicalLocatorJson: String): Double? =
         bridge.canonicalToAudioSeconds(canonicalLocatorJson)
 
+    /** The audiobook second the **narrated sentence** maps to (bundle SMIL, sentence-precise), falling
+     *  back to the page-derived position. Used to persist the local audiobook position on readaloud
+     *  close/pause (ADR 0031). `null` if neither can be translated. */
+    fun audioSecondsForFragment(fragmentRef: String, fallbackCanonicalJson: String?): Double? =
+        bridge.audioSecondsForFragment(fragmentRef)
+            ?: fallbackCanonicalJson?.let { bridge.canonicalToAudioSeconds(it) }
+
     /** The reading-position locator JSON an audiobook second maps to (bundle SMIL) — the counterpart
      *  for the audiobook player's dual-write onto the reading store. `null` if untranslatable. */
     fun canonicalForAudioSeconds(seconds: Double): String? =
         bridge.audioSecondsToCanonical(seconds)
+
+    /**
+     * The readaloud resume anchor (reader href + column progression + narrated sentence) an audiobook
+     * second maps to, via the bundle's SMIL (ADR 0031). Lets the audiobook player write the readaloud
+     * resume so reopening the reader and starting readaloud lands where the listen got to. `null` when
+     * the seconds can't be translated (prerequisites mid-cache).
+     */
+    fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {
+        val canonicalJson = bridge.audioSecondsToCanonical(seconds) ?: return null
+        val fragmentRef = bridge.canonicalToFragmentRef(canonicalJson)
+        val locations = runCatching { org.json.JSONObject(canonicalJson) }.getOrNull()?.optJSONObject("locations")
+        val href = runCatching { org.json.JSONObject(canonicalJson) }.getOrNull()?.optString("href")
+            ?.takeIf { it.isNotEmpty() } ?: return null
+        val progression = locations?.takeIf { it.has("progression") }?.optDouble("progression")?.takeIf { !it.isNaN() }
+        return com.riffle.core.domain.ReadaloudResumePosition(href, progression, fragmentRef)
+    }
 
     /**
      * Re-keys a "Play from here" selection ref (the displayed ABS `href#spanId`) onto the Storyteller

@@ -88,6 +88,9 @@ class AudiobookPlayerViewModel @Inject constructor(
     // mirror the translated reading position onto the sibling (ebook) row.
     private val readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
     private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
+    // Listening is also reading-aloud: write the readaloud resume from the listen position so reopening
+    // the reader and starting readaloud lands where the audiobook got to (ADR 0031).
+    private val readaloudResumeStore: com.riffle.core.domain.ReadaloudResumeStore,
     // While the player is open it drives the book's reconciliation; the durable sweep skips it so it
     // can't absorb a cross-device server-win the player hasn't seeked to (ADR 0030).
     private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
@@ -456,6 +459,13 @@ class AudiobookPlayerViewModel @Inject constructor(
                 localUpdatedAt = System.currentTimeMillis()
                 val r = rs.runAudioLedCycle(pos, localUpdatedAt)
                 localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
+                // Write the readaloud resume from this listen position (ADR 0031), keyed by the ebook
+                // item id (readaloud resume lives in reader-locator space).
+                rs.ebookItemId?.let { ebookId ->
+                    rs.readaloudAnchorForAudioSeconds(pos)?.let { anchor ->
+                        readaloudResumeStore.save(serverId, ebookId, anchor)
+                    }
+                }
             } else {
                 audiobookRepository.saveProgress(serverId, itemId, pos, timeline.durationSec)
             }

@@ -637,6 +637,30 @@ class EpubReaderViewModel @Inject constructor(
      * additive write to the sibling row — it never touches the reading row. No-op unless matched with an
      * audiobook target and the position is translatable.
      */
+    /**
+     * Flush the full readaloud position into the local stores on close/pause (ADR 0031): persist the
+     * **sentence-precise** ebook reading position (the narrated sentence's text-anchored locator — the
+     * same one used for the highlight, so the ebook reflects exactly where readaloud stopped, not the
+     * column), and the local audiobook position (the sentence's audio second via the bundle SMIL),
+     * keyed by the audiobook's own ABS item id. The ABS push is done by the caller's
+     * [pushAudiobookFromReadingPosition]; this adds the durable local writes so the audiobook and ebook
+     * resume there even offline. Matched-only; no-op without a coordinator or a resolvable sentence.
+     */
+    private suspend fun flushReadaloudPositionToStores(fragmentRef: String?) {
+        val coordinator = readerSync ?: return
+        val serverId = readerSyncServerId ?: return
+        if (fragmentRef == null) return
+        // Sentence-precise ebook position. saveReadingPosition stamps now() and marks the row dirty.
+        val sid = fragmentRef.substringAfter('#', "")
+        val sentenceJson = readaloudLocatorJson(fragmentRef, _sentenceQuotes.value[sid]).toString()
+        epubRepository.saveReadingPosition(itemId, sentenceJson)
+        // Local audiobook position at the sentence (SMIL), mirroring the just-saved reading row's state.
+        val audioItemId = coordinator.audioItemId ?: return
+        val seconds = coordinator.audioSecondsForFragment(fragmentRef, lastLocator?.toJSON()?.toString()) ?: return
+        val snap = readingSyncStore.snapshot(serverId, itemId)
+        audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
+    }
+
     private suspend fun mirrorReadingToAudiobook(canonicalJson: String) {
         val coordinator = readerSync ?: return
         if (!coordinator.hasAudioTarget) return
@@ -1153,7 +1177,11 @@ class EpubReaderViewModel @Inject constructor(
         // here would push the page top (chapter start) instead of the sentence we stopped on.
         // On the flush scope, not viewModelScope: closing readaloud is routinely followed by leaving
         // the book at once, which cancels viewModelScope and would abort this PATCH mid-write.
-        if (hadFragment) progressFlushScope.flush { pushAudiobookFromReadingPosition(resumeFragmentRef) }
+        if (hadFragment) progressFlushScope.flush {
+            pushAudiobookFromReadingPosition(resumeFragmentRef)
+            // Persist the sentence-precise ebook + local audiobook position too (ADR 0031).
+            flushReadaloudPositionToStores(resumeFragmentRef)
+        }
     }
 
     /**
@@ -1191,7 +1219,10 @@ class EpubReaderViewModel @Inject constructor(
             playerCoordinator.pause()
             // Flush scope (see closeReadaloud): a pause is often immediately followed by leaving the
             // book, which would cancel a viewModelScope-launched PATCH before it reaches ABS.
-            if (pausedFragment != null) progressFlushScope.flush { pushAudiobookFromReadingPosition(pausedFragment) }
+            if (pausedFragment != null) progressFlushScope.flush {
+                pushAudiobookFromReadingPosition(pausedFragment)
+                flushReadaloudPositionToStores(pausedFragment)
+            }
         } else {
             onPlayTapped()
         }
