@@ -129,6 +129,9 @@ class EpubReaderViewModel @Inject constructor(
     // book's reading row stamps and mirror the translated audiobook second onto the sibling row.
     private val readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
     private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
+    // While this reader is open it drives the book's reconciliation; the durable sweep must skip it
+    // so it can't absorb a cross-device server-win the visible reader hasn't jumped to (ADR 0030).
+    private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
@@ -399,6 +402,8 @@ class EpubReaderViewModel @Inject constructor(
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
             readerServerId = activeServer?.id
+            // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
+            activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
 
             // Resolve the audio-settings key and load the saved speed (ADR 0028). With a link, the
             // resolver prefers the linked audiobook's id; without one, settings key on this ABS item.
@@ -530,6 +535,11 @@ class EpubReaderViewModel @Inject constructor(
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
                 readerSyncServerId = serverRepository.getActive()?.id
+                // A matched book also drives the audiobook ABS record from this reader, so the sweep
+                // must skip that (possibly split-library) item too while the reader is open (ADR 0030).
+                readerSyncServerId?.let { sid ->
+                    readerSync?.audioItemId?.let { openReconcileTargets.markOpen(sid, it) }
+                }
 
                 // Sync immediately while localUpdatedAt is still the genuine stored value —
                 // before the navigator restore emits and would stamp localUpdatedAt = now.
@@ -872,6 +882,11 @@ class EpubReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Release this book to the durable sweep again (ADR 0030).
+        readerServerId?.let { sid ->
+            openReconcileTargets.markClosed(sid, itemId)
+            readerSync?.audioItemId?.let { openReconcileTargets.markClosed(sid, it) }
+        }
         epubZip?.close()
         epubZip = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).

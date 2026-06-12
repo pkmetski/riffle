@@ -88,6 +88,9 @@ class AudiobookPlayerViewModel @Inject constructor(
     // mirror the translated reading position onto the sibling (ebook) row.
     private val readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
     private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
+    // While the player is open it drives the book's reconciliation; the durable sweep skips it so it
+    // can't absorb a cross-device server-win the player hasn't seeked to (ADR 0030).
+    private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
     private val progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
 ) : ViewModel() {
 
@@ -179,6 +182,8 @@ class AudiobookPlayerViewModel @Inject constructor(
         viewModelScope.launch {
             val server = serverRepository.getActive()
             serverId = server?.id ?: ""
+            // Claim this audiobook so the durable sweep leaves it to this player's own cycle (ADR 0030).
+            if (serverId.isNotEmpty()) openReconcileTargets.markOpen(serverId, itemId)
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
             val item = libraryRepository.getItem(itemId)
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
@@ -306,6 +311,9 @@ class AudiobookPlayerViewModel @Inject constructor(
         if (readerSync != null || serverId.isEmpty()) return readerSync != null
         val rs = readerSyncFactory.createIfApplicable(itemId) ?: return false
         readerSync = rs
+        // Matched: this player also drives the ebook ABS record, so the sweep must skip that
+        // (possibly split-library) item too while the player is open (ADR 0030).
+        if (serverId.isNotEmpty()) rs.ebookItemId?.let { openReconcileTargets.markOpen(serverId, it) }
         // Seed the first cycle with the reconciled resume (not the live clock, which may not have
         // settled) and its timestamp: a genuinely-newer local listen leads and propagates to the ebook
         // CFI + audiobook record, while a newer remote (e.g. an ABS-web read) still wins and seeks.
@@ -465,6 +473,11 @@ class AudiobookPlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         followJob?.cancel()
+        // Release this book to the durable sweep again (ADR 0030).
+        if (serverId.isNotEmpty()) {
+            openReconcileTargets.markClosed(serverId, itemId)
+            readerSync?.ebookItemId?.let { openReconcileTargets.markClosed(serverId, it) }
+        }
         flushPendingSpeed()
         pushProgressOnStop()
         controller.stop()

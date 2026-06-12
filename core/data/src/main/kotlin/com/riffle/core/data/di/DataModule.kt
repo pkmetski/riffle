@@ -304,6 +304,7 @@ abstract class DataModule {
             resolver: com.riffle.core.data.ServerTokenResolver,
             remoteFactory: com.riffle.core.data.ProgressRemoteFactory,
             locks: com.riffle.core.data.ProgressSyncLocks,
+            openTargets: com.riffle.core.data.OpenReconcileTargets,
             ebookStore: ReadingPositionStoreImpl,
             audioStore: AudiobookPositionStoreImpl,
         ): com.riffle.core.data.ProgressSweep =
@@ -311,7 +312,7 @@ abstract class DataModule {
                 ledger, resolver,
                 com.riffle.core.domain.ProgressReconciler(ebookStore),
                 com.riffle.core.domain.ProgressReconciler(audioStore),
-                remoteFactory, locks,
+                remoteFactory, locks, openTargets,
             )
 
         @Provides

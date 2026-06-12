@@ -92,10 +92,11 @@ class ProgressSweepTest {
         ebookStore: SyncPositionStore<String>,
         audioStore: SyncPositionStore<Double>,
         factory: ProgressRemoteFactory,
+        openTargets: OpenReconcileTargets = OpenReconcileTargets(),
     ) = ProgressSweep(
         ledger, resolver,
         ProgressReconciler(ebookStore), ProgressReconciler(audioStore),
-        factory, ProgressSyncLocks(),
+        factory, ProgressSyncLocks(), openTargets,
     )
 
     @Test
@@ -141,6 +142,23 @@ class ProgressSweepTest {
         assertFalse(store.dirty("s1", "i1"))
         assertTrue(store.dirty("s2", "i2")) // untouched
         assertFalse("s2 must never be contacted", factory.ebookBuilt.contains("s2" to "i2"))
+    }
+
+    @Test
+    fun `skips a book a live surface is currently driving, leaving it dirty`() = runTest {
+        val store = FakeStore<String>().apply { rows["s1" to "open"] = Triple("local", 300L, 100L) }
+        val factory = RecordingFactory(
+            ebookRemotes = mapOf(("s1" to "open") to FakeRemote(RemoteProgress("srv", 200L), stamp = 305L)),
+        )
+        val openTargets = OpenReconcileTargets().apply { markOpen("s1", "open") }
+
+        sweep(
+            ledger(listOf("s1"), ebook = mapOf("s1" to listOf("open"))),
+            ServerTokenResolver { id -> server(id) to "tok" }, store, FakeStore(), factory, openTargets,
+        ).run()
+
+        assertTrue("open book is left to its own live cycle", store.dirty("s1", "open"))
+        assertFalse("open book is never contacted by the sweep", factory.ebookBuilt.contains("s1" to "open"))
     }
 
     @Test

@@ -38,16 +38,20 @@ class ProgressSweep(
     private val audioReconciler: ProgressReconciler<Double>,
     private val remoteFactory: ProgressRemoteFactory,
     private val locks: ProgressSyncLocks,
+    private val openTargets: OpenReconcileTargets,
 ) {
     suspend fun run() {
         for (serverId in ledger.serversWithDirty()) {
             val (server, token) = resolver.resolve(serverId) ?: continue
             for (itemId in ledger.dirtyEbookItems(serverId)) {
+                // Skip a book a live surface is driving — its own cycle owns inbound jumps (ADR 0030).
+                if (openTargets.isOpen(serverId, itemId)) continue
                 locks.withLock(serverId, itemId, RemoteKind.ABS_EBOOK) {
                     ebookReconciler.reconcile(serverId, itemId, remoteFactory.ebook(server, token, itemId))
                 }
             }
             for (itemId in ledger.dirtyAudioItems(serverId)) {
+                if (openTargets.isOpen(serverId, itemId)) continue
                 locks.withLock(serverId, itemId, RemoteKind.ABS_AUDIO) {
                     audioReconciler.reconcile(serverId, itemId, remoteFactory.audio(server, token, itemId))
                 }
