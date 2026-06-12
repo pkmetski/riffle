@@ -171,6 +171,26 @@ class ReaderSyncCoordinator(
     fun fragmentForCanonical(canonicalLocatorJson: String): String? =
         bridge.canonicalToFragmentRef(canonicalLocatorJson)
 
+    /** Whether this matched book carries an audiobook ABS record (the dual-write sibling, ADR 0030). */
+    val hasAudioTarget: Boolean get() = absAudioEndpoint != null
+
+    /** The ABS item id of the audiobook record — the audio store key for the dual-write. May differ
+     *  from the ebook item id when a library splits ebooks and audiobooks (ADR 0019). */
+    val audioItemId: String? get() = absAudioEndpoint?.itemId
+
+    /** The ABS item id of the ebook record — the reading store key for the dual-write (ADR 0030). */
+    val ebookItemId: String? get() = absEbookEndpoint?.itemId
+
+    /** The audiobook second a reading position maps to (bundle SMIL) — the value the cycle already
+     *  pushes to ABS_AUDIO; the dual-write persists it locally too. `null` if untranslatable. */
+    fun audioSecondsForCanonical(canonicalLocatorJson: String): Double? =
+        bridge.canonicalToAudioSeconds(canonicalLocatorJson)
+
+    /** The reading-position locator JSON an audiobook second maps to (bundle SMIL) — the counterpart
+     *  for the audiobook player's dual-write onto the reading store. `null` if untranslatable. */
+    fun canonicalForAudioSeconds(seconds: Double): String? =
+        bridge.audioSecondsToCanonical(seconds)
+
     /**
      * Re-keys a "Play from here" selection ref (the displayed ABS `href#spanId`) onto the Storyteller
      * bundle chapter the selection sits in, so the player resolves the clip in THAT chapter rather than

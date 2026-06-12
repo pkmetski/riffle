@@ -163,6 +163,16 @@ class SyncPositionStoreTest {
         assertEquals(100L, row.lastSyncedAt)
     }
 
+    @Test
+    fun `mirror writes the counterpart position with the native row's exact timestamps`() = runTest {
+        val dao = FakeReadingDao()
+        ReadingPositionStoreImpl(dao).mirror("s", "i", "counterpart-cfi", localUpdatedAt = 300L, lastSyncedAt = 100L)
+        val row = dao.rows["s" to "i"]!!
+        assertEquals("counterpart-cfi", row.cfi)
+        assertEquals(300L, row.localUpdatedAt)
+        assertEquals(100L, row.lastSyncedAt) // mirrors the native row's dirty state exactly
+    }
+
     // --- audio store (Double payload) parity ---
 
     private class FakeAudioDao : AudiobookPositionDao {

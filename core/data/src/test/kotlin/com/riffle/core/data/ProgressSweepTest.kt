@@ -42,6 +42,9 @@ class ProgressSweepTest {
             if (cur.second != ifLocalUpdatedAt) return false
             rows[serverId to itemId] = cur.copy(third = cur.second); return true
         }
+        override suspend fun mirror(serverId: String, itemId: String, position: P, localUpdatedAt: Long, lastSyncedAt: Long) {
+            rows[serverId to itemId] = Triple(position, localUpdatedAt, lastSyncedAt)
+        }
         fun dirty(serverId: String, itemId: String): Boolean =
             rows[serverId to itemId]!!.let { it.second > it.third }
         private fun <P> Triple<P?, Long, Long>.copy(second: Long = this.second, third: Long = this.third) =

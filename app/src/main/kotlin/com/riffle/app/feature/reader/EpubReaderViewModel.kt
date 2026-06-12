@@ -125,6 +125,10 @@ class EpubReaderViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val readerSyncFactory: ReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
+    // Sync-store views of the same position rows for the matched dual-write (ADR 0030): read this
+    // book's reading row stamps and mirror the translated audiobook second onto the sibling row.
+    private val readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
+    private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
@@ -156,7 +160,12 @@ class EpubReaderViewModel @Inject constructor(
     )
 
     private val positionSaveCoordinator = PositionSaveCoordinator<String>(
-        savePosition = { cfi -> epubRepository.saveReadingPosition(itemId, cfi) },
+        savePosition = { cfi ->
+            epubRepository.saveReadingPosition(itemId, cfi)
+            // Matched book: reading is also listening — persist the translated audiobook position
+            // locally so the durable sweep pushes the audio record too, without reopening (ADR 0030).
+            mirrorReadingToAudiobook(cfi)
+        },
         updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
     )
 
@@ -606,6 +615,26 @@ class EpubReaderViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Dual-write the counterpart audiobook position locally (ADR 0030). For a matched book, reading is
+     * the same activity as listening, so the just-saved reading position is also persisted into the
+     * audiobook store — translated through the bundle's SMIL into the audio second (the exact value the
+     * cycle pushes to ABS_AUDIO), keyed by the audiobook's own ABS item id, and stamped with the
+     * reading row's current (localUpdatedAt, lastSyncedAt) so both rows carry the same dirty state. The
+     * durable sweep then pushes the audiobook record too, without the player ever being opened. Pure
+     * additive write to the sibling row — it never touches the reading row. No-op unless matched with an
+     * audiobook target and the position is translatable.
+     */
+    private suspend fun mirrorReadingToAudiobook(canonicalJson: String) {
+        val coordinator = readerSync ?: return
+        if (!coordinator.hasAudioTarget) return
+        val serverId = readerSyncServerId ?: return
+        val audioItemId = coordinator.audioItemId ?: return
+        val seconds = coordinator.audioSecondsForCanonical(canonicalJson) ?: return
+        val snap = readingSyncStore.snapshot(serverId, itemId)
+        audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
 
     /**

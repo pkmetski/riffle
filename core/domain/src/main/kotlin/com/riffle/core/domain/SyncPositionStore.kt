@@ -40,4 +40,19 @@ interface SyncPositionStore<P> {
         itemId: String,
         ifLocalUpdatedAt: Long,
     ): Boolean
+
+    /**
+     * Unconditionally write the counterpart of a matched book's position into this (sibling) store,
+     * copying the native row's exact [localUpdatedAt]/[lastSyncedAt] so both representations carry the
+     * same timestamp and dirty state (ADR 0030: reading and listening are the same activity). [position]
+     * is the value the live cycle already derives for the sibling — the dual-write persists it locally
+     * so the durable sweep can push the sibling ABS record too, without the book being reopened.
+     */
+    suspend fun mirror(
+        serverId: String,
+        itemId: String,
+        position: P,
+        localUpdatedAt: Long,
+        lastSyncedAt: Long,
+    )
 }

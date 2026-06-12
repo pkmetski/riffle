@@ -268,6 +268,14 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindEbookSyncPositionStore(impl: ReadingPositionStoreImpl): com.riffle.core.domain.SyncPositionStore<String>
+
+    @Binds
+    @Singleton
+    abstract fun bindAudioSyncPositionStore(impl: AudiobookPositionStoreImpl): com.riffle.core.domain.SyncPositionStore<Double>
+
+    @Binds
+    @Singleton
     abstract fun bindDirtyProgressLedger(impl: com.riffle.core.data.RoomDirtyProgressLedger): com.riffle.core.data.DirtyProgressLedger
 
     @Binds

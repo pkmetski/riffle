@@ -54,4 +54,10 @@ class AudiobookPositionStoreImpl @Inject constructor(
     override suspend fun confirmInSync(
         serverId: String, itemId: String, ifLocalUpdatedAt: Long,
     ): Boolean = dao.confirmInSyncIfUnchanged(serverId, itemId, ifLocalUpdatedAt) > 0
+
+    override suspend fun mirror(
+        serverId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long,
+    ) {
+        dao.upsert(AudiobookPositionEntity(serverId, itemId, position, localUpdatedAt, lastSyncedAt))
+    }
 }

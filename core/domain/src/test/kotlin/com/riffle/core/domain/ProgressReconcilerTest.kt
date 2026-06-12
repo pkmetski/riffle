@@ -52,6 +52,14 @@ class ProgressReconcilerTest {
             return true
         }
 
+        override suspend fun mirror(
+            serverId: String, itemId: String, position: P, localUpdatedAt: Long, lastSyncedAt: Long,
+        ) {
+            this.position = position
+            this.localUpdatedAt = localUpdatedAt
+            this.lastSyncedAt = lastSyncedAt
+        }
+
         val dirty: Boolean get() = localUpdatedAt > lastSyncedAt
     }
 

@@ -59,4 +59,10 @@ class ReadingPositionStoreImpl @Inject constructor(
     override suspend fun confirmInSync(
         serverId: String, itemId: String, ifLocalUpdatedAt: Long,
     ): Boolean = dao.confirmInSyncIfUnchanged(serverId, itemId, ifLocalUpdatedAt) > 0
+
+    override suspend fun mirror(
+        serverId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long,
+    ) {
+        dao.upsert(ReadingPositionEntity(serverId, itemId, position, localUpdatedAt, lastSyncedAt))
+    }
 }
