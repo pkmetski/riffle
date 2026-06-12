@@ -116,11 +116,27 @@ class ImmersiveModeState internal constructor(
         controller.show()
     }
 
-    // Called when the system restores bars externally (edge-swipe with BEHAVIOR_DEFAULT).
-    // Also fires after toggle() because the topInset watcher in rememberImmersiveModeState
-    // sees the 0→positive transition that controller.show(systemBars()) triggers. The call
-    // is idempotent here — flags are already in the target state — so it's safe.
+    // Called when the topInset watcher in rememberImmersiveModeState sees the bars become
+    // visible (0→positive top inset) without us asking. Two sources reach here:
+    //
+    //  - A user reveal via toggle()/show(): systemBarsHidden was already cleared, so we let the
+    //    overlay follow (isImmersive = false) — flags are already in the target state.
+    //
+    //  - An *unrequested* reveal while we still believe the bars should be hidden
+    //    (systemBarsHidden == true): a system edge gesture revealed them. A side-edge page-turn
+    //    swipe lands in the OS back-gesture zone, and under BEHAVIOR_DEFAULT that flashes the
+    //    system bars — which otherwise drops the reader out of immersive mode on every edge swipe.
+    //    We re-hide and stay immersive instead, so the bars are only ever revealed by an explicit
+    //    tap-to-toggle. (Verified on an API-33 emulator with gesture navigation: a side-edge swipe
+    //    now stays in immersive mode. Note this also suppresses the incidental top-edge
+    //    swipe-down reveal — the tap is the supported way to bring the chrome back.)
     internal fun onBarsRestoredExternally() {
+        if (systemBarsHidden) {
+            // Bars are currently shown (the OS just flashed them) so re-hiding is a real hide,
+            // not a double-hide; isImmersive stays true.
+            controller.hide()
+            return
+        }
         systemBarsHidden = false
         isImmersive = false
     }
