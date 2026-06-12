@@ -3,6 +3,7 @@
 package com.riffle.app.feature.reader
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -667,7 +668,9 @@ class EpubReaderViewModel @Inject constructor(
         // bundle-SMIL-only follow (ADR 0031), mirroring the just-saved reading row's state.
         val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
         val seconds = readerSync?.audioSecondsForFragment(fragmentRef, lastLocator?.toJSON()?.toString())
-            ?: audiobookFollow?.secondsForFragment(fragmentRef) ?: return
+            ?: audiobookFollow?.secondsForFragment(fragmentRef)
+        Log.i("RIFFLE_RASYNC", "flush: frag=$fragmentRef -> seconds=$seconds")
+        if (seconds == null) return
         val snap = readingSyncStore.snapshot(serverId, itemId)
         audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
@@ -685,7 +688,9 @@ class EpubReaderViewModel @Inject constructor(
                 ?: audiobookFollow?.secondsForFragment(activeFragment)
         } else {
             readerSync?.audioSecondsForCanonical(canonicalJson)
-        } ?: return
+        }
+        Log.i("RIFFLE_RASYNC", "mirror: activeFrag=$activeFragment path=${if (activeFragment != null) "fragment" else "page"} -> seconds=$seconds")
+        if (seconds == null) return
         val snap = readingSyncStore.snapshot(serverId, itemId)
         audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
@@ -710,6 +715,11 @@ class EpubReaderViewModel @Inject constructor(
         val serverId = readerSyncServerId ?: return
         val coordinator = readerSync
         val locJson = lastLocator?.toJSON()?.toString()
+        // Diagnostic (ADR 0031): does the narrated fragment resolve to a SMIL second, or do we fall back
+        // to the page? fragSec non-null = sentence-sharp; if null while pageSec is set, that's the bug.
+        val dbgFragSec = fragment?.let { coordinator?.audioSecondsForFragment(it, null) ?: audiobookFollow?.secondsForFragment(it) }
+        val dbgPageSec = locJson?.let { coordinator?.audioSecondsForCanonical(it) }
+        Log.i("RIFFLE_RASYNC", "push: frag=$fragment fragSec=$dbgFragSec pageSec=$dbgPageSec coord=${coordinator != null} follow=${audiobookFollow != null}")
         val stamp = runCatching {
             when {
                 coordinator != null ->
