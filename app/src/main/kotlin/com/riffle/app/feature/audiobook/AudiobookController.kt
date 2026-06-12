@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.app.feature.reader.readaloud.AudioPlayerService
+import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -79,9 +81,14 @@ class AudiobookController @Inject constructor(
         spans: List<AudiobookTrackSpan>,
         durationSec: Double,
         startAtSec: Double,
+        localZipFile: File? = null,
     ) {
         this.spans = spans
         this.durationSec = durationSec
+        // Bundle-backed audio: the track mediaIds are zip-entry paths the service reads from this file
+        // via SharedBundle (the same channel Readaloud uses). Null for HTTP/file sessions, where the
+        // service never consults SharedBundle.
+        if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
         val items = trackUrls.map { url ->
             MediaItem.Builder().setMediaId(url).setUri(url).build()
