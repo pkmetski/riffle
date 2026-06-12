@@ -62,6 +62,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val crossEpubIndexBuilder: com.riffle.core.data.CrossEpubIndexBuilderService,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
+    private val progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -372,7 +373,10 @@ class AudiobookPlayerViewModel @Inject constructor(
         // 0 on the next open — the same fresh-stamped-0 erase the follow loop already guards against.
         if (pos < reconciledResumeSec - SETTLE_EPS_SEC) return
         val fraction = audiobookProgressFraction(pos, timeline.durationSec)
-        viewModelScope.launch {
+        // Flush scope, not viewModelScope: pushProgressOnStop runs from onCleared, by which point the
+        // viewModelScope is already cancelled — a launch there never executes, so the final close
+        // position was silently dropped. The survivable scope guarantees the PATCH completes.
+        progressFlushScope.flush {
             // Backend (ABS) sync — outside the coordinator, like the reader's progress-sync cycle.
             val rs = readerSync
             if (rs != null) {
