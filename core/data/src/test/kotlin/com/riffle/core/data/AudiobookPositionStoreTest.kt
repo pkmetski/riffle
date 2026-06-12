@@ -18,6 +18,32 @@ class AudiobookPositionStoreTest {
         }
         override suspend fun getByItemId(serverId: String, itemId: String): AudiobookPositionEntity? =
             entities[serverId to itemId]
+        override suspend fun acceptServerIfUnchanged(
+            serverId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long,
+        ): Int {
+            val e = entities[serverId to itemId] ?: return 0
+            if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
+            entities[serverId to itemId] = e.copy(positionSec = positionSec, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            return 1
+        }
+        override suspend fun confirmPushedIfUnchanged(
+            serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+        ): Int {
+            val e = entities[serverId to itemId] ?: return 0
+            if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
+            entities[serverId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            return 1
+        }
+        override suspend fun confirmInSyncIfUnchanged(serverId: String, itemId: String, ifLocalUpdatedAt: Long): Int {
+            val e = entities[serverId to itemId] ?: return 0
+            if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
+            entities[serverId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
+            return 1
+        }
+        override suspend fun dirtyForServer(serverId: String) =
+            entities.values.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun serversWithDirtyRows() =
+            entities.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
     }
 
     @Test
