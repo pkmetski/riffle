@@ -154,16 +154,34 @@ class ImmersiveModeStateTest {
     }
 
     @Test
-    fun `onBarsRestoredExternally clears immersive and hidden flags`() {
+    fun `onBarsRestoredExternally re-hides and stays immersive for an unrequested reveal`() {
+        // While we believe the bars should be hidden (systemBarsHidden == true), a reveal we did
+        // not initiate — a side-edge page-turn swipe flashing the bars under BEHAVIOR_DEFAULT —
+        // must be bounced back: re-hide and stay immersive rather than exit.
         state.hide()
         assertTrue(state.systemBarsHiddenForTest)
+        controller.hideCount = 0 // ignore the hide() above
+
+        state.onBarsRestoredExternally()
+
+        assertTrue(state.isImmersive)
+        assertTrue(state.systemBarsHiddenForTest)
+        assertEquals(1, controller.hideCount) // re-hid the flashed bars
+        assertEquals(0, controller.showCount)
+    }
+
+    @Test
+    fun `onBarsRestoredExternally follows a user-requested reveal by exiting immersive`() {
+        // After the user reveals the bars via toggle()/show(), systemBarsHidden is already
+        // cleared; the watcher's onBarsRestoredExternally then just lets the overlay follow.
+        state.show()
+        controller.hideCount = 0
 
         state.onBarsRestoredExternally()
 
         assertFalse(state.isImmersive)
         assertFalse(state.systemBarsHiddenForTest)
-        // Note: does NOT call controller.show() — the OS already restored the bars.
-        assertEquals(0, controller.showCount)
+        assertEquals(0, controller.hideCount) // no bounce-back re-hide
     }
 
     @Test
