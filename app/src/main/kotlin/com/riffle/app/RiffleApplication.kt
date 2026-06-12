@@ -50,6 +50,12 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { migrator.migrate() }
         }
+
+        // Durable offline progress reconcile (ADR 0030): a foreground kick to flush any progress made
+        // offline (waits for connectivity via the worker's CONNECTED constraint), plus the periodic
+        // safety net for progress on a book that is never reopened.
+        com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this)
+        com.riffle.app.sync.ProgressSyncScheduler.ensurePeriodic(this)
     }
 
     override fun newImageLoader(): ImageLoader =

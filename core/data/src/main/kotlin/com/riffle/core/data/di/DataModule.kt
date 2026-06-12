@@ -266,7 +266,46 @@ abstract class DataModule {
     @Singleton
     abstract fun bindAnnotationStore(impl: AnnotationStoreImpl): AnnotationStore
 
+    @Binds
+    @Singleton
+    abstract fun bindDirtyProgressLedger(impl: com.riffle.core.data.RoomDirtyProgressLedger): com.riffle.core.data.DirtyProgressLedger
+
+    @Binds
+    @Singleton
+    abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.AbsProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
+
     companion object {
+        // Durable offline progress reconcile (ADR 0030): resolve a serverId to its server+token
+        // (null ⇒ skip), and assemble the multi-server dirty sweep over the single-target primitive.
+        @Provides
+        @Singleton
+        fun provideServerTokenResolver(
+            serverRepository: com.riffle.core.domain.ServerRepository,
+            tokenStorage: com.riffle.core.domain.TokenStorage,
+        ): com.riffle.core.data.ServerTokenResolver =
+            com.riffle.core.data.ServerTokenResolver { serverId ->
+                val server = serverRepository.getById(serverId) ?: return@ServerTokenResolver null
+                val token = tokenStorage.getToken(serverId) ?: return@ServerTokenResolver null
+                server to token
+            }
+
+        @Provides
+        @Singleton
+        fun provideProgressSweep(
+            ledger: com.riffle.core.data.DirtyProgressLedger,
+            resolver: com.riffle.core.data.ServerTokenResolver,
+            remoteFactory: com.riffle.core.data.ProgressRemoteFactory,
+            locks: com.riffle.core.data.ProgressSyncLocks,
+            ebookStore: ReadingPositionStoreImpl,
+            audioStore: AudiobookPositionStoreImpl,
+        ): com.riffle.core.data.ProgressSweep =
+            com.riffle.core.data.ProgressSweep(
+                ledger, resolver,
+                com.riffle.core.domain.ProgressReconciler(ebookStore),
+                com.riffle.core.domain.ProgressReconciler(audioStore),
+                remoteFactory, locks,
+            )
+
         @Provides
         @Singleton
         fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
