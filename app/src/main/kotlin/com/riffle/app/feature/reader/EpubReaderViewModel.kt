@@ -128,6 +128,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
+    private val progressFlushScope: ProgressFlushScope,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -691,6 +692,10 @@ class EpubReaderViewModel @Inject constructor(
             persistReadaloudResumePosition(lastLocator, playerCoordinator.activeFragmentRef.value)
         }
         val locator = lastLocator ?: return
+        // Stays on viewModelScope: runReaderSyncCycle mutates reader state (lastLocator,
+        // pendingServerJumpStamp, …) and posts the inbound-jump channel, which must run on the main
+        // thread while the screen is alive — it is not safe to relocate to a background flush scope.
+        // The durable reading-position write survives a reopen/the offline sweep (ADR 0030).
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
@@ -1102,7 +1107,9 @@ class EpubReaderViewModel @Inject constructor(
         playerCoordinator.close()
         // Use the fragment captured above — close() has nulled the live one. Passing the live value
         // here would push the page top (chapter start) instead of the sentence we stopped on.
-        if (hadFragment) viewModelScope.launch { pushAudiobookFromReadingPosition(resumeFragmentRef) }
+        // On the flush scope, not viewModelScope: closing readaloud is routinely followed by leaving
+        // the book at once, which cancels viewModelScope and would abort this PATCH mid-write.
+        if (hadFragment) progressFlushScope.flush { pushAudiobookFromReadingPosition(resumeFragmentRef) }
     }
 
     /**
@@ -1138,7 +1145,9 @@ class EpubReaderViewModel @Inject constructor(
             // is about to go false), derived from the reading position via the bundle.
             val pausedFragment = playerCoordinator.activeFragmentRef.value
             playerCoordinator.pause()
-            if (pausedFragment != null) viewModelScope.launch { pushAudiobookFromReadingPosition(pausedFragment) }
+            // Flush scope (see closeReadaloud): a pause is often immediately followed by leaving the
+            // book, which would cancel a viewModelScope-launched PATCH before it reaches ABS.
+            if (pausedFragment != null) progressFlushScope.flush { pushAudiobookFromReadingPosition(pausedFragment) }
         } else {
             onPlayTapped()
         }

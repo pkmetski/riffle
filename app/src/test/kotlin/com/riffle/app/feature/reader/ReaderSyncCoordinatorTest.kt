@@ -12,6 +12,15 @@ import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkSyncSessionResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -20,6 +29,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ReaderSyncCoordinatorTest {
 
     // Identity cross-EPUB index → Storyteller and ABS progressions coincide. The SMIL maps both ways:
@@ -268,5 +278,46 @@ class ReaderSyncCoordinatorTest {
         assertTrue("the cycle reads the ebook item", "ebook-item" in abs.getProgressItemIds)
         assertTrue("the cycle reconciles the audiobook item", "audiobook-item" in abs.getProgressItemIds)
         assertEquals("audiobook writes target the audiobook item", "audiobook-item", abs.audioPatchItemId)
+    }
+
+    // ── teardown-time flush survives "close, then leave right away" ──────────────────
+    // The bug: the close/pause audiobook push was launched on the screen's viewModelScope, so leaving
+    // the book / player the instant after closing cancelled the in-flight ABS PATCH and nothing
+    // reached the server. Routed through ProgressFlushScope, the PATCH must complete regardless.
+
+    @Test
+    fun `closing readaloud flushes the exact narrated sentence to ABS even when the reader is torn down at once`() = runTest {
+        val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
+        val coordinator = coordinator(abs)
+        val flusher = ProgressFlushScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()))
+
+        // closeReadaloud(): fire the precise audiobook push (narrated fragment f9 → 90s) on the flush
+        // scope, then the user immediately leaves the book — cancelling the reader's viewModelScope.
+        val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        viewModelScope.launch { flusher.flush { coordinator.pushAudiobookForFragment("f9", null) } }
+        advanceTimeBy(1)
+        viewModelScope.cancel()
+
+        advanceUntilIdle()
+        assertNotNull("the audiobook position must reach ABS despite teardown", abs.audioPatch)
+        assertEquals("the precise narrated sentence (f9 clip start) is synced", 90.0, abs.audioPatch!!.currentTime, 1e-9)
+    }
+
+    @Test
+    fun `the audiobook player's stop flush reaches ABS through the survivable scope after onCleared`() = runTest {
+        val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
+        val coordinator = coordinator(abs)
+        val flusher = ProgressFlushScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()))
+
+        // The audiobook player's pushProgressOnStop runs an audio-led cycle (listen at 90s). On the
+        // player's onCleared the viewModelScope is already cancelled, so it must run on the flush scope.
+        val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        viewModelScope.launch { flusher.flush { coordinator.runAudioLedCycle(currentAudioSec = 90.0, localUpdatedAt = 9_000L) } }
+        advanceTimeBy(1)
+        viewModelScope.cancel()
+
+        advanceUntilIdle()
+        assertNotNull("the listen position must reach ABS despite teardown", abs.audioPatch)
+        assertEquals(90.0, abs.audioPatch!!.currentTime, 1e-9)
     }
 }

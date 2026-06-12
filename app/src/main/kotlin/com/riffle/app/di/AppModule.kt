@@ -30,6 +30,16 @@ import javax.inject.Singleton
 @Retention(AnnotationRetention.BINARY)
 annotation class DownloadScope
 
+/**
+ * Application-lifetime [CoroutineScope] for terminal progress writes (the close / pause flush) that
+ * must survive the screen's ViewModel being cleared — see `ProgressFlushScope`. Without it, a flush
+ * launched on `viewModelScope` is cancelled mid-PATCH when the user leaves the screen right after
+ * triggering it.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ProgressFlush
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -38,6 +48,11 @@ object AppModule {
     @Singleton
     @DownloadScope
     fun provideDownloadScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Provides
+    @Singleton
+    @ProgressFlush
+    fun provideProgressFlushScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Provides
     @Singleton
