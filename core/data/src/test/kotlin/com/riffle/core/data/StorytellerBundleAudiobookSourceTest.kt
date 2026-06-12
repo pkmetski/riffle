@@ -5,10 +5,12 @@ import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudTrack
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -87,13 +89,18 @@ class StorytellerBundleAudiobookSourceTest {
 
     @Test
     fun `isAvailableOffline reflects the link snapshot and bundle presence`() = runTest {
-        val present = StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(bundle, track), backgroundScope)
-        advanceUntilIdle()
-        assertTrue(present.isAvailableOffline("abs", "item-1"))
-        assertFalse(present.isAvailableOffline("abs", "other"))
+        val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+        try {
+            // Unconfined → the init collector runs eagerly to the StateFlow's first (current) value, so
+            // the snapshot is populated synchronously before these assertions, no scheduler advance needed.
+            val present = StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(bundle, track), scope)
+            assertTrue(present.isAvailableOffline("abs", "item-1"))
+            assertFalse(present.isAvailableOffline("abs", "other"))
 
-        val noBundle = StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(null, track), backgroundScope)
-        advanceUntilIdle()
-        assertFalse(noBundle.isAvailableOffline("abs", "item-1"))
+            val noBundle = StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(null, track), scope)
+            assertFalse(noBundle.isAvailableOffline("abs", "item-1"))
+        } finally {
+            scope.cancel()
+        }
     }
 }
