@@ -409,18 +409,24 @@ fun MainScreen(
     }
 }
 
-// Resets the back stack so [route] becomes the sole root. Used by every "switch the active
-// surface" navigation — launch router, server/library switch, redirect, server-setup completion.
+// Switches the active surface, keeping HOME as the permanent base of the back stack so [route]
+// sits directly on top of it. Used by every "switch the active surface" navigation — launch
+// router, server/library switch, redirect, server-setup completion.
 //
-// We deliberately do NOT anchor on popUpTo(HOME): HOME is the graph's start destination but it is
-// popped inclusively the moment a library resolves at launch, so popUpTo(HOME) afterwards matches
-// nothing ("Ignoring popBackStack to route home"), the inclusive pop is skipped, and each switch
-// pushes a duplicate root instead of replacing it. Backing out of those accumulated roots can empty
-// the stack entirely, leaving the NavHost with no destination — a blank white screen. Popping the
-// root graph id clears the whole stack regardless of whether HOME is still present.
+// popUpTo(HOME) with inclusive = FALSE is deliberate and load-bearing:
+//   * It clears everything ABOVE home but never removes home, so the stack is always [home, route]
+//     — never a single sole entry. Back from the root therefore pops to home (which re-routes to a
+//     library) instead of emptying the NavHost. An empty NavHost renders a blank white screen, and
+//     that is exactly what happened when this used popUpTo(graph.id) { inclusive = true }: a Back
+//     reaching the NavHost's own callback (e.g. while the drawer is animating open, when the
+//     screen-level handlers don't own it) popped the lone root to nothing.
+//   * Because home is never removed, popUpTo(HOME) always matches, so each switch REPLACES the
+//     previous surface instead of stacking a duplicate root — the earlier popUpTo(HOME) {
+//     inclusive = true } bug (which DID remove home, making later popUpTo(HOME) a no-op that piled
+//     up duplicate roots) cannot recur here.
 internal fun NavController.navigateAsRoot(route: String) {
     navigate(route) {
-        popUpTo(graph.id) { inclusive = true }
+        popUpTo(HOME) { inclusive = false }
         launchSingleTop = true
     }
 }
