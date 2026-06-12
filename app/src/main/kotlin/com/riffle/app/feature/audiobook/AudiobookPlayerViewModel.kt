@@ -51,6 +51,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
+    private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
     private val libraryRepository: LibraryRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
@@ -131,9 +132,11 @@ class AudiobookPlayerViewModel @Inject constructor(
             serverId = server?.id ?: ""
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
             val item = libraryRepository.getItem(itemId)
-            // Prefer the downloaded local copy (offline, file:// tracks); else stream from ABS (ADR 0029).
+            // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
+            // stream from ABS (connectivity-independent: a local copy always beats streaming).
             val session = if (serverId.isEmpty()) null
                 else audiobookDownloadRepository.localSession(serverId, itemId)
+                    ?: bundleAudiobookSource.localSession(serverId, itemId)
                     ?: audiobookRepository.openSession(serverId, itemId)
             if (item == null || session == null) {
                 meta.value = meta.value.copy(loading = false, failed = true)
@@ -199,6 +202,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 spans = session.tracks,
                 durationSec = session.timeline.durationSec,
                 startAtSec = resumeSec,
+                localZipFile = session.localZipFile,
             )
             // Record the active session so a media-notification tap reopens this audiobook player.
             nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
