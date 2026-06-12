@@ -28,11 +28,11 @@ internal fun buildBundleAudiobookSession(track: ReadaloudTrack, bundle: File): A
     val durByFile = track.clips.groupBy { it.audioSrc }.mapValues { (_, cs) -> cs.maxOf { it.clipEndSec } }
     var acc = 0.0
     val spans = files.mapIndexed { i, src ->
-        val d = durByFile[src] ?: 0.0
-        AudiobookTrackSpan(index = i, startOffsetSec = acc, durationSec = d).also { acc += d }
+        val dur = durByFile[src] ?: 0.0
+        AudiobookTrackSpan(index = i, startOffsetSec = acc, durationSec = dur).also { acc += dur }
     }
     val totalDuration = acc
-    val fileStart: Map<String, Double> = files.zip(spans).associate { (src, span) -> src to span.startOffsetSec }
+    val fileStart = files.zip(spans).associate { (src, span) -> src to span.startOffsetSec }
 
     val starts = (0 until track.chapterCount).mapNotNull { idx ->
         track.firstClipOfChapter(idx)?.let { clip -> (fileStart[clip.audioSrc] ?: 0.0) + clip.clipBeginSec }

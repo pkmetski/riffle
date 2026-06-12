@@ -60,6 +60,20 @@ class BundleAudiobookSessionBuilderTest {
     }
 
     @Test
+    fun `chapter starting mid-way into a non-first audio file gets correct global offset`() {
+        val track = ReadaloudTrack(
+            listOf(
+                clip("c1.xhtml#s0", "audio/0.mp3", 0.0, 60.0),
+                clip("c2.xhtml#s0", "audio/1.mp3", 5.0, 40.0), // chapter 2's first clip starts 5s into file 1
+            ),
+        )
+
+        val chapters = buildBundleAudiobookSession(track, bundle)!!.timeline.chapters
+
+        assertEquals(65.0, chapters[1].startSec, 1e-9) // 60 (fileStart of audio/1.mp3) + 5 (clipBeginSec)
+    }
+
+    @Test
     fun `returns null when the track has no clips`() {
         assertNull(buildBundleAudiobookSession(ReadaloudTrack(emptyList()), bundle))
     }
