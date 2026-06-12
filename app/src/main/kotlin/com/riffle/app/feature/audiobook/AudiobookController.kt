@@ -166,6 +166,9 @@ class AudiobookController @Inject constructor(
         spans = emptyList()
         prepared = false
         wantsToPlay = false
+        // Release the bundle reference for parity with ReadaloudController.stop(); media items are
+        // already cleared, so nothing restores a zip URI after this.
+        SharedBundle.current = null
         _state.value = PlaybackState()
     }
 
