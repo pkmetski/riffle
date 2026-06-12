@@ -84,7 +84,7 @@ A local copy of a Library Item's EPUB file that the user explicitly requests. St
 A dedicated screen reachable from the Navigation Drawer, and the single source of truth for what is locally available and how much space it uses. Lists all locally available Library Items in two sections: Downloaded (permanent, user-requested) and Cached (auto-created on open, may be evicted). Each row shows its file size and the appropriate indicator icon, and is individually removable (immediate, no Undo, no per-item confirmation). Each section header shows the section's total size. Provides a "Remove all" action per section; bulk removal of Downloads requires a confirmation dialog, the Cached section's "Clear all" does not. There is no cache-size cap or other caching configuration — eviction of the Cached tier is OS-managed (see [ADR 0001](adr/0001-hybrid-cache-download-storage.md), [ADR 0024](adr/0024-drop-per-server-audio-cache-cap.md)).
 
 ### Offline Mode
-The state in which the app cannot reach the ABS server — either because the device has no network or because the server itself is unreachable. Detected reactively: the banner appears after a request fails or when ConnectivityManager reports no network. In this state, the app reads from Cache or Download. Reading progress recorded during Offline Mode is queued for Progress Sync.
+The state in which the app cannot reach the ABS server — either because the device has no network or because the server itself is unreachable. Detected reactively: the banner appears after a request fails or when ConnectivityManager reports no network. In this state, the app reads from Cache or Download. Reading and listening progress recorded during Offline Mode is recorded locally and **durably reconciled when connectivity returns**, whether or not the book is reopened (see [ADR 0030](docs/adr/0030-durable-offline-progress-reconcile.md)). A server position that moved (and is newer) in the meantime is never overwritten.
 
 ### Reading Session
 A server-side record of a single continuous reading period. Opened via the ABS API when the user starts reading, updated periodically, and closed when the user leaves the reader or the app backgrounds. Feeds server-side reading statistics (time read, pages per day, streaks).
@@ -103,6 +103,7 @@ For an ebook-only book the cycle has one remote (ABS ebook progress); for an [Au
 - **Outbound:** PATCH every remote that is now stale relative to the canonical position. For a matched book that is one cycle → two writes (ABS ebook, ABS audiobook).
 - **Per-target failure isolation:** failures are isolated per remote. A GET failure for one target skips that target's inbound check only; the other targets still proceed. A PATCH failure leaves that target stale for the next cycle.
 - **No conflict prompt:** the last-update-wins rule is applied silently in all cases.
+- **Durable across Offline Mode:** progress recorded while offline is reconciled when connectivity returns even if the book is never reopened, still GET-before-PATCH so a newer server position is never overwritten (see [ADR 0030](docs/adr/0030-durable-offline-progress-reconcile.md)). For a matched book, reading and listening are the same activity and update both the ebook and audiobook position.
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:
