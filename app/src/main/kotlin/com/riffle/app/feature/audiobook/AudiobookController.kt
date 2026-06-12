@@ -61,6 +61,10 @@ class AudiobookController @Inject constructor(
     private var durationSec: Double = 0.0
     private var prepared = false
     private var wantsToPlay = false
+    // True when this controller's current session pointed SharedBundle at a bundle file. Guards stop()
+    // so it only releases the bundle it set — never one a live Readaloud session owns (e.g. when this
+    // player opened a streaming session, or failed to prepare at all, while Readaloud is still playing).
+    private var ownsSharedBundle = false
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -87,7 +91,8 @@ class AudiobookController @Inject constructor(
         this.durationSec = durationSec
         // Bundle-backed audio: the track mediaIds are zip-entry paths the service reads from this file
         // via SharedBundle (the same channel Readaloud uses). Null for HTTP/file sessions, where the
-        // service never consults SharedBundle.
+        // service never consults SharedBundle (so we don't touch it and don't claim ownership).
+        ownsSharedBundle = localZipFile != null
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
         val items = trackUrls.map { url ->
@@ -166,9 +171,11 @@ class AudiobookController @Inject constructor(
         spans = emptyList()
         prepared = false
         wantsToPlay = false
-        // Release the bundle reference for parity with ReadaloudController.stop(); media items are
-        // already cleared, so nothing restores a zip URI after this.
-        SharedBundle.current = null
+        // Release the bundle reference only if THIS session set it (parity with ReadaloudController),
+        // never one a still-playing Readaloud owns — media items are already cleared, so nothing
+        // restores a zip URI after this.
+        if (ownsSharedBundle) SharedBundle.current = null
+        ownsSharedBundle = false
         _state.value = PlaybackState()
     }
 
