@@ -29,15 +29,24 @@ internal fun audiobookProgressFraction(positionSec: Double, durationSec: Double)
     if (durationSec > 0.0) (positionSec / durationSec).toFloat().coerceIn(0f, 1f) else 0f
 
 /**
- * The book-absolute resume position. When the position reconcile found nothing — no local audiobook
- * position and no server position, e.g. offline with only a downloaded bundle — fall back to the
- * item's library [readingProgressFraction] mapped to seconds. This resumes near where the rest of the
- * app shows progress instead of restarting at 0, and (crucially) seeds the resume floor so the
- * close/follow persist guard never writes a ~0 over that progress — the offline-erase bug. A genuine
- * reconciled position ([reconciledSec] > 0) always wins, so online behaviour is unchanged.
+ * The book-absolute resume position. When NO position was tracked at all ([hadTrackedPosition] false —
+ * no local audiobook row and no server record, e.g. offline with only a downloaded bundle) fall back
+ * to the item's library [readingProgressFraction] mapped to seconds. This resumes near where the rest
+ * of the app shows progress instead of restarting at 0, and (crucially) seeds the resume floor so the
+ * close/follow persist guard never writes a ~0 over that progress — the offline-erase bug.
+ *
+ * Gating on [hadTrackedPosition] — not on `reconciledSec > 0` — is deliberate: a genuinely-tracked
+ * position of exactly 0 (a server record or local row that says "at the start", with a real
+ * timestamp) must be honoured, not replaced by the progress fallback. Online behaviour is unchanged
+ * because a server record always counts as a tracked position.
  */
-internal fun audiobookResumeSec(reconciledSec: Double, readingProgressFraction: Float, durationSec: Double): Double =
-    if (reconciledSec > 0.0 || readingProgressFraction <= 0f || durationSec <= 0.0) reconciledSec
+internal fun audiobookResumeSec(
+    reconciledSec: Double,
+    hadTrackedPosition: Boolean,
+    readingProgressFraction: Float,
+    durationSec: Double,
+): Double =
+    if (hadTrackedPosition || readingProgressFraction <= 0f || durationSec <= 0.0) reconciledSec
     else (readingProgressFraction * durationSec).coerceIn(0.0, durationSec)
 
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
@@ -186,13 +195,18 @@ class AudiobookPlayerViewModel @Inject constructor(
                     resumeUpdatedAt = session.serverLastUpdate
                 }
             }
-            // No tracked position (offline with only a bundle: no local listen row, no server time,
-            // and the canonical bridge is unavailable) → fall back to the item's library progress so
-            // we resume near where the app shows it AND seed reconciledResumeSec as a floor, so the
-            // close/follow persist guard can't write a ~0 over that progress. resumeUpdatedAt stays as
-            // reconciled (0 here), keeping this approximate position inbound-only — it never leads the
-            // canonical record. A genuine reconciled position is left untouched.
-            resumeSec = audiobookResumeSec(resumeSec, item.readingProgress, session.timeline.durationSec)
+            // No tracked position at all (offline with only a bundle: no local listen row, no server
+            // record, and the canonical bridge is unavailable) → fall back to the item's library
+            // progress so we resume near where the app shows it AND seed reconciledResumeSec as a
+            // floor, so the close/follow persist guard can't write a ~0 over that progress. A tracked
+            // position (resumeUpdatedAt > 0), even one of exactly 0, is honoured as-is. resumeUpdatedAt
+            // stays as reconciled (0 here), keeping this approximate position inbound-only.
+            resumeSec = audiobookResumeSec(
+                reconciledSec = resumeSec,
+                hadTrackedPosition = resumeUpdatedAt > 0L,
+                readingProgressFraction = item.readingProgress,
+                durationSec = session.timeline.durationSec,
+            )
             // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
             // key the *same* way the reader does — via the resolver on this audiobook's link — so both
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
