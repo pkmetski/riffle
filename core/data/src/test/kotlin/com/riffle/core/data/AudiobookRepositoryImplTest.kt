@@ -77,6 +77,53 @@ class AudiobookRepositoryImplTest {
     }
 
     @Test
+    fun `openSession carries the server lastUpdate from the progress record`() = runTest {
+        val playback = FakePlaybackApi(
+            NetworkPlaybackSessionResult.Success(
+                NetworkPlaybackSession(
+                    sessionId = "ps",
+                    tracks = listOf(NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg")),
+                    chapters = emptyList(),
+                    currentTimeSec = 42.0,
+                    durationSec = 100.0,
+                ),
+            ),
+        )
+        val session = object : AbsSessionApi by NoopSessionApi {
+            override suspend fun getProgress(
+                baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
+            ) = NetworkGetProgressResult.Success(
+                com.riffle.core.network.NetworkServerProgress(
+                    ebookLocation = "", ebookProgress = 0f, currentTime = 42.0, duration = 100.0,
+                    lastUpdate = 1700000000000L,
+                ),
+            )
+        }
+
+        val s = repo(playback, session).openSession("srv", "it")!!
+
+        assertEquals(1700000000000L, s.serverLastUpdate)
+    }
+
+    @Test
+    fun `openSession defaults serverLastUpdate to zero when the progress read fails`() = runTest {
+        val playback = FakePlaybackApi(
+            NetworkPlaybackSessionResult.Success(
+                NetworkPlaybackSession(
+                    sessionId = "ps",
+                    tracks = listOf(NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg")),
+                    chapters = emptyList(),
+                    currentTimeSec = 42.0,
+                    durationSec = 100.0,
+                ),
+            ),
+        )
+        // NoopSessionApi.getProgress returns NetworkError → no stamp available.
+        val s = repo(playback).openSession("srv", "it")!!
+        assertEquals(0L, s.serverLastUpdate)
+    }
+
+    @Test
     fun `openSession returns null when the play session has no tracks`() = runTest {
         val playback = FakePlaybackApi(
             NetworkPlaybackSessionResult.Success(
