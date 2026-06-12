@@ -1,5 +1,7 @@
 package com.riffle.core.domain
 
+import java.io.File
+
 /**
  * A ready-to-play [Audiobook] session resolved from ABS (ADR 0029): the ordered, directly-streamable
  * track URLs paired with their timeline [tracks], the [timeline] (duration + chapter markers), and the
@@ -13,6 +15,9 @@ data class AudiobookSession(
     // ABS's server-side `lastUpdate` (ms) for this item's media-progress record, for last-update-wins
     // resume against the durable local store. 0 when unknown (offline / downloaded session).
     val serverLastUpdate: Long = 0,
+    // The local zip archive backing zip-entry track URLs (a downloaded bundle), or null when tracks
+    // are HTTP/file URLs. The player points the playback service at this file before preparing.
+    val localZipFile: File? = null,
 )
 
 interface AudiobookRepository {
