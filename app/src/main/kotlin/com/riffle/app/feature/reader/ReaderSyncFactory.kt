@@ -97,6 +97,34 @@ class ReaderSyncFactory @Inject constructor(
         )
     }
 
+    /**
+     * Builds a bundle-SMIL-only [AudiobookFollow] for a matched book that has an audiobook target and a
+     * cached Storyteller bundle — **without** requiring the ABS EPUB or the cross-EPUB index that
+     * [createIfApplicable] needs (ADR 0031). Lets readaloud sync to the audiobook in the window before
+     * the index is built (or when it can't be). `null` when there is no audio target or no cached bundle.
+     */
+    suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? {
+        val active = serverRepository.getActive() ?: return null
+        val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
+        val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
+        val linkedMedia = allLinks.mapNotNull { l ->
+            val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
+            AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
+        }
+        val audioTarget = resolveAbsTargets(itemId, linkedMedia).audio ?: return null
+        val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId) ?: return null
+        val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
+        val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == audioTarget.absLibraryItemId }?.audioDurationSec ?: 0.0
+        val endpoint = absEndpointFor(audioTarget.absServerId, audioTarget.absLibraryItemId, durationSec) ?: return null
+        return AudiobookFollow(
+            absApi = absSessionApi,
+            endpoint = endpoint,
+            translator = CanonicalPositionTranslator(storytellerExtract.smilClips),
+            serverId = audioTarget.absServerId,
+            audioItemId = audioTarget.absLibraryItemId,
+        )
+    }
+
     private suspend fun absEndpointFor(serverId: String, itemId: String, durationSec: Double = 0.0): AbsSyncEndpoint? {
         val server = serverRepository.getById(serverId) ?: return null
         val token = tokenStorage.getToken(serverId) ?: return null

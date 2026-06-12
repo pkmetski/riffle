@@ -1,16 +1,17 @@
 # Riffle
 
-An Android ebook reader for [Audiobookshelf](https://www.audiobookshelf.org/) and [Storyteller](https://storyteller-platform.gitlab.io/storyteller) self-hosted servers.
+An Android ebook reader and audiobook player for [Audiobookshelf](https://www.audiobookshelf.org/) and [Storyteller](https://storyteller-platform.gitlab.io/storyteller) self-hosted servers.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)
 
-Riffle lets you browse your ebook library, read EPUB and PDF files, and sync reading progress — all from a clean, privacy-respecting Android app.
+Riffle lets you browse your library, read EPUB and PDF files, listen to audiobooks, and keep reading and listening progress in sync across devices — all from a clean, privacy-respecting Android app.
 
 ## Features
 
 ### Reading
 - EPUB and PDF readers
 - Table of Contents navigation
+- Chapter navigation rail for jumping between sections
 - In-book text search
 - Chapter map progress indicator
 - Fullscreen immersive reading mode
@@ -20,8 +21,18 @@ Riffle lets you browse your ebook library, read EPUB and PDF files, and sync rea
 - Auto theme that switches between configured day and night themes on a global clock schedule
 - Paginated and continuous scroll modes, with landscape double-page spread
 - Per-book formatting overrides
-- Volume-key page navigation
+- Volume-key page navigation (with optional inverted direction)
 - Keep screen on
+
+### Listening
+- Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server — including audiobook-only items with no paired ebook
+- Transport controls: play/pause, skip 15s back / 30s forward, and previous/next chapter
+- Seekable chapter-map scrubber with chapter ticks, plus per-chapter and whole-book remaining time
+- Variable playback speed (0.5×–3.0×) with quick presets, remembered per book
+- Background playback with lock-screen, notification, and Bluetooth media controls
+- Download audiobooks for offline listening, with progress that reconciles when you reconnect
+- Storyteller **Readaloud** in the reader: synced sentence highlight, auto-page-turn, "Play from here," and background playback
+- Listening and reading positions stay in sync for matched books — pick up in the reader exactly where you stopped listening, and vice versa
 
 ### Library
 - Multi-server support with library visibility controls
@@ -38,10 +49,9 @@ Riffle lets you browse your ebook library, read EPUB and PDF files, and sync rea
 ### Server & Sync
 - Audiobookshelf and Storyteller login with secure token storage and insecure-connection warnings
 - Storyteller Readaloud Library: browse every completed readaloud as a single library
-- Readaloud playback in the reader: synced sentence highlight, auto-page-turn, "Play from here", background playback with lock-screen/Bluetooth controls, and a per-server audio cache cap
 - Automatic Storyteller↔Audiobookshelf matching with a Settings review queue: high-confidence pairs auto-confirm, fuzzy matches go to Pending Review, and a manual picker pairs anything the matcher can't place
-- Bidirectional progress sync with last-update-wins conflict resolution
-- Periodic auto-sync and offline queueing
+- Bidirectional progress sync with last-update-wins conflict resolution, unified across the ebook, audiobook, and readaloud of a matched book
+- Periodic auto-sync, offline queueing, and durable reconciliation of progress recorded while offline
 - Reading session time tracking
 
 ## Requirements

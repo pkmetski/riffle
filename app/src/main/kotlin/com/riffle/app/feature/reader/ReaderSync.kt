@@ -261,3 +261,26 @@ class ReaderSyncCoordinator(
         return absApi.writeAudiobookSeconds(ep, seconds)
     }
 }
+
+/**
+ * Bundle-SMIL-only audiobook follow (ADR 0031): translates a narrated fragment to its absolute audio
+ * second and pushes the matched ABS audiobook record — using **only** the Storyteller bundle's SMIL,
+ * with no cross-EPUB index or ABS EPUB. This lets readaloud sync to the audiobook even when the full
+ * [ReaderSyncCoordinator] can't be built (e.g. the cross-EPUB index isn't ready or a multi-link guard
+ * trips). Ebook translation is intentionally out of scope here — the reader's existing ebook path
+ * (single-peer or the cycle) keeps owning that. [serverId]/[audioItemId] key the local audiobook store.
+ */
+class AudiobookFollow(
+    private val absApi: AbsSessionApi,
+    private val endpoint: AbsSyncEndpoint,
+    private val translator: com.riffle.core.domain.CanonicalPositionTranslator,
+    val serverId: String,
+    val audioItemId: String,
+) {
+    /** The absolute audio second the narrated sentence begins (bundle SMIL), or `null` if unknown. */
+    fun secondsForFragment(fragmentRef: String): Double? = translator.fragmentRefToAudioSeconds(fragmentRef)
+
+    /** PATCH the ABS audiobook record from the narrated sentence; returns the server stamp or `null`. */
+    suspend fun pushFragment(fragmentRef: String): Long? =
+        secondsForFragment(fragmentRef)?.let { absApi.writeAudiobookSeconds(endpoint, it) }
+}
