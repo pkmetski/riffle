@@ -3,6 +3,23 @@
 **Status:** Accepted
 **Relates to:** [ADR 0019](0019-three-peer-unified-canonical-progress-sync.md), [ADR 0029](0029-audiobook-direct-abs-streaming-audio-led-sync.md), [ADR 0030](0030-durable-offline-progress-reconcile.md).
 
+## Amendment — the bundle fragment is the pivot; the ebook page-canonical is never translated directly to audio
+
+Live testing exposed a concrete defect: Play-from-here at a sentence ~2/3 down a page synced the audiobook to a point **50–80 s earlier** — the **first sentence of the page**, not the selected one. Root cause (confirmed against the real Martian bundle, two data points): the audiobook position was written from the **ebook page/canonical coordinate**. A Readium locator is only **page/column-level**, so translating it to audio (`canonicalToAudioSeconds`) resolves via `fragmentAt(pageProgression)` to the **page-top sentence**. The error equals the narration time of the text between the page top and the real sentence — tens of seconds to ~a minute, varying with how far down the page the position is (hence not constant, not proportional). The timelines and SMIL math are otherwise exact (bundle total 39,214.6 s == ABS audiobook 39,214.5 s; per-file duration estimate verified to 0.00 s drift via `ffprobe`), so this was purely the wrong *source coordinate*, not a translation error.
+
+**Corrected rule — one pivot, no special cases.** For a matched book with the bundle present, the sync position is **always a bundle SMIL fragment (a sentence)**, deduced as:
+
+```
+fragment = activeNarratedFragment            // readaloud narrating: the exact spoken sentence
+        ?: firstSentenceOnPage(pageLocator)  // otherwise: the page-top sentence (fragmentAt of the page progression)
+```
+
+Every ebook↔audiobook transfer routes **through that fragment**:
+- **readaloud / reading → audiobook:** `fragment → seconds` (SMIL, exact).
+- **audiobook → ebook + readaloud:** `seconds → fragment` (SMIL, exact) → ebook text anchor; the fragment **is** the readaloud position.
+
+The ebook **page-canonical is only ever an *input* to deduce the page-top fragment** — it is **never translated directly to a final audio time**. (The ebook's own stored locator stays page-level — that's inherent to a Readium locator — but the *audio* it maps to is always taken from the fragment, not the page.) This supersedes the page-canonical audiobook write in the slice-6 dual-write, and prefers the bundle-SMIL fragment route over the cross-EPUB-index path for audiobook↔ebook (sentence-sharp **and** index-free). It also means there is no "don't sync" case: as long as the readaloud exists, a fragment can always be deduced, even during silent reading.
+
 ## Context
 
 A matched book has **three** position representations that the user experiences as one place in the book:

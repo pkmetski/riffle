@@ -673,11 +673,19 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun mirrorReadingToAudiobook(canonicalJson: String) {
-        val coordinator = readerSync ?: return
-        if (!coordinator.hasAudioTarget) return
         val serverId = readerSyncServerId ?: return
-        val audioItemId = coordinator.audioItemId ?: return
-        val seconds = coordinator.audioSecondsForCanonical(canonicalJson) ?: return
+        val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
+        // ADR 0031: anchor the audiobook on the narrated SENTENCE, never on the page. While a sentence
+        // is being spoken, translate THAT fragment to seconds (no page fallback — a page round-trip
+        // here is the page-top bug). Only when nothing is narrating (silent reading) deduce the page-top
+        // sentence from the page canonical (needs the cross-EPUB index, so null on the bundle-only path).
+        val activeFragment = playerCoordinator.activeFragmentRef.value
+        val seconds = if (activeFragment != null) {
+            readerSync?.audioSecondsForFragment(activeFragment, fallbackCanonicalJson = null)
+                ?: audiobookFollow?.secondsForFragment(activeFragment)
+        } else {
+            readerSync?.audioSecondsForCanonical(canonicalJson)
+        } ?: return
         val snap = readingSyncStore.snapshot(serverId, itemId)
         audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
