@@ -680,19 +680,17 @@ class EpubReaderViewModel @Inject constructor(
         // is being spoken, translate THAT fragment to seconds (no page fallback — a page round-trip
         // here is the page-top bug). Only when nothing is narrating (silent reading) deduce the page-top
         // sentence from the page canonical (needs the cross-EPUB index, so null on the bundle-only path).
-        val activeFragment = playerCoordinator.activeFragmentRef.value
-        // During an active readaloud session a null fragment is transient (the player is starting /
-        // between clips). Writing the page-top then would clobber the local audiobook row with a coarse
-        // position the player resumes from before the follow loop corrects it — the page-top bug
-        // (ADR 0031). Skip; a fragment-anchored write follows. The page branch is for silent reading only.
-        if (activeFragment == null && _readaloudOpen.value) return
-        val seconds = if (activeFragment != null) {
-            readerSync?.audioSecondsForFragment(activeFragment, fallbackCanonicalJson = null)
-                ?: audiobookFollow?.secondsForFragment(activeFragment)
-        } else {
-            readerSync?.audioSecondsForCanonical(canonicalJson)
-        }
-        if (seconds == null) return
+        // The bundle fragment is the pivot; the page canonical is a fallback only for silent reading,
+        // never during an active readaloud (the page-top race — ADR 0031). See [ReadaloudAudioAnchor].
+        val seconds = ReadaloudAudioAnchor.audiobookSeconds(
+            activeFragment = playerCoordinator.activeFragmentRef.value,
+            readaloudOpen = _readaloudOpen.value,
+            fragmentSeconds = { f ->
+                readerSync?.audioSecondsForFragment(f, fallbackCanonicalJson = null)
+                    ?: audiobookFollow?.secondsForFragment(f)
+            },
+            pageSeconds = { readerSync?.audioSecondsForCanonical(canonicalJson) },
+        ) ?: return
         val snap = readingSyncStore.snapshot(serverId, itemId)
         audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
@@ -1433,9 +1431,12 @@ class EpubReaderViewModel @Inject constructor(
             val sid = readerSyncServerId ?: return@run null
             val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return@run null
             val audioSnap = audioSyncStore.snapshot(sid, audioItemId)
-            val seconds = audioSnap.position ?: return@run null
-            if (audioSnap.localUpdatedAt <= readingSyncStore.snapshot(sid, itemId).localUpdatedAt) return@run null
-            readerSync?.fragmentForAudioSeconds(seconds) ?: audiobookFollow?.fragmentForAudioSeconds(seconds)
+            ReadaloudStartAnchor.fromLocalAudio(
+                audioSeconds = audioSnap.position,
+                audioUpdatedAt = audioSnap.localUpdatedAt,
+                readingUpdatedAt = readingSyncStore.snapshot(sid, itemId).localUpdatedAt,
+                fragmentForAudioSeconds = { s -> readerSync?.fragmentForAudioSeconds(s) ?: audiobookFollow?.fragmentForAudioSeconds(s) },
+            )
         }
 
         // Matched book: readaloud starts at the reconciled reading position. There is no
