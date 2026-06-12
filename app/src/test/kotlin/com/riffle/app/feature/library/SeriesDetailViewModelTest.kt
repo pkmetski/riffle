@@ -11,6 +11,7 @@ import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
+import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
@@ -140,6 +141,10 @@ class SeriesDetailViewModelTest {
             FakeEpubRepository(),
             FakePdfRepository(),
             FakeAudiobookDownloadRepository(),
+            object : BundleAudiobookSource {
+                override suspend fun localSession(serverId: String, itemId: String) = null
+                override fun isAvailableOffline(serverId: String, itemId: String) = false
+            },
         ),
         connectivityObserver = connectivityObserver,
     )
