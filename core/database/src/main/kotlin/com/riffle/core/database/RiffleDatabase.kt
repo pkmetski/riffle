@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudioPlaybackPreferencesEntity::class,
         AudiobookPositionEntity::class,
     ],
-    version = 33,
+    version = 34,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -677,6 +677,20 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_audiobook_positions_serverId` " +
                         "ON `audiobook_positions` (`serverId`)"
+                )
+            }
+        }
+
+        // Durable offline-reconcile marker (ADR 0030): add `lastSyncedAt` to both position tables.
+        // A row is dirty when localUpdatedAt > lastSyncedAt; the sweep worker pushes dirty rows when
+        // online. Default 0 ⇒ every existing row is dirty once and reconciled GET-before-PATCH (safe).
+        val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `reading_positions` ADD COLUMN `lastSyncedAt` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE `audiobook_positions` ADD COLUMN `lastSyncedAt` INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

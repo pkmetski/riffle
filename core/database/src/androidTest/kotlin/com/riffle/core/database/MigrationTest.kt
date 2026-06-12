@@ -1390,6 +1390,56 @@ class MigrationTest {
     }
 
     @Test
+    fun migration33To34_addsLastSyncedAtToBothPositionTables() {
+        helper.createDatabase(TEST_DB, 33).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            // Pre-existing rows in both position tables (v33 shape: no lastSyncedAt yet).
+            db.execSQL(
+                "INSERT INTO reading_positions (serverId, itemId, cfi, localUpdatedAt) " +
+                    "VALUES ('s1', '10', 'epubcfi(/6/4!/4)', 1700000000000)"
+            )
+            db.execSQL(
+                "INSERT INTO audiobook_positions (serverId, itemId, positionSec, localUpdatedAt) " +
+                    "VALUES ('s1', '20', 321.5, 1700000000001)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 34, true, RiffleDatabase.MIGRATION_33_34)
+
+        // The ebook row is preserved and the new column defaults to 0 (⇒ dirty: localUpdatedAt > 0).
+        db.query(
+            "SELECT cfi, localUpdatedAt, lastSyncedAt FROM reading_positions WHERE serverId = 's1' AND itemId = '10'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("epubcfi(/6/4!/4)", cursor.getString(0))
+            assertEquals(1700000000000L, cursor.getLong(1))
+            assertEquals(0L, cursor.getLong(2))
+        }
+
+        // The audiobook row is preserved and likewise gains lastSyncedAt defaulting to 0.
+        db.query(
+            "SELECT positionSec, localUpdatedAt, lastSyncedAt FROM audiobook_positions WHERE serverId = 's1' AND itemId = '20'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(321.5, cursor.getDouble(0), 0.0001)
+            assertEquals(1700000000001L, cursor.getLong(1))
+            assertEquals(0L, cursor.getLong(2))
+        }
+
+        // The new column is writable on both tables.
+        db.execSQL("UPDATE reading_positions SET lastSyncedAt = 1700000000000 WHERE serverId = 's1' AND itemId = '10'")
+        db.query("SELECT lastSyncedAt FROM reading_positions WHERE serverId = 's1' AND itemId = '10'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1700000000000L, cursor.getLong(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1398,7 +1448,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 33, true,
+            TEST_DB, 34, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1431,6 +1481,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_30_31,
             RiffleDatabase.MIGRATION_31_32,
             RiffleDatabase.MIGRATION_32_33,
+            RiffleDatabase.MIGRATION_33_34,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
