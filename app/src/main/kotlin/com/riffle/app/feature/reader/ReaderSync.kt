@@ -271,8 +271,9 @@ class ReaderSyncCoordinator(
  * second and pushes the matched ABS audiobook record — using **only** the Storyteller bundle's SMIL,
  * with no cross-EPUB index or ABS EPUB. This lets readaloud sync to the audiobook even when the full
  * [ReaderSyncCoordinator] can't be built (e.g. the cross-EPUB index isn't ready or a multi-link guard
- * trips). Ebook translation is intentionally out of scope here — the reader's existing ebook path
- * (single-peer or the cycle) keeps owning that. [serverId]/[audioItemId] key the local audiobook store.
+ * trips). It also produces the **ebook** position for an audio second — a text-anchored locator built
+ * from the bundle's own sentence text ([ebookItemId]/[serverId] key the stores), so audiobook→ebook
+ * sync also works index-free (ADR 0031: both directions go via the bundle, never the cross-EPUB index).
  */
 class AudiobookFollow(
     private val absApi: AbsSessionApi,
@@ -280,6 +281,8 @@ class AudiobookFollow(
     private val translator: com.riffle.core.domain.CanonicalPositionTranslator,
     val serverId: String,
     val audioItemId: String,
+    val ebookItemId: String? = null,
+    private val quotes: Map<String, com.riffle.core.domain.SentenceQuote> = emptyMap(),
 ) {
     /** The absolute audio second the narrated sentence begins (bundle SMIL), or `null` if unknown. */
     fun secondsForFragment(fragmentRef: String): Double? = translator.fragmentRefToAudioSeconds(fragmentRef)
@@ -288,6 +291,16 @@ class AudiobookFollow(
      *  readaloud start from a local listen position even with no cross-EPUB index (ADR 0031). */
     fun fragmentForAudioSeconds(seconds: Double): String? =
         translator.audioSecondsToStorytellerProgression(seconds)?.let { translator.fragmentAt(it) }
+
+    /** The **ebook** reading position (a text-anchored Readium locator JSON) for an audio second —
+     *  index-free: maps seconds → narrated sentence (SMIL), then anchors that sentence by its bundle
+     *  text so it resolves on the ABS EPUB (the same text-anchoring the highlight uses). `null` when
+     *  the seconds can't be placed or the sentence has no quote. */
+    fun ebookLocatorForAudioSeconds(seconds: Double): String? {
+        val ref = fragmentForAudioSeconds(seconds) ?: return null
+        val quote = quotes[ref.substringAfter('#')] ?: return null
+        return readaloudLocatorJson(ref, quote).toString()
+    }
 
     /** PATCH the ABS audiobook record from the narrated sentence; returns the server stamp or `null`. */
     suspend fun pushFragment(fragmentRef: String): Long? =

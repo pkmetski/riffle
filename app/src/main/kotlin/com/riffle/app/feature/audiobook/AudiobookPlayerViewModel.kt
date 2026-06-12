@@ -120,6 +120,9 @@ class AudiobookPlayerViewModel @Inject constructor(
     // listen propagates to the ebook CFI + audiobook record and a cross-device change pulls in
     // (ADR 0029). Null (audiobook-only, or prerequisites not cached) → single-peer saveProgress.
     private var readerSync: com.riffle.app.feature.reader.ReaderSyncCoordinator? = null
+    // Bundle-SMIL-only fallback when the full coordinator can't be built (no cross-EPUB index): still
+    // syncs audiobook→ebook (text-anchored) and audiobook→readaloud via the bundle alone (ADR 0031).
+    private var audiobookFollow: com.riffle.app.feature.reader.AudiobookFollow? = null
     // The timestamp the local listen position was last genuinely set at; adopted from server stamps
     // after a write/jump so our own writes never read back as "newer" and re-seek (feedback loop).
     private var localUpdatedAt: Long = 0L
@@ -157,12 +160,15 @@ class AudiobookPlayerViewModel @Inject constructor(
      * to the sibling row. No-op unless matched and translatable.
      */
     private suspend fun mirrorListeningToReading(seconds: Double) {
-        val coordinator = readerSync ?: return
         if (serverId.isEmpty()) return
-        val ebookItemId = coordinator.ebookItemId ?: return
-        val canonical = coordinator.canonicalForAudioSeconds(seconds) ?: return
+        val ebookItemId = readerSync?.ebookItemId ?: audiobookFollow?.ebookItemId ?: return
+        // Index-free first (text-anchored, via the bundle), then the index-based canonical if present
+        // (ADR 0031: audiobook→ebook goes via the bundle, never requiring the cross-EPUB index).
+        val ebookLocator = audiobookFollow?.ebookLocatorForAudioSeconds(seconds)
+            ?: readerSync?.canonicalForAudioSeconds(seconds)
+            ?: return
         val snap = audioSyncStore.snapshot(serverId, itemId)
-        readingSyncStore.mirror(serverId, ebookItemId, canonical, snap.localUpdatedAt, snap.lastSyncedAt)
+        readingSyncStore.mirror(serverId, ebookItemId, ebookLocator, snap.localUpdatedAt, snap.lastSyncedAt)
     }
 
     val uiState: StateFlow<AudiobookPlayerUiState> =
@@ -312,7 +318,16 @@ class AudiobookPlayerViewModel @Inject constructor(
      */
     private suspend fun attachReaderSync(atSec: Double, atUpdatedAt: Long): Boolean {
         if (readerSync != null || serverId.isEmpty()) return readerSync != null
-        val rs = readerSyncFactory.createIfApplicable(itemId) ?: return false
+        val rs = readerSyncFactory.createIfApplicable(itemId)
+        if (rs == null) {
+            // No cross-EPUB index yet — fall back to the bundle-only follow so audiobook→ebook and
+            // audiobook→readaloud still sync via the bundle, index-free (ADR 0031).
+            if (audiobookFollow == null) {
+                audiobookFollow = runCatching { readerSyncFactory.createAudiobookFollowIfApplicable(itemId) }.getOrNull()
+                audiobookFollow?.ebookItemId?.let { openReconcileTargets.markOpen(serverId, it) }
+            }
+            return false
+        }
         readerSync = rs
         // Matched: this player also drives the ebook ABS record, so the sweep must skip that
         // (possibly split-library) item too while the player is open (ADR 0030).

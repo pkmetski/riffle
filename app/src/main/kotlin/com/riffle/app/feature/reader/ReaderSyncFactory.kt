@@ -111,7 +111,8 @@ class ReaderSyncFactory @Inject constructor(
             val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
             AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
-        val audioTarget = resolveAbsTargets(itemId, linkedMedia).audio ?: return null
+        val targets = resolveAbsTargets(itemId, linkedMedia)
+        val audioTarget = targets.audio ?: return null
         val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId) ?: return null
         val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
         val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == audioTarget.absLibraryItemId }?.audioDurationSec ?: 0.0
@@ -122,6 +123,10 @@ class ReaderSyncFactory @Inject constructor(
             translator = CanonicalPositionTranslator(storytellerExtract.smilClips),
             serverId = audioTarget.absServerId,
             audioItemId = audioTarget.absLibraryItemId,
+            // The ebook target + the bundle's sentence quotes let audiobook→ebook resolve index-free,
+            // text-anchored on the ABS EPUB (ADR 0031).
+            ebookItemId = targets.ebook?.absLibraryItemId,
+            quotes = com.riffle.core.domain.ReadaloudTextQuotes.build(storytellerExtract.chapters),
         )
     }
 
