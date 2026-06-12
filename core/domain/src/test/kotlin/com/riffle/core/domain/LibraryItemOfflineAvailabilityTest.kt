@@ -31,6 +31,7 @@ class LibraryItemOfflineAvailabilityTest {
             epubRepository = FakeEpubRepository(downloaded = true),
             pdfRepository = FakePdfRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
 
         assertTrue(availability.isAvailableOffline(item(EbookFormat.Epub)))
@@ -42,6 +43,7 @@ class LibraryItemOfflineAvailabilityTest {
             epubRepository = FakeEpubRepository(cached = true),
             pdfRepository = FakePdfRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
 
         assertTrue(availability.isAvailableOffline(item(EbookFormat.Epub)))
@@ -53,6 +55,7 @@ class LibraryItemOfflineAvailabilityTest {
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(downloaded = true),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
 
         assertTrue(availability.isAvailableOffline(item(EbookFormat.Pdf)))
@@ -64,6 +67,7 @@ class LibraryItemOfflineAvailabilityTest {
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true),
+            bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
 
         assertTrue(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
@@ -75,6 +79,7 @@ class LibraryItemOfflineAvailabilityTest {
             epubRepository = FakeEpubRepository(), // ebook not downloaded/cached
             pdfRepository = FakePdfRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true),
+            bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
 
         assertTrue(availability.isAvailableOffline(item(EbookFormat.Epub, hasAudio = true)))
@@ -86,9 +91,34 @@ class LibraryItemOfflineAvailabilityTest {
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
 
         assertFalse(availability.isAvailableOffline(item(EbookFormat.Epub, hasAudio = true)))
+    }
+
+    @Test
+    fun `item with no ebook or audiobook download is offline-available when its bundle is downloaded`() {
+        val availability = LibraryItemOfflineAvailability(
+            epubRepository = FakeEpubRepository(),
+            pdfRepository = FakePdfRepository(),
+            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            bundleAudiobookSource = FakeBundleAudiobookSource(setOf("s1/i1")),
+        )
+
+        assertTrue(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
+    }
+
+    @Test
+    fun `item with no downloads and no bundle is not offline-available`() {
+        val availability = LibraryItemOfflineAvailability(
+            epubRepository = FakeEpubRepository(),
+            pdfRepository = FakePdfRepository(),
+            audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
+            bundleAudiobookSource = FakeBundleAudiobookSource(emptySet()),
+        )
+
+        assertFalse(availability.isAvailableOffline(item(EbookFormat.Unsupported, hasAudio = true)))
     }
 
     private class FakeEpubRepository(
@@ -132,5 +162,12 @@ class LibraryItemOfflineAvailabilityTest {
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
         override suspend fun remove(serverId: String, itemId: String) = error("unused")
+    }
+
+    private class FakeBundleAudiobookSource(
+        private val offlineIds: Set<String> = emptySet(),
+    ) : BundleAudiobookSource {
+        override suspend fun localSession(serverId: String, itemId: String): AudiobookSession? = null
+        override fun isAvailableOffline(serverId: String, itemId: String) = "$serverId/$itemId" in offlineIds
     }
 }

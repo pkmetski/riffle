@@ -12,6 +12,7 @@ import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
@@ -178,7 +179,15 @@ class LibraryItemsViewModelTest {
         libraryRepository,
         serverRepository,
         tokenStorage,
-        LibraryItemOfflineAvailability(epubRepository, pdfRepository, audiobookDownloadRepository),
+        LibraryItemOfflineAvailability(
+            epubRepository,
+            pdfRepository,
+            audiobookDownloadRepository,
+            object : BundleAudiobookSource {
+                override suspend fun localSession(serverId: String, itemId: String) = null
+                override fun isAvailableOffline(serverId: String, itemId: String) = false
+            },
+        ),
         connectivityObserver,
         toReadRepository,
         readaloudLinkRepository,

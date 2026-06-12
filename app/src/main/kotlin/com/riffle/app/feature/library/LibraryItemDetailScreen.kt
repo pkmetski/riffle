@@ -644,9 +644,12 @@ private fun ActionRow(
             }
         }
         if (item.isListenable) {
-            // The audiobook player streams from ABS (ADR 0029) unless it's been downloaded, in which
-            // case it plays the local files — so Listen needs connectivity only when not downloaded.
-            val listenBlockedOffline = isOffline && audiobookDownloadState != DownloadState.Downloaded
+            // The audiobook player resolves download > bundle > ABS stream (ADR 0029), so Listen needs
+            // connectivity only when neither a dedicated audiobook download nor a readaloud bundle is
+            // present locally — either local source plays offline.
+            val listenBlockedOffline = isOffline &&
+                audiobookDownloadState != DownloadState.Downloaded &&
+                readaloudDownloadState != DownloadState.Downloaded
             if (listenBlockedOffline) {
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),

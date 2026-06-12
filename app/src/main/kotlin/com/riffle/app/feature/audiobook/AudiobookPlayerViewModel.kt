@@ -28,6 +28,27 @@ import javax.inject.Inject
 internal fun audiobookProgressFraction(positionSec: Double, durationSec: Double): Float =
     if (durationSec > 0.0) (positionSec / durationSec).toFloat().coerceIn(0f, 1f) else 0f
 
+/**
+ * The book-absolute resume position. When NO position was tracked at all ([hadTrackedPosition] false —
+ * no local audiobook row and no server record, e.g. offline with only a downloaded bundle) fall back
+ * to the item's library [readingProgressFraction] mapped to seconds. This resumes near where the rest
+ * of the app shows progress instead of restarting at 0, and (crucially) seeds the resume floor so the
+ * close/follow persist guard never writes a ~0 over that progress — the offline-erase bug.
+ *
+ * Gating on [hadTrackedPosition] — not on `reconciledSec > 0` — is deliberate: a genuinely-tracked
+ * position of exactly 0 (a server record or local row that says "at the start", with a real
+ * timestamp) must be honoured, not replaced by the progress fallback. Online behaviour is unchanged
+ * because a server record always counts as a tracked position.
+ */
+internal fun audiobookResumeSec(
+    reconciledSec: Double,
+    hadTrackedPosition: Boolean,
+    readingProgressFraction: Float,
+    durationSec: Double,
+): Double =
+    if (hadTrackedPosition || readingProgressFraction <= 0f || durationSec <= 0.0) reconciledSec
+    else (readingProgressFraction * durationSec).coerceIn(0.0, durationSec)
+
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
 data class AudiobookPlayerUiState(
     val loading: Boolean = true,
@@ -51,6 +72,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
+    private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
     private val libraryRepository: LibraryRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
@@ -131,9 +153,11 @@ class AudiobookPlayerViewModel @Inject constructor(
             serverId = server?.id ?: ""
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
             val item = libraryRepository.getItem(itemId)
-            // Prefer the downloaded local copy (offline, file:// tracks); else stream from ABS (ADR 0029).
+            // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
+            // stream from ABS (connectivity-independent: a local copy always beats streaming).
             val session = if (serverId.isEmpty()) null
                 else audiobookDownloadRepository.localSession(serverId, itemId)
+                    ?: bundleAudiobookSource.localSession(serverId, itemId)
                     ?: audiobookRepository.openSession(serverId, itemId)
             if (item == null || session == null) {
                 meta.value = meta.value.copy(loading = false, failed = true)
@@ -146,7 +170,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // it does not re-push (ADR 0029).
             val localSec = audiobookPositionStore.load(serverId, itemId)
             val localTs = audiobookPositionStore.loadLocalUpdatedAt(serverId, itemId)
-            val resumeSec: Double
+            var resumeSec: Double
             val resumeUpdatedAt: Long
             when (
                 val decision = com.riffle.core.domain.AudiobookPositionReconciler.reconcile(
@@ -171,6 +195,18 @@ class AudiobookPlayerViewModel @Inject constructor(
                     resumeUpdatedAt = session.serverLastUpdate
                 }
             }
+            // No tracked position at all (offline with only a bundle: no local listen row, no server
+            // record, and the canonical bridge is unavailable) → fall back to the item's library
+            // progress so we resume near where the app shows it AND seed reconciledResumeSec as a
+            // floor, so the close/follow persist guard can't write a ~0 over that progress. A tracked
+            // position (resumeUpdatedAt > 0), even one of exactly 0, is honoured as-is. resumeUpdatedAt
+            // stays as reconciled (0 here), keeping this approximate position inbound-only.
+            resumeSec = audiobookResumeSec(
+                reconciledSec = resumeSec,
+                hadTrackedPosition = resumeUpdatedAt > 0L,
+                readingProgressFraction = item.readingProgress,
+                durationSec = session.timeline.durationSec,
+            )
             // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
             // key the *same* way the reader does — via the resolver on this audiobook's link — so both
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
@@ -199,6 +235,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 spans = session.tracks,
                 durationSec = session.timeline.durationSec,
                 startAtSec = resumeSec,
+                localZipFile = session.localZipFile,
             )
             // Record the active session so a media-notification tap reopens this audiobook player.
             nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))

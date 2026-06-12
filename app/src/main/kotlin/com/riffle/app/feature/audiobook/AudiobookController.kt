@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.app.feature.reader.readaloud.AudioPlayerService
+import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -59,6 +61,10 @@ class AudiobookController @Inject constructor(
     private var durationSec: Double = 0.0
     private var prepared = false
     private var wantsToPlay = false
+    // True when this controller's current session pointed SharedBundle at a bundle file. Guards stop()
+    // so it only releases the bundle it set — never one a live Readaloud session owns (e.g. when this
+    // player opened a streaming session, or failed to prepare at all, while Readaloud is still playing).
+    private var ownsSharedBundle = false
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -79,9 +85,15 @@ class AudiobookController @Inject constructor(
         spans: List<AudiobookTrackSpan>,
         durationSec: Double,
         startAtSec: Double,
+        localZipFile: File? = null,
     ) {
         this.spans = spans
         this.durationSec = durationSec
+        // Bundle-backed audio: the track mediaIds are zip-entry paths the service reads from this file
+        // via SharedBundle (the same channel Readaloud uses). Null for HTTP/file sessions, where the
+        // service never consults SharedBundle (so we don't touch it and don't claim ownership).
+        ownsSharedBundle = localZipFile != null
+        if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
         val items = trackUrls.map { url ->
             MediaItem.Builder().setMediaId(url).setUri(url).build()
@@ -159,6 +171,11 @@ class AudiobookController @Inject constructor(
         spans = emptyList()
         prepared = false
         wantsToPlay = false
+        // Release the bundle reference only if THIS session set it (parity with ReadaloudController),
+        // never one a still-playing Readaloud owns — media items are already cleared, so nothing
+        // restores a zip URI after this.
+        if (ownsSharedBundle) SharedBundle.current = null
+        ownsSharedBundle = false
         _state.value = PlaybackState()
     }
 

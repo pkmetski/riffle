@@ -65,6 +65,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
+import com.riffle.core.data.StorytellerBundleAudiobookSource
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.database.LibraryItemDao
@@ -393,6 +394,20 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideBundleAudiobookSource(
+            readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
+            readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
+        ): com.riffle.core.domain.BundleAudiobookSource =
+            StorytellerBundleAudiobookSource(
+                readaloudLinkRepository = readaloudLinkRepository,
+                readaloudAudioRepository = readaloudAudioRepository,
+                applicationScope = kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                ),
+            )
+
+        @Provides
+        @Singleton
         fun provideEpubRepository(
             api: AbsLibraryApi,
             @EpubCacheStore cacheStore: LocalStore,
@@ -419,8 +434,9 @@ abstract class DataModule {
             epubRepository: EpubRepository,
             pdfRepository: PdfRepository,
             audiobookDownloadRepository: AudiobookDownloadRepository,
+            bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
         ): LibraryItemOfflineAvailability =
-            LibraryItemOfflineAvailability(epubRepository, pdfRepository, audiobookDownloadRepository)
+            LibraryItemOfflineAvailability(epubRepository, pdfRepository, audiobookDownloadRepository, bundleAudiobookSource)
 
         @Provides
         @Singleton
