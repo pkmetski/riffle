@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.BookSyncState
@@ -33,6 +34,7 @@ class ReaderSyncFactory @Inject constructor(
     private val libraryRepository: LibraryRepository,
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
+    private val crossEpubIndexBuildTrigger: CrossEpubIndexBuildTrigger,
 ) {
     /**
      * @param itemId the ABS Library Item id the reader opened. A book is always read from the ABS
@@ -59,7 +61,21 @@ class ReaderSyncFactory @Inject constructor(
         // The index must already be built for these exact bytes (checksum-keyed); otherwise the
         // background builder hasn't caught up — stay single-peer until it has. Checksums stream the
         // file (the synced bundle is hundreds of MB — never read it into memory; ADR 0023).
-        val index = indexStore.load(EpubChecksum.of(absFile), EpubChecksum.of(storytellerFile)) ?: return null
+        val index = indexStore.load(EpubChecksum.of(absFile), EpubChecksum.of(storytellerFile)) ?: run {
+            // An operation requiring the cross-EPUB index, reached before the index exists. Both EPUBs
+            // are cached (above), so the build's prerequisites are all present — self-heal by enqueueing
+            // it (idempotent), and leave a trace explaining why this book's position sync just degraded
+            // to single-peer. This is the reader-open AND player-open retry path in one place; it also
+            // catches a deferred/failed download-time build, an EPUB re-upload (checksum change), or a
+            // bundle present from outside the in-app download flow (ADR 0031).
+            android.util.Log.w(
+                "RIFFLE_RA",
+                "cross-EPUB index missing for matched item $itemId (ebook=${ebookLink.absLibraryItemId}); " +
+                    "position sync degraded to single-peer — enqueued a build",
+            )
+            crossEpubIndexBuildTrigger.enqueueBuild(openedLink)
+            return null
+        }
 
         val absExtract = EpubContentExtractor.extract(absFile) ?: return null
         val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null

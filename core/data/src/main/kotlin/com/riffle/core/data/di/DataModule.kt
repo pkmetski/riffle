@@ -21,6 +21,8 @@ import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.PdfRepositoryImpl
+import com.riffle.core.data.CrossEpubIndexBuildTrigger
+import com.riffle.core.data.CrossEpubIndexBuilderService
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
@@ -209,6 +211,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindCrossEpubIndexStore(impl: CrossEpubIndexStoreImpl): CrossEpubIndexStore
+
+    @Binds
+    @Singleton
+    abstract fun bindCrossEpubIndexBuildTrigger(impl: CrossEpubIndexBuilderService): CrossEpubIndexBuildTrigger
 
     @Binds
     @Singleton

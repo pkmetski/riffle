@@ -81,7 +81,6 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val audioIdentityResolver: AudioIdentityResolver,
     private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
-    private val crossEpubIndexBuilder: com.riffle.core.data.CrossEpubIndexBuilderService,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
     // Sync-store views for the matched dual-write (ADR 0030): read this audiobook's row stamps and
@@ -214,14 +213,13 @@ class AudiobookPlayerViewModel @Inject constructor(
             val localTs = audiobookPositionStore.loadLocalUpdatedAt(serverId, itemId)
             var resumeSec: Double
             val resumeUpdatedAt: Long
-            when (
-                val decision = com.riffle.core.domain.AudiobookPositionReconciler.reconcile(
-                    localSec = localSec,
-                    localUpdatedAt = localTs,
-                    remoteSec = session.serverCurrentTimeSec,
-                    remoteUpdatedAt = session.serverLastUpdate,
-                )
-            ) {
+            val decision = com.riffle.core.domain.AudiobookPositionReconciler.reconcile(
+                localSec = localSec,
+                localUpdatedAt = localTs,
+                remoteSec = session.serverCurrentTimeSec,
+                remoteUpdatedAt = session.serverLastUpdate,
+            )
+            when (decision) {
                 is com.riffle.core.domain.AudiobookPositionReconciler.Decision.PullRemote -> {
                     audiobookPositionStore.save(serverId, itemId, decision.positionSec)
                     audiobookPositionStore.updateLocalTimestamp(serverId, itemId, decision.timestampMillis)
@@ -293,11 +291,10 @@ class AudiobookPlayerViewModel @Inject constructor(
             // position to the reconciled point (ADR 0029).
             controller.play()
 
-            // Ebook sync needs the cross-EPUB index (ABS EPUB + bundle SMIL). The match is confirmed
-            // *before* the readaloud bundle is downloaded, so that build defers; re-enqueue it here so a
-            // matched audiobook starts driving the ebook once the bundle is present and the index lands
-            // (ADR 0029). Idempotent + background.
-            link?.let { crossEpubIndexBuilder.enqueueBuild(it) }
+            // The cross-EPUB index build (needed for the full ebook-sync coordinator) is self-healed by
+            // ReaderSyncFactory.createIfApplicable below: if the bundle is present but the index isn't
+            // built yet, it enqueues the build there — so this open is itself the player-open retry path
+            // (ADR 0031). No explicit enqueue needed here.
 
             // Attach the matched 2-peer cycle if its prerequisites are already cached (the follow loop
             // re-attaches later if the index is still building). Seed it with the reconciled resume so

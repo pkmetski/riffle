@@ -3,6 +3,20 @@
 **Status:** Accepted
 **Relates to:** [ADR 0019](0019-three-peer-unified-canonical-progress-sync.md), [ADR 0029](0029-audiobook-direct-abs-streaming-audio-led-sync.md), [ADR 0030](0030-durable-offline-progress-reconcile.md).
 
+## Amendment — cross-EPUB index build triggers: download-complete primary, open-time self-heal, no library-refresh loop
+
+The cross-EPUB index (ADR 0019/0021 — the per-chapter ABS↔Storyteller char map needed for the full ebook-CFI translation) was previously (re)enqueued for **every** Confirmed link on **every** library refresh (i.e. each navigation into a library). That is wasteful: it iterates all matches and launches a coroutine per link on every entry, almost all of which short-circuit (the build only does real work once the Storyteller bundle is locally present). The bundle is the index's only prerequisite the builder can't fetch itself, and it arrives at exactly one deterministic moment — when the user downloads readaloud.
+
+**Trigger set:**
+
+- **Primary — readaloud bundle download-complete.** On a successful readaloud download the bundle is present; enqueue the build right there (`LibraryItemDetailViewModel`). This is the natural moment and the only one needed in the common path.
+- **Self-heal on reader-open AND player-open, at one chokepoint.** `ReaderSyncFactory.createIfApplicable` is the single place both surfaces ask for the full coordinator. When it reaches the index lookup having already confirmed the link and that **both EPUBs are cached**, a missing index means "buildable but not built" — so it enqueues the build there and returns `null` (stay single-peer). This one seam covers both surfaces and recovers the cases download-complete can't: a build that failed/deferred at download time, an EPUB re-upload (checksum change invalidating the index), or a bundle present from outside the in-app download flow.
+- **Removed — the library-refresh loop.** `ReadaloudMatchingService.reconcileLinks` no longer enqueues builds.
+
+**Feedback on a missing index.** Missing-index is otherwise *silent* (sync quietly degrades to single-peer; it is **not** the cause of missing readaloud highlights, which are text-anchored from the bundle and index-independent). The chokepoint above logs a `WARN` naming the matched item and that sync degraded to single-peer / a build was enqueued — the trace that explains "sync works only sometimes."
+
+Callers depend on a narrow `CrossEpubIndexBuildTrigger` seam (implemented by `CrossEpubIndexBuilderService`), not the I/O-heavy service, keeping the trigger sites unit-testable.
+
 ## Amendment — the bundle fragment is the pivot; the ebook page-canonical is never translated directly to audio
 
 Live testing exposed a concrete defect: Play-from-here at a sentence ~2/3 down a page synced the audiobook to a point **50–80 s earlier** — the **first sentence of the page**, not the selected one. Root cause (confirmed against the real Martian bundle, two data points): the audiobook position was written from the **ebook page/canonical coordinate**. A Readium locator is only **page/column-level**, so translating it to audio (`canonicalToAudioSeconds`) resolves via `fragmentAt(pageProgression)` to the **page-top sentence**. The error equals the narration time of the text between the page top and the real sentence — tens of seconds to ~a minute, varying with how far down the page the position is (hence not constant, not proportional). The timelines and SMIL math are otherwise exact (bundle total 39,214.6 s == ABS audiobook 39,214.5 s; per-file duration estimate verified to 0.00 s drift via `ffprobe`), so this was purely the wrong *source coordinate*, not a translation error.

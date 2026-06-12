@@ -51,7 +51,7 @@ class CrossEpubIndexBuilderService(
     @EpubDownloadsStore private val downloadsStore: LocalStore,
     private val store: CrossEpubIndexStore,
     private val clock: () -> Long,
-) {
+) : CrossEpubIndexBuildTrigger {
     @Inject constructor(
         serverRepository: ServerRepository,
         tokenStorage: TokenStorage,
@@ -71,7 +71,7 @@ class CrossEpubIndexBuilderService(
     )
 
     /** Schedule an idempotent background build for [link]; returns immediately. */
-    fun enqueueBuild(link: ReadaloudLink) {
+    override fun enqueueBuild(link: ReadaloudLink) {
         val key = link.absServerId to link.absLibraryItemId
         if (!inFlight.add(key)) return
         scope.launch {

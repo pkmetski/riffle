@@ -82,6 +82,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val downloadManager: DownloadManager,
+    private val crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -314,6 +315,10 @@ class LibraryItemDetailViewModel @Inject constructor(
             )
             if (result !is com.riffle.core.domain.AudioDownloadResult.Success) {
                 _snackbarEvents.tryEmit("Couldn't download readaloud audio")
+            } else {
+                // The bundle is now present — the deterministic moment the cross-EPUB index's only
+                // un-fetchable prerequisite arrives. Schedule the build (idempotent; ADR 0031).
+                crossEpubIndexBuildTrigger.enqueueBuild(link)
             }
             readaloudDownloadStateFor(result is com.riffle.core.domain.AudioDownloadResult.Success)
         }
