@@ -61,7 +61,7 @@ class StorytellerBundleAudiobookSourceTest {
         val source = StorytellerBundleAudiobookSource(
             readaloudLinkRepository = FakeLinks(listOf(link)),
             readaloudAudioRepository = FakeAudio(bundle, track),
-            scope = backgroundScope,
+            applicationScope = backgroundScope,
         )
 
         val session = source.localSession("abs", "item-1")!!

@@ -16,21 +16,24 @@ import kotlinx.coroutines.launch
  *
  * [isAvailableOffline] must be synchronous (it backs the library's offline filter), so the suspend
  * link lookup is replaced on that path by a [linksByAbsItem] snapshot kept fresh from
- * [ReadaloudLinkRepository.observeAll] on an application-lifetime [scope] — the same self-managed IO
- * scope pattern as [CrossEpubIndexBuilderService].
+ * [ReadaloudLinkRepository.observeAll] on the [applicationScope] — the same self-managed background
+ * pattern as [CrossEpubIndexBuilderService]. The snapshot reads `emptyMap` until that collector's
+ * first emission; in production the application-lifetime scope starts well before any library query,
+ * so a downloaded bundle is reflected by the time the offline filter runs.
  */
 class StorytellerBundleAudiobookSource(
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
-    scope: CoroutineScope,
+    // Must outlive this singleton (application-lifetime); it owns the snapshot collector below.
+    applicationScope: CoroutineScope,
 ) : BundleAudiobookSource {
 
-    // ABS "serverId/itemId" -> link, so isAvailableOffline is a synchronous lookup.
+    // ABS (serverId, itemId) -> link, so isAvailableOffline is a synchronous lookup.
     @Volatile
     private var linksByAbsItem: Map<String, ReadaloudLink> = emptyMap()
 
     init {
-        scope.launch {
+        applicationScope.launch {
             readaloudLinkRepository.observeAll().collect { links ->
                 linksByAbsItem = links.associateBy { absKey(it.absServerId, it.absLibraryItemId) }
             }
@@ -51,5 +54,7 @@ class StorytellerBundleAudiobookSource(
         return readaloudAudioRepository.isAudioAvailable(link.storytellerServerId, link.storytellerBookId)
     }
 
-    private fun absKey(serverId: String, itemId: String) = "$serverId/$itemId"
+    // NUL separator: it can't occur in an ABS server or item id, so the key can't collide across
+    // different (serverId, itemId) splits the way a "/" join could.
+    private fun absKey(serverId: String, itemId: String) = "$serverId\u0000$itemId"
 }
