@@ -28,6 +28,18 @@ import javax.inject.Inject
 internal fun audiobookProgressFraction(positionSec: Double, durationSec: Double): Float =
     if (durationSec > 0.0) (positionSec / durationSec).toFloat().coerceIn(0f, 1f) else 0f
 
+/**
+ * The book-absolute resume position. When the position reconcile found nothing — no local audiobook
+ * position and no server position, e.g. offline with only a downloaded bundle — fall back to the
+ * item's library [readingProgressFraction] mapped to seconds. This resumes near where the rest of the
+ * app shows progress instead of restarting at 0, and (crucially) seeds the resume floor so the
+ * close/follow persist guard never writes a ~0 over that progress — the offline-erase bug. A genuine
+ * reconciled position ([reconciledSec] > 0) always wins, so online behaviour is unchanged.
+ */
+internal fun audiobookResumeSec(reconciledSec: Double, readingProgressFraction: Float, durationSec: Double): Double =
+    if (reconciledSec > 0.0 || readingProgressFraction <= 0f || durationSec <= 0.0) reconciledSec
+    else (readingProgressFraction * durationSec).coerceIn(0.0, durationSec)
+
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
 data class AudiobookPlayerUiState(
     val loading: Boolean = true,
@@ -149,7 +161,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // it does not re-push (ADR 0029).
             val localSec = audiobookPositionStore.load(serverId, itemId)
             val localTs = audiobookPositionStore.loadLocalUpdatedAt(serverId, itemId)
-            val resumeSec: Double
+            var resumeSec: Double
             val resumeUpdatedAt: Long
             when (
                 val decision = com.riffle.core.domain.AudiobookPositionReconciler.reconcile(
@@ -174,6 +186,13 @@ class AudiobookPlayerViewModel @Inject constructor(
                     resumeUpdatedAt = session.serverLastUpdate
                 }
             }
+            // No tracked position (offline with only a bundle: no local listen row, no server time,
+            // and the canonical bridge is unavailable) → fall back to the item's library progress so
+            // we resume near where the app shows it AND seed reconciledResumeSec as a floor, so the
+            // close/follow persist guard can't write a ~0 over that progress. resumeUpdatedAt stays as
+            // reconciled (0 here), keeping this approximate position inbound-only — it never leads the
+            // canonical record. A genuine reconciled position is left untouched.
+            resumeSec = audiobookResumeSec(resumeSec, item.readingProgress, session.timeline.durationSec)
             // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
             // key the *same* way the reader does — via the resolver on this audiobook's link — so both
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
