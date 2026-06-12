@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.riffle.core.data.di.DatabaseModule
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AudioPlaybackPreferencesDao
+import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CrossEpubIndexDao
@@ -82,6 +83,10 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideAudioPlaybackPreferencesDao(db: RiffleDatabase): AudioPlaybackPreferencesDao = db.audioPlaybackPreferencesDao()
+
+    @Provides
+    @Singleton
+    fun provideAudiobookPositionDao(db: RiffleDatabase): AudiobookPositionDao = db.audiobookPositionDao()
 
     @Provides
     @Singleton

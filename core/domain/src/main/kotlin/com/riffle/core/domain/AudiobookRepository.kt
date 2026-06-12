@@ -10,6 +10,9 @@ data class AudiobookSession(
     val tracks: List<AudiobookTrackSpan>,
     val timeline: AudiobookTimeline,
     val serverCurrentTimeSec: Double,
+    // ABS's server-side `lastUpdate` (ms) for this item's media-progress record, for last-update-wins
+    // resume against the durable local store. 0 when unknown (offline / downloaded session).
+    val serverLastUpdate: Long = 0,
 )
 
 interface AudiobookRepository {

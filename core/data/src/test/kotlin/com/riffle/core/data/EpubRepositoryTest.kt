@@ -109,8 +109,8 @@ class EpubRepositoryTest {
 
     private class FakePositionStore : ReadingPositionStore {
         val store = mutableMapOf<Pair<String, String>, String>()
-        override suspend fun save(serverId: String, itemId: String, cfi: String) {
-            store[serverId to itemId] = cfi
+        override suspend fun save(serverId: String, itemId: String, payload: String) {
+            store[serverId to itemId] = payload
         }
         override suspend fun load(serverId: String, itemId: String): String? = store[serverId to itemId]
         override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L

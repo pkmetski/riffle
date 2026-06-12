@@ -32,7 +32,7 @@ class ProgressSyncCycleTest {
     private class FakePositionStore(var localUpdatedAt: Long = 0L) : ReadingPositionStore {
         var updatedTimestamp: Long? = null
         var updatedServerId: String? = null
-        override suspend fun save(serverId: String, itemId: String, cfi: String) = Unit
+        override suspend fun save(serverId: String, itemId: String, payload: String) = Unit
         override suspend fun load(serverId: String, itemId: String): String? = null
         override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {

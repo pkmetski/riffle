@@ -54,11 +54,23 @@ class AudiobookRepositoryImpl @Inject constructor(
                 AudiobookChapter(index = i, startSec = c.startSec, endSec = c.endSec, title = c.title)
             },
         )
+        // Read ABS's server-side lastUpdate so the player can last-update-wins resume against the
+        // durable local store. A failed read leaves it 0 (the play-session currentTime still resumes).
+        val serverLastUpdate = (
+            sessionApi.getProgress(
+                baseUrl = server.url.value,
+                libraryItemId = itemId,
+                token = token,
+                insecureAllowed = server.insecureConnectionAllowed,
+            ) as? com.riffle.core.network.NetworkGetProgressResult.Success
+        )?.progress?.lastUpdate ?: 0L
+
         return AudiobookSession(
             trackUrls = trackUrls,
             tracks = spans,
             timeline = timeline,
             serverCurrentTimeSec = session.currentTimeSec,
+            serverLastUpdate = serverLastUpdate,
         )
     }
 

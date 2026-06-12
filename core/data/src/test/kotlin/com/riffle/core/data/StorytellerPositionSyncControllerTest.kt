@@ -25,7 +25,7 @@ class StorytellerPositionSyncControllerTest {
     private class FakePositionStore(var ts: Long) : ReadingPositionStore {
         var saved: String? = null
         var savedTs: Long? = null
-        override suspend fun save(serverId: String, itemId: String, cfi: String) { saved = cfi }
+        override suspend fun save(serverId: String, itemId: String, payload: String) { saved = payload }
         override suspend fun load(serverId: String, itemId: String): String? = saved
         override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = ts
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) { savedTs = millis; ts = millis }
