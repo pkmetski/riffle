@@ -50,6 +50,7 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalStore
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.ReadaloudLinkRepository
@@ -411,6 +412,15 @@ abstract class DataModule {
             serverRepository: ServerRepository,
             tokenStorage: TokenStorage,
         ): PdfRepository = PdfRepositoryImpl(api, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+
+        @Provides
+        @Singleton
+        fun provideLibraryItemOfflineAvailability(
+            epubRepository: EpubRepository,
+            pdfRepository: PdfRepository,
+            audiobookDownloadRepository: AudiobookDownloadRepository,
+        ): LibraryItemOfflineAvailability =
+            LibraryItemOfflineAvailability(epubRepository, pdfRepository, audiobookDownloadRepository)
 
         @Provides
         @Singleton

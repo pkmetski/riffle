@@ -1,6 +1,9 @@
 package com.riffle.app.feature.library
 
 import androidx.lifecycle.SavedStateHandle
+import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.AudiobookDownloadResult
+import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EbookFormat
@@ -9,6 +12,7 @@ import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfDownloadResult
@@ -124,6 +128,15 @@ class LibraryItemsViewModelTest {
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
+    private fun fakeAudiobookDownloadRepo(downloadedIds: Set<String> = emptySet()): AudiobookDownloadRepository =
+        object : AudiobookDownloadRepository {
+            override fun isDownloaded(serverId: String, itemId: String): Boolean = itemId in downloadedIds
+            override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
+            override suspend fun download(serverId: String, itemId: String, onProgress: (Long, Long) -> Unit): AudiobookDownloadResult =
+                AudiobookDownloadResult.Success
+            override suspend fun remove(serverId: String, itemId: String): Long = 0L
+        }
+
     private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
         val state = MutableStateFlow(online)
         override val isOnline: StateFlow<Boolean> = state
@@ -153,6 +166,7 @@ class LibraryItemsViewModelTest {
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         epubRepository: EpubRepository = fakeEpubRepo(),
         pdfRepository: PdfRepository = fakePdfRepo(),
+        audiobookDownloadRepository: AudiobookDownloadRepository = fakeAudiobookDownloadRepo(),
         libraryRepository: LibraryRepository = fakeRepo(),
         serverRepository: ServerRepository = fakeServerRepo(),
         tokenStorage: TokenStorage = fakeTokenStorage(),
@@ -164,8 +178,7 @@ class LibraryItemsViewModelTest {
         libraryRepository,
         serverRepository,
         tokenStorage,
-        epubRepository,
-        pdfRepository,
+        LibraryItemOfflineAvailability(epubRepository, pdfRepository, audiobookDownloadRepository),
         connectivityObserver,
         toReadRepository,
         readaloudLinkRepository,
@@ -448,6 +461,24 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredUngroupedItems.value)
         assertEquals(true, vm.isOffline.value)
+    }
+
+    @Test
+    fun `when offline a downloaded audiobook-only item is shown`() = runTest {
+        val audiobook = LibraryItem(
+            "id-The Martian", "lib-1", "The Martian", "Andy Weir", null, 0f, false, false,
+            EbookFormat.Unsupported, hasAudio = true,
+        )
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(emptySet()),
+            audiobookDownloadRepository = fakeAudiobookDownloadRepo(setOf("id-The Martian")),
+        )
+        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.isOffline.collect {} }
+        itemsFlow.value = listOf(audiobook, item("Foundation", "Isaac Asimov"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(audiobook), vm.filteredUngroupedItems.value)
     }
 
     @Test

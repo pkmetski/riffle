@@ -8,12 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
-import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.Series
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
@@ -50,8 +48,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
-    private val epubRepository: EpubRepository,
-    private val pdfRepository: PdfRepository,
+    private val offlineAvailability: LibraryItemOfflineAvailability,
     private val connectivityObserver: ConnectivityObserver,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
@@ -161,30 +158,30 @@ class LibraryItemsViewModel @Inject constructor(
     val filteredUngroupedItems: StateFlow<List<LibraryItem>> = combine(ungroupedItems, allItems, searchQuery, isOffline) { ungrouped, all, query, offline ->
         val base = if (query.isEmpty()) ungrouped
             else all.filter { it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true) }
-        if (offline) base.filter { isAvailableOffline(it) } else base
+        if (offline) base.filter { offlineAvailability.isAvailableOffline(it) } else base
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredInProgress: StateFlow<List<LibraryItem>> = combine(inProgress, isOffline) { items, offline ->
-        if (offline) items.filter { isAvailableOffline(it) } else items
+        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredFinished: StateFlow<List<LibraryItem>> = combine(finished, isOffline) { items, offline ->
-        if (offline) items.filter { isAvailableOffline(it) } else items
+        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredRecentlyAdded: StateFlow<List<LibraryItem>> = combine(recentlyAdded, isOffline) { items, offline ->
-        val filtered = if (offline) items.filter { isAvailableOffline(it) } else items
+        val filtered = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
         filtered.take(50)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(allBooks, isOffline) { items, offline ->
-        if (offline) items.filter { isAvailableOffline(it) } else items
+        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val toReadItems: StateFlow<List<LibraryItem>> = combine(toReadItemIds, allBooks, isOffline) { ids, all, offline ->
         val byId = all.associateBy { it.id }
         val items = ids.mapNotNull { byId[it] }
-        if (offline) items.filter { isAvailableOffline(it) } else items
+        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var authToken: String by mutableStateOf("")
@@ -265,7 +262,7 @@ class LibraryItemsViewModel @Inject constructor(
         if (!offline || collections.isEmpty()) return flowOf(collections)
         return combine(collections.map { col -> libraryRepository.observeCollectionItems(col.id) }) { itemArrays ->
             collections.zip(itemArrays.toList())
-                .filter { (_, items) -> items.any { isAvailableOffline(it) } }
+                .filter { (_, items) -> items.any { offlineAvailability.isAvailableOffline(it) } }
                 .map { (col, _) -> col }
         }
     }
@@ -274,15 +271,9 @@ class LibraryItemsViewModel @Inject constructor(
         if (!offline || series.isEmpty()) return flowOf(series)
         return combine(series.map { s -> libraryRepository.observeSeriesItems(s.id) }) { itemArrays ->
             series.zip(itemArrays.toList())
-                .filter { (_, items) -> items.any { isAvailableOffline(it) } }
+                .filter { (_, items) -> items.any { offlineAvailability.isAvailableOffline(it) } }
                 .map { (s, _) -> s }
         }
-    }
-
-    private fun isAvailableOffline(item: LibraryItem): Boolean = when (item.ebookFormat) {
-        EbookFormat.Epub -> epubRepository.isDownloaded(item.serverId, item.id) || epubRepository.isCached(item.serverId, item.id)
-        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.serverId, item.id) || pdfRepository.isCached(item.serverId, item.id)
-        else -> false
     }
 
     private companion object {
