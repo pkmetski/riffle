@@ -26,4 +26,7 @@ data class AudiobookPositionEntity(
     val itemId: String,
     val positionSec: Double,
     val localUpdatedAt: Long = 0,
+    // The localUpdatedAt value last confirmed pushed to / pulled from the server; the row is
+    // **dirty** when localUpdatedAt > lastSyncedAt (ADR 0030). See ReadingPositionEntity.
+    val lastSyncedAt: Long = 0,
 )

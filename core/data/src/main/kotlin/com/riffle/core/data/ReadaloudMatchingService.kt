@@ -10,7 +10,6 @@ import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.MatchOutcome
 import com.riffle.core.domain.MatchableAbsItem
-import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
 import com.riffle.core.domain.ServerType
@@ -41,17 +40,13 @@ class ReadaloudMatchingService(
     private val readaloudCandidateDao: ReadaloudCandidateDao,
     private val readaloudDismissalDao: ReadaloudDismissalDao,
     private val clock: () -> Long = System::currentTimeMillis,
-    // Eager cross-EPUB index build on Confirm (ADR 0019/0021). Optional so unit tests of the
-    // matcher run without the I/O-heavy builder; wired in production via DI.
-    private val indexBuilder: CrossEpubIndexBuilderService? = null,
 ) {
     @Inject constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
         readaloudCandidateDao: ReadaloudCandidateDao,
         readaloudDismissalDao: ReadaloudDismissalDao,
-        indexBuilder: CrossEpubIndexBuilderService,
-    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis, indexBuilder)
+    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
 
     suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
@@ -130,28 +125,10 @@ class ReadaloudMatchingService(
         // The candidate table is fully regenerated each pass (reconcile sees every book/item).
         readaloudCandidateDao.clearAll()
         if (freshCandidates.isNotEmpty()) readaloudCandidateDao.upsertAll(freshCandidates)
-        enqueueIndexBuilds()
-    }
-
-    /**
-     * Kick off a background cross-EPUB index build for every surviving Confirmed link. Each
-     * build is idempotent (skipped once the index for the current EPUB checksums exists), so
-     * re-running on every refresh just retries any link whose prerequisites weren't available
-     * at Confirm time — the opportunistic rebuild from ADR 0019.
-     */
-    private suspend fun enqueueIndexBuilds() {
-        val builder = indexBuilder ?: return
-        for (row in readaloudLinkDao.allRows()) {
-            builder.enqueueBuild(
-                ReadaloudLink(
-                    storytellerServerId = row.storytellerServerId,
-                    storytellerBookId = row.storytellerBookId,
-                    absServerId = row.absServerId,
-                    absLibraryItemId = row.absLibraryItemId,
-                    userConfirmed = row.userConfirmed,
-                )
-            )
-        }
+        // No cross-EPUB index builds are enqueued here: looping every Confirmed link on every library
+        // refresh was wasteful (it re-checked all matches on each navigation). The build is now triggered
+        // at the deterministic moment its prerequisite arrives — readaloud bundle download-complete — and
+        // self-healed on reader/player open via ReaderSyncFactory (ADR 0031).
     }
 
     /**

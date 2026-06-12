@@ -99,6 +99,18 @@ internal class AbsAudiobookSyncRemote(
 }
 
 /**
+ * Wraps a remote so the cycle still READS it (a genuinely-newer remote still wins inbound) but never
+ * PATCHes it. Used while the reader is parked on the sentence readaloud stopped on: readaloud already
+ * wrote the precise audiobook position on close, so the cycle's page-derived outbound push must not
+ * regress it to the page top (ADR 0031). Outbound resumes once the user navigates off that page.
+ */
+private class InboundOnlyRemote(private val inner: SyncRemote) : SyncRemote {
+    override val id = inner.id
+    override suspend fun tryGet(): RemoteRead? = inner.tryGet()
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? = null
+}
+
+/**
  * Drives one matched readaloud book's two-ABS-peer reconciliation (ADR 0019, as amended by ADR 0029
  * which dropped the Storyteller position peer). Builds the live
  * [SyncRemote]s for the applicable peer set and runs the unified [ProgressSyncStrategy] each
@@ -131,11 +143,19 @@ class ReaderSyncCoordinator(
     private val absEbookEndpoint: AbsSyncEndpoint?,
     private val absAudioEndpoint: AbsSyncEndpoint?,
 ) {
-    suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long): ReaderSyncCycleResult {
+    /**
+     * @param pushAudio when `false`, the audiobook peer is reconciled **inbound-only** (read, never
+     *   patched) — readaloud owns the precise audiobook write while the reader is parked on the
+     *   sentence it stopped on, so the page-derived outbound can't regress it (ADR 0031).
+     */
+    suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long, pushAudio: Boolean = true): ReaderSyncCycleResult {
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
                 RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
-                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let { AbsAudiobookSyncRemote(absApi, it, bridge) }
+                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let {
+                    val remote = AbsAudiobookSyncRemote(absApi, it, bridge)
+                    if (pushAudio) remote else InboundOnlyRemote(remote)
+                }
             }
         }
         val local = LocalCanonical(CanonicalReaderPosition(displayedLocatorJson), localUpdatedAt)
@@ -170,6 +190,53 @@ class ReaderSyncCoordinator(
      *  where a server-sync jump placed the reader rather than at the page top. */
     fun fragmentForCanonical(canonicalLocatorJson: String): String? =
         bridge.canonicalToFragmentRef(canonicalLocatorJson)
+
+    /** Whether this matched book carries an audiobook ABS record (the dual-write sibling, ADR 0030). */
+    val hasAudioTarget: Boolean get() = absAudioEndpoint != null
+
+    /** The ABS item id of the audiobook record — the audio store key for the dual-write. May differ
+     *  from the ebook item id when a library splits ebooks and audiobooks (ADR 0019). */
+    val audioItemId: String? get() = absAudioEndpoint?.itemId
+
+    /** The ABS item id of the ebook record — the reading store key for the dual-write (ADR 0030). */
+    val ebookItemId: String? get() = absEbookEndpoint?.itemId
+
+    /** The audiobook second a reading position maps to (bundle SMIL) — the value the cycle already
+     *  pushes to ABS_AUDIO; the dual-write persists it locally too. `null` if untranslatable. */
+    fun audioSecondsForCanonical(canonicalLocatorJson: String): Double? =
+        bridge.canonicalToAudioSeconds(canonicalLocatorJson)
+
+    /** The audiobook second the **narrated sentence** maps to (bundle SMIL, sentence-precise), falling
+     *  back to the page-derived position. Used to persist the local audiobook position on readaloud
+     *  close/pause (ADR 0031). `null` if neither can be translated. */
+    fun audioSecondsForFragment(fragmentRef: String, fallbackCanonicalJson: String?): Double? =
+        bridge.audioSecondsForFragment(fragmentRef)
+            ?: fallbackCanonicalJson?.let { bridge.canonicalToAudioSeconds(it) }
+
+    /** The narrated sentence an absolute audio second falls in (bundle SMIL, index-free) — seeds the
+     *  readaloud start from a local listen position (ADR 0031). */
+    fun fragmentForAudioSeconds(seconds: Double): String? = bridge.fragmentForAudioSeconds(seconds)
+
+    /** The reading-position locator JSON an audiobook second maps to (bundle SMIL) — the counterpart
+     *  for the audiobook player's dual-write onto the reading store. `null` if untranslatable. */
+    fun canonicalForAudioSeconds(seconds: Double): String? =
+        bridge.audioSecondsToCanonical(seconds)
+
+    /**
+     * The readaloud resume anchor (reader href + column progression + narrated sentence) an audiobook
+     * second maps to, via the bundle's SMIL (ADR 0031). Lets the audiobook player write the readaloud
+     * resume so reopening the reader and starting readaloud lands where the listen got to. `null` when
+     * the seconds can't be translated (prerequisites mid-cache).
+     */
+    fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {
+        val canonicalJson = bridge.audioSecondsToCanonical(seconds) ?: return null
+        val fragmentRef = bridge.canonicalToFragmentRef(canonicalJson)
+        val locations = runCatching { org.json.JSONObject(canonicalJson) }.getOrNull()?.optJSONObject("locations")
+        val href = runCatching { org.json.JSONObject(canonicalJson) }.getOrNull()?.optString("href")
+            ?.takeIf { it.isNotEmpty() } ?: return null
+        val progression = locations?.takeIf { it.has("progression") }?.optDouble("progression")?.takeIf { !it.isNaN() }
+        return com.riffle.core.domain.ReadaloudResumePosition(href, progression, fragmentRef)
+    }
 
     /**
      * Re-keys a "Play from here" selection ref (the displayed ABS `href#spanId`) onto the Storyteller
@@ -217,4 +284,45 @@ class ReaderSyncCoordinator(
         if (seconds == null) return null
         return absApi.writeAudiobookSeconds(ep, seconds)
     }
+}
+
+/**
+ * Bundle-SMIL-only audiobook follow (ADR 0031): translates a narrated fragment to its absolute audio
+ * second and pushes the matched ABS audiobook record — using **only** the Storyteller bundle's SMIL,
+ * with no cross-EPUB index or ABS EPUB. This lets readaloud sync to the audiobook even when the full
+ * [ReaderSyncCoordinator] can't be built (e.g. the cross-EPUB index isn't ready or a multi-link guard
+ * trips). It also produces the **ebook** position for an audio second — a text-anchored locator built
+ * from the bundle's own sentence text ([ebookItemId]/[serverId] key the stores), so audiobook→ebook
+ * sync also works index-free (ADR 0031: both directions go via the bundle, never the cross-EPUB index).
+ */
+class AudiobookFollow(
+    private val absApi: AbsSessionApi,
+    private val endpoint: AbsSyncEndpoint,
+    private val translator: com.riffle.core.domain.CanonicalPositionTranslator,
+    val serverId: String,
+    val audioItemId: String,
+    val ebookItemId: String? = null,
+    private val quotes: Map<String, com.riffle.core.domain.SentenceQuote> = emptyMap(),
+) {
+    /** The absolute audio second the narrated sentence begins (bundle SMIL), or `null` if unknown. */
+    fun secondsForFragment(fragmentRef: String): Double? = translator.fragmentRefToAudioSeconds(fragmentRef)
+
+    /** The narrated sentence an absolute audio second falls in (bundle SMIL, index-free) — seeds the
+     *  readaloud start from a local listen position even with no cross-EPUB index (ADR 0031). */
+    fun fragmentForAudioSeconds(seconds: Double): String? =
+        translator.audioSecondsToStorytellerProgression(seconds)?.let { translator.fragmentAt(it) }
+
+    /** The **ebook** reading position (a text-anchored Readium locator JSON) for an audio second —
+     *  index-free: maps seconds → narrated sentence (SMIL), then anchors that sentence by its bundle
+     *  text so it resolves on the ABS EPUB (the same text-anchoring the highlight uses). `null` when
+     *  the seconds can't be placed or the sentence has no quote. */
+    fun ebookLocatorForAudioSeconds(seconds: Double): String? {
+        val ref = fragmentForAudioSeconds(seconds) ?: return null
+        val quote = quotes[ref.substringAfter('#')] ?: return null
+        return readaloudLocatorJson(ref, quote).toString()
+    }
+
+    /** PATCH the ABS audiobook record from the narrated sentence; returns the server stamp or `null`. */
+    suspend fun pushFragment(fragmentRef: String): Long? =
+        secondsForFragment(fragmentRef)?.let { absApi.writeAudiobookSeconds(endpoint, it) }
 }

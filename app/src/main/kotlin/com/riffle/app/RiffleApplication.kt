@@ -27,6 +27,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
     @InstallIn(SingletonComponent::class)
     interface MigratorEntryPoint {
         fun localStoreMigrator(): LocalStoreMigrator
+        fun connectivityObserver(): com.riffle.core.domain.ConnectivityObserver
     }
 
     override fun attachBaseContext(base: Context) {
@@ -49,6 +50,24 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         val migrator = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).localStoreMigrator()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { migrator.migrate() }
+        }
+
+        // Durable offline progress reconcile (ADR 0030): a foreground kick to flush any progress made
+        // offline (waits for connectivity via the worker's CONNECTED constraint), plus the periodic
+        // safety net for progress on a book that is never reopened.
+        com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this)
+        com.riffle.app.sync.ProgressSyncScheduler.ensurePeriodic(this)
+
+        // Flush promptly when connectivity returns mid-session (offline edits made while the app kept
+        // running would otherwise wait for the periodic sweep). Skip the initial value; sweep on each
+        // false→true transition.
+        val connectivity = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).connectivityObserver()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            var wasOnline = connectivity.isOnline.value
+            connectivity.isOnline.collect { online ->
+                if (online && !wasOnline) com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this@RiffleApplication)
+                wasOnline = online
+            }
         }
     }
 

@@ -22,6 +22,32 @@ class ReadingPositionStoreTest {
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
             entities[serverId to itemId]?.let { entities[serverId to itemId] = it.copy(localUpdatedAt = millis) }
         }
+        override suspend fun acceptServerIfUnchanged(
+            serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+        ): Int {
+            val e = entities[serverId to itemId] ?: return 0
+            if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
+            entities[serverId to itemId] = e.copy(cfi = position, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            return 1
+        }
+        override suspend fun confirmPushedIfUnchanged(
+            serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+        ): Int {
+            val e = entities[serverId to itemId] ?: return 0
+            if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
+            entities[serverId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            return 1
+        }
+        override suspend fun confirmInSyncIfUnchanged(serverId: String, itemId: String, ifLocalUpdatedAt: Long): Int {
+            val e = entities[serverId to itemId] ?: return 0
+            if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
+            entities[serverId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
+            return 1
+        }
+        override suspend fun dirtyForServer(serverId: String) =
+            entities.values.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun serversWithDirtyRows() =
+            entities.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
     }
 
     @Test

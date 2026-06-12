@@ -22,4 +22,8 @@ data class ReadingPositionEntity(
     val itemId: String,
     val cfi: String,
     val localUpdatedAt: Long = 0,
+    // The localUpdatedAt value last confirmed pushed to / pulled from the server. The row is
+    // **dirty** (has unsynced local progress) when localUpdatedAt > lastSyncedAt — the durable
+    // offline-reconcile marker the sweep worker enumerates on (ADR 0030).
+    val lastSyncedAt: Long = 0,
 )

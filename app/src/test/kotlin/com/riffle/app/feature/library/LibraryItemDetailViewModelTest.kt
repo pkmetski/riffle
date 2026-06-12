@@ -240,6 +240,9 @@ class LibraryItemDetailViewModelTest {
         serverRepository: ServerRepository = noOpServerRepo,
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         downloadManager: DownloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
+        readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
+        readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,
+        crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         repository = repo,
@@ -249,12 +252,29 @@ class LibraryItemDetailViewModelTest {
         pdfRepository = pdfRepository,
         sessionRepository = noOpSessionRepository,
         toReadRepository = toReadRepo,
-        readaloudLinkRepository = NoopReadaloudLinkRepository,
-        readaloudAudioRepository = NoopReadaloudAudioRepository,
+        readaloudLinkRepository = readaloudLinkRepository,
+        readaloudAudioRepository = readaloudAudioRepository,
         audiobookDownloadRepository = NoopAudiobookDownloadRepository,
         connectivityObserver = connectivityObserver,
         downloadManager = downloadManager,
+        crossEpubIndexBuildTrigger = crossEpubIndexBuildTrigger,
     )
+
+    /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0031). */
+    private class RecordingBuildTrigger : com.riffle.core.data.CrossEpubIndexBuildTrigger {
+        val enqueued = mutableListOf<com.riffle.core.domain.ReadaloudLink>()
+        override fun enqueueBuild(link: com.riffle.core.domain.ReadaloudLink) { enqueued += link }
+    }
+
+    private fun linkRepoReturning(link: com.riffle.core.domain.ReadaloudLink) =
+        object : com.riffle.core.domain.ReadaloudLinkRepository {
+            override fun observeAll() = flowOf(listOf(link))
+            override fun observeLinkedAbsItemIds() = flowOf(setOf(link.absLibraryItemId))
+            override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) = link
+            override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) = listOf(link)
+            override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
+            override suspend fun countForServer(serverId: String) = 1
+        }
 
     private fun serverRepoReturning(server: Server) = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(listOf(server))
@@ -539,6 +559,58 @@ class LibraryItemDetailViewModelTest {
     }
 
     // --- Ready.isCachedOrDownloaded / Ready.isOffline ---
+
+    // ADR 0031: downloading the readaloud bundle is the deterministic moment the cross-EPUB index's
+    // only un-fetchable prerequisite (the bundle) arrives — so a successful download enqueues the build.
+    @Test
+    fun `a successful readaloud download enqueues a cross-EPUB index build for the link`() = runTest {
+        val link = com.riffle.core.domain.ReadaloudLink(
+            storytellerServerId = "st-1", storytellerBookId = "book-1",
+            absServerId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
+        )
+        val trigger = RecordingBuildTrigger()
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            serverRepository = serverRepoReturning(activeServer()),
+            readaloudLinkRepository = linkRepoReturning(link),
+            crossEpubIndexBuildTrigger = trigger,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle() // load resolves readaloudLink
+
+        vm.onDownloadReadaloud()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(link), trigger.enqueued)
+    }
+
+    // A failed download must NOT enqueue a build (the bundle isn't present, so the build would defer).
+    @Test
+    fun `a failed readaloud download does not enqueue an index build`() = runTest {
+        val link = com.riffle.core.domain.ReadaloudLink(
+            storytellerServerId = "st-1", storytellerBookId = "book-1",
+            absServerId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
+        )
+        val trigger = RecordingBuildTrigger()
+        val failingAudio = object : com.riffle.core.domain.ReadaloudAudioRepository by NoopReadaloudAudioRepository {
+            override suspend fun downloadAudio(serverId: String, bookId: String, onProgress: (Long, Long) -> Unit) =
+                com.riffle.core.domain.AudioDownloadResult.NoBundle
+        }
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            serverRepository = serverRepoReturning(activeServer()),
+            readaloudLinkRepository = linkRepoReturning(link),
+            readaloudAudioRepository = failingAudio,
+            crossEpubIndexBuildTrigger = trigger,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.onDownloadReadaloud()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(trigger.enqueued.isEmpty())
+    }
 
     private fun activeServer() = Server(
         id = "abs-1",
