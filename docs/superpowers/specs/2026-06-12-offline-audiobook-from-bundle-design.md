@@ -118,15 +118,19 @@ ebookAvailable
   || bundleAudiobookSource.isAvailableOffline(serverId, id)
 ```
 
-Because `findByAbsItem` is `suspend`, the predicate becomes `suspend`. The four library ViewModels
-(`LibraryItemsViewModel`, `FilteredBooksViewModel`, `CollectionDetailViewModel`,
-`SeriesDetailViewModel`) already filter inside `combine { … }` transforms, which are suspend lambdas,
-so the change is mechanical: replace each inline `list.filter { isAvailableOffline(it) }` with a
-suspend-aware filter (e.g. `buildList { for (i in list) if (isAvailableOffline(i)) add(i) }`).
-Centralization is preserved — still one predicate, now async.
+`isAvailableOffline` stays **synchronous** so it drops into the 11 existing `.filter { … }` /
+`.any { … }` call sites across the four library ViewModels with **no ViewModel changes**. The one
+suspend dependency — `ReadaloudLinkRepository.findByAbsItem` — is avoided on the hot path:
+`StorytellerBundleAudiobookSource` collects `readaloudLinkRepository.observeAll()` on an
+application-lifetime scope into a `@Volatile` `Map<absKey, ReadaloudLink>` snapshot (the same
+self-managed-IO-scope pattern as `CrossEpubIndexBuilderService`), so `isAvailableOffline` is a
+synchronous map lookup plus the synchronous `ReadaloudAudioRepository.isAudioAvailable` bundle-file
+check. Trade-off: the snapshot populates a few ms after the source is first created; because links are
+only ever created while online and the offline filter recombines when connectivity flips, the snapshot
+is populated before any offline filtering pass in practice.
 
-`StorytellerBundleAudiobookSource.isAvailableOffline` reuses steps 1–2 above (link present AND bundle
-file present), without reading audio.
+`localSession` (called once on player open, off the hot path) uses the suspend `findByAbsItem`
+directly and needs no snapshot.
 
 ### Keying
 
