@@ -498,7 +498,11 @@ class AudiobookPlayerViewModel @Inject constructor(
         // Release this book to the durable sweep again (ADR 0030).
         if (serverId.isNotEmpty()) {
             openReconcileTargets.markClosed(serverId, itemId)
-            readerSync?.ebookItemId?.let { openReconcileTargets.markClosed(serverId, it) }
+            // Mirror attachReaderSync's markOpen: on the index-free fallback path readerSync stays null
+            // but audiobookFollow marked the ebook item open, so close via the same fallback chain —
+            // otherwise the ebook item leaks in the open set and the sweep skips it until process death.
+            (readerSync?.ebookItemId ?: audiobookFollow?.ebookItemId)
+                ?.let { openReconcileTargets.markClosed(serverId, it) }
         }
         flushPendingSpeed()
         pushProgressOnStop()
