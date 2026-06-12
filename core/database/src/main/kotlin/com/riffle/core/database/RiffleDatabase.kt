@@ -23,8 +23,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AnnotationEntity::class,
         ReadaloudResumePositionEntity::class,
         AudioPlaybackPreferencesEntity::class,
+        AudiobookPositionEntity::class,
     ],
-    version = 32,
+    version = 33,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -42,6 +43,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun annotationDao(): AnnotationDao
     abstract fun readaloudResumePositionDao(): ReadaloudResumePositionDao
     abstract fun audioPlaybackPreferencesDao(): AudioPlaybackPreferencesDao
+    abstract fun audiobookPositionDao(): AudiobookPositionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -653,6 +655,28 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_audio_playback_preferences_serverId` " +
                         "ON `audio_playback_preferences` (`serverId`)"
+                )
+            }
+        }
+
+        // Durable local audiobook listen position (ADR 0029): book-absolute seconds + the wall-clock
+        // it was last set at, keyed by (serverId, itemId) with serverId FK-cascade — mirrors
+        // `reading_positions`. Server-synced (a last-update-wins peer against ABS), unlike the
+        // device-local readaloud resume table.
+        val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `audiobook_positions` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`positionSec` REAL NOT NULL, " +
+                        "`localUpdatedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`serverId`, `itemId`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_audiobook_positions_serverId` " +
+                        "ON `audiobook_positions` (`serverId`)"
                 )
             }
         }
