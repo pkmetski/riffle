@@ -1,6 +1,5 @@
 package com.riffle.app.feature.library
 
-import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
@@ -8,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -81,7 +82,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
@@ -98,6 +98,8 @@ import com.riffle.app.R
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.Series
+import kotlin.math.floor
+import kotlin.math.max
 
 private const val SECTION_PREVIEW_LIMIT = 5
 
@@ -140,6 +142,16 @@ fun LibraryItemsScreen(
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
+    // Drive the grids off a local live scale so a pinch reflows instantly; the
+    // persisted value (collected here) seeds it and wins on any external change.
+    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
+    var liveCoverScale by remember { mutableFloatStateOf(persistedCoverScale) }
+    LaunchedEffect(persistedCoverScale) { liveCoverScale = persistedCoverScale }
+    val onCoverScaleChange: (Float) -> Unit = {
+        liveCoverScale = it
+        viewModel.setCoverGridScale(it)
+    }
+
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
@@ -175,7 +187,10 @@ fun LibraryItemsScreen(
         }
     }
 
-    CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+    CompositionLocalProvider(
+        LocalCoversAreSquare provides coversAreSquare,
+        LocalCoverGridScale provides liveCoverScale,
+    ) {
     Scaffold(
         topBar = {
             LibrarySearchHeader(
@@ -220,6 +235,7 @@ fun LibraryItemsScreen(
                         onItemSelected = onItemSelected,
                         onSectionSeeMore = onSectionSeeMore,
                         linkedItemIds = linkedItemIds,
+                        onCoverScaleChange = onCoverScaleChange,
                     )
                     1 -> ToReadTabContent(
                         items = toReadItems,
@@ -227,12 +243,14 @@ fun LibraryItemsScreen(
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
                         linkedItemIds = linkedItemIds,
+                        onCoverScaleChange = onCoverScaleChange,
                     )
                     2 -> SeriesTabContent(
                         items = series,
                         isLoading = isLoading,
                         token = viewModel.authToken,
                         onSeriesSelected = onSeriesSelected,
+                        onCoverScaleChange = onCoverScaleChange,
                     )
                     3 -> CollectionsTabContent(
                         items = collections,
@@ -240,6 +258,7 @@ fun LibraryItemsScreen(
                         token = viewModel.authToken,
                         collectionCoverUrls = collectionCoverUrls,
                         onCollectionSelected = onCollectionSelected,
+                        onCoverScaleChange = onCoverScaleChange,
                     )
                     4 -> AllBooksTabContent(
                         items = allBooks,
@@ -247,6 +266,7 @@ fun LibraryItemsScreen(
                         token = viewModel.authToken,
                         onItemSelected = onItemSelected,
                         linkedItemIds = linkedItemIds,
+                        onCoverScaleChange = onCoverScaleChange,
                     )
                     else -> {}
                 }
@@ -381,7 +401,7 @@ fun CollectionsSectionGrid(
     }
 }
 
-// --- Generic 3-column grid layout ---
+// --- Generic adaptive cover grid layout ---
 
 @Composable
 private fun CoverGrid(
@@ -389,19 +409,25 @@ private fun CoverGrid(
     modifier: Modifier = Modifier,
     content: @Composable (index: Int) -> Unit,
 ) {
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val columns = if (isLandscape) 5 else 3
-    val rows = (count + columns - 1) / columns
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (row in 0 until rows) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for (col in 0 until columns) {
-                    val index = row * columns + col
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (index < count) content(index)
+    val minCell = shelfCoverMinCellSize()
+    val spacing = 8.dp
+    // Mirror GridCells.Adaptive: as many columns as fit at >= minCell, then split
+    // the row evenly. Driven off the same shelf sizing as the To Read grid so the
+    // home previews reflow to ~4 covers on a phone and ~5-6 on a tablet.
+    BoxWithConstraints(modifier = modifier) {
+        val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
+        val rows = (count + columns - 1) / columns
+        Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+            for (row in 0 until rows) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                ) {
+                    for (col in 0 until columns) {
+                        val index = row * columns + col
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (index < count) content(index)
+                        }
                     }
                 }
             }
@@ -937,6 +963,7 @@ private fun HomeTabContent(
     onItemSelected: (LibraryItem) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
+    onCoverScaleChange: (Float) -> Unit = {},
 ) {
     if (isLoading) return
     if (inProgress.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
@@ -946,7 +973,9 @@ private fun HomeTabContent(
         return
     }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .pinchCoverZoom(onCoverScaleChange)
+            .fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (inProgress.isNotEmpty()) {
@@ -1000,6 +1029,7 @@ private fun SeriesTabContent(
     isLoading: Boolean,
     token: String,
     onSeriesSelected: (Series) -> Unit,
+    onCoverScaleChange: (Float) -> Unit = {},
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1013,7 +1043,9 @@ private fun SeriesTabContent(
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .pinchCoverZoom(onCoverScaleChange)
+            .fillMaxSize(),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("Series (${items.size})")
@@ -1033,6 +1065,7 @@ private fun CollectionsTabContent(
     token: String,
     collectionCoverUrls: Map<String, List<String>>,
     onCollectionSelected: (Collection) -> Unit,
+    onCoverScaleChange: (Float) -> Unit = {},
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1046,7 +1079,9 @@ private fun CollectionsTabContent(
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .pinchCoverZoom(onCoverScaleChange)
+            .fillMaxSize(),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("Collections (${items.size})")
@@ -1071,6 +1106,7 @@ private fun ToReadTabContent(
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
+    onCoverScaleChange: (Float) -> Unit = {},
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1080,11 +1116,13 @@ private fun ToReadTabContent(
         return
     }
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Adaptive(shelfCoverMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .pinchCoverZoom(onCoverScaleChange)
+            .fillMaxSize(),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("To Read (${items.size})")
@@ -1104,6 +1142,7 @@ private fun AllBooksTabContent(
     token: String,
     onItemSelected: (LibraryItem) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
+    onCoverScaleChange: (Float) -> Unit = {},
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1117,7 +1156,9 @@ private fun AllBooksTabContent(
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .pinchCoverZoom(onCoverScaleChange)
+            .fillMaxSize(),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("All Books (${items.size})")

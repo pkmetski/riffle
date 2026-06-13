@@ -174,6 +174,10 @@ class LibraryItemsViewModelTest {
         toReadRepository: ToReadRepository = FakeToReadRepository(),
         savedStateHandle: SavedStateHandle = SavedStateHandle(mapOf("libraryId" to "lib-1")),
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
+        coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore = object : com.riffle.core.domain.CoverGridDensityStore {
+            override val scale = kotlinx.coroutines.flow.flowOf(1f)
+            override suspend fun setScale(value: Float) {}
+        },
     ) = LibraryItemsViewModel(
         savedStateHandle,
         libraryRepository,
@@ -191,6 +195,7 @@ class LibraryItemsViewModelTest {
         connectivityObserver,
         toReadRepository,
         readaloudLinkRepository,
+        coverGridDensityStore,
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
