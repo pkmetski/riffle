@@ -1,6 +1,7 @@
 package com.riffle.app.feature.audiobook
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,9 +20,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -37,12 +40,19 @@ import com.riffle.app.feature.audio.PlayerSurfaceState
  * chapter · forward 30s — with the speed control in a separate utility row. Chapter controls disable
  * when the book has no chapter markers.
  */
+// Minimum downward drag (px) on the player to trigger the switch to the readaloud reader — a
+// deliberate swipe, not an accidental nudge.
+private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
+
 @Composable
 fun AudiobookPlayerScreen(
     onNavigateBack: () -> Unit,
+    onSwitchToReadaloud: (ebookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: AudiobookPlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
+    val latestState = rememberUpdatedState(state)
 
     val gradient = Brush.verticalGradient(
         listOf(
@@ -52,7 +62,29 @@ fun AudiobookPlayerScreen(
         ),
     )
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize().background(gradient).padding(horizontal = 24.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradient)
+                // Swipe down → switch to the readaloud reader (only when this title has a linked
+                // readaloud ebook; otherwise the drag does nothing). Down = toward reading, mirroring
+                // the reader's swipe-up = toward listening.
+                .pointerInput(Unit) {
+                    var total = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { total = 0f },
+                        onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
+                        onDragEnd = {
+                            val s = latestState.value
+                            val ebookId = s.readaloudEbookItemId
+                            if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
+                                onSwitchToReadaloud(ebookId, s.positionSec)
+                            }
+                        },
+                    )
+                }
+                .padding(horizontal = 24.dp),
+        ) {
             // Collapse affordance.
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onNavigateBack) {

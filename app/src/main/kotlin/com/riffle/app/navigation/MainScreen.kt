@@ -58,7 +58,7 @@ private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesN
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
-private const val EPUB_READER = "epub_reader/{itemId}"
+private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}"
 
@@ -385,6 +385,10 @@ fun MainScreen(
                 route = EPUB_READER,
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
+                    navArgument("startReadaloudAtSec") {
+                        type = NavType.FloatType
+                        defaultValue = -1f // -1 = opened normally, not an audiobook→readaloud handoff
+                    },
                 )
             ) {
                 EpubReaderScreen(onNavigateBack = { navController.popBackStack() })
@@ -403,7 +407,18 @@ fun MainScreen(
                     navArgument("itemId") { type = NavType.StringType },
                 )
             ) {
-                AudiobookPlayerScreen(onNavigateBack = { navController.popBackStack() })
+                AudiobookPlayerScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    // Swipe down → switch to the readaloud reader for the linked ebook, continuing from
+                    // the audiobook position. Pop the player off the stack so leaving readaloud doesn't
+                    // land back on a dead player, and its onCleared stops audio + flushes progress.
+                    onSwitchToReadaloud = { ebookItemId, atSec ->
+                        val encoded = URLEncoder.encode(ebookItemId, "UTF-8")
+                        navController.navigate("epub_reader/$encoded?startReadaloudAtSec=$atSec") {
+                            popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
+                        }
+                    },
+                )
             }
         }
     }
