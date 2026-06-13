@@ -112,7 +112,17 @@ internal val SELECTION_SPAN_TRACKER_JS = """
  */
 internal fun resolveSelectionSentenceJs(sentences: List<Pair<String, String>>): String {
     val sents = JSONArray(
-        sentences.map { (id, text) -> JSONArray(listOf(id, text.trim().take(12))) },
+        sentences.map { (id, text) ->
+            // Drop punctuation-only "sentences" (Storyteller emits fragments like `…”` as their own
+            // narrated span). Their 1–2 char key matches that same punctuation INSIDE a real sentence —
+            // e.g. the `…”` in The Martian ch16's "…to save lives, I'd…" He thought…" — and, sitting later
+            // than the real sentence's start, wrongly wins. Require a few letters/digits to be a usable
+            // locator; the JS skips empty keys. (Cross-chapter false matches are handled upstream by
+            // scoping the list to the chapter being read — see scopeSentencesToChapter.)
+            val key = text.trim().take(12)
+            val usable = if (key.count(Char::isLetterOrDigit) >= 3) key else ""
+            JSONArray(listOf(id, usable))
+        },
     ).toString()
     return """
     (function(){

@@ -333,6 +333,11 @@ class EpubReaderViewModel @Inject constructor(
     private val _sentenceQuotes = MutableStateFlow<Map<String, com.riffle.core.domain.SentenceQuote>>(emptyMap())
     val sentenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = _sentenceQuotes
 
+    // span id → bundle chapter href, so "Play from here" can scope the sentence resolver to the chapter
+    // being read (a phrase that recurs across chapters otherwise resolves to the wrong chapter's clip).
+    private val _sentenceChapters = MutableStateFlow<Map<String, String>>(emptyMap())
+    val sentenceChapters: StateFlow<Map<String, String>> = _sentenceChapters
+
     // Download-prompt state: non-null size means "show the download dialog".
     private val _downloadPromptBytes = MutableStateFlow<Long?>(null)
     val downloadPromptBytes: StateFlow<Long?> = _downloadPromptBytes
@@ -1617,6 +1622,7 @@ class EpubReaderViewModel @Inject constructor(
             try {
                 val chapters = com.riffle.core.domain.EpubContentExtractor.extract(bundle)?.chapters ?: return@launch
                 _sentenceQuotes.value = com.riffle.core.domain.ReadaloudTextQuotes.build(chapters)
+                _sentenceChapters.value = com.riffle.core.domain.ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
             } catch (e: Throwable) {
                 // Never let the highlight-quote parse crash playback; the highlight just stays absent.
                 android.util.Log.e("RIFFLE_RA", "buildSentenceQuotes failed", e)

@@ -235,6 +235,7 @@ fun EpubReaderScreen(
     val playbackState by viewModel.playbackState.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
     val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
+    val sentenceChapters by viewModel.sentenceChapters.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
@@ -307,6 +308,7 @@ fun EpubReaderScreen(
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         activeFragmentRef = activeFragmentRef,
                         sentenceQuotes = sentenceQuotes,
+                        sentenceChapters = sentenceChapters,
                         narrationProgress = viewModel.narrationProgress,
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
@@ -681,6 +683,28 @@ private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator?
     Locator.fromJSON(readaloudLocatorJson(ref, quote))
 
 /**
+ * The narrated sentences (span id → text) to feed [resolveSelectionSentenceJs] for a "Play from here"
+ * tap, scoped to the chapter being read ([currentHref]). The resolver locates a tapped sentence by
+ * searching the rendered page for each sentence's short text prefix; handed the WHOLE book it can match
+ * a FOREIGN chapter's sentence whose text recurs inside a current-chapter sentence (The Martian ch16's
+ * "…I'd… He thought for a moment." contains ch8's standalone "He thought for a moment.") and seek that
+ * chapter instead. Scoping to [currentHref] removes the cross-chapter matches. Falls back to the whole
+ * book when no sentence maps to this chapter (e.g. the rendered href can't be reconciled with the
+ * bundle), preserving behaviour rather than yielding an empty resolver.
+ */
+internal fun scopeSentencesToChapter(
+    quotes: Map<String, SentenceQuote>,
+    chapters: Map<String, String>,
+    currentHref: String,
+): List<Pair<String, String>> {
+    fun base(h: String) = h.substringBefore('#').substringAfterLast('/')
+    val cur = base(currentHref)
+    val scoped = quotes.entries.filter { base(chapters[it.key] ?: "") == cur && cur.isNotEmpty() }
+    val use = if (scoped.isNotEmpty()) scoped else quotes.entries.toList()
+    return use.map { it.key to it.value.highlight }
+}
+
+/**
  * The Readium Locator JSON for a readaloud fragment ref. Extracted (and `internal`) so the
  * text-anchoring contract is unit-testable without a navigator: when a [quote] is present the JSON
  * MUST carry a `text` block (highlight + before/after), because that's what lets Readium position
@@ -732,6 +756,7 @@ private fun EpubNavigatorView(
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
+    sentenceChapters: Map<String, String>,
     narrationProgress: Flow<PlayerCoordinator.NarrationProgress?>,
     pageTopProbeRequests: Flow<String>,
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
@@ -769,6 +794,7 @@ private fun EpubNavigatorView(
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
+    val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
@@ -869,8 +895,9 @@ private fun EpubNavigatorView(
                             // pages whose spans survived (pure-Storyteller rendering) or before the quotes
                             // map is ready. Empty → falls back to the locator fragment, then the bare href
                             // (chapter start).
-                            val sentences = currentSentenceQuotes.entries
-                                .map { it.key to it.value.highlight }
+                            val sentences = scopeSentencesToChapter(
+                                currentSentenceQuotes, currentSentenceChapters, loc.href.toString(),
+                            )
                             val byText = if (sentences.isNotEmpty() && nav != null) {
                                 nav.evaluateJavascript(resolveSelectionSentenceJs(sentences))
                                     ?.trim('"')?.takeIf { it.isNotEmpty() }
