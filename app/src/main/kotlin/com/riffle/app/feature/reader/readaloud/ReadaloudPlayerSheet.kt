@@ -25,9 +25,16 @@ import androidx.compose.ui.unit.dp
 fun ReadaloudPeek(
     handleColor: Color,
     onSwipeUp: () -> Unit,
+    // Whether there's actually a player to switch to. When false the gesture + handle are omitted so
+    // the affordance is never shown for a title with no audiobook to swipe up to.
+    enabled: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    if (!enabled) {
+        Box(modifier) { content() }
+        return
+    }
     Box(
         modifier = modifier.pointerInput(Unit) {
             var total = 0f

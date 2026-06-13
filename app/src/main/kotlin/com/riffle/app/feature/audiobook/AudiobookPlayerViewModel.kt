@@ -330,8 +330,10 @@ class AudiobookPlayerViewModel @Inject constructor(
 
             // Attach the matched 2-peer cycle if its prerequisites are already cached (the follow loop
             // re-attaches later if the index is still building). Seed it with the reconciled resume so
-            // a genuinely-newer local listen can lead the first cycle.
-            attachReaderSync(resumeSec, resumeUpdatedAt)
+            // a genuinely-newer local listen can lead the first cycle. Use resumeStamp (== resumeUpdatedAt
+            // normally, but the fresh now-stamp on a readaloud→audiobook handoff) so the handed-off
+            // position leads the first cycle instead of being pulled back to a stale server position.
+            attachReaderSync(resumeSec, resumeStamp)
             // Always run the follow loop so the listen position reaches ABS while playing — in the
             // matched case it drives both ABS peers (audio-led), otherwise it pushes the single ABS
             // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.

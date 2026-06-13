@@ -389,6 +389,7 @@ fun EpubReaderScreen(
                     // audiobook to switch to; otherwise the swipe does nothing.
                     ReadaloudPeek(
                         handleColor = readerPalette.foreground,
+                        enabled = audiobookItemId != null,
                         onSwipeUp = {
                             audiobookItemId?.let { abId ->
                                 val sec = viewModel.prepareAudiobookHandoff()
