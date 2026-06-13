@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
@@ -23,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
@@ -43,6 +45,28 @@ import com.riffle.app.feature.audio.PlayerSurfaceState
 // Minimum downward drag (px) on the player to trigger the switch to the readaloud reader — a
 // deliberate swipe, not an accidental nudge.
 private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
+
+/** A drag handle + caption hinting that the player can be pulled down into the read-along reader. */
+@Composable
+private fun ReadAlongSwipeHint() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .padding(bottom = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                .size(width = 32.dp, height = 4.dp),
+        )
+        Text(
+            "Swipe down to read along",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
 @Composable
 fun AudiobookPlayerScreen(
@@ -78,6 +102,9 @@ fun AudiobookPlayerScreen(
                             val s = latestState.value
                             val ebookId = s.readaloudEbookItemId
                             if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
+                                // Release the shared player to readaloud (without stopping it) before
+                                // navigating, so readaloud keeps playing through the handoff.
+                                viewModel.prepareReadaloudHandoff()
                                 onSwitchToReadaloud(ebookId, s.positionSec)
                             }
                         },
@@ -85,6 +112,10 @@ fun AudiobookPlayerScreen(
                 }
                 .padding(horizontal = 24.dp),
         ) {
+            // Swipe-down → read-along affordance, only when this title has a linked readaloud ebook.
+            if (state.readaloudEbookItemId != null) {
+                ReadAlongSwipeHint()
+            }
             // Collapse affordance.
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onNavigateBack) {

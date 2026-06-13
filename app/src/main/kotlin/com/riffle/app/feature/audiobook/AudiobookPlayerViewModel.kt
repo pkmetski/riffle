@@ -503,6 +503,24 @@ class AudiobookPlayerViewModel @Inject constructor(
         }
     }
 
+    // Set when the user swipes down to switch into readaloud. The audiobook and readaloud share ONE
+    // AudioPlayerService; readaloud takes over that player, so onCleared must NOT stop/clear it (that
+    // would pause the readaloud playback that just started). We save progress + release the handle
+    // here instead.
+    private var handingOffToReadaloud = false
+
+    /**
+     * Prepare to switch to the readaloud reader: persist the just-reached listen position (so the
+     * reader/readaloud resume is current) and release the audiobook's handle to the shared player
+     * WITHOUT stopping it, so readaloud can take it over and keep playing. Call right before navigating.
+     */
+    fun prepareReadaloudHandoff() {
+        if (handingOffToReadaloud) return
+        handingOffToReadaloud = true
+        pushProgressOnStop()
+        controller.releaseForHandoff()
+    }
+
     private fun saveProgress() {
         if (serverId.isEmpty()) return
         val pos = controller.currentAbsoluteSec()
@@ -522,8 +540,12 @@ class AudiobookPlayerViewModel @Inject constructor(
                 ?.let { openReconcileTargets.markClosed(serverId, it) }
         }
         flushPendingSpeed()
-        pushProgressOnStop()
-        controller.stop()
+        // On a readaloud handoff the progress was already pushed and the handle released without
+        // stopping the shared player (readaloud now owns it) — stopping here would pause readaloud.
+        if (!handingOffToReadaloud) {
+            pushProgressOnStop()
+            controller.stop()
+        }
         // Leaving the player stops playback (no mini-bar), so this session is no longer playing.
         nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
         super.onCleared()
