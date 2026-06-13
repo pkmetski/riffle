@@ -429,24 +429,6 @@ fun EpubReaderScreen(
             }
         }
 
-        // Full-screen expanded player — slides up over the reader (and the mini player) as the bar is
-        // swiped up; below the screen and inert when collapsed. One playback session shown big.
-        if (state is ReaderState.Ready && readaloudOpen) {
-            ReadaloudExpandedOverlay(
-                playerState = readaloudPlayerState,
-                actions = PlayerSurfaceActions(
-                    onSeek = viewModel::seekReadaloud,
-                    onTogglePlayPause = viewModel::togglePlayPause,
-                    onRewind = viewModel::rewind,
-                    onForward = viewModel::forward,
-                    onPreviousChapter = viewModel::previousChapter,
-                    onNextChapter = viewModel::nextChapter,
-                    onSpeedChange = viewModel::setSpeed,
-                ),
-                sheetState = readaloudSheetState,
-            )
-        }
-
         downloadPromptBytes?.let { bytes ->
             ReadaloudDownloadDialog(
                 sizeBytes = bytes,
@@ -512,6 +494,25 @@ fun EpubReaderScreen(
                     colors = readerTopAppBarColors(),
                 )
             }
+        }
+
+        // Full-screen expanded player — slides up over the reader (and over the TopAppBar) as the bar
+        // is swiped up; below the screen and inert when collapsed. Drawn after the app bar so it sits
+        // on top of it. One playback session shown big.
+        if (state is ReaderState.Ready && readaloudOpen) {
+            ReadaloudExpandedOverlay(
+                playerState = readaloudPlayerState,
+                actions = PlayerSurfaceActions(
+                    onSeek = viewModel::seekReadaloud,
+                    onTogglePlayPause = viewModel::togglePlayPause,
+                    onRewind = viewModel::rewind,
+                    onForward = viewModel::forward,
+                    onPreviousChapter = viewModel::previousChapter,
+                    onNextChapter = viewModel::nextChapter,
+                    onSpeedChange = viewModel::setSpeed,
+                ),
+                sheetState = readaloudSheetState,
+            )
         }
 
         if (showFormattingPanel) {
