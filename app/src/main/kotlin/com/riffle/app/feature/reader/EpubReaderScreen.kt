@@ -306,6 +306,9 @@ fun EpubReaderScreen(
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
+                        returnNavEvents = viewModel.returnNavEvents,
+                        onCaptureReturnTarget = viewModel::captureReturnTarget,
+                        onFollowInternalLink = viewModel::followInternalLink,
                         activeFragmentRef = activeFragmentRef,
                         sentenceQuotes = sentenceQuotes,
                         sentenceChapters = sentenceChapters,
@@ -500,6 +503,13 @@ fun EpubReaderScreen(
             FootnotePopup(
                 state = popupState,
                 onDismiss = viewModel::dismissFootnotePopup,
+            )
+        }
+        val returnTarget by viewModel.returnTarget.collectAsState()
+        if (returnTarget != null) {
+            ReturnToPositionCard(
+                onReturn = viewModel::returnToCapturedPosition,
+                onDismiss = viewModel::dismissReturnTarget,
             )
         }
     }
@@ -754,6 +764,9 @@ private fun EpubNavigatorView(
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
+    returnNavEvents: Flow<Locator>,
+    onCaptureReturnTarget: (Locator) -> Unit,
+    onFollowInternalLink: (Link, Locator) -> Unit,
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
     sentenceChapters: Map<String, String>,
@@ -792,6 +805,9 @@ private fun EpubNavigatorView(
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
+    val currentLatestLocator by rememberUpdatedState(latestLocator)
+    val currentOnCaptureReturnTarget by rememberUpdatedState(onCaptureReturnTarget)
+    val currentOnFollowInternalLink by rememberUpdatedState(onFollowInternalLink)
     val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
@@ -942,9 +958,17 @@ private fun EpubNavigatorView(
                 link: Link,
                 context: HyperlinkNavigator.LinkContext?,
             ): Boolean {
-                if (context !is HyperlinkNavigator.FootnoteContext) return true
-                val content = FootnoteResolver.footnoteContent(context.noteContent) ?: return true
-                currentOnFootnoteTapped(content)
+                if (context is HyperlinkNavigator.FootnoteContext) {
+                    val content = FootnoteResolver.footnoteContent(context.noteContent) ?: return true
+                    currentOnFootnoteTapped(content)
+                    return false
+                }
+                // A non-footnote internal link (a cross-resource cross-reference — same-document anchors
+                // are intercepted earlier by the JS bridge). Drive the navigation ourselves so we can
+                // remember the origin and offer a return; defer to Readium only if we don't yet know
+                // where we are. It always lands in another resource, so it's never a same-page jump.
+                val origin = currentLatestLocator() ?: return true
+                currentOnFollowInternalLink(link, origin)
                 return false
             }
 
@@ -1066,8 +1090,13 @@ private fun EpubNavigatorView(
                     true
                 }
                 FootnoteResolver.AnchorTarget.CrossReference -> {
+                    // Capture where we are BEFORE the snap; offer a way back only if the target was
+                    // actually off-page (the snap reports whether it changed columns).
+                    val origin = currentLatestLocator()
                     coroutineScope.launch(Dispatchers.Main) {
-                        fragmentRef.value?.let { ColumnSnap.snapToElementColumn(it, fragmentId) }
+                        val moved = fragmentRef.value
+                            ?.let { ColumnSnap.snapToElementColumn(it, fragmentId) } ?: false
+                        if (moved && origin != null) currentOnCaptureReturnTarget(origin)
                     }
                     true
                 }
@@ -1108,23 +1137,30 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchNavigationEvents) {
-        searchNavigationEvents.collect { locator ->
-            val fragment = fragmentRef.value ?: return@collect
-            val cover = locator.href.toString().substringBefore('#') !=
-                currentHrefHolder[0]?.substringBefore('#')
-            navigating = cover
-            try {
-                // Search locators carry an occurrence-specific progression but no #fragment, so go()
-                // lands on the right hit and we must round THAT page to the grid — not snap to column 0
-                // (the default), which would yank to the chapter top and lose the hit. Same route as the
-                // resume/peer background sync above.
-                ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
-                if (cover) delay(NAV_COVER_SETTLE_MS)
-            } finally {
-                navigating = false
-            }
+    // Navigate to a within-chapter [locator] and snap the page to the grid where go() landed
+    // (landAtStartWhenNoTarget=false — don't yank to the chapter top), covering only a cross-resource
+    // trip with the load mask. Shared by the search-hit and return-card routes: both carry an
+    // occurrence/position-specific progression with no #fragment, so the snap must round THAT page to
+    // the grid rather than column 0 (the default), which would lose the hit / the saved position.
+    val goAndSnapWithCover: suspend (Locator) -> Unit = goAndSnapWithCover@{ locator ->
+        val fragment = fragmentRef.value ?: return@goAndSnapWithCover
+        val cover = locator.href.toString().substringBefore('#') !=
+            currentHrefHolder[0]?.substringBefore('#')
+        navigating = cover
+        try {
+            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+            if (cover) delay(NAV_COVER_SETTLE_MS)
+        } finally {
+            navigating = false
         }
+    }
+
+    LaunchedEffect(returnNavEvents) {
+        returnNavEvents.collect { goAndSnapWithCover(it) }
+    }
+
+    LaunchedEffect(searchNavigationEvents) {
+        searchNavigationEvents.collect { goAndSnapWithCover(it) }
     }
 
     // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
