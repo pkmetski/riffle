@@ -746,6 +746,37 @@ class EpubReaderViewModel @Inject constructor(
         _footnotePopup.value = null
     }
 
+    // Return-to-position: when tapping an internal link (an in-document cross-reference like "Figure
+    // 4.1", or a cross-chapter reference) lands the reader off the page it was on, we remember that
+    // origin so a "Back" card can restore it. The behaviour (single-level, survives page turns, cleared
+    // on return/dismiss) lives in [ReturnNavigator] so it's unit-testable; the VM only wires it up.
+    private val returnNavigator = ReturnNavigator<Locator>()
+    val returnTarget: StateFlow<Locator?> = returnNavigator.target
+    val returnNavEvents: Flow<Locator> = returnNavigator.navEvents
+
+    // The in-document cross-reference path (FootnoteAnchorBridge → ColumnSnap) calls this after it has
+    // confirmed the snap actually moved the page off [origin].
+    fun captureReturnTarget(origin: Locator) {
+        returnNavigator.capture(origin)
+    }
+
+    // The cross-resource internal-link path (Readium's shouldFollowInternalLink). We drive the
+    // navigation ourselves (so we can remember [origin]) instead of letting Readium follow it.
+    fun followInternalLink(link: Link, origin: Locator) {
+        returnNavigator.capture(origin)
+        _navigationEvents.trySend(link)
+    }
+
+    // "Back" tapped — navigate to the captured origin and clear the card.
+    fun returnToCapturedPosition() {
+        returnNavigator.returnToOrigin()
+    }
+
+    // "✕" tapped — drop the card (and the captured origin) without navigating.
+    fun dismissReturnTarget() {
+        returnNavigator.dismiss()
+    }
+
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
@@ -1111,6 +1142,9 @@ class EpubReaderViewModel @Inject constructor(
     fun navigateToEntry(entry: TocEntry) {
         val pub = (state.value as? ReaderState.Ready)?.publication ?: return
         val link = pub.tableOfContents.findLinkByHref(entry.href) ?: return
+        // A deliberate TOC jump is a "go somewhere new" gesture, not a link tap — drop any pending
+        // return card so it can't linger pointing back to a pre-jump position.
+        returnNavigator.dismiss()
         _navigationEvents.trySend(link)
         _tocVisible.value = false
     }
@@ -1118,6 +1152,7 @@ class EpubReaderViewModel @Inject constructor(
     fun navigateToSegment(segment: RailSegment) {
         val pub = (state.value as? ReaderState.Ready)?.publication ?: return
         val link = pub.tableOfContents.findLinkByHref(segment.href) ?: return
+        returnNavigator.dismiss()
         _navigationEvents.trySend(link)
     }
 

@@ -305,6 +305,9 @@ fun EpubReaderScreen(
                         onTap = immersiveState::toggle,
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
+                        returnNavEvents = viewModel.returnNavEvents,
+                        onCaptureReturnTarget = viewModel::captureReturnTarget,
+                        onFollowInternalLink = viewModel::followInternalLink,
                         activeFragmentRef = activeFragmentRef,
                         sentenceQuotes = sentenceQuotes,
                         narrationProgress = viewModel.narrationProgress,
@@ -498,6 +501,13 @@ fun EpubReaderScreen(
             FootnotePopup(
                 state = popupState,
                 onDismiss = viewModel::dismissFootnotePopup,
+            )
+        }
+        val returnTarget by viewModel.returnTarget.collectAsState()
+        if (returnTarget != null) {
+            ReturnToPositionCard(
+                onReturn = viewModel::returnToCapturedPosition,
+                onDismiss = viewModel::dismissReturnTarget,
             )
         }
     }
@@ -730,6 +740,9 @@ private fun EpubNavigatorView(
     onTap: () -> Unit,
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
+    returnNavEvents: Flow<Locator>,
+    onCaptureReturnTarget: (Locator) -> Unit,
+    onFollowInternalLink: (Link, Locator) -> Unit,
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
     narrationProgress: Flow<PlayerCoordinator.NarrationProgress?>,
@@ -767,6 +780,9 @@ private fun EpubNavigatorView(
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
+    val currentLatestLocator by rememberUpdatedState(latestLocator)
+    val currentOnCaptureReturnTarget by rememberUpdatedState(onCaptureReturnTarget)
+    val currentOnFollowInternalLink by rememberUpdatedState(onFollowInternalLink)
     val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
@@ -915,9 +931,17 @@ private fun EpubNavigatorView(
                 link: Link,
                 context: HyperlinkNavigator.LinkContext?,
             ): Boolean {
-                if (context !is HyperlinkNavigator.FootnoteContext) return true
-                val content = FootnoteResolver.footnoteContent(context.noteContent) ?: return true
-                currentOnFootnoteTapped(content)
+                if (context is HyperlinkNavigator.FootnoteContext) {
+                    val content = FootnoteResolver.footnoteContent(context.noteContent) ?: return true
+                    currentOnFootnoteTapped(content)
+                    return false
+                }
+                // A non-footnote internal link (a cross-resource cross-reference — same-document anchors
+                // are intercepted earlier by the JS bridge). Drive the navigation ourselves so we can
+                // remember the origin and offer a return; defer to Readium only if we don't yet know
+                // where we are. It always lands in another resource, so it's never a same-page jump.
+                val origin = currentLatestLocator() ?: return true
+                currentOnFollowInternalLink(link, origin)
                 return false
             }
 
@@ -1039,8 +1063,13 @@ private fun EpubNavigatorView(
                     true
                 }
                 FootnoteResolver.AnchorTarget.CrossReference -> {
+                    // Capture where we are BEFORE the snap; offer a way back only if the target was
+                    // actually off-page (the snap reports whether it changed columns).
+                    val origin = currentLatestLocator()
                     coroutineScope.launch(Dispatchers.Main) {
-                        fragmentRef.value?.let { ColumnSnap.snapToElementColumn(it, fragmentId) }
+                        val moved = fragmentRef.value
+                            ?.let { ColumnSnap.snapToElementColumn(it, fragmentId) } ?: false
+                        if (moved && origin != null) currentOnCaptureReturnTarget(origin)
                     }
                     true
                 }
@@ -1078,6 +1107,24 @@ private fun EpubNavigatorView(
             // fragment; preserve where go() landed (round to the column grid) instead of snapping to
             // the chapter top, so the reader lands on the actual synced page.
             ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+        }
+    }
+
+    LaunchedEffect(returnNavEvents) {
+        returnNavEvents.collect { locator ->
+            // "Back" on the return card: go to the captured origin and snap it to the grid where go()
+            // landed (don't yank to the chapter top — landAtStartWhenNoTarget=false). Cover only a
+            // cross-resource trip back, exactly like a forward jump.
+            val fragment = fragmentRef.value ?: return@collect
+            val cover = locator.href.toString().substringBefore('#') !=
+                currentHrefHolder[0]?.substringBefore('#')
+            navigating = cover
+            try {
+                ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+                if (cover) delay(NAV_COVER_SETTLE_MS)
+            } finally {
+                navigating = false
+            }
         }
     }
 

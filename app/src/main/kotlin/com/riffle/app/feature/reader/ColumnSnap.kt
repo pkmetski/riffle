@@ -86,10 +86,13 @@ internal object ColumnSnap {
     /**
      * Snaps the current resource so the column containing [fragmentId] sits flush — for an in-document
      * cross-reference tap ("Figure 4.1"), where the element is already in this document (no go()).
+     *
+     * Returns true iff the snap actually moved the page to a different column — i.e. the target was
+     * off-screen. A target already on the visible page snaps to the same column (returns false), so the
+     * caller can suppress a "return here" affordance there is nothing to come back from.
      */
-    suspend fun snapToElementColumn(fragment: EpubNavigatorFragment, fragmentId: String) {
-        fragment.evaluateJavascript(scrollToColumnJs(fragmentId))
-    }
+    suspend fun snapToElementColumn(fragment: EpubNavigatorFragment, fragmentId: String): Boolean =
+        fragment.evaluateJavascript(scrollToColumnJs(fragmentId))?.trim('"') == "moved"
 
     /**
      * Follows the narrated sentence [text] to its column on a sentence change. Returns "on" (followed, or
@@ -340,15 +343,29 @@ internal object ColumnSnap {
             "if(!(se.scrollWidth > iw + 4))return 'false';" +
             "return (se.scrollLeft + iw >= se.scrollWidth - 4)?'true':'false';})()"
 
-    // Scrolls the current resource so the column CONTAINING [fragmentId] sits flush at the viewport's
-    // left edge — for an in-document cross-reference tap ("Figure 4.1"). go(cssSelector) lands flush to
-    // the element's box (a little inside its column → a sliver of the neighbour shows); flooring
-    // scrollLeft to a multiple of innerWidth lands on the column boundary.
+    // Brings the element [fragmentId] onto the page for an in-document cross-reference tap ("Figure
+    // 4.1"). Mode-aware, because the reader paginates horizontally OR scrolls vertically:
+    //  - paginated: FLOOR scrollLeft to the column the element starts in (go(cssSelector) lands flush to
+    //    the box → a sliver of the neighbour shows; flooring to innerWidth lands on the column boundary).
+    //  - scroll mode (scrollHeight > innerHeight): there is no column grid, so scroll VERTICALLY to bring
+    //    the element to the top of the viewport; an element already fully on screen isn't moved.
+    // Returns 'moved' when the snap changed the visible page (target was off-page → offer a return),
+    // 'same' when it was already visible, or 'absent' when the id isn't in this document.
     internal fun scrollToColumnJs(fragmentId: String): String =
         "(function(){var el=document.getElementById(${JSONObject.quote(fragmentId)});" +
-            "if(!el)return;var se=document.scrollingElement;var iw=window.innerWidth;" +
-            "var abs=el.getBoundingClientRect().left+se.scrollLeft;" +
-            "se.scrollLeft=Math.floor(abs/iw)*iw;})()"
+            "if(!el)return 'absent';" +
+            "var se=document.scrollingElement||document.documentElement;" +
+            "var r=el.getBoundingClientRect();" +
+            "if(se.scrollHeight > window.innerHeight + 4){" + // scroll (vertical) mode → no column grid
+            "if(r.top>=0 && r.bottom<=window.innerHeight)return 'same';" + // already fully visible
+            "var beforeTop=se.scrollTop;" +
+            "se.scrollTop=Math.max(0, r.top + se.scrollTop - 8);" +
+            "return (Math.abs(se.scrollTop-beforeTop)>1)?'moved':'same';}" +
+            "var iw=window.innerWidth;" +
+            "var before=se.scrollLeft;" +
+            "var abs=r.left+se.scrollLeft;" +
+            "var target=Math.floor(abs/iw)*iw;se.scrollLeft=target;" +
+            "return (Math.abs(target-before)>1)?'moved':'same';})()"
 
     // The AT-REST backstop: a debounced scroll-idle listener that, once horizontal scrolling has gone quiet
     // in paginated mode, rounds scrollLeft to the NEAREST column boundary so the page can never come to REST
