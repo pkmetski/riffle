@@ -4,14 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,39 +73,40 @@ fun AudiobookPlayerScreen(
         ),
     )
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(gradient)
-                // Swipe DOWN anywhere → switch to the readaloud reader (only when this title has a
-                // linked readaloud ebook; otherwise the drag does nothing). Down = toward reading.
-                // The scrubber's own horizontal drag is unaffected; taps still reach the transport.
-                .pointerInput(Unit) {
-                    var total = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { total = 0f },
-                        onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
-                        onDragEnd = {
-                            val s = latestState.value
-                            val ebookId = s.readaloudEbookItemId
-                            if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
-                                // Release the shared player to readaloud (without stopping it) before
-                                // navigating, so readaloud keeps playing through the handoff.
-                                viewModel.prepareReadaloudHandoff()
-                                onSwitchToReadaloud(ebookId, s.positionSec)
-                            }
-                        },
-                    )
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(gradient)
+                    // Swipe DOWN anywhere → switch to the readaloud reader (only when this title has a
+                    // linked readaloud ebook; otherwise the drag does nothing). Down = toward reading.
+                    // The scrubber's own horizontal drag is unaffected; taps still reach the transport.
+                    .pointerInput(Unit) {
+                        var total = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { total = 0f },
+                            onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
+                            onDragEnd = {
+                                val s = latestState.value
+                                val ebookId = s.readaloudEbookItemId
+                                if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
+                                    // Release the shared player to readaloud (without stopping it) before
+                                    // navigating, so readaloud keeps playing through the handoff.
+                                    viewModel.prepareReadaloudHandoff()
+                                    onSwitchToReadaloud(ebookId, s.positionSec)
+                                }
+                            },
+                        )
+                    }
+                    .padding(horizontal = 24.dp),
+            ) {
+                // Leave room for the back button overlaid above, plus the read-along hint when present.
+                Spacer(Modifier.size(48.dp))
+                if (state.readaloudEbookItemId != null) {
+                    ReadAlongSwipeHint()
                 }
-                .padding(horizontal = 24.dp),
-        ) {
-            // Swipe-down → read-along affordance, only when this title has a linked readaloud ebook.
-            if (state.readaloudEbookItemId != null) {
-                Spacer(Modifier.size(8.dp))
-                ReadAlongSwipeHint()
-            }
 
-            when {
+                when {
                 state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
                 state.failed -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Text("This audiobook can't be played right now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -136,6 +136,15 @@ fun AudiobookPlayerScreen(
                         onSpeedChange = viewModel::setSpeed,
                     ),
                 )
+                }
+            }
+            // Exit affordance, overlaid OUTSIDE the swipe Column so its taps are never captured by the
+            // swipe-down gesture. A plain back arrow (not a down-chevron) — distinct from swipe=read.
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier.align(Alignment.TopStart).padding(4.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
         }
     }
