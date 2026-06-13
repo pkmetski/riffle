@@ -155,6 +155,14 @@ class SettingsViewModelTest {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
     }
 
+    private val fakeAppUpdateRepo = object : com.riffle.core.domain.AppUpdateRepository {
+        override suspend fun checkForUpdate(currentVersionCode: Int) =
+            com.riffle.core.domain.UpdateCheckResult.UpToDate
+        override fun downloadAndInstall(update: com.riffle.core.domain.AvailableUpdate):
+            Flow<com.riffle.core.domain.UpdateDownloadState> = kotlinx.coroutines.flow.emptyFlow()
+        override fun sweepStaleApks() = Unit
+    }
+
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
         override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
@@ -180,6 +188,7 @@ class SettingsViewModelTest {
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
+        appUpdateRepository = fakeAppUpdateRepo,
     )
 
     // --- existing crash report tests (unchanged) ---

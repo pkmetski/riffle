@@ -3,6 +3,7 @@ package com.riffle.core.data.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.riffle.core.data.AppUpdateRepositoryImpl
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
@@ -216,6 +217,10 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindAppUpdateRepository(impl: AppUpdateRepositoryImpl): com.riffle.core.domain.AppUpdateRepository
+
+    @Binds
+    @Singleton
     abstract fun bindCrossEpubIndexStore(impl: CrossEpubIndexStoreImpl): CrossEpubIndexStore
 
     @Binds
@@ -334,6 +339,11 @@ abstract class DataModule {
         @Provides
         @Singleton
         fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+
+        @Provides
+        @Singleton
+        fun provideGitHubReleaseApi(okHttpClient: OkHttpClient): com.riffle.core.network.GitHubReleaseApi =
+            com.riffle.core.network.GitHubReleaseApi(okHttpClient)
 
         @Provides
         @Singleton

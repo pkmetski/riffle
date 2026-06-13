@@ -2,9 +2,13 @@ package com.riffle.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.BuildConfig
+import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReport
 import com.riffle.core.domain.CrashReportRepository
+import com.riffle.core.domain.UpdateCheckResult
+import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryRepository
@@ -42,9 +46,49 @@ class SettingsViewModel @Inject constructor(
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
+    private val appUpdateRepository: AppUpdateRepository,
 ) : ViewModel() {
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
+
+    /** The currently installed app version, shown as the update row's subtitle. */
+    val installedVersionName: String = BuildConfig.VERSION_NAME
+
+    private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
+    val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
+
+    /** Manually triggered from Settings: ask GitHub whether a newer release exists. */
+    fun checkForUpdate() {
+        if (_appUpdateState.value is AppUpdateUiState.Checking ||
+            _appUpdateState.value is AppUpdateUiState.Downloading
+        ) {
+            return
+        }
+        _appUpdateState.value = AppUpdateUiState.Checking
+        viewModelScope.launch {
+            _appUpdateState.value = when (val result = appUpdateRepository.checkForUpdate(BuildConfig.VERSION_CODE)) {
+                is UpdateCheckResult.UpToDate -> AppUpdateUiState.UpToDate
+                is UpdateCheckResult.Failed -> AppUpdateUiState.Failed(result.message)
+                is UpdateCheckResult.UpdateAvailable ->
+                    AppUpdateUiState.UpdateAvailable(result.update.versionName, result.update)
+            }
+        }
+    }
+
+    /** Download the available update's APK and launch the system installer. */
+    fun downloadAndInstallUpdate() {
+        val available = _appUpdateState.value as? AppUpdateUiState.UpdateAvailable ?: return
+        _appUpdateState.value = AppUpdateUiState.Downloading(0)
+        viewModelScope.launch {
+            appUpdateRepository.downloadAndInstall(available.update).collect { step ->
+                _appUpdateState.value = when (step) {
+                    is UpdateDownloadState.Downloading -> AppUpdateUiState.Downloading(step.percent)
+                    is UpdateDownloadState.Installing -> AppUpdateUiState.Installing
+                    is UpdateDownloadState.Failed -> AppUpdateUiState.Failed(step.message)
+                }
+            }
+        }
+    }
 
     val globalFormattingPreferences: StateFlow<FormattingPreferences> =
         formattingPreferencesStore.preferences
@@ -203,3 +247,19 @@ data class ReadaloudMatchSummary(
     val partiallyMatchedCount: Int,
     val matchedCount: Int,
 )
+
+/** Drives the "App version" settings row: an inline status that the user advances by tapping. */
+sealed interface AppUpdateUiState {
+    /** No check run yet (or it was reset). */
+    data object Idle : AppUpdateUiState
+    data object Checking : AppUpdateUiState
+    data object UpToDate : AppUpdateUiState
+    data class UpdateAvailable(
+        val versionName: String,
+        val update: com.riffle.core.domain.AvailableUpdate,
+    ) : AppUpdateUiState
+    data class Downloading(val percent: Int) : AppUpdateUiState
+    /** APK downloaded; the system installer has been launched. */
+    data object Installing : AppUpdateUiState
+    data class Failed(val message: String) : AppUpdateUiState
+}

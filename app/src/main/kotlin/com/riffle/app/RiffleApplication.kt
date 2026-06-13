@@ -28,6 +28,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
     interface MigratorEntryPoint {
         fun localStoreMigrator(): LocalStoreMigrator
         fun connectivityObserver(): com.riffle.core.domain.ConnectivityObserver
+        fun appUpdateRepository(): com.riffle.core.domain.AppUpdateRepository
     }
 
     override fun attachBaseContext(base: Context) {
@@ -50,6 +51,13 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         val migrator = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).localStoreMigrator()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { migrator.migrate() }
+        }
+
+        // Reclaim any update APK left behind by a previous self-update: a successful install restarts
+        // the app before the download flow can delete it, so we sweep the update cache on launch.
+        val appUpdate = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).appUpdateRepository()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { appUpdate.sweepStaleApks() }
         }
 
         // Durable offline progress reconcile (ADR 0030): a foreground kick to flush any progress made

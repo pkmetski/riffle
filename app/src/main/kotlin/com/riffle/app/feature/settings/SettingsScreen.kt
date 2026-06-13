@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -76,6 +78,7 @@ fun SettingsScreen(
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
+    val appUpdateState by viewModel.appUpdateState.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
@@ -252,6 +255,20 @@ fun SettingsScreen(
                     }
                 }
                 HorizontalDivider()
+
+                Text(
+                    text = "App version",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                AppVersionRow(
+                    installedVersionName = viewModel.installedVersionName,
+                    state = appUpdateState,
+                    onCheckForUpdate = { viewModel.checkForUpdate() },
+                    onInstallUpdate = { viewModel.downloadAndInstallUpdate() },
+                )
+                HorizontalDivider()
             }
         }
     }
@@ -338,6 +355,51 @@ internal fun ServerSettingsExpansion(
             }
         }
     }
+}
+
+/**
+ * Inline "App version" row: shows the installed version and the manual update-check status, advancing
+ * through check → (up-to-date | update available → download % → install) as the user taps.
+ */
+@Composable
+private fun AppVersionRow(
+    installedVersionName: String,
+    state: AppUpdateUiState,
+    onCheckForUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+) {
+    val supporting = when (state) {
+        is AppUpdateUiState.Idle -> "Installed: v$installedVersionName"
+        is AppUpdateUiState.Checking -> "Checking for updates…"
+        is AppUpdateUiState.UpToDate -> "Installed: v$installedVersionName · Up to date"
+        is AppUpdateUiState.UpdateAvailable -> "Update available: v${state.versionName}"
+        is AppUpdateUiState.Downloading -> "Downloading update… ${state.percent}%"
+        is AppUpdateUiState.Installing -> "Starting installer…"
+        is AppUpdateUiState.Failed -> "Update check failed: ${state.message}"
+    }
+    ListItem(
+        headlineContent = { Text("Riffle") },
+        supportingContent = { Text(supporting) },
+        trailingContent = {
+            when (state) {
+                is AppUpdateUiState.Checking ->
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                is AppUpdateUiState.Downloading ->
+                    CircularProgressIndicator(
+                        progress = { state.percent / 100f },
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                    )
+                is AppUpdateUiState.Installing -> {}
+                is AppUpdateUiState.UpdateAvailable ->
+                    Button(onClick = onInstallUpdate) { Text("Update") }
+                is AppUpdateUiState.Failed ->
+                    TextButton(onClick = onCheckForUpdate) { Text("Retry") }
+                else ->
+                    TextButton(onClick = onCheckForUpdate) { Text("Check for updates") }
+            }
+        },
+    )
 }
 
 @Composable
