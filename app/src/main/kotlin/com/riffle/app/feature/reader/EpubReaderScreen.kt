@@ -1110,41 +1110,30 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(returnNavEvents) {
-        returnNavEvents.collect { locator ->
-            // "Back" on the return card: go to the captured origin and snap it to the grid where go()
-            // landed (don't yank to the chapter top — landAtStartWhenNoTarget=false). Cover only a
-            // cross-resource trip back, exactly like a forward jump.
-            val fragment = fragmentRef.value ?: return@collect
-            val cover = locator.href.toString().substringBefore('#') !=
-                currentHrefHolder[0]?.substringBefore('#')
-            navigating = cover
-            try {
-                ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
-                if (cover) delay(NAV_COVER_SETTLE_MS)
-            } finally {
-                navigating = false
-            }
+    // Navigate to a within-chapter [locator] and snap the page to the grid where go() landed
+    // (landAtStartWhenNoTarget=false — don't yank to the chapter top), covering only a cross-resource
+    // trip with the load mask. Shared by the search-hit and return-card routes: both carry an
+    // occurrence/position-specific progression with no #fragment, so the snap must round THAT page to
+    // the grid rather than column 0 (the default), which would lose the hit / the saved position.
+    val goAndSnapWithCover: suspend (Locator) -> Unit = goAndSnapWithCover@{ locator ->
+        val fragment = fragmentRef.value ?: return@goAndSnapWithCover
+        val cover = locator.href.toString().substringBefore('#') !=
+            currentHrefHolder[0]?.substringBefore('#')
+        navigating = cover
+        try {
+            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+            if (cover) delay(NAV_COVER_SETTLE_MS)
+        } finally {
+            navigating = false
         }
     }
 
+    LaunchedEffect(returnNavEvents) {
+        returnNavEvents.collect { goAndSnapWithCover(it) }
+    }
+
     LaunchedEffect(searchNavigationEvents) {
-        searchNavigationEvents.collect { locator ->
-            val fragment = fragmentRef.value ?: return@collect
-            val cover = locator.href.toString().substringBefore('#') !=
-                currentHrefHolder[0]?.substringBefore('#')
-            navigating = cover
-            try {
-                // Search locators carry an occurrence-specific progression but no #fragment, so go()
-                // lands on the right hit and we must round THAT page to the grid — not snap to column 0
-                // (the default), which would yank to the chapter top and lose the hit. Same route as the
-                // resume/peer background sync above.
-                ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
-                if (cover) delay(NAV_COVER_SETTLE_MS)
-            } finally {
-                navigating = false
-            }
-        }
+        searchNavigationEvents.collect { goAndSnapWithCover(it) }
     }
 
     // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
