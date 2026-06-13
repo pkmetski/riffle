@@ -165,6 +165,10 @@ fun LibraryItemsScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()
+                // Re-check the server on every resume (e.g. wake from sleep) so a stale offline
+                // banner left by an earlier failed refresh clears immediately, rather than only
+                // when the periodic retry next fires.
+                viewModel.refresh()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
