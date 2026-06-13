@@ -5,6 +5,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -76,8 +77,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
+import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
+import com.riffle.app.feature.reader.readaloud.ReadaloudExpandedOverlay
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
+import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
+import com.riffle.app.feature.reader.readaloud.rememberReadaloudSheetState
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -233,6 +238,13 @@ fun EpubReaderScreen(
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
+    val readaloudPlayerState by viewModel.readaloudPlayerState.collectAsState()
+    val readaloudSheetState = rememberReadaloudSheetState()
+    val readaloudSheetScope = rememberCoroutineScope()
+    // System/predictive back collapses the expanded player before the reader's own back behaviour.
+    BackHandler(enabled = readaloudOpen && readaloudSheetState.isExpanded) {
+        readaloudSheetScope.launch { readaloudSheetState.collapse() }
+    }
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
     val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
@@ -381,24 +393,29 @@ fun EpubReaderScreen(
                     // highlight still read through. Controls are Surface CONTENT, unaffected by the
                     // alpha, so they stay opaque.
                     val readerPalette = formattingPrefs.theme.palette
-                    ReadaloudMiniPlayer(
-                        isPlaying = playbackState.isPlaying,
-                        speed = playbackState.speed,
-                        offlineMessage = readaloudOfflineMessage,
-                        downloadProgress = downloadProgress,
-                        canPreviousChapter = playbackState.currentChapterIndex > 0,
-                        canNextChapter = playbackState.currentChapterIndex >= 0 &&
-                            playbackState.currentChapterIndex < playbackState.chapterCount - 1,
-                        containerColor = readerPalette.background.copy(alpha = 0.85f),
-                        contentColor = readerPalette.foreground,
-                        onPlayPause = viewModel::togglePlayPause,
-                        onSpeedChange = viewModel::setSpeed,
-                        onRewind = viewModel::rewind,
-                        onForward = viewModel::forward,
-                        onPreviousChapter = viewModel::previousChapter,
-                        onNextChapter = viewModel::nextChapter,
-                        onClose = viewModel::closeReadaloud,
-                    )
+                    // Swiping the bar up expands it into the full-screen player (the overlay below);
+                    // the bar itself stays put here, so the chapter-rail/page-reserve layout is
+                    // unchanged when collapsed.
+                    ReadaloudPeek(sheetState = readaloudSheetState) {
+                        ReadaloudMiniPlayer(
+                            isPlaying = playbackState.isPlaying,
+                            speed = playbackState.speed,
+                            offlineMessage = readaloudOfflineMessage,
+                            downloadProgress = downloadProgress,
+                            canPreviousChapter = playbackState.currentChapterIndex > 0,
+                            canNextChapter = playbackState.currentChapterIndex >= 0 &&
+                                playbackState.currentChapterIndex < playbackState.chapterCount - 1,
+                            containerColor = readerPalette.background.copy(alpha = 0.85f),
+                            contentColor = readerPalette.foreground,
+                            onPlayPause = viewModel::togglePlayPause,
+                            onSpeedChange = viewModel::setSpeed,
+                            onRewind = viewModel::rewind,
+                            onForward = viewModel::forward,
+                            onPreviousChapter = viewModel::previousChapter,
+                            onNextChapter = viewModel::nextChapter,
+                            onClose = viewModel::closeReadaloud,
+                        )
+                    }
                 }
                 if (showRailOverlay) {
                     EpubChapterRailOverlay(
@@ -410,6 +427,24 @@ fun EpubReaderScreen(
                     )
                 }
             }
+        }
+
+        // Full-screen expanded player — slides up over the reader (and the mini player) as the bar is
+        // swiped up; below the screen and inert when collapsed. One playback session shown big.
+        if (state is ReaderState.Ready && readaloudOpen) {
+            ReadaloudExpandedOverlay(
+                playerState = readaloudPlayerState,
+                actions = PlayerSurfaceActions(
+                    onSeek = viewModel::seekReadaloud,
+                    onTogglePlayPause = viewModel::togglePlayPause,
+                    onRewind = viewModel::rewind,
+                    onForward = viewModel::forward,
+                    onPreviousChapter = viewModel::previousChapter,
+                    onNextChapter = viewModel::nextChapter,
+                    onSpeedChange = viewModel::setSpeed,
+                ),
+                sheetState = readaloudSheetState,
+            )
         }
 
         downloadPromptBytes?.let { bytes ->

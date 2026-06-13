@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
@@ -22,18 +21,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -45,12 +40,22 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Drag progress / collapse handle for [ReadaloudPlayerSheet], hoisted so the reader can collapse the
- * sheet on a back press. [progress] runs 0f (peek = mini player) → 1f (expanded = full-screen player).
+ * Shared drag/collapse handle for the readaloud player. [progress] runs 0f (peek = mini player) → 1f
+ * (expanded = full-screen player). [ReadaloudPeek] and [ReadaloudExpandedOverlay] both read it, and
+ * the reader collapses the sheet on a back press through it.
+ *
+ * The mini player is NOT torn out of its place in the reader's bottom stack — swiping it up slides a
+ * separate full-screen overlay up *over* it ([ReadaloudExpandedOverlay]); collapsing slides that back
+ * down to reveal the untouched mini player. This keeps the documented-fragile chapter-rail / page
+ * reserve layout exactly as it was when collapsed. Nothing about playback changes — it is one session
+ * shown two ways.
  */
 class ReadaloudSheetState {
-    /** 0f peek, 1f expanded. Drives the sheet offset, cross-fade, scrim, and corner radius. */
+    /** 0f peek, 1f expanded. Drives the overlay offset, background, scrim, and the peek's drag math. */
     internal val progress = Animatable(0f)
+
+    /** The expanded overlay's measured full height (px) — the drag distance peek↔expanded. */
+    internal var rangePx: Float = DEFAULT_RANGE_PX
 
     val isExpanded: Boolean get() = progress.value > 0.5f
 
@@ -63,6 +68,7 @@ class ReadaloudSheetState {
 
     private companion object {
         const val ANIM_MS = 280
+        const val DEFAULT_RANGE_PX = 1600f
     }
 }
 
@@ -70,54 +76,67 @@ class ReadaloudSheetState {
 fun rememberReadaloudSheetState(): ReadaloudSheetState = remember { ReadaloudSheetState() }
 
 /**
- * A bottom sheet whose **peek** state is the Readaloud mini player and whose **expanded** state is the
- * full-screen [PlayerSurface] — the same surface the standalone Audiobook player uses. Swiping the
- * mini player up grows it into the full player; dragging down (or the collapse chevron) shrinks it
- * back. The reader stays mounted behind the sheet, so collapsing returns to the exact reading spot —
- * nothing about playback changes, it is one session shown two ways.
- *
- * The drag is a plain vertical-drag → [Animatable] progress with midpoint snap (no [androidx.compose
- * .foundation.gestures.AnchoredDraggableState], whose constructor shifts across Compose versions).
- * Taps land on the mini-player buttons because the vertical-drag detector only consumes after touch
- * slop; a tap never moves, so it is never captured here.
+ * Wraps the mini player so a swipe **up** expands the player. Taps still reach the mini-player buttons
+ * underneath: [detectVerticalDragGestures] only consumes after touch slop, and a tap never moves.
  */
 @Composable
-fun ReadaloudPlayerSheet(
+fun ReadaloudPeek(
+    sheetState: ReadaloudSheetState,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            detectVerticalDragGestures(
+                onVerticalDrag = { change, dragAmount ->
+                    change.consume()
+                    scope.launch { sheetState.nudge(-dragAmount / sheetState.rangePx) }
+                },
+                onDragEnd = { scope.launch { sheetState.snapToNearest() } },
+                onDragCancel = { scope.launch { sheetState.snapToNearest() } },
+            )
+        },
+    ) {
+        content()
+    }
+}
+
+/**
+ * The full-screen expanded player ([PlayerSurface] — the same surface the standalone Audiobook player
+ * uses). Sits below the screen when collapsed and slides up as [ReadaloudSheetState.progress] grows;
+ * fully covers the reader at 1f. Drag down (or the collapse chevron) shrinks it back to the mini
+ * player. Render it as a full-screen sibling overlay in the reader.
+ */
+@Composable
+fun ReadaloudExpandedOverlay(
     playerState: PlayerSurfaceState,
     actions: PlayerSurfaceActions,
     sheetState: ReadaloudSheetState,
-    peekContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    var peekHeightPx by remember { mutableFloatStateOf(DEFAULT_PEEK_PX) }
-
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val fullPx = constraints.maxHeight.toFloat()
-        val range = (fullPx - peekHeightPx).coerceAtLeast(1f)
+        SideEffect { sheetState.rangePx = fullPx }
+
         val progress = sheetState.progress.value
-        val offsetY = ((1f - progress) * range).roundToInt()
-        val cornerDp = (26f * (1f - progress)).dp
+        if (progress <= 0.001f) return@BoxWithConstraints // fully collapsed: transparent, no input
 
-        // Scrim over the reader behind the sheet, fading in with expansion. A plain background Box
-        // consumes no pointer events, so the reader stays interactive while the sheet is collapsed.
-        if (progress > 0f) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = progress * 0.7f)))
-        }
+        // Scrim over the reader, fading in with expansion (consumes no pointer events).
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = progress * 0.7f)))
 
+        val offsetY = ((1f - progress) * fullPx).roundToInt()
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(0, offsetY) }
-                .clip(RoundedCornerShape(topStart = cornerDp, topEnd = cornerDp))
-                // Transparent at peek so the mini player paints its own theme-following bar; opaque
-                // once expanded so the reader can't show through the full player.
-                .background(MaterialTheme.colorScheme.background.copy(alpha = progress))
-                .pointerInput(range) {
+                .background(MaterialTheme.colorScheme.background)
+                .pointerInput(fullPx) {
                     detectVerticalDragGestures(
                         onVerticalDrag = { change, dragAmount ->
                             change.consume()
-                            scope.launch { sheetState.nudge(-dragAmount / range) }
+                            scope.launch { sheetState.nudge(-dragAmount / fullPx) }
                         },
                         onDragEnd = { scope.launch { sheetState.snapToNearest() } },
                         onDragCancel = { scope.launch { sheetState.snapToNearest() } },
@@ -125,35 +144,15 @@ fun ReadaloudPlayerSheet(
                 }
                 .testTag("readaloud_player_sheet"),
         ) {
-            // Peek (mini player) pinned to the top strip; fades out as the sheet expands.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .onSizeChanged { if (it.height > 0) peekHeightPx = it.height.toFloat() }
-                    .alpha((1f - progress * 1.8f).coerceIn(0f, 1f)),
-            ) {
-                peekContent()
-            }
-
-            // Expanded full-screen surface; fades in. Skipped entirely while fully collapsed so the
-            // mini player keeps all input.
-            if (progress > 0.02f) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 24.dp)
-                        .alpha(((progress - 0.15f) / 0.85f).coerceIn(0f, 1f)),
-                ) {
-                    ExpandedHeader(onCollapse = { scope.launch { sheetState.collapse() } })
-                    PlayerSurface(state = playerState, actions = actions)
-                }
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+                ExpandedHeader(onCollapse = { scope.launch { sheetState.collapse() } })
+                PlayerSurface(state = playerState, actions = actions)
             }
         }
     }
 }
 
-/** Collapse chevron + "pull down" hint at the top of the expanded surface (mirrors the audiobook
- *  player's collapse row). */
+/** Collapse chevron + label at the top of the expanded surface (mirrors the audiobook collapse row). */
 @Composable
 private fun ExpandedHeader(onCollapse: () -> Unit) {
     Row(
@@ -173,6 +172,3 @@ private fun ExpandedHeader(onCollapse: () -> Unit) {
         Spacer(Modifier.size(48.dp))
     }
 }
-
-// A sane starting peek height (≈ the mini-player bar) used only until the real height is measured.
-private const val DEFAULT_PEEK_PX = 160f
