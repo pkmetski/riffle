@@ -65,6 +65,10 @@ data class AudiobookPlayerUiState(
     val chapterStartsSec: List<Double> = emptyList(),
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
+    // The linked readaloud EBOOK item id, when this title has one (split-library ebook, or this same
+    // item if it's a combined ebook+audio). Non-null enables swipe-down → switch to the readaloud
+    // reader; null means there's no readaloud to switch to, so no swipe-down.
+    val readaloudEbookItemId: String? = null,
 )
 
 @HiltViewModel
@@ -97,6 +101,9 @@ class AudiobookPlayerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
+
+    // readaloud→audiobook swipe handoff: the listen position to continue from (-1 = opened normally).
+    private val startAtSec: Double = (savedStateHandle.get<Float>("startAtSec") ?: -1f).toDouble()
 
     private val meta = MutableStateFlow(
         AudiobookPlayerUiState(loading = true),
@@ -247,6 +254,18 @@ class AudiobookPlayerViewModel @Inject constructor(
                 readingProgressFraction = item.readingProgress,
                 durationSec = session.timeline.durationSec,
             )
+            // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
+            // overriding the store/server resume (which can lag the just-left listen position). Persist
+            // it with a fresh stamp so it wins last-update-wins and isn't pulled back by a stale server.
+            var resumeStamp = resumeUpdatedAt
+            if (startAtSec >= 0.0) {
+                resumeSec = startAtSec.coerceIn(0.0, session.timeline.durationSec)
+                resumeStamp = System.currentTimeMillis()
+                if (serverId.isNotEmpty()) {
+                    audiobookPositionStore.save(serverId, itemId, resumeSec)
+                    audiobookPositionStore.updateLocalTimestamp(serverId, itemId, resumeStamp)
+                }
+            }
             // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
             // key the *same* way the reader does — via the resolver on this audiobook's link — so both
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
@@ -260,6 +279,18 @@ class AudiobookPlayerViewModel @Inject constructor(
             }
             val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
                 ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+            // The readaloud EBOOK to switch to on swipe-down: among this Storyteller book's ABS targets,
+            // the readable one (the ebook in a split library); or this same item if it's a combined
+            // ebook+audio. Null when there's no readaloud ebook, which disables the swipe entirely.
+            val readaloudEbookItemId: String? = link?.let { l ->
+                readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
+                    .firstOrNull { t ->
+                        t.absLibraryItemId != itemId &&
+                            libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isReadable == true
+                    }
+                    ?.absLibraryItemId
+                    ?: itemId.takeIf { item.isReadable }
+            }
             meta.value = AudiobookPlayerUiState(
                 loading = false,
                 title = item.title,
@@ -267,6 +298,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 coverUrl = item.coverUrl,
                 authToken = token,
                 durationSec = session.timeline.durationSec,
+                readaloudEbookItemId = readaloudEbookItemId,
             )
             // Resume at the server-recorded position (last-update-wins resume; ADR 0029) so the
             // audio-led canonical never starts behind.
@@ -284,7 +316,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // VM's setSpeed) so restoring the saved value doesn't re-save it.
             controller.setSpeed(initialSpeed)
             reconciledResumeSec = resumeSec
-            localUpdatedAt = resumeUpdatedAt
+            localUpdatedAt = resumeStamp
             // Opening the player is itself a "play" intent (the user tapped Listen), so start playback
             // immediately rather than landing on a paused player. A genuinely-newer remote resume is
             // still honoured: attachReaderSync's inbound-only reconcile seeks the already-playing
@@ -298,8 +330,10 @@ class AudiobookPlayerViewModel @Inject constructor(
 
             // Attach the matched 2-peer cycle if its prerequisites are already cached (the follow loop
             // re-attaches later if the index is still building). Seed it with the reconciled resume so
-            // a genuinely-newer local listen can lead the first cycle.
-            attachReaderSync(resumeSec, resumeUpdatedAt)
+            // a genuinely-newer local listen can lead the first cycle. Use resumeStamp (== resumeUpdatedAt
+            // normally, but the fresh now-stamp on a readaloud→audiobook handoff) so the handed-off
+            // position leads the first cycle instead of being pulled back to a stale server position.
+            attachReaderSync(resumeSec, resumeStamp)
             // Always run the follow loop so the listen position reaches ABS while playing — in the
             // matched case it drives both ABS peers (audio-led), otherwise it pushes the single ABS
             // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.
@@ -486,6 +520,24 @@ class AudiobookPlayerViewModel @Inject constructor(
         }
     }
 
+    // Set when the user swipes down to switch into readaloud. The audiobook and readaloud share ONE
+    // AudioPlayerService; readaloud takes over that player, so onCleared must NOT stop/clear it (that
+    // would pause the readaloud playback that just started). We save progress + release the handle
+    // here instead.
+    private var handingOffToReadaloud = false
+
+    /**
+     * Prepare to switch to the readaloud reader: persist the just-reached listen position (so the
+     * reader/readaloud resume is current) and release the audiobook's handle to the shared player
+     * WITHOUT stopping it, so readaloud can take it over and keep playing. Call right before navigating.
+     */
+    fun prepareReadaloudHandoff() {
+        if (handingOffToReadaloud) return
+        handingOffToReadaloud = true
+        pushProgressOnStop()
+        controller.releaseForHandoff()
+    }
+
     private fun saveProgress() {
         if (serverId.isEmpty()) return
         val pos = controller.currentAbsoluteSec()
@@ -505,8 +557,12 @@ class AudiobookPlayerViewModel @Inject constructor(
                 ?.let { openReconcileTargets.markClosed(serverId, it) }
         }
         flushPendingSpeed()
-        pushProgressOnStop()
-        controller.stop()
+        // On a readaloud handoff the progress was already pushed and the handle released without
+        // stopping the shared player (readaloud now owns it) — stopping here would pause readaloud.
+        if (!handingOffToReadaloud) {
+            pushProgressOnStop()
+            controller.stop()
+        }
         // Leaving the player stops playback (no mini-bar), so this session is no longer playing.
         nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
         super.onCleared()

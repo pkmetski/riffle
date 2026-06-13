@@ -143,6 +143,12 @@ class EpubReaderViewModel @Inject constructor(
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
+    // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
+    // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
+    // we auto-start readaloud playing from this second so narration continues where listening left off.
+    private val startReadaloudAtSec: Double =
+        (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
+
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
@@ -314,8 +320,13 @@ class EpubReaderViewModel @Inject constructor(
     private val _readaloudOpen = MutableStateFlow(false)
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
 
-    // Mirrors the controller's playback state for the bar/sheet controls.
+    // Mirrors the controller's playback state for the mini-player controls.
     val playbackState: StateFlow<ReadaloudController.PlaybackState> = playerCoordinator.state
+
+    // The ABS audiobook item to switch to when the mini player is swiped up (the single large player).
+    // Resolved in init from this title's readaloud link; null when there's no audiobook to switch to.
+    private val _audiobookItemId = MutableStateFlow<String?>(null)
+    val audiobookItemId: StateFlow<String?> = _audiobookItemId
 
     // The text fragment currently narrated — drives the synced highlight. Null clears it.
     val activeFragmentRef: StateFlow<String?> = playerCoordinator.activeFragmentRef
@@ -414,6 +425,16 @@ class EpubReaderViewModel @Inject constructor(
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
             readerServerId = activeServer?.id
+            // The audiobook to switch to on swipe-up: among this readaloud's ABS targets, the listenable
+            // one (the audiobook in a split library), or this same item if it's a combined ebook+audio.
+            _audiobookItemId.value = link?.let { l ->
+                readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
+                    .firstOrNull { t ->
+                        t.absLibraryItemId != itemId &&
+                            libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
+                    }
+                    ?.absLibraryItemId
+            }
             // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
             activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
 
@@ -459,6 +480,13 @@ class EpubReaderViewModel @Inject constructor(
                     quoteBundle = bundle
                     buildSentenceQuotes(bundle)
                 }
+            }
+
+            // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
+            // readaloud from the audiobook's position so narration continues where listening stopped.
+            // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
+            if (startReadaloudAtSec >= 0.0 && control.enabled) {
+                startReadaloudAtSecond(startReadaloudAtSec)
             }
 
             // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
@@ -999,7 +1027,12 @@ class EpubReaderViewModel @Inject constructor(
         epubZip?.close()
         epubZip = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
-        playerCoordinator.close()
+        // On a swipe-up handoff the audiobook now owns the shared player and the readaloud handle was
+        // already released without stopping it — closing here would stop the audiobook that just took
+        // over, so skip it.
+        if (!handingOffToAudiobook) {
+            playerCoordinator.close()
+        }
         // Readaloud can't outlive the reader, so this session is no longer playing.
         nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Readaloud && it.itemId == itemId }
         // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
@@ -1371,6 +1404,21 @@ class EpubReaderViewModel @Inject constructor(
 
     fun forward() = playerCoordinator.forward()
 
+    /**
+     * Swipe-up handoff to the single large player: capture the current listen second, release the
+     * shared player to the audiobook WITHOUT stopping it (so the audiobook keeps playing through the
+     * switch), and return the second to hand off. The reader is popped right after, so its onCleared
+     * must skip the normal readaloud stop — see [handingOffToAudiobook].
+     */
+    fun prepareAudiobookHandoff(): Double {
+        val sec = playbackState.value.positionGlobalSec
+        handingOffToAudiobook = true
+        playerCoordinator.releaseForHandoff()
+        return sec
+    }
+
+    private var handingOffToAudiobook = false
+
     fun previousChapter() = playerCoordinator.previousChapter()
 
     fun nextChapter() = playerCoordinator.nextChapter()
@@ -1404,6 +1452,31 @@ class EpubReaderViewModel @Inject constructor(
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
             // the user can still choose to download.
             _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioServerId, audioBookId) ?: 0L
+        }
+    }
+
+    /**
+     * Audiobook→readaloud handoff: open readaloud and start narrating from [globalSec] on the readaloud
+     * timeline. The audiobook absolute second is used directly — the bundle and ABS audiobook timelines
+     * align to ~0s drift (ADR 0031). Mirrors [playFromHere]: opens the session WITHOUT the resume
+     * planner so the only seek is this one, and consumes any resume/close position so it can't re-seek
+     * away. Falls back to the normal play path (download prompt / offline notice) when no bundle is on
+     * disk.
+     */
+    fun startReadaloudAtSecond(globalSec: Double) {
+        if (!_readaloudAvailable.value) return
+        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+        if (bundle == null) {
+            openReadaloud()
+            return
+        }
+        if (!_readaloudOpen.value) openReadaloudSession()
+        viewModelScope.launch {
+            ensureOpened(bundle) ?: return@launch
+            readaloudStarted = true
+            resumeFragmentRef = null
+            closeLocator = null
+            playerCoordinator.playFromSecond(globalSec)
         }
     }
 

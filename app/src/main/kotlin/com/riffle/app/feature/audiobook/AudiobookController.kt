@@ -179,6 +179,29 @@ class AudiobookController @Inject constructor(
         _state.value = PlaybackState()
     }
 
+    /**
+     * Releases this audiobook handle WITHOUT stopping the shared [AudioPlayerService] player — used
+     * when readaloud is taking over the same session (the audiobook→readaloud swipe). Pauses first so
+     * the audiobook goes silent immediately, but does NOT `stop()`/`clearMediaItems()`: readaloud's
+     * own `setMediaItems` replaces the queue, and clearing here would kill the readaloud playback that
+     * is about to start (the "swipe down pauses readaloud" bug). Leaves the bundle for readaloud.
+     */
+    fun releaseForHandoff() {
+        pollJob?.cancel()
+        pollJob = null
+        controller?.run {
+            pause()
+            removeListener(listener)
+            release()
+        }
+        controller = null
+        spans = emptyList()
+        prepared = false
+        wantsToPlay = false
+        ownsSharedBundle = false
+        _state.value = PlaybackState()
+    }
+
     private suspend fun ensureConnected(): MediaController? {
         controller?.let { return it }
         val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))

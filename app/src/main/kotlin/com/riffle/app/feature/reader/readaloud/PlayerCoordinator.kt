@@ -102,6 +102,20 @@ class PlayerCoordinator @Inject constructor(
 
     fun setSpeed(speed: Float) = controller.setSpeed(speed)
 
+    /** Seeks to [globalSec] and starts playing — the audiobook→readaloud handoff entry point. */
+    fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)
+
+    /**
+     * Releases the shared player to the audiobook player WITHOUT stopping it (swipe-up to the player),
+     * and clears the synced highlight. The audiobook takes over the same session and keeps playing.
+     */
+    fun releaseForHandoff() {
+        track = null
+        controller.releaseForHandoff()
+        _activeFragmentRef.value = null
+        _narrationProgress.value = null
+    }
+
     fun rewind() = controller.rewind()
 
     fun forward() = controller.forward()

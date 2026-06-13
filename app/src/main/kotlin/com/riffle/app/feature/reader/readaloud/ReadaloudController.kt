@@ -44,6 +44,9 @@ class ReadaloudController @Inject constructor(
         val speed: Float = 1f,
         val currentAudioSrc: String? = null,
         val positionSec: Double = 0.0,
+        // Position on the whole-readaloud concatenated timeline (positionSec above is within-file, what
+        // the skip logic needs). Used to hand the listen position to the audiobook player on swipe-up.
+        val positionGlobalSec: Double = 0.0,
         val currentChapterIndex: Int = -1,
         val chapterCount: Int = 0,
     )
@@ -118,6 +121,26 @@ class ReadaloudController @Inject constructor(
         pushState()
     }
 
+    /**
+     * Releases this readaloud handle WITHOUT stopping the shared [AudioPlayerService] player — used
+     * when the audiobook player is taking over the same session (swipe-up to the player). Pauses so
+     * narration goes silent immediately, but does NOT stop/clearMediaItems: the audiobook's own
+     * setMediaItems replaces the queue, and clearing here would kill the audiobook playback that is
+     * about to start. Symmetric to AudiobookController.releaseForHandoff.
+     */
+    fun releaseForHandoff() {
+        pollJob?.cancel()
+        pollJob = null
+        controller?.run {
+            pause()
+            removeListener(listener)
+            release()
+        }
+        controller = null
+        track = null
+        _state.value = PlaybackState()
+    }
+
     /** Jumps to the first clip of an adjacent chapter (see [ReadaloudTrack.resolveChapterSkip]). */
     fun skipChapter(forward: Boolean) {
         val s = _state.value
@@ -132,6 +155,13 @@ class ReadaloudController @Inject constructor(
     fun forward() = skipBy(FORWARD_SEC)
     fun previousChapter() = skipChapter(forward = false)
     fun nextChapter() = skipChapter(forward = true)
+
+    /** Seeks to [globalSec] on the concatenated timeline and starts playing (audiobook→readaloud handoff). */
+    fun playFromSecond(globalSec: Double) {
+        val target = track?.seekTarget(globalSec) ?: return
+        seekToAudio(target.audioSrc, target.positionSec)
+        play()
+    }
 
     /** Starts playback at the clip narrating [fragmentRef] (the "Play from here" entry point). */
     fun playFromFragment(fragmentRef: String) {
@@ -199,6 +229,7 @@ class ReadaloudController @Inject constructor(
             speed = c?.playbackParameters?.speed ?: 1f,
             currentAudioSrc = audioSrc,
             positionSec = positionSec,
+            positionGlobalSec = t?.globalPositionOf(audioSrc, positionSec) ?: 0.0,
             currentChapterIndex = t?.chapterIndexAt(audioSrc, positionSec) ?: -1,
             chapterCount = t?.chapterCount ?: 0,
         )

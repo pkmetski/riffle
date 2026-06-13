@@ -78,6 +78,7 @@ import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
+import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -148,6 +149,7 @@ internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
 @Composable
 fun EpubReaderScreen(
     onNavigateBack: () -> Unit,
+    onSwitchToAudiobook: (audiobookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -233,6 +235,7 @@ fun EpubReaderScreen(
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
+    val audiobookItemId by viewModel.audiobookItemId.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
     val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
     val sentenceChapters by viewModel.sentenceChapters.collectAsState()
@@ -386,24 +389,38 @@ fun EpubReaderScreen(
                     // highlight still read through. Controls are Surface CONTENT, unaffected by the
                     // alpha, so they stay opaque.
                     val readerPalette = formattingPrefs.theme.palette
-                    ReadaloudMiniPlayer(
-                        isPlaying = playbackState.isPlaying,
-                        speed = playbackState.speed,
-                        offlineMessage = readaloudOfflineMessage,
-                        downloadProgress = downloadProgress,
-                        canPreviousChapter = playbackState.currentChapterIndex > 0,
-                        canNextChapter = playbackState.currentChapterIndex >= 0 &&
-                            playbackState.currentChapterIndex < playbackState.chapterCount - 1,
-                        containerColor = readerPalette.background.copy(alpha = 0.85f),
-                        contentColor = readerPalette.foreground,
-                        onPlayPause = viewModel::togglePlayPause,
-                        onSpeedChange = viewModel::setSpeed,
-                        onRewind = viewModel::rewind,
-                        onForward = viewModel::forward,
-                        onPreviousChapter = viewModel::previousChapter,
-                        onNextChapter = viewModel::nextChapter,
-                        onClose = viewModel::closeReadaloud,
-                    )
+                    // Swiping the bar up switches to the single large player (the audiobook player),
+                    // continuing from the current listen position. Only when this title has an
+                    // audiobook to switch to; otherwise the swipe does nothing.
+                    ReadaloudPeek(
+                        handleColor = readerPalette.foreground,
+                        enabled = audiobookItemId != null,
+                        onSwipeUp = {
+                            audiobookItemId?.let { abId ->
+                                val sec = viewModel.prepareAudiobookHandoff()
+                                onSwitchToAudiobook(abId, sec)
+                            }
+                        },
+                    ) {
+                        ReadaloudMiniPlayer(
+                            isPlaying = playbackState.isPlaying,
+                            speed = playbackState.speed,
+                            offlineMessage = readaloudOfflineMessage,
+                            downloadProgress = downloadProgress,
+                            canPreviousChapter = playbackState.currentChapterIndex > 0,
+                            canNextChapter = playbackState.currentChapterIndex >= 0 &&
+                                playbackState.currentChapterIndex < playbackState.chapterCount - 1,
+                            containerColor = readerPalette.background.copy(alpha = 0.85f),
+                            contentColor = readerPalette.foreground,
+                            onPlayPause = viewModel::togglePlayPause,
+                            onSpeedChange = viewModel::setSpeed,
+                            onRewind = viewModel::rewind,
+                            onForward = viewModel::forward,
+                            onPreviousChapter = viewModel::previousChapter,
+                            onNextChapter = viewModel::nextChapter,
+                            onClose = viewModel::closeReadaloud,
+                        )
+                    }
                 }
                 if (showRailOverlay) {
                     EpubChapterRailOverlay(
