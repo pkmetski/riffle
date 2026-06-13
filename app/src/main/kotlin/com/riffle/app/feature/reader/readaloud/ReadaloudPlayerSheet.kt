@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
@@ -82,6 +84,7 @@ fun rememberReadaloudSheetState(): ReadaloudSheetState = remember { ReadaloudShe
 @Composable
 fun ReadaloudPeek(
     sheetState: ReadaloudSheetState,
+    handleColor: Color,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -99,6 +102,16 @@ fun ReadaloudPeek(
         },
     ) {
         content()
+        // Swipe-up affordance: a small drag handle pinned to the top edge of the bar. Overlaid, so it
+        // doesn't change the mini-player height (the paginated page reserve is sized to that height).
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 3.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(handleColor.copy(alpha = 0.4f))
+                .size(width = 32.dp, height = 4.dp),
+        )
     }
 }
 

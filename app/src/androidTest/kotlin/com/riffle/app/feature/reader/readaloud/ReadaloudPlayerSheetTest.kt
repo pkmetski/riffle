@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -51,7 +52,7 @@ class ReadaloudPlayerSheetTest {
     private fun setContent() {
         composeTestRule.setContent {
             Box(Modifier.fillMaxSize()) {
-                ReadaloudPeek(sheetState = sheetState) {
+                ReadaloudPeek(sheetState = sheetState, handleColor = Color.Gray) {
                     Text("mini", modifier = Modifier.testTag("test_peek"))
                 }
                 ReadaloudExpandedOverlay(

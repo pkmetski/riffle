@@ -396,7 +396,7 @@ fun EpubReaderScreen(
                     // Swiping the bar up expands it into the full-screen player (the overlay below);
                     // the bar itself stays put here, so the chapter-rail/page-reserve layout is
                     // unchanged when collapsed.
-                    ReadaloudPeek(sheetState = readaloudSheetState) {
+                    ReadaloudPeek(sheetState = readaloudSheetState, handleColor = readerPalette.foreground) {
                         ReadaloudMiniPlayer(
                             isPlaying = playbackState.isPlaying,
                             speed = playbackState.speed,
