@@ -5,7 +5,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -77,12 +76,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
-import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
-import com.riffle.app.feature.reader.readaloud.ReadaloudExpandedOverlay
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
-import com.riffle.app.feature.reader.readaloud.rememberReadaloudSheetState
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderOrientation
@@ -153,6 +149,7 @@ internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
 @Composable
 fun EpubReaderScreen(
     onNavigateBack: () -> Unit,
+    onSwitchToAudiobook: (audiobookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -238,13 +235,7 @@ fun EpubReaderScreen(
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
-    val readaloudPlayerState by viewModel.readaloudPlayerState.collectAsState()
-    val readaloudSheetState = rememberReadaloudSheetState()
-    val readaloudSheetScope = rememberCoroutineScope()
-    // System/predictive back collapses the expanded player before the reader's own back behaviour.
-    BackHandler(enabled = readaloudOpen && readaloudSheetState.isExpanded) {
-        readaloudSheetScope.launch { readaloudSheetState.collapse() }
-    }
+    val audiobookItemId by viewModel.audiobookItemId.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
     val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
@@ -393,10 +384,18 @@ fun EpubReaderScreen(
                     // highlight still read through. Controls are Surface CONTENT, unaffected by the
                     // alpha, so they stay opaque.
                     val readerPalette = formattingPrefs.theme.palette
-                    // Swiping the bar up expands it into the full-screen player (the overlay below);
-                    // the bar itself stays put here, so the chapter-rail/page-reserve layout is
-                    // unchanged when collapsed.
-                    ReadaloudPeek(sheetState = readaloudSheetState, handleColor = readerPalette.foreground) {
+                    // Swiping the bar up switches to the single large player (the audiobook player),
+                    // continuing from the current listen position. Only when this title has an
+                    // audiobook to switch to; otherwise the swipe does nothing.
+                    ReadaloudPeek(
+                        handleColor = readerPalette.foreground,
+                        onSwipeUp = {
+                            audiobookItemId?.let { abId ->
+                                val sec = viewModel.prepareAudiobookHandoff()
+                                onSwitchToAudiobook(abId, sec)
+                            }
+                        },
+                    ) {
                         ReadaloudMiniPlayer(
                             isPlaying = playbackState.isPlaying,
                             speed = playbackState.speed,
@@ -494,25 +493,6 @@ fun EpubReaderScreen(
                     colors = readerTopAppBarColors(),
                 )
             }
-        }
-
-        // Full-screen expanded player — slides up over the reader (and over the TopAppBar) as the bar
-        // is swiped up; below the screen and inert when collapsed. Drawn after the app bar so it sits
-        // on top of it. One playback session shown big.
-        if (state is ReaderState.Ready && readaloudOpen) {
-            ReadaloudExpandedOverlay(
-                playerState = readaloudPlayerState,
-                actions = PlayerSurfaceActions(
-                    onSeek = viewModel::seekReadaloud,
-                    onTogglePlayPause = viewModel::togglePlayPause,
-                    onRewind = viewModel::rewind,
-                    onForward = viewModel::forward,
-                    onPreviousChapter = viewModel::previousChapter,
-                    onNextChapter = viewModel::nextChapter,
-                    onSpeedChange = viewModel::setSpeed,
-                ),
-                sheetState = readaloudSheetState,
-            )
         }
 
         if (showFormattingPanel) {

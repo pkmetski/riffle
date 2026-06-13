@@ -60,7 +60,7 @@ private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{face
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}"
 private const val PDF_READER = "pdf_reader/{itemId}"
-private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}"
+private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
 
 @Composable
 fun MainScreen(
@@ -391,7 +391,19 @@ fun MainScreen(
                     },
                 )
             ) {
-                EpubReaderScreen(onNavigateBack = { navController.popBackStack() })
+                EpubReaderScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    // Swipe up → switch to the single large player (the audiobook), continuing from the
+                    // listen position. Replace the reader (popUpTo inclusive) so the two surfaces swap
+                    // rather than stack; the reader's onCleared releases the shared player without
+                    // stopping it so the audiobook keeps playing.
+                    onSwitchToAudiobook = { audiobookItemId, atSec ->
+                        val encoded = URLEncoder.encode(audiobookItemId, "UTF-8")
+                        navController.navigate("audiobook_player/$encoded?startAtSec=$atSec") {
+                            popUpTo(EPUB_READER) { inclusive = true }
+                        }
+                    },
+                )
             }
             composable(
                 route = PDF_READER,
@@ -405,6 +417,10 @@ fun MainScreen(
                 route = AUDIOBOOK_PLAYER,
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
+                    navArgument("startAtSec") {
+                        type = NavType.FloatType
+                        defaultValue = -1f // -1 = opened normally; >=0 = readaloud→audiobook handoff
+                    },
                 )
             ) {
                 AudiobookPlayerScreen(

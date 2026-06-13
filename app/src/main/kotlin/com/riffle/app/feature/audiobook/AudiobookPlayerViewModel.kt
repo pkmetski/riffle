@@ -102,6 +102,9 @@ class AudiobookPlayerViewModel @Inject constructor(
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
 
+    // readaloud→audiobook swipe handoff: the listen position to continue from (-1 = opened normally).
+    private val startAtSec: Double = (savedStateHandle.get<Float>("startAtSec") ?: -1f).toDouble()
+
     private val meta = MutableStateFlow(
         AudiobookPlayerUiState(loading = true),
     )
@@ -251,6 +254,18 @@ class AudiobookPlayerViewModel @Inject constructor(
                 readingProgressFraction = item.readingProgress,
                 durationSec = session.timeline.durationSec,
             )
+            // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
+            // overriding the store/server resume (which can lag the just-left listen position). Persist
+            // it with a fresh stamp so it wins last-update-wins and isn't pulled back by a stale server.
+            var resumeStamp = resumeUpdatedAt
+            if (startAtSec >= 0.0) {
+                resumeSec = startAtSec.coerceIn(0.0, session.timeline.durationSec)
+                resumeStamp = System.currentTimeMillis()
+                if (serverId.isNotEmpty()) {
+                    audiobookPositionStore.save(serverId, itemId, resumeSec)
+                    audiobookPositionStore.updateLocalTimestamp(serverId, itemId, resumeStamp)
+                }
+            }
             // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
             // key the *same* way the reader does — via the resolver on this audiobook's link — so both
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
@@ -301,7 +316,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // VM's setSpeed) so restoring the saved value doesn't re-save it.
             controller.setSpeed(initialSpeed)
             reconciledResumeSec = resumeSec
-            localUpdatedAt = resumeUpdatedAt
+            localUpdatedAt = resumeStamp
             // Opening the player is itself a "play" intent (the user tapped Listen), so start playback
             // immediately rather than landing on a paused player. A genuinely-newer remote resume is
             // still honoured: attachReaderSync's inbound-only reconcile seeks the already-playing
