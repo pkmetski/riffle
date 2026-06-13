@@ -99,6 +99,22 @@ class ReadaloudTextQuotesTest {
         assertEquals("Real text.", quotes["x-s1"]!!.highlight)
     }
 
+    // Feeds "Play from here" chapter-scoping (so a phrase recurring across chapters can't resolve to
+    // the wrong chapter's clip — The Martian ch16 → ch8). Every sentence id maps to the href it lives in.
+    @Test
+    fun `sentenceChapterHrefs maps each span id to its chapter href`() {
+        val chapters = listOf(
+            EpubChapterHtml(href = "text/part0013.html", html = martianChapter),
+            EpubChapterHtml(href = "text/part0021.html", html = phmChapter),
+        )
+        val map = ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
+        assertEquals("text/part0013.html", map["id259-s1"])
+        assertEquals("text/part0013.html", map["id259-s3"])
+        assertEquals("text/part0021.html", map["c008-s0"])
+        // structural / non-sentence ids never enter the map
+        assertNull(map["calibre_pb_1"])
+    }
+
     @Test
     fun `unparseable or empty chapter contributes nothing, never throws`() {
         assertTrue(ReadaloudTextQuotes.quotesForChapter("").isEmpty())

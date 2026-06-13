@@ -54,6 +54,24 @@ object ReadaloudTextQuotes {
         return out
     }
 
+    /**
+     * Map every sentence span id across [chapters] to the href of the chapter it lives in.
+     *
+     * "Play from here" resolves the tapped sentence by searching the rendered page for each sentence's
+     * short text prefix. Run against the WHOLE book that misfires when a phrase recurs: e.g. The Martian
+     * ch16's compound sentence "…I'd… He thought for a moment." contains the standalone ch8 sentence
+     * "He thought for a moment." — selecting inside it matches the FOREIGN ch8 sentence's start and jumps
+     * narration there. Scoping the candidate sentences to the chapter being read removes the cross-chapter
+     * matches, so the resolver can only land on a sentence that genuinely belongs to this page.
+     */
+    fun sentenceChapterHrefs(chapters: List<EpubChapterHtml>): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        for (chapter in chapters) {
+            for (id in quotesForChapter(chapter.html).keys) out[id] = chapter.href
+        }
+        return out
+    }
+
     /** Map each sentence span's id → its [SentenceQuote] within one chapter's [html]. */
     fun quotesForChapter(html: String): Map<String, SentenceQuote> {
         val doc = try { Jsoup.parse(html) } catch (_: Exception) { return emptyMap() }

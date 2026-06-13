@@ -254,6 +254,40 @@ class ReaderWebViewScriptsTest {
         }
     }
 
+    // A punctuation-only "sentence" — Storyteller emits fragments like `…”` as their own narrated span.
+    // Its 1–2 char key matches that SAME punctuation INSIDE a real compound sentence ("…to save lives,
+    // I'd…" He thought…"), and, sitting later than the real sentence's start, would wrongly win. The
+    // resolver must skip such degenerate keys. Mirrors the real The Martian ch16 within-chapter misfire
+    // (a tap inside id34-s833 resolved to the `…”` fragment id34-s213).
+    private val degenerateFixture = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0">
+            <p>“But if I wasn’t willing to take risks to save lives, I’d…” He thought for a moment.</p>
+          </body>
+        </html>
+    """.trimIndent()
+
+    private val degenerateSentences = listOf(
+        "s-deg" to "…”",
+        "s-real" to "“But if I wasn’t willing to take risks to save lives, I’d…” He thought for a moment.",
+    )
+
+    @Test
+    fun resolveSelectionSkipsPunctuationOnlySentenceFragments() {
+        withSizedWebViewFixture(degenerateFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            webView.selectNthOccurrence("thought", 1) // inside the real compound sentence, after the `…”`
+            assertTrue(webView.awaitSelRect())
+            assertEquals(
+                "must resolve to the real compound sentence, not the punctuation-only `…”` fragment that matches mid-sentence",
+                "s-real",
+                webView.evalSync(resolveSelectionSentenceJs(degenerateSentences)).trim('"'),
+            )
+        }
+    }
+
     @Test
     fun resolveSelectionReturnsEmptyWhenNoSelectionRectIsStashed() {
         withSizedWebViewFixture(strippedFixture, widthPx = 1080, heightPx = 1600) { webView ->
