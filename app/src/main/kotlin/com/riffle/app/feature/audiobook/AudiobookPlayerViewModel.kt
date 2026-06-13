@@ -65,6 +65,10 @@ data class AudiobookPlayerUiState(
     val chapterStartsSec: List<Double> = emptyList(),
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
+    // The linked readaloud EBOOK item id, when this title has one (split-library ebook, or this same
+    // item if it's a combined ebook+audio). Non-null enables swipe-down → switch to the readaloud
+    // reader; null means there's no readaloud to switch to, so no swipe-down.
+    val readaloudEbookItemId: String? = null,
 )
 
 @HiltViewModel
@@ -260,6 +264,18 @@ class AudiobookPlayerViewModel @Inject constructor(
             }
             val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
                 ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+            // The readaloud EBOOK to switch to on swipe-down: among this Storyteller book's ABS targets,
+            // the readable one (the ebook in a split library); or this same item if it's a combined
+            // ebook+audio. Null when there's no readaloud ebook, which disables the swipe entirely.
+            val readaloudEbookItemId: String? = link?.let { l ->
+                readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
+                    .firstOrNull { t ->
+                        t.absLibraryItemId != itemId &&
+                            libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isReadable == true
+                    }
+                    ?.absLibraryItemId
+                    ?: itemId.takeIf { item.isReadable }
+            }
             meta.value = AudiobookPlayerUiState(
                 loading = false,
                 title = item.title,
@@ -267,6 +283,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 coverUrl = item.coverUrl,
                 authToken = token,
                 durationSec = session.timeline.durationSec,
+                readaloudEbookItemId = readaloudEbookItemId,
             )
             // Resume at the server-recorded position (last-update-wins resume; ADR 0029) so the
             // audio-led canonical never starts behind.

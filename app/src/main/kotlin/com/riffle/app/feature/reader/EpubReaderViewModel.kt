@@ -144,6 +144,12 @@ class EpubReaderViewModel @Inject constructor(
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
+    // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
+    // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
+    // we auto-start readaloud playing from this second so narration continues where listening left off.
+    private val startReadaloudAtSec: Double =
+        (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
+
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
@@ -491,6 +497,13 @@ class EpubReaderViewModel @Inject constructor(
                     quoteBundle = bundle
                     buildSentenceQuotes(bundle)
                 }
+            }
+
+            // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
+            // readaloud from the audiobook's position so narration continues where listening stopped.
+            // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
+            if (startReadaloudAtSec >= 0.0 && control.enabled) {
+                startReadaloudAtSecond(startReadaloudAtSec)
             }
 
             // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
@@ -1404,6 +1417,31 @@ class EpubReaderViewModel @Inject constructor(
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt so
             // the user can still choose to download.
             _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioServerId, audioBookId) ?: 0L
+        }
+    }
+
+    /**
+     * Audiobook→readaloud handoff: open readaloud and start narrating from [globalSec] on the readaloud
+     * timeline. The audiobook absolute second is used directly — the bundle and ABS audiobook timelines
+     * align to ~0s drift (ADR 0031). Mirrors [playFromHere]: opens the session WITHOUT the resume
+     * planner so the only seek is this one, and consumes any resume/close position so it can't re-seek
+     * away. Falls back to the normal play path (download prompt / offline notice) when no bundle is on
+     * disk.
+     */
+    fun startReadaloudAtSecond(globalSec: Double) {
+        if (!_readaloudAvailable.value) return
+        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+        if (bundle == null) {
+            openReadaloud()
+            return
+        }
+        if (!_readaloudOpen.value) openReadaloudSession()
+        viewModelScope.launch {
+            ensureOpened(bundle) ?: return@launch
+            readaloudStarted = true
+            resumeFragmentRef = null
+            closeLocator = null
+            playerCoordinator.playFromSecond(globalSec)
         }
     }
 

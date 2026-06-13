@@ -105,6 +105,9 @@ class PlayerCoordinator @Inject constructor(
     /** Seeks to an absolute position on the concatenated readaloud timeline (full-player scrubber). */
     fun seekTo(globalSec: Double) = controller.seekTo(globalSec)
 
+    /** Seeks to [globalSec] and starts playing — the audiobook→readaloud handoff entry point. */
+    fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)
+
     fun rewind() = controller.rewind()
 
     fun forward() = controller.forward()

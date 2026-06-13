@@ -146,6 +146,13 @@ class ReadaloudController @Inject constructor(
     fun previousChapter() = skipChapter(forward = false)
     fun nextChapter() = skipChapter(forward = true)
 
+    /** Seeks to [globalSec] on the concatenated timeline and starts playing (audiobook→readaloud handoff). */
+    fun playFromSecond(globalSec: Double) {
+        val target = track?.seekTarget(globalSec) ?: return
+        seekToAudio(target.audioSrc, target.positionSec)
+        play()
+    }
+
     /** Starts playback at the clip narrating [fragmentRef] (the "Play from here" entry point). */
     fun playFromFragment(fragmentRef: String) {
         val clip = track?.clipForFragment(fragmentRef) ?: return
