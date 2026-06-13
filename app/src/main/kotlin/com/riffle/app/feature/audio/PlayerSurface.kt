@@ -91,9 +91,6 @@ fun PlayerSurface(
     state: PlayerSurfaceState,
     actions: PlayerSurfaceActions,
     modifier: Modifier = Modifier,
-    // Applied to the cover art only. The audiobook player attaches its "drag the cover down to switch
-    // to readaloud" gesture here so it never sits under the collapse chevron or transport controls.
-    coverModifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier.fillMaxSize(),
@@ -111,8 +108,7 @@ fun PlayerSurface(
                 .fillMaxWidth(0.72f)
                 .aspectRatio(1f) // audiobook covers are square (ADR 0029)
                 .shadow(16.dp, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp))
-                .then(coverModifier),
+                .clip(RoundedCornerShape(12.dp)),
         )
         Spacer(Modifier.height(20.dp))
         Text(state.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)

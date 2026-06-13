@@ -48,7 +48,7 @@ private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
 @Composable
 private fun ReadAlongSwipeHint() {
     Text(
-        "Swipe the cover down to read along",
+        "Swipe down to read along",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -73,50 +73,37 @@ fun AudiobookPlayerScreen(
             MaterialTheme.colorScheme.background,
         ),
     )
-    // Swipe DOWN on the cover → switch to the readaloud reader (only when this title has a linked
-    // readaloud ebook). Confined to the cover so it never sits under the collapse chevron or the
-    // transport controls — "drag the artwork down" idiom. Down = toward reading.
-    val coverSwipeModifier = Modifier.pointerInput(Unit) {
-        var total = 0f
-        detectVerticalDragGestures(
-            onDragStart = { total = 0f },
-            onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
-            onDragEnd = {
-                val s = latestState.value
-                val ebookId = s.readaloudEbookItemId
-                if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
-                    // Release the shared player to readaloud (without stopping it) before navigating,
-                    // so readaloud keeps playing through the handoff.
-                    viewModel.prepareReadaloudHandoff()
-                    onSwitchToReadaloud(ebookId, s.positionSec)
-                }
-            },
-        )
-    }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(gradient)
+                // Swipe DOWN anywhere → switch to the readaloud reader (only when this title has a
+                // linked readaloud ebook; otherwise the drag does nothing). Down = toward reading.
+                // The scrubber's own horizontal drag is unaffected; taps still reach the transport.
+                .pointerInput(Unit) {
+                    var total = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { total = 0f },
+                        onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
+                        onDragEnd = {
+                            val s = latestState.value
+                            val ebookId = s.readaloudEbookItemId
+                            if (total > SWITCH_TO_READALOUD_THRESHOLD_PX && ebookId != null) {
+                                // Release the shared player to readaloud (without stopping it) before
+                                // navigating, so readaloud keeps playing through the handoff.
+                                viewModel.prepareReadaloudHandoff()
+                                onSwitchToReadaloud(ebookId, s.positionSec)
+                            }
+                        },
+                    )
+                }
                 .padding(horizontal = 24.dp),
         ) {
             // Swipe-down → read-along affordance, only when this title has a linked readaloud ebook.
             if (state.readaloudEbookItemId != null) {
+                Spacer(Modifier.size(8.dp))
                 ReadAlongSwipeHint()
-            }
-            // Collapse affordance.
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onNavigateBack) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Collapse")
-                }
-                Text(
-                    "NOW PLAYING",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.size(48.dp))
             }
 
             when {
@@ -148,7 +135,6 @@ fun AudiobookPlayerScreen(
                         onNextChapter = viewModel::nextChapter,
                         onSpeedChange = viewModel::setSpeed,
                     ),
-                    coverModifier = if (state.readaloudEbookItemId != null) coverSwipeModifier else Modifier,
                 )
             }
         }
