@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -142,7 +143,7 @@ fun AudiobookPlayerScreen(
             // swipe-down gesture. A plain back arrow (not a down-chevron) — distinct from swipe=read.
             IconButton(
                 onClick = onNavigateBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(4.dp),
+                modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(4.dp),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
