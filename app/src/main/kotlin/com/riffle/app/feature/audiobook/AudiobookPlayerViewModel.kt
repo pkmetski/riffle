@@ -85,6 +85,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val audioIdentityResolver: AudioIdentityResolver,
     private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
+    private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
     // Sync-store views for the matched dual-write (ADR 0030): read this audiobook's row stamps and
@@ -300,10 +301,23 @@ class AudiobookPlayerViewModel @Inject constructor(
             }
             val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
                 ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+            // Readaloud is only actually offerable when the synced bundle is present — the same gate the
+            // reader applies (readaloudControlState): a Storyteller book always qualifies, a matched ABS
+            // book only once its bundle is downloaded, an unmatched ABS book never. The bundle is keyed by
+            // the linked Storyteller book (or this item, on a Storyteller server), NOT the ABS item id.
+            val isStoryteller = server?.serverType == com.riffle.core.domain.ServerType.STORYTELLER
+            val audioServerId = link?.storytellerServerId ?: serverId
+            val audioBookId = link?.storytellerBookId ?: itemId
+            val readaloudAvailable = com.riffle.app.feature.reader.readaloudControlState(
+                isStoryteller = isStoryteller,
+                isMatchedAbs = link != null,
+                bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId),
+            ).enabled
             // The readaloud EBOOK to switch to on swipe-down: among this Storyteller book's ABS targets,
             // the readable one (the ebook in a split library); or this same item if it's a combined
-            // ebook+audio. Null when there's no readaloud ebook, which disables the swipe entirely.
-            val readaloudEbookItemId: String? = link?.let { l ->
+            // ebook+audio. Null when there's no readaloud ebook OR no synced bundle yet, which keeps the
+            // swipe-down hint hidden and the gesture inert until read-along can actually happen.
+            val readaloudEbookItemId: String? = if (!readaloudAvailable) null else link?.let { l ->
                 readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
                     .firstOrNull { t ->
                         t.absLibraryItemId != itemId &&
