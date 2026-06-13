@@ -153,6 +153,10 @@ class AudiobookPlayerViewModel @Inject constructor(
                 // Matched book: listening is also reading — persist the translated reading position
                 // locally so the durable sweep pushes the ebook record too, without reopening (ADR 0030).
                 mirrorListeningToReading(pos)
+                // …and the readaloud resume, so reopening the reader and pressing Play lands on the
+                // listened sentence rather than a stale one (ADR 0031). Runs on every save (hot path
+                // and close) so a process-death mid-listen still leaves a fresh resume.
+                writeListeningToReadaloud(pos)
             }
         },
     )
@@ -175,6 +179,23 @@ class AudiobookPlayerViewModel @Inject constructor(
             ?: return
         val snap = audioSyncStore.snapshot(serverId, itemId)
         readingSyncStore.mirror(serverId, ebookItemId, ebookLocator, snap.localUpdatedAt, snap.lastSyncedAt)
+    }
+
+    /**
+     * Dual-write the readaloud resume from the listen position (ADR 0031): map the listen seconds to the
+     * narrated sentence and persist it under the ebook item id, so reopening the reader and pressing Play
+     * resumes on that sentence instead of the stale saved one. Works index-free via the bundle SMIL
+     * ([AudiobookFollow.readaloudAnchorForAudioSeconds]) when the full coordinator isn't built — the
+     * common case the previous wiring missed (it only wrote the resume on the full-coordinator close path).
+     * No-op unless matched and the seconds narrate a sentence.
+     */
+    private suspend fun writeListeningToReadaloud(seconds: Double) {
+        if (serverId.isEmpty()) return
+        val ebookItemId = readerSync?.ebookItemId ?: audiobookFollow?.ebookItemId ?: return
+        val anchor = readerSync?.readaloudAnchorForAudioSeconds(seconds)
+            ?: audiobookFollow?.readaloudAnchorForAudioSeconds(seconds)
+            ?: return
+        readaloudResumeStore.save(serverId, ebookItemId, anchor)
     }
 
     val uiState: StateFlow<AudiobookPlayerUiState> =
@@ -505,17 +526,12 @@ class AudiobookPlayerViewModel @Inject constructor(
                 localUpdatedAt = System.currentTimeMillis()
                 val r = rs.runAudioLedCycle(pos, localUpdatedAt)
                 localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
-                // Write the readaloud resume from this listen position (ADR 0031), keyed by the ebook
-                // item id (readaloud resume lives in reader-locator space).
-                rs.ebookItemId?.let { ebookId ->
-                    rs.readaloudAnchorForAudioSeconds(pos)?.let { anchor ->
-                        readaloudResumeStore.save(serverId, ebookId, anchor)
-                    }
-                }
             } else {
                 audiobookRepository.saveProgress(serverId, itemId, pos, timeline.durationSec)
             }
-            // Shared cold-path local persistence (same policy as the ebook reader).
+            // Shared cold-path local persistence (same policy as the ebook reader): persists the
+            // audiobook position, mirrors the reading position, and writes the readaloud resume
+            // (writeListeningToReadaloud) for both the full-coordinator and index-free paths (ADR 0031).
             positionSaveCoordinator.onClose(pos, fraction)
         }
     }

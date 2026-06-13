@@ -325,4 +325,18 @@ class AudiobookFollow(
     /** PATCH the ABS audiobook record from the narrated sentence; returns the server stamp or `null`. */
     suspend fun pushFragment(fragmentRef: String): Long? =
         secondsForFragment(fragmentRef)?.let { absApi.writeAudiobookSeconds(endpoint, it) }
+
+    /**
+     * The readaloud resume anchor for an audio second, index-free via the bundle SMIL (ADR 0031): maps
+     * seconds → narrated sentence and carries that sentence ref. Lets the audiobook player persist the
+     * readaloud resume so reopening the reader and pressing Play lands on the listened sentence instead
+     * of a stale one — even without the cross-EPUB index. Unlike [ebookLocatorForAudioSeconds] it needs
+     * no quote: the readaloud start only needs the sentence ref, not a text anchor. `null` when the
+     * seconds narrate no sentence.
+     */
+    fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {
+        val ref = fragmentForAudioSeconds(seconds) ?: return null
+        val href = ref.substringBefore('#').takeIf { it.isNotEmpty() } ?: return null
+        return com.riffle.core.domain.ReadaloudResumePosition(href = href, progression = null, fragmentRef = ref)
+    }
 }
