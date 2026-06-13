@@ -107,4 +107,30 @@ class AudiobookFollowTest {
         // 2s -> sentence s1, which has no quote entry -> cannot text-anchor -> null (no coarse write).
         assertNull(follow(FakeApi()).ebookLocatorForAudioSeconds(2.0))
     }
+
+    @Test
+    fun `readaloudAnchorForAudioSeconds yields the narrated sentence (index-free)`() {
+        // 7s -> sentence s2; the readaloud resume is the sentence ref, so reopening the reader and
+        // pressing Play lands on the listened sentence rather than a stale one (ADR 0031).
+        val anchor = follow(FakeApi()).readaloudAnchorForAudioSeconds(7.0)
+        assertNotNull(anchor)
+        assertEquals("c1.html#s2", anchor!!.fragmentRef)
+        assertEquals("c1.html", anchor.href)
+    }
+
+    @Test
+    fun `readaloudAnchorForAudioSeconds resolves even without a quote (the sentence ref is the anchor)`() {
+        // 2s -> sentence s1, which has NO quote. Unlike ebookLocatorForAudioSeconds (which needs the
+        // quote to text-anchor), the readaloud resume only needs the sentence ref to start narration,
+        // so it must still resolve — else the audiobook can't move the readaloud resume here.
+        val anchor = follow(FakeApi()).readaloudAnchorForAudioSeconds(2.0)
+        assertNotNull(anchor)
+        assertEquals("c1.html#s1", anchor!!.fragmentRef)
+    }
+
+    @Test
+    fun `readaloudAnchorForAudioSeconds is null when the second has no narrated sentence`() {
+        // A second past the last clip maps to no fragment -> nothing to anchor.
+        assertNull(follow(FakeApi()).readaloudAnchorForAudioSeconds(99_999.0))
+    }
 }
