@@ -20,7 +20,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -67,10 +66,9 @@ fun AudiobookPlayerScreen(
     viewModel: AudiobookPlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // A phone in landscape crosses the Expanded width breakpoint but stays Compact in height; there
-    // the vertical layout pushes the controls off-screen, so split into cover+details / controls.
-    val twoColumn = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded &&
-        windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
+    // Any short (Compact-height) window — i.e. a phone in landscape — is too short for the vertical
+    // layout (the square cover pushes the controls off-screen), so split into cover+details / controls.
+    val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
     // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
     val latestState = rememberUpdatedState(state)
 

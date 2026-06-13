@@ -3,9 +3,7 @@ package com.riffle.app.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +40,7 @@ import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.playback.NowPlaying
+import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -71,17 +70,12 @@ fun MainScreen(
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    // ADR 0019: Tablet Layout activates only on Expanded (≥ 840dp). Compact and Medium
-    // both render the phone UI. The threshold is evaluated at composition time so
-    // configuration changes (rotation, foldable unfold, ChromeOS resize, split-screen)
-    // re-evaluate automatically.
-    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
-    // A large phone in landscape crosses the Expanded width breakpoint (so it gets the tablet
-    // layouts) but stays Compact in height (< 480dp) — a real tablet is taller in both
-    // orientations. This pair distinguishes "phone landscape" from "tablet" so the detail and
-    // player screens can reclaim the drawer's width without touching the tablet view.
-    val isPhoneLandscape = isExpanded &&
-        windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
+    // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
+    // Expanded width (≥ 840dp) and non-Compact height. A large phone in landscape crosses the
+    // Expanded width breakpoint but stays Compact in height, so it renders the phone UI (modal
+    // drawer, single-column detail). Re-evaluated at composition time, so rotation / unfold /
+    // resize switch automatically.
+    val isTablet = windowSizeClass.isTabletLayout()
 
     val activeServer by viewModel.activeServer.collectAsState()
     val allServers by viewModel.allServers.collectAsState()
@@ -93,13 +87,10 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
-    val usePermanentDrawer = isExpanded
+    val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
-    // fills the width, matching the modal drawer's gesture suppression on phones. The item
-    // detail and audiobook player additionally collapse it on a phone in landscape, where the
-    // 280dp sheet would crowd the (short, wide) screen — but only there, so the tablet keeps it.
-    val hidePermanentDrawerPanel = isReaderRoute(currentRoute) ||
-        (isPhoneLandscape && isDetailOrPlayerRoute(currentRoute))
+    // fills the width, matching the modal drawer's gesture suppression on phones.
+    val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
 
     // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
     // drawer is open we add one here. Registered above the NavHost so screen-level handlers
@@ -476,8 +467,3 @@ internal fun NavController.navigateAsRoot(route: String) {
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
         route?.startsWith(PDF_READER.substringBefore("{")) == true
-
-// The two full-screen surfaces that reclaim the permanent drawer's width on a phone in landscape.
-internal fun isDetailOrPlayerRoute(route: String?): Boolean =
-    route?.startsWith(LIBRARY_ITEM_DETAIL.substringBefore("{")) == true ||
-        route?.startsWith(AUDIOBOOK_PLAYER.substringBefore("{")) == true
