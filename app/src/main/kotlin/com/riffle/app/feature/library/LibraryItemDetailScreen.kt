@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -282,7 +283,18 @@ private fun LibraryItemDetailContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item.coverUrl?.let { url ->
-            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            // A tablet in portrait is below the 840dp Expanded breakpoint (ADR 0019), so it
+            // lands on this single-column phone layout. fillMaxWidth() makes the cover span
+            // the whole tablet width — ginormous. Cap it on tablet-wide screens; real phones
+            // (< 600dp) keep the full-bleed cover.
+            val isWideScreen = configuration.screenWidthDp >= 600
+            val coverWidth = when {
+                isLandscape -> Modifier.fillMaxWidth(0.4f)
+                isWideScreen -> Modifier.widthIn(max = 280.dp)
+                else -> Modifier.fillMaxWidth()
+            }
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(url)
@@ -291,7 +303,7 @@ private fun LibraryItemDetailContent(
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .then(if (isLandscape) Modifier.fillMaxWidth(0.4f) else Modifier.fillMaxWidth())
+                    .then(coverWidth)
                     .aspectRatio(2f / 3f)
                     .align(Alignment.CenterHorizontally),
             )
@@ -406,8 +418,14 @@ internal fun LibraryItemDetailContentTablet(
             item.coverUrl?.let { url ->
                 // The left pane is non-scrolling (CONTEXT.md / ADR 0020), so the cover
                 // must yield height to the action row. weight(fill = false) lets the
-                // cover claim its aspect-ratio preferred size when there's room, but
-                // shrink in landscape so the Read button stays visible.
+                // cover shrink if it can't fit, keeping the Read button visible.
+                //
+                // The cap is orientation-aware: in portrait the pane is tall, so an
+                // uncapped cover dominates — cap it small. In landscape the pane is
+                // short and wide, so a small cap leaves the cover looking lost — allow
+                // it larger (weight still shrinks it if the action row needs the room).
+                val isLandscape =
+                    LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
@@ -417,6 +435,7 @@ internal fun LibraryItemDetailContentTablet(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .weight(1f, fill = false)
+                        .widthIn(max = if (isLandscape) 230.dp else 100.dp)
                         .aspectRatio(2f / 3f)
                         .align(Alignment.CenterHorizontally),
                 )
