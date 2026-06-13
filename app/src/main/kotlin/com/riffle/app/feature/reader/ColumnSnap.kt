@@ -64,6 +64,26 @@ internal object ColumnSnap {
     }
 
     /**
+     * Re-pins the current page to its LAST column, tracking the chapter's async typography reflow — for
+     * a backward cross-resource page turn that Readium handled itself (paginated mode), which our nav
+     * handlers never see. Call from `onPageLoaded` when [landedAtEnd] reports the resource was placed at
+     * its end, so the imminent reflow can't strand the page several columns short of the true end.
+     */
+    suspend fun snapToEnd(fragment: EpubNavigatorFragment) {
+        fragment.evaluateJavascript(snapToEndColumnJs())
+    }
+
+    /**
+     * "true" iff the freshly loaded paginated page is resting on its LAST column — i.e. Readium
+     * positioned this resource at its end, which is what a backward cross-resource swipe does. "false"
+     * in scroll mode, for a single-page resource, or anywhere but the last column (a forward turn lands
+     * at column 0; a TOC jump lands at the chapter top). Read at `onPageLoaded`, BEFORE the typography
+     * injection reflows the page, so the check sees Readium's landing position against the base width.
+     */
+    suspend fun landedAtEnd(fragment: EpubNavigatorFragment): Boolean =
+        fragment.evaluateJavascript(LANDED_AT_END_JS)?.trim('"') == "true"
+
+    /**
      * Snaps the current resource so the column containing [fragmentId] sits flush — for an in-document
      * cross-reference tap ("Figure 4.1"), where the element is already in this document (no go()).
      */
@@ -282,6 +302,43 @@ internal object ColumnSnap {
           return "on";
         })()
         """.trimIndent()
+
+    // Lands a backward chapter turn on the LAST column of the freshly loaded resource and KEEPS it there
+    // until that chapter's typography reflow settles — the end-of-resource counterpart to
+    // [snapToTargetColumnJs]. A requestAnimationFrame loop that, every frame, pins scrollLeft to the last
+    // column boundary (`floor((scrollWidth - innerWidth) / innerWidth) * innerWidth`), so as reflow grows
+    // the content and adds columns the page tracks the moving end instead of being stranded several
+    // columns short — the "previous chapter overshoots 4-5 pages back" bug, which a raw `go()` to a
+    // `progression = 1.0` locator produces because it resolves 1.0 against the pre-reflow column count.
+    // Stops once scrollWidth has held steady for a few frames or a safety cap elapses. Shares
+    // `window.__riffleSnapGen` so a later jump supersedes an in-flight end-snap. The first snap runs
+    // synchronously (before the first rAF) so a non-reflowing page lands immediately. Vertical (scroll)
+    // mode pins scrollTop to the bottom instead; a page that fits the viewport is left untouched.
+    internal fun snapToEndColumnJs(): String =
+        "(function(){var se=document.scrollingElement;if(!se)return;" +
+            "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
+            "var lastW=-1,lastH=-1,stable=0,frames=0;" +
+            "function snap(){var iw=window.innerWidth;if(!(iw>0))return;" +
+            "if(se.scrollWidth > iw + 4){" + // paginated → last column
+            "se.scrollLeft=Math.max(0,Math.floor((se.scrollWidth - iw)/iw)*iw);}" +
+            "else if(se.scrollHeight > window.innerHeight + 4){" + // scroll mode → bottom
+            "se.scrollTop=Math.max(0,se.scrollHeight - window.innerHeight);}}" +
+            "function tick(){if(gen!==window.__riffleSnapGen)return;" + // a newer jump superseded us
+            "var w=se.scrollWidth,h=se.scrollHeight;" +
+            "if(w===lastW&&h===lastH)stable++;else{stable=0;lastW=w;lastH=h;}" +
+            "snap();" +
+            "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" + // settled, or ~1.2s safety cap
+            "requestAnimationFrame(tick);}" +
+            "tick();})()"
+
+    // Reports whether the freshly loaded paginated page is resting on its LAST column — the signature of
+    // a backward cross-resource turn (Readium positions the previous resource at its end). Paginated only
+    // (scrollWidth > innerWidth); "false" otherwise. Pairs with [snapToEnd] in onPageLoaded.
+    internal val LANDED_AT_END_JS: String =
+        "(function(){var se=document.scrollingElement;if(!se)return 'false';" +
+            "var iw=window.innerWidth;if(!(iw>0))return 'false';" +
+            "if(!(se.scrollWidth > iw + 4))return 'false';" +
+            "return (se.scrollLeft + iw >= se.scrollWidth - 4)?'true':'false';})()"
 
     // Scrolls the current resource so the column CONTAINING [fragmentId] sits flush at the viewport's
     // left edge — for an in-document cross-reference tap ("Figure 4.1"). go(cssSelector) lands flush to
