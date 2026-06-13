@@ -954,6 +954,20 @@ private fun EpubNavigatorView(
                 pageLoadGeneration.value += 1
                 val fragment = fragmentRef.value ?: return
                 coroutineScope.launch {
+                    // A backward cross-resource page turn (swipe-back at a chapter start) is handled by
+                    // Readium itself in paginated mode — our nav handlers never see it — and Readium
+                    // positions the previous resource at its END. Capture that BEFORE the typography
+                    // injection below reflows (widens) the page; the end re-snap then tracks the reflow so
+                    // the page can't be stranded several columns short of the true end (the "previous
+                    // chapter overshoots 4-5 pages back" bug). A forward turn lands at column 0 and a TOC
+                    // jump at the chapter top, so neither reports landedAtEnd.
+                    //
+                    // onPageLoaded fires for offscreen-preloaded resources too, and evaluateJavascript
+                    // binds to whatever resource is current at call time — so capture the resource we
+                    // measure here and only re-snap below if it is still current, otherwise a swipe during
+                    // the awaited injections could end-snap a DIFFERENT chapter (a forward overshoot).
+                    val hrefAtLoad = currentHrefHolder[0]
+                    val landedAtEnd = ColumnSnap.landedAtEnd(fragment)
                     fragment.evaluateJavascript(RECT_TO_JSON_POLYFILL_JS)
                     fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
                     fragment.evaluateJavascript(typographyOverrideInjectionJs())
@@ -968,10 +982,17 @@ private fun EpubNavigatorView(
                     // paginated mode it rounds to the nearest column, so the page can never REST between
                     // two pages no matter what moved it. Idempotent; defers to the rAF trackers.
                     ColumnSnap.installBackstop(fragment)
-                    // NOTE: do NOT snap to the column grid here. The typography injection above
-                    // reflows the page asynchronously, so a snap at this point rounds a pre-reflow
-                    // position and lands close-but-not-exact. The post-go() snap in the navigation
-                    // handlers runs after the reflow has settled and is the authoritative one.
+                    // NOTE: do NOT snap to the column grid here for the general case. The typography
+                    // injection above reflows the page asynchronously, so a snap at this point rounds a
+                    // pre-reflow position and lands close-but-not-exact. The post-go() snap in the
+                    // navigation handlers runs after the reflow has settled and is the authoritative one.
+                    //
+                    // EXCEPTION: a backward cross-resource turn has no nav handler in paginated mode (it's
+                    // Readium's own ViewPager), so there is no post-go snap to keep the end pinned through
+                    // the reflow. Re-pin to the last column here; snapToEnd's rAF loop tracks the reflow.
+                    if (landedAtEnd && currentHrefHolder[0] == hrefAtLoad) {
+                        ColumnSnap.snapToEnd(fragment)
+                    }
                 }
             }
         }
