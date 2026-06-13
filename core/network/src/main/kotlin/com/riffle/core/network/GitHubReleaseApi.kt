@@ -1,0 +1,121 @@
+package com.riffle.core.network
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.io.IOException
+
+/**
+ * Reads release metadata and APK assets from a public GitHub repository's Releases API. No auth is
+ * needed because the Riffle repo is public.
+ */
+class GitHubReleaseApi(
+    private val httpClient: OkHttpClient,
+    /** Overridable so tests can point at a local MockWebServer; defaults to the public GitHub API. */
+    private val apiBaseUrl: String = "https://api.github.com",
+) {
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    /** Fetches the repo's latest (non-prerelease) release and its APK asset. */
+    suspend fun latestRelease(repo: String): GitHubReleaseResult = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$apiBaseUrl/repos/$repo/releases/latest")
+            .header("Accept", "application/vnd.github+json")
+            .get()
+            .build()
+        try {
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use GitHubReleaseResult.Failed("HTTP ${response.code}")
+                }
+                val raw = response.body?.string()
+                    ?: return@use GitHubReleaseResult.Failed("Empty response")
+                val parsed = json.decodeFromString<ReleaseResponse>(raw)
+                val apk = parsed.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                    ?: return@use GitHubReleaseResult.Failed("Release has no APK asset")
+                GitHubReleaseResult.Success(
+                    GitHubRelease(
+                        tagName = parsed.tagName,
+                        apkUrl = apk.downloadUrl,
+                        apkSizeBytes = apk.size,
+                    )
+                )
+            }
+        } catch (e: IOException) {
+            GitHubReleaseResult.Failed(e.message ?: "Network error")
+        }
+    }
+
+    /**
+     * Streams [url] into [dest], reporting whole-percent progress. Returns true on success. On any
+     * failure [dest] is deleted, so a truncated APK is never handed to the installer.
+     */
+    suspend fun download(url: String, dest: File, onProgress: (percent: Int) -> Unit): Boolean =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder().url(url).get().build()
+            try {
+                httpClient.newCall(request).execute().use { response ->
+                    val body = response.body
+                    if (!response.isSuccessful || body == null) {
+                        dest.delete()
+                        return@use false
+                    }
+                    val total = body.contentLength()
+                    body.byteStream().use { input ->
+                        dest.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var copied = 0L
+                            var lastPercent = -1
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read == -1) break
+                                output.write(buffer, 0, read)
+                                copied += read
+                                if (total > 0) {
+                                    val percent = ((copied * 100) / total).toInt().coerceIn(0, 100)
+                                    if (percent != lastPercent) {
+                                        lastPercent = percent
+                                        onProgress(percent)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                }
+            } catch (e: IOException) {
+                dest.delete()
+                false
+            }
+        }
+}
+
+sealed interface GitHubReleaseResult {
+    data class Success(val release: GitHubRelease) : GitHubReleaseResult
+    data class Failed(val message: String) : GitHubReleaseResult
+}
+
+data class GitHubRelease(
+    val tagName: String,
+    val apkUrl: String,
+    val apkSizeBytes: Long,
+)
+
+@Serializable
+private data class ReleaseResponse(
+    @SerialName("tag_name") val tagName: String,
+    val assets: List<AssetResponse> = emptyList(),
+)
+
+@Serializable
+private data class AssetResponse(
+    val name: String,
+    @SerialName("browser_download_url") val downloadUrl: String,
+    val size: Long = 0,
+)

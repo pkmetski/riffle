@@ -56,6 +56,12 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideApkInstaller(
+        impl: com.riffle.app.update.AndroidApkInstaller,
+    ): com.riffle.core.domain.ApkInstaller = impl
+
+    @Provides
+    @Singleton
     fun provideDefaultHttpClient(): DefaultHttpClient = DefaultHttpClient()
 
     @Provides

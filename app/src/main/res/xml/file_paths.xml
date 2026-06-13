@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="crash_reports" path="." />
+    <!-- Downloaded update APKs handed to the system installer (see AppUpdateRepository). -->
+    <cache-path name="updates" path="updates/" />
 </paths>
