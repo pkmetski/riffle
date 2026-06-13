@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +40,7 @@ import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.playback.NowPlaying
+import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -70,11 +70,12 @@ fun MainScreen(
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    // ADR 0019: Tablet Layout activates only on Expanded (≥ 840dp). Compact and Medium
-    // both render the phone UI. The threshold is evaluated at composition time so
-    // configuration changes (rotation, foldable unfold, ChromeOS resize, split-screen)
-    // re-evaluate automatically.
-    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+    // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
+    // Expanded width (≥ 840dp) and non-Compact height. A large phone in landscape crosses the
+    // Expanded width breakpoint but stays Compact in height, so it renders the phone UI (modal
+    // drawer, single-column detail). Re-evaluated at composition time, so rotation / unfold /
+    // resize switch automatically.
+    val isTablet = windowSizeClass.isTabletLayout()
 
     val activeServer by viewModel.activeServer.collectAsState()
     val allServers by viewModel.allServers.collectAsState()
@@ -86,7 +87,7 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
-    val usePermanentDrawer = isExpanded
+    val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.
     val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
@@ -424,6 +425,7 @@ fun MainScreen(
                 )
             ) {
                 AudiobookPlayerScreen(
+                    windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     // Swipe down → switch to the readaloud reader for the linked ebook, continuing from
                     // the audiobook position. Pop the player off the stack so leaving readaloud doesn't

@@ -14,7 +14,9 @@ The load-bearing decision is what to do with **Medium**, because it contains two
 
 ## Decision
 
-**The Tablet Layout activates only on the Expanded size class (≥ 840dp).** Compact and Medium both render the standard phone UI. There is no intermediate Medium-specific variant.
+**The Tablet Layout activates only when the window is large in *both* dimensions — the Expanded width class (≥ 840dp) AND a non-Compact height class.** Compact and Medium width both render the standard phone UI, and so does an Expanded-width window that is Compact in height. There is no intermediate Medium-specific variant.
+
+The height guard exists because the width-only rule over-captured one case it was meant to exclude: a **large phone in landscape** crosses 840dp of width, so width alone handed it the permanent drawer and two-pane layouts next to a postcard-height area — the exact outcome the "Decision" was written to avoid. A landscape phone is Compact in height (< 480dp); a real tablet is taller in both orientations. The single predicate `WindowSizeClass.isTabletLayout()` (Expanded width && non-Compact height) encodes this and is the only thing layout code should branch on.
 
 This means:
 
@@ -34,6 +36,6 @@ This means:
 ## Consequences
 
 - **Landscape phones do not get the Tablet Layout.** This is deliberate. Users with foldables in particular should expect the phone UI most of the time.
-- **The 840dp threshold is what code reads, not "is this a tablet."** The codebase should not have helpers named `isTablet()` — the signal is `WindowSizeClass.Expanded`, evaluated at composition time. This keeps behaviour consistent across foldables, ChromeOS, and split-screen, where "tablet" as a noun is meaningless.
+- **Code reads a window-size predicate, not "is this a tablet" as a device fact.** The single helper `WindowSizeClass.isTabletLayout()` (Expanded width && non-Compact height) is evaluated at composition time. It is deliberately phrased about the *layout* the window can host, not the device — the same window predicate keeps behaviour consistent across foldables, ChromeOS, and split-screen, where "tablet" as a noun is meaningless. Do not reintroduce a device-shape `isTablet()`.
 - **Configuration changes are load-bearing.** Unfolding, resizing, and rotating all cross the threshold. The framework's automatic `WindowSizeClass` recomputation plus `rememberSaveable` is trusted to preserve in-app state across these transitions. No bespoke handling.
 - **Tests need to exercise both sides of the threshold.** A second harness AVD ("Harness Medium Tablet") and a separate `make harness-test-tablet` target cover this — only tests annotated for tablet behaviour run on the tablet AVD, so the full suite does not double-run.

@@ -63,6 +63,32 @@ internal const val AUDIOBOOK_FINISHED_EPS_SEC: Double = 1.0
 internal fun audiobookStartSec(resumeSec: Double, durationSec: Double): Double =
     if (durationSec > 0.0 && resumeSec >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC) 0.0 else resumeSec
 
+/**
+ * The one-line facts shown beneath the cover on the landscape player, e.g.
+ * "Audiobook · 10h 53m · Science Fiction & Fantasy". Duration is omitted when unknown; at most two
+ * genres are listed to keep it tidy. Null when there's nothing to show.
+ */
+internal fun buildAudiobookFacts(durationSec: Double, genres: List<String>): String? {
+    val parts = buildList {
+        add("Audiobook")
+        if (durationSec > 0.0) {
+            val total = durationSec.toLong()
+            val h = total / 3600
+            val m = (total % 3600) / 60
+            add(
+                when {
+                    h > 0 && m > 0 -> "${h}h ${m}m"
+                    h > 0 -> "${h}h"
+                    else -> "${m}m"
+                },
+            )
+        }
+        genres.take(2).forEach { add(it) }
+    }
+    // "Audiobook" alone is just the medium label with no real facts — not worth a line.
+    return if (parts.size > 1) parts.joinToString(" · ") else null
+}
+
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
 data class AudiobookPlayerUiState(
     val loading: Boolean = true,
@@ -79,6 +105,9 @@ data class AudiobookPlayerUiState(
     val chapterStartsSec: List<Double> = emptyList(),
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
+    // Book details for the landscape two-column player: a facts line and the blurb (ADR 0029).
+    val facts: String? = null,
+    val description: String? = null,
     // The linked readaloud EBOOK item id, when this title has one (split-library ebook, or this same
     // item if it's a combined ebook+audio). Non-null enables swipe-down → switch to the readaloud
     // reader; null means there's no readaloud to switch to, so no swipe-down.
@@ -355,6 +384,8 @@ class AudiobookPlayerViewModel @Inject constructor(
                 authToken = token,
                 durationSec = session.timeline.durationSec,
                 readaloudEbookItemId = readaloudEbookItemId,
+                facts = buildAudiobookFacts(session.timeline.durationSec, item.genres),
+                description = item.description,
             )
             // Resume at the server-recorded position (last-update-wins resume; ADR 0029) so the
             // audio-led canonical never starts behind.

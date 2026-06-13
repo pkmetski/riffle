@@ -47,7 +47,6 @@ import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -72,6 +71,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.app.ui.isPhoneLandscape
+import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.domain.LibraryItem
 import kotlinx.coroutines.launch
 
@@ -158,15 +159,44 @@ fun LibraryItemDetailScreen(
                         )
                     }
                 }
-                val isExpanded =
-                    windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+                val isTablet = windowSizeClass.isTabletLayout()
+                // A phone in landscape is wide-but-short: it keeps the phone chrome (modal drawer) but
+                // is still wide enough for a two-column cover-beside-text detail layout, which scrolls
+                // far less than the single tall column the phone-portrait layout would give here.
+                val isPhoneLandscape = windowSizeClass.isPhoneLandscape()
                 val onFacet: (FacetType, String) -> Unit = { facet, value ->
                     onNavigateToFacet(state.item.libraryId, facet, value)
                 }
                 val onSeriesClick: (String, String) -> Unit = { seriesId, seriesName ->
                     onNavigateToSeries(state.item.libraryId, seriesId, seriesName)
                 }
-                if (isExpanded) {
+                if (isPhoneLandscape) {
+                    LibraryItemDetailContentPhoneLandscape(
+                        item = state.item,
+                        seriesId = state.seriesId,
+                        onFacet = onFacet,
+                        onSeriesClick = onSeriesClick,
+                        isInToRead = state.isInToRead,
+                        token = viewModel.authToken,
+                        downloadState = downloadState,
+                        isCachedOrDownloaded = state.isCachedOrDownloaded,
+                        isOffline = state.isOffline,
+                        readaloudDownloadState = readaloudDownloadState,
+                        audiobookDownloadState = audiobookDownloadState,
+                        onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                        onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
+                        onMarkAsRead = { viewModel.markAsRead() },
+                        onMarkAsUnread = { viewModel.markAsUnread() },
+                        onToggleToRead = { viewModel.toggleToRead() },
+                        onDownload = { viewModel.startDownload() },
+                        onRemove = onRemove,
+                        onDownloadReadaloud = viewModel::onDownloadReadaloud,
+                        onRemoveReadaloud = viewModel::onRemoveReadaloud,
+                        onDownloadAudiobook = viewModel::onDownloadAudiobook,
+                        onRemoveAudiobook = viewModel::onRemoveAudiobook,
+                        modifier = Modifier.padding(padding),
+                    )
+                } else if (isTablet) {
                     LibraryItemDetailContentTablet(
                         item = state.item,
                         seriesId = state.seriesId,
@@ -487,6 +517,114 @@ internal fun LibraryItemDetailContentTablet(
             }
             item.seriesName?.let { series ->
                 SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            }
+            MetadataLines(item = item, onFacet = onFacet)
+        }
+    }
+}
+
+/**
+ * Detail layout for a phone in landscape (wide-but-short). The cover sits alone in the left column so
+ * it gets the full screen height — a big cover — while everything else (title, author, actions,
+ * Summary, metadata) scrolls in the wide right column. Keeping the cover out of the scrolling column
+ * means far less scrolling than the single-column phone layout, and the wide right column leaves the
+ * action row room to lay out horizontally (no squished Read/Listen button). Ebook + audiobook alike.
+ */
+@Composable
+internal fun LibraryItemDetailContentPhoneLandscape(
+    item: LibraryItem,
+    seriesId: String? = null,
+    onFacet: (FacetType, String) -> Unit = { _, _ -> },
+    onSeriesClick: (String, String) -> Unit = { _, _ -> },
+    isInToRead: Boolean,
+    token: String,
+    downloadState: DownloadState,
+    isCachedOrDownloaded: Boolean,
+    isOffline: Boolean,
+    readaloudDownloadState: DownloadState?,
+    audiobookDownloadState: DownloadState? = null,
+    onReadItem: (LibraryItem) -> Unit,
+    onListenItem: (LibraryItem) -> Unit = {},
+    onMarkAsRead: () -> Unit,
+    onMarkAsUnread: () -> Unit,
+    onToggleToRead: () -> Unit,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier.fillMaxSize()) {
+        item.coverUrl?.let { url ->
+            Box(
+                modifier = Modifier
+                    .testTag(LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG)
+                    .fillMaxHeight()
+                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(url)
+                        .addHeader("Authorization", "Bearer $token")
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    // The cover owns the column's full height; aspectRatio derives its width from that.
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(2f / 3f, matchHeightConstraintsFirst = true),
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .testTag(LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG)
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TitleWithReadaloudIndicator(
+                title = item.title,
+                hasReadaloud = readaloudDownloadState != null,
+                onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
+            )
+            AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
+            item.seriesName?.let { series ->
+                SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            }
+            if (item.isListenable && item.audioDurationSec > 0) {
+                AudiobookDurationLine(item.audioDurationSec)
+            }
+            if (item.readingProgress > 0f) {
+                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
+            }
+            ActionRow(
+                item = item,
+                isInToRead = isInToRead,
+                downloadState = downloadState,
+                isCachedOrDownloaded = isCachedOrDownloaded,
+                isOffline = isOffline,
+                readaloudDownloadState = readaloudDownloadState,
+                audiobookDownloadState = audiobookDownloadState,
+                onReadItem = onReadItem,
+                onListenItem = onListenItem,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+                onToggleToRead = onToggleToRead,
+                onDownload = onDownload,
+                onRemove = onRemove,
+                onDownloadReadaloud = onDownloadReadaloud,
+                onRemoveReadaloud = onRemoveReadaloud,
+                onDownloadAudiobook = onDownloadAudiobook,
+                onRemoveAudiobook = onRemoveAudiobook,
+            )
+            item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                CollapsibleDescription(desc)
             }
             MetadataLines(item = item, onFacet = onFacet)
         }

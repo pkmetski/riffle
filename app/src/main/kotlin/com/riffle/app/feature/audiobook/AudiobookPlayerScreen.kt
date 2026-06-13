@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -18,6 +18,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -58,11 +60,15 @@ private fun ReadAlongSwipeHint() {
 
 @Composable
 fun AudiobookPlayerScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onSwitchToReadaloud: (ebookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: AudiobookPlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Any short (Compact-height) window — i.e. a phone in landscape — is too short for the vertical
+    // layout (the square cover pushes the controls off-screen), so split into cover+details / controls.
+    val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
     // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
     val latestState = rememberUpdatedState(state)
 
@@ -126,7 +132,10 @@ fun AudiobookPlayerScreen(
                         chapterStartsSec = state.chapterStartsSec,
                         canPreviousChapter = state.canPreviousChapter,
                         canNextChapter = state.canNextChapter,
+                        facts = state.facts,
+                        description = state.description,
                     ),
+                    twoColumn = twoColumn,
                     actions = PlayerSurfaceActions(
                         onSeek = viewModel::seekTo,
                         onTogglePlayPause = viewModel::togglePlayPause,
@@ -142,8 +151,11 @@ fun AudiobookPlayerScreen(
             // Exit affordance, overlaid OUTSIDE the swipe Column so its taps are never captured by the
             // swipe-down gesture. A plain back arrow (not a down-chevron) — distinct from swipe=read.
             IconButton(
+                // safeDrawingPadding (not just statusBarsPadding) so the arrow clears the status bar,
+                // nav bar AND any display cutout — in landscape the cutout/short status bar otherwise
+                // sits right under it.
                 onClick = onNavigateBack,
-                modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(4.dp),
+                modifier = Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(4.dp),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }

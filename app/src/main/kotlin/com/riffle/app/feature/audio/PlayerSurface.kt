@@ -1,5 +1,6 @@
 package com.riffle.app.feature.audio
 
+import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -13,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,8 +44,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,6 +74,10 @@ data class PlayerSurfaceState(
     val chapterStartsSec: List<Double> = emptyList(),
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
+    // Book details shown in the landscape two-column layout. [facts] is a one-line summary
+    // ("Audiobook · 10h 53m · Science Fiction"); [description] is the blurb. Both null = nothing shown.
+    val facts: String? = null,
+    val description: String? = null,
 )
 
 /** Callbacks the surface invokes. [onSeek] takes an absolute global position in seconds. */
@@ -91,34 +103,147 @@ fun PlayerSurface(
     state: PlayerSurfaceState,
     actions: PlayerSurfaceActions,
     modifier: Modifier = Modifier,
+    // A phone in landscape (Compact height): split into cover+details on the left and the controls on
+    // the right so the transport never gets pushed off the short screen. Otherwise the vertical layout.
+    twoColumn: Boolean = false,
 ) {
+    if (twoColumn) {
+        PlayerSurfaceTwoColumn(state, actions, modifier)
+    } else {
+        PlayerSurfaceVertical(state, actions, modifier)
+    }
+}
+
+@Composable
+private fun PlayerSurfaceVertical(
+    state: PlayerSurfaceState,
+    actions: PlayerSurfaceActions,
+    modifier: Modifier,
+) {
+    // Portrait phone gets a larger, more immersive cover; a (tall) landscape window stays smaller so
+    // the square cover doesn't overflow the shorter vertical space.
+    val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+    val coverWidthFraction = if (isPortrait) 0.90f else 0.72f
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.weight(1f))
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(state.coverUrl)
-                .addHeader("Authorization", "Bearer ${state.authToken}")
-                .build(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth(0.72f)
-                .aspectRatio(1f) // audiobook covers are square (ADR 0029)
-                .shadow(16.dp, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)),
+        PlayerCover(
+            state = state,
+            modifier = Modifier.fillMaxWidth(coverWidthFraction),
         )
         Spacer(Modifier.height(20.dp))
+        PlayerTitleBlock(state, horizontalAlignment = Alignment.CenterHorizontally)
+
+        Spacer(Modifier.height(18.dp))
+        PlayerControls(state, actions)
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun PlayerSurfaceTwoColumn(
+    state: PlayerSurfaceState,
+    actions: PlayerSurfaceActions,
+    modifier: Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(300.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            PlayerCover(state = state, modifier = Modifier.size(150.dp))
+            Spacer(Modifier.height(14.dp))
+            PlayerTitleBlock(state, horizontalAlignment = Alignment.CenterHorizontally)
+            PlayerDetails(state)
+        }
+        Spacer(Modifier.width(28.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            PlayerControls(state, actions)
+        }
+    }
+}
+
+/** Square audiobook cover (ADR 0029). [modifier] supplies the size (fraction of width, or fixed). */
+@Composable
+private fun PlayerCover(state: PlayerSurfaceState, modifier: Modifier) {
+    AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(state.coverUrl)
+            .addHeader("Authorization", "Bearer ${state.authToken}")
+            .build(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .aspectRatio(1f)
+            .shadow(16.dp, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp)),
+    )
+}
+
+@Composable
+private fun PlayerTitleBlock(
+    state: PlayerSurfaceState,
+    horizontalAlignment: Alignment.Horizontal,
+) {
+    Column(horizontalAlignment = horizontalAlignment) {
         Text(state.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         Text(state.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (state.currentChapterTitle != null) {
             Spacer(Modifier.height(10.dp))
             Text(state.currentChapterTitle, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
+    }
+}
 
-        Spacer(Modifier.height(18.dp))
+/** Facts line + a clamped blurb, shown beneath the cover in the landscape two-column layout. */
+@Composable
+private fun PlayerDetails(state: PlayerSurfaceState) {
+    val blurb = state.description?.takeIf { it.isNotBlank() }
+    // Nothing to show → render nothing (no stray Spacer). A blank-but-non-null description counts as
+    // nothing, hence the isNotBlank filter above rather than a bare null check.
+    if (state.facts == null && blurb == null) return
+    // The player recomposes on every position tick; parse the HTML once per description, not per frame.
+    val formattedBlurb = remember(blurb) { blurb?.let { AnnotatedString.fromHtml(it) } }
+    Spacer(Modifier.height(12.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        state.facts?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        formattedBlurb?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActions) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         ChapterSeekBar(
             positionSec = state.positionSec,
             durationSec = state.durationSec,
@@ -150,7 +275,6 @@ fun PlayerSurface(
             }
             Text("Speed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Spacer(Modifier.weight(1f))
     }
 }
 
