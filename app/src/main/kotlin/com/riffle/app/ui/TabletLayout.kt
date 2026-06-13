@@ -17,3 +17,13 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 fun WindowSizeClass.isTabletLayout(): Boolean =
     widthSizeClass == WindowWidthSizeClass.Expanded &&
         heightSizeClass != WindowHeightSizeClass.Compact
+
+/**
+ * A wide-but-short window — a large phone in landscape: Expanded width (≥ 840dp) but Compact height
+ * (< 480dp). It is NOT a tablet (so it keeps the phone chrome — modal drawer), but it is wide enough
+ * to host a two-column *content* layout (e.g. the item-detail cover beside the text) instead of one
+ * tall scrolling column. A real tablet is non-Compact height, so it never matches this.
+ */
+fun WindowSizeClass.isPhoneLandscape(): Boolean =
+    widthSizeClass == WindowWidthSizeClass.Expanded &&
+        heightSizeClass == WindowHeightSizeClass.Compact

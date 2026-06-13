@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -151,8 +151,11 @@ fun AudiobookPlayerScreen(
             // Exit affordance, overlaid OUTSIDE the swipe Column so its taps are never captured by the
             // swipe-down gesture. A plain back arrow (not a down-chevron) — distinct from swipe=read.
             IconButton(
+                // safeDrawingPadding (not just statusBarsPadding) so the arrow clears the status bar,
+                // nav bar AND any display cutout — in landscape the cutout/short status bar otherwise
+                // sits right under it.
                 onClick = onNavigateBack,
-                modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(4.dp),
+                modifier = Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(4.dp),
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
