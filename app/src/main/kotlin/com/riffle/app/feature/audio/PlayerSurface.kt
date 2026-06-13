@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -207,7 +208,12 @@ private fun PlayerTitleBlock(
 /** Facts line + a clamped blurb, shown beneath the cover in the landscape two-column layout. */
 @Composable
 private fun PlayerDetails(state: PlayerSurfaceState) {
-    if (state.facts == null && state.description == null) return
+    val blurb = state.description?.takeIf { it.isNotBlank() }
+    // Nothing to show → render nothing (no stray Spacer). A blank-but-non-null description counts as
+    // nothing, hence the isNotBlank filter above rather than a bare null check.
+    if (state.facts == null && blurb == null) return
+    // The player recomposes on every position tick; parse the HTML once per description, not per frame.
+    val formattedBlurb = remember(blurb) { blurb?.let { AnnotatedString.fromHtml(it) } }
     Spacer(Modifier.height(12.dp))
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         state.facts?.let {
@@ -218,10 +224,10 @@ private fun PlayerDetails(state: PlayerSurfaceState) {
                 textAlign = TextAlign.Center,
             )
         }
-        state.description?.takeIf { it.isNotBlank() }?.let {
+        formattedBlurb?.let {
             Spacer(Modifier.height(6.dp))
             Text(
-                AnnotatedString.fromHtml(it),
+                it,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
