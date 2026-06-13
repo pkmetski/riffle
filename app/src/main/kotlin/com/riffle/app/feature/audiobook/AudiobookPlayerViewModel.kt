@@ -49,6 +49,20 @@ internal fun audiobookResumeSec(
     if (hadTrackedPosition || readingProgressFraction <= 0f || durationSec <= 0.0) reconciledSec
     else (readingProgressFraction * durationSec).coerceIn(0.0, durationSec)
 
+/** How close to the end a resume position must sit to count the book as finished (and restart at 0). */
+internal const val AUDIOBOOK_FINISHED_EPS_SEC: Double = 1.0
+
+/**
+ * The position to actually start a normally-opened audiobook at. A resume that lands at (or within
+ * [AUDIOBOOK_FINISHED_EPS_SEC] of) the end means the book was finished: seeding the player there puts
+ * it at the end of the last track, where ExoPlayer is `STATE_ENDED` and `play()` is a no-op — the
+ * player sits silent with the seek bar pinned at the end. Reopening a finished book is a replay
+ * intent, so restart from the beginning instead. A position anywhere short of the end is honoured
+ * as-is. No-op when the duration is unknown (we can't tell what "the end" is).
+ */
+internal fun audiobookStartSec(resumeSec: Double, durationSec: Double): Double =
+    if (durationSec > 0.0 && resumeSec >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC) 0.0 else resumeSec
+
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
 data class AudiobookPlayerUiState(
     val loading: Boolean = true,
@@ -276,6 +290,13 @@ class AudiobookPlayerViewModel @Inject constructor(
                 readingProgressFraction = item.readingProgress,
                 durationSec = session.timeline.durationSec,
             )
+            // A finished book (resume at the end) is unplayable if seeded there — ExoPlayer lands in
+            // STATE_ENDED and play() is a no-op, leaving the player silent with the bar pinned at the
+            // end. Reopening it is a replay, so restart from 0. Only on a normal open: the handoff below
+            // sets an explicit position that must not be reset.
+            if (startAtSec < 0.0) {
+                resumeSec = audiobookStartSec(resumeSec, session.timeline.durationSec)
+            }
             // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
             // overriding the store/server resume (which can lag the just-left listen position). Persist
             // it with a fresh stamp so it wins last-update-wins and isn't pulled back by a stale server.
