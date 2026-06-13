@@ -102,6 +102,9 @@ class PlayerCoordinator @Inject constructor(
 
     fun setSpeed(speed: Float) = controller.setSpeed(speed)
 
+    /** Seeks to an absolute position on the concatenated readaloud timeline (full-player scrubber). */
+    fun seekTo(globalSec: Double) = controller.seekTo(globalSec)
+
     fun rewind() = controller.rewind()
 
     fun forward() = controller.forward()
