@@ -52,9 +52,18 @@ class LibraryItemsViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
+    private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
+
+    /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
+    val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    fun setCoverGridScale(value: Float) {
+        viewModelScope.launch { coverGridDensityStore.setScale(value) }
+    }
 
     val series: StateFlow<List<Series>> = libraryRepository.observeSeries(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
