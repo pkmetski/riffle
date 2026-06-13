@@ -54,8 +54,30 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
 
     private val totalDuration: Double = fileOrder.sumOf { fileDuration[it] ?: 0.0 }
 
+    /** Whole-readaloud duration on the concatenated timeline, in seconds (full-player scrubber). */
+    val totalDurationSec: Double get() = totalDuration
+
     /** Number of chapters in the readaloud. */
     val chapterCount: Int get() = chapterHrefs.size
+
+    /** Each chapter's global start offset (seconds) — the tick positions on the full-player scrubber. */
+    val chapterStartsSec: List<Double> = chapterHrefs.mapNotNull { href ->
+        val first = clips.firstOrNull { chapterHrefOf(it) == href } ?: return@mapNotNull null
+        globalOf(first.audioSrc, first.clipBeginSec)
+    }
+
+    /**
+     * Maps a live within-file playback position to its offset on the concatenated timeline (the
+     * value the full-player scrubber renders), or 0.0 when [audioSrc] is unknown/null.
+     */
+    fun globalPositionOf(audioSrc: String?, positionSec: Double): Double =
+        globalOf(audioSrc, positionSec) ?: 0.0
+
+    /**
+     * Resolves an absolute global timeline offset (e.g. a scrubber seek) to the queued audio file and
+     * the within-file position to seek to. Clamps to `[0, totalDuration]`.
+     */
+    fun seekTarget(globalSec: Double): Position = positionAt(globalSec)
 
     /** Maps a live playback position to a global timeline offset, or null if [audioSrc] is unknown. */
     private fun globalOf(audioSrc: String?, positionSec: Double): Double? {

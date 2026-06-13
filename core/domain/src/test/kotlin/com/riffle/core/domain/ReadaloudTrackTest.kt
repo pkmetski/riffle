@@ -249,4 +249,34 @@ class ReadaloudTrackTest {
         // chapter 0 near start: no prior chapter, so restart chapter 0 (effective no-op seek to 0)
         assertEquals(skipClips[0], skipTrack.resolveChapterSkip("c1.mp3", 0.5, forward = false, nearStartSec = 3.0))
     }
+
+    // ── full-player timeline accessors (expandable readaloud player) ──
+    // chapterTrack: c1.mp3 (chapter text/c1.html) ends at 5.0; c2.mp3 (text/c2.html) ends at 4.0.
+    // So the concatenated timeline is 9.0s long; c2.mp3 starts at global 5.0.
+
+    @Test
+    fun `totalDurationSec sums every file's duration on the concatenated timeline`() {
+        assertEquals(9.0, chapterTrack.totalDurationSec, 1e-9)
+    }
+
+    @Test
+    fun `chapterStartsSec gives each chapter's global start offset`() {
+        assertEquals(listOf(0.0, 5.0), chapterTrack.chapterStartsSec)
+    }
+
+    @Test
+    fun `globalPositionOf maps a live within-file position onto the timeline`() {
+        assertEquals(8.0, chapterTrack.globalPositionOf("c2.mp3", 3.0), 1e-9)
+        assertEquals(0.0, chapterTrack.globalPositionOf(null, 3.0), 1e-9)
+    }
+
+    @Test
+    fun `seekTarget maps a global offset back to a file and within-file position`() {
+        assertEquals(ReadaloudTrack.Position("c2.mp3", 3.0), chapterTrack.seekTarget(8.0))
+    }
+
+    @Test
+    fun `seekTarget clamps a past-the-end offset to the last file's end`() {
+        assertEquals(ReadaloudTrack.Position("c2.mp3", 4.0), chapterTrack.seekTarget(100.0))
+    }
 }
