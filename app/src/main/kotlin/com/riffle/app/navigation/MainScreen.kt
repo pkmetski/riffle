@@ -3,6 +3,7 @@ package com.riffle.app.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
@@ -75,6 +76,12 @@ fun MainScreen(
     // configuration changes (rotation, foldable unfold, ChromeOS resize, split-screen)
     // re-evaluate automatically.
     val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+    // A large phone in landscape crosses the Expanded width breakpoint (so it gets the tablet
+    // layouts) but stays Compact in height (< 480dp) — a real tablet is taller in both
+    // orientations. This pair distinguishes "phone landscape" from "tablet" so the detail and
+    // player screens can reclaim the drawer's width without touching the tablet view.
+    val isPhoneLandscape = isExpanded &&
+        windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
 
     val activeServer by viewModel.activeServer.collectAsState()
     val allServers by viewModel.allServers.collectAsState()
@@ -88,8 +95,11 @@ fun MainScreen(
     val currentRoute = currentBackStack?.destination?.route
     val usePermanentDrawer = isExpanded
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
-    // fills the width, matching the modal drawer's gesture suppression on phones.
-    val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
+    // fills the width, matching the modal drawer's gesture suppression on phones. The item
+    // detail and audiobook player additionally collapse it on a phone in landscape, where the
+    // 280dp sheet would crowd the (short, wide) screen — but only there, so the tablet keeps it.
+    val hidePermanentDrawerPanel = isReaderRoute(currentRoute) ||
+        (isPhoneLandscape && isDetailOrPlayerRoute(currentRoute))
 
     // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
     // drawer is open we add one here. Registered above the NavHost so screen-level handlers
@@ -424,6 +434,7 @@ fun MainScreen(
                 )
             ) {
                 AudiobookPlayerScreen(
+                    windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     // Swipe down → switch to the readaloud reader for the linked ebook, continuing from
                     // the audiobook position. Pop the player off the stack so leaving readaloud doesn't
@@ -465,3 +476,8 @@ internal fun NavController.navigateAsRoot(route: String) {
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
         route?.startsWith(PDF_READER.substringBefore("{")) == true
+
+// The two full-screen surfaces that reclaim the permanent drawer's width on a phone in landscape.
+internal fun isDetailOrPlayerRoute(route: String?): Boolean =
+    route?.startsWith(LIBRARY_ITEM_DETAIL.substringBefore("{")) == true ||
+        route?.startsWith(AUDIOBOOK_PLAYER.substringBefore("{")) == true

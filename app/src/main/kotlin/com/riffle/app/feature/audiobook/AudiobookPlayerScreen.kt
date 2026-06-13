@@ -18,6 +18,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -58,11 +61,16 @@ private fun ReadAlongSwipeHint() {
 
 @Composable
 fun AudiobookPlayerScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onSwitchToReadaloud: (ebookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: AudiobookPlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // A phone in landscape crosses the Expanded width breakpoint but stays Compact in height; there
+    // the vertical layout pushes the controls off-screen, so split into cover+details / controls.
+    val twoColumn = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded &&
+        windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
     // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
     val latestState = rememberUpdatedState(state)
 
@@ -126,7 +134,10 @@ fun AudiobookPlayerScreen(
                         chapterStartsSec = state.chapterStartsSec,
                         canPreviousChapter = state.canPreviousChapter,
                         canNextChapter = state.canNextChapter,
+                        facts = state.facts,
+                        description = state.description,
                     ),
+                    twoColumn = twoColumn,
                     actions = PlayerSurfaceActions(
                         onSeek = viewModel::seekTo,
                         onTogglePlayPause = viewModel::togglePlayPause,

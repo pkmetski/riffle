@@ -36,3 +36,23 @@ class IsReaderRouteTest {
         assertFalse(isReaderRoute("library_item_detail/item-id"))
     }
 }
+
+class IsDetailOrPlayerRouteTest {
+
+    @Test
+    fun `library item detail route is recognized`() {
+        assertTrue(isDetailOrPlayerRoute("library_item_detail/item-id"))
+    }
+
+    @Test
+    fun `audiobook player route is recognized`() {
+        assertTrue(isDetailOrPlayerRoute("audiobook_player/item-id?startAtSec=12.0"))
+    }
+
+    @Test
+    fun `reader and library routes are not detail-or-player routes`() {
+        assertFalse(isDetailOrPlayerRoute("epub_reader/item-id"))
+        assertFalse(isDetailOrPlayerRoute("library_items/lib-1/My%20Library"))
+        assertFalse(isDetailOrPlayerRoute(null))
+    }
+}

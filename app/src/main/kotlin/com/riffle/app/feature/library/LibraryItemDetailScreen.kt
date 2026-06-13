@@ -46,6 +46,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
@@ -160,13 +161,44 @@ fun LibraryItemDetailScreen(
                 }
                 val isExpanded =
                     windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+                // A phone in landscape reaches Expanded width but stays Compact in height; there the
+                // permanent drawer is hidden (MainScreen) so the screen runs full-width — use a layout
+                // with a big cover instead of the tablet's small one. A real tablet is taller.
+                val isPhoneLandscape = isExpanded &&
+                    windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
                 val onFacet: (FacetType, String) -> Unit = { facet, value ->
                     onNavigateToFacet(state.item.libraryId, facet, value)
                 }
                 val onSeriesClick: (String, String) -> Unit = { seriesId, seriesName ->
                     onNavigateToSeries(state.item.libraryId, seriesId, seriesName)
                 }
-                if (isExpanded) {
+                if (isPhoneLandscape) {
+                    LibraryItemDetailContentPhoneLandscape(
+                        item = state.item,
+                        seriesId = state.seriesId,
+                        onFacet = onFacet,
+                        onSeriesClick = onSeriesClick,
+                        isInToRead = state.isInToRead,
+                        token = viewModel.authToken,
+                        downloadState = downloadState,
+                        isCachedOrDownloaded = state.isCachedOrDownloaded,
+                        isOffline = state.isOffline,
+                        readaloudDownloadState = readaloudDownloadState,
+                        audiobookDownloadState = audiobookDownloadState,
+                        onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
+                        onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
+                        onMarkAsRead = { viewModel.markAsRead() },
+                        onMarkAsUnread = { viewModel.markAsUnread() },
+                        onToggleToRead = { viewModel.toggleToRead() },
+                        onDownload = { viewModel.startDownload() },
+                        onRemove = onRemove,
+                        onDownloadReadaloud = viewModel::onDownloadReadaloud,
+                        onRemoveReadaloud = viewModel::onRemoveReadaloud,
+                        onDownloadAudiobook = viewModel::onDownloadAudiobook,
+                        onRemoveAudiobook = viewModel::onRemoveAudiobook,
+                        modifier = Modifier.padding(padding),
+                    )
+                } else if (isExpanded) {
                     LibraryItemDetailContentTablet(
                         item = state.item,
                         seriesId = state.seriesId,
@@ -487,6 +519,117 @@ internal fun LibraryItemDetailContentTablet(
             }
             item.seriesName?.let { series ->
                 SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            }
+            MetadataLines(item = item, onFacet = onFacet)
+        }
+    }
+}
+
+/**
+ * The detail layout for a phone in landscape (Expanded width, Compact height). The permanent drawer
+ * is hidden (MainScreen) so the screen is full-width. Unlike the tablet layout, the title/author move
+ * to the scrollable right column so the left column's whole height belongs to a large cover — the
+ * "bigger cover" the small tablet caps deny. Identical for ebook and audiobook (ActionRow adapts).
+ */
+@Composable
+internal fun LibraryItemDetailContentPhoneLandscape(
+    item: LibraryItem,
+    seriesId: String? = null,
+    onFacet: (FacetType, String) -> Unit = { _, _ -> },
+    onSeriesClick: (String, String) -> Unit = { _, _ -> },
+    isInToRead: Boolean,
+    token: String,
+    downloadState: DownloadState,
+    isCachedOrDownloaded: Boolean,
+    isOffline: Boolean,
+    readaloudDownloadState: DownloadState?,
+    audiobookDownloadState: DownloadState? = null,
+    onReadItem: (LibraryItem) -> Unit,
+    onListenItem: (LibraryItem) -> Unit = {},
+    onMarkAsRead: () -> Unit,
+    onMarkAsUnread: () -> Unit,
+    onToggleToRead: () -> Unit,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+    onDownloadReadaloud: () -> Unit = {},
+    onRemoveReadaloud: () -> Unit = {},
+    onDownloadAudiobook: () -> Unit = {},
+    onRemoveAudiobook: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .testTag(LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG)
+                .width(260.dp)
+                .fillMaxHeight()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item.coverUrl?.let { url ->
+                // weight(fill = false) gives the cover all the height the action row and progress
+                // don't need — in a short landscape window height is the binding constraint, so this
+                // yields the largest cover that still keeps the buttons on screen.
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(url)
+                        .addHeader("Authorization", "Bearer $token")
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .aspectRatio(2f / 3f),
+                )
+            }
+            if (item.readingProgress > 0f) {
+                ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
+            }
+            ActionRow(
+                item = item,
+                isInToRead = isInToRead,
+                downloadState = downloadState,
+                isCachedOrDownloaded = isCachedOrDownloaded,
+                isOffline = isOffline,
+                readaloudDownloadState = readaloudDownloadState,
+                audiobookDownloadState = audiobookDownloadState,
+                onReadItem = onReadItem,
+                onListenItem = onListenItem,
+                onMarkAsRead = onMarkAsRead,
+                onMarkAsUnread = onMarkAsUnread,
+                onToggleToRead = onToggleToRead,
+                onDownload = onDownload,
+                onRemove = onRemove,
+                onDownloadReadaloud = onDownloadReadaloud,
+                onRemoveReadaloud = onRemoveReadaloud,
+                onDownloadAudiobook = onDownloadAudiobook,
+                onRemoveAudiobook = onRemoveAudiobook,
+            )
+        }
+        Column(
+            modifier = Modifier
+                .testTag(LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG)
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TitleWithReadaloudIndicator(
+                title = item.title,
+                hasReadaloud = readaloudDownloadState != null,
+                onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
+            )
+            AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
+            item.seriesName?.let { series ->
+                SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            }
+            if (item.isListenable && item.audioDurationSec > 0) {
+                AudiobookDurationLine(item.audioDurationSec)
+            }
+            item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                CollapsibleDescription(desc)
             }
             MetadataLines(item = item, onFacet = onFacet)
         }
