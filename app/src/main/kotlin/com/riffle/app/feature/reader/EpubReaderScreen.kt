@@ -961,6 +961,12 @@ private fun EpubNavigatorView(
                     // the page can't be stranded several columns short of the true end (the "previous
                     // chapter overshoots 4-5 pages back" bug). A forward turn lands at column 0 and a TOC
                     // jump at the chapter top, so neither reports landedAtEnd.
+                    //
+                    // onPageLoaded fires for offscreen-preloaded resources too, and evaluateJavascript
+                    // binds to whatever resource is current at call time — so capture the resource we
+                    // measure here and only re-snap below if it is still current, otherwise a swipe during
+                    // the awaited injections could end-snap a DIFFERENT chapter (a forward overshoot).
+                    val hrefAtLoad = currentHrefHolder[0]
                     val landedAtEnd = ColumnSnap.landedAtEnd(fragment)
                     fragment.evaluateJavascript(RECT_TO_JSON_POLYFILL_JS)
                     fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
@@ -984,7 +990,7 @@ private fun EpubNavigatorView(
                     // EXCEPTION: a backward cross-resource turn has no nav handler in paginated mode (it's
                     // Readium's own ViewPager), so there is no post-go snap to keep the end pinned through
                     // the reflow. Re-pin to the last column here; snapToEnd's rAF loop tracks the reflow.
-                    if (landedAtEnd) {
+                    if (landedAtEnd && currentHrefHolder[0] == hrefAtLoad) {
                         ColumnSnap.snapToEnd(fragment)
                     }
                 }
