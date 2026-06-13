@@ -267,6 +267,7 @@ abstract class DataModule {
     abstract fun bindVolumeKeyPreferencesStore(impl: VolumeKeyPreferencesStoreImpl): VolumeKeyPreferencesStore
 
     @Binds
+    @Singleton
     abstract fun bindCoverGridDensityStore(impl: CoverGridDensityStoreImpl): CoverGridDensityStore
 
     @Binds

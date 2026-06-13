@@ -20,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,8 +62,18 @@ class LibraryItemsViewModel @Inject constructor(
     val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 
+    private var coverScalePersistJob: Job? = null
+
     fun setCoverGridScale(value: Float) {
-        viewModelScope.launch { coverGridDensityStore.setScale(value) }
+        // A pinch fires many events per gesture. Debounce the DataStore write so we
+        // persist once the gesture settles instead of hammering it on every frame —
+        // this also stops the persisted-scale flow from re-emitting mid-gesture and
+        // clobbering the live scale the UI is being driven from.
+        coverScalePersistJob?.cancel()
+        coverScalePersistJob = viewModelScope.launch {
+            delay(200)
+            coverGridDensityStore.setScale(value)
+        }
     }
 
     val series: StateFlow<List<Series>> = libraryRepository.observeSeries(libraryId)
