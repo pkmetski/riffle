@@ -139,6 +139,7 @@ class EpubReaderViewModel @Inject constructor(
     private val annotationStore: AnnotationStore,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
+    private val tokenStorage: com.riffle.core.domain.TokenStorage,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -317,6 +318,40 @@ class EpubReaderViewModel @Inject constructor(
     // Mirrors the controller's playback state for the bar/sheet controls.
     val playbackState: StateFlow<ReadaloudController.PlaybackState> = playerCoordinator.state
 
+    // Bearer token for the active server, resolved once the server is known (init), so the expanded
+    // player's cover loads the same way the standalone audiobook player's does.
+    private val _authToken = MutableStateFlow("")
+
+    // The state the expanded readaloud player (the swipe-up full-screen surface) renders. It is the
+    // same surface the standalone Audiobook player uses, fed from this readaloud session: the book's
+    // title/author/cover plus the controller's global timeline position/duration/chapter ticks. The
+    // chapter label is a plain "Chapter N of M" — readaloud chapter hrefs aren't human-readable, and
+    // deriving titles from the ebook TOC was tried and rejected (couples the player to the reader).
+    val readaloudPlayerState: StateFlow<com.riffle.app.feature.audio.PlayerSurfaceState> = combine(
+        playbackState,
+        libraryRepository.observeItem(itemId),
+        _authToken,
+    ) { pb, item, token ->
+        com.riffle.app.feature.audio.PlayerSurfaceState(
+            title = item?.title.orEmpty(),
+            author = item?.author.orEmpty(),
+            coverUrl = item?.coverUrl,
+            authToken = token,
+            isPlaying = pb.isPlaying,
+            speed = pb.speed,
+            positionSec = pb.positionGlobalSec,
+            durationSec = pb.durationSec,
+            currentChapterTitle = if (pb.chapterCount > 0 && pb.currentChapterIndex >= 0) {
+                "Chapter ${pb.currentChapterIndex + 1} of ${pb.chapterCount}"
+            } else {
+                null
+            },
+            chapterStartsSec = pb.chapterStartsSec,
+            canPreviousChapter = pb.currentChapterIndex > 0,
+            canNextChapter = pb.currentChapterIndex in 0 until (pb.chapterCount - 1),
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.riffle.app.feature.audio.PlayerSurfaceState())
+
     // The text fragment currently narrated — drives the synced highlight. Null clears it.
     val activeFragmentRef: StateFlow<String?> = playerCoordinator.activeFragmentRef
 
@@ -409,6 +444,8 @@ class EpubReaderViewModel @Inject constructor(
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
             readerServerId = activeServer?.id
+            // Resolve the cover bearer token now the server is known (expanded-player cover load).
+            _authToken.value = activeServer?.id?.let { tokenStorage.getToken(it) }.orEmpty()
             // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
             activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
 
@@ -1330,6 +1367,9 @@ class EpubReaderViewModel @Inject constructor(
     fun rewind() = playerCoordinator.rewind()
 
     fun forward() = playerCoordinator.forward()
+
+    /** Seeks to an absolute position on the concatenated readaloud timeline (expanded-player scrubber). */
+    fun seekReadaloud(globalSec: Double) = playerCoordinator.seekTo(globalSec)
 
     fun previousChapter() = playerCoordinator.previousChapter()
 
