@@ -134,10 +134,13 @@ class ServerRepositoryTest {
                 rows.getOrPut(libraryId) { mutableListOf() }.addAll(entities)
             }
         }
+        override suspend fun insertOrIgnore(items: List<com.riffle.core.database.LibraryItemEntity>) = Unit
+        override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
         override suspend fun deleteByLibraryId(libraryId: String) {
             deletedLibraryIds += libraryId
             rows.remove(libraryId)
         }
+        override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()

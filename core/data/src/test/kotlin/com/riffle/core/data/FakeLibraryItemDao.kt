@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
 import kotlinx.coroutines.flow.Flow
@@ -42,7 +43,54 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    // replaceAllForLibrary is intentionally inherited (deleteByLibraryId + upsertAll @Transaction default).
+    // replaceAllForLibrary is intentionally inherited (uses the three methods below).
+
+    override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {
+        items.groupBy { it.libraryId }.forEach { (libraryId, newItems) ->
+            val flow = roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+            val existingIds = flow.value.map { it.id }.toSet()
+            val toInsert = newItems.filter { it.id !in existingIds }
+            if (toInsert.isNotEmpty()) {
+                upserted.addAll(toInsert)
+                flow.value = flow.value + toInsert
+            }
+        }
+    }
+
+    override suspend fun updateMetadata(metadata: LibraryItemMetadata) {
+        val flow = roomData[metadata.libraryId] ?: return
+        flow.value = flow.value.map { existing ->
+            if (existing.serverId == metadata.serverId && existing.id == metadata.id) {
+                existing.copy(
+                    libraryId = metadata.libraryId,
+                    title = metadata.title,
+                    author = metadata.author,
+                    coverUrl = metadata.coverUrl,
+                    ebookFileIno = metadata.ebookFileIno,
+                    ebookFormat = metadata.ebookFormat,
+                    hasAudio = metadata.hasAudio,
+                    audioDurationSec = metadata.audioDurationSec,
+                    description = metadata.description,
+                    seriesName = metadata.seriesName,
+                    publishedYear = metadata.publishedYear,
+                    genres = metadata.genres,
+                    publisher = metadata.publisher,
+                    language = metadata.language,
+                    lastOpenedAt = metadata.lastOpenedAt,
+                    addedAt = metadata.addedAt,
+                    isbn = metadata.isbn,
+                    asin = metadata.asin,
+                )
+            } else existing
+        }
+    }
+
+    override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) {
+        val serverIdSet = serverItemIds.toSet()
+        roomData[libraryId]?.value = roomData[libraryId]?.value
+            ?.filter { it.serverId != serverId || it.id in serverIdSet }
+            ?: emptyList()
+    }
 
     override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? =
         roomData.values.flatMap { it.value }.firstOrNull { it.serverId == serverId && it.id == itemId }
