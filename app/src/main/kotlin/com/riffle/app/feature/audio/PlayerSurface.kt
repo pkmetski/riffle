@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -39,8 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.riffle.app.feature.audiobook.SleepTimerMode
-import com.riffle.app.feature.audiobook.formatCountdown
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
+import com.riffle.app.feature.audiobook.SleepTimerMode
+import com.riffle.app.feature.audiobook.formatCountdown
 
 /**
  * Everything [PlayerSurface] renders. Both the standalone Audiobook player and the in-reader
@@ -276,6 +277,7 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
         var sleepSheetOpen by remember { mutableStateOf(false) }
 
         Row(
+            modifier = Modifier.wrapContentWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -293,9 +295,9 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
 
             val timerActive = state.sleepTimer !is SleepTimerMode.None
             val timerLabel = when (val t = state.sleepTimer) {
+                SleepTimerMode.None -> "Sleep"
                 is SleepTimerMode.CountDown -> t.formatCountdown()
-                is SleepTimerMode.EndOfChapter -> "End of ch."
-                else -> "Sleep"
+                SleepTimerMode.EndOfChapter -> "End of ch."
             }
             FilledTonalButton(
                 onClick = { sleepSheetOpen = true },
