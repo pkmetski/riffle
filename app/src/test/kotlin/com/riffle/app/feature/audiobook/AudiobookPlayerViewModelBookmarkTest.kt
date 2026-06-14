@@ -93,6 +93,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             durationSec: Double,
             startAtSec: Double,
             localZipFile: File?,
+            coverUri: String?,
         ) { /* no-op */ }
         override fun play() {}
         override fun setSpeed(speed: Float) {}

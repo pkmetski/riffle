@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.readaloud
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import com.riffle.app.MainActivity
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -13,9 +14,14 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.Player
+import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.riffle.app.R
@@ -61,6 +67,28 @@ class AudioPlayerService : MediaSessionService() {
             .setCallback(MediaItemUriRestoringCallback)
             .setSessionActivity(openRiffleIntent())
             .build()
+            .also { session ->
+                // setMediaButtonPreferences controls the exact button order in the notification and
+                // lock-screen player across all Android versions — slot hints on CommandButton are
+                // only honoured on API 33+. Listing rewind + play/pause + forward here gives the
+                // desired ⟲15 · ▶/⏸ · ⟳30 layout without a custom notification provider.
+                session.setMediaButtonPreferences(
+                    ImmutableList.of(
+                        CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
+                            .setDisplayName("Rewind 15 seconds")
+                            .setSessionCommand(CMD_REWIND)
+                            .build(),
+                        CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+                            .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+                            .setDisplayName("Play / Pause")
+                            .build(),
+                        CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+                            .setDisplayName("Forward 30 seconds")
+                            .setSessionCommand(CMD_FORWARD)
+                            .build(),
+                    )
+                )
+            }
     }
 
     /**
@@ -90,6 +118,7 @@ class AudioPlayerService : MediaSessionService() {
      * from it (see [ZipAudioDataSource]).
      */
     private object MediaItemUriRestoringCallback : MediaSession.Callback {
+
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -111,6 +140,47 @@ class AudioPlayerService : MediaSessionService() {
                 }
             }.toMutableList()
             return Futures.immediateFuture(restored)
+        }
+
+        // Advertise the two custom seek commands so controllers can dispatch them.
+        // Button ordering is handled by setMediaButtonPreferences() in onCreate() —
+        // setCustomLayout() here is intentionally omitted.
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+                .buildUpon()
+                .add(CMD_REWIND)
+                .add(CMD_FORWARD)
+                .build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(commands)
+                .build()
+        }
+
+        // ── new: dispatch custom button taps to the player ──────────────────────
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            val player = session.player
+            return when (customCommand.customAction) {
+                CMD_REWIND.customAction -> {
+                    val target = (player.currentPosition - 15_000L).coerceAtLeast(0L)
+                    player.seekTo(target)
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                }
+                CMD_FORWARD.customAction -> {
+                    val target = player.currentPosition + 30_000L
+                    val duration = player.duration
+                    player.seekTo(if (duration != C.TIME_UNSET) target.coerceAtMost(duration) else target)
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                }
+                else -> super.onCustomCommand(session, controller, customCommand, args)
+            }
         }
     }
 
@@ -173,5 +243,10 @@ class AudioPlayerService : MediaSessionService() {
         }
         mediaSession = null
         super.onDestroy()
+    }
+
+    companion object {
+        val CMD_REWIND  = SessionCommand("com.riffle.REWIND_15",  Bundle.EMPTY)
+        val CMD_FORWARD = SessionCommand("com.riffle.FORWARD_30", Bundle.EMPTY)
     }
 }
