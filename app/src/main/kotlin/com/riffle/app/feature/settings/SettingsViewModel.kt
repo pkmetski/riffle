@@ -3,6 +3,8 @@ package com.riffle.app.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
+import com.riffle.core.domain.AppTheme
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.CrashReport
@@ -44,6 +46,7 @@ class SettingsViewModel @Inject constructor(
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
+    private val appThemeStore: AppThemeStore,
     private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val appUpdateRepository: AppUpdateRepository,
@@ -102,6 +105,9 @@ class SettingsViewModel @Inject constructor(
 
     val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val appTheme: StateFlow<AppTheme> = appThemeStore.appTheme
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppTheme.System)
 
     val servers: StateFlow<List<Server>> = serverRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -198,6 +204,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setKeepScreenOn(value: Boolean) {
         viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
+    }
+
+    fun setAppTheme(value: AppTheme) {
+        viewModelScope.launch { appThemeStore.setAppTheme(value) }
     }
 
     fun setVolumeKeyNavigationEnabled(value: Boolean) {

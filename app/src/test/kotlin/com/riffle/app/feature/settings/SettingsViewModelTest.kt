@@ -1,5 +1,7 @@
 package com.riffle.app.feature.settings
 
+import com.riffle.core.domain.AppTheme
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
@@ -76,6 +78,12 @@ class SettingsViewModelTest {
         override val invertVolumeKeys: Flow<Boolean> = invertVolumeKeysFlow
         override suspend fun setVolumeKeyNavigationEnabled(value: Boolean) { volumeNavEnabledFlow.value = value }
         override suspend fun setInvertVolumeKeys(value: Boolean) { invertVolumeKeysFlow.value = value }
+    }
+
+    private val appThemeFlow = MutableStateFlow(AppTheme.System)
+    private val fakeAppThemeStore = object : AppThemeStore {
+        override val appTheme: Flow<AppTheme> = appThemeFlow
+        override suspend fun setAppTheme(value: AppTheme) { appThemeFlow.value = value }
     }
 
     private fun server(
@@ -186,6 +194,7 @@ class SettingsViewModelTest {
         visibilityStore = fakeVisibilityStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        appThemeStore = fakeAppThemeStore,
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
@@ -446,5 +455,29 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(true, invertVolumeKeysFlow.first())
+    }
+
+    // --- app theme ---
+
+    @Test
+    fun `appTheme StateFlow reflects store default value`() = runTest {
+        appThemeFlow.value = AppTheme.System
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.appTheme.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AppTheme.System, vm.appTheme.value)
+    }
+
+    @Test
+    fun `setAppTheme Dark updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.appTheme.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setAppTheme(AppTheme.Dark)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AppTheme.Dark, appThemeFlow.first())
     }
 }
