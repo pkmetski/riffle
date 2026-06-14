@@ -52,6 +52,7 @@ class ConnectivityObserverImpl @Inject constructor(
 
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
             .build()
         connectivityManager.registerNetworkCallback(request, callback)
 
