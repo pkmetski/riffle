@@ -643,18 +643,25 @@ class AudiobookPlayerViewModel(
         timeline.nextChapterTargetSec(controller.currentAbsoluteSec())?.let { reconciledResumeSec = it; controller.seekTo(it) }
     }
 
-    /** The pre-filled (editable) default title for a new bookmark at the current listen position. */
-    fun defaultBookmarkTitle(): String =
-        BookmarkTitleBuilder.defaultTitle(timeline, controller.currentAbsoluteSec())
+    /**
+     * The book-absolute listen position right now. The UI snapshots this when the New-bookmark dialog
+     * opens so the title, position label and the eventually-saved row all agree, even if playback keeps
+     * running while the user edits the title.
+     */
+    fun currentPositionSec(): Double = controller.currentAbsoluteSec()
+
+    /** The pre-filled (editable) default title for a new bookmark at [positionSec]. */
+    fun defaultBookmarkTitle(positionSec: Double): String =
+        BookmarkTitleBuilder.defaultTitle(timeline, positionSec)
 
     /**
-     * Create a bookmark at the current book-absolute listen position. On success the new id is surfaced
-     * in [AudiobookPlayerUiState.lastCreatedBookmarkId] so the UI can offer an Undo; the new row arrives
+     * Create a bookmark at [positionSec] (the position pinned when the dialog opened — NOT the live
+     * playhead, which may have drifted while the user typed). On success the new id is surfaced in
+     * [AudiobookPlayerUiState.lastCreatedBookmarkId] so the UI can offer an Undo; the new row arrives
      * in [AudiobookPlayerUiState.bookmarks] via the store observation.
      */
-    fun addBookmark(title: String) {
+    fun addBookmark(title: String, positionSec: Double) {
         if (serverId.isEmpty()) return
-        val positionSec = controller.currentAbsoluteSec()
         viewModelScope.launch {
             val id = bookmarkStore.add(serverId, itemId, positionSec, title, now())
             meta.value = meta.value.copy(lastCreatedBookmarkId = id)

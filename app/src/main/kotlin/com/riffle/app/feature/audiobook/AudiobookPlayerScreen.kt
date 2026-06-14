@@ -66,6 +66,17 @@ private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
 /** Which list the shared [PlayerListSheet] is showing (no tabs — one kind at a time). */
 private enum class SheetKind { Chapters, Bookmarks }
 
+/**
+ * A snapshot taken when the New-bookmark dialog opens. Pinning the position (and the title/label
+ * derived from it) keeps the dialog stable while playback continues — otherwise the live playhead
+ * would rewrite the default title every second and wipe the user's edits.
+ */
+private data class BookmarkDraft(
+    val positionSec: Double,
+    val defaultTitle: String,
+    val chapterTitle: String,
+)
+
 /** Caption hinting that dragging the cover down switches to the read-along reader. */
 @Composable
 private fun ReadAlongSwipeHint() {
@@ -123,7 +134,9 @@ fun AudiobookPlayerScreen(
 
     // Local UI state for the sheets and dialogs (variant B).
     var openSheet by remember { mutableStateOf<SheetKind?>(null) }
-    var showCreate by remember { mutableStateOf(false) }
+    // Non-null while the New-bookmark dialog is open; carries the position/title pinned at open time so
+    // they don't drift with the still-running playhead while the user edits (see [BookmarkDraft]).
+    var createDraft by remember { mutableStateOf<BookmarkDraft?>(null) }
     var renaming by remember { mutableStateOf<AudiobookBookmark?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -226,9 +239,17 @@ fun AudiobookPlayerScreen(
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            // One-tap bookmark-add, in the top app-bar row opposite the back arrow.
+            // One-tap bookmark-add, in the top app-bar row opposite the back arrow. Pin the position
+            // (and title/chapter derived from it) at tap time so the dialog is stable while playing.
             IconButton(
-                onClick = { showCreate = true },
+                onClick = {
+                    val positionSec = viewModel.currentPositionSec()
+                    createDraft = BookmarkDraft(
+                        positionSec = positionSec,
+                        defaultTitle = viewModel.defaultBookmarkTitle(positionSec),
+                        chapterTitle = state.currentChapterTitle?.trim().orEmpty(),
+                    )
+                },
                 modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(4.dp),
             ) {
                 Icon(Icons.Filled.BookmarkAdd, contentDescription = "Add bookmark")
@@ -237,20 +258,18 @@ fun AudiobookPlayerScreen(
         }
     }
 
-    // Create dialog: pre-fill the default title and offer quick suggestions.
-    if (showCreate) {
-        val defaultTitle = viewModel.defaultBookmarkTitle()
-        val chapterTitle = state.currentChapterTitle?.trim().orEmpty()
-        val absolute = formatHms(state.positionSec)
-        val positionLabel = if (chapterTitle.isNotEmpty()) "$absolute · $chapterTitle" else absolute
-        val suggestions = listOf(defaultTitle, chapterTitle, absolute).filter { it.isNotBlank() }.distinct()
+    // Create dialog: pre-fill the default title and offer quick suggestions, all from the pinned draft.
+    createDraft?.let { draft ->
+        val absolute = formatHms(draft.positionSec)
+        val positionLabel = if (draft.chapterTitle.isNotEmpty()) "$absolute · ${draft.chapterTitle}" else absolute
+        val suggestions = listOf(draft.defaultTitle, draft.chapterTitle, absolute).filter { it.isNotBlank() }.distinct()
         BookmarkCreateDialog(
-            initialTitle = defaultTitle,
+            initialTitle = draft.defaultTitle,
             positionLabel = positionLabel,
             suggestions = suggestions,
             onConfirm = { title ->
-                viewModel.addBookmark(title)
-                showCreate = false
+                viewModel.addBookmark(title, draft.positionSec)
+                createDraft = null
                 scope.launch {
                     val result = snackbarHostState.showSnackbar(
                         message = "Bookmark saved",
@@ -263,7 +282,7 @@ fun AudiobookPlayerScreen(
                     }
                 }
             },
-            onDismiss = { showCreate = false },
+            onDismiss = { createDraft = null },
         )
     }
 

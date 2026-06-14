@@ -147,26 +147,39 @@ class AudiobookPlayerViewModelBookmarkTest {
     }
 
     @Test
-    fun `defaultBookmarkTitle matches BookmarkTitleBuilder for the current position`() = runTest(testDispatcher) {
+    fun `currentPositionSec reports the controller's live book-absolute position`() = runTest(testDispatcher) {
+        val controller = FakeController(position = 540.0)
+        val vm = buildViewModel(controller, FakeBookmarkStore())
+        runCurrent()
+
+        assertEquals(540.0, vm.currentPositionSec(), 0.0001)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `defaultBookmarkTitle matches BookmarkTitleBuilder for the pinned position`() = runTest(testDispatcher) {
         val controller = FakeController(position = 540.0)
         val vm = buildViewModel(controller, FakeBookmarkStore())
         runCurrent()
 
         assertEquals(
             BookmarkTitleBuilder.defaultTitle(timeline, 540.0),
-            vm.defaultBookmarkTitle(),
+            vm.defaultBookmarkTitle(540.0),
         )
         vm.clearForTest()
     }
 
     @Test
-    fun `addBookmark forwards serverId itemId position title and the fixed clock to the store`() = runTest(testDispatcher) {
+    fun `addBookmark forwards serverId itemId the pinned position title and the fixed clock to the store`() = runTest(testDispatcher) {
         val controller = FakeController(position = 321.0)
         val store = FakeBookmarkStore()
         val vm = buildViewModel(controller, store)
         runCurrent()
 
-        vm.addBookmark("My title")
+        // The UI pins the position when the dialog opens; the live playhead has since drifted to 999,
+        // but the bookmark must be saved at the pinned 321.0, not the drifted position.
+        controller.position = 999.0
+        vm.addBookmark("My title", positionSec = 321.0)
         runCurrent()
 
         assertEquals(1, store.added.size)
