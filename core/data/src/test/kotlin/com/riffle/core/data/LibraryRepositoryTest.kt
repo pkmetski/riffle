@@ -113,6 +113,15 @@ class LibraryRepositoryTest {
 
         override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
 
+        private val continueSeriesData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
+
+        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItemEntity>> =
+            continueSeriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+
+        fun seedContinueSeriesItems(libraryId: String, items: List<LibraryItemEntity>) {
+            continueSeriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }.value = items
+        }
+
         override suspend fun upsertAll(series: List<SeriesEntity>) {
             upsertedSeries.addAll(series)
             series.groupBy { it.libraryId }.forEach { (libraryId, list) ->
