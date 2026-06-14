@@ -46,13 +46,14 @@ Readium *positions* are used as the proxy for text length. A position is one scr
 
 ### Storage
 
-A new **`ReadingSpeedStore`** backed by the existing `FormattingPreferencesDataStore` (same DataStore instance, new key) — device-wide, not per-book. Reading speed is a property of the reader, not the book; pooling sessions across all books converges 5–10× faster than per-book tracking and avoids a cold-start problem on every new book.
+A new **`ReadingSpeedStore`** backed by its own `@ReadingSpeedDataStore`-qualified `DataStore<Preferences>` created in `DataModule` — device-wide, not per-book. Reading speed is a property of the reader, not the book; pooling sessions across all books converges 5–10× faster than per-book tracking and avoids a cold-start problem on every new book. Giving it a dedicated DataStore keeps `FormattingPreferencesDataStore` scoped to formatting only.
 
 ```kotlin
 val KEY_READING_SPEED_SECS_PER_POSITION = doublePreferencesKey("reading_speed_secs_per_position")
+// DataStore file name: "reading_speed_preferences"
 ```
 
-`ReadingSpeedStore` is a new domain interface + `ReadingSpeedStoreImpl` in `core/data`. Injected into `EpubReaderViewModel`.
+`ReadingSpeedStore` is a new domain interface + `ReadingSpeedStoreImpl` in `core/data`, bound in `DataModule` alongside the other store bindings. Injected into `EpubReaderViewModel`.
 
 ### Time calculations (estimated mode)
 
@@ -197,7 +198,7 @@ The pill is a `Text` with `labelSmall`, `background(shape = RoundedCornerShape(8
 
 Combined pill text: `"~8 min in chapter · ~2h 14m left"` (bullet separator).
 
-Colour: same `readerThemeLabelColor()` as other labels for estimated; **teal** (`MaterialTheme.colorScheme.tertiary` or a fixed `Color(0xFF5BB8A0)`) for exact to distinguish audio-derived precision.
+Colour: same `readerThemeLabelColor()` as other labels for estimated; **`MaterialTheme.colorScheme.tertiary`** for exact to distinguish audio-derived precision (follows the active theme rather than a hardcoded hex).
 
 ### Visibility guard
 
