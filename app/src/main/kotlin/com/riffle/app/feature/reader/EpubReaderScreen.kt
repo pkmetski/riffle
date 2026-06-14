@@ -1554,21 +1554,14 @@ private fun EpubNavigatorView(
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
 
-                // The top/bottom reading margin, reserved statically on our own fragment container
-                // BEFORE any chapter WebView paints and kept stable across turns, so the page never
-                // reflows after it appears. This replaces the old `margins` typography override, which
-                // injected `padding-top` on `:root` in onPageLoaded — AFTER first paint — so every fresh
-                // chapter visibly dropped by the margin amount the instant it appeared (the "page falls
-                // from above" bug). Readium's own vertical content padding is zeroed
-                // (res/values[-land]/dimens.xml) so this is the single source. Scales with the margins
-                // preference (top 0.8×, bottom 1.0×, ~20dp base — matching the override's old ratio) so
-                // the slider still moves the vertical margin. Applied to reflowable books in BOTH
-                // paginated and scroll mode (the removed override covered both); fixed-layout pages are
-                // pre-sized, so padding would letterbox them — they get no reserve.
-                val reflowableReserve = !isFixedLayout
+                val isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
                 val density = container.resources.displayMetrics.density
-                val topPx = if (reflowableReserve) (16f * formattingPrefs.margins * density + 0.5f).toInt() else 0
-                val bottomPx = if (reflowableReserve) (20f * formattingPrefs.margins * density + 0.5f).toInt() else 0
+                val (topPx, bottomPx) = readerContainerPaddingPx(
+                    margins = formattingPrefs.margins,
+                    density = density,
+                    isFixedLayout = isFixedLayout,
+                    isScrollMode = isScrollMode,
+                )
                 if (fragmentContainer.paddingTop != topPx || fragmentContainer.paddingBottom != bottomPx) {
                     fragmentContainer.setPadding(0, topPx, 0, bottomPx)
                 }

@@ -72,12 +72,13 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
  * maintainers don't accidentally add a field to this list as a way of silencing the test.
  */
 internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
-    "margins" to "Page margins come from Readium's pre-paint layout: left/right from its built-in body " +
-        "padding (scales with --USER__pageMargins), top/bottom from its native container vertical padding " +
-        "(readium_navigator_epub_vertical_padding). We deliberately do NOT inject a :root padding override " +
-        "for the top/bottom margin: injected in onPageLoaded it lands AFTER first paint, so the page visibly " +
-        "dropped by the margin amount on every chapter start (the 'page falls from above' bug). Letting " +
-        "Readium own the vertical margin keeps it applied before the page is revealed, with no reflow.",
+    "margins" to "Page margins: left/right come from Readium's built-in body padding (scales with " +
+        "--USER__pageMargins). Top/bottom in PAGINATED mode come from static padding on our fragment " +
+        "container (applied before any WebView paints, so no reflow). In SCROLL mode no container " +
+        "padding is applied — container padding would create a permanent white strip because the WebView " +
+        "sits below topPx and content scrolls inside it (the gap never closes). We do NOT inject a " +
+        ":root override for top/bottom: in paginated mode that injected AFTER first paint, causing the " +
+        "'page falls from above' bug.",
     "fontSize" to "Applied via root-em multiplier; a per-element override would flatten the publisher's size hierarchy.",
     "theme" to "Multi-property (background, text colour, link colour, image filters) — handled by Readium's theme stylesheet, not a single override.",
     "orientation" to "Layout/scroll mode, not a CSS property.",
