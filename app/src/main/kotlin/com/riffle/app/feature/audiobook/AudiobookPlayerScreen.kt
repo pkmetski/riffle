@@ -254,7 +254,9 @@ fun AudiobookPlayerScreen(
                         chapterTitle = state.currentChapterTitle?.trim().orEmpty(),
                     )
                 },
-                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(4.dp),
+                // safeDrawingPadding (mirrors the back arrow) so the icon clears the status bar, nav bar
+                // and any display cutout, including in landscape.
+                modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(4.dp),
             ) {
                 Icon(Icons.Filled.BookmarkAdd, contentDescription = "Add bookmark")
             }
