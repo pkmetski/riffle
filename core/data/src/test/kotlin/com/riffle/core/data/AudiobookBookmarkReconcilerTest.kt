@@ -44,6 +44,11 @@ class AudiobookBookmarkReconcilerTest {
         override suspend fun serversWithDirtyRows() =
             rows.value.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
 
+        override fun observeDirtyCountForItem(serverId: String, itemId: String): Flow<Int> =
+            rows.map { list ->
+                list.count { it.serverId == serverId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt }
+            }
+
         override suspend fun confirmPushedIfUnchanged(id: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int {
             val row = rows.value.firstOrNull { it.id == id && it.localUpdatedAt == ifLocalUpdatedAt } ?: return 0
             rows.value = rows.value.map {

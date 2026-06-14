@@ -33,6 +33,10 @@ interface AudiobookBookmarkDao {
     @Query("SELECT DISTINCT serverId FROM audiobook_bookmarks WHERE localUpdatedAt > lastSyncedAt")
     suspend fun serversWithDirtyRows(): List<String>
 
+    /** Live count of unsynced (dirty) rows for an item — drives the "Offline — will sync" note. */
+    @Query("SELECT COUNT(*) FROM audiobook_bookmarks WHERE serverId = :serverId AND itemId = :itemId AND localUpdatedAt > lastSyncedAt")
+    fun observeDirtyCountForItem(serverId: String, itemId: String): Flow<Int>
+
     /** Mark clean after a successful push, only if untouched since (compare-and-clear, ADR 0030). */
     @Query(
         "UPDATE audiobook_bookmarks SET lastSyncedAt = :serverStamp, localUpdatedAt = :serverStamp " +

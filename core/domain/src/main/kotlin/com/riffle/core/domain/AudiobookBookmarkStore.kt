@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 interface AudiobookBookmarkStore {
     fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>>
 
+    /** Live: whether this item has unsynced (dirty) bookmarks pending a push to ABS. */
+    fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean>
+
     /** Create a bookmark; returns its generated id. [now] is the wall-clock stamp (createdAt + dirty). */
     suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long): String
 

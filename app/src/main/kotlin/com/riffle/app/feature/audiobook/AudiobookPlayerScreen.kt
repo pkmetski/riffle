@@ -297,7 +297,7 @@ fun AudiobookPlayerScreen(
                 onSeek = { bm -> viewModel.seekToBookmark(bm.positionSec) },
                 onRename = { renaming = it },
                 onDelete = { viewModel.deleteBookmark(it.id) },
-                offlineNote = false,
+                offlineNote = state.bookmarksOffline,
             ),
             onDismiss = { openSheet = null },
         )

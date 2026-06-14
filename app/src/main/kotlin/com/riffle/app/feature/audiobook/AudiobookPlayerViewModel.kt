@@ -124,6 +124,9 @@ data class AudiobookPlayerUiState(
     // The id of the most recently added bookmark, so the UI can offer an Undo on the add. Null until
     // an add succeeds this session.
     val lastCreatedBookmarkId: String? = null,
+    // True only when this item has unsynced (dirty) bookmarks AND the device is offline, so the
+    // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
+    val bookmarksOffline: Boolean = false,
 )
 
 @HiltViewModel
@@ -155,6 +158,7 @@ class AudiobookPlayerViewModel(
     private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
     private val progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
     private val bookmarkStore: AudiobookBookmarkStore,
+    private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
     // Wall-clock for bookmark stamps (createdAt + dirty); a () -> Long for deterministic tests, the
     // established clock-injection pattern in this codebase (e.g. ReadaloudMatchingService).
     private val now: () -> Long = System::currentTimeMillis,
@@ -186,6 +190,7 @@ class AudiobookPlayerViewModel(
         openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
         progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
         bookmarkStore: AudiobookBookmarkStore,
+        connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
     ) : this(
         savedStateHandle,
         audiobookRepository,
@@ -208,6 +213,7 @@ class AudiobookPlayerViewModel(
         openReconcileTargets,
         progressFlushScope,
         bookmarkStore,
+        connectivityObserver,
         System::currentTimeMillis,
     )
 
@@ -326,6 +332,7 @@ class AudiobookPlayerViewModel(
                 canNextChapter = timeline.canNextChapter,
                 bookmarks = m.bookmarks,
                 lastCreatedBookmarkId = m.lastCreatedBookmarkId,
+                bookmarksOffline = m.bookmarksOffline,
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
@@ -341,6 +348,17 @@ class AudiobookPlayerViewModel(
                     bookmarkStore.observe(serverId, itemId).collect { list ->
                         meta.value = meta.value.copy(bookmarks = list)
                     }
+                }
+                // Derive the quiet offline note: unsynced (dirty) bookmarks for this item AND offline.
+                // Sync is otherwise silent, so the note only shows when a push is genuinely blocked.
+                viewModelScope.launch {
+                    combine(
+                        bookmarkStore.observeHasUnsynced(serverId, itemId),
+                        connectivityObserver.isOnline,
+                    ) { hasUnsynced, isOnline -> hasUnsynced && !isOnline }
+                        .collect { offline ->
+                            meta.value = meta.value.copy(bookmarksOffline = offline)
+                        }
                 }
             }
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""

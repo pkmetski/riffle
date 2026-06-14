@@ -27,6 +27,8 @@ class AudiobookBookmarkStoreImplTest {
             rows.value.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
         override suspend fun serversWithDirtyRows() =
             rows.value.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
+        override fun observeDirtyCountForItem(serverId: String, itemId: String): Flow<Int> =
+            rows.map { list -> list.count { it.serverId == serverId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt } }
         override suspend fun confirmPushedIfUnchanged(id: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
         override suspend fun hardDeleteIfUnchanged(id: String, ifLocalUpdatedAt: Long) = 0
         override suspend fun hardDelete(id: String) { rows.value = rows.value.filterNot { it.id == id } }

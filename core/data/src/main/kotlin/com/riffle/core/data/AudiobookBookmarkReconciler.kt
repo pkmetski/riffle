@@ -20,12 +20,24 @@ import kotlin.math.roundToInt
  * insert remote additions, accept remote renames onto clean rows, and remove rows deleted on
  * another device. Dirty rows (local intent pending) are never clobbered by the pull.
  */
-class AudiobookBookmarkReconciler @Inject constructor(
+class AudiobookBookmarkReconciler(
     private val dao: AudiobookBookmarkDao,
     private val api: AbsBookmarkApi,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { java.util.UUID.randomUUID().toString() },
 ) {
+    // Hilt can't satisfy the `() -> Long` / `() -> String` parameters (Dagger ignores Kotlin default
+    // values), so the injected constructor omits them and delegates to the real implementations — the
+    // established pattern in this codebase (e.g. AudiobookPlayerViewModel). Tests use the primary
+    // constructor with deterministic fakes.
+    @Inject
+    constructor(dao: AudiobookBookmarkDao, api: AbsBookmarkApi) : this(
+        dao,
+        api,
+        System::currentTimeMillis,
+        { java.util.UUID.randomUUID().toString() },
+    )
+
     suspend fun reconcile(
         serverId: String,
         itemId: String,

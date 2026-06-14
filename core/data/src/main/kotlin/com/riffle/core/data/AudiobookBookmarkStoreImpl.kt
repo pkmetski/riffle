@@ -18,6 +18,9 @@ class AudiobookBookmarkStoreImpl @Inject constructor(
             rows.map { AudiobookBookmark(it.id, it.positionSec, it.title, it.createdAt) }
         }
 
+    override fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean> =
+        dao.observeDirtyCountForItem(serverId, itemId).map { it > 0 }
+
     override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long): String {
         val id = UUID.randomUUID().toString()
         dao.upsert(

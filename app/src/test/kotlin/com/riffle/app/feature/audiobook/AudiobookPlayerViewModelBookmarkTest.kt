@@ -110,6 +110,7 @@ class AudiobookPlayerViewModelBookmarkTest {
     private fun buildViewModel(
         controller: FakeController,
         bookmarkStore: AudiobookBookmarkStore,
+        connectivity: FakeConnectivityObserver = FakeConnectivityObserver(online = true),
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -140,6 +141,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             openReconcileTargets = OpenReconcileTargets(),
             progressFlushScope = ProgressFlushScope(CoroutineScope(testDispatcher)),
             bookmarkStore = bookmarkStore,
+            connectivityObserver = connectivity,
             now = { fixedNow },
         )
     }
@@ -222,7 +224,47 @@ class AudiobookPlayerViewModelBookmarkTest {
         vm.clearForTest()
     }
 
+    @Test
+    fun `bookmarksOffline is true only when there are unsynced bookmarks AND the device is offline`() = runTest(testDispatcher) {
+        // offline + unsynced → note shows
+        run {
+            val store = FakeBookmarkStore().apply { hasUnsynced.value = true }
+            val vm = buildViewModel(FakeController(0.0), store, FakeConnectivityObserver(online = false))
+            runCurrent()
+            assertEquals(true, vm.uiState.value.bookmarksOffline)
+            vm.clearForTest()
+        }
+        // offline + nothing unsynced → silent
+        run {
+            val store = FakeBookmarkStore().apply { hasUnsynced.value = false }
+            val vm = buildViewModel(FakeController(0.0), store, FakeConnectivityObserver(online = false))
+            runCurrent()
+            assertEquals(false, vm.uiState.value.bookmarksOffline)
+            vm.clearForTest()
+        }
+        // online + unsynced → silent (it'll sync)
+        run {
+            val store = FakeBookmarkStore().apply { hasUnsynced.value = true }
+            val vm = buildViewModel(FakeController(0.0), store, FakeConnectivityObserver(online = true))
+            runCurrent()
+            assertEquals(false, vm.uiState.value.bookmarksOffline)
+            vm.clearForTest()
+        }
+        // online + nothing unsynced → silent
+        run {
+            val store = FakeBookmarkStore().apply { hasUnsynced.value = false }
+            val vm = buildViewModel(FakeController(0.0), store, FakeConnectivityObserver(online = true))
+            runCurrent()
+            assertEquals(false, vm.uiState.value.bookmarksOffline)
+            vm.clearForTest()
+        }
+    }
+
     // --- fakes ---
+
+    private class FakeConnectivityObserver(online: Boolean) : com.riffle.core.domain.ConnectivityObserver {
+        override val isOnline = MutableStateFlow(online)
+    }
 
     private data class AddCall(
         val serverId: String,
@@ -234,10 +276,12 @@ class AudiobookPlayerViewModelBookmarkTest {
 
     private class FakeBookmarkStore : AudiobookBookmarkStore {
         val flow = MutableStateFlow<List<AudiobookBookmark>>(emptyList())
+        val hasUnsynced = MutableStateFlow(false)
         val added = mutableListOf<AddCall>()
         var lastId: String = ""
         private var seq = 0
         override fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>> = flow
+        override fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean> = hasUnsynced
         override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long): String {
             added.add(AddCall(serverId, itemId, positionSec, title, now))
             lastId = "bm-${seq++}"
