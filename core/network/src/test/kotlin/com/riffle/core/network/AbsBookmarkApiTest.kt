@@ -92,6 +92,21 @@ class AbsBookmarkApiTest {
     }
 
     @Test
+    fun `deleteBookmark404IsTreatedAsSuccess`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("Not found"))
+        val result = client.deleteBookmark(baseUrl(), "ITEM", 123, "tok", false)
+
+        val req = server.takeRequest()
+        assertEquals("DELETE", req.method)
+        assertEquals("/api/me/item/ITEM/bookmark/123", req.path)
+
+        assertTrue(result is AbsBookmarkResult.Success)
+        val bookmark = (result as AbsBookmarkResult.Success).bookmark
+        assertEquals("ITEM", bookmark.libraryItemId)
+        assertEquals(123, bookmark.timeSec)
+    }
+
+    @Test
     fun `listBookmarks parses bookmarks array from api me`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(200)

@@ -759,6 +759,13 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         try {
             val response = client.newCall(request).execute()
             response.body?.close()
+            if (response.code == 404) {
+                // Deleting an already-absent bookmark is success (idempotent) — otherwise a
+                // delete-tombstone for a bookmark already gone on the server stays dirty forever.
+                return@withContext AbsBookmarkResult.Success(
+                    NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
+                )
+            }
             if (!response.isSuccessful) {
                 return@withContext AbsBookmarkResult.NetworkError(IOException("HTTP ${response.code}"))
             }
