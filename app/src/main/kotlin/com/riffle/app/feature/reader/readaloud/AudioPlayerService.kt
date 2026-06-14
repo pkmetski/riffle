@@ -14,6 +14,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.Player
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -66,6 +67,28 @@ class AudioPlayerService : MediaSessionService() {
             .setCallback(MediaItemUriRestoringCallback)
             .setSessionActivity(openRiffleIntent())
             .build()
+            .also { session ->
+                // setMediaButtonPreferences controls the exact button order in the notification and
+                // lock-screen player across all Android versions — slot hints on CommandButton are
+                // only honoured on API 33+. Listing rewind + play/pause + forward here gives the
+                // desired ⟲15 · ▶/⏸ · ⟳30 layout without a custom notification provider.
+                session.setMediaButtonPreferences(
+                    ImmutableList.of(
+                        CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
+                            .setDisplayName("Rewind 15 seconds")
+                            .setSessionCommand(CMD_REWIND)
+                            .build(),
+                        CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+                            .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+                            .setDisplayName("Play / Pause")
+                            .build(),
+                        CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+                            .setDisplayName("Forward 30 seconds")
+                            .setSessionCommand(CMD_FORWARD)
+                            .build(),
+                    )
+                )
+            }
     }
 
     /**
@@ -119,7 +142,9 @@ class AudioPlayerService : MediaSessionService() {
             return Futures.immediateFuture(restored)
         }
 
-        // ── new: advertise commands and set the two-button notification layout ──
+        // Advertise the two custom seek commands so controllers can dispatch them.
+        // Button ordering is handled by setMediaButtonPreferences() in onCreate() —
+        // setCustomLayout() here is intentionally omitted.
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -129,22 +154,8 @@ class AudioPlayerService : MediaSessionService() {
                 .add(CMD_REWIND)
                 .add(CMD_FORWARD)
                 .build()
-
-            val rewindButton = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
-                .setDisplayName("Rewind 15 seconds")
-                .setSessionCommand(CMD_REWIND)
-                .setSlots(CommandButton.SLOT_BACK)
-                .build()
-
-            val forwardButton = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
-                .setDisplayName("Forward 30 seconds")
-                .setSessionCommand(CMD_FORWARD)
-                .setSlots(CommandButton.SLOT_FORWARD)
-                .build()
-
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(commands)
-                .setCustomLayout(ImmutableList.of(rewindButton, forwardButton))
                 .build()
         }
 
