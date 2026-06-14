@@ -96,7 +96,6 @@ class AudioPlayerService : MediaSessionService() {
      */
     private object MediaItemUriRestoringCallback : MediaSession.Callback {
 
-        // ── existing override (unchanged) ──────────────────────────────────────
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -155,18 +154,20 @@ class AudioPlayerService : MediaSessionService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             val player = session.player
-            when (customCommand.customAction) {
+            return when (customCommand.customAction) {
                 CMD_REWIND.customAction -> {
                     val target = (player.currentPosition - 15_000L).coerceAtLeast(0L)
                     player.seekTo(target)
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
                 CMD_FORWARD.customAction -> {
                     val target = player.currentPosition + 30_000L
                     val duration = player.duration
                     player.seekTo(if (duration != C.TIME_UNSET) target.coerceAtMost(duration) else target)
+                    Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                 }
+                else -> super.onCustomCommand(session, controller, customCommand, args)
             }
-            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
     }
 
