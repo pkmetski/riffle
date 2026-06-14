@@ -72,6 +72,9 @@ data class PlayerSurfaceState(
     val durationSec: Double = 0.0,
     val currentChapterTitle: String? = null,
     val chapterStartsSec: List<Double> = emptyList(),
+    // Absolute positions (seconds, global timeline) of the user's bookmarks, drawn as thin ticks on
+    // the scrubber for passive awareness of nearby bookmarks (variant B).
+    val bookmarkPositionsSec: List<Double> = emptyList(),
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
     // Book details shown in the landscape two-column layout. [facts] is a one-line summary
@@ -248,6 +251,7 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
             positionSec = state.positionSec,
             durationSec = state.durationSec,
             chapterStartsSec = state.chapterStartsSec,
+            bookmarkPositionsSec = state.bookmarkPositionsSec,
             onSeek = actions.onSeek,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -338,12 +342,16 @@ private fun ChapterSeekBar(
     positionSec: Double,
     durationSec: Double,
     chapterStartsSec: List<Double>,
+    bookmarkPositionsSec: List<Double>,
     onSeek: (Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
     val tickColor = MaterialTheme.colorScheme.background
+    // Bookmark ticks read over both the filled and unfilled track; onSurfaceVariant contrasts with
+    // the accent fill and the muted base track alike.
+    val bookmarkTickColor = MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = modifier
             .height(24.dp)
@@ -374,6 +382,20 @@ private fun ChapterSeekBar(
                 chapterStartsSec.forEach { start ->
                     val x = (start / durationSec).toFloat().coerceIn(0f, 1f) * w
                     drawRect(color = tickColor, topLeft = Offset(x - 1f, 0f), size = Size(2f, h))
+                }
+                // bookmark ticks — thin marks that overshoot the track top & bottom so they're
+                // legible against the chapter ticks and the playhead. Visual-only (drawn inside the
+                // existing track Canvas, which never consumes the Box's drag/tap gestures).
+                val bmTickWidth = 2.5.dp.toPx()
+                val bmOvershoot = h * 0.6f
+                bookmarkPositionsSec.forEach { pos ->
+                    val x = (pos / durationSec).toFloat().coerceIn(0f, 1f) * w
+                    drawRoundRect(
+                        color = bookmarkTickColor,
+                        topLeft = Offset(x - bmTickWidth / 2f, -bmOvershoot),
+                        size = Size(bmTickWidth, h + bmOvershoot * 2f),
+                        cornerRadius = CornerRadius(bmTickWidth / 2f, bmTickWidth / 2f),
+                    )
                 }
             }
             // vertical playhead

@@ -188,6 +188,7 @@ fun AudiobookPlayerScreen(
                             durationSec = state.durationSec,
                             currentChapterTitle = state.currentChapterTitle,
                             chapterStartsSec = state.chapterStartsSec,
+                            bookmarkPositionsSec = state.bookmarks.map { it.positionSec },
                             canPreviousChapter = state.canPreviousChapter,
                             canNextChapter = state.canNextChapter,
                             facts = state.facts,
