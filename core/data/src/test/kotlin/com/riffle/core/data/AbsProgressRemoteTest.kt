@@ -92,6 +92,19 @@ class AbsProgressRemoteTest {
     }
 
     @Test
+    fun `ebook get - blank ebookLocation (never-opened book) passes through as empty without translation`() = runTest {
+        val api = FakeSessionApi(
+            NetworkGetProgressResult.Success(serverProgress(cfi = "", lastUpdate = 0L)),
+            NetworkSyncSessionResult.Success(0L),
+        )
+        val translator = FakeTranslator(cfiResult = { error("should not be called") }, locatorResult = { it })
+        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
+        val read = remote.get()
+        assertEquals("", read?.position)
+        assertEquals(0L, read?.lastUpdate)
+    }
+
+    @Test
     fun `ebook get - returns null on network error`() = runTest {
         val api = FakeSessionApi(
             NetworkGetProgressResult.NetworkError(RuntimeException("down")),

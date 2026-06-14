@@ -7,13 +7,13 @@ import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 
 /**
- * Headless CFI↔Locator translator backed by a cached EPUB ZIP (ADR 0013). Parses the OPF spine
- * once on first use; caches chapter HTML per spine index. Thread-safe (synchronized lazy init),
- * but designed to be short-lived (one per sweep item, not a singleton).
+ * Headless CFI↔Locator translator backed by a cached EPUB ZIP (ADR 0013). Opens the ZIP
+ * per-operation and closes it immediately; parsed spine and chapter HTML are cached in memory so
+ * subsequent calls within the same sweep item require no further I/O. Thread-safe (synchronized
+ * lazy init); designed to be short-lived (one per sweep item, not a singleton).
  */
 internal class EbookCfiTranslatorImpl(private val epubFile: File) : EbookCfiTranslator {
 
-    @Volatile private var zipFile: ZipFile? = null
     @Volatile private var spineHrefs: List<String>? = null
     private val htmlCache = mutableMapOf<Int, String>()
 
@@ -48,26 +48,22 @@ internal class EbookCfiTranslatorImpl(private val epubFile: File) : EbookCfiTran
         return "epubcfi(/6/${(spineIndex + 1) * 2}!$docPath)"
     }
 
-    private fun ensureZip(): ZipFile? {
-        zipFile?.let { return it }
-        return synchronized(this) {
-            zipFile ?: runCatching { ZipFile(epubFile) }.getOrNull()?.also { zipFile = it }
-        }
-    }
-
     private fun ensureSpine(): List<String>? {
         spineHrefs?.let { return it }
         return synchronized(this) {
-            spineHrefs ?: parseSpineHrefs(ensureZip() ?: return null)?.also { spineHrefs = it }
+            spineHrefs ?: runCatching {
+                ZipFile(epubFile).use { parseSpineHrefs(it) }
+            }.getOrNull()?.also { spineHrefs = it }
         }
     }
 
     private fun readChapterHtml(hrefs: List<String>, spineIndex: Int): String? {
         htmlCache[spineIndex]?.let { return it }
-        val z = ensureZip() ?: return null
         val entryPath = normalizeEpubHref(hrefs[spineIndex])
         return runCatching {
-            z.getEntry(entryPath)?.let { z.getInputStream(it).bufferedReader().readText() }
+            ZipFile(epubFile).use { z ->
+                z.getEntry(entryPath)?.let { z.getInputStream(it).bufferedReader().readText() }
+            }
         }.getOrNull()?.also { htmlCache[spineIndex] = it }
     }
 

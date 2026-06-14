@@ -34,7 +34,10 @@ class AbsEbookProgressRemote(
         val t = translator ?: return null
         return when (val r = api.getProgress(baseUrl, itemId, token, insecureAllowed)) {
             is NetworkGetProgressResult.Success -> {
-                val locatorJson = t.cfiToLocatorJson(r.progress.ebookLocation) ?: return null
+                val raw = r.progress.ebookLocation
+                // ABS returns blank when the book has never been opened; skip translation so the
+                // reconciler can still compare timestamps and push local progress if it's newer.
+                val locatorJson = if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
                 RemoteProgress(locatorJson, r.progress.lastUpdate)
             }
             is NetworkGetProgressResult.NetworkError -> null
