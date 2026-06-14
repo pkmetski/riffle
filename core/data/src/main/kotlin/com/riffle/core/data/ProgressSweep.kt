@@ -24,6 +24,20 @@ interface ProgressRemoteFactory {
     fun audio(server: Server, token: String, itemId: String): ProgressRemote<Double>
 }
 
+/** Enumerates the (server, item) pairs with at least one dirty audiobook-bookmark row to reconcile. */
+interface DirtyBookmarkLedger {
+    suspend fun serversWithDirty(): List<String>
+    suspend fun dirtyItems(serverId: String): List<String>
+}
+
+/**
+ * The set-reconcile of one item's audiobook bookmarks against ABS — the sweep's seam over
+ * `AudiobookBookmarkReconciler` so its orchestration stays testable without Room or the network.
+ */
+fun interface BookmarkReconcile {
+    suspend fun reconcile(serverId: String, itemId: String, baseUrl: String, token: String, insecureAllowed: Boolean)
+}
+
 /**
  * The durable, book-independent dirty sweep of ADR 0030: reconcile every dirty position row across
  * **all** servers when online, so offline progress is pushed without the book being reopened — while
@@ -39,9 +53,14 @@ class ProgressSweep(
     private val remoteFactory: ProgressRemoteFactory,
     private val locks: ProgressSyncLocks,
     private val openTargets: OpenReconcileTargets,
+    private val bookmarkLedger: DirtyBookmarkLedger,
+    private val bookmarkReconcile: BookmarkReconcile,
 ) {
     suspend fun run() {
-        for (serverId in ledger.serversWithDirty()) {
+        // Bookmarks ride the same cadence as positions: a server with only dirty bookmarks (no dirty
+        // positions) must still be reconciled, so process the union of both dirty sets (ADR 0030).
+        val servers = (ledger.serversWithDirty() + bookmarkLedger.serversWithDirty()).distinct()
+        for (serverId in servers) {
             val (server, token) = resolver.resolve(serverId) ?: continue
             for (itemId in ledger.dirtyEbookItems(serverId)) {
                 // Skip a book a live surface is driving — its own cycle owns inbound jumps (ADR 0030).
@@ -54,6 +73,17 @@ class ProgressSweep(
                 if (openTargets.isOpen(serverId, itemId)) continue
                 locks.withLock(serverId, itemId, RemoteKind.ABS_AUDIO) {
                     audioReconciler.reconcile(serverId, itemId, remoteFactory.audio(server, token, itemId))
+                }
+            }
+            for (itemId in bookmarkLedger.dirtyItems(serverId)) {
+                // Same open-book discipline as the audio pass: an open book's bookmarks reconcile once
+                // it closes. ABS_BOOKMARK is its own lock kind, so it never contends with the position
+                // passes for the same item.
+                if (openTargets.isOpen(serverId, itemId)) continue
+                locks.withLock(serverId, itemId, RemoteKind.ABS_BOOKMARK) {
+                    bookmarkReconcile.reconcile(
+                        serverId, itemId, server.url.value, token, server.insecureConnectionAllowed,
+                    )
                 }
             }
         }

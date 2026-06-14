@@ -20,7 +20,7 @@ package com.riffle.core.domain
  * re-stamping `now` (see EpubReaderViewModel.pendingServerJumpStamp). Only a position genuinely written
  * by some other client outranks the reading position.
  */
-enum class RemoteKind { ABS_EBOOK, ABS_AUDIO }
+enum class RemoteKind { ABS_EBOOK, ABS_AUDIO, ABS_BOOKMARK }
 
 /**
  * The medium the open book is being driven from — i.e. which surface holds the canonical position.

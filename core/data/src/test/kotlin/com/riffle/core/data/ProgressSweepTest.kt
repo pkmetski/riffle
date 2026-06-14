@@ -97,6 +97,11 @@ class ProgressSweepTest {
         ledger, resolver,
         ProgressReconciler(ebookStore), ProgressReconciler(audioStore),
         factory, ProgressSyncLocks(), openTargets,
+        object : DirtyBookmarkLedger {
+            override suspend fun serversWithDirty() = emptyList<String>()
+            override suspend fun dirtyItems(serverId: String) = emptyList<String>()
+        },
+        BookmarkReconcile { _, _, _, _, _ -> },
     )
 
     @Test
