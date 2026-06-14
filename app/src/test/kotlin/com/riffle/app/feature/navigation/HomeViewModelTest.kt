@@ -69,6 +69,7 @@ class HomeViewModelTest {
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
+        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
