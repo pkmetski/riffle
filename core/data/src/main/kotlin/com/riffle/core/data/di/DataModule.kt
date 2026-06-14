@@ -29,6 +29,7 @@ import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadaloudResumeStoreImpl
+import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
@@ -63,6 +64,7 @@ import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudResumeStore
+import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
@@ -246,6 +248,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAudiobookPositionStore(impl: AudiobookPositionStoreImpl): AudiobookPositionStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookBookmarkStore(impl: AudiobookBookmarkStoreImpl): AudiobookBookmarkStore
 
     @Binds
     @Singleton
