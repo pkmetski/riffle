@@ -1,5 +1,6 @@
 package com.riffle.app.feature.audiobook
 
+import com.riffle.app.feature.audio.formatHms
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -119,7 +120,7 @@ private fun ChaptersList(content: PlayerListContent.Chapters, onDismiss: () -> U
                 subtitle = if (isCurrent) "Now playing" else null,
                 trailing = {
                     Text(
-                        text = formatClock(chapter.endSec - chapter.startSec),
+                        text = formatHms(chapter.endSec - chapter.startSec),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -248,13 +249,4 @@ private fun PlayerListRow(
         Spacer(Modifier.width(16.dp))
         trailing()
     }
-}
-
-/** mm:ss under an hour, h:mm:ss otherwise. */
-private fun formatClock(sec: Double): String {
-    val s = sec.toLong().coerceAtLeast(0)
-    val h = s / 3600
-    val m = (s % 3600) / 60
-    val secs = s % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, secs) else "%d:%02d".format(m, secs)
 }

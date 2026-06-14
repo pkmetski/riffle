@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.riffle.app.feature.audio.PlayerSurface
 import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.audio.PlayerSurfaceState
+import com.riffle.app.feature.audio.formatHms
 import com.riffle.core.domain.AudiobookBookmark
 import kotlinx.coroutines.launch
 
@@ -303,13 +304,4 @@ fun AudiobookPlayerScreen(
         )
         null -> Unit
     }
-}
-
-/** mm:ss under an hour, h:mm:ss otherwise — for the bookmark dialog position label. */
-private fun formatHms(totalSec: Double): String {
-    val s = totalSec.toLong().coerceAtLeast(0)
-    val h = s / 3600
-    val m = (s % 3600) / 60
-    val sec = s % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
 }
