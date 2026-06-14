@@ -35,9 +35,12 @@ import kotlin.coroutines.resume
  * mini-player's shared speed sheet; see [com.riffle.app.feature.audio.PlaybackSpeed].
  */
 @Singleton
-class ReadaloudController @Inject constructor(
-    @ApplicationContext private val context: Context,
+open class ReadaloudController @Inject constructor(
+    @ApplicationContext private val context: Context?,
 ) {
+    // Test seam: subclasses that override the pre-warm methods need no real Context (only consulted in
+    // [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without Robolectric.
+    protected constructor() : this(null)
     data class PlaybackState(
         val connected: Boolean = false,
         val isPlaying: Boolean = false,
@@ -56,10 +59,13 @@ class ReadaloudController @Inject constructor(
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     private var controller: MediaController? = null
+    private var listenerAttached = false
     private var pollJob: Job? = null
     private var track: ReadaloudTrack? = null
     /** Maps a distinct audio file to its index in the queued playlist. */
     private val audioIndex = LinkedHashMap<String, Int>()
+    /** Pre-resolved seek target for the next [playFromSecond] call (set during swipe drag). */
+    private var preWarmedPosition: ReadaloudTrack.Position? = null
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -127,6 +133,10 @@ class ReadaloudController @Inject constructor(
      * narration goes silent immediately, but does NOT stop/clearMediaItems: the audiobook's own
      * setMediaItems replaces the queue, and clearing here would kill the audiobook playback that is
      * about to start. Symmetric to AudiobookController.releaseForHandoff.
+     *
+     * Keeps the [MediaController] Binder connection alive (ADR 0032) so the incoming side reconnects
+     * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
+     * Keeps [track] so [preWarmSeek] can still resolve a position if the user drags back.
      */
     fun releaseForHandoff() {
         pollJob?.cancel()
@@ -134,11 +144,24 @@ class ReadaloudController @Inject constructor(
         controller?.run {
             pause()
             removeListener(listener)
-            release()
         }
-        controller = null
-        track = null
+        listenerAttached = false
+        preWarmedPosition = null
         _state.value = PlaybackState()
+    }
+
+    /**
+     * Pre-resolves [globalSec] to a [ReadaloudTrack.Position] during the drag gesture, so
+     * [playFromSecond] can skip the SMIL computation at commit time (ADR 0032). No-op when [track]
+     * is null (audiobook-only entry with no prior readaloud session this app lifetime).
+     */
+    fun preWarmSeek(globalSec: Double) {
+        preWarmedPosition = track?.seekTarget(globalSec)
+    }
+
+    /** Discards any pre-warmed seek target — call when the drag is abandoned. */
+    fun cancelPreWarm() {
+        preWarmedPosition = null
     }
 
     /** Jumps to the first clip of an adjacent chapter (see [ReadaloudTrack.resolveChapterSkip]). */
@@ -158,7 +181,8 @@ class ReadaloudController @Inject constructor(
 
     /** Seeks to [globalSec] on the concatenated timeline and starts playing (audiobook→readaloud handoff). */
     fun playFromSecond(globalSec: Double) {
-        val target = track?.seekTarget(globalSec) ?: return
+        val target = preWarmedPosition ?: track?.seekTarget(globalSec) ?: return
+        preWarmedPosition = null
         seekToAudio(target.audioSrc, target.positionSec)
         play()
     }
@@ -184,6 +208,9 @@ class ReadaloudController @Inject constructor(
             release()
         }
         controller = null
+        listenerAttached = false
+        track = null
+        preWarmedPosition = null
         SharedBundle.current = null
         _state.value = PlaybackState()
     }
@@ -194,16 +221,22 @@ class ReadaloudController @Inject constructor(
     }
 
     private suspend fun ensureConnected(): MediaController? {
-        controller?.let { return it }
-        val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
-        val future = MediaController.Builder(context, token).buildAsync()
-        val c = suspendCancellableCoroutine<MediaController?> { cont ->
-            future.addListener({
-                cont.resume(runCatching { future.get() }.getOrNull())
-            }, ContextCompat.getMainExecutor(context))
+        val c = controller ?: run {
+            val ctx = context ?: return null
+            val token = SessionToken(ctx, ComponentName(ctx, AudioPlayerService::class.java))
+            val future = MediaController.Builder(ctx, token).buildAsync()
+            val newC = suspendCancellableCoroutine<MediaController?> { cont ->
+                future.addListener({
+                    cont.resume(runCatching { future.get() }.getOrNull())
+                }, ContextCompat.getMainExecutor(ctx))
+            }
+            controller = newC
+            newC
         }
-        c?.addListener(listener)
-        controller = c
+        if (!listenerAttached && c != null) {
+            c.addListener(listener)
+            listenerAttached = true
+        }
         pushState()
         return c
     }

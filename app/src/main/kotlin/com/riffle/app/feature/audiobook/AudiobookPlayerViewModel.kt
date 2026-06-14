@@ -145,6 +145,7 @@ class AudiobookPlayerViewModel(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val controller: AudiobookController,
+    private val readaloudController: com.riffle.app.feature.reader.readaloud.ReadaloudController,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
     private val listeningPreferencesStore: ListeningPreferencesStore,
     private val audioIdentityResolver: AudioIdentityResolver,
@@ -184,6 +185,7 @@ class AudiobookPlayerViewModel(
         serverRepository: ServerRepository,
         tokenStorage: TokenStorage,
         controller: AudiobookController,
+        readaloudController: com.riffle.app.feature.reader.readaloud.ReadaloudController,
         audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
         listeningPreferencesStore: ListeningPreferencesStore,
         audioIdentityResolver: AudioIdentityResolver,
@@ -208,6 +210,7 @@ class AudiobookPlayerViewModel(
         serverRepository,
         tokenStorage,
         controller,
+        readaloudController,
         audioPlaybackPreferencesStore,
         listeningPreferencesStore,
         audioIdentityResolver,
@@ -819,6 +822,20 @@ class AudiobookPlayerViewModel(
     // would pause the readaloud playback that just started). We save progress + release the handle
     // here instead.
     private var handingOffToReadaloud = false
+
+    /**
+     * Called when the user starts dragging down (before the threshold). Pre-resolves the SMIL seek
+     * target so [playFromSecond] in [ReadaloudController] can skip the computation at commit time
+     * (ADR 0032). No-op when no readaloud track is loaded (audiobook-only session).
+     */
+    fun hintReadaloudHandoff() {
+        readaloudController.preWarmSeek(controller.currentAbsoluteSec())
+    }
+
+    /** Discard the pre-warm if the drag was abandoned without crossing the threshold. */
+    fun cancelHandoffHint() {
+        readaloudController.cancelPreWarm()
+    }
 
     /**
      * Prepare to switch to the readaloud reader: persist the just-reached listen position (so the

@@ -65,6 +65,7 @@ open class AudiobookController @Inject constructor(
     private var timerJob: Job? = null
 
     private var controller: MediaController? = null
+    private var listenerAttached = false
     private var pollJob: Job? = null
     private var spans: List<AudiobookTrackSpan> = emptyList()
     private var durationSec: Double = 0.0
@@ -226,6 +227,7 @@ open class AudiobookController @Inject constructor(
             release()
         }
         controller = null
+        listenerAttached = false
         spans = emptyList()
         prepared = false
         wantsToPlay = false
@@ -243,6 +245,9 @@ open class AudiobookController @Inject constructor(
      * the audiobook goes silent immediately, but does NOT `stop()`/`clearMediaItems()`: readaloud's
      * own `setMediaItems` replaces the queue, and clearing here would kill the readaloud playback that
      * is about to start (the "swipe down pauses readaloud" bug). Leaves the bundle for readaloud.
+     *
+     * Keeps the [MediaController] Binder connection alive (ADR 0032) so the incoming side reconnects
+     * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
      */
     fun releaseForHandoff() {
         cancelSleepTimer()
@@ -252,9 +257,8 @@ open class AudiobookController @Inject constructor(
             setVolume(1f)
             pause()
             removeListener(listener)
-            release()
         }
-        controller = null
+        listenerAttached = false
         spans = emptyList()
         prepared = false
         wantsToPlay = false
@@ -263,15 +267,20 @@ open class AudiobookController @Inject constructor(
     }
 
     private suspend fun ensureConnected(): MediaController? {
-        controller?.let { return it }
-        val context = this.context ?: return null
-        val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
-        val future = MediaController.Builder(context, token).buildAsync()
-        val c = suspendCancellableCoroutine<MediaController?> { cont ->
-            future.addListener({ cont.resume(runCatching { future.get() }.getOrNull()) }, ContextCompat.getMainExecutor(context))
+        val c = controller ?: run {
+            val context = this.context ?: return null
+            val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
+            val future = MediaController.Builder(context, token).buildAsync()
+            val newC = suspendCancellableCoroutine<MediaController?> { cont ->
+                future.addListener({ cont.resume(runCatching { future.get() }.getOrNull()) }, ContextCompat.getMainExecutor(context))
+            }
+            controller = newC
+            newC
         }
-        c?.addListener(listener)
-        controller = c
+        if (!listenerAttached && c != null) {
+            c.addListener(listener)
+            listenerAttached = true
+        }
         pushState()
         return c
     }

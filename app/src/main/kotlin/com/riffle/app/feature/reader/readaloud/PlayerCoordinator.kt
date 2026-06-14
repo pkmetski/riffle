@@ -118,6 +118,12 @@ class PlayerCoordinator @Inject constructor(
 
     fun skipBy(deltaSec: Double) = controller.skipBy(deltaSec)
 
+    /** Pre-resolves [globalSec] during a swipe drag so [playFromSecond] skips SMIL computation. */
+    fun preWarmSeek(globalSec: Double) = controller.preWarmSeek(globalSec)
+
+    /** Discards the pre-warmed seek target when a drag is abandoned. */
+    fun cancelPreWarm() = controller.cancelPreWarm()
+
     fun previousChapter() = controller.previousChapter()
 
     fun nextChapter() = controller.nextChapter()

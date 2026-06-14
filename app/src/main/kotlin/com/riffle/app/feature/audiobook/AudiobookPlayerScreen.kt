@@ -171,7 +171,10 @@ fun AudiobookPlayerScreen(
                     .pointerInput(Unit) {
                         var total = 0f
                         detectVerticalDragGestures(
-                            onDragStart = { total = 0f },
+                            // Pre-warm readaloud the moment a downward drag starts (ADR 0032):
+                            // resolves the SMIL seek target while the user is still dragging so
+                            // playFromSecond() fires instantly when the threshold is reached.
+                            onDragStart = { total = 0f; viewModel.hintReadaloudHandoff() },
                             onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
                             onDragEnd = {
                                 val s = latestState.value
@@ -181,6 +184,8 @@ fun AudiobookPlayerScreen(
                                     // navigating, so readaloud keeps playing through the handoff.
                                     viewModel.prepareReadaloudHandoff()
                                     onSwitchToReadaloud(ebookId, s.positionSec)
+                                } else {
+                                    viewModel.cancelHandoffHint()
                                 }
                             },
                         )

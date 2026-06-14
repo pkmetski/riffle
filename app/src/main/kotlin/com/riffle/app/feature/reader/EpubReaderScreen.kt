@@ -422,6 +422,8 @@ fun EpubReaderScreen(
                                 onSwitchToAudiobook(abId, sec)
                             }
                         },
+                        onDragHint = { viewModel.hintAudiobookHandoff() },
+                        onDragAbandoned = { viewModel.cancelHandoffHint() },
                     ) {
                         ReadaloudMiniPlayer(
                             isPlaying = playbackState.isPlaying,

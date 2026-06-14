@@ -1580,6 +1580,12 @@ class EpubReaderViewModel @Inject constructor(
         return sec
     }
 
+    /** Called when the user starts dragging up (before the threshold) — reserved for future pre-warm. */
+    fun hintAudiobookHandoff() = Unit
+
+    /** Discard any pre-warm state if the drag was abandoned. */
+    fun cancelHandoffHint() = Unit
+
     private var handingOffToAudiobook = false
 
     fun previousChapter() = playerCoordinator.previousChapter()
