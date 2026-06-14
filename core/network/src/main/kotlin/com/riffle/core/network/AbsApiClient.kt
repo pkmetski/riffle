@@ -26,6 +26,8 @@ import com.riffle.core.network.model.toNetworkCollection
 import com.riffle.core.network.model.toNetworkPlaylist
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -46,7 +48,7 @@ sealed class NetworkLoginResult {
     data class InsecureConnection(val type: InsecureConnectionType) : NetworkLoginResult()
 }
 
-class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi {
+class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi, AbsBookmarkApi {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -688,6 +690,124 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun createBookmark(
+        baseUrl: String,
+        itemId: String,
+        timeSec: Int,
+        title: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): AbsBookmarkResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/me/item/$itemId/bookmark")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        executeBookmarkWrite(client, request)
+    }
+
+    override suspend fun updateBookmark(
+        baseUrl: String,
+        itemId: String,
+        timeSec: Int,
+        title: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): AbsBookmarkResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/me/item/$itemId/bookmark")
+            .addHeader("Authorization", "Bearer $token")
+            .patch(body)
+            .build()
+        executeBookmarkWrite(client, request)
+    }
+
+    private fun executeBookmarkWrite(client: OkHttpClient, request: Request): AbsBookmarkResult {
+        return try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.body?.close()
+                return AbsBookmarkResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string()
+            if (raw.isNullOrEmpty()) {
+                return AbsBookmarkResult.NetworkError(IOException("Empty response body"))
+            }
+            AbsBookmarkResult.Success(json.decodeFromString<AbsBookmarkJson>(raw).toNetworkAbsBookmark())
+        } catch (e: IOException) {
+            AbsBookmarkResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteBookmark(
+        baseUrl: String,
+        itemId: String,
+        timeSec: Int,
+        token: String,
+        insecureAllowed: Boolean,
+    ): AbsBookmarkResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/me/item/$itemId/bookmark/$timeSec")
+            .addHeader("Authorization", "Bearer $token")
+            .delete()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            response.body?.close()
+            if (response.code == 404) {
+                // Deleting an already-absent bookmark is success (idempotent) — otherwise a
+                // delete-tombstone for a bookmark already gone on the server stays dirty forever.
+                return@withContext AbsBookmarkResult.Success(
+                    NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
+                )
+            }
+            if (!response.isSuccessful) {
+                return@withContext AbsBookmarkResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            // DELETE returns plain-text "OK" with no JSON body, so synthesize the bookmark
+            // from the request inputs (identity is libraryItemId + time).
+            AbsBookmarkResult.Success(
+                NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
+            )
+        } catch (e: IOException) {
+            AbsBookmarkResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun listBookmarks(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): AbsBookmarkListResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/me")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.body?.close()
+                return@withContext AbsBookmarkListResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string() ?: return@withContext AbsBookmarkListResult.NetworkError(
+                IOException("Empty response body")
+            )
+            // `/api/me` carries many fields; `json` is configured with ignoreUnknownKeys so the
+            // wrapper need only declare `bookmarks` (absent → empty via the default).
+            val parsed = json.decodeFromString<AbsMeBookmarksResponse>(raw)
+            AbsBookmarkListResult.Success(parsed.bookmarks.map { it.toNetworkAbsBookmark() })
+        } catch (e: IOException) {
+            AbsBookmarkListResult.NetworkError(e)
+        }
+    }
+
     private fun OkHttpClient.trustAllCerts(): OkHttpClient {
         val trustAll = object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
@@ -702,3 +822,29 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
     }
 }
+
+@Serializable
+private data class AbsBookmarkRequest(
+    @SerialName("time") val time: Int,
+    @SerialName("title") val title: String,
+)
+
+@Serializable
+private data class AbsBookmarkJson(
+    val libraryItemId: String = "",
+    @SerialName("time") val timeSec: Int = 0,
+    val title: String = "",
+    val createdAt: Long = 0L,
+) {
+    fun toNetworkAbsBookmark() = NetworkAbsBookmark(
+        libraryItemId = libraryItemId,
+        title = title,
+        timeSec = timeSec,
+        createdAt = createdAt,
+    )
+}
+
+@Serializable
+private data class AbsMeBookmarksResponse(
+    val bookmarks: List<AbsBookmarkJson> = emptyList(),
+)

@@ -40,9 +40,14 @@ import kotlin.coroutines.resume
  * [com.riffle.app.feature.audio.PlaybackSpeed].
  */
 @Singleton
-class AudiobookController @Inject constructor(
-    @ApplicationContext private val context: Context,
+open class AudiobookController @Inject constructor(
+    @ApplicationContext private val context: Context?,
 ) {
+    // Test seam: a subclass that overrides every member the player touches needs no real Context (it's
+    // only consulted in [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable
+    // without Robolectric.
+    protected constructor() : this(null)
+
     data class PlaybackState(
         val connected: Boolean = false,
         val isPlaying: Boolean = false,
@@ -53,7 +58,7 @@ class AudiobookController @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlaybackState())
-    val state: StateFlow<PlaybackState> = _state.asStateFlow()
+    open val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     private var controller: MediaController? = null
     private var pollJob: Job? = null
@@ -80,7 +85,7 @@ class AudiobookController @Inject constructor(
      * Connects (if needed) and queues the audiobook's [trackUrls] (tokenised ABS URLs), one per
      * [spans] entry, then seeks to [startAtSec] on the book-absolute timeline.
      */
-    suspend fun prepare(
+    open suspend fun prepare(
         trackUrls: List<String>,
         spans: List<AudiobookTrackSpan>,
         durationSec: Double,
@@ -111,7 +116,7 @@ class AudiobookController @Inject constructor(
         pushState()
     }
 
-    fun play() {
+    open fun play() {
         // Latch the intent; [maybeStart] / the STATE_READY gate starts playback once the player is
         // buffered at the resume position (see [ResumePlaybackGate]).
         wantsToPlay = true
@@ -135,13 +140,13 @@ class AudiobookController @Inject constructor(
         pushState()
     }
 
-    fun setSpeed(speed: Float) {
+    open fun setSpeed(speed: Float) {
         controller?.setPlaybackSpeed(speed)
         pushState()
     }
 
     /** Seeks to a book-absolute position, resolving it to the right track + offset. */
-    fun seekTo(absoluteSec: Double) {
+    open fun seekTo(absoluteSec: Double) {
         val clamped = absoluteSec.coerceIn(0.0, if (durationSec > 0) durationSec else absoluteSec)
         val index = AudiobookTracks.trackIndexAt(clamped, spans)
         val offset = AudiobookTracks.offsetInTrackSec(clamped, spans)
@@ -153,7 +158,7 @@ class AudiobookController @Inject constructor(
     fun rewind() = skipBy(-REWIND_SEC)
     fun forward() = skipBy(FORWARD_SEC)
 
-    fun currentAbsoluteSec(): Double {
+    open fun currentAbsoluteSec(): Double {
         val c = controller ?: return 0.0
         return AudiobookTracks.absoluteSec(c.currentMediaItemIndex, c.currentPosition / 1000.0, spans)
     }
@@ -204,6 +209,7 @@ class AudiobookController @Inject constructor(
 
     private suspend fun ensureConnected(): MediaController? {
         controller?.let { return it }
+        val context = this.context ?: return null
         val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         val c = suspendCancellableCoroutine<MediaController?> { cont ->

@@ -2,27 +2,42 @@ package com.riffle.app.feature.audiobook
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -34,6 +49,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.riffle.app.feature.audio.PlayerSurface
 import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.audio.PlayerSurfaceState
+import com.riffle.app.feature.audio.formatHms
+import com.riffle.core.domain.AudiobookBookmark
+import kotlinx.coroutines.launch
 
 /**
  * Full-screen [Audiobook Player] (ADR 0029): square cover, title/author, current-chapter label, a
@@ -46,6 +64,20 @@ import com.riffle.app.feature.audio.PlayerSurfaceState
 // deliberate swipe, not an accidental nudge.
 private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
 
+/** Which list the shared [PlayerListSheet] is showing (no tabs — one kind at a time). */
+private enum class SheetKind { Chapters, Bookmarks }
+
+/**
+ * A snapshot taken when the New-bookmark dialog opens. Pinning the position (and the title/label
+ * derived from it) keeps the dialog stable while playback continues — otherwise the live playhead
+ * would rewrite the default title every second and wipe the user's edits.
+ */
+private data class BookmarkDraft(
+    val positionSec: Double,
+    val defaultTitle: String,
+    val chapterTitle: String,
+)
+
 /** Caption hinting that dragging the cover down switches to the read-along reader. */
 @Composable
 private fun ReadAlongSwipeHint() {
@@ -56,6 +88,35 @@ private fun ReadAlongSwipeHint() {
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         textAlign = TextAlign.Center,
     )
+}
+
+/** The two quiet affordances under the scrubber: Chapters and the bookmark count. */
+@Composable
+private fun PlayerListPills(
+    bookmarkCount: Int,
+    onOpenChapters: () -> Unit,
+    onOpenBookmarks: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+    ) {
+        AssistChip(
+            onClick = onOpenChapters,
+            label = { Text("Chapters") },
+            leadingIcon = {
+                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+            },
+        )
+        val bookmarkLabel = if (bookmarkCount == 1) "1 bookmark" else "$bookmarkCount bookmarks"
+        AssistChip(
+            onClick = onOpenBookmarks,
+            label = { Text(bookmarkLabel) },
+            leadingIcon = {
+                Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+            },
+        )
+    }
 }
 
 @Composable
@@ -71,6 +132,16 @@ fun AudiobookPlayerScreen(
     val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact
     // Read fresh inside the gesture (it's keyed on Unit, so it must not capture a stale position).
     val latestState = rememberUpdatedState(state)
+
+    // Local UI state for the sheets and dialogs (variant B).
+    var openSheet by remember { mutableStateOf<SheetKind?>(null) }
+    // Non-null while the New-bookmark dialog is open; carries the position/title pinned at open time so
+    // they don't drift with the still-running playhead while the user edits (see [BookmarkDraft]).
+    var createDraft by remember { mutableStateOf<BookmarkDraft?>(null) }
+    var renaming by remember { mutableStateOf<AudiobookBookmark?>(null) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val gradient = Brush.verticalGradient(
         listOf(
@@ -118,34 +189,47 @@ fun AudiobookPlayerScreen(
                 state.failed -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Text("This audiobook can't be played right now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                else -> PlayerSurface(
-                    state = PlayerSurfaceState(
-                        title = state.title,
-                        author = state.author,
-                        coverUrl = state.coverUrl,
-                        authToken = state.authToken,
-                        isPlaying = state.isPlaying,
-                        speed = state.speed,
-                        positionSec = state.positionSec,
-                        durationSec = state.durationSec,
-                        currentChapterTitle = state.currentChapterTitle,
-                        chapterStartsSec = state.chapterStartsSec,
-                        canPreviousChapter = state.canPreviousChapter,
-                        canNextChapter = state.canNextChapter,
-                        facts = state.facts,
-                        description = state.description,
-                    ),
-                    twoColumn = twoColumn,
-                    actions = PlayerSurfaceActions(
-                        onSeek = viewModel::seekTo,
-                        onTogglePlayPause = viewModel::togglePlayPause,
-                        onRewind = viewModel::rewind,
-                        onForward = viewModel::forward,
-                        onPreviousChapter = viewModel::previousChapter,
-                        onNextChapter = viewModel::nextChapter,
-                        onSpeedChange = viewModel::setSpeed,
-                    ),
-                )
+                // navigationBarsPadding so the pills row at the bottom clears the system nav bar —
+                // otherwise PlayerListPills renders behind it and the chapters/bookmarks entry point
+                // is invisible.
+                else -> Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+                    PlayerSurface(
+                        modifier = Modifier.weight(1f),
+                        state = PlayerSurfaceState(
+                            title = state.title,
+                            author = state.author,
+                            coverUrl = state.coverUrl,
+                            authToken = state.authToken,
+                            isPlaying = state.isPlaying,
+                            speed = state.speed,
+                            positionSec = state.positionSec,
+                            durationSec = state.durationSec,
+                            currentChapterTitle = state.currentChapterTitle,
+                            chapterStartsSec = state.chapterStartsSec,
+                            bookmarkPositionsSec = state.bookmarks.map { it.positionSec },
+                            canPreviousChapter = state.canPreviousChapter,
+                            canNextChapter = state.canNextChapter,
+                            facts = state.facts,
+                            description = state.description,
+                        ),
+                        twoColumn = twoColumn,
+                        actions = PlayerSurfaceActions(
+                            onSeek = viewModel::seekTo,
+                            onTogglePlayPause = viewModel::togglePlayPause,
+                            onRewind = viewModel::rewind,
+                            onForward = viewModel::forward,
+                            onPreviousChapter = viewModel::previousChapter,
+                            onNextChapter = viewModel::nextChapter,
+                            onSpeedChange = viewModel::setSpeed,
+                        ),
+                    )
+                    PlayerListPills(
+                        bookmarkCount = state.bookmarks.size,
+                        onOpenChapters = { openSheet = SheetKind.Chapters },
+                        onOpenBookmarks = { openSheet = SheetKind.Bookmarks },
+                    )
+                    Spacer(Modifier.size(12.dp))
+                }
                 }
             }
             // Exit affordance, overlaid OUTSIDE the swipe Column so its taps are never captured by the
@@ -159,6 +243,90 @@ fun AudiobookPlayerScreen(
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
+            // One-tap bookmark-add, in the top app-bar row opposite the back arrow. Pin the position
+            // (and title/chapter derived from it) at tap time so the dialog is stable while playing.
+            IconButton(
+                onClick = {
+                    val positionSec = viewModel.currentPositionSec()
+                    createDraft = BookmarkDraft(
+                        positionSec = positionSec,
+                        defaultTitle = viewModel.defaultBookmarkTitle(positionSec),
+                        chapterTitle = state.currentChapterTitle?.trim().orEmpty(),
+                    )
+                },
+                // safeDrawingPadding (mirrors the back arrow) so the icon clears the status bar, nav bar
+                // and any display cutout, including in landscape.
+                modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(4.dp),
+            ) {
+                Icon(Icons.Filled.BookmarkAdd, contentDescription = "Add bookmark")
+            }
+            SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
         }
+    }
+
+    // Create dialog: pre-fill the default title and offer quick suggestions, all from the pinned draft.
+    createDraft?.let { draft ->
+        val absolute = formatHms(draft.positionSec)
+        val positionLabel = if (draft.chapterTitle.isNotEmpty()) "$absolute · ${draft.chapterTitle}" else absolute
+        val suggestions = listOf(draft.defaultTitle, draft.chapterTitle, absolute).filter { it.isNotBlank() }.distinct()
+        BookmarkCreateDialog(
+            initialTitle = draft.defaultTitle,
+            positionLabel = positionLabel,
+            suggestions = suggestions,
+            onConfirm = { title ->
+                viewModel.addBookmark(title, draft.positionSec)
+                createDraft = null
+                scope.launch {
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Bookmark saved",
+                        actionLabel = "Undo",
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        // The add is asynchronous; by the time Undo is tapped the id has been published
+                        // to uiState. Read it fresh from the ViewModel at click time.
+                        viewModel.uiState.value.lastCreatedBookmarkId?.let(viewModel::deleteBookmark)
+                    }
+                }
+            },
+            onDismiss = { createDraft = null },
+        )
+    }
+
+    // Rename reuses the create dialog with a different title and no suggestions.
+    renaming?.let { bookmark ->
+        BookmarkCreateDialog(
+            initialTitle = bookmark.title,
+            positionLabel = formatHms(bookmark.positionSec),
+            suggestions = emptyList(),
+            title = "Rename bookmark",
+            onConfirm = { title ->
+                viewModel.renameBookmark(bookmark.id, title)
+                renaming = null
+            },
+            onDismiss = { renaming = null },
+        )
+    }
+
+    when (openSheet) {
+        SheetKind.Chapters -> PlayerListSheet(
+            content = PlayerListContent.Chapters(
+                items = state.chapters,
+                currentIndex = state.currentChapterIndex,
+                // A chapter start is genuine user navigation — seekTo moves the resume baseline.
+                onSeek = { chapter -> viewModel.seekTo(chapter.startSec) },
+            ),
+            onDismiss = { openSheet = null },
+        )
+        SheetKind.Bookmarks -> PlayerListSheet(
+            content = PlayerListContent.Bookmarks(
+                items = state.bookmarks,
+                onSeek = { bm -> viewModel.seekToBookmark(bm.positionSec) },
+                onRename = { renaming = it },
+                onDelete = { viewModel.deleteBookmark(it.id) },
+                offlineNote = state.bookmarksOffline,
+            ),
+            onDismiss = { openSheet = null },
+        )
+        null -> Unit
     }
 }

@@ -67,6 +67,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_31_32,
                 RiffleDatabase.MIGRATION_32_33,
                 RiffleDatabase.MIGRATION_33_34,
+                RiffleDatabase.MIGRATION_34_35,
             )
             .build()
 
@@ -109,6 +110,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideAudiobookPositionDao(db: RiffleDatabase): AudiobookPositionDao = db.audiobookPositionDao()
+
+    @Provides
+    @Singleton
+    fun provideAudiobookBookmarkDao(db: RiffleDatabase): com.riffle.core.database.AudiobookBookmarkDao =
+        db.audiobookBookmarkDao()
 
     @Provides
     @Singleton

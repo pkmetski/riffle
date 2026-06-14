@@ -24,8 +24,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReadaloudResumePositionEntity::class,
         AudioPlaybackPreferencesEntity::class,
         AudiobookPositionEntity::class,
+        AudiobookBookmarkEntity::class,
     ],
-    version = 34,
+    version = 35,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -44,6 +45,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun readaloudResumePositionDao(): ReadaloudResumePositionDao
     abstract fun audioPlaybackPreferencesDao(): AudioPlaybackPreferencesDao
     abstract fun audiobookPositionDao(): AudiobookPositionDao
+    abstract fun audiobookBookmarkDao(): AudiobookBookmarkDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -691,6 +693,36 @@ abstract class RiffleDatabase : RoomDatabase() {
                 )
                 db.execSQL(
                     "ALTER TABLE `audiobook_positions` ADD COLUMN `lastSyncedAt` INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
+        // Audiobook bookmarks (a COLLECTION of titled book-absolute positions per item, unlike the
+        // single-value audiobook_positions). Dirty-tracking + soft-delete mirror ADR 0030. serverId
+        // FK-cascades; indexed by serverId and (serverId, itemId) for per-item lookups.
+        val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `audiobook_bookmarks` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`positionSec` REAL NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`localUpdatedAt` INTEGER NOT NULL, " +
+                        "`lastSyncedAt` INTEGER NOT NULL, " +
+                        "`deleted` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`id`), " +
+                        "FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_serverId` " +
+                        "ON `audiobook_bookmarks` (`serverId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_serverId_itemId` " +
+                        "ON `audiobook_bookmarks` (`serverId`, `itemId`)"
                 )
             }
         }

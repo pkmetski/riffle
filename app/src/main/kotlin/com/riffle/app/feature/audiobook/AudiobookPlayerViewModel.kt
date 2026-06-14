@@ -6,8 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
+import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
+import com.riffle.core.domain.BookmarkTitleBuilder
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -103,6 +107,9 @@ data class AudiobookPlayerUiState(
     val durationSec: Double = 0.0,
     val currentChapterTitle: String? = null,
     val chapterStartsSec: List<Double> = emptyList(),
+    // The full chapter list + the index of the chapter the playhead is in, for the Chapters sheet.
+    val chapters: List<AudiobookChapter> = emptyList(),
+    val currentChapterIndex: Int = -1,
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
     // Book details for the landscape two-column player: a facts line and the blurb (ADR 0029).
@@ -112,10 +119,18 @@ data class AudiobookPlayerUiState(
     // item if it's a combined ebook+audio). Non-null enables swipe-down → switch to the readaloud
     // reader; null means there's no readaloud to switch to, so no swipe-down.
     val readaloudEbookItemId: String? = null,
+    // User bookmarks for this audiobook, observed live from the store (ordered by position, earliest first).
+    val bookmarks: List<AudiobookBookmark> = emptyList(),
+    // The id of the most recently added bookmark, so the UI can offer an Undo on the add. Null until
+    // an add succeeds this session.
+    val lastCreatedBookmarkId: String? = null,
+    // True only when this item has unsynced (dirty) bookmarks AND the device is offline, so the
+    // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
+    val bookmarksOffline: Boolean = false,
 )
 
 @HiltViewModel
-class AudiobookPlayerViewModel @Inject constructor(
+class AudiobookPlayerViewModel(
     savedStateHandle: SavedStateHandle,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
@@ -142,7 +157,65 @@ class AudiobookPlayerViewModel @Inject constructor(
     // can't absorb a cross-device server-win the player hasn't seeked to (ADR 0030).
     private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
     private val progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
+    private val bookmarkStore: AudiobookBookmarkStore,
+    private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
+    // Wall-clock for bookmark stamps (createdAt + dirty); a () -> Long for deterministic tests, the
+    // established clock-injection pattern in this codebase (e.g. ReadaloudMatchingService).
+    private val now: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
+
+    // Hilt entry point: it can't satisfy a `() -> Long` binding, so the injected constructor omits the
+    // clock and delegates to the real one (the established pattern, e.g. ReadaloudMatchingService). The
+    // primary constructor with the `now` default is what tests use for a deterministic clock.
+    @Inject
+    constructor(
+        savedStateHandle: SavedStateHandle,
+        audiobookRepository: AudiobookRepository,
+        audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
+        bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
+        libraryRepository: LibraryRepository,
+        serverRepository: ServerRepository,
+        tokenStorage: TokenStorage,
+        controller: AudiobookController,
+        audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+        audioIdentityResolver: AudioIdentityResolver,
+        readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
+        readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
+        readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
+        nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
+        audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
+        readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
+        audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
+        readaloudResumeStore: com.riffle.core.domain.ReadaloudResumeStore,
+        openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
+        progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
+        bookmarkStore: AudiobookBookmarkStore,
+        connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
+    ) : this(
+        savedStateHandle,
+        audiobookRepository,
+        audiobookDownloadRepository,
+        bundleAudiobookSource,
+        libraryRepository,
+        serverRepository,
+        tokenStorage,
+        controller,
+        audioPlaybackPreferencesStore,
+        audioIdentityResolver,
+        readerSyncFactory,
+        readaloudLinkRepository,
+        readaloudAudioRepository,
+        nowPlayingStore,
+        audiobookPositionStore,
+        readingSyncStore,
+        audioSyncStore,
+        readaloudResumeStore,
+        openReconcileTargets,
+        progressFlushScope,
+        bookmarkStore,
+        connectivityObserver,
+        System::currentTimeMillis,
+    )
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
 
@@ -253,8 +326,13 @@ class AudiobookPlayerViewModel @Inject constructor(
                 durationSec = if (playback.durationSec > 0) playback.durationSec else m.durationSec,
                 currentChapterTitle = chapter?.title,
                 chapterStartsSec = timeline.chapters.map { it.startSec },
+                chapters = timeline.chapters,
+                currentChapterIndex = chapter?.index ?: -1,
                 canPreviousChapter = timeline.canPreviousChapter,
                 canNextChapter = timeline.canNextChapter,
+                bookmarks = m.bookmarks,
+                lastCreatedBookmarkId = m.lastCreatedBookmarkId,
+                bookmarksOffline = m.bookmarksOffline,
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
@@ -264,6 +342,25 @@ class AudiobookPlayerViewModel @Inject constructor(
             serverId = server?.id ?: ""
             // Claim this audiobook so the durable sweep leaves it to this player's own cycle (ADR 0030).
             if (serverId.isNotEmpty()) openReconcileTargets.markOpen(serverId, itemId)
+            // Observe this book's bookmarks live into the UI state (ordered by position, earliest first).
+            if (serverId.isNotEmpty()) {
+                viewModelScope.launch {
+                    bookmarkStore.observe(serverId, itemId).collect { list ->
+                        meta.value = meta.value.copy(bookmarks = list)
+                    }
+                }
+                // Derive the quiet offline note: unsynced (dirty) bookmarks for this item AND offline.
+                // Sync is otherwise silent, so the note only shows when a push is genuinely blocked.
+                viewModelScope.launch {
+                    combine(
+                        bookmarkStore.observeHasUnsynced(serverId, itemId),
+                        connectivityObserver.isOnline,
+                    ) { hasUnsynced, isOnline -> hasUnsynced && !isOnline }
+                        .collect { offline ->
+                            meta.value = meta.value.copy(bookmarksOffline = offline)
+                        }
+                }
+            }
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
             val item = libraryRepository.getItem(itemId)
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
@@ -376,8 +473,12 @@ class AudiobookPlayerViewModel @Inject constructor(
                     ?.absLibraryItemId
                     ?: itemId.takeIf { item.isReadable }
             }
-            meta.value = AudiobookPlayerUiState(
+            // copy() (not a fresh state) so any bookmarks the live collector already observed during
+            // the suspend points above carry forward — a fresh state would wipe them, leaving an
+            // existing book's bookmarks stuck empty until Room's Flow next re-emits (on add/rename/delete).
+            meta.value = meta.value.copy(
                 loading = false,
+                failed = false,
                 title = item.title,
                 author = item.author,
                 coverUrl = item.coverUrl,
@@ -540,6 +641,44 @@ class AudiobookPlayerViewModel @Inject constructor(
 
     fun nextChapter() {
         timeline.nextChapterTargetSec(controller.currentAbsoluteSec())?.let { reconciledResumeSec = it; controller.seekTo(it) }
+    }
+
+    /**
+     * The book-absolute listen position right now. The UI snapshots this when the New-bookmark dialog
+     * opens so the title, position label and the eventually-saved row all agree, even if playback keeps
+     * running while the user edits the title.
+     */
+    fun currentPositionSec(): Double = controller.currentAbsoluteSec()
+
+    /** The pre-filled (editable) default title for a new bookmark at [positionSec]. */
+    fun defaultBookmarkTitle(positionSec: Double): String =
+        BookmarkTitleBuilder.defaultTitle(timeline, positionSec)
+
+    /**
+     * Create a bookmark at [positionSec] (the position pinned when the dialog opened — NOT the live
+     * playhead, which may have drifted while the user typed). On success the new id is surfaced in
+     * [AudiobookPlayerUiState.lastCreatedBookmarkId] so the UI can offer an Undo; the new row arrives
+     * in [AudiobookPlayerUiState.bookmarks] via the store observation.
+     */
+    fun addBookmark(title: String, positionSec: Double) {
+        if (serverId.isEmpty()) return
+        viewModelScope.launch {
+            val id = bookmarkStore.add(serverId, itemId, positionSec, title, now())
+            meta.value = meta.value.copy(lastCreatedBookmarkId = id)
+        }
+    }
+
+    fun renameBookmark(id: String, title: String) {
+        viewModelScope.launch { bookmarkStore.rename(id, title, now()) }
+    }
+
+    fun deleteBookmark(id: String) {
+        viewModelScope.launch { bookmarkStore.delete(id, now()) }
+    }
+
+    /** Jump the player to a saved bookmark's book-absolute position (genuine user navigation). */
+    fun seekToBookmark(positionSec: Double) {
+        seekTo(positionSec)
     }
 
     /**

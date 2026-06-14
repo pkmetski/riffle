@@ -29,6 +29,7 @@ import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.ReadaloudLinkRepositoryImpl
 import com.riffle.core.data.ReadaloudReviewRepositoryImpl
 import com.riffle.core.data.ReadaloudResumeStoreImpl
+import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
@@ -63,6 +64,7 @@ import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ReadaloudResumeStore
+import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
@@ -221,6 +223,10 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindAbsBookmarkApi(impl: AbsApiClient): com.riffle.core.network.AbsBookmarkApi
+
+    @Binds
+    @Singleton
     abstract fun bindStorytellerApi(impl: StorytellerApiClient): StorytellerApi
 
     @Binds
@@ -246,6 +252,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAudiobookPositionStore(impl: AudiobookPositionStoreImpl): AudiobookPositionStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookBookmarkStore(impl: AudiobookBookmarkStoreImpl): AudiobookBookmarkStore
 
     @Binds
     @Singleton
@@ -348,12 +358,24 @@ abstract class DataModule {
             openTargets: com.riffle.core.data.OpenReconcileTargets,
             ebookStore: ReadingPositionStoreImpl,
             audioStore: AudiobookPositionStoreImpl,
+            bookmarkDao: com.riffle.core.database.AudiobookBookmarkDao,
+            bookmarkReconciler: com.riffle.core.data.AudiobookBookmarkReconciler,
         ): com.riffle.core.data.ProgressSweep =
             com.riffle.core.data.ProgressSweep(
                 ledger, resolver,
                 com.riffle.core.domain.ProgressReconciler(ebookStore),
                 com.riffle.core.domain.ProgressReconciler(audioStore),
                 remoteFactory, locks, openTargets,
+                // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
+                // (server, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
+                object : com.riffle.core.data.DirtyBookmarkLedger {
+                    override suspend fun serversWithDirty() = bookmarkDao.serversWithDirtyRows()
+                    override suspend fun dirtyItems(serverId: String) =
+                        bookmarkDao.dirtyForServer(serverId).map { it.itemId }.distinct()
+                },
+                com.riffle.core.data.BookmarkReconcile { serverId, itemId, baseUrl, token, insecureAllowed ->
+                    bookmarkReconciler.reconcile(serverId, itemId, baseUrl, token, insecureAllowed)
+                },
             )
 
         @Provides

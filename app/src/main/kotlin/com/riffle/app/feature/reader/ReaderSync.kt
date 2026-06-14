@@ -156,6 +156,8 @@ class ReaderSyncCoordinator(
                     val remote = AbsAudiobookSyncRemote(absApi, it, bridge)
                     if (pushAudio) remote else InboundOnlyRemote(remote)
                 }
+                // Bookmarks are not a position remote — they reconcile via the sweep, not this cycle.
+                RemoteKind.ABS_BOOKMARK -> null
             }
         }
         val local = LocalCanonical(CanonicalReaderPosition(displayedLocatorJson), localUpdatedAt)
