@@ -855,13 +855,20 @@ class LibraryRepositoryTest {
                 title = "Abaddon's Gate", author = "James S. A. Corey",
                 coverUrl = null, readingProgress = 0f,
             ),
+            LibraryItemEntity(
+                serverId = "s1", id = "item-43", libraryId = "lib-1",
+                title = "Cibola Burn", author = "James S. A. Corey",
+                coverUrl = null, readingProgress = 0f,
+            ),
         ))
 
         val result = repo.observeContinueSeriesItems("lib-1").first()
 
-        assertEquals(1, result.size)
+        assertEquals(2, result.size)
         assertEquals("item-42", result[0].id)
         assertEquals("Abaddon's Gate", result[0].title)
+        assertEquals("James S. A. Corey", result[0].author)
+        assertEquals("item-43", result[1].id)
     }
 
     // ── observeCollectionItems ────────────────────────────────────────────────
