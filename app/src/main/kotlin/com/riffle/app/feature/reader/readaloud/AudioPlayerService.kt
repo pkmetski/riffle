@@ -133,11 +133,13 @@ class AudioPlayerService : MediaSessionService() {
             val rewindButton = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
                 .setDisplayName("Rewind 15 seconds")
                 .setSessionCommand(CMD_REWIND)
+                .setSlots(CommandButton.SLOT_BACK)
                 .build()
 
             val forwardButton = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
                 .setDisplayName("Forward 30 seconds")
                 .setSessionCommand(CMD_FORWARD)
+                .setSlots(CommandButton.SLOT_FORWARD)
                 .build()
 
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
