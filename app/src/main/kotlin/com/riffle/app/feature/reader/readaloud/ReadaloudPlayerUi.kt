@@ -2,7 +2,7 @@
 
 package com.riffle.app.feature.reader.readaloud
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -107,15 +107,14 @@ private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color, iconSize: Dp =
 }
 
 /**
- * Bottom mini-player bar. Sits above the chapter rail in the screen layout.
+ * Bottom mini-player bar — the only readaloud player surface. Speed (cycled via the 1× button),
+ * skip, chapter nav, play/pause, and close; sits above the chapter rail in the screen layout.
  */
 @Composable
 fun ReadaloudMiniPlayer(
     isPlaying: Boolean,
     speed: Float,
-    skipIntervalSeconds: Int,
-    rewindIntervalSeconds: Int,
-    offlineMessage: Boolean,
+    barMessage: String?,
     downloadProgress: Float?,
     canPreviousChapter: Boolean,
     canNextChapter: Boolean,
@@ -147,9 +146,9 @@ fun ReadaloudMiniPlayer(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (offlineMessage) {
+            if (barMessage != null) {
                 Text(
-                    text = "Connect to download readaloud audio",
+                    text = barMessage,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier
                         .weight(1f)

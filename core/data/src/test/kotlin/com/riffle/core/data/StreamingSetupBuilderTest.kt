@@ -41,14 +41,14 @@ class StreamingSetupBuilderTest {
             NetworkAbsAudioTrack("ino-a", 1, 5.0),
             NetworkAbsAudioTrack("ino-b", 2, 3.0),
         )
-        val setup = StreamingSetupBuilder().build(sidecar, tracks, "http://abs", "x")!!
+        val setup = StreamingSetupBuilder().build(sidecar, tracks, "http://abs", "x", "tkn")!!
         sidecar.delete()
 
         assertEquals(3, setup.track.clips.size)
         assertEquals(
             listOf(
-                StreamingMediaItem("OEBPS/audio/c1.mp3", "http://abs/api/items/x/file/ino-a", 0, 5000),
-                StreamingMediaItem("OEBPS/audio/c2.mp3", "http://abs/api/items/x/file/ino-b", 0, 3000),
+                StreamingMediaItem("OEBPS/audio/c1.mp3", "http://abs/api/items/x/file/ino-a?token=tkn", 0, 5000),
+                StreamingMediaItem("OEBPS/audio/c2.mp3", "http://abs/api/items/x/file/ino-b?token=tkn", 0, 3000),
             ),
             setup.items,
         )
@@ -58,7 +58,7 @@ class StreamingSetupBuilderTest {
     fun `returns null when ABS durations cannot be reconciled`() {
         val sidecar = sidecarFile()
         // ABS reports a single 99s track — nothing like the 5s + 3s segments.
-        val setup = StreamingSetupBuilder().build(sidecar, listOf(NetworkAbsAudioTrack("ino-a", 1, 99.0)), "http://abs", "x")
+        val setup = StreamingSetupBuilder().build(sidecar, listOf(NetworkAbsAudioTrack("ino-a", 1, 99.0)), "http://abs", "x", "tkn")
         sidecar.delete()
         assertNull(setup)
     }

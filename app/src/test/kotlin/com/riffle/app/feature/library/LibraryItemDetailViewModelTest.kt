@@ -274,6 +274,7 @@ class LibraryItemDetailViewModelTest {
         connectivityObserver = connectivityObserver,
         downloadManager = downloadManager,
         crossEpubIndexBuildTrigger = crossEpubIndexBuildTrigger,
+        sidecarPrefetcher = { _, _ -> },
     )
 
     /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0031). */

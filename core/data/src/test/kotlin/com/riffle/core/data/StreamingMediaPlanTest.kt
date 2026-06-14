@@ -20,11 +20,12 @@ class StreamingMediaPlanTest {
             ),
             baseUrl = "http://abs",
             itemId = "x",
+            token = "tkn",
         )
         assertEquals(
             listOf(
-                StreamingMediaItem("c1.mp3", "http://abs/api/items/x/file/ino-a", 0, 5000),
-                StreamingMediaItem("c2.mp3", "http://abs/api/items/x/file/ino-b", 0, 3000),
+                StreamingMediaItem("c1.mp3", "http://abs/api/items/x/file/ino-a?token=tkn", 0, 5000),
+                StreamingMediaItem("c2.mp3", "http://abs/api/items/x/file/ino-b?token=tkn", 0, 3000),
             ),
             items,
         )
@@ -40,11 +41,12 @@ class StreamingMediaPlanTest {
             tracks = listOf(NetworkAbsAudioTrack("ino-a", 1, 8.0)),
             baseUrl = "http://abs",
             itemId = "x",
+            token = "tkn",
         )
         assertEquals(
             listOf(
-                StreamingMediaItem("c1.mp3", "http://abs/api/items/x/file/ino-a", 0, 5000),
-                StreamingMediaItem("c2.mp3", "http://abs/api/items/x/file/ino-a", 5000, 8000),
+                StreamingMediaItem("c1.mp3", "http://abs/api/items/x/file/ino-a?token=tkn", 0, 5000),
+                StreamingMediaItem("c2.mp3", "http://abs/api/items/x/file/ino-a?token=tkn", 5000, 8000),
             ),
             items,
         )

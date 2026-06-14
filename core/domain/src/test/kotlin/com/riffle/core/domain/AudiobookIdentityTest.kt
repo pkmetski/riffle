@@ -38,10 +38,12 @@ class AudiobookIdentityTest {
     }
 
     @Test
-    fun `a different track split is not a match even when totals agree`() {
-        // Same ~total, but ABS is one file while the other side reports two tracks.
-        val twoTracks = martian.copy(trackDurationsSec = listOf(19_607.0, 19_607.464))
-        assertFalse(AudiobookIdentity.matches(martian, twoTracks))
+    fun `a different track split still matches when bytes and total duration agree`() {
+        // The SAME recording, re-segmented: Storyteller re-chapters the audio, so the same file shows up
+        // as a different per-track split than ABS's files. Identical bytes + total length ⇒ same recording,
+        // so this must MATCH — the streaming mapper handles the differing segmentation (ADR 0028).
+        val reSegmented = martian.copy(trackDurationsSec = listOf(19_607.0, 19_607.464))
+        assertTrue(AudiobookIdentity.matches(martian, reSegmented))
     }
 
     @Test

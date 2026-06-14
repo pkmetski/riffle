@@ -39,8 +39,17 @@ object StreamingAudioDownloader {
             val dataSource = CacheDataSource.Factory()
                 .setCache(cache)
                 .setUpstreamDataSourceFactory(upstream)
+                // Same key factory as playback (token-free URL) — otherwise the player reads under a
+                // different key than we write, and a "Download readaloud" silently re-fetches at play time.
+                .setCacheKeyFactory(StreamingAudioCache.cacheKeyFactory)
                 .createDataSource()
-            CacheWriter(dataSource, DataSpec(Uri.parse(url)), null, null).cache()
+            // Report byte-level progress within each track, blended with the track index, so a single-file
+            // audiobook (one URL) shows a smooth bar instead of jumping 0 → 100% only at the very end.
+            val listener = CacheWriter.ProgressListener { requestLength, bytesCached, _ ->
+                val withinTrack = if (requestLength > 0) bytesCached.toFloat() / requestLength else 0f
+                onProgress((index + withinTrack) / urls.size)
+            }
+            CacheWriter(dataSource, DataSpec(Uri.parse(url)), null, listener).cache()
             onProgress((index + 1f) / urls.size)
         }
     }

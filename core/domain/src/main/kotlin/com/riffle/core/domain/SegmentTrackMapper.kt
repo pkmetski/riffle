@@ -40,7 +40,9 @@ class SegmentTrackMap internal constructor(
         val global = segmentDurations.take(seg).sum() + clip.clipBeginSec
         val track = absCumulative.indexOfLast { it <= global + TOLERANCE_SEC }
         if (track < 0) return null
-        return AbsAudioPosition(track, global - absCumulative[track])
+        // The TOLERANCE slack can pick a track that starts just after `global` (a sub-tolerance track at
+        // a boundary), making the raw offset slightly negative; clamp so a clip never seeks before 0.
+        return AbsAudioPosition(track, (global - absCumulative[track]).coerceAtLeast(0.0))
     }
 
     /** One placement per Storyteller segment, in order — the streaming media plan (ADR 0028). */
@@ -53,7 +55,7 @@ class SegmentTrackMap internal constructor(
         var global = 0.0
         return segmentOrder.mapIndexed { k, src ->
             val track = absCumulative.indexOfLast { it <= global + TOLERANCE_SEC }.coerceAtLeast(0)
-            SegmentPlacement(src, track, global - absCumulative[track], segmentDurations[k])
+            SegmentPlacement(src, track, (global - absCumulative[track]).coerceAtLeast(0.0), segmentDurations[k])
                 .also { global += segmentDurations[k] }
         }
     }

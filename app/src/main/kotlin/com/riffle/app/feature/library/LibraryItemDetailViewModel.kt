@@ -84,6 +84,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val downloadManager: DownloadManager,
     private val crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger,
+    private val sidecarPrefetcher: com.riffle.core.data.ReadaloudSidecarPrefetcher,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -128,8 +129,15 @@ class LibraryItemDetailViewModel @Inject constructor(
                         null
                     }
                     readaloudLink = link
-                    _readaloudDownloadState.value = link?.let {
-                        readaloudDownloadStateFor(readaloudAudioRepository.isAudioAvailable(it.storytellerServerId, it.storytellerBookId))
+                    val readaloudBundlePresent = link?.let {
+                        readaloudAudioRepository.isAudioAvailable(it.storytellerServerId, it.storytellerBookId)
+                    } ?: false
+                    _readaloudDownloadState.value = link?.let { readaloudDownloadStateFor(readaloudBundlePresent) }
+                    // Streaming prep (ADR 0028): a matched book opened in details starts fetching its sidecar
+                    // now, so it's cached by the time the user opens the reader and taps Play — unless a full
+                    // bundle is already downloaded (that supersedes streaming).
+                    if (link != null && !readaloudBundlePresent) {
+                        sidecarPrefetcher.prepare(link.storytellerServerId, link.storytellerBookId)
                     }
                     _audiobookDownloadState.value = if (item.isListenable) {
                         if (audiobookDownloadRepository.isDownloaded(item.serverId, item.id)) DownloadState.Downloaded

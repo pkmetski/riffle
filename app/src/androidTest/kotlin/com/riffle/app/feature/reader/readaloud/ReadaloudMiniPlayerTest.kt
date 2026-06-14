@@ -34,7 +34,7 @@ class ReadaloudMiniPlayerTest {
             ReadaloudMiniPlayer(
                 isPlaying = false,
                 speed = speed,
-                offlineMessage = false,
+                barMessage = null,
                 downloadProgress = null,
                 canPreviousChapter = canPreviousChapter,
                 canNextChapter = canNextChapter,
@@ -119,7 +119,7 @@ class ReadaloudMiniPlayerTest {
             ReadaloudMiniPlayer(
                 isPlaying = false,
                 speed = 1f,
-                offlineMessage = true,
+                barMessage = "Connect to download readaloud audio",
                 downloadProgress = null,
                 canPreviousChapter = true,
                 canNextChapter = true,

@@ -27,11 +27,14 @@ object StreamingMediaPlan {
         tracks: List<NetworkAbsAudioTrack>,
         baseUrl: String,
         itemId: String,
+        token: String,
     ): List<StreamingMediaItem> = placements.map { p ->
         val track = tracks[p.absTrackIndex]
         StreamingMediaItem(
             audioSrc = p.audioSrc,
-            url = AbsAudioUrl.track(baseUrl, itemId, track.ino),
+            // ABS authenticates the file-streaming endpoint via a `?token=` query param, NOT the
+            // Authorization header (the audiobook player does the same — see AudiobookRepositoryImpl).
+            url = "${AbsAudioUrl.track(baseUrl, itemId, track.ino)}?token=$token",
             clipStartMs = (p.startSec * 1000).toLong(),
             clipEndMs = ((p.startSec + p.durationSec) * 1000).toLong(),
         )

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
+import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome
 import com.riffle.core.domain.Annotation
@@ -116,6 +117,8 @@ sealed class ReaderState {
     data class Error(val message: String) : ReaderState()
 }
 
+private const val PREPARING_MESSAGE = "Preparing narration…"
+
 @HiltViewModel
 class EpubReaderViewModel @Inject constructor(
     application: Application,
@@ -158,6 +161,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val readingSpeedStore: ReadingSpeedStore,
     private val audiobookHandoffState: AudiobookHandoffState,
+    private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -412,9 +416,11 @@ class EpubReaderViewModel @Inject constructor(
     private val _downloadPromptBytes = MutableStateFlow<Long?>(null)
     val downloadPromptBytes: StateFlow<Long?> = _downloadPromptBytes
 
-    // Set when play is tapped offline with no local bundle — shown as an in-bar message.
-    private val _readaloudOfflineMessage = MutableStateFlow(false)
-    val readaloudOfflineMessage: StateFlow<Boolean> = _readaloudOfflineMessage
+    // Non-null when play can't start with the current source — the reason is shown as an in-bar
+    // message (offline with no bundle, a refused metered download, or a matched book whose readaloud
+    // is neither streamable nor downloaded yet). Null hides the message and shows the controls.
+    private val _readaloudBarMessage = MutableStateFlow<String?>(null)
+    val readaloudBarMessage: StateFlow<String?> = _readaloudBarMessage
 
     // True while a download is running, so the bar can show progress text.
     private val _downloadProgress = MutableStateFlow<Float?>(null)
@@ -530,13 +536,51 @@ class EpubReaderViewModel @Inject constructor(
                 }
             }
 
+            val bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId)
             val control = readaloudControlState(
                 isStoryteller = isStorytellerServer,
                 isMatchedAbs = link != null,
-                bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId),
+                bundlePresent = bundlePresent,
             )
             _readaloudVisible.value = control.visible
             _readaloudAvailable.value = control.enabled
+
+            // Streaming prep (ADR 0028): the moment a matched book is opened, start fetching its sidecar in
+            // the background (unless a full bundle is already downloaded — that supersedes streaming). By the
+            // time the user taps Play the sidecar is cached, so the streaming session builds without the slow
+            // /synced fetch blocking playback. A Play tapped before it's ready arms [autoPlayWhenPrepared].
+            if (link != null && !bundlePresent) {
+                sidecarStore.prepare(audioServerId, audioBookId)
+                viewModelScope.launch {
+                    sidecarStore.states.collect { byKey ->
+                        when (byKey[sidecarStore.key(audioServerId, audioBookId)]) {
+                            ReadaloudSidecarStore.State.Ready -> {
+                                // The sidecar stands in for the bundle for the synced-highlight text quotes
+                                // (ADR 0028): build them the moment it's cached, through the SAME
+                                // buildSentenceQuotes path the on-disk bundle uses below. Without this the
+                                // streaming highlight only ever built on isPlaying, so it never anchored when
+                                // playback hadn't started (or stalled) — the quote map stayed empty and
+                                // Readium had no text to position the decoration on (spans are stripped).
+                                sidecarStore.cachedFile(audioServerId, audioBookId)?.let { sidecar ->
+                                    quoteBundle = sidecar
+                                    buildSentenceQuotes(sidecar)
+                                }
+                                if (autoPlayWhenPrepared) {
+                                    autoPlayWhenPrepared = false
+                                    if (_readaloudBarMessage.value == PREPARING_MESSAGE) _readaloudBarMessage.value = null
+                                    onPlayTapped()
+                                }
+                            }
+                            ReadaloudSidecarStore.State.Failed -> if (autoPlayWhenPrepared) {
+                                autoPlayWhenPrepared = false
+                                _readaloudBarMessage.value =
+                                    "Couldn't stream readaloud — download it from the book's details to listen"
+                            }
+                            else -> Unit
+                        }
+                    }
+                }
+            }
 
             // Build the sentence-quote map eagerly once the readaloud bundle is known to be on disk, so
             // the selection→sentence resolution ("Play from here") and the page-top start probe have it
@@ -1667,7 +1711,7 @@ class EpubReaderViewModel @Inject constructor(
     fun closeReadaloud() {
         _readaloudOpen.value = false
         _downloadPromptBytes.value = null
-        _readaloudOfflineMessage.value = false
+        _readaloudBarMessage.value = null
         // Persist any speed change still sitting in the debounce window before the session goes away.
         flushPendingSpeed()
         storytellerSyncJob?.cancel()
@@ -1843,25 +1887,37 @@ class EpubReaderViewModel @Inject constructor(
      * "connect to download" message in the bar.
      */
     fun onPlayTapped() {
-        _readaloudOfflineMessage.value = false
+        _readaloudBarMessage.value = null
         viewModelScope.launch {
-            // Streaming (ADR 0028): a matched book whose ABS audiobook is linked and identity-verified
-            // plays from ABS with no bundle download. Built once; null → not streamable → bundle path.
-            if (ensureStreamingSession() != null) {
-                ensurePreparedAndPlay(bundle = null)
-                return@launch
-            }
+            // Bundle precedence (ADR 0028): a downloaded bundle is complete and local — prefer it and skip
+            // streaming/prep entirely (the bundle already carries the sidecar content AND the audio).
             val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
             if (bundle != null) {
                 ensurePreparedAndPlay(bundle)
                 return@launch
             }
-            // A matched ABS book's bundle is provisioned from the book's detail screen against the
-            // linked Storyteller server (the active server here is ABS and can't serve it). So: no
-            // stream, no local bundle, matched ABS book → do nothing (no wrong-server probe/download).
-            if (audioBookId != itemId) return@launch
+            // Streaming (ADR 0028): build from the sidecar prepared ahead of time when the book was opened.
+            // Instant when the sidecar is already cached; never fetches /synced on this (Play) path.
+            if (ensureStreamingSession() != null) {
+                ensurePreparedAndPlay(bundle = null)
+                return@launch
+            }
+            // No bundle and no streaming session yet. For a matched book the sidecar may still be preparing
+            // — say so and auto-start the moment it's ready, rather than leaving Play a silent no-op. A
+            // genuine failure (no audiobook, identity mismatch, dead /synced) points at the bundle download.
+            if (audioBookId != itemId) {
+                when (sidecarStore.stateOf(audioServerId, audioBookId)) {
+                    ReadaloudSidecarStore.State.Preparing -> {
+                        _readaloudBarMessage.value = PREPARING_MESSAGE
+                        autoPlayWhenPrepared = true
+                    }
+                    else ->
+                        _readaloudBarMessage.value = "Couldn't stream readaloud — download it from the book's details to listen"
+                }
+                return@launch
+            }
             if (!connectivityObserver.isOnline.value) {
-                _readaloudOfflineMessage.value = true
+                _readaloudBarMessage.value = "Connect to download readaloud audio"
                 return@launch
             }
             // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt.
@@ -1896,12 +1952,24 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    /** Builds (once) the streaming session for this book, or null when it isn't streamable (ADR 0028). */
+    /**
+     * Builds the streaming session for this book (cached once built), or null when it isn't streamable
+     * (ADR 0028). Only attempts once the sidecar is cached (prepared). A failed attempt is NOT cached:
+     * [streamingBuilding] only prevents two concurrent builds (Play + Play-from-here), so a transient
+     * identity-check/network blip is retried on the next Play rather than disabling play for the whole
+     * session. The retry is cheap — a persisted MISMATCH/NO_AUDIOBOOK short-circuits in the factory
+     * without re-fetching, and only a genuinely-recoverable UNKNOWN re-runs the network check.
+     */
     private suspend fun ensureStreamingSession(): com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory.Session? {
         streamingSession?.let { return it }
-        if (streamingAttempted) return null
-        streamingAttempted = true
-        streamingSession = runCatching { streamingSessionFactory.tryBuild(audioServerId, audioBookId) }.getOrNull()
+        if (sidecarStore.cachedFile(audioServerId, audioBookId) == null) return null
+        if (streamingBuilding) return null
+        streamingBuilding = true
+        try {
+            streamingSession = runCatching { streamingSessionFactory.tryBuild(audioServerId, audioBookId) }.getOrNull()
+        } finally {
+            streamingBuilding = false
+        }
         return streamingSession
     }
 
@@ -1944,7 +2012,7 @@ class EpubReaderViewModel @Inject constructor(
         // Honour "Wi-Fi only": if the active network is metered, refuse to start the (large) download
         // and surface the same connect-to-download message the offline path uses.
         if (wifiOnly && connectivityObserver.isMetered()) {
-            _readaloudOfflineMessage.value = true
+            _readaloudBarMessage.value = "Connect to download readaloud audio"
             return
         }
         viewModelScope.launch {
@@ -1962,7 +2030,7 @@ class EpubReaderViewModel @Inject constructor(
                 }
                 com.riffle.core.domain.AudioDownloadResult.NoBundle -> Unit
                 is com.riffle.core.domain.AudioDownloadResult.NetworkError ->
-                    _readaloudOfflineMessage.value = true
+                    _readaloudBarMessage.value = "Connect to download readaloud audio"
             }
         }
     }
@@ -1982,7 +2050,13 @@ class EpubReaderViewModel @Inject constructor(
     // Streaming session for this book (ADR 0028), built once. Non-null → audio streams from ABS and
     // the sidecar stands in for the bundle (track + highlight quotes). Null after an attempt → bundle.
     private var streamingSession: com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory.Session? = null
-    private var streamingAttempted = false
+    // Guards against two concurrent build attempts (Play + Play-from-here). Unlike a permanent "attempted"
+    // flag it does NOT cache a failure, so a transient identity-check blip is retried on the next Play.
+    private var streamingBuilding = false
+
+    // Set when the user taps Play while the sidecar is still preparing; the prepare-state observer starts
+    // playback once it flips to Ready (ADR 0028).
+    private var autoPlayWhenPrepared = false
 
     // True once playback has been started this session, so the first play seeks to the reader's
     // position while a later resume-after-pause stays where it was.

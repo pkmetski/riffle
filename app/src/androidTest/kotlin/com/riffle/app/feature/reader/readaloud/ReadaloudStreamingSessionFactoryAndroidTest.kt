@@ -92,14 +92,17 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path ?: ""
                 return when {
-                    path.startsWith("/api/books/$ST_BOOK/synced") -> {
-                        if (request.method == "HEAD") {
+                    path.startsWith("/api/books/$ST_BOOK/synced") -> when {
+                        request.method == "HEAD" ->
                             MockResponse().setHeader("Content-Length", bundleZip.size.toString())
-                        } else {
+                        request.getHeader("Range") != null -> {
                             val (start, end) = parseRange(request.getHeader("Range"))
                             MockResponse().setResponseCode(206)
                                 .setBody(Buffer().write(bundleZip.copyOfRange(start, end + 1)))
                         }
+                        // The sidecar fetch streams the whole bundle with a plain GET (ADR 0028), stopping
+                        // at the first audio entry — so serve the full zip here.
+                        else -> MockResponse().setBody(Buffer().write(bundleZip))
                     }
                     path.startsWith("/api/v2/books/$ST_BOOK") -> MockResponse().setBody(storytellerV2(1000))
                     path.startsWith("/api/items/$AUDIOBOOK_ITEM") -> MockResponse().setBody(absItem(absFileSize))
@@ -116,9 +119,13 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         return spec[0].toInt() to spec[1].toInt()
     }
 
+    private lateinit var sidecarStore: ReadaloudSidecarStore
+
     @Before
     fun setUp() {
         db = Room.inMemoryDatabaseBuilder(ctx, RiffleDatabase::class.java).allowMainThreadQueries().build()
+        // Start each test from an empty sidecar cache so a prior run's prepared file can't mask the flow.
+        java.io.File(ctx.cacheDir, "readaloud-sidecars").deleteRecursively()
     }
 
     @After
@@ -147,13 +154,14 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
 
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
-        val fetcher = StorytellerBundleApiImpl(OkHttpClient()).let { StorytellerSidecarFetcher(it, it) }
+        val fetcher = StorytellerSidecarFetcher(StorytellerBundleApiImpl(OkHttpClient()))
+        sidecarStore = ReadaloudSidecarStore(ctx, fetcher, repo, StubTokenStorage)
         return ReadaloudStreamingSessionFactory(
             context = ctx,
             audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
             absApi = AbsApiClient(OkHttpClient()),
             storytellerApi = StorytellerApiClient(OkHttpClient()),
-            sidecarStore = ReadaloudSidecarStore(ctx, fetcher, repo, StubTokenStorage),
+            sidecarStore = sidecarStore,
             serverRepository = repo,
             tokenStorage = StubTokenStorage,
             linkRepository = ReadaloudLinkRepositoryImpl(db.readaloudLinkDao()),
@@ -165,13 +173,16 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         startServer(absFileSize = 1000) // matches Storyteller
         seed(withAudiobook = true)
 
-        val session = factory().tryBuild(ST_SERVER, ST_BOOK)
+        val f = factory()
+        // The sidecar is prepared ahead of Play (prepare-on-open, ADR 0028); tryBuild reads the cached copy.
+        sidecarStore.get(ST_SERVER, ST_BOOK)
+        val session = f.tryBuild(ST_SERVER, ST_BOOK)
 
         assertNotNull("expected a streaming session for a verified match", session)
         assertTrue(session!!.track.clips.isNotEmpty())
         val item = session.streaming.itemsByMediaId["OEBPS/audio/c1.mp3"]
         assertNotNull("segment should be keyed by its audioSrc", item)
-        assertEquals("$baseUrl/api/items/$AUDIOBOOK_ITEM/file/ino-a", item!!.url)
+        assertEquals("$baseUrl/api/items/$AUDIOBOOK_ITEM/file/ino-a?token=tok", item!!.url)
         assertEquals(0L, item.clipStartMs)
         assertEquals(5000L, item.clipEndMs)
         // The verdict is persisted on the link (ADR 0028) so the matches screen can show "Streaming".

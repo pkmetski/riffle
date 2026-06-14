@@ -29,12 +29,14 @@ object AudiobookIdentity {
     private const val FILE_SIZE_RELATIVE_TOLERANCE = 0.01
 
     fun matches(storytellerSource: AudiobookFingerprint, absAudiobook: AudiobookFingerprint): Boolean {
+        // Same recording ⇔ same audio bytes + same total length. Per-track durations are NOT compared:
+        // Storyteller re-chapters the audio (its SYNC_CHAPTERS stage), so its track boundaries legitimately
+        // differ from ABS's file boundaries for the very same recording (observed: identical 740,230,852 B
+        // and 15222.83 s total, yet per-track splits up to ~11 s apart). The streaming mapper reconciles
+        // the two segmentations on a global timeline, so the gate only needs the whole-file signals — the
+        // old pairwise-track check produced false MISMATCHes that blocked every multi-track book (ADR 0028).
         if (!fileSizeClose(storytellerSource.fileSizeBytes, absAudiobook.fileSizeBytes)) return false
-        if (abs(storytellerSource.durationSec - absAudiobook.durationSec) > DURATION_TOLERANCE_SEC) return false
-        val a = storytellerSource.trackDurationsSec
-        val b = absAudiobook.trackDurationsSec
-        if (a.size != b.size) return false
-        return a.zip(b).all { (x, y) -> abs(x - y) <= DURATION_TOLERANCE_SEC }
+        return abs(storytellerSource.durationSec - absAudiobook.durationSec) <= DURATION_TOLERANCE_SEC
     }
 
     private fun fileSizeClose(a: Long, b: Long): Boolean {

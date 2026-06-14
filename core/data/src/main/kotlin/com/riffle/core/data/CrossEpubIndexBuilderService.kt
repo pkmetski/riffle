@@ -90,10 +90,13 @@ class CrossEpubIndexBuilderService(
     private suspend fun loadInputs(link: ReadaloudLink): CrossEpubBuildInputs? {
         // Storyteller text for the index: the downloaded bundle if present, otherwise the ~1 MB sidecar
         // (ADR 0028) — the sidecar is the Storyteller EPUB minus audio, so it feeds the index identically
-        // and lets a streamed book (no bundle) get the same three-peer sync as a bundle book. Absent
-        // both ways (offline / unavailable) → defer the build; nothing it produces could be used yet.
+        // and lets a streamed book (no bundle) get the same three-peer sync as a bundle book. Use ONLY the
+        // already-prepared sidecar (cachedFile, non-blocking) — never fetch it here: enqueueBuild fires for
+        // every Confirmed match, so a fetch would hammer /synced with one full-bundle generation per match
+        // concurrently (observed: ~18 at once, all failing). The /synced fetch belongs to prepare-on-open,
+        // which runs one book at a time. Absent both → defer; the build re-runs once the sidecar is prepared.
         val storytellerFile = cachedFile(link.storytellerServerId, link.storytellerBookId)
-            ?: sidecarStore.get(link.storytellerServerId, link.storytellerBookId)
+            ?: sidecarStore.cachedFile(link.storytellerServerId, link.storytellerBookId)
             ?: return null
 
         val absServer = serverRepository.getById(link.absServerId) ?: return null

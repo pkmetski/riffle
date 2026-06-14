@@ -52,16 +52,26 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
 
         val absServer = serverRepository.getById(audiobook.serverId) ?: return@withContext null
         val absToken = tokenStorage.getToken(audiobook.serverId) ?: return@withContext null
-        val stServer = serverRepository.getById(storytellerServerId) ?: return@withContext null
-        val stToken = tokenStorage.getToken(storytellerServerId) ?: return@withContext null
-        val bookId = storytellerBookId.toLongOrNull() ?: return@withContext null
 
         // 2. Recording-identity gate: only stream when ABS audio is provably Storyteller's source.
-        val stFp = storytellerApi.getAudiobookFingerprint(stServer.url.value, bookId, stToken, stServer.insecureConnectionAllowed)
-        val absFp = absApi.getAudiobookFingerprint(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)
-        val verdict = AudiobookIdentityResolver.resolve(stFp, absFp)
-        linkRepository.updateIdentityResult(audiobook.serverId, audiobook.bookId, verdict)
-        if (verdict != AudiobookIdentityResult.VERIFIED) return@withContext null
+        // Reuse the persisted verdict (ADR 0028) so a re-open doesn't re-fetch both fingerprints: a stored
+        // VERIFIED is trusted as-is; a stored definitive negative (MISMATCH/NO_AUDIOBOOK) stays on the
+        // bundle without a network round-trip. Only an as-yet-UNKNOWN link runs the fingerprint check —
+        // and because it persists the verdict, a transient failure leaves it UNKNOWN so a later attempt
+        // retries rather than being stuck (the source decision never trusts a non-VERIFIED result).
+        val persisted = linkRepository.findByAbsItem(audiobook.serverId, audiobook.bookId)?.identityResult
+        if (persisted != null && persisted != AudiobookIdentityResult.UNKNOWN) {
+            if (persisted != AudiobookIdentityResult.VERIFIED) return@withContext null
+        } else {
+            val stServer = serverRepository.getById(storytellerServerId) ?: return@withContext null
+            val stToken = tokenStorage.getToken(storytellerServerId) ?: return@withContext null
+            val bookId = storytellerBookId.toLongOrNull() ?: return@withContext null
+            val stFp = storytellerApi.getAudiobookFingerprint(stServer.url.value, bookId, stToken, stServer.insecureConnectionAllowed)
+            val absFp = absApi.getAudiobookFingerprint(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)
+            val verdict = AudiobookIdentityResolver.resolve(stFp, absFp)
+            linkRepository.updateIdentityResult(audiobook.serverId, audiobook.bookId, verdict)
+            if (verdict != AudiobookIdentityResult.VERIFIED) return@withContext null
+        }
 
         // 3. ABS audiobook tracks (ino + duration).
         val tracks = when (val r = absApi.getAudiobookTracks(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)) {
@@ -69,11 +79,13 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
             else -> return@withContext null
         }
 
-        // 4. The sidecar (SMIL + text), range-extracted and cached on disk — shared with the index builder.
-        val sidecarFile = sidecarStore.get(storytellerServerId, storytellerBookId) ?: return@withContext null
+        // 4. The sidecar (SMIL + text). Use ONLY the already-cached copy — the slow /synced fetch is done
+        //    ahead of time by ReadaloudSidecarStore.prepare() when the book is opened (ADR 0028), so the
+        //    Play path never blocks on it. Not prepared yet → null → the caller surfaces "Preparing…".
+        val sidecarFile = sidecarStore.cachedFile(storytellerServerId, storytellerBookId) ?: return@withContext null
 
         // 5. Reconcile segments to tracks; null when timelines disagree → bundle.
-        val setup = StreamingSetupBuilder().build(sidecarFile, tracks, absServer.url.value, audiobook.bookId)
+        val setup = StreamingSetupBuilder().build(sidecarFile, tracks, absServer.url.value, audiobook.bookId, absToken)
             ?: return@withContext null
 
         val httpFactory = StreamingAudioCache.dataSourceFactory(context, absToken)

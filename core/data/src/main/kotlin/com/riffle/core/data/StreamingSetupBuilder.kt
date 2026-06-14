@@ -20,12 +20,13 @@ class StreamingSetupBuilder {
         absTracks: List<NetworkAbsAudioTrack>,
         absBaseUrl: String,
         absItemId: String,
+        absToken: String,
     ): Setup? {
         val track = runCatching { MediaOverlayReader.readTrack(sidecar) }.getOrNull()
             ?.takeIf { it.clips.isNotEmpty() }
             ?: return null
         val map = SegmentTrackMapper.align(track.clips, absTracks.map { it.durationSec }) ?: return null
-        val items = StreamingMediaPlan.build(map.segmentPlacements(), absTracks, absBaseUrl, absItemId)
+        val items = StreamingMediaPlan.build(map.segmentPlacements(), absTracks, absBaseUrl, absItemId, absToken)
         return Setup(track, items)
     }
 }
