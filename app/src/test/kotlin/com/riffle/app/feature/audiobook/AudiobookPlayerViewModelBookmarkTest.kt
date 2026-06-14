@@ -193,6 +193,23 @@ class AudiobookPlayerViewModelBookmarkTest {
     }
 
     @Test
+    fun `bookmarks observed during init survive the init success-path`() = runTest(testDispatcher) {
+        val controller = FakeController(position = 0.0)
+        val store = FakeBookmarkStore()
+        // Seed the store BEFORE the ViewModel is built, so the live collector observes it during init's
+        // suspend points — before the success-path writes the resolved metadata. A success path that
+        // builds a fresh state (rather than copy()) would wipe this; copy() carries it forward.
+        val bookmark = AudiobookBookmark(id = "bm-1", positionSec = 42.0, title = "Saved", createdAt = fixedNow)
+        store.flow.value = listOf(bookmark)
+
+        val vm = buildViewModel(controller, store)
+        runCurrent()
+
+        assertEquals(listOf(bookmark), vm.uiState.value.bookmarks)
+        vm.clearForTest()
+    }
+
+    @Test
     fun `seekToBookmark seeks the controller to the bookmark position`() = runTest(testDispatcher) {
         val controller = FakeController(position = 0.0)
         val vm = buildViewModel(controller, FakeBookmarkStore())

@@ -115,7 +115,7 @@ data class AudiobookPlayerUiState(
     // item if it's a combined ebook+audio). Non-null enables swipe-down → switch to the readaloud
     // reader; null means there's no readaloud to switch to, so no swipe-down.
     val readaloudEbookItemId: String? = null,
-    // User bookmarks for this audiobook, observed live from the store (newest-first per the store).
+    // User bookmarks for this audiobook, observed live from the store (ordered by position, earliest first).
     val bookmarks: List<AudiobookBookmark> = emptyList(),
     // The id of the most recently added bookmark, so the UI can offer an Undo on the add. Null until
     // an add succeeds this session.
@@ -329,7 +329,7 @@ class AudiobookPlayerViewModel(
             serverId = server?.id ?: ""
             // Claim this audiobook so the durable sweep leaves it to this player's own cycle (ADR 0030).
             if (serverId.isNotEmpty()) openReconcileTargets.markOpen(serverId, itemId)
-            // Observe this book's bookmarks live into the UI state (newest-first per the store).
+            // Observe this book's bookmarks live into the UI state (ordered by position, earliest first).
             if (serverId.isNotEmpty()) {
                 viewModelScope.launch {
                     bookmarkStore.observe(serverId, itemId).collect { list ->
@@ -449,8 +449,12 @@ class AudiobookPlayerViewModel(
                     ?.absLibraryItemId
                     ?: itemId.takeIf { item.isReadable }
             }
-            meta.value = AudiobookPlayerUiState(
+            // copy() (not a fresh state) so any bookmarks the live collector already observed during
+            // the suspend points above carry forward — a fresh state would wipe them, leaving an
+            // existing book's bookmarks stuck empty until Room's Flow next re-emits (on add/rename/delete).
+            meta.value = meta.value.copy(
                 loading = false,
+                failed = false,
                 title = item.title,
                 author = item.author,
                 coverUrl = item.coverUrl,
