@@ -6,6 +6,7 @@ import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingServer
 import java.io.IOException
+import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
@@ -130,6 +131,16 @@ class NavigationDrawerViewModelTest {
         }
     }
 
+    private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
+        override fun lastOpenedLibrary(serverId: String): Flow<String?> =
+            lastOpenedFlow.map { it[serverId] }
+        override suspend fun setLastOpenedLibrary(serverId: String, libraryId: String) {
+            lastOpenedFlow.update { it + (serverId to libraryId) }
+        }
+    }
+
     private val isOnlineFlow = MutableStateFlow(true)
     private fun fakeConnectivity(): ConnectivityObserver = object : ConnectivityObserver {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
@@ -140,6 +151,7 @@ class NavigationDrawerViewModelTest {
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
+        lastOpenedLibraryStore = fakeLastOpenedStore(),
         connectivityObserver = fakeConnectivity(),
         nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
         nowPlayingStore = com.riffle.app.playback.NowPlayingStore(),
@@ -164,6 +176,21 @@ class NavigationDrawerViewModelTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(library("lib-2"), redirect.await())
+    }
+
+    @Test
+    fun `setActiveLibrary persists the library for the active server`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.activeServer.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        vm.setActiveLibrary("lib-2")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("lib-2", lastOpenedFlow.value["srv-1"])
     }
 
     @Test
