@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -188,7 +189,10 @@ fun AudiobookPlayerScreen(
                 state.failed -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Text("This audiobook can't be played right now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                else -> Column(Modifier.fillMaxSize()) {
+                // navigationBarsPadding so the pills row at the bottom clears the system nav bar —
+                // otherwise PlayerListPills renders behind it and the chapters/bookmarks entry point
+                // is invisible.
+                else -> Column(Modifier.fillMaxSize().navigationBarsPadding()) {
                     PlayerSurface(
                         modifier = Modifier.weight(1f),
                         state = PlayerSurfaceState(
