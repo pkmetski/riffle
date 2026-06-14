@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Landscape counterpart of the values/ override; see that file. Riffle reserves the vertical
+         margin statically on the fragment container instead. -->
+    <dimen name="readium_navigator_epub_vertical_padding">0dp</dimen>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Zero Readium's own paginated top/bottom content padding so the reader's vertical margin has a
+      single, deterministic source: the static padding Riffle reserves on the fragment container
+      BEFORE the chapter WebView paints (see EpubReaderScreen's AndroidView update block). Readium
+      applied its padding via containerView.setPadding on a RESUMED-lifecycle coroutine and, in
+      Riffle's host, did not render a usable margin anyway; the margin used to come from a :root
+      padding typography override injected in onPageLoaded — after first paint — which dropped the
+      page by the margin amount on every chapter start (the "page falls from above" bug).
+    -->
+    <dimen name="readium_navigator_epub_vertical_padding">0dp</dimen>
+</resources>

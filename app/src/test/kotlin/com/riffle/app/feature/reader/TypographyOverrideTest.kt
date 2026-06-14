@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import com.riffle.core.domain.FormattingPreferences
 import java.lang.reflect.Modifier
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -98,25 +99,16 @@ class TypographyOverrideTest {
         }
     }
 
-    // Regression guard: an earlier attempt at applying margins to top/bottom set
-    // `elements = "body"`, which silently did nothing because CSS multicol fragments body as a
-    // single block — padding-top only shows on the first column, padding-bottom only on the
-    // last. The fix targets `:root` (the multicol container) so every page gets equal
-    // vertical whitespace. Encoding it as a test so a future refactor doesn't quietly regress.
+    // No margins typography override: the page's top/bottom margin is owned by Readium's pre-paint
+    // layout (native container vertical padding), not a :root padding injected in onPageLoaded. An
+    // injected :root padding lands after first paint and visibly dropped the page on every chapter
+    // start (the "page falls from above" bug), so `margins` is intentionally excluded.
     @Test
-    fun margins_override_targets_root_not_a_descendant() {
-        val override = TYPOGRAPHY_OVERRIDES.getValue("margins")
-        assertEquals(
-            "Margins must pad :root (multicol container); padding on body wouldn't show per-page",
-            "", override.elements,
-        )
-        val css = typographyOverrideCss()
-        // The rule for margins must be exactly the gate selector with no descendant —
-        // i.e. `:root[style*="--USER__pageMargins"] {`, not `... body {` or similar.
-        assertTrue(
-            "Margins rule must be scoped to :root itself, not a descendant. CSS was:\n$css",
-            css.contains(":root[style*=\"--USER__pageMargins\"] {"),
-        )
+    fun margins_has_no_post_paint_root_padding_override() {
+        assertFalse(TYPOGRAPHY_OVERRIDES.containsKey("margins"))
+        assertTrue(EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES.containsKey("margins"))
+        // No injected rule may pad :root for the page margin (that is the reflow that caused the fall).
+        assertFalse(typographyOverrideCss().contains("padding-top"))
     }
 
     // Regression guard: text-align is the one user property where ReadiumCSS's own rule uses
