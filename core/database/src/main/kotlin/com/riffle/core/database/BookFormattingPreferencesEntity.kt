@@ -35,4 +35,5 @@ data class BookFormattingPreferencesEntity(
     val showCurrentChapterLabel: Boolean? = null,
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
+    val showReadingTimeEstimate: Boolean? = null,
 )

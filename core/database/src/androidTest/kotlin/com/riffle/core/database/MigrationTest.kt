@@ -1478,6 +1478,50 @@ class MigrationTest {
     }
 
     @Test
+    fun migration35To36_addsShowReadingTimeEstimateColumn() {
+        helper.createDatabase(TEST_DB, 35).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            // A pre-existing formatting-pref row with all v35 columns.
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (serverId, itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, justifyText) " +
+                    "VALUES ('s1', 'item1', 1.3, 'Dark', 'Serif', 1.5, 1.2, 'Vertical', 1, 1, 0, 0, 1)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 36, true, RiffleDatabase.MIGRATION_35_36)
+
+        // Pre-existing data preserved; new column defaults to NULL = follow global.
+        db.query(
+            "SELECT serverId, itemId, fontSize, theme, justifyText, showReadingTimeEstimate FROM book_formatting_preferences WHERE itemId = 'item1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("item1", cursor.getString(1))
+            assertEquals(1.3, cursor.getDouble(2), 0.001)
+            assertEquals("Dark", cursor.getString(3))
+            assertEquals(1, cursor.getInt(4))
+            assertTrue("showReadingTimeEstimate should be null for legacy rows", cursor.isNull(5))
+        }
+
+        // New writes can populate the new column.
+        db.execSQL(
+            "INSERT INTO book_formatting_preferences (serverId, itemId, showReadingTimeEstimate) " +
+                "VALUES ('s1', 'item2', 1)"
+        )
+        db.query(
+            "SELECT showReadingTimeEstimate FROM book_formatting_preferences WHERE itemId = 'item2'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1486,7 +1530,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 35, true,
+            TEST_DB, 36, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1521,6 +1565,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_32_33,
             RiffleDatabase.MIGRATION_33_34,
             RiffleDatabase.MIGRATION_34_35,
+            RiffleDatabase.MIGRATION_35_36,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
