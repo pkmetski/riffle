@@ -159,7 +159,6 @@ class LibraryRepositoryImpl @Inject constructor(
         return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
             is NetworkLibraryItemsResult.Success -> {
                 val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
-                val localProgressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
                 val entities = result.items
                     .sortedByDescending { it.isSupported }
                     .distinctBy { it.title.trim().lowercase() }
@@ -176,7 +175,10 @@ class LibraryRepositoryImpl @Inject constructor(
                             // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
                             // progress), so this single field is the unified "how far through this
                             // item" value that surfaces audiobooks in In Progress too (ADR 0029).
-                            readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: localProgressMap[item.id] ?: 0f,
+                            // Note: for existing items the DAO's updateMetadata ignores this field and
+                            // preserves the locally-tracked value. It is only used when inserting a
+                            // new item for the first time.
+                            readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
                             ebookFileIno = item.ebookFileIno,
                             ebookFormat = item.ebookFormat.toStorageString(),
                             hasAudio = item.hasAudio,

@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -31,6 +32,22 @@ interface LibraryItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LibraryItemEntity>)
 
+    /** Inserts items that do not yet exist; skips rows that already have a matching primary key. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOrIgnore(items: List<LibraryItemEntity>)
+
+    /**
+     * Updates all metadata columns for an existing row, intentionally excluding [readingProgress].
+     * Progress is owned by the reader-close path ([updateReadingProgress]) and must not be
+     * overwritten by a library refresh carrying a stale server value.
+     */
+    @Update(entity = LibraryItemEntity::class)
+    suspend fun updateMetadata(metadata: LibraryItemMetadata)
+
+    /** Removes library items whose id is no longer present on the server. */
+    @Query("DELETE FROM library_items WHERE libraryId = :libraryId AND id NOT IN (:serverItemIds)")
+    suspend fun deleteRemovedFromLibrary(libraryId: String, serverItemIds: List<String>)
+
     @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
     suspend fun getById(serverId: String, itemId: String): LibraryItemEntity?
 
@@ -51,8 +68,16 @@ interface LibraryItemDao {
 
     @Transaction
     suspend fun replaceAllForLibrary(libraryId: String, items: List<LibraryItemEntity>) {
-        deleteByLibraryId(libraryId)
-        upsertAll(items)
+        if (items.isEmpty()) {
+            deleteByLibraryId(libraryId)
+            return
+        }
+        // Remove items no longer present on the server.
+        deleteRemovedFromLibrary(libraryId, items.map { it.id })
+        // Insert truly new items — they get the server's readingProgress as the initial seed.
+        insertOrIgnore(items)
+        // Update metadata for all items, preserving each row's local readingProgress.
+        items.forEach { updateMetadata(LibraryItemMetadata.from(it)) }
     }
 
     @Query("""
@@ -100,6 +125,59 @@ interface LibraryItemDao {
             "WHERE s.serverType = :serverType"
     )
     suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow>
+}
+
+/**
+ * Partial-update POJO for [LibraryItemEntity] that excludes [LibraryItemEntity.readingProgress].
+ * Used by [LibraryItemDao.updateMetadata] so that library refreshes never overwrite locally-tracked
+ * reading progress with a stale server value.
+ */
+data class LibraryItemMetadata(
+    val serverId: String,
+    val id: String,
+    val libraryId: String,
+    val title: String,
+    val author: String,
+    val coverUrl: String?,
+    val ebookFileIno: String?,
+    val ebookFormat: String,
+    val hasAudio: Boolean,
+    val audioDurationSec: Double,
+    val description: String?,
+    val seriesName: String?,
+    val publishedYear: String?,
+    val genres: String,
+    val publisher: String?,
+    val language: String?,
+    val lastOpenedAt: Long?,
+    val addedAt: Long?,
+    val isbn: String?,
+    val asin: String?,
+) {
+    companion object {
+        fun from(entity: LibraryItemEntity) = LibraryItemMetadata(
+            serverId = entity.serverId,
+            id = entity.id,
+            libraryId = entity.libraryId,
+            title = entity.title,
+            author = entity.author,
+            coverUrl = entity.coverUrl,
+            ebookFileIno = entity.ebookFileIno,
+            ebookFormat = entity.ebookFormat,
+            hasAudio = entity.hasAudio,
+            audioDurationSec = entity.audioDurationSec,
+            description = entity.description,
+            seriesName = entity.seriesName,
+            publishedYear = entity.publishedYear,
+            genres = entity.genres,
+            publisher = entity.publisher,
+            language = entity.language,
+            lastOpenedAt = entity.lastOpenedAt,
+            addedAt = entity.addedAt,
+            isbn = entity.isbn,
+            asin = entity.asin,
+        )
+    }
 }
 
 data class LastOpenedAtRow(val id: String, val lastOpenedAt: Long)

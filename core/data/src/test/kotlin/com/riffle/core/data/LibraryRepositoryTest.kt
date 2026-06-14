@@ -345,9 +345,10 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        assertEquals(1, dao.upserted.size)
-        assertEquals("item-1", dao.upserted[0].id)
-        assertEquals(0.42f, dao.upserted[0].readingProgress, 0.001f)
+        val items = dao.itemsFor("lib-1")
+        assertEquals(1, items.size)
+        assertEquals("item-1", items[0].id)
+        assertEquals(0.42f, items[0].readingProgress, 0.001f)
     }
 
     @Test
@@ -370,7 +371,7 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        assertEquals(2, dao.upserted.size)
+        assertEquals(2, dao.itemsFor("lib-1").size)
     }
 
     @Test
@@ -398,7 +399,7 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        assertEquals(5_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
+        assertEquals(5_000L, dao.itemsFor("lib-1").first { it.id == "item-1" }.lastOpenedAt)
     }
 
     @Test
@@ -426,7 +427,62 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        assertEquals(9_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
+        assertEquals(9_000L, dao.itemsFor("lib-1").first { it.id == "item-1" }.lastOpenedAt)
+    }
+
+    @Test
+    fun `refreshLibraryItems keeps local readingProgress over stale server value`() = runTest {
+        // Reproduces the offline-read regression: server has old 0.42, local has 0.75 from an
+        // offline session. Refresh must not revert the library card back to the server value.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.75f),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                com.riffle.core.network.NetworkUserProgressResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.42f, lastUpdate = 1_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0.42f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems uses server readingProgress when no local record exists`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao() // no pre-existing items
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                com.riffle.core.network.NetworkUserProgressResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.80f, lastUpdate = 1_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(0.80f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
     @Test
@@ -460,7 +516,7 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        assertEquals(99_000L, dao.upserted.last { it.id == "item-1" }.lastOpenedAt)
+        assertEquals(99_000L, dao.itemsFor("lib-1").first { it.id == "item-1" }.lastOpenedAt)
     }
 
     @Test
@@ -481,7 +537,7 @@ class LibraryRepositoryTest {
                 NetworkCollectionResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        assertEquals(1_708_369_906_982L, dao.upserted[0].addedAt)
+        assertEquals(1_708_369_906_982L, dao.itemsFor("lib-1").first().addedAt)
     }
 
     @Test
