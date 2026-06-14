@@ -115,9 +115,9 @@ class SeriesDaoTest {
         assertEquals(listOf("item-2"), result.map { it.id })
     }
 
-    // C2 — skips partially-read books; returns first fully-unread one
+    // C2 — partially-read book (0.5 < 1.0) qualifies as the next book; returned at min sequenceOrder
     @Test
-    fun observeContinueSeriesItems_skipsPartiallyReadBook() = runTest {
+    fun observeContinueSeriesItems_treatsPartiallyReadBookAsNext() = runTest {
         db.libraryItemDao().upsertAll(listOf(
             LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
             LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.5f),
@@ -159,5 +159,30 @@ class SeriesDaoTest {
 
         // series-new finished more recently → new-next must come first
         assertEquals(listOf("new-next", "old-next"), result.map { it.id })
+    }
+
+    // C4 — series with null lastOpenedAt on finished sibling still appears (sorted last)
+    @Test
+    fun observeContinueSeriesItems_includesSeriesWithNullLastOpenedAt() = runTest {
+        db.libraryItemDao().upsertAll(listOf(
+            // series-timestamped: finished with a real lastOpenedAt
+            LibraryItemEntity(serverId = "s1", id = "ts-done", libraryId = "lib1", title = "TD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 5000L),
+            LibraryItemEntity(serverId = "s1", id = "ts-next", libraryId = "lib1", title = "TN", author = "A", coverUrl = null, readingProgress = 0f),
+            // series-null: finished with null lastOpenedAt (ABS sometimes omits this field)
+            LibraryItemEntity(serverId = "s1", id = "null-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = null),
+            LibraryItemEntity(serverId = "s1", id = "null-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-ts"), series("series-null")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-ts", serverId = "s1", itemId = "ts-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-ts", serverId = "s1", itemId = "ts-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-null", serverId = "s1", itemId = "null-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-null", serverId = "s1", itemId = "null-next", sequenceOrder = 2f),
+        ))
+
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        // Both series appear; series-ts (real timestamp) before series-null (null → COALESCE 0)
+        assertEquals(listOf("ts-next", "null-next"), result.map { it.id })
     }
 }
