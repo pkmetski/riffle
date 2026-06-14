@@ -127,6 +127,7 @@ data class AudiobookPlayerUiState(
     // True only when this item has unsynced (dirty) bookmarks AND the device is offline, so the
     // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
     val bookmarksOffline: Boolean = false,
+    val sleepTimer: SleepTimerMode = SleepTimerMode.None,
 )
 
 @HiltViewModel
@@ -316,7 +317,7 @@ class AudiobookPlayerViewModel(
     }
 
     val uiState: StateFlow<AudiobookPlayerUiState> =
-        combine(meta, controller.state) { m, playback ->
+        combine(meta, controller.state, controller.sleepTimer) { m, playback, timer ->
             val pos = playback.positionSec
             val chapter = timeline.chapterAt(pos)
             m.copy(
@@ -333,6 +334,7 @@ class AudiobookPlayerViewModel(
                 bookmarks = m.bookmarks,
                 lastCreatedBookmarkId = m.lastCreatedBookmarkId,
                 bookmarksOffline = m.bookmarksOffline,
+                sleepTimer = timer,
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
@@ -528,6 +530,21 @@ class AudiobookPlayerViewModel(
             // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.
             startFollowLoop()
         }
+
+        // End-of-chapter sleep timer: fire when chapter index advances while EoC mode is active.
+        var eocPrevChapterIndex = -1
+        viewModelScope.launch {
+            uiState.collect { state ->
+                val idx = state.currentChapterIndex
+                if (eocPrevChapterIndex >= 0
+                    && idx != eocPrevChapterIndex
+                    && controller.sleepTimer.value is SleepTimerMode.EndOfChapter
+                ) {
+                    controller.triggerSleepNow()
+                }
+                eocPrevChapterIndex = idx
+            }
+        }
     }
 
     /**
@@ -698,6 +715,9 @@ class AudiobookPlayerViewModel(
             pendingSpeed = null
         }
     }
+
+    fun setSleepTimer(mode: SleepTimerMode) = controller.setSleepTimer(mode)
+    fun cancelSleepTimer() = controller.cancelSleepTimer()
 
     /** Persist a speed change that the debounce window hadn't flushed yet (e.g. on close). */
     private fun flushPendingSpeed() {
