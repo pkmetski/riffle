@@ -69,6 +69,9 @@ open class ReadaloudController @Inject constructor(
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
+                Log.d(HANDOFF, "RA.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
+            }
             pushState()
         }
 
@@ -83,9 +86,12 @@ open class ReadaloudController @Inject constructor(
 
     /** Connects (if needed), points the service at [bundle], and queues [track]'s audio files. */
     suspend fun prepare(bundle: File, track: ReadaloudTrack) {
+        Log.d(HANDOFF, "RA.prepare start (controller already connected=${controller != null})")
         this.track = track
         SharedBundle.current = bundle
+        val t0 = System.currentTimeMillis()
         val c = ensureConnected() ?: return
+        Log.d(HANDOFF, "RA.prepare ensureConnected +${System.currentTimeMillis() - t0}ms")
 
         audioIndex.clear()
         val items = ArrayList<MediaItem>()
@@ -98,10 +104,12 @@ open class ReadaloudController @Inject constructor(
         }
         c.setMediaItems(items)
         c.prepare()
+        Log.d(HANDOFF, "RA.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms")
         pushState()
     }
 
     fun play() {
+        Log.d(HANDOFF, "RA.play called")
         controller?.play()
         startPolling()
     }
@@ -139,6 +147,7 @@ open class ReadaloudController @Inject constructor(
      * Keeps [track] so [preWarmSeek] can still resolve a position if the user drags back.
      */
     fun releaseForHandoff() {
+        Log.d(HANDOFF, "RA.releaseForHandoff (T0 — audio pausing)")
         pollJob?.cancel()
         pollJob = null
         controller?.run {
@@ -181,6 +190,7 @@ open class ReadaloudController @Inject constructor(
 
     /** Seeks to [globalSec] on the concatenated timeline and starts playing (audiobook→readaloud handoff). */
     fun playFromSecond(globalSec: Double) {
+        Log.d(HANDOFF, "RA.playFromSecond (preWarmed=${preWarmedPosition != null})")
         val target = preWarmedPosition ?: track?.seekTarget(globalSec) ?: return
         preWarmedPosition = null
         seekToAudio(target.audioSrc, target.positionSec)
@@ -274,5 +284,6 @@ open class ReadaloudController @Inject constructor(
         private const val NEAR_START_SEC = 3.0
         private const val POLL_INTERVAL_MS = 250L
         private const val LOG = "RIFFLE_RA"
+        internal const val HANDOFF = "RIFFLE_HANDOFF"
     }
 }

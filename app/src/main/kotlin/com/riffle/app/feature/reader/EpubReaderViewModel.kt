@@ -513,6 +513,7 @@ class EpubReaderViewModel @Inject constructor(
             // readaloud from the audiobook's position so narration continues where listening stopped.
             // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
             if (startReadaloudAtSec >= 0.0 && control.enabled) {
+                android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM control.enabled fired — calling startReadaloudAtSecond")
                 startReadaloudAtSecond(startReadaloudAtSec)
             }
 
@@ -1574,6 +1575,7 @@ class EpubReaderViewModel @Inject constructor(
      * must skip the normal readaloud stop — see [handingOffToAudiobook].
      */
     fun prepareAudiobookHandoff(): Double {
+        android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM prepareAudiobookHandoff (T0 — about to pause)")
         val sec = playbackState.value.positionGlobalSec
         handingOffToAudiobook = true
         playerCoordinator.releaseForHandoff()
@@ -1633,6 +1635,7 @@ class EpubReaderViewModel @Inject constructor(
      * disk.
      */
     fun startReadaloudAtSecond(globalSec: Double) {
+        android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM startReadaloudAtSecond called (readaloudAvailable=${_readaloudAvailable.value})")
         if (!_readaloudAvailable.value) return
         val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
         if (bundle == null) {
@@ -1640,8 +1643,11 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         if (!_readaloudOpen.value) openReadaloudSession()
+        val t0 = System.currentTimeMillis()
         viewModelScope.launch {
+            android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM ensureOpened start +${System.currentTimeMillis() - t0}ms (readaloudPrepared=$readaloudPrepared)")
             ensureOpened(bundle) ?: return@launch
+            android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM ensureOpened done +${System.currentTimeMillis() - t0}ms")
             readaloudStarted = true
             resumeFragmentRef = null
             closeLocator = null
