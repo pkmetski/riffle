@@ -60,6 +60,10 @@ open class AudiobookController @Inject constructor(
     private val _state = MutableStateFlow(PlaybackState())
     open val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
+    private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
+    open val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+    private var timerJob: Job? = null
+
     private var controller: MediaController? = null
     private var pollJob: Job? = null
     private var spans: List<AudiobookTrackSpan> = emptyList()
@@ -137,6 +141,9 @@ open class AudiobookController @Inject constructor(
     }
 
     fun pause() {
+        timerJob?.cancel()
+        timerJob = null
+        _sleepTimer.value = SleepTimerMode.None
         wantsToPlay = false
         controller?.pause()
         pollJob?.cancel()
@@ -147,6 +154,46 @@ open class AudiobookController @Inject constructor(
     open fun setSpeed(speed: Float) {
         controller?.setPlaybackSpeed(speed)
         pushState()
+    }
+
+    open fun setSleepTimer(mode: SleepTimerMode) {
+        timerJob?.cancel()
+        _sleepTimer.value = mode
+        if (mode is SleepTimerMode.CountDown) {
+            timerJob = scope.launch {
+                var remaining = mode.remainingMs
+                while (remaining > 0L) {
+                    delay(1_000L)
+                    remaining -= 1_000L
+                    _sleepTimer.value = SleepTimerMode.CountDown(remaining.coerceAtLeast(0L))
+                }
+                fadeAndStop()
+            }
+        }
+        // EndOfChapter: no countdown needed; ViewModel calls triggerSleepNow() on chapter change.
+    }
+
+    open fun cancelSleepTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _sleepTimer.value = SleepTimerMode.None
+    }
+
+    // Called by ViewModel when a chapter boundary is crossed in EndOfChapter mode.
+    open fun triggerSleepNow() {
+        timerJob?.cancel()
+        timerJob = scope.launch { fadeAndStop() }
+    }
+
+    private suspend fun fadeAndStop() {
+        repeat(FADE_STEPS) { i ->
+            controller?.setVolume((1f - (i + 1f) / FADE_STEPS).coerceAtLeast(0f))
+            delay(FADE_STEP_MS)
+        }
+        pollJob?.cancel()
+        controller?.pause()
+        controller?.setVolume(1f)
+        _sleepTimer.value = SleepTimerMode.None
     }
 
     /** Seeks to a book-absolute position, resolving it to the right track + offset. */
@@ -250,6 +297,8 @@ open class AudiobookController @Inject constructor(
         const val REWIND_SEC = 15.0
         const val FORWARD_SEC = 30.0
         private const val POLL_INTERVAL_MS = 250L
+        private const val FADE_STEPS = 50
+        private const val FADE_STEP_MS = 100L
         private const val LOG = "RIFFLE_AB"
     }
 }
