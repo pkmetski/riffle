@@ -215,6 +215,7 @@ open class AudiobookController @Inject constructor(
     }
 
     fun stop() {
+        cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
         controller?.run {
@@ -243,9 +244,11 @@ open class AudiobookController @Inject constructor(
      * is about to start (the "swipe down pauses readaloud" bug). Leaves the bundle for readaloud.
      */
     fun releaseForHandoff() {
+        cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
         controller?.run {
+            setVolume(1f)
             pause()
             removeListener(listener)
             release()
