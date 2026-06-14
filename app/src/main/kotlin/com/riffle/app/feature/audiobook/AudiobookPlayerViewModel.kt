@@ -496,6 +496,7 @@ class AudiobookPlayerViewModel(
                 durationSec = session.timeline.durationSec,
                 startAtSec = resumeSec,
                 localZipFile = session.localZipFile,
+                coverUri = item.coverUrl,
             )
             // Record the active session so a media-notification tap reopens this audiobook player.
             nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))

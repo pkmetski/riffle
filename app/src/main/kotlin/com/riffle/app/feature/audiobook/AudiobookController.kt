@@ -91,6 +91,7 @@ open class AudiobookController @Inject constructor(
         durationSec: Double,
         startAtSec: Double,
         localZipFile: File? = null,
+        coverUri: String? = null,
     ) {
         this.spans = spans
         this.durationSec = durationSec
@@ -100,8 +101,11 @@ open class AudiobookController @Inject constructor(
         ownsSharedBundle = localZipFile != null
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
+        val metadata = androidx.media3.common.MediaMetadata.Builder()
+            .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
+            .build()
         val items = trackUrls.map { url ->
-            MediaItem.Builder().setMediaId(url).setUri(url).build()
+            MediaItem.Builder().setMediaId(url).setUri(url).setMediaMetadata(metadata).build()
         }
         // Seed the start position *into* setMediaItems rather than seeking after prepare(): a seek
         // after prepare() lets ExoPlayer briefly buffer/play the first track from 0 before the seek
