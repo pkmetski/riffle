@@ -25,7 +25,7 @@ import javax.inject.Inject
  * is built. Any miss returns `null`, leaving the reader on its existing single-peer path — so
  * the reconciliation cycle is strictly additive and never degrades the non-matched case.
  */
-class ReaderSyncFactory @Inject constructor(
+open class ReaderSyncFactory @Inject constructor(
     private val linkRepository: ReadaloudLinkRepository,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
@@ -40,7 +40,7 @@ class ReaderSyncFactory @Inject constructor(
      * @param itemId the ABS Library Item id the reader opened. A book is always read from the ABS
      *   side (ADR 0026), so the link is resolved by ABS item.
      */
-    suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? {
+    open suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? {
         val active = serverRepository.getActive() ?: return null
 
         // The readaloud bundle is the hub: route progress to whichever ABS items are matched to it.
@@ -119,7 +119,7 @@ class ReaderSyncFactory @Inject constructor(
      * [createIfApplicable] needs (ADR 0031). Lets readaloud sync to the audiobook in the window before
      * the index is built (or when it can't be). `null` when there is no audio target or no cached bundle.
      */
-    suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? {
+    open suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? {
         val active = serverRepository.getActive() ?: return null
         val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
         val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)

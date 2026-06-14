@@ -113,6 +113,11 @@ object DatabaseModule {
 
     @Provides
     @Singleton
+    fun provideAudiobookBookmarkDao(db: RiffleDatabase): com.riffle.core.database.AudiobookBookmarkDao =
+        db.audiobookBookmarkDao()
+
+    @Provides
+    @Singleton
     fun provideReadaloudLinkDao(db: RiffleDatabase): ReadaloudLinkDao = db.readaloudLinkDao()
 
     @Provides
