@@ -41,7 +41,10 @@ import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.ReadingSpeedStore
+import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -142,6 +145,7 @@ class EpubReaderViewModel @Inject constructor(
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
+    private val readingSpeedStore: ReadingSpeedStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -340,6 +344,7 @@ class EpubReaderViewModel @Inject constructor(
 
     // The track is parsed once on first play and reused.
     private var readaloudTrack: com.riffle.core.domain.ReadaloudTrack? = null
+    private val _readaloudTrackFlow = MutableStateFlow<com.riffle.core.domain.ReadaloudTrack?>(null)
 
     // fragmentRef → sentence text quote, so the synced highlight can be anchored by text when
     // Readium has stripped the sentence spans from the rendered (ABS) EPUB. Built once, off the
@@ -858,6 +863,8 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
         initialLocatorSeen = false
+        sessionStartProgression = currentLocatorTotalProgression.value
+        sessionStartMs = System.currentTimeMillis()
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             startPeriodicSync()
@@ -865,6 +872,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onReaderClosed() {
+        flushReadingSession()
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
@@ -1120,6 +1128,85 @@ class EpubReaderViewModel @Inject constructor(
     ) { activeIndex, segments, progression ->
         weightedRailCursorPosition(activeIndex, segments, progression)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    // ---- Reading speed tracking & time-remaining estimates -----------------------------------
+
+    private var sessionStartProgression: Float? = null
+    private var sessionStartMs: Long = 0L
+
+    private fun flushReadingSession() {
+        val startProg = sessionStartProgression ?: return
+        sessionStartProgression = null
+        val timeDeltaSec = (System.currentTimeMillis() - sessionStartMs) / 1000.0
+        val totalProg = currentLocatorTotalProgression.value
+        val progressDelta = totalProg - startProg
+        val totalPos = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight }
+        if (totalPos == 0f) return
+        viewModelScope.launch {
+            val prior = readingSpeedStore.speedSecPerPosition.first()
+            val updated = ReadingSpeedTracker.recordSession(progressDelta, timeDeltaSec, totalPos, prior)
+            if (updated != null) readingSpeedStore.updateSpeed(updated)
+        }
+    }
+
+    val chapterTimeRemaining: StateFlow<TimeRemaining?> = combine(
+        combine(currentLocatorTotalProgression, currentLocatorProgression, railSegments, activeRailSegmentIndex) { tp, cp, segs, idx ->
+            arrayOf<Any?>(tp, cp, segs, idx)
+        },
+        playbackState,
+        _readaloudTrackFlow,
+        readingSpeedStore.speedSecPerPosition,
+    ) { quad, pbState, raTrack, speed ->
+        val totalProg = quad[0] as Float
+        val chapterProg = quad[1] as Float
+        @Suppress("UNCHECKED_CAST")
+        val segments = quad[2] as List<RailSegment>
+        val segIdx = quad[3] as Int
+
+        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
+        if (totalPositions == 0f) return@combine null
+
+        if (pbState.connected && raTrack != null) {
+            val posGlobal = pbState.positionGlobalSec
+            val chapterIdx = pbState.currentChapterIndex
+            val chapterEndSec = if (chapterIdx >= 0 && chapterIdx + 1 < raTrack.chapterStartsSec.size) {
+                raTrack.chapterStartsSec[chapterIdx + 1]
+            } else {
+                raTrack.totalDurationSec
+            }
+            val sec = (chapterEndSec - posGlobal).toLong().coerceAtLeast(0L)
+            return@combine TimeRemaining.Exact(sec)
+        }
+
+        val chapterWeight = segments.getOrNull(segIdx)?.weight?.toFloat() ?: return@combine null
+        val sec = ((1f - chapterProg) * chapterWeight * speed).toLong().coerceAtLeast(0L)
+        TimeRemaining.Estimated(sec)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val bookTimeRemaining: StateFlow<TimeRemaining?> = combine(
+        combine(currentLocatorTotalProgression, currentLocatorProgression, railSegments, activeRailSegmentIndex) { tp, cp, segs, idx ->
+            arrayOf<Any?>(tp, cp, segs, idx)
+        },
+        playbackState,
+        _readaloudTrackFlow,
+        readingSpeedStore.speedSecPerPosition,
+    ) { quad, pbState, raTrack, speed ->
+        val totalProg = quad[0] as Float
+        @Suppress("UNCHECKED_CAST")
+        val segments = quad[2] as List<RailSegment>
+
+        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
+        if (totalPositions == 0f) return@combine null
+
+        if (pbState.connected && raTrack != null) {
+            val posGlobal = pbState.positionGlobalSec
+            val sec = (raTrack.totalDurationSec - posGlobal).toLong().coerceAtLeast(0L)
+            return@combine TimeRemaining.Exact(sec)
+        }
+
+        val sec = ((1f - totalProg) * totalPositions * speed).toLong().coerceAtLeast(0L)
+        TimeRemaining.Estimated(sec)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun openSearch() {
         _isSearchActive.value = true
@@ -1721,6 +1808,7 @@ class EpubReaderViewModel @Inject constructor(
         readaloudTrack?.let { return it }
         val track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
         readaloudTrack = track
+        _readaloudTrackFlow.value = track
         // Defer the (heavy, whole-bundle) sentence-quote parse until audio is actually playing, so it
         // never competes with ExoPlayer's audio-start I/O on the same multi-hundred-MB zip. The
         // highlight is only meaningful once playback is running anyway, so a beat's delay is invisible.
