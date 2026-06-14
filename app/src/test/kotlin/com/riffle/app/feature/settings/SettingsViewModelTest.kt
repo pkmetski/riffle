@@ -13,6 +13,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.AbsPickerItem
@@ -96,6 +97,7 @@ class SettingsViewModelTest {
     private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+    private val orderFlow = MutableStateFlow<Map<String, List<String>>>(emptyMap())
 
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = serversFlow
@@ -150,6 +152,14 @@ class SettingsViewModelTest {
         }
     }
 
+    private fun fakeOrderStore(): LibraryOrderPreferencesStore = object : LibraryOrderPreferencesStore {
+        override fun libraryOrder(serverId: String): Flow<List<String>> =
+            orderFlow.map { it[serverId].orEmpty() }
+        override suspend fun setLibraryOrder(serverId: String, orderedIds: List<String>) {
+            orderFlow.update { it + (serverId to orderedIds) }
+        }
+    }
+
     private val isOnlineFlow = MutableStateFlow(true)
     private val fakeConnectivity = object : ConnectivityObserver {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
@@ -184,6 +194,7 @@ class SettingsViewModelTest {
         serverRepository = fakeServerRepo(),
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
+        orderStore = fakeOrderStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
         readaloudReviewRepository = fakeReviewRepo,
@@ -301,6 +312,30 @@ class SettingsViewModelTest {
 
         val hidden = hiddenFlow.value["srv-1"].orEmpty()
         assertFalse("lib-1" in hidden)
+    }
+
+    @Test
+    fun `setLibraryOrder persists the given order to the store`() = runTest {
+        val vm = makeViewModel()
+        vm.setLibraryOrder("srv-1", listOf("lib-3", "lib-1", "lib-2"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("lib-3", "lib-1", "lib-2"), orderFlow.value["srv-1"])
+    }
+
+    @Test
+    fun `libraryUiItemsByServer reflects the saved custom order`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"), library("lib-3"))
+        orderFlow.value = mapOf("srv-1" to listOf("lib-2", "lib-3", "lib-1"))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("lib-2", "lib-3", "lib-1"),
+            vm.libraryUiItemsByServer.value["srv-1"].orEmpty().map { it.library.id },
+        )
     }
 
     @Test

@@ -9,6 +9,7 @@ import java.io.IOException
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Series
@@ -119,6 +120,16 @@ class NavigationDrawerViewModelTest {
         }
     }
 
+    private val orderFlow = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+
+    private fun fakeOrderStore(): LibraryOrderPreferencesStore = object : LibraryOrderPreferencesStore {
+        override fun libraryOrder(serverId: String): Flow<List<String>> =
+            orderFlow.map { it[serverId].orEmpty() }
+        override suspend fun setLibraryOrder(serverId: String, orderedIds: List<String>) {
+            orderFlow.update { it + (serverId to orderedIds) }
+        }
+    }
+
     private val isOnlineFlow = MutableStateFlow(true)
     private fun fakeConnectivity(): ConnectivityObserver = object : ConnectivityObserver {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
@@ -128,6 +139,7 @@ class NavigationDrawerViewModelTest {
         serverRepository = fakeServerRepo(),
         libraryRepository = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
+        orderStore = fakeOrderStore(),
         connectivityObserver = fakeConnectivity(),
         nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
         nowPlayingStore = com.riffle.app.playback.NowPlayingStore(),
@@ -240,6 +252,46 @@ class NavigationDrawerViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(library("lib-1")), vm.visibleLibraries.value)
+    }
+
+    @Test
+    fun `visibleLibraries applies the saved custom order`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"), library("lib-3"))
+        orderFlow.value = mapOf("srv-1" to listOf("lib-3", "lib-1", "lib-2"))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.visibleLibraries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(library("lib-3"), library("lib-1"), library("lib-2")),
+            vm.visibleLibraries.value,
+        )
+    }
+
+    @Test
+    fun `visibleLibraries reorders live when the saved order changes after subscription`() = runTest {
+        // Mirrors the real bug report: the drawer is already showing libraries (alphabetical) when
+        // the user reorders in Settings — the new order must propagate to the open drawer.
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"), library("lib-3"))
+
+        val vm = makeVm()
+        backgroundScope.launch { vm.visibleLibraries.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf(library("lib-1"), library("lib-2"), library("lib-3")),
+            vm.visibleLibraries.value,
+        )
+
+        orderFlow.value = mapOf("srv-1" to listOf("lib-2", "lib-3", "lib-1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf(library("lib-2"), library("lib-3"), library("lib-1")),
+            vm.visibleLibraries.value,
+        )
     }
 
     @Test

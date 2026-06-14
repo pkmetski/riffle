@@ -1,9 +1,11 @@
 package com.riffle.app.feature.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.riffle.core.domain.Library
@@ -45,6 +47,7 @@ class ServerSettingsExpansionTest {
                 libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
                 onOpenReadaloudMatches = {},
             )
         }
@@ -64,6 +67,7 @@ class ServerSettingsExpansionTest {
                 libraryItems = listOf(libraryItem("Fiction", visible = true)),
                 summary = null,
                 onSetLibraryVisible = { id, visible -> toggledLibrary = id; toggledVisible = visible },
+                onReorderLibraries = {},
                 onOpenReadaloudMatches = {},
             )
         }
@@ -75,6 +79,61 @@ class ServerSettingsExpansionTest {
     }
 
     @Test
+    fun movingALibraryDownPersistsTheSwappedOrder() {
+        var reordered: List<String>? = null
+        composeTestRule.setContent {
+            ServerSettingsExpansion(
+                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+                libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
+                summary = null,
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = { reordered = it },
+                onOpenReadaloudMatches = {},
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move Fiction down").performClick()
+
+        assertEquals(listOf("Non-fiction", "Fiction"), reordered)
+    }
+
+    @Test
+    fun movingALibraryUpPersistsTheSwappedOrder() {
+        var reordered: List<String>? = null
+        composeTestRule.setContent {
+            ServerSettingsExpansion(
+                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+                libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
+                summary = null,
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = { reordered = it },
+                onOpenReadaloudMatches = {},
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move Non-fiction up").performClick()
+
+        assertEquals(listOf("Non-fiction", "Fiction"), reordered)
+    }
+
+    @Test
+    fun firstLibraryCannotMoveUpAndLastCannotMoveDown() {
+        composeTestRule.setContent {
+            ServerSettingsExpansion(
+                server = server(ServerType.AUDIOBOOKSHELF, active = true),
+                libraryItems = listOf(libraryItem("Fiction"), libraryItem("Non-fiction")),
+                summary = null,
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+                onOpenReadaloudMatches = {},
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move Fiction up").assertIsNotEnabled()
+        composeTestRule.onNodeWithContentDescription("Move Non-fiction down").assertIsNotEnabled()
+    }
+
+    @Test
     fun inactiveAbsServerStillShowsItsLibraries() {
         composeTestRule.setContent {
             ServerSettingsExpansion(
@@ -82,6 +141,7 @@ class ServerSettingsExpansionTest {
                 libraryItems = listOf(libraryItem("Fiction")),
                 summary = null,
                 onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
                 onOpenReadaloudMatches = {},
             )
         }
@@ -99,6 +159,7 @@ class ServerSettingsExpansionTest {
                 libraryItems = emptyList(),
                 summary = ReadaloudMatchSummary(unmatchedCount = 2, suggestedCount = 1, partiallyMatchedCount = 1, matchedCount = 3),
                 onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
                 onOpenReadaloudMatches = { opened = true },
             )
         }

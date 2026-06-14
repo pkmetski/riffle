@@ -29,7 +29,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -178,6 +177,9 @@ fun SettingsScreen(
                                     onSetLibraryVisible = { libraryId, visible ->
                                         viewModel.setLibraryVisible(server.id, libraryId, visible)
                                     },
+                                    onReorderLibraries = { orderedIds ->
+                                        viewModel.setLibraryOrder(server.id, orderedIds)
+                                    },
                                     onOpenReadaloudMatches = { viewModel.openReadaloudMatches(server.id) },
                                 )
                             }
@@ -301,6 +303,7 @@ internal fun ServerSettingsExpansion(
     libraryItems: List<LibraryUiItem>,
     summary: ReadaloudMatchSummary?,
     onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
+    onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onOpenReadaloudMatches: () -> Unit,
 ) {
     val transparentColors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -315,20 +318,11 @@ internal fun ServerSettingsExpansion(
                 if (libraryItems.isEmpty()) {
                     ExpansionNote("No libraries found.")
                 } else {
-                    libraryItems.forEach { item ->
-                        ListItem(
-                            colors = transparentColors,
-                            modifier = Modifier.padding(start = 24.dp),
-                            headlineContent = { Text(item.library.name) },
-                            trailingContent = {
-                                Switch(
-                                    checked = item.isVisible,
-                                    onCheckedChange = { visible -> onSetLibraryVisible(item.library.id, visible) },
-                                    enabled = item.switchEnabled,
-                                )
-                            },
-                        )
-                    }
+                    ReorderableLibraryList(
+                        items = libraryItems,
+                        onSetLibraryVisible = onSetLibraryVisible,
+                        onReorder = onReorderLibraries,
+                    )
                 }
             }
             ServerType.STORYTELLER -> {
