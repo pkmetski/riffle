@@ -3,6 +3,7 @@ package com.riffle.app.feature.navigation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
@@ -38,6 +39,7 @@ class NavigationDrawerViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val orderStore: LibraryOrderPreferencesStore,
+    private val lastOpenedLibraryStore: LastOpenedLibraryStore,
     private val connectivityObserver: ConnectivityObserver,
     nowPlayingNavigator: NowPlayingNavigator,
     private val nowPlayingStore: NowPlayingStore,
@@ -82,6 +84,15 @@ class NavigationDrawerViewModel @Inject constructor(
 
     fun setActiveLibrary(libraryId: String) {
         _lastActiveLibraryId.value = libraryId
+        // Remember it per-server so app start reopens this library (see HomeViewModel). Resolve the
+        // active server authoritatively from the repository — the same source getStartDestination
+        // reads. The activeServer StateFlow can lag a just-committed server switch, which would
+        // persist this library under the previous server's key (or drop it when still null on cold
+        // start).
+        viewModelScope.launch {
+            val serverId = serverRepository.getActive()?.id ?: return@launch
+            lastOpenedLibraryStore.setLastOpenedLibrary(serverId, libraryId)
+        }
     }
 
     private val _redirectToLibrary = MutableSharedFlow<Library>(extraBufferCapacity = 1)

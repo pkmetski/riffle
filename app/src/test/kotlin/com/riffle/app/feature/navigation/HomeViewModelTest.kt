@@ -4,6 +4,7 @@ import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
@@ -29,6 +30,7 @@ class HomeViewModelTest {
     private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+    private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
 
     private fun server(id: String, active: Boolean = false) = Server(
         id = id,
@@ -91,10 +93,19 @@ class HomeViewModelTest {
         override suspend fun showLibrary(serverId: String, libraryId: String) {}
     }
 
+    private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
+        override fun lastOpenedLibrary(serverId: String): Flow<String?> =
+            lastOpenedFlow.map { it[serverId] }
+        override suspend fun setLastOpenedLibrary(serverId: String, libraryId: String) {
+            lastOpenedFlow.update { it + (serverId to libraryId) }
+        }
+    }
+
     private fun makeVm(libraryRepo: LibraryRepository = fakeLibraryRepo()) = HomeViewModel(
         serverRepository = fakeServerRepo(),
         libraryRepository = libraryRepo,
         visibilityStore = fakeVisibilityStore(),
+        lastOpenedLibraryStore = fakeLastOpenedStore(),
     )
 
     @Test
@@ -152,6 +163,52 @@ class HomeViewModelTest {
         val result = makeVm(repo).getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.NoLibraries, result)
+    }
+
+    @Test
+    fun `getStartDestination reopens the last opened library when still visible`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"), library("lib-3"))
+        lastOpenedFlow.value = mapOf("srv-1" to "lib-2")
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library("lib-2", "lib-2"), result)
+    }
+
+    @Test
+    fun `getStartDestination falls back to first visible when last opened library is now hidden`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+        lastOpenedFlow.value = mapOf("srv-1" to "lib-2")
+        hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+    }
+
+    @Test
+    fun `getStartDestination falls back to first visible when last opened library no longer exists`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+        lastOpenedFlow.value = mapOf("srv-1" to "lib-gone")
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+    }
+
+    @Test
+    fun `getStartDestination ignores a last opened library remembered for a different server`() = runTest {
+        serversFlow.value = listOf(server("srv-1", active = true))
+        librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
+        // Remembered for srv-2, not the active srv-1.
+        lastOpenedFlow.value = mapOf("srv-2" to "lib-2")
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
     }
 
     @Test

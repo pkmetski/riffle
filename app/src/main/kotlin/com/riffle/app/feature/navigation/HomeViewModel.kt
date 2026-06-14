@@ -1,6 +1,7 @@
 package com.riffle.app.feature.navigation
 
 import androidx.lifecycle.ViewModel
+import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
@@ -16,6 +17,7 @@ class HomeViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
+    private val lastOpenedLibraryStore: LastOpenedLibraryStore,
 ) : ViewModel() {
 
     sealed class StartDestination {
@@ -43,7 +45,13 @@ class HomeViewModel @Inject constructor(
         }
 
         val hiddenIds = visibilityStore.hiddenLibraryIds(activeServer.id).first()
-        val firstVisible = libraries.firstOrNull { it.id !in hiddenIds } ?: libraries.first()
-        StartDestination.Library(firstVisible.id, firstVisible.name)
+        val visible = libraries.filter { it.id !in hiddenIds }
+        // Reopen the library the user last had open on this server, as long as it's still visible;
+        // otherwise fall back to the first visible library.
+        val lastOpenedId = lastOpenedLibraryStore.lastOpenedLibrary(activeServer.id).first()
+        val target = visible.firstOrNull { it.id == lastOpenedId }
+            ?: visible.firstOrNull()
+            ?: libraries.first()
+        StartDestination.Library(target.id, target.name)
     }
 }

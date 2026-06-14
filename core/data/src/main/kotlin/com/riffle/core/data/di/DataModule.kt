@@ -18,6 +18,7 @@ import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
+import com.riffle.core.data.LastOpenedLibraryStoreImpl
 import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
@@ -55,6 +56,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalStore
@@ -120,6 +122,10 @@ annotation class LibraryVisibilityPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LibraryOrderPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class LastOpenedLibraryDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -288,6 +294,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindLibraryOrderPreferencesStore(impl: LibraryOrderPreferencesStoreImpl): LibraryOrderPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindLastOpenedLibraryStore(impl: LastOpenedLibraryStoreImpl): LastOpenedLibraryStore
 
     @Binds
     @Singleton
@@ -597,6 +607,13 @@ abstract class DataModule {
         fun provideLibraryOrderPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.libraryOrderPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @LastOpenedLibraryDataStore
+        fun provideLastOpenedLibraryDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.lastOpenedLibraryDataStore
 
         @Provides
         @Singleton
