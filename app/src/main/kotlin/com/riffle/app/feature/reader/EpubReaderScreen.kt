@@ -567,7 +567,7 @@ private fun EpubChapterRailOverlay(
     // cursor then so the label shows a sensible estimate instead of sticking at 0%. Once a real
     // whole-book value arrives it wins (and matches book details). At genuine 0% the rail cursor is
     // also ~0, so the fallback is indistinguishable there.
-    val labelProgress = if (totalProgress > 0f) totalProgress else cursorPosition
+    val labelProgress = totalProgress?.takeIf { it > 0f } ?: cursorPosition
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         // Backdrop is the exact reader-theme page colour so the strip reads as page margin,

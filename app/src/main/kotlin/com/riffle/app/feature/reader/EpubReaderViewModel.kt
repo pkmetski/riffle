@@ -829,7 +829,7 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
-        _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
+        _currentLocatorProgression.value = locator.locations.progression?.toFloat()
         locator.locations.totalProgression?.toFloat()?.let { _currentLocatorTotalProgression.value = it }
         // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
         // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
@@ -1069,16 +1069,17 @@ class EpubReaderViewModel @Inject constructor(
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
     val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
 
-    private val _currentLocatorProgression = MutableStateFlow(0f)
-    val currentLocatorProgression: StateFlow<Float> = _currentLocatorProgression
+    private val _currentLocatorProgression = MutableStateFlow<Float?>(null)
+    val currentLocatorProgression: StateFlow<Float?> = _currentLocatorProgression
 
     // Whole-book progress (0..1) for the reading "% read" label — the same coordinate persisted as
     // ebookProgress and shown in book details. Distinct from railCursorPosition, which is a
     // chapter-weighted fraction over TOC segments only and so diverges from the stored progress.
     // Updated only when the navigator emits a non-null totalProgression: a null (positions not yet
     // computed) holds the last real value rather than falling back to the within-chapter progression.
-    private val _currentLocatorTotalProgression = MutableStateFlow(0f)
-    val currentLocatorTotalProgression: StateFlow<Float> = _currentLocatorTotalProgression
+    // Null before the first Readium locator arrives so callers can distinguish "unknown" from 0%.
+    private val _currentLocatorTotalProgression = MutableStateFlow<Float?>(null)
+    val currentLocatorTotalProgression: StateFlow<Float?> = _currentLocatorTotalProgression
 
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
@@ -1126,7 +1127,7 @@ class EpubReaderViewModel @Inject constructor(
         railSegments,
         currentLocatorProgression,
     ) { activeIndex, segments, progression ->
-        weightedRailCursorPosition(activeIndex, segments, progression)
+        weightedRailCursorPosition(activeIndex, segments, progression ?: 0f)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     // ---- Reading speed tracking & time-remaining estimates -----------------------------------
@@ -1138,7 +1139,7 @@ class EpubReaderViewModel @Inject constructor(
         val startProg = sessionStartProgression ?: return
         sessionStartProgression = null
         val timeDeltaSec = (System.currentTimeMillis() - sessionStartMs) / 1000.0
-        val totalProg = currentLocatorTotalProgression.value
+        val totalProg = currentLocatorTotalProgression.value ?: return
         val progressDelta = totalProg - startProg
         val totalPos = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight }
         if (totalPos == 0f) return
@@ -1157,8 +1158,6 @@ class EpubReaderViewModel @Inject constructor(
         _readaloudTrackFlow,
         readingSpeedStore.speedSecPerPosition,
     ) { quad, pbState, raTrack, speed ->
-        val totalProg = quad[0] as Float
-        val chapterProg = quad[1] as Float
         @Suppress("UNCHECKED_CAST")
         val segments = quad[2] as List<RailSegment>
         val segIdx = quad[3] as Int
@@ -1178,6 +1177,7 @@ class EpubReaderViewModel @Inject constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
+        val chapterProg = quad[1] as? Float ?: return@combine null
         val chapterWeight = segments.getOrNull(segIdx)?.weight?.toFloat() ?: return@combine null
         val sec = ((1f - chapterProg) * chapterWeight * speed).toLong().coerceAtLeast(0L)
         TimeRemaining.Estimated(sec)
@@ -1191,7 +1191,6 @@ class EpubReaderViewModel @Inject constructor(
         _readaloudTrackFlow,
         readingSpeedStore.speedSecPerPosition,
     ) { quad, pbState, raTrack, speed ->
-        val totalProg = quad[0] as Float
         @Suppress("UNCHECKED_CAST")
         val segments = quad[2] as List<RailSegment>
 
@@ -1204,6 +1203,7 @@ class EpubReaderViewModel @Inject constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
+        val totalProg = quad[0] as? Float ?: return@combine null
         val sec = ((1f - totalProg) * totalPositions * speed).toLong().coerceAtLeast(0L)
         TimeRemaining.Estimated(sec)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
