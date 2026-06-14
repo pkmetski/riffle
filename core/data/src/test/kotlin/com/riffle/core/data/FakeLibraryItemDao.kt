@@ -85,9 +85,11 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    override suspend fun deleteRemovedFromLibrary(libraryId: String, serverItemIds: List<String>) {
+    override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) {
         val serverIdSet = serverItemIds.toSet()
-        roomData[libraryId]?.value = roomData[libraryId]?.value?.filter { it.id in serverIdSet } ?: emptyList()
+        roomData[libraryId]?.value = roomData[libraryId]?.value
+            ?.filter { it.serverId != serverId || it.id in serverIdSet }
+            ?: emptyList()
     }
 
     override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? =

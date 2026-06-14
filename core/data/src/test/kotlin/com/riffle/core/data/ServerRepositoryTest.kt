@@ -140,7 +140,7 @@ class ServerRepositoryTest {
             deletedLibraryIds += libraryId
             rows.remove(libraryId)
         }
-        override suspend fun deleteRemovedFromLibrary(libraryId: String, serverItemIds: List<String>) = Unit
+        override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()

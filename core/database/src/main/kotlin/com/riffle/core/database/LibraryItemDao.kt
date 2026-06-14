@@ -45,8 +45,8 @@ interface LibraryItemDao {
     suspend fun updateMetadata(metadata: LibraryItemMetadata)
 
     /** Removes library items whose id is no longer present on the server. */
-    @Query("DELETE FROM library_items WHERE libraryId = :libraryId AND id NOT IN (:serverItemIds)")
-    suspend fun deleteRemovedFromLibrary(libraryId: String, serverItemIds: List<String>)
+    @Query("DELETE FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND id NOT IN (:serverItemIds)")
+    suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>)
 
     @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
     suspend fun getById(serverId: String, itemId: String): LibraryItemEntity?
@@ -73,7 +73,7 @@ interface LibraryItemDao {
             return
         }
         // Remove items no longer present on the server.
-        deleteRemovedFromLibrary(libraryId, items.map { it.id })
+        deleteRemovedFromLibrary(items.first().serverId, libraryId, items.map { it.id })
         // Insert truly new items — they get the server's readingProgress as the initial seed.
         insertOrIgnore(items)
         // Update metadata for all items, preserving each row's local readingProgress.

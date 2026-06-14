@@ -336,7 +336,7 @@ class ReadaloudMatchingServiceTest {
         override fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(byId[itemId])
         override suspend fun findServerIdForItem(itemId: String): String? = byId[itemId]?.serverId
         override suspend fun deleteByLibraryId(libraryId: String) = Unit
-        override suspend fun deleteRemovedFromLibrary(libraryId: String, serverItemIds: List<String>) = Unit
+        override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) = Unit
         override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) = Unit
         override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
