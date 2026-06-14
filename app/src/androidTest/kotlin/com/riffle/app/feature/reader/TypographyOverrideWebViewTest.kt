@@ -103,13 +103,13 @@ class TypographyOverrideWebViewTest {
         }
     }
 
-    // Margins override targets :root (not body) so every column in paginated mode gets equal
-    // top/bottom whitespace. Without --USER__pageMargins set the gate doesn't match and :root
-    // padding stays at the fixture default. With it set, padding-top/bottom should resolve to
-    // calc(--RS__pageGutter * --USER__pageMargins * 0.8). We simulate Readium's gutter with
-    // an explicit --RS__pageGutter on :root so the calc has a concrete value.
+    // There is deliberately NO :root vertical-padding margin override. It used to inject
+    // padding-top/bottom on :root in onPageLoaded — after first paint — so the page visibly dropped
+    // by the margin amount on every chapter start (the "page falls from above" bug). The top/bottom
+    // reading margin is now reserved before paint as native fragment-container padding (see
+    // EpubReaderScreen), so the injected CSS must never pad :root, even with --USER__pageMargins set.
     @Test
-    fun marginsOverrideAppliesVerticalPaddingToRootWhenUserVariableIsSet() {
+    fun injectedCssNeverPadsRootEvenWhenUserMarginsAreSet() {
         withWebViewFixture(hostileSboFixture) { webView ->
             webView.evalSync("document.documentElement.style.setProperty('--RS__pageGutter', '20px')")
             webView.evalSync("document.documentElement.style.setProperty('--USER__pageMargins', '2')")
@@ -120,24 +120,8 @@ class TypographyOverrideWebViewTest {
             val paddingBottom = webView.evalSync(
                 "window.getComputedStyle(document.documentElement).paddingBottom"
             ).toCssPx()
-            // Top is 0.8× the horizontal gutter — slightly narrower than the side margins and
-            // the bottom (both 1.0×). See TypographyOverride.kt "margins" entry.
-            // 20px gutter × 2 (pageMargins) × 0.8 = 32px top; × 1.0 = 40px bottom.
-            assertEquals("padding-top should reflect --USER__pageMargins × gutter × 0.8", 32.0, paddingTop, 0.5)
-            assertEquals("padding-bottom should reflect --USER__pageMargins × gutter × 1.0", 40.0, paddingBottom, 0.5)
-        }
-    }
-
-    @Test
-    fun marginsOverrideIsInertWhenUserVariableIsNotSet() {
-        withWebViewFixture(hostileSboFixture) { webView ->
-            webView.evalSync("document.documentElement.style.setProperty('--RS__pageGutter', '20px')")
-            webView.evalSync(typographyOverrideInjectionJs())
-            // No --USER__pageMargins → gate doesn't match → :root padding stays at fixture default (0).
-            val paddingTop = webView.evalSync(
-                "window.getComputedStyle(document.documentElement).paddingTop"
-            ).toCssPx()
-            assertEquals("padding-top must be untouched when user hasn't customised margins", 0.0, paddingTop, 0.5)
+            assertEquals("injected CSS must not pad :root top (would reflow post-paint)", 0.0, paddingTop, 0.5)
+            assertEquals("injected CSS must not pad :root bottom (would reflow post-paint)", 0.0, paddingBottom, 0.5)
         }
     }
 

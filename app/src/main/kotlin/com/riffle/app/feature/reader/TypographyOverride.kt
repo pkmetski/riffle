@@ -64,30 +64,6 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
         // Headings included so picking a reading font feels consistent across body and titles.
         elements = "body, p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, figcaption",
     ),
-    // Readium's built-in rule (`:root[style*="--USER__pageMargins"] body { padding: 0 X !important }`)
-    // applies user margins only to body's left/right. We add a top/bottom margin on every page
-    // by padding the multicol container itself — `:root` — not `body`. Padding on body would
-    // only show on the very first/last column because body is fragmented as a single block
-    // across columns; padding on `:root` shrinks the column height (since `:root` has
-    // `height: 100vh` + `box-sizing: border-box`), so every column gets equal top/bottom
-    // whitespace. The selector `:root[style*="--USER__pageMargins"]` has higher specificity
-    // (0,2,0) than Readium's `:root { padding: 0 !important }` (0,1,0), so our padding-top /
-    // padding-bottom longhands win regardless of source order. In scroll mode (`readium-scroll-on`)
-    // `:root` is `height: auto`, so this becomes whitespace at the start/end of each loaded
-    // resource — still the desired "margin" semantics.
-    //
-    // Top is 0.8× the horizontal gutter — close to the left/right side margins (Readium's
-    // built-in body padding, 1.0×) and the bottom (1.0×), but slightly narrower per conventional
-    // book typography. Both scale with --USER__pageMargins, so cranking up margins keeps the
-    // ratio constant.
-    "margins" to TypographyOverride(
-        userPropertyName = "--USER__pageMargins",
-        declarations = listOf(
-            "padding-top" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 0.8)",
-            "padding-bottom" to "calc(var(--RS__pageGutter) * var(--USER__pageMargins) * 1.0)",
-        ),
-        elements = "",  // empty → rule targets `:root` itself, not a descendant
-    ),
 )
 
 /**
@@ -96,6 +72,12 @@ internal val TYPOGRAPHY_OVERRIDES: Map<String, TypographyOverride> = mapOf(
  * maintainers don't accidentally add a field to this list as a way of silencing the test.
  */
 internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
+    "margins" to "Page margins come from Readium's pre-paint layout: left/right from its built-in body " +
+        "padding (scales with --USER__pageMargins), top/bottom from its native container vertical padding " +
+        "(readium_navigator_epub_vertical_padding). We deliberately do NOT inject a :root padding override " +
+        "for the top/bottom margin: injected in onPageLoaded it lands AFTER first paint, so the page visibly " +
+        "dropped by the margin amount on every chapter start (the 'page falls from above' bug). Letting " +
+        "Readium own the vertical margin keeps it applied before the page is revealed, with no reflow.",
     "fontSize" to "Applied via root-em multiplier; a per-element override would flatten the publisher's size hierarchy.",
     "theme" to "Multi-property (background, text colour, link colour, image filters) — handled by Readium's theme stylesheet, not a single override.",
     "orientation" to "Layout/scroll mode, not a CSS property.",
