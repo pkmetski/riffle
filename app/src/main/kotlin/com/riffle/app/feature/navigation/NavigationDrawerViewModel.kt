@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.Library
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.orderLibraries
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
@@ -35,6 +37,7 @@ class NavigationDrawerViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
+    private val orderStore: LibraryOrderPreferencesStore,
     private val connectivityObserver: ConnectivityObserver,
     nowPlayingNavigator: NowPlayingNavigator,
     private val nowPlayingStore: NowPlayingStore,
@@ -65,9 +68,12 @@ class NavigationDrawerViewModel @Inject constructor(
             combine(
                 libraryRepository.observeLibraries(),
                 visibilityStore.hiddenLibraryIds(server.id),
-            ) { libraries, hiddenIds ->
-                // Exclude hidden libraries and the never-browsable Readaloud namespace row (ADR 0026).
-                libraries.filter { it.id !in hiddenIds && !it.isReadaloud }
+                orderStore.libraryOrder(server.id),
+            ) { libraries, hiddenIds, order ->
+                // Exclude hidden libraries and the never-browsable Readaloud namespace row (ADR 0026),
+                // then apply the user's custom per-server order (alphabetical fallback for the rest).
+                val visible = libraries.filter { it.id !in hiddenIds && !it.isReadaloud }
+                orderLibraries(visible, order)
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())

@@ -18,6 +18,7 @@ import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
+import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.LocalStoreMigrator
@@ -52,6 +53,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
@@ -110,6 +112,10 @@ annotation class FormattingPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LibraryVisibilityPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class LibraryOrderPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -262,6 +268,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindLibraryVisibilityPreferencesStore(impl: LibraryVisibilityPreferencesStoreImpl): LibraryVisibilityPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindLibraryOrderPreferencesStore(impl: LibraryOrderPreferencesStoreImpl): LibraryOrderPreferencesStore
 
     @Binds
     @Singleton
@@ -548,6 +558,13 @@ abstract class DataModule {
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.libraryVisibilityPreferencesDataStore
 
+
+        @Provides
+        @Singleton
+        @LibraryOrderPreferencesDataStore
+        fun provideLibraryOrderPreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.libraryOrderPreferencesDataStore
 
         @Provides
         @Singleton

@@ -11,8 +11,10 @@ import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.orderLibraries
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
@@ -42,6 +44,7 @@ class SettingsViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val libraryRepository: LibraryRepository,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
+    private val orderStore: LibraryOrderPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val readaloudReviewRepository: ReadaloudReviewRepository,
@@ -172,9 +175,11 @@ class SettingsViewModel @Inject constructor(
                         combine(
                             libraryRepository.observeLibraries(server.id),
                             visibilityStore.hiddenLibraryIds(server.id),
-                        ) { libraries, hiddenIds ->
-                            val visibleCount = libraries.count { it.id !in hiddenIds }
-                            server.id to libraries.map { lib ->
+                            orderStore.libraryOrder(server.id),
+                        ) { libraries, hiddenIds, order ->
+                            val ordered = orderLibraries(libraries, order)
+                            val visibleCount = ordered.count { it.id !in hiddenIds }
+                            server.id to ordered.map { lib ->
                                 val isVisible = lib.id !in hiddenIds
                                 LibraryUiItem(
                                     library = lib,
@@ -237,6 +242,11 @@ class SettingsViewModel @Inject constructor(
             if (visible) visibilityStore.showLibrary(serverId, libraryId)
             else visibilityStore.hideLibrary(serverId, libraryId)
         }
+    }
+
+    /** Persist a new full ordering of [serverId]'s libraries after a drag-reorder in Settings. */
+    fun setLibraryOrder(serverId: String, orderedLibraryIds: List<String>) {
+        viewModelScope.launch { orderStore.setLibraryOrder(serverId, orderedLibraryIds) }
     }
 }
 
