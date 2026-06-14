@@ -179,14 +179,15 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
-    fun `setActiveLibrary persists the library for the active server`() = runTest(testDispatcher) {
+    fun `setActiveLibrary persists under the repository's active server, not the lagging StateFlow`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
 
         val vm = makeVm()
-        backgroundScope.launch { vm.activeServer.collect {} }
-        testScheduler.advanceUntilIdle()
-
+        // Deliberately do NOT collect vm.activeServer, so its eagerly-started StateFlow stays at its
+        // initial null — mirroring the window right after a server switch. Persistence must still
+        // resolve the active server from the repository (the old activeServer.value path would drop
+        // the write or use a stale server here).
         vm.setActiveLibrary("lib-2")
         testScheduler.advanceUntilIdle()
 

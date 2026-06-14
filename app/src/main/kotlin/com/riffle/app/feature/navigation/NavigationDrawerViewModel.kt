@@ -84,9 +84,15 @@ class NavigationDrawerViewModel @Inject constructor(
 
     fun setActiveLibrary(libraryId: String) {
         _lastActiveLibraryId.value = libraryId
-        // Remember it per-server so app start reopens this library (see HomeViewModel).
-        val serverId = activeServer.value?.id ?: return
-        viewModelScope.launch { lastOpenedLibraryStore.setLastOpenedLibrary(serverId, libraryId) }
+        // Remember it per-server so app start reopens this library (see HomeViewModel). Resolve the
+        // active server authoritatively from the repository — the same source getStartDestination
+        // reads. The activeServer StateFlow can lag a just-committed server switch, which would
+        // persist this library under the previous server's key (or drop it when still null on cold
+        // start).
+        viewModelScope.launch {
+            val serverId = serverRepository.getActive()?.id ?: return@launch
+            lastOpenedLibraryStore.setLastOpenedLibrary(serverId, libraryId)
+        }
     }
 
     private val _redirectToLibrary = MutableSharedFlow<Library>(extraBufferCapacity = 1)
