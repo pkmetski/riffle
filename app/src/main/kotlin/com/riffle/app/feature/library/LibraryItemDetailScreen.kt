@@ -372,7 +372,7 @@ private fun LibraryItemDetailContent(
         }
 
         if (item.isListenable && item.audioDurationSec > 0) {
-            AudiobookDurationLine(item.audioDurationSec)
+            AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
 
         if (item.readingProgress > 0f) {
@@ -387,11 +387,19 @@ private fun LibraryItemDetailContent(
     }
 }
 
-/** Total audiobook length on the detail screen (ADR 0029). */
+/** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0029). */
 @Composable
-private fun AudiobookDurationLine(durationSec: Double) {
+private fun AudiobookDurationLine(durationSec: Double, readingProgress: Float = 0f) {
+    val text = when {
+        readingProgress >= READ_PROGRESS_THRESHOLD -> "${formatAudiobookDuration(durationSec)} total"
+        readingProgress > 0f -> {
+            val remainingSec = ((1f - readingProgress) * durationSec).coerceAtLeast(0.0)
+            "${formatAudiobookDuration(durationSec)} total · ${formatAudiobookDuration(remainingSec)} remaining"
+        }
+        else -> "Audiobook · ${formatAudiobookDuration(durationSec)}"
+    }
     Text(
-        text = "Audiobook · ${formatAudiobookDuration(durationSec)}",
+        text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -477,7 +485,7 @@ internal fun LibraryItemDetailContentTablet(
             )
             AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
             if (item.isListenable && item.audioDurationSec > 0) {
-                AudiobookDurationLine(item.audioDurationSec)
+                AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
@@ -598,7 +606,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
             }
             if (item.isListenable && item.audioDurationSec > 0) {
-                AudiobookDurationLine(item.audioDurationSec)
+                AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
