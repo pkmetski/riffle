@@ -843,6 +843,27 @@ class LibraryRepositoryTest {
         assertEquals("item-2", result[1].id)
     }
 
+    // ── observeContinueSeriesItems ────────────────────────────────────────────
+
+    @Test
+    fun `observeContinueSeriesItems maps entities from DAO`() = runTest {
+        val dao = FakeSeriesDao()
+        val repo = makeRepo(seriesDao = dao)
+        dao.seedContinueSeriesItems("lib-1", listOf(
+            LibraryItemEntity(
+                serverId = "s1", id = "item-42", libraryId = "lib-1",
+                title = "Abaddon's Gate", author = "James S. A. Corey",
+                coverUrl = null, readingProgress = 0f,
+            ),
+        ))
+
+        val result = repo.observeContinueSeriesItems("lib-1").first()
+
+        assertEquals(1, result.size)
+        assertEquals("item-42", result[0].id)
+        assertEquals("Abaddon's Gate", result[0].title)
+    }
+
     // ── observeCollectionItems ────────────────────────────────────────────────
 
     @Test
