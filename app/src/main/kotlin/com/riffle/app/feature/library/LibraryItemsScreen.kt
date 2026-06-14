@@ -86,6 +86,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -101,7 +102,6 @@ import com.riffle.core.domain.Series
 import kotlin.math.floor
 import kotlin.math.max
 
-private const val SECTION_PREVIEW_LIMIT = 5
 
 /**
  * True within an audiobooks-only library, so cover tiles that carry no per-item audio signal —
@@ -340,17 +340,25 @@ fun BookSectionGrid(
     onSeeMore: (() -> Unit)? = null,
     linkedItemIds: Set<String> = emptySet(),
 ) {
-    val preview = if (onSeeMore != null) items.take(SECTION_PREVIEW_LIMIT) else items
-    val overflowCount = items.size - SECTION_PREVIEW_LIMIT
-    CoverGrid(
-        count = preview.size + (if (onSeeMore != null) 1 else 0),
-        modifier = Modifier.padding(horizontal = 12.dp),
-    ) { index ->
-        if (onSeeMore != null && index == preview.size) {
-            SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
-        } else {
-            val item = preview[index]
-            BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
+    val minCell = shelfCoverMinCellSize()
+    val spacing = 8.dp
+    BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
+        val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
+        val previewCount = max(1, columns * 2 - 1)
+        val showSeeMore = onSeeMore != null && items.size > previewCount
+        val preview = if (onSeeMore != null) items.take(previewCount) else items
+        val overflowCount = items.size - previewCount
+        CoverGridLayout(
+            count = preview.size + (if (showSeeMore) 1 else 0),
+            columns = columns,
+            spacing = spacing,
+        ) { index ->
+            if (showSeeMore && index == preview.size) {
+                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
+            } else {
+                val item = preview[index]
+                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
+            }
         }
     }
 }
@@ -362,17 +370,25 @@ fun SeriesSectionGrid(
     onSeriesSelected: (Series) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
-    val preview = if (onSeeMore != null) items.take(SECTION_PREVIEW_LIMIT) else items
-    val overflowCount = items.size - SECTION_PREVIEW_LIMIT
-    CoverGrid(
-        count = preview.size + (if (onSeeMore != null) 1 else 0),
-        modifier = Modifier.padding(horizontal = 12.dp),
-    ) { index ->
-        if (onSeeMore != null && index == preview.size) {
-            SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
-        } else {
-            val s = preview[index]
-            SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
+    val minCell = shelfCoverMinCellSize()
+    val spacing = 8.dp
+    BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
+        val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
+        val previewCount = max(1, columns * 2 - 1)
+        val showSeeMore = onSeeMore != null && items.size > previewCount
+        val preview = if (onSeeMore != null) items.take(previewCount) else items
+        val overflowCount = items.size - previewCount
+        CoverGridLayout(
+            count = preview.size + (if (showSeeMore) 1 else 0),
+            columns = columns,
+            spacing = spacing,
+        ) { index ->
+            if (showSeeMore && index == preview.size) {
+                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
+            } else {
+                val s = preview[index]
+                SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
+            }
         }
     }
 }
@@ -385,22 +401,30 @@ fun CollectionsSectionGrid(
     onCollectionSelected: (Collection) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
-    val preview = if (onSeeMore != null) items.take(SECTION_PREVIEW_LIMIT) else items
-    val overflowCount = items.size - SECTION_PREVIEW_LIMIT
-    CoverGrid(
-        count = preview.size + (if (onSeeMore != null) 1 else 0),
-        modifier = Modifier.padding(horizontal = 12.dp),
-    ) { index ->
-        if (onSeeMore != null && index == preview.size) {
-            SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
-        } else {
-            val col = preview[index]
-            CollectionCoverTile(
-                collection = col,
-                coverUrls = coverUrls[col.id].orEmpty(),
-                token = token,
-                onClick = { onCollectionSelected(col) },
-            )
+    val minCell = shelfCoverMinCellSize()
+    val spacing = 8.dp
+    BoxWithConstraints(Modifier.padding(horizontal = 12.dp)) {
+        val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
+        val previewCount = max(1, columns * 2 - 1)
+        val showSeeMore = onSeeMore != null && items.size > previewCount
+        val preview = if (onSeeMore != null) items.take(previewCount) else items
+        val overflowCount = items.size - previewCount
+        CoverGridLayout(
+            count = preview.size + (if (showSeeMore) 1 else 0),
+            columns = columns,
+            spacing = spacing,
+        ) { index ->
+            if (showSeeMore && index == preview.size) {
+                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
+            } else {
+                val col = preview[index]
+                CollectionCoverTile(
+                    collection = col,
+                    coverUrls = coverUrls[col.id].orEmpty(),
+                    token = token,
+                    onClick = { onCollectionSelected(col) },
+                )
+            }
         }
     }
 }
@@ -408,30 +432,23 @@ fun CollectionsSectionGrid(
 // --- Generic adaptive cover grid layout ---
 
 @Composable
-private fun CoverGrid(
+private fun CoverGridLayout(
     count: Int,
-    modifier: Modifier = Modifier,
+    columns: Int,
+    spacing: Dp = 8.dp,
     content: @Composable (index: Int) -> Unit,
 ) {
-    val minCell = shelfCoverMinCellSize()
-    val spacing = 8.dp
-    // Mirror GridCells.Adaptive: as many columns as fit at >= minCell, then split
-    // the row evenly. Driven off the same shelf sizing as the To Read grid so the
-    // home previews reflow to ~4 covers on a phone and ~5-6 on a tablet.
-    BoxWithConstraints(modifier = modifier) {
-        val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
-        val rows = (count + columns - 1) / columns
-        Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-            for (row in 0 until rows) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing),
-                ) {
-                    for (col in 0 until columns) {
-                        val index = row * columns + col
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (index < count) content(index)
-                        }
+    val rows = (count + columns - 1) / columns
+    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+        for (row in 0 until rows) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                for (col in 0 until columns) {
+                    val index = row * columns + col
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (index < count) content(index)
                     }
                 }
             }
@@ -989,9 +1006,7 @@ private fun HomeTabContent(
                     items = inProgress,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (inProgress.size > SECTION_PREVIEW_LIMIT + 1) {
-                        { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) }
-                    } else null,
+                    onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
                     linkedItemIds = linkedItemIds,
                 )
             }
@@ -1003,9 +1018,7 @@ private fun HomeTabContent(
                     items = recentlyAdded,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (recentlyAdded.size > SECTION_PREVIEW_LIMIT + 1) {
-                        { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) }
-                    } else null,
+                    onSeeMore = { onSectionSeeMore(LibrarySectionType.RECENTLY_ADDED) },
                     linkedItemIds = linkedItemIds,
                 )
             }
@@ -1017,9 +1030,7 @@ private fun HomeTabContent(
                     items = finished,
                     token = token,
                     onItemSelected = onItemSelected,
-                    onSeeMore = if (finished.size > SECTION_PREVIEW_LIMIT + 1) {
-                        { onSectionSeeMore(LibrarySectionType.FINISHED) }
-                    } else null,
+                    onSeeMore = { onSectionSeeMore(LibrarySectionType.FINISHED) },
                     linkedItemIds = linkedItemIds,
                 )
             }
