@@ -27,6 +27,9 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -53,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.FormattingPanel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.launch
@@ -73,6 +77,7 @@ fun SettingsScreen(
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
+    val appTheme by viewModel.appTheme.collectAsState()
     val servers by viewModel.servers.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
@@ -197,6 +202,18 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
+                    text = "Appearance",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                AppThemeRow(
+                    appTheme = appTheme,
+                    onAppThemeChange = { viewModel.setAppTheme(it) },
+                )
+                HorizontalDivider()
+
+                Text(
                     text = "Reading",
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -290,6 +307,37 @@ fun SettingsScreen(
             onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             fullScreen = true,
         )
+    }
+}
+
+/**
+ * App-chrome theme selector (Light / Dark / System). Independent of the reader's content theme —
+ * this drives the Material color scheme of everything outside the reading surface.
+ */
+@Composable
+private fun AppThemeRow(
+    appTheme: AppTheme,
+    onAppThemeChange: (AppTheme) -> Unit,
+) {
+    val options = listOf(
+        AppTheme.Light to "Light",
+        AppTheme.Dark to "Dark",
+        AppTheme.System to "System",
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        options.forEachIndexed { index, (theme, label) ->
+            SegmentedButton(
+                selected = theme == appTheme,
+                onClick = { onAppThemeChange(theme) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+            ) {
+                Text(label)
+            }
+        }
     }
 }
 

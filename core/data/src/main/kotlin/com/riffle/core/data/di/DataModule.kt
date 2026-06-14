@@ -37,6 +37,7 @@ import com.riffle.core.data.ServerRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.CoverGridDensityStoreImpl
+import com.riffle.core.data.AppThemeStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
@@ -68,6 +69,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AudiobookBundleDownloader
@@ -124,6 +126,10 @@ annotation class WakeLockPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class VolumeKeyPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AppThemePreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -280,6 +286,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindVolumeKeyPreferencesStore(impl: VolumeKeyPreferencesStoreImpl): VolumeKeyPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAppThemeStore(impl: AppThemeStoreImpl): AppThemeStore
 
     @Binds
     @Singleton
@@ -579,6 +589,13 @@ abstract class DataModule {
         fun provideVolumeKeyPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.volumeKeyPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @AppThemePreferencesDataStore
+        fun provideAppThemePreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.appThemePreferencesDataStore
 
         @Provides
         @Singleton

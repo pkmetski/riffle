@@ -9,12 +9,18 @@ import android.view.ViewGroup
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentFactory
@@ -27,6 +33,8 @@ import com.riffle.app.navigation.MainScreen
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.ui.BottomNavBarScrim
 import com.riffle.app.ui.theme.RiffleTheme
+import com.riffle.core.domain.AppTheme
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,10 +49,12 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var volumeNavigationController: VolumeNavigationController
     @Inject lateinit var readerStateHolder: ReaderStateHolder
     @Inject lateinit var volumeKeyPreferencesStore: VolumeKeyPreferencesStore
+    @Inject lateinit var appThemeStore: AppThemeStore
     @Inject lateinit var nowPlayingNavigator: NowPlayingNavigator
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
+    private lateinit var appTheme: StateFlow<AppTheme>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (savedInstanceState != null) {
@@ -62,6 +72,8 @@ class MainActivity : FragmentActivity() {
             .stateIn(lifecycleScope, SharingStarted.Eagerly, true)
         invertVolumeKeys = volumeKeyPreferencesStore.invertVolumeKeys
             .stateIn(lifecycleScope, SharingStarted.Eagerly, false)
+        appTheme = appThemeStore.appTheme
+            .stateIn(lifecycleScope, SharingStarted.Eagerly, AppTheme.System)
         // Both system bars are fully transparent at the OS level. The app draws its own
         // scrim under the nav-bar inset area (BottomNavBarScrim, applied globally in
         // setContent below) so the look is identical across gesture-nav devices (where
@@ -79,7 +91,19 @@ class MainActivity : FragmentActivity() {
         }
         handleIntent(intent)
         setContent {
-            RiffleTheme {
+            val theme by appTheme.collectAsState()
+            val isDark = theme.isDark(isSystemInDarkTheme())
+            // Keep the transparent system-bar icon contrast in step with the chosen chrome theme,
+            // overriding the system-driven default from enableEdgeToEdge above (otherwise a forced
+            // Dark theme under a Light OS would render dark icons on the dark top app bar).
+            val view = LocalView.current
+            SideEffect {
+                WindowCompat.getInsetsController(window, view).run {
+                    isAppearanceLightStatusBars = !isDark
+                    isAppearanceLightNavigationBars = !isDark
+                }
+            }
+            RiffleTheme(darkTheme = isDark) {
                 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
                 val windowSizeClass = calculateWindowSizeClass(this)
                 Box(Modifier.fillMaxSize()) {
