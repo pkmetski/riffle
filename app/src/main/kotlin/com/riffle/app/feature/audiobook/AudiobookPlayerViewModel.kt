@@ -8,6 +8,7 @@ import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.AudiobookBookmark
 import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
@@ -106,6 +107,9 @@ data class AudiobookPlayerUiState(
     val durationSec: Double = 0.0,
     val currentChapterTitle: String? = null,
     val chapterStartsSec: List<Double> = emptyList(),
+    // The full chapter list + the index of the chapter the playhead is in, for the Chapters sheet.
+    val chapters: List<AudiobookChapter> = emptyList(),
+    val currentChapterIndex: Int = -1,
     val canPreviousChapter: Boolean = false,
     val canNextChapter: Boolean = false,
     // Book details for the landscape two-column player: a facts line and the blurb (ADR 0029).
@@ -316,6 +320,8 @@ class AudiobookPlayerViewModel(
                 durationSec = if (playback.durationSec > 0) playback.durationSec else m.durationSec,
                 currentChapterTitle = chapter?.title,
                 chapterStartsSec = timeline.chapters.map { it.startSec },
+                chapters = timeline.chapters,
+                currentChapterIndex = chapter?.index ?: -1,
                 canPreviousChapter = timeline.canPreviousChapter,
                 canNextChapter = timeline.canNextChapter,
                 bookmarks = m.bookmarks,
