@@ -67,6 +67,7 @@ fun LibrarySectionScreen(
                 onItemSelected = onItemSelected,
                 contentPadding = padding,
             )
+            LibrarySectionType.CONTINUE_SERIES -> {}
         }
     }
 }

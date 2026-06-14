@@ -88,6 +88,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -128,6 +129,7 @@ fun LibraryItemsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredUngroupedItems by viewModel.filteredUngroupedItems.collectAsState()
     val inProgress by viewModel.filteredInProgress.collectAsState()
+    val continueSeries by viewModel.continueSeriesItems.collectAsState()
     val allBooks by viewModel.filteredAllBooks.collectAsState()
     val finished by viewModel.filteredFinished.collectAsState()
     val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
@@ -232,6 +234,7 @@ fun LibraryItemsScreen(
                 when (selectedTab) {
                     0 -> HomeTabContent(
                         inProgress = inProgress,
+                        continueSeries = continueSeries,
                         recentlyAdded = recentlyAdded,
                         finished = finished,
                         isLoading = isLoading,
@@ -339,6 +342,7 @@ fun BookSectionGrid(
     onItemSelected: (LibraryItem) -> Unit,
     onSeeMore: (() -> Unit)? = null,
     linkedItemIds: Set<String> = emptySet(),
+    showSeriesBadge: Boolean = false,
 ) {
     val minCell = shelfCoverMinCellSize()
     val spacing = 8.dp
@@ -357,7 +361,13 @@ fun BookSectionGrid(
                 SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
             } else {
                 val item = preview[index]
-                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
+                BookCoverTile(
+                    item = item,
+                    token = token,
+                    onClick = { onItemSelected(item) },
+                    hasReadaloudLink = item.id in linkedItemIds,
+                    seriesNameBadge = if (showSeriesBadge) item.seriesName else null,
+                )
             }
         }
     }
@@ -464,6 +474,7 @@ fun BookCoverTile(
     token: String,
     onClick: () -> Unit,
     hasReadaloudLink: Boolean = false,
+    seriesNameBadge: String? = null,
 ) {
     val alpha = if (!item.isPlayable) 0.38f else 1f
     // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
@@ -518,6 +529,24 @@ fun BookCoverTile(
                         contentDescription = "Has readaloud (synced narration)",
                         tint = Color.White,
                         modifier = Modifier.size(17.dp),
+                    )
+                }
+            }
+            if (seriesNameBadge != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 5.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.70f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = seriesNameBadge,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -977,6 +1006,7 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 @Composable
 private fun HomeTabContent(
     inProgress: List<LibraryItem>,
+    continueSeries: List<LibraryItem>,
     recentlyAdded: List<LibraryItem>,
     finished: List<LibraryItem>,
     isLoading: Boolean,
@@ -987,7 +1017,7 @@ private fun HomeTabContent(
     onCoverScaleChange: (Float) -> Unit = {},
 ) {
     if (isLoading) return
-    if (inProgress.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
+    if (inProgress.isEmpty() && continueSeries.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No books in progress or completed")
         }
@@ -1008,6 +1038,19 @@ private fun HomeTabContent(
                     onItemSelected = onItemSelected,
                     onSeeMore = { onSectionSeeMore(LibrarySectionType.IN_PROGRESS) },
                     linkedItemIds = linkedItemIds,
+                )
+            }
+        }
+        if (continueSeries.isNotEmpty()) {
+            item(key = "header_continue_series") { SectionHeader(LibrarySectionType.CONTINUE_SERIES.displayName) }
+            item(key = "grid_continue_series") {
+                BookSectionGrid(
+                    items = continueSeries,
+                    token = token,
+                    onItemSelected = onItemSelected,
+                    onSeeMore = null,
+                    linkedItemIds = linkedItemIds,
+                    showSeriesBadge = true,
                 )
             }
         }
