@@ -101,6 +101,15 @@ class StorytellerBundleApiImpl(
             val response = effectiveClient.newCall(request).execute()
             val body = response.body ?: return@withContext NetworkStorytellerBundleResult.NetworkError(IOException("Empty response body"))
             if (response.isSuccessful) {
+                // The blocking execute() spans Storyteller's slow /synced header wait; if the coroutine
+                // was cancelled during it, withContext discards this Success and leaks the open body
+                // (an unread socket). Close it ourselves before handing ownership to the (live) caller.
+                try {
+                    ensureActive()
+                } catch (e: Throwable) {
+                    body.close()
+                    throw e
+                }
                 NetworkStorytellerBundleResult.Success(body)
             } else {
                 body.close()
