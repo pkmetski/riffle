@@ -561,10 +561,13 @@ class EpubReaderViewModel @Inject constructor(
                     return
                 }
                 publication = pub
-                // Stored lastPosition may be empty or malformed (legacy rows / corrupted writes).
-                // Fall back to null so openBook() can open the publication at its default position.
-                val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let {
-                    try { Locator.fromJSON(JSONObject(it)) } catch (_: Exception) { null }
+                // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's
+                // translation fix (< 2.6.x) may still hold a raw ABS `epubcfi(...)` — convert
+                // those on open so legacy progress isn't lost (one-time healing; new rows are
+                // always canonical Locator JSON). A genuinely unusable value falls back to null.
+                val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
+                    runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
+                        ?: cfiStringToLocator(stored)
                 }
                 _state.value = ReaderState.Ready(
                     publication = pub,
@@ -905,26 +908,34 @@ class EpubReaderViewModel @Inject constructor(
         )
     }
 
+    /**
+     * Resolves a raw ABS `epubcfi(...)` to a [Locator] using the open publication. Used by
+     * [serverProgressToLocator] (live sync path: ABS always returns epubcfi) and by [openBook]
+     * (legacy-row healing for DB rows written before the ADR 0030 translation fix). Returns null
+     * when the string isn't an epubcfi or can't be resolved, letting callers fall back.
+     */
+    private suspend fun cfiStringToLocator(rawCfi: String): Locator? {
+        val pub = publication ?: return null
+        val cfi = rawCfi.takeIf { it.startsWith("epubcfi(") } ?: return null
+        val docPath = extractCfiDocPath(cfi)
+        val spineIndex = epubCfiToSpineIndex(cfi)
+        val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
+        val html = spineIndex?.let { readChapterHtml(it) }
+        val chapterProgression = if (docPath != null && html != null) cfiDocPathToProgression(docPath, html) else null
+        if (link == null || chapterProgression == null) return null
+        return try {
+            Locator.fromJSON(
+                JSONObject()
+                    .put("href", link.href.toString())
+                    .put("type", "application/xhtml+xml")
+                    .put("locations", JSONObject().put("progression", chapterProgression))
+            )
+        } catch (_: Exception) { null }
+    }
+
     private suspend fun serverProgressToLocator(serverProgress: ServerProgress): Locator? {
         val pub = publication ?: return null
-        val cfi = serverProgress.ebookLocation.takeIf { it.startsWith("epubcfi(") }
-        if (cfi != null) {
-            val docPath = extractCfiDocPath(cfi)
-            val spineIndex = epubCfiToSpineIndex(cfi)
-            val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
-            val html = spineIndex?.let { readChapterHtml(it) }
-            val chapterProgression = if (docPath != null && html != null) cfiDocPathToProgression(docPath, html) else null
-            if (link != null && chapterProgression != null) {
-                return try {
-                    Locator.fromJSON(
-                        JSONObject()
-                            .put("href", link.href.toString())
-                            .put("type", "application/xhtml+xml")
-                            .put("locations", JSONObject().put("progression", chapterProgression))
-                    )
-                } catch (_: Exception) { null }
-            }
-        }
+        cfiStringToLocator(serverProgress.ebookLocation)?.let { return it }
         // Fallback: no usable CFI — navigate via book-wide progress float
         val progress = serverProgress.ebookProgress.toDouble().coerceIn(0.0, 1.0)
         return if (progress > 0.0) pub.locateProgression(progress) else null
