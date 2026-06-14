@@ -1,7 +1,7 @@
 # Continuous Scroll Mode — Design Spec
 
 **Date:** 2026-06-14  
-**Branch:** pkmetski/minnetonka-v1  
+**Branch:** pkmetski/endless-scroll-chapters  
 **Status:** Approved
 
 ---
@@ -30,7 +30,7 @@ The existing Paged and Scroll modes are unchanged.
 A custom `NestedScrollView` subclass that stacks `ChapterWebView` items vertically. It is the sole scrollable container — no nested scrolling occurs.
 
 At any time it holds a windowed pool of **3 `ChapterWebView`s**: the chapter before the current, the current chapter, and the chapter after. As the user scrolls past a chapter boundary:
-- The far end `ChapterWebView` is detached and recycled
+- The far end `ChapterWebView` is detached and destroyed (WebViews are not pooled — the cost of creating a new one is acceptable given the 3-item window)
 - A new `ChapterWebView` is created and appended at the advancing end
 
 Chapter URLs are loaded from Readium's already-running local HTTP server — the same URLs `EpubNavigatorFragment` uses. No new serving infrastructure is required.
@@ -108,7 +108,7 @@ The existing auto-follow JS is routed to whichever `ChapterWebView` corresponds 
 - The audio locator carries chapter href + progression
 - `ContinuousReaderView` routes highlight injection to the matching `ChapterWebView`
 - When readaloud crosses a chapter boundary, the highlight is cleared from the departing `ChapterWebView` and re-injected into the arriving one
-- The chapter must be in the current window (within ±1 of current) — if it isn't, the window shifts to include it
+- The chapter must be in the current window (within ±1 of current) — if it isn't (e.g. audio has raced ahead of the reading position), the highlight is suppressed rather than shifting the reading window, to avoid disrupting the user's scroll position
 
 ### Search result navigation
 
