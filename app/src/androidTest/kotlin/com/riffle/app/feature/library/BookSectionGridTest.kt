@@ -73,12 +73,19 @@ class BookSectionGridTest {
     }
 
     @Test
-    fun seeMoreAbsentWhenCallbackIsNull() {
-        // null onSeeMore means the caller wants all items displayed
+    fun seeMoreAbsentAndAllItemsShownWhenCallbackIsNull() {
+        // null onSeeMore: no tile, and all items must be displayed (no truncation)
         setGridContent(itemCount = 20, onSeeMore = null)
         assertTrue(
             "SeeMore should not appear when onSeeMore is null",
             rule.onAllNodes(hasText("more", substring = true)).fetchSemanticsNodes().isEmpty(),
+        )
+        val coverNodes = rule
+            .onAllNodesWithContentDescription("Book", substring = true)
+            .fetchSemanticsNodes()
+        assertTrue(
+            "All 20 items should be visible when onSeeMore is null, got ${coverNodes.size}",
+            coverNodes.size == 20,
         )
     }
 

@@ -346,7 +346,7 @@ fun BookSectionGrid(
         val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
         val previewCount = max(1, columns * 2 - 1)
         val showSeeMore = onSeeMore != null && items.size > previewCount
-        val preview = items.take(previewCount)
+        val preview = if (onSeeMore != null) items.take(previewCount) else items
         val overflowCount = items.size - previewCount
         CoverGridLayout(
             count = preview.size + (if (showSeeMore) 1 else 0),
@@ -376,7 +376,7 @@ fun SeriesSectionGrid(
         val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
         val previewCount = max(1, columns * 2 - 1)
         val showSeeMore = onSeeMore != null && items.size > previewCount
-        val preview = items.take(previewCount)
+        val preview = if (onSeeMore != null) items.take(previewCount) else items
         val overflowCount = items.size - previewCount
         CoverGridLayout(
             count = preview.size + (if (showSeeMore) 1 else 0),
@@ -407,7 +407,7 @@ fun CollectionsSectionGrid(
         val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
         val previewCount = max(1, columns * 2 - 1)
         val showSeeMore = onSeeMore != null && items.size > previewCount
-        val preview = items.take(previewCount)
+        val preview = if (onSeeMore != null) items.take(previewCount) else items
         val overflowCount = items.size - previewCount
         CoverGridLayout(
             count = preview.size + (if (showSeeMore) 1 else 0),
@@ -453,23 +453,6 @@ private fun CoverGridLayout(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun CoverGrid(
-    count: Int,
-    modifier: Modifier = Modifier,
-    content: @Composable (index: Int) -> Unit,
-) {
-    val minCell = shelfCoverMinCellSize()
-    val spacing = 8.dp
-    // Mirror GridCells.Adaptive: as many columns as fit at >= minCell, then split
-    // the row evenly. Driven off the same shelf sizing as the To Read grid so the
-    // home previews reflow to ~4 covers on a phone and ~5-6 on a tablet.
-    BoxWithConstraints(modifier = modifier) {
-        val columns = max(1, floor((maxWidth + spacing) / (minCell + spacing)).toInt())
-        CoverGridLayout(count = count, columns = columns, spacing = spacing, content = content)
     }
 }
 
