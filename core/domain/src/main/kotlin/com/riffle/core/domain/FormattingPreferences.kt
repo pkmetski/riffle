@@ -12,6 +12,7 @@ data class FormattingPreferences(
     val showChapterMap: Boolean = DEFAULT_SHOW_CHAPTER_MAP,
     val showReadingProgressLabels: Boolean = DEFAULT_SHOW_READING_PROGRESS_LABELS,
     val showCurrentChapterLabel: Boolean = DEFAULT_SHOW_CURRENT_CHAPTER_LABEL,
+    val showReadingTimeEstimate: Boolean = DEFAULT_SHOW_READING_TIME_ESTIMATE,
     val doublePageSpread: Boolean = DEFAULT_DOUBLE_PAGE_SPREAD,
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
     val themeSchedule: ThemeSchedule = ThemeSchedule(),
@@ -23,6 +24,7 @@ data class FormattingPreferences(
         const val DEFAULT_SHOW_CHAPTER_MAP: Boolean = true
         const val DEFAULT_SHOW_READING_PROGRESS_LABELS: Boolean = false
         const val DEFAULT_SHOW_CURRENT_CHAPTER_LABEL: Boolean = false
+        const val DEFAULT_SHOW_READING_TIME_ESTIMATE: Boolean = true
         const val DEFAULT_DOUBLE_PAGE_SPREAD: Boolean = false
         const val DEFAULT_JUSTIFY_TEXT: Boolean = false
         val DEFAULT_THEME: ReaderTheme = ReaderTheme.Light
