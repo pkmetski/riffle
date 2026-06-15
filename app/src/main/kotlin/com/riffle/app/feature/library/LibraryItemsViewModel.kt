@@ -198,7 +198,8 @@ class LibraryItemsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val continueSeriesItems: StateFlow<List<LibraryItem>> = combine(continueSeriesBase, isOffline) { items, offline ->
-        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        val filtered = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        filtered.take(20)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(allBooks, isOffline) { items, offline ->

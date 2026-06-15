@@ -88,7 +88,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -535,15 +534,15 @@ fun BookCoverTile(
             if (seriesNameBadge != null) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 5.dp)
+                        .align(Alignment.TopStart)
+                        .padding(top = 5.dp, start = 5.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.Black.copy(alpha = 0.70f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(
                         text = seriesNameBadge,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        style = MaterialTheme.typography.labelSmall,
                         color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -1019,7 +1018,7 @@ private fun HomeTabContent(
     if (isLoading) return
     if (inProgress.isEmpty() && continueSeries.isEmpty() && recentlyAdded.isEmpty() && finished.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No books in progress or completed")
+            Text("Nothing to show here")
         }
         return
     }
