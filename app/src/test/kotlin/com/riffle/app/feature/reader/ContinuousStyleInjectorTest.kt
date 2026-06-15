@@ -75,4 +75,11 @@ class ContinuousStyleInjectorTest {
         )
         assertTrue(js.contains("setProperty('--USER__textColor', '#AAAAAA'"))
     }
+
+    @Test
+    fun `highlightTextJs escapes single quotes in text`() {
+        val js = ContinuousStyleInjector.highlightTextJs("it's a test")
+        assertTrue(js.contains("it\\'s a test"))
+        assertFalse(js.contains("it's a test"))
+    }
 }

@@ -71,25 +71,34 @@ internal object ContinuousStyleInjector {
      * with `document.body.scrollHeight`. Requires the calling [ChapterWebView] to have
      * registered a `JavascriptInterface` named `RiffleChapter`.
      */
-    const val HEIGHT_MEASUREMENT_JS = """
+    val HEIGHT_MEASUREMENT_JS = """
         document.fonts.ready.then(function() {
             requestAnimationFrame(function() {
                 window.RiffleChapter.onHeightMeasured(document.body.scrollHeight);
             });
         });
-    """
+    """.trimIndent()
+
+    val CLEAR_HIGHLIGHT_JS = """
+        (function() {
+            var m = document.getElementById('_riffle_hl');
+            if (m) m.outerHTML = m.innerHTML;
+        })();
+    """.trimIndent()
 
     /**
-     * JS that highlights [escapedText] via `window.find` + DOM `<mark>` injection, replacing
+     * JS that highlights [text] via `window.find` + DOM `<mark>` injection, replacing
      * any existing mark with id `_riffle_hl`. Pass an empty string to clear.
+     * Single quotes and backslashes in [text] are escaped before embedding in JS.
      */
-    fun highlightTextJs(escapedText: String): String {
-        if (escapedText.isBlank()) return CLEAR_HIGHLIGHT_JS
+    fun highlightTextJs(text: String): String {
+        if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
+        val safe = text.replace("\\", "\\\\").replace("'", "\\'")
         return """
             (function() {
                 var existing = document.getElementById('_riffle_hl');
                 if (existing) { existing.outerHTML = existing.innerHTML; }
-                if (!window.find('$escapedText', false, false, false, false, false, false)) return;
+                if (!window.find('$safe', false, false, false, false, false, false)) return;
                 var sel = window.getSelection();
                 if (!sel || sel.rangeCount === 0) return;
                 var range = sel.getRangeAt(0);
@@ -101,11 +110,4 @@ internal object ContinuousStyleInjector {
             })();
         """.trimIndent()
     }
-
-    const val CLEAR_HIGHLIGHT_JS = """
-        (function() {
-            var m = document.getElementById('_riffle_hl');
-            if (m) m.outerHTML = m.innerHTML;
-        })();
-    """
 }
