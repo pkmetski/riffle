@@ -2,6 +2,9 @@ package com.riffle.app.feature.settings
 
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.ReadaloudPreferences
+import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
@@ -70,6 +73,12 @@ class SettingsViewModelTest {
     private val noOpWakeLockStore = object : WakeLockPreferencesStore {
         override val keepScreenOn = flowOf(true)
         override suspend fun setKeepScreenOn(value: Boolean) {}
+    }
+
+    private val readaloudPrefsFlow = MutableStateFlow(ReadaloudPreferences())
+    private val fakeReadaloudStore = object : ReadaloudPreferencesStore {
+        override val preferences = readaloudPrefsFlow
+        override suspend fun update(prefs: ReadaloudPreferences) { readaloudPrefsFlow.value = prefs }
     }
 
     private val volumeNavEnabledFlow = MutableStateFlow(true)
@@ -210,6 +219,7 @@ class SettingsViewModelTest {
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
+        readaloudPreferencesStore = fakeReadaloudStore,
     )
 
     // --- existing crash report tests (unchanged) ---
@@ -515,5 +525,20 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(AppTheme.Dark, appThemeFlow.first())
+    }
+
+    // --- readaloud highlight color ---
+
+    @Test
+    fun `updateReadaloudHighlightColor persists new color to store and updates StateFlow`() = runTest {
+        val vm = makeViewModel()
+        val emitted = mutableListOf<ReadaloudHighlightColor>()
+        val job = launch { vm.readaloudPreferences.collect { emitted.add(it.highlightColor) } }
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.updateReadaloudHighlightColor(ReadaloudHighlightColor.YELLOW)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(ReadaloudHighlightColor.YELLOW, readaloudPrefsFlow.value.highlightColor)
+        assertEquals(ReadaloudHighlightColor.YELLOW, emitted.last())
+        job.cancel()
     }
 }

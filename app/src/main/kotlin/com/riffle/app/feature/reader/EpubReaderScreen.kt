@@ -81,6 +81,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
@@ -238,6 +239,7 @@ fun EpubReaderScreen(
     val audiobookItemId by viewModel.audiobookItemId.collectAsState()
     val activeFragmentRef by viewModel.activeFragmentRef.collectAsState()
     val sentenceQuotes by viewModel.sentenceQuotes.collectAsState()
+    val readaloudHighlightColor by viewModel.readaloudHighlightColor.collectAsState()
     val sentenceChapters by viewModel.sentenceChapters.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
@@ -321,6 +323,7 @@ fun EpubReaderScreen(
                         onPlayFromHere = viewModel::playFromHere,
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = readaloudReservePx,
+                        readaloudHighlightColor = readaloudHighlightColor,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
@@ -793,6 +796,7 @@ private fun EpubNavigatorView(
     onPlayFromHere: (fragmentRef: String) -> Unit,
     readaloudAvailable: Boolean,
     readaloudReservePx: Int = 0,
+    readaloudHighlightColor: ReadaloudHighlightColor,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
@@ -1275,7 +1279,7 @@ private fun EpubNavigatorView(
     // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -1293,7 +1297,7 @@ private fun EpubNavigatorView(
             id = "readaloud_active",
             locator = locator,
             style = Decoration.Style.Highlight(
-                tint = android.graphics.Color.parseColor("#FF7DD3FC"),
+                tint = readaloudHighlightColor.argb,
                 isActive = false,
             ),
         )

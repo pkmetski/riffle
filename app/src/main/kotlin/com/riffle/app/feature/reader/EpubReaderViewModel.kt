@@ -37,6 +37,8 @@ import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ReadaloudResumePosition
+import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SessionPayload
@@ -139,6 +141,7 @@ class EpubReaderViewModel @Inject constructor(
     private val annotationStore: AnnotationStore,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
+    private val readaloudPreferencesStore: ReadaloudPreferencesStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -343,6 +346,11 @@ class EpubReaderViewModel @Inject constructor(
     // rendered EPUB's own spans, the first time readaloud prepares.
     private val _sentenceQuotes = MutableStateFlow<Map<String, com.riffle.core.domain.SentenceQuote>>(emptyMap())
     val sentenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = _sentenceQuotes
+
+    val readaloudHighlightColor: StateFlow<ReadaloudHighlightColor> =
+        readaloudPreferencesStore.preferences
+            .map { it.highlightColor }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReadaloudHighlightColor.BLUE)
 
     // span id → bundle chapter href, so "Play from here" can scope the sentence resolver to the chapter
     // being read (a phrase that recurs across chapters otherwise resolves to the wrong chapter's clip).

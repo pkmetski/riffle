@@ -17,6 +17,9 @@ import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.orderLibraries
+import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.ReadaloudPreferences
+import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
@@ -53,6 +56,7 @@ class SettingsViewModel @Inject constructor(
     private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val appUpdateRepository: AppUpdateRepository,
+    private val readaloudPreferencesStore: ReadaloudPreferencesStore,
 ) : ViewModel() {
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
@@ -99,6 +103,10 @@ class SettingsViewModel @Inject constructor(
     val globalFormattingPreferences: StateFlow<FormattingPreferences> =
         formattingPreferencesStore.preferences
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FormattingPreferences())
+
+    val readaloudPreferences: StateFlow<ReadaloudPreferences> =
+        readaloudPreferencesStore.preferences
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReadaloudPreferences())
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
@@ -205,6 +213,12 @@ class SettingsViewModel @Inject constructor(
 
     fun updateGlobalFormatting(prefs: FormattingPreferences) {
         viewModelScope.launch { formattingPreferencesStore.update(prefs) }
+    }
+
+    fun updateReadaloudHighlightColor(color: ReadaloudHighlightColor) {
+        viewModelScope.launch {
+            readaloudPreferencesStore.update(ReadaloudPreferences(highlightColor = color))
+        }
     }
 
     fun setKeepScreenOn(value: Boolean) {

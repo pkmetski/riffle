@@ -4,14 +4,18 @@ import android.content.ClipData
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -47,8 +51,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
@@ -57,6 +64,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.FormattingPanel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.AppTheme
+import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.launch
@@ -83,6 +91,7 @@ fun SettingsScreen(
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
+    val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
@@ -221,10 +230,43 @@ fun SettingsScreen(
                 HorizontalDivider()
                 ListItem(
                     modifier = Modifier.clickable { showFormattingPanel = true },
-                    headlineContent = { Text("Reading settings") },
+                    headlineContent = { Text("Formatting") },
                     supportingContent = { Text("Font, theme, spacing, screen wake, volume keys") },
                     trailingContent = {
                         TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
+                    },
+                )
+                HorizontalDivider()
+
+                Text(
+                    text = "Readaloud",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Sentence highlight") },
+                    trailingContent = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ReadaloudHighlightColor.entries.forEach { color ->
+                                val isSelected = readaloudPreferences.highlightColor == color
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(color.argb.toLong() and 0xFFFFFFFFL))
+                                        .then(
+                                            if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                            else Modifier
+                                        )
+                                        .semantics {
+                                            contentDescription = color.name.lowercase()
+                                                .replaceFirstChar { it.uppercase() } + " highlight"
+                                        }
+                                        .clickable { viewModel.updateReadaloudHighlightColor(color) },
+                                )
+                            }
+                        }
                     },
                 )
                 HorizontalDivider()
