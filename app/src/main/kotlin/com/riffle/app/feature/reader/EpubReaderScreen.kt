@@ -646,7 +646,7 @@ private fun formatDuration(sec: Long): String {
     val minutes = (sec % 3600) / 60
     return when {
         hours > 0 -> "${hours}h ${minutes}m"
-        else -> "${minutes} min"
+        else -> "${minutes}m"
     }
 }
 
@@ -656,12 +656,12 @@ private fun formatChapterRemaining(remaining: TimeRemaining): String = when (rem
         val h = sec / 3600
         val m = (sec % 3600) / 60
         val s = sec % 60
-        if (h > 0) "%d:%02d:%02d chapter".format(h, m, s)
-        else "%d:%02d chapter".format(m, s)
+        if (h > 0) "%d:%02d:%02d left".format(h, m, s)
+        else "%d:%02d left".format(m, s)
     }
     is TimeRemaining.Estimated -> when {
-        remaining.sec < 60 -> "< 1 min chapter"
-        else -> "~${formatDuration(remaining.sec)} chapter"
+        remaining.sec < 60 -> "< 1m left"
+        else -> "~${formatDuration(remaining.sec)} left"
     }
 }
 
@@ -675,7 +675,7 @@ private fun formatBookRemaining(remaining: TimeRemaining): String = when (remain
         else "%d:%02d left".format(m, s)
     }
     is TimeRemaining.Estimated -> when {
-        remaining.sec < 60 -> "< 1 min left"
+        remaining.sec < 60 -> "< 1m left"
         else -> "~${formatDuration(remaining.sec)} left"
     }
 }
