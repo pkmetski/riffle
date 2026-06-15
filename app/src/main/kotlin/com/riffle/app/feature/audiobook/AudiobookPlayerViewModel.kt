@@ -332,6 +332,10 @@ class AudiobookPlayerViewModel(
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS.toDouble())
 
+    private val rewindOnResumeSec: StateFlow<Double> = listeningPreferencesStore.rewindOnResumeSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
+
     val uiState: StateFlow<AudiobookPlayerUiState> =
         combine(meta, controller.state, controller.sleepTimer) { m, playback, timer ->
             val pos = playback.positionSec
@@ -652,6 +656,12 @@ class AudiobookPlayerViewModel(
             controller.pause()
             pushProgressOnStop()
         } else {
+            val rewindSec = rewindOnResumeSec.value
+            if (rewindSec > 0) {
+                val newPos = (controller.currentAbsoluteSec() - rewindSec).coerceAtLeast(0.0)
+                reconciledResumeSec = newPos
+                controller.seekTo(newPos)
+            }
             controller.play()
         }
     }

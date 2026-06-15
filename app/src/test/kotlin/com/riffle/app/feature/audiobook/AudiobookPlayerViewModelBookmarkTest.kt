@@ -53,12 +53,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -113,6 +115,8 @@ class AudiobookPlayerViewModelBookmarkTest {
         controller: FakeController,
         bookmarkStore: AudiobookBookmarkStore,
         connectivity: FakeConnectivityObserver = FakeConnectivityObserver(online = true),
+        prefsStore: AudioPlaybackPreferencesStore = FakePrefsStore,
+        listeningStore: ListeningPreferencesStore = FakeListeningPreferencesStore,
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -130,8 +134,8 @@ class AudiobookPlayerViewModelBookmarkTest {
             serverRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
-            audioPlaybackPreferencesStore = FakePrefsStore,
-            listeningPreferencesStore = FakeListeningPreferencesStore,
+            audioPlaybackPreferencesStore = prefsStore,
+            listeningPreferencesStore = listeningStore,
             audioIdentityResolver = FakeIdentityResolver,
             readerSyncFactory = TestReaderSyncFactory(),
             readaloudLinkRepository = FakeLinkRepository,
@@ -276,6 +280,69 @@ class AudiobookPlayerViewModelBookmarkTest {
         }
     }
 
+    // --- speed persistence ---
+
+    @Test
+    fun `setSpeed saves with the resolved identity after the debounce window`() = runTest(testDispatcher) {
+        val store = RecordingPrefsStore()
+        val vm = buildViewModel(FakeController(0.0), FakeBookmarkStore(), prefsStore = store)
+        runCurrent() // openBook() completes → audioSettingsIdentity = AudioIdentity(serverId, itemId)
+
+        vm.setSpeed(1.5f)
+        advanceTimeBy(401L) // > SPEED_SAVE_DEBOUNCE_MS (400ms)
+        runCurrent()
+
+        assertNotNull("save() must have been called", store.lastSave)
+        assertEquals(AudioIdentity(serverId, itemId), store.lastSave!!.first)
+        assertEquals(1.5f, store.lastSave!!.second)
+        vm.clearForTest()
+    }
+
+    // --- rewind on resume ---
+
+    @Test
+    fun `togglePlayPause when resuming seeks back by rewindOnResumeSeconds before playing`() = runTest(testDispatcher) {
+        val ctrl = FakeController(position = 30.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 10 }
+        val vm = buildViewModel(ctrl, FakeBookmarkStore(), listeningStore = store)
+        runCurrent()
+
+        vm.togglePlayPause() // not playing → resume path
+        runCurrent()
+
+        // Must seek to 30 - 10 = 20 before playing
+        assertEquals(listOf(20.0), ctrl.seeks)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `togglePlayPause when resuming with zero rewindOnResumeSeconds does not seek`() = runTest(testDispatcher) {
+        val ctrl = FakeController(position = 30.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 0 }
+        val vm = buildViewModel(ctrl, FakeBookmarkStore(), listeningStore = store)
+        runCurrent()
+
+        vm.togglePlayPause()
+        runCurrent()
+
+        assertEquals(emptyList<Double>(), ctrl.seeks)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `togglePlayPause when resuming at position less than rewindSec clamps to zero`() = runTest(testDispatcher) {
+        val ctrl = FakeController(position = 5.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 10 }
+        val vm = buildViewModel(ctrl, FakeBookmarkStore(), listeningStore = store)
+        runCurrent()
+
+        vm.togglePlayPause()
+        runCurrent()
+
+        assertEquals(listOf(0.0), ctrl.seeks)
+        vm.clearForTest()
+    }
+
     // --- fakes ---
 
     private class FakeConnectivityObserver(online: Boolean) : com.riffle.core.domain.ConnectivityObserver {
@@ -409,6 +476,14 @@ class AudiobookPlayerViewModelBookmarkTest {
         override suspend fun rekey(old: AudioIdentity, new: AudioIdentity) {}
     }
 
+    private class RecordingPrefsStore : AudioPlaybackPreferencesStore {
+        var lastSave: Pair<AudioIdentity, Float>? = null
+        override suspend fun load(identity: AudioIdentity): Float? = null
+        override suspend fun save(identity: AudioIdentity, speed: Float) { lastSave = identity to speed }
+        override suspend fun clear(identity: AudioIdentity) {}
+        override suspend fun rekey(old: AudioIdentity, new: AudioIdentity) {}
+    }
+
     private object FakeListeningPreferencesStore : ListeningPreferencesStore {
         override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
         override val skipIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
@@ -418,6 +493,17 @@ class AudiobookPlayerViewModelBookmarkTest {
         override suspend fun setSkipIntervalSeconds(seconds: Int) {}
         override suspend fun setRewindIntervalSeconds(seconds: Int) {}
         override suspend fun setRewindOnResumeSeconds(seconds: Int) {}
+    }
+
+    private class MutableListeningPreferencesStore : ListeningPreferencesStore {
+        override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
+        override val skipIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+        override val rewindIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
+        override val rewindOnResumeSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
+        override suspend fun setDefaultPlaybackSpeed(speed: Float) { defaultPlaybackSpeed.value = speed }
+        override suspend fun setSkipIntervalSeconds(seconds: Int) { skipIntervalSeconds.value = seconds }
+        override suspend fun setRewindIntervalSeconds(seconds: Int) { rewindIntervalSeconds.value = seconds }
+        override suspend fun setRewindOnResumeSeconds(seconds: Int) { rewindOnResumeSeconds.value = seconds }
     }
 
     private object FakeIdentityResolver : AudioIdentityResolver {

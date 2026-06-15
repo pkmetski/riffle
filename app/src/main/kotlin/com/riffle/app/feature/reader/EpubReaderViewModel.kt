@@ -238,6 +238,10 @@ class EpubReaderViewModel @Inject constructor(
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS.toDouble())
 
+    private val rewindOnResumeSec: StateFlow<Double> = listeningPreferencesStore.rewindOnResumeSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
+
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
     // Per-field book overrides. null on a field means "follow global", so changing global later
@@ -1543,6 +1547,7 @@ class EpubReaderViewModel @Inject constructor(
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
             delay(SPEED_SAVE_DEBOUNCE_MS)
+            if (audioSettingsIdentity.serverId.isEmpty()) return@launch
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
             pendingSpeed = null
         }
@@ -1554,7 +1559,8 @@ class EpubReaderViewModel @Inject constructor(
         val speed = pendingSpeed ?: return
         speedSaveJob?.cancel()
         pendingSpeed = null
-        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+        if (audioSettingsIdentity.serverId.isEmpty()) return
+        progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
     fun rewind() = playerCoordinator.skipBy(-rewindIntervalSec.value)
@@ -1732,7 +1738,9 @@ class EpubReaderViewModel @Inject constructor(
         // Record the active readaloud so a media-notification tap reopens this book's reader.
         nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Readaloud(itemId))
         if (readaloudStarted) {
-            // Resume after a pause: ExoPlayer kept its place, just play.
+            // Resume after a pause: rewind by the configured amount then play.
+            val rewindSec = rewindOnResumeSec.value
+            if (rewindSec > 0) playerCoordinator.skipBy(-rewindSec)
             playerCoordinator.play()
             return
         }
