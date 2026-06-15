@@ -164,9 +164,9 @@ open class AudiobookController @Inject constructor(
             timerJob = scope.launch {
                 var remaining = mode.remainingMs
                 while (remaining > 0L) {
+                    _sleepTimer.value = SleepTimerMode.CountDown(remaining)
                     delay(1_000L)
                     remaining -= 1_000L
-                    _sleepTimer.value = SleepTimerMode.CountDown(remaining.coerceAtLeast(0L))
                 }
                 fadeAndStop()
             }

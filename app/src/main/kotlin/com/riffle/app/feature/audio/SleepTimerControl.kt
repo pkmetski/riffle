@@ -116,7 +116,7 @@ fun SleepTimerControl(
                         modifier = Modifier.weight(1f),
                     )
                 }
-}
+            }
         }
     }
 }
