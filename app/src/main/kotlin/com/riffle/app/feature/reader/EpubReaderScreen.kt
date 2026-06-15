@@ -656,12 +656,12 @@ private fun formatChapterRemaining(remaining: TimeRemaining): String = when (rem
         val h = sec / 3600
         val m = (sec % 3600) / 60
         val s = sec % 60
-        if (h > 0) "%d:%02d:%02d in chapter".format(h, m, s)
-        else "%d:%02d in chapter".format(m, s)
+        if (h > 0) "%d:%02d:%02d chapter".format(h, m, s)
+        else "%d:%02d chapter".format(m, s)
     }
     is TimeRemaining.Estimated -> when {
-        remaining.sec < 60 -> "< 1 min in chapter"
-        else -> "~${formatDuration(remaining.sec)} in chapter"
+        remaining.sec < 60 -> "< 1 min chapter"
+        else -> "~${formatDuration(remaining.sec)} chapter"
     }
 }
 
