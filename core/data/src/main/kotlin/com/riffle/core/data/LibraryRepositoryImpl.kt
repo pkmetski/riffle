@@ -61,22 +61,22 @@ class LibraryRepositoryImpl @Inject constructor(
         libraryDao.observeByServerId(serverId).map { list -> list.map { it.toDomain() } }
 
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
+        libraryItemDao.observeByLibraryId(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
 
     override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeUngroupedByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
+        libraryItemDao.observeUngroupedByLibraryId(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
 
     override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeInProgress(libraryId).map { list -> list.map { it.toDomain() } }
+        libraryItemDao.observeInProgress(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
 
     override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeFinished(libraryId).map { list -> list.map { it.toDomain() } }
+        libraryItemDao.observeFinished(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
 
     override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeRecentlyAdded(libraryId).map { list -> list.map { it.toDomain() } }
+        libraryItemDao.observeRecentlyAdded(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
 
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeAllBooks(libraryId).map { list -> list.map { it.toDomain() } }
+        libraryItemDao.observeAllBooks(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
 
     override fun observeSeries(libraryId: String): Flow<List<Series>> =
         seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
