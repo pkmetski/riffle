@@ -26,6 +26,7 @@ import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
+import com.riffle.app.feature.library.LibraryItemsViewModel
 import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
@@ -289,8 +290,16 @@ fun MainScreen(
                 val sectionType = LibrarySectionType.valueOf(
                     backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.IN_PROGRESS.name
                 )
+                // Reuse the library-items ViewModel from the parent back stack entry instead of
+                // creating a new one. A fresh LibraryItemsViewModel triggers a full library
+                // refresh concurrently with the main screen's refresh, which can cause data races
+                // in shared singletons (e.g. StorytellerReadaloudSyncer).
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(LIBRARY_ITEMS)
+                }
                 LibrarySectionScreen(
                     sectionType = sectionType,
+                    viewModel = hiltViewModel<LibraryItemsViewModel>(parentEntry),
                     onItemSelected = { item ->
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")

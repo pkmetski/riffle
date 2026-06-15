@@ -10,6 +10,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkStorytellerBook
 import com.riffle.core.network.NetworkStorytellerBooksResult
 import com.riffle.core.network.StorytellerLibraryApi
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.first
 
 /**
@@ -68,7 +69,7 @@ open class StorytellerReadaloudSyncer(
     private val clock: () -> Long,
     private val ttlMillis: Long = STORYTELLER_SYNC_TTL_MILLIS,
 ) {
-    private val lastSyncedAt = mutableMapOf<String, Long>()
+    private val lastSyncedAt = ConcurrentHashMap<String, Long>()
 
     /** Best-effort: fetch+store readalouds for each stale Storyteller server. Never throws. */
     open suspend fun syncStale() {

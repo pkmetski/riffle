@@ -208,4 +208,27 @@ class SeriesDaoTest {
         // Both series appear; series-ts (real timestamp) before series-null (null → COALESCE 0)
         assertEquals(listOf("ts-next", "null-next"), result.map { it.id })
     }
+
+    // C5 — a book that qualifies as the "next" book in two different series must appear exactly once
+    @Test
+    fun observeContinueSeriesItems_deduplicatesBookInMultipleSeries() = runTest {
+        // shared-next is the next unread book in both series-A and series-B
+        db.libraryItemDao().upsertAll(listOf(
+            LibraryItemEntity(serverId = "s1", id = "a-done", libraryId = "lib1", title = "AD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
+            LibraryItemEntity(serverId = "s1", id = "b-done", libraryId = "lib1", title = "BD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(serverId = "s1", id = "shared-next", libraryId = "lib1", title = "SN", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-A"), series("series-B")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "a-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "shared-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-B", serverId = "s1", itemId = "b-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-B", serverId = "s1", itemId = "shared-next", sequenceOrder = 2f),
+        ))
+
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        // shared-next qualifies via both series but must only appear once
+        assertEquals(listOf("shared-next"), result.map { it.id })
+    }
 }
