@@ -234,6 +234,10 @@ class EpubReaderViewModel @Inject constructor(
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
 
+    val rewindIntervalSec: StateFlow<Double> = listeningPreferencesStore.rewindIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS.toDouble())
+
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
     // Per-field book overrides. null on a field means "follow global", so changing global later
@@ -1553,7 +1557,7 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
-    fun rewind() = playerCoordinator.skipBy(-skipIntervalSec.value)
+    fun rewind() = playerCoordinator.skipBy(-rewindIntervalSec.value)
 
     fun forward() = playerCoordinator.skipBy(skipIntervalSec.value)
 

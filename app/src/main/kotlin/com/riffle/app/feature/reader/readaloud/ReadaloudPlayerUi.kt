@@ -106,6 +106,7 @@ fun ReadaloudMiniPlayer(
     isPlaying: Boolean,
     speed: Float,
     skipIntervalSeconds: Int,
+    rewindIntervalSeconds: Int,
     offlineMessage: Boolean,
     downloadProgress: Float?,
     canPreviousChapter: Boolean,
@@ -160,7 +161,7 @@ fun ReadaloudMiniPlayer(
                 SpeedControl(speed = speed, contentColor = contentColor, onSpeedChange = onSpeedChange)
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = onRewind, modifier = Modifier.testTag("readaloud_rewind")) {
-                    SkipIcon(seconds = skipIntervalSeconds, forward = false, tint = contentColor)
+                    SkipIcon(seconds = rewindIntervalSeconds, forward = false, tint = contentColor)
                 }
                 IconButton(
                     onClick = onPreviousChapter,

@@ -412,9 +412,11 @@ class AudiobookPlayerViewModelBookmarkTest {
     private object FakeListeningPreferencesStore : ListeningPreferencesStore {
         override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
         override val skipIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+        override val rewindIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
         override val rewindOnResumeSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
         override suspend fun setDefaultPlaybackSpeed(speed: Float) {}
         override suspend fun setSkipIntervalSeconds(seconds: Int) {}
+        override suspend fun setRewindIntervalSeconds(seconds: Int) {}
         override suspend fun setRewindOnResumeSeconds(seconds: Int) {}
     }
 

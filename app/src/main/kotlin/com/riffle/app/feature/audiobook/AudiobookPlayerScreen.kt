@@ -213,6 +213,7 @@ fun AudiobookPlayerScreen(
                             description = state.description,
                             sleepTimer = state.sleepTimer,
                             skipIntervalSeconds = state.skipIntervalSeconds,
+                            rewindIntervalSeconds = state.rewindIntervalSeconds,
                         ),
                         twoColumn = twoColumn,
                         actions = PlayerSurfaceActions(

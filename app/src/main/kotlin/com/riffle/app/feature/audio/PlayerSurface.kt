@@ -92,6 +92,7 @@ data class PlayerSurfaceState(
     val description: String? = null,
     val sleepTimer: SleepTimerMode = SleepTimerMode.None,
     val skipIntervalSeconds: Int = 30,
+    val rewindIntervalSeconds: Int = 15,
 )
 
 /** Callbacks the surface invokes. [onSeek] takes an absolute global position in seconds. */
@@ -340,7 +341,7 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton)) {
-            SkipIcon(seconds = state.skipIntervalSeconds, forward = false, iconSize = secondaryIcon)
+            SkipIcon(seconds = state.rewindIntervalSeconds, forward = false, iconSize = secondaryIcon)
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {

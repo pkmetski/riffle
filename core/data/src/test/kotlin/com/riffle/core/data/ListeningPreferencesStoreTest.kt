@@ -57,6 +57,18 @@ class ListeningPreferencesStoreTest {
     }
 
     @Test
+    fun `default rewindIntervalSeconds is 15 when DataStore is empty`() = testScope.runTest {
+        assertEquals(15, buildStore().rewindIntervalSeconds.first())
+    }
+
+    @Test
+    fun `setRewindIntervalSeconds persists and reads back`() = testScope.runTest {
+        val store = buildStore()
+        store.setRewindIntervalSeconds(10)
+        assertEquals(10, store.rewindIntervalSeconds.first())
+    }
+
+    @Test
     fun `default rewindOnResumeSeconds is 0 when DataStore is empty`() = testScope.runTest {
         assertEquals(0, buildStore().rewindOnResumeSeconds.first())
     }
@@ -79,6 +91,7 @@ class ListeningPreferencesStoreTest {
             )
             store.setDefaultPlaybackSpeed(2.0f)
             store.setSkipIntervalSeconds(45)
+            store.setRewindIntervalSeconds(10)
             store.setRewindOnResumeSeconds(5)
         }
         writeScope.cancel()
@@ -89,6 +102,7 @@ class ListeningPreferencesStoreTest {
         )
         assertEquals(2.0f, runBlocking { store2.defaultPlaybackSpeed.first() })
         assertEquals(45, runBlocking { store2.skipIntervalSeconds.first() })
+        assertEquals(10, runBlocking { store2.rewindIntervalSeconds.first() })
         assertEquals(5, runBlocking { store2.rewindOnResumeSeconds.first() })
         readScope.cancel()
     }

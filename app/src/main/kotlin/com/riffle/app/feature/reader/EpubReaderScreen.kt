@@ -247,6 +247,7 @@ fun EpubReaderScreen(
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
     val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
     val skipIntervalSec by viewModel.skipIntervalSec.collectAsState()
+    val rewindIntervalSec by viewModel.rewindIntervalSec.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
     // Starting (or resuming) readaloud is a "lean back and listen" intent, so drop into
@@ -425,6 +426,7 @@ fun EpubReaderScreen(
                             isPlaying = playbackState.isPlaying,
                             speed = playbackState.speed,
                             skipIntervalSeconds = skipIntervalSec.toInt(),
+                            rewindIntervalSeconds = rewindIntervalSec.toInt(),
                             offlineMessage = readaloudOfflineMessage,
                             downloadProgress = downloadProgress,
                             canPreviousChapter = playbackState.currentChapterIndex > 0,

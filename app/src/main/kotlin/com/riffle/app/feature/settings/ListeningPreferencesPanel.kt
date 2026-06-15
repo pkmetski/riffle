@@ -35,6 +35,8 @@ fun ListeningPreferencesPanel(
     onDefaultSpeedChange: (Float) -> Unit,
     skipIntervalSeconds: Int,
     onSkipIntervalSecondsChange: (Int) -> Unit,
+    rewindIntervalSeconds: Int,
+    onRewindIntervalSecondsChange: (Int) -> Unit,
     rewindOnResumeSeconds: Int,
     onRewindOnResumeSecondsChange: (Int) -> Unit,
     onDismiss: () -> Unit,
@@ -75,7 +77,7 @@ fun ListeningPreferencesPanel(
 
                 Spacer(Modifier.height(16.dp))
 
-                Text("Skip interval", style = MaterialTheme.typography.labelMedium)
+                Text("Forward skip", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(8.dp))
                 val skipOptions = listOf(10, 15, 30, 45, 60)
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -92,15 +94,32 @@ fun ListeningPreferencesPanel(
 
                 Spacer(Modifier.height(16.dp))
 
-                Text("Rewind on resume", style = MaterialTheme.typography.labelMedium)
+                Text("Backward rewind", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(8.dp))
-                val rewindOptions = listOf(0, 5, 10, 30)
+                val rewindOptions = listOf(5, 10, 15, 30)
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     rewindOptions.forEachIndexed { index, seconds ->
                         SegmentedButton(
+                            selected = seconds == rewindIntervalSeconds,
+                            onClick = { onRewindIntervalSecondsChange(seconds) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = rewindOptions.size),
+                        ) {
+                            Text("${seconds}s")
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Text("Rewind on resume", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(8.dp))
+                val resumeRewindOptions = listOf(0, 5, 10, 30)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    resumeRewindOptions.forEachIndexed { index, seconds ->
+                        SegmentedButton(
                             selected = seconds == rewindOnResumeSeconds,
                             onClick = { onRewindOnResumeSecondsChange(seconds) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = rewindOptions.size),
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = resumeRewindOptions.size),
                         ) {
                             Text(if (seconds == 0) "Off" else "${seconds}s")
                         }

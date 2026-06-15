@@ -125,6 +125,9 @@ class SettingsViewModel @Inject constructor(
     val skipIntervalSeconds: StateFlow<Int> = listeningPreferencesStore.skipIntervalSeconds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
 
+    val rewindIntervalSeconds: StateFlow<Int> = listeningPreferencesStore.rewindIntervalSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
+
     val rewindOnResumeSeconds: StateFlow<Int> = listeningPreferencesStore.rewindOnResumeSeconds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
 
@@ -254,6 +257,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setSkipIntervalSeconds(seconds: Int) {
         viewModelScope.launch { listeningPreferencesStore.setSkipIntervalSeconds(seconds) }
+    }
+
+    fun setRewindIntervalSeconds(seconds: Int) {
+        viewModelScope.launch { listeningPreferencesStore.setRewindIntervalSeconds(seconds) }
     }
 
     fun setRewindOnResumeSeconds(seconds: Int) {

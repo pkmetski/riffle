@@ -94,6 +94,7 @@ fun SettingsScreen(
     val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
     val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
     val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
+    val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
     val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -375,6 +376,8 @@ fun SettingsScreen(
             onDefaultSpeedChange = { viewModel.setDefaultPlaybackSpeed(it) },
             skipIntervalSeconds = skipIntervalSeconds,
             onSkipIntervalSecondsChange = { viewModel.setSkipIntervalSeconds(it) },
+            rewindIntervalSeconds = rewindIntervalSeconds,
+            onRewindIntervalSecondsChange = { viewModel.setRewindIntervalSeconds(it) },
             rewindOnResumeSeconds = rewindOnResumeSeconds,
             onRewindOnResumeSecondsChange = { viewModel.setRewindOnResumeSeconds(it) },
             onDismiss = { showListeningPanel = false },

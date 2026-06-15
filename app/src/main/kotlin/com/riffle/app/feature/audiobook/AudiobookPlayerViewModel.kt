@@ -132,6 +132,7 @@ data class AudiobookPlayerUiState(
     val bookmarksOffline: Boolean = false,
     val sleepTimer: SleepTimerMode = SleepTimerMode.None,
     val skipIntervalSeconds: Int = 30,
+    val rewindIntervalSeconds: Int = 15,
 )
 
 @HiltViewModel
@@ -327,6 +328,10 @@ class AudiobookPlayerViewModel(
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
 
+    private val rewindIntervalSec: StateFlow<Double> = listeningPreferencesStore.rewindIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS.toDouble())
+
     val uiState: StateFlow<AudiobookPlayerUiState> =
         combine(meta, controller.state, controller.sleepTimer) { m, playback, timer ->
             val pos = playback.positionSec
@@ -349,6 +354,8 @@ class AudiobookPlayerViewModel(
             )
         }.combine(skipIntervalSec) { state, skip ->
             state.copy(skipIntervalSeconds = skip.toInt())
+        }.combine(rewindIntervalSec) { state, rewind ->
+            state.copy(rewindIntervalSeconds = rewind.toInt())
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
     init {
@@ -657,9 +664,9 @@ class AudiobookPlayerViewModel(
     }
 
     fun rewind() {
-        val skipSec = skipIntervalSec.value
-        reconciledResumeSec = (controller.currentAbsoluteSec() - skipSec).coerceAtLeast(0.0)
-        controller.skipBy(-skipSec)
+        val rewindSec = rewindIntervalSec.value
+        reconciledResumeSec = (controller.currentAbsoluteSec() - rewindSec).coerceAtLeast(0.0)
+        controller.skipBy(-rewindSec)
     }
 
     fun forward() {
@@ -740,7 +747,9 @@ class AudiobookPlayerViewModel(
         speedSaveJob?.cancel()
         pendingSpeed = null
         if (serverId.isEmpty()) return
-        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+        // progressFlushScope, not viewModelScope: onCleared cancels viewModelScope before calling
+        // this, so a launch there never executes (same reasoning as pushProgressOnStop).
+        progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
     /**
