@@ -25,7 +25,7 @@ interface SeriesDao {
         SELECT li.* FROM library_items li
         INNER JOIN series_items si ON li.serverId = si.serverId AND li.id = si.itemId
         WHERE li.libraryId = :libraryId
-          AND li.readingProgress = 0.0
+          AND li.readingProgress < 1.0
           AND si.seriesId IN (
               SELECT DISTINCT si2.seriesId
               FROM series_items si2
@@ -46,7 +46,7 @@ interface SeriesDao {
               INNER JOIN library_items li3 ON li3.serverId = si3.serverId AND li3.id = si3.itemId
               WHERE si3.seriesId = si.seriesId
                 AND li3.libraryId = :libraryId
-                AND li3.readingProgress = 0.0
+                AND li3.readingProgress < 1.0
           )
         ORDER BY COALESCE(
             (
