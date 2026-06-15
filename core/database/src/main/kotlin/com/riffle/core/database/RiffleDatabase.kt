@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookPositionEntity::class,
         AudiobookBookmarkEntity::class,
     ],
-    version = 35,
+    version = 36,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -694,6 +694,12 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `audiobook_positions` ADD COLUMN `lastSyncedAt` INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `book_formatting_preferences` ADD COLUMN `showReadingTimeEstimate` INTEGER DEFAULT NULL")
             }
         }
 

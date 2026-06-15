@@ -40,6 +40,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
             showReadingProgressLabels = prefs[KEY_SHOW_READING_PROGRESS_LABELS] ?: false,
             showCurrentChapterLabel = prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] ?: false,
+            showReadingTimeEstimate = prefs[KEY_SHOW_READING_TIME_ESTIMATE] ?: false,
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
             justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
             themeSchedule = ThemeSchedule(
@@ -70,6 +71,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_SHOW_CHAPTER_MAP] = preferences.showChapterMap
             prefs[KEY_SHOW_READING_PROGRESS_LABELS] = preferences.showReadingProgressLabels
             prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] = preferences.showCurrentChapterLabel
+            prefs[KEY_SHOW_READING_TIME_ESTIMATE] = preferences.showReadingTimeEstimate
             prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
             prefs[KEY_JUSTIFY_TEXT] = preferences.justifyText
             prefs[KEY_SCHEDULE_DAY_START] = preferences.themeSchedule.dayStart.toMinuteOfDay()
@@ -89,6 +91,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_SHOW_CHAPTER_MAP = booleanPreferencesKey("show_chapter_map")
         val KEY_SHOW_READING_PROGRESS_LABELS = booleanPreferencesKey("show_reading_progress_labels")
         val KEY_SHOW_CURRENT_CHAPTER_LABEL = booleanPreferencesKey("show_current_chapter_label")
+        val KEY_SHOW_READING_TIME_ESTIMATE = booleanPreferencesKey("show_reading_time_estimate")
         val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
         val KEY_JUSTIFY_TEXT = booleanPreferencesKey("justify_text")
         val KEY_SCHEDULE_DAY_START = intPreferencesKey("theme_schedule_day_start_minute_of_day")

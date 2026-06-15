@@ -10,6 +10,7 @@ data class BookFormattingOverrides(
     val showChapterMap: Boolean? = null,
     val showReadingProgressLabels: Boolean? = null,
     val showCurrentChapterLabel: Boolean? = null,
+    val showReadingTimeEstimate: Boolean? = null,
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
 ) {
@@ -23,6 +24,7 @@ data class BookFormattingOverrides(
             showChapterMap == null &&
             showReadingProgressLabels == null &&
             showCurrentChapterLabel == null &&
+            showReadingTimeEstimate == null &&
             doublePageSpread == null &&
             justifyText == null
 
@@ -36,6 +38,7 @@ data class BookFormattingOverrides(
         showChapterMap = showChapterMap ?: global.showChapterMap,
         showReadingProgressLabels = showReadingProgressLabels ?: global.showReadingProgressLabels,
         showCurrentChapterLabel = showCurrentChapterLabel ?: global.showCurrentChapterLabel,
+        showReadingTimeEstimate = showReadingTimeEstimate ?: global.showReadingTimeEstimate,
         doublePageSpread = doublePageSpread ?: global.doublePageSpread,
         justifyText = justifyText ?: global.justifyText,
         // themeSchedule is intentionally global-only (no per-book override). Threading
@@ -59,6 +62,7 @@ data class BookFormattingOverrides(
         showChapterMap = if (new.showChapterMap != previous.showChapterMap) new.showChapterMap else showChapterMap,
         showReadingProgressLabels = if (new.showReadingProgressLabels != previous.showReadingProgressLabels) new.showReadingProgressLabels else showReadingProgressLabels,
         showCurrentChapterLabel = if (new.showCurrentChapterLabel != previous.showCurrentChapterLabel) new.showCurrentChapterLabel else showCurrentChapterLabel,
+        showReadingTimeEstimate = if (new.showReadingTimeEstimate != previous.showReadingTimeEstimate) new.showReadingTimeEstimate else showReadingTimeEstimate,
         doublePageSpread = if (new.doublePageSpread != previous.doublePageSpread) new.doublePageSpread else doublePageSpread,
         justifyText = if (new.justifyText != previous.justifyText) new.justifyText else justifyText,
     )

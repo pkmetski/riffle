@@ -41,6 +41,7 @@ import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.CoverGridDensityStoreImpl
 import com.riffle.core.data.AppThemeStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
+import com.riffle.core.data.ReadingSpeedStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.data.ReadaloudPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
@@ -76,6 +77,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
+import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.data.AudiobookBundleDownloader
@@ -152,6 +154,10 @@ annotation class DeviceIdDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ReadaloudPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ReadingSpeedDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -336,6 +342,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAnnotationStore(impl: AnnotationStoreImpl): AnnotationStore
+
+    @Binds
+    @Singleton
+    abstract fun bindReadingSpeedStore(impl: ReadingSpeedStoreImpl): ReadingSpeedStore
 
     @Binds
     @Singleton
@@ -666,6 +676,13 @@ abstract class DataModule {
         fun provideReadaloudPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.readaloudPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @ReadingSpeedDataStore
+        fun provideReadingSpeedDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.readingSpeedDataStore
 
         @Provides
         @Singleton

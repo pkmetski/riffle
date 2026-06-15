@@ -33,6 +33,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
             showCurrentChapterLabel = entity.showCurrentChapterLabel,
             doublePageSpread = entity.doublePageSpread,
             justifyText = entity.justifyText,
+            showReadingTimeEstimate = entity.showReadingTimeEstimate,
         )
     }
 
@@ -57,6 +58,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
                 showCurrentChapterLabel = overrides.showCurrentChapterLabel,
                 doublePageSpread = overrides.doublePageSpread,
                 justifyText = overrides.justifyText,
+                showReadingTimeEstimate = overrides.showReadingTimeEstimate,
             )
         )
     }

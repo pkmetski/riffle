@@ -41,7 +41,10 @@ import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.ReadingSpeedStore
+import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -142,6 +145,7 @@ class EpubReaderViewModel @Inject constructor(
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
+    private val readingSpeedStore: ReadingSpeedStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -340,6 +344,7 @@ class EpubReaderViewModel @Inject constructor(
 
     // The track is parsed once on first play and reused.
     private var readaloudTrack: com.riffle.core.domain.ReadaloudTrack? = null
+    private val _readaloudTrackFlow = MutableStateFlow<com.riffle.core.domain.ReadaloudTrack?>(null)
 
     // fragmentRef → sentence text quote, so the synced highlight can be anchored by text when
     // Readium has stripped the sentence spans from the rendered (ABS) EPUB. Built once, off the
@@ -824,7 +829,7 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
-        _currentLocatorProgression.value = locator.locations.progression?.toFloat() ?: 0f
+        _currentLocatorProgression.value = locator.locations.progression?.toFloat()
         locator.locations.totalProgression?.toFloat()?.let { _currentLocatorTotalProgression.value = it }
         // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
         // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
@@ -858,6 +863,8 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
         initialLocatorSeen = false
+        sessionStartProgression = currentLocatorTotalProgression.value
+        sessionStartMs = System.currentTimeMillis()
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             startPeriodicSync()
@@ -865,6 +872,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onReaderClosed() {
+        flushReadingSession()
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
@@ -1061,16 +1069,17 @@ class EpubReaderViewModel @Inject constructor(
     private val _currentLocatorHref = MutableStateFlow<String?>(null)
     val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
 
-    private val _currentLocatorProgression = MutableStateFlow(0f)
-    val currentLocatorProgression: StateFlow<Float> = _currentLocatorProgression
+    private val _currentLocatorProgression = MutableStateFlow<Float?>(null)
+    val currentLocatorProgression: StateFlow<Float?> = _currentLocatorProgression
 
     // Whole-book progress (0..1) for the reading "% read" label — the same coordinate persisted as
     // ebookProgress and shown in book details. Distinct from railCursorPosition, which is a
     // chapter-weighted fraction over TOC segments only and so diverges from the stored progress.
     // Updated only when the navigator emits a non-null totalProgression: a null (positions not yet
     // computed) holds the last real value rather than falling back to the within-chapter progression.
-    private val _currentLocatorTotalProgression = MutableStateFlow(0f)
-    val currentLocatorTotalProgression: StateFlow<Float> = _currentLocatorTotalProgression
+    // Null before the first Readium locator arrives so callers can distinguish "unknown" from 0%.
+    private val _currentLocatorTotalProgression = MutableStateFlow<Float?>(null)
+    val currentLocatorTotalProgression: StateFlow<Float?> = _currentLocatorTotalProgression
 
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
@@ -1094,7 +1103,8 @@ class EpubReaderViewModel @Inject constructor(
             }
             val spineHrefs = pub.readingOrder.map { it.url().toString() }
             val positionCounts = positions.map { it.size }
-            weightSegmentsByChapterLength(base, spineHrefs, positionCounts)
+            val weighted = weightSegmentsByChapterLength(base, spineHrefs, positionCounts)
+            weighted
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -1110,16 +1120,134 @@ class EpubReaderViewModel @Inject constructor(
         findActiveSegmentIndex(segments, href, spineHrefs)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    // Cursor position within the rail (0..1). Active segment + within-chapter progression are
-    // mapped through cumulative segment weights so the cursor stays inside the highlighted
-    // (active) segment even when segments have unequal widths.
+    // Cursor position within the rail (0..1). Driven by totalProgression (monotonically
+    // increasing across the whole book) rather than chapterProgression (resets to 0 at each
+    // new spine resource). Using chapterProgression caused the cursor to jump backward every
+    // time a new spine resource loaded within the same segment (e.g. reading SOL 376 → SOL 380
+    // inside a single "Chapter 20" segment). totalProgression is converted to a within-segment
+    // fraction so the cursor stays inside the active segment's bounds.
     val railCursorPosition: StateFlow<Float> = combine(
         activeRailSegmentIndex,
         railSegments,
-        currentLocatorProgression,
-    ) { activeIndex, segments, progression ->
-        weightedRailCursorPosition(activeIndex, segments, progression)
+        currentLocatorTotalProgression,
+    ) { activeIndex, segments, totalProg ->
+        if (totalProg == null || segments.isEmpty()) return@combine 0f
+        val totalWeight = segments.fold(0f) { acc, s -> acc + s.weight }
+        if (totalWeight == 0f) return@combine 0f
+        val i = activeIndex.coerceIn(0, segments.size - 1)
+        var weightBefore = 0f
+        for (k in 0 until i) weightBefore += segments[k].weight
+        val segWeight = (segments.getOrNull(i)?.weight ?: 0f).coerceAtLeast(0f)
+        val withinSeg = if (segWeight > 0f) {
+            ((totalProg * totalWeight - weightBefore) / segWeight).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        weightedRailCursorPosition(i, segments, withinSeg)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    // ---- Reading speed tracking & time-remaining estimates -----------------------------------
+
+    private var sessionStartProgression: Float? = null
+    private var sessionStartMs: Long = 0L
+
+    private fun flushReadingSession() {
+        val startProg = sessionStartProgression ?: return
+        sessionStartProgression = null
+        val timeDeltaSec = (System.currentTimeMillis() - sessionStartMs) / 1000.0
+        val totalProg = currentLocatorTotalProgression.value ?: return
+        val progressDelta = totalProg - startProg
+        val totalPos = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight }
+        if (totalPos == 0f) return
+        viewModelScope.launch {
+            val prior = readingSpeedStore.speedSecPerPosition.first()
+            val updated = ReadingSpeedTracker.recordSession(progressDelta, timeDeltaSec, totalPos, prior)
+            if (updated != null) readingSpeedStore.updateSpeed(updated)
+        }
+    }
+
+    private data class PositionSnapshot(
+        val totalProgression: Float?,
+        val chapterProgression: Float?,
+        val segments: List<RailSegment>,
+        val activeSegmentIndex: Int,
+    )
+
+    private val positionSnapshot: Flow<PositionSnapshot> = combine(
+        currentLocatorTotalProgression,
+        currentLocatorProgression,
+        railSegments,
+        activeRailSegmentIndex,
+    ) { tp, cp, segs, idx -> PositionSnapshot(tp, cp, segs, idx) }
+
+    val chapterTimeRemaining: StateFlow<TimeRemaining?> = combine(
+        positionSnapshot,
+        playbackState,
+        _readaloudTrackFlow,
+        readingSpeedStore.speedSecPerPosition,
+    ) { snap, pbState, raTrack, speed ->
+        val segments = snap.segments
+        val segIdx = snap.activeSegmentIndex
+
+        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
+        if (totalPositions == 0f) return@combine null
+
+        // If every segment has fallback weight 1f, position data wasn't available — estimates
+        // would be meaningless (always ~1 min). Return null until real data is loaded.
+        val hasRealPositions = segments.size <= 1 || segments.any { it.weight != 1f }
+        if (!hasRealPositions) return@combine null
+
+        if (pbState.connected && raTrack != null) {
+            val posGlobal = pbState.positionGlobalSec
+            val chapterIdx = pbState.currentChapterIndex
+            val chapterEndSec = if (chapterIdx >= 0 && chapterIdx + 1 < raTrack.chapterStartsSec.size) {
+                raTrack.chapterStartsSec[chapterIdx + 1]
+            } else {
+                raTrack.totalDurationSec
+            }
+            val sec = (chapterEndSec - posGlobal).toLong().coerceAtLeast(0L)
+            return@combine TimeRemaining.Exact(sec)
+        }
+
+        val chapterWeight = segments.getOrNull(segIdx)?.weight ?: return@combine null
+        val totalProg = snap.totalProgression ?: return@combine null
+        // Compute where this chapter ends as a fraction of the total book. This works even when a
+        // TOC entry spans multiple spine resources (e.g. a "Part I" title page followed by several
+        // chapter files) because totalProgression increases monotonically across all resources.
+        var weightBefore = 0f
+        for (k in 0 until segIdx) weightBefore += segments[k].weight
+        val chapterEndFrac = (weightBefore + chapterWeight) / totalPositions
+        val remainingFrac = (chapterEndFrac - totalProg).coerceAtLeast(0f)
+        val sec = (remainingFrac * totalPositions * speed).toLong().coerceAtLeast(0L)
+        TimeRemaining.Estimated(sec)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val bookTimeRemaining: StateFlow<TimeRemaining?> = combine(
+        positionSnapshot,
+        playbackState,
+        _readaloudTrackFlow,
+        readingSpeedStore.speedSecPerPosition,
+    ) { snap, pbState, raTrack, speed ->
+        val segments = snap.segments
+
+        val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
+        if (totalPositions == 0f) return@combine null
+
+        // If every segment has fallback weight 1f, position data wasn't available — estimates
+        // would be meaningless (always ~1 min). Return null until real data is loaded.
+        val hasRealPositions = segments.size <= 1 || segments.any { it.weight != 1f }
+        if (!hasRealPositions) return@combine null
+
+        if (pbState.connected && raTrack != null) {
+            val posGlobal = pbState.positionGlobalSec
+            val sec = (raTrack.totalDurationSec - posGlobal).toLong().coerceAtLeast(0L)
+            return@combine TimeRemaining.Exact(sec)
+        }
+
+        val totalProg = snap.totalProgression ?: return@combine null
+        val sec = ((1f - totalProg) * totalPositions * speed).toLong().coerceAtLeast(0L)
+        TimeRemaining.Estimated(sec)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun openSearch() {
         _isSearchActive.value = true
@@ -1721,6 +1849,7 @@ class EpubReaderViewModel @Inject constructor(
         readaloudTrack?.let { return it }
         val track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
         readaloudTrack = track
+        _readaloudTrackFlow.value = track
         // Defer the (heavy, whole-bundle) sentence-quote parse until audio is actually playing, so it
         // never competes with ExoPlayer's audio-start I/O on the same multi-hundred-MB zip. The
         // highlight is only meaningful once playback is running anyway, so a beat's delay is invisible.

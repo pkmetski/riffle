@@ -330,6 +330,21 @@ fun FormattingPanel(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
+                    "Current chapter label",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.showCurrentChapterLabel,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) },
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
                     "Reading progress labels",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
@@ -345,13 +360,13 @@ fun FormattingPanel(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    "Current chapter label",
+                    "Time remaining",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
                 Switch(
-                    checked = prefs.showCurrentChapterLabel,
-                    onCheckedChange = { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) },
+                    checked = prefs.showReadingTimeEstimate,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) },
                 )
             }
 

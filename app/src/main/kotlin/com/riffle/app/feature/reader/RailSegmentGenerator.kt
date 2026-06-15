@@ -17,11 +17,21 @@ private fun expandIfRedundant(entry: TocEntry, bookTitleNorm: String): List<Rail
         entry.title.isBlank() ||
             (bookTitleNorm.isNotEmpty() && entry.title.normalize() == bookTitleNorm)
         )
-    return if (isRedundantContainer) {
-        entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
-    } else {
-        listOf(RailSegment(entry.title, entry.href))
+    if (isRedundantContainer) {
+        return entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
     }
+    // If children point to different spine files AND those children themselves have children
+    // (e.g. "Part I → [Ch1 with section anchors, Ch2 with section anchors]"), the parent is
+    // a grouping container — expand so estimates are per-chapter rather than per-part.
+    // The grandchildren check is the key guard: without it, "Chapter 20 → [SOL 376, SOL 380]"
+    // (leaf log-entry files with no sub-entries) would also be expanded, causing the cursor to
+    // jump between log-entry segments on every page turn within the chapter.
+    val entryBaseHref = entry.href.substringBefore('#')
+    val crossFileChildren = entry.children.filter { it.href.substringBefore('#') != entryBaseHref }
+    if (crossFileChildren.isNotEmpty() && crossFileChildren.any { it.children.isNotEmpty() }) {
+        return entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
+    }
+    return listOf(RailSegment(entry.title, entry.href))
 }
 
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
@@ -79,16 +89,27 @@ fun weightSegmentsByChapterLength(
     if (segments.isEmpty()) return segments
     val hrefToSpine: Map<String, Int> = spineHrefs.withIndex().associate { (i, h) -> h to i }
     val spineForSegment: List<Int?> = segments.map { hrefToSpine[it.href.substringBefore('#')] }
-    val countsBySpine: Map<Int, Int> = spineForSegment
+    // When multiple TOC entries point to the same spine resource (sub-sections of one file),
+    // split that file's positions equally across them. When a TOC entry is the sole entry for
+    // its resource, accumulate positions for ALL spine resources up to the next TOC entry —
+    // this handles EPUBs where chapter files have no individual TOC entries and are grouped
+    // under a part/section title page.
+    val sharedCounts: Map<Int, Int> = spineForSegment
         .filterNotNull()
         .groupingBy { it }
         .eachCount()
     return segments.mapIndexed { i, seg ->
-        val spine = spineForSegment[i]
-        val length = spine?.let { positionCounts.getOrNull(it) } ?: 0
-        val share = if (spine != null && length > 0) {
-            length.toFloat() / (countsBySpine[spine] ?: 1)
-        } else 1f
+        val spineStart = spineForSegment[i] ?: return@mapIndexed seg.copy(weight = 1f)
+        val share = if ((sharedCounts[spineStart] ?: 1) > 1) {
+            val length = positionCounts.getOrElse(spineStart) { 0 }
+            if (length > 0) length.toFloat() / (sharedCounts[spineStart] ?: 1) else 1f
+        } else {
+            val nextSpineIdx = ((i + 1)..segments.lastIndex)
+                .firstNotNullOfOrNull { j -> spineForSegment[j] }
+                ?: spineHrefs.size
+            val total = (spineStart until nextSpineIdx).sumOf { positionCounts.getOrElse(it) { 0 } }
+            if (total > 0) total.toFloat() else 1f
+        }
         seg.copy(weight = share)
     }
 }

@@ -145,8 +145,9 @@ class RailSegmentGeneratorTest {
     @Test
     fun `container whose title is a prefix of book title is NOT flattened`() {
         // Guards against "Бай Ганьо тръгна по Европа" being treated as "Бай Ганьо".
-        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
-        val container = TocEntry("Foo Bar Baz", "container.xhtml", listOf(ch1))
+        // Children are same-file anchors — only book-title-match is under test here.
+        val s1 = TocEntry("Section 1", "container.xhtml#s1")
+        val container = TocEntry("Foo Bar Baz", "container.xhtml", listOf(s1))
         val segments = buildRailSegments(listOf(container), bookTitle = "Foo")
         assertEquals(1, segments.size)
         assertEquals(RailSegment("Foo Bar Baz", "container.xhtml"), segments[0])
@@ -154,8 +155,9 @@ class RailSegmentGeneratorTest {
 
     @Test
     fun `container whose title differs from book title is NOT flattened`() {
-        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
-        val container = TocEntry("Appendix", "appendix.xhtml", listOf(ch1))
+        // Children are same-file anchors — only book-title-match is under test here.
+        val s1 = TocEntry("Part 1", "appendix.xhtml#p1")
+        val container = TocEntry("Appendix", "appendix.xhtml", listOf(s1))
         val other = TocEntry("Chapter 1", "real-ch1.xhtml")
         val toc = listOf(other, container)
 
@@ -172,8 +174,9 @@ class RailSegmentGeneratorTest {
     fun `empty book title disables book-title-match rule`() {
         // A container whose title happens to be "" would still flatten via blank-title rule,
         // but a non-blank container should NOT be flattened when no book title is provided.
-        val ch1 = TocEntry("Ch 1", "ch1.xhtml")
-        val container = TocEntry("Some Container", "container.xhtml", listOf(ch1))
+        // Children are same-file anchors — only book-title-match is under test here.
+        val s1 = TocEntry("Section 1", "container.xhtml#s1")
+        val container = TocEntry("Some Container", "container.xhtml", listOf(s1))
         val segments = buildRailSegments(listOf(container), bookTitle = "")
         assertEquals(1, segments.size)
         assertEquals("Some Container", segments[0].title)
@@ -199,6 +202,115 @@ class RailSegmentGeneratorTest {
         assertEquals(
             listOf(RailSegment("Leaf", "leaf.xhtml")),
             buildRailSegments(listOf(outer), bookTitle = "My Book"),
+        )
+    }
+
+    // ── buildRailSegments: multi-file children (part→chapter expansion) ───
+
+    @Test
+    fun `part entry with chapter children that have section anchors is expanded into chapters`() {
+        // "Influence without authority" structure: Part I → [ch1 (with sections), ch2, ch3]
+        // The section anchors on ch1/ch2 are the grandchildren signal that triggers expansion.
+        val sec1 = TocEntry("1.1", "c01.xhtml#s1")
+        val sec4 = TocEntry("4.1", "c04.xhtml#s1")
+        val ch1 = TocEntry("Chapter 1", "c01.xhtml", listOf(sec1))
+        val ch2 = TocEntry("Chapter 2", "c02.xhtml")
+        val ch3 = TocEntry("Chapter 3", "c03.xhtml")
+        val ch4 = TocEntry("Chapter 4", "c04.xhtml", listOf(sec4))
+        val ch5 = TocEntry("Chapter 5", "c05.xhtml")
+        val part1 = TocEntry("Part I", "part01.xhtml", listOf(ch1, ch2, ch3))
+        val part2 = TocEntry("Part II", "part02.xhtml", listOf(ch4, ch5))
+
+        assertEquals(
+            listOf(
+                RailSegment("Chapter 1", "c01.xhtml"),
+                RailSegment("Chapter 2", "c02.xhtml"),
+                RailSegment("Chapter 3", "c03.xhtml"),
+                RailSegment("Chapter 4", "c04.xhtml"),
+                RailSegment("Chapter 5", "c05.xhtml"),
+            ),
+            buildRailSegments(listOf(part1, part2)),
+        )
+    }
+
+    @Test
+    fun `chapter entry with same-file section heading children is kept as-is`() {
+        // "Lean Customer Development" structure: Chapter → [section anchors on same file]
+        val s1 = TocEntry("Section 1", "ch01.html#s1")
+        val s2 = TocEntry("Section 2", "ch01.html#s2")
+        val ch1 = TocEntry("Chapter 1", "ch01.html", listOf(s1, s2))
+        val ch2 = TocEntry("Chapter 2", "ch02.html")
+
+        assertEquals(
+            listOf(
+                RailSegment("Chapter 1", "ch01.html"),
+                RailSegment("Chapter 2", "ch02.html"),
+            ),
+            buildRailSegments(listOf(ch1, ch2)),
+        )
+    }
+
+    @Test
+    fun `three-level nesting — part expands to chapters, chapters keep and drop same-file section anchors`() {
+        val sec1a = TocEntry("1a", "c01.xhtml#s1")
+        val sec1b = TocEntry("1b", "c01.xhtml#s2")
+        val sec2a = TocEntry("2a", "c02.xhtml#s1")
+        val ch1 = TocEntry("Chapter 1", "c01.xhtml", listOf(sec1a, sec1b))
+        val ch2 = TocEntry("Chapter 2", "c02.xhtml", listOf(sec2a))
+        val part1 = TocEntry("Part I", "part01.xhtml", listOf(ch1, ch2))
+
+        assertEquals(
+            listOf(
+                RailSegment("Chapter 1", "c01.xhtml"),
+                RailSegment("Chapter 2", "c02.xhtml"),
+            ),
+            buildRailSegments(listOf(part1)),
+        )
+    }
+
+    @Test
+    fun `part with mixed children expands when the cross-file child has grandchildren`() {
+        // Same-file anchor intro + cross-file chapter that itself has section anchors.
+        val sec1 = TocEntry("Ch 1 intro", "c01.xhtml#s1")
+        val intro = TocEntry("Intro", "part01.xhtml#intro")
+        val ch1 = TocEntry("Chapter 1", "c01.xhtml", listOf(sec1))
+        val part1 = TocEntry("Part I", "part01.xhtml", listOf(intro, ch1))
+
+        assertEquals(
+            listOf(
+                RailSegment("Intro", "part01.xhtml#intro"),
+                RailSegment("Chapter 1", "c01.xhtml"),
+            ),
+            buildRailSegments(listOf(part1)),
+        )
+    }
+
+    @Test
+    fun `chapter with cross-file leaf children and no grandchildren is NOT expanded`() {
+        // "The Martian" structure: Chapter 20 → [SOL 376 (leaf), SOL 380 (leaf)].
+        // Log-entry files have no sub-entries, so the grandchildren guard blocks expansion.
+        // Without this guard, the cursor would jump between log-entry segments on page turn.
+        val sol376 = TocEntry("LOG ENTRY: SOL 376", "sol376.xhtml")  // leaf — no children
+        val sol380 = TocEntry("LOG ENTRY: SOL 380", "sol380.xhtml")  // leaf — no children
+        val ch20 = TocEntry("Chapter 20", "chapter20.xhtml", listOf(sol376, sol380))
+
+        assertEquals(
+            listOf(RailSegment("Chapter 20", "chapter20.xhtml")),
+            buildRailSegments(listOf(ch20)),
+        )
+    }
+
+    @Test
+    fun `entry with children all on same file is NOT expanded (title kept)`() {
+        // An entry whose every child is a same-file anchor should stay as one segment —
+        // this is the normal Chapter → [Section headings] pattern.
+        val s1 = TocEntry("Section A", "ch.xhtml#secA")
+        val s2 = TocEntry("Section B", "ch.xhtml#secB")
+        val ch = TocEntry("The Chapter", "ch.xhtml", listOf(s1, s2))
+
+        assertEquals(
+            listOf(RailSegment("The Chapter", "ch.xhtml")),
+            buildRailSegments(listOf(ch)),
         )
     }
 
@@ -398,6 +510,25 @@ class RailSegmentGeneratorTest {
         )
         assertEquals(1f, weighted[0].weight, 0f)
         assertEquals(1f, weighted[1].weight, 0f)
+    }
+
+    @Test
+    fun `segment spanning multiple spine resources accumulates all their positions`() {
+        // "Part I" TOC entry at part01.xhtml (1 pos) owns c01.xhtml (20) + c02.xhtml (30)
+        // until the next TOC entry "Part II" at part02.xhtml.
+        val segs = listOf(
+            RailSegment("Part I", "part01.xhtml"),
+            RailSegment("Part II", "part02.xhtml"),
+        )
+        val weighted = weightSegmentsByChapterLength(
+            segs,
+            spineHrefs = listOf("part01.xhtml", "c01.xhtml", "c02.xhtml", "part02.xhtml", "c03.xhtml"),
+            positionCounts = listOf(1, 20, 30, 1, 15),
+        )
+        // Part I spans indices 0..2 (part01+c01+c02 = 1+20+30 = 51)
+        assertEquals(51f, weighted[0].weight, 0f)
+        // Part II spans indices 3..4 (part02+c03 = 1+15 = 16)
+        assertEquals(16f, weighted[1].weight, 0f)
     }
 
     // ── railSegmentBounds ─────────────────────────────────────────────────

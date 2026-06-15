@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -85,6 +86,8 @@ import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.TimeRemaining
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -264,6 +267,16 @@ fun EpubReaderScreen(
         paginated = formattingPrefs.orientation != ReaderOrientation.Vertical,
     )
 
+    // Track the rendered height of the chapter rail overlay so its pixels can be added to the CSS
+    // reserve, preventing Readium from paginating text behind the overlay in paged mode.
+    var railOverlayHeightPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val paginated = formattingPrefs.orientation != ReaderOrientation.Vertical
+    val railReserveCssPx: Int = if (paginated) {
+        (railOverlayHeightPx / density.density).roundToInt()
+    } else 0
+    val totalReserveCssPx: Int = readaloudReservePx + railReserveCssPx
+
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
@@ -322,7 +335,7 @@ fun EpubReaderScreen(
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         readaloudAvailable = readaloudAvailable,
-                        readaloudReservePx = readaloudReservePx,
+                        readaloudReservePx = totalReserveCssPx,
                         readaloudHighlightColor = readaloudHighlightColor,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -373,11 +386,13 @@ fun EpubReaderScreen(
             (
                 formattingPrefs.showChapterMap ||
                     formattingPrefs.showReadingProgressLabels ||
-                    formattingPrefs.showCurrentChapterLabel
+                    formattingPrefs.showCurrentChapterLabel ||
+                    formattingPrefs.showReadingTimeEstimate
                 )
         if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (readaloudOpen) {
                     // Reference the reader-theme palette so the player matches the chapter-rail
@@ -431,7 +446,9 @@ fun EpubReaderScreen(
                         showRail = formattingPrefs.showChapterMap,
                         showProgressLabels = formattingPrefs.showReadingProgressLabels,
                         showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
+                        showReadingTimeEstimate = formattingPrefs.showReadingTimeEstimate,
                         readerTheme = formattingPrefs.theme,
+                        modifier = Modifier.onSizeChanged { railOverlayHeightPx = it.height },
                     )
                 }
             }
@@ -553,6 +570,7 @@ private fun EpubChapterRailOverlay(
     showRail: Boolean,
     showProgressLabels: Boolean,
     showChapterNameLabel: Boolean,
+    showReadingTimeEstimate: Boolean,
     readerTheme: ReaderTheme,
     modifier: Modifier = Modifier,
 ) {
@@ -567,7 +585,9 @@ private fun EpubChapterRailOverlay(
     // cursor then so the label shows a sensible estimate instead of sticking at 0%. Once a real
     // whole-book value arrives it wins (and matches book details). At genuine 0% the rail cursor is
     // also ~0, so the fallback is indistinguishable there.
-    val labelProgress = if (totalProgress > 0f) totalProgress else cursorPosition
+    val labelProgress = totalProgress?.takeIf { it > 0f } ?: cursorPosition
+    val chapterTimeRemaining by viewModel.chapterTimeRemaining.collectAsState()
+    val bookTimeRemaining by viewModel.bookTimeRemaining.collectAsState()
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         // Backdrop is the exact reader-theme page colour so the strip reads as page margin,
@@ -578,7 +598,7 @@ private fun EpubChapterRailOverlay(
                 .fillMaxWidth()
                 .background(readerTheme.palette.background),
         ) {
-            if (showProgressLabels || showChapterNameLabel) {
+            if (showProgressLabels || showChapterNameLabel || showReadingTimeEstimate) {
                 ReadingProgressLabels(
                     activeChapterIndex = activeRailSegmentIndex,
                     chapterCount = railSegments.size,
@@ -587,6 +607,9 @@ private fun EpubChapterRailOverlay(
                     readerTheme = readerTheme,
                     showCountAndPercent = showProgressLabels,
                     showChapterName = showChapterNameLabel,
+                    showReadingTimeEstimate = showReadingTimeEstimate,
+                    chapterTimeRemaining = chapterTimeRemaining,
+                    bookTimeRemaining = bookTimeRemaining,
                 )
             }
             if (showRail) {
@@ -618,6 +641,45 @@ private fun readerThemeLabelColor(theme: ReaderTheme): Color {
     return theme.palette.foreground.copy(alpha = alpha)
 }
 
+private fun formatDuration(sec: Long): String {
+    val hours = sec / 3600
+    val minutes = (sec % 3600) / 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}min"
+        else -> "${minutes}min"
+    }
+}
+
+private fun formatChapterRemaining(remaining: TimeRemaining): String = when (remaining) {
+    is TimeRemaining.Exact -> {
+        val sec = remaining.sec
+        val h = sec / 3600
+        val m = (sec % 3600) / 60
+        val s = sec % 60
+        if (h > 0) "%d:%02d:%02d chapter".format(h, m, s)
+        else "%d:%02d chapter".format(m, s)
+    }
+    is TimeRemaining.Estimated -> when {
+        remaining.sec < 60 -> "< 1min chapter"
+        else -> "~${formatDuration(remaining.sec)} chapter"
+    }
+}
+
+private fun formatBookRemaining(remaining: TimeRemaining): String = when (remaining) {
+    is TimeRemaining.Exact -> {
+        val sec = remaining.sec
+        val h = sec / 3600
+        val m = (sec % 3600) / 60
+        val s = sec % 60
+        if (h > 0) "%d:%02d:%02d total".format(h, m, s)
+        else "%d:%02d total".format(m, s)
+    }
+    is TimeRemaining.Estimated -> when {
+        remaining.sec < 60 -> "< 1min total"
+        else -> "~${formatDuration(remaining.sec)} total"
+    }
+}
+
 @Composable
 private fun ReadingProgressLabels(
     activeChapterIndex: Int,
@@ -627,6 +689,9 @@ private fun ReadingProgressLabels(
     readerTheme: ReaderTheme,
     showCountAndPercent: Boolean,
     showChapterName: Boolean,
+    showReadingTimeEstimate: Boolean = false,
+    chapterTimeRemaining: TimeRemaining? = null,
+    bookTimeRemaining: TimeRemaining? = null,
 ) {
     val chapterCountText = if (chapterCount > 0) {
         "Chapter ${(activeChapterIndex + 1).coerceAtMost(chapterCount)} of $chapterCount"
@@ -635,6 +700,13 @@ private fun ReadingProgressLabels(
     }
     val pctText = "%.1f%%".format(totalProgress.coerceIn(0f, 1f) * 100f)
     val textColor = readerThemeLabelColor(readerTheme)
+    val isExact = chapterTimeRemaining is TimeRemaining.Exact &&
+        bookTimeRemaining is TimeRemaining.Exact
+    val timeColor = if (isExact) MaterialTheme.colorScheme.tertiary else textColor
+    val chapterTimeText = chapterTimeRemaining?.let { formatChapterRemaining(it) }
+    val bookTimeText = bookTimeRemaining?.let { formatBookRemaining(it) }
+    val showLeftColumn = showCountAndPercent || (showReadingTimeEstimate && chapterTimeText != null)
+    val showRightColumn = showCountAndPercent || (showReadingTimeEstimate && bookTimeText != null)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -642,18 +714,35 @@ private fun ReadingProgressLabels(
             .testTag("reading_progress_labels"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showCountAndPercent) {
-            Text(
-                text = chapterCountText,
-                style = MaterialTheme.typography.labelSmall,
-                color = textColor,
-                textAlign = TextAlign.Start,
-                maxLines = 1,
+        if (showLeftColumn) {
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("reading_progress_chapter")
-                    .semantics { contentDescription = "Reading progress: $chapterCountText" },
-            )
+                    .testTag("reading_progress_chapter"),
+            ) {
+                if (showCountAndPercent) {
+                    Text(
+                        text = chapterCountText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Reading progress: $chapterCountText"
+                        },
+                    )
+                }
+                if (showReadingTimeEstimate && chapterTimeText != null) {
+                    Text(
+                        text = chapterTimeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = timeColor,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("reading_progress_chapter_time"),
+                    )
+                }
+            }
         }
         if (showChapterName) {
             Text(
@@ -670,18 +759,36 @@ private fun ReadingProgressLabels(
                     .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
             )
         }
-        if (showCountAndPercent) {
-            Text(
-                text = pctText,
-                style = MaterialTheme.typography.labelSmall,
-                color = textColor,
-                textAlign = TextAlign.End,
-                maxLines = 1,
+        if (showRightColumn) {
+            Column(
+                horizontalAlignment = Alignment.End,
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("reading_progress_percent")
-                    .semantics { contentDescription = "Total progress: $pctText" },
-            )
+                    .testTag("reading_progress_percent"),
+            ) {
+                if (showCountAndPercent) {
+                    Text(
+                        text = pctText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Total progress: $pctText"
+                        },
+                    )
+                }
+                if (showReadingTimeEstimate && bookTimeText != null) {
+                    Text(
+                        text = bookTimeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = timeColor,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("reading_progress_book_time"),
+                    )
+                }
+            }
         }
     }
 }
