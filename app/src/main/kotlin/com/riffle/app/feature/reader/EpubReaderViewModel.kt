@@ -1150,17 +1150,28 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    private data class PositionSnapshot(
+        val totalProgression: Float?,
+        val chapterProgression: Float?,
+        val segments: List<RailSegment>,
+        val activeSegmentIndex: Int,
+    )
+
+    private val positionSnapshot: Flow<PositionSnapshot> = combine(
+        currentLocatorTotalProgression,
+        currentLocatorProgression,
+        railSegments,
+        activeRailSegmentIndex,
+    ) { tp, cp, segs, idx -> PositionSnapshot(tp, cp, segs, idx) }
+
     val chapterTimeRemaining: StateFlow<TimeRemaining?> = combine(
-        combine(currentLocatorTotalProgression, currentLocatorProgression, railSegments, activeRailSegmentIndex) { tp, cp, segs, idx ->
-            arrayOf<Any?>(tp, cp, segs, idx)
-        },
+        positionSnapshot,
         playbackState,
         _readaloudTrackFlow,
         readingSpeedStore.speedSecPerPosition,
-    ) { quad, pbState, raTrack, speed ->
-        @Suppress("UNCHECKED_CAST")
-        val segments = quad[2] as List<RailSegment>
-        val segIdx = quad[3] as Int
+    ) { snap, pbState, raTrack, speed ->
+        val segments = snap.segments
+        val segIdx = snap.activeSegmentIndex
 
         val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
         if (totalPositions == 0f) return@combine null
@@ -1177,22 +1188,19 @@ class EpubReaderViewModel @Inject constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val chapterProg = quad[1] as? Float ?: return@combine null
+        val chapterProg = snap.chapterProgression ?: return@combine null
         val chapterWeight = segments.getOrNull(segIdx)?.weight?.toFloat() ?: return@combine null
         val sec = ((1f - chapterProg) * chapterWeight * speed).toLong().coerceAtLeast(0L)
         TimeRemaining.Estimated(sec)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val bookTimeRemaining: StateFlow<TimeRemaining?> = combine(
-        combine(currentLocatorTotalProgression, currentLocatorProgression, railSegments, activeRailSegmentIndex) { tp, cp, segs, idx ->
-            arrayOf<Any?>(tp, cp, segs, idx)
-        },
+        positionSnapshot,
         playbackState,
         _readaloudTrackFlow,
         readingSpeedStore.speedSecPerPosition,
-    ) { quad, pbState, raTrack, speed ->
-        @Suppress("UNCHECKED_CAST")
-        val segments = quad[2] as List<RailSegment>
+    ) { snap, pbState, raTrack, speed ->
+        val segments = snap.segments
 
         val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
         if (totalPositions == 0f) return@combine null
@@ -1203,10 +1211,10 @@ class EpubReaderViewModel @Inject constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val totalProg = quad[0] as? Float ?: return@combine null
+        val totalProg = snap.totalProgression ?: return@combine null
         val sec = ((1f - totalProg) * totalPositions * speed).toLong().coerceAtLeast(0L)
         TimeRemaining.Estimated(sec)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun openSearch() {
         _isSearchActive.value = true
