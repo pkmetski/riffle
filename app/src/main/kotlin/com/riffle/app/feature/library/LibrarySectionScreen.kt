@@ -67,6 +67,10 @@ fun LibrarySectionScreen(
                 onItemSelected = onItemSelected,
                 contentPadding = padding,
             )
+            LibrarySectionType.CONTINUE_SERIES -> {
+                // Continue Series has no drill-down screen; the section passes onSeeMore = null
+                // so this branch is never reached from normal navigation.
+            }
         }
     }
 }

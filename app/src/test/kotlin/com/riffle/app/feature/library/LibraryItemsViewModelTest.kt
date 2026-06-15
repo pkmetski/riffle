@@ -60,6 +60,7 @@ class LibraryItemsViewModelTest {
     private val inProgressFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val finishedFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val recentlyAddedFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
+    private val continueSeriesFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val allBooksFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val collectionItemsByCollectionId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
@@ -73,6 +74,7 @@ class LibraryItemsViewModelTest {
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = finishedFlow
         override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = recentlyAddedFlow
+        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = continueSeriesFlow
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
         override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
@@ -749,6 +751,7 @@ class LibraryItemsViewModelTest {
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = finishedFlow
         override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = recentlyAddedFlow
+        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = continueSeriesFlow
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
         override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
         override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
@@ -883,5 +886,36 @@ class LibraryItemsViewModelTest {
         vm.onSearchQueryChange("foundation")
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals("foundation", handle.get<String>("searchQuery"))
+    }
+
+    // --- continueSeriesItems ---
+
+    @Test
+    fun `continueSeriesItems reflects repository emissions`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.continueSeriesItems.collect {} }
+
+        val nextBook = item("Abaddon's Gate", "James S. A. Corey")
+        continueSeriesFlow.value = listOf(nextBook)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(nextBook), vm.continueSeriesItems.value)
+    }
+
+    @Test
+    fun `continueSeriesItems filters to offline-available items when offline`() = runTest {
+        val availableItem = item("Offline Book", "Author A")
+        val unavailableItem = item("Online Only", "Author B")
+        val connectivity = FakeConnectivityObserver(online = false)
+        val epubRepo = object : EpubRepository by fakeEpubRepo() {
+            override fun isCached(serverId: String, itemId: String): Boolean = itemId == availableItem.id
+        }
+        val vm = makeViewModel(connectivityObserver = connectivity, epubRepository = epubRepo)
+        backgroundScope.launch { vm.continueSeriesItems.collect {} }
+
+        continueSeriesFlow.value = listOf(availableItem, unavailableItem)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(availableItem), vm.continueSeriesItems.value)
     }
 }

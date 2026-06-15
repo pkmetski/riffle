@@ -113,6 +113,15 @@ class LibraryRepositoryTest {
 
         override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
 
+        private val continueSeriesData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
+
+        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItemEntity>> =
+            continueSeriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+
+        fun seedContinueSeriesItems(libraryId: String, items: List<LibraryItemEntity>) {
+            continueSeriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }.value = items
+        }
+
         override suspend fun upsertAll(series: List<SeriesEntity>) {
             upsertedSeries.addAll(series)
             series.groupBy { it.libraryId }.forEach { (libraryId, list) ->
@@ -832,6 +841,34 @@ class LibraryRepositoryTest {
         assertEquals(2, result.size)
         assertEquals("item-1", result[0].id)
         assertEquals("item-2", result[1].id)
+    }
+
+    // ── observeContinueSeriesItems ────────────────────────────────────────────
+
+    @Test
+    fun `observeContinueSeriesItems maps entities from DAO`() = runTest {
+        val dao = FakeSeriesDao()
+        val repo = makeRepo(seriesDao = dao)
+        dao.seedContinueSeriesItems("lib-1", listOf(
+            LibraryItemEntity(
+                serverId = "s1", id = "item-42", libraryId = "lib-1",
+                title = "Abaddon's Gate", author = "James S. A. Corey",
+                coverUrl = null, readingProgress = 0f,
+            ),
+            LibraryItemEntity(
+                serverId = "s1", id = "item-43", libraryId = "lib-1",
+                title = "Cibola Burn", author = "James S. A. Corey",
+                coverUrl = null, readingProgress = 0f,
+            ),
+        ))
+
+        val result = repo.observeContinueSeriesItems("lib-1").first()
+
+        assertEquals(2, result.size)
+        assertEquals("item-42", result[0].id)
+        assertEquals("Abaddon's Gate", result[0].title)
+        assertEquals("James S. A. Corey", result[0].author)
+        assertEquals("item-43", result[1].id)
     }
 
     // ── observeCollectionItems ────────────────────────────────────────────────

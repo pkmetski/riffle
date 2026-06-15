@@ -90,4 +90,122 @@ class SeriesDaoTest {
 
         assertEquals(listOf("item-3", "item-1", "item-2"), result.map { it.id })
     }
+
+    // C1 — returns the next unread book per series (min sequenceOrder, readingProgress < 1.0)
+    //      only for series that have ≥1 finished book; ordered by most-recently-finished sibling DESC
+    @Test
+    fun observeContinueSeriesItems_returnsNextUnreadBookPerQualifyingSeries() = runTest {
+        // Three items: item-1 finished, item-2 unread, item-3 unread (different series)
+        db.libraryItemDao().upsertAll(listOf(
+            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "Book 1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
+            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "Book 2", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "Book 3", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-A"), series("series-B")))
+        dao.upsertAllItems(listOf(
+            // series-A: item-1 finished (seq 1), item-2 unread (seq 2) → should return item-2
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            // series-B: item-3 only unread, no finished book → must NOT appear
+            SeriesItemEntity("series-B", serverId = "s1", itemId = "item-3", sequenceOrder = 1f),
+        ))
+
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        assertEquals(listOf("item-2"), result.map { it.id })
+    }
+
+    // C2 — series with an in-progress book (0 < readingProgress < 1.0) must NOT appear;
+    //      the user is already reading it so it belongs in "In Progress", not "Continue Series"
+    @Test
+    fun observeContinueSeriesItems_excludesSeriesWithInProgressBook() = runTest {
+        db.libraryItemDao().upsertAll(listOf(
+            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.5f),
+            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-A")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-3", sequenceOrder = 3f),
+        ))
+
+        // item-2 is in progress → the whole series is excluded
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        assertEquals(emptyList<String>(), result.map { it.id })
+    }
+
+    // C2b — a barely-opened book (< 5% progress) must NOT block the series; only a meaningfully
+    //       in-progress book (>= 5%) triggers the exclusion
+    @Test
+    fun observeContinueSeriesItems_doesNotExcludeSeriesForBarelyOpenedBook() = runTest {
+        db.libraryItemDao().upsertAll(listOf(
+            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.01f),
+            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-A")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-3", sequenceOrder = 3f),
+        ))
+
+        // item-2 is barely opened (1% < 5% threshold) → must NOT block the series; item-2 is next
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        assertEquals(listOf("item-2"), result.map { it.id })
+    }
+
+    // C3 — multiple qualifying series ordered by most-recently-finished sibling DESC
+    @Test
+    fun observeContinueSeriesItems_orderedByMostRecentlyFinished() = runTest {
+        db.libraryItemDao().upsertAll(listOf(
+            // series-old: finished long ago
+            LibraryItemEntity(serverId = "s1", id = "old-done", libraryId = "lib1", title = "OD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
+            LibraryItemEntity(serverId = "s1", id = "old-next", libraryId = "lib1", title = "ON", author = "A", coverUrl = null, readingProgress = 0f),
+            // series-new: finished recently
+            LibraryItemEntity(serverId = "s1", id = "new-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 9000L),
+            LibraryItemEntity(serverId = "s1", id = "new-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-old"), series("series-new")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-old", serverId = "s1", itemId = "old-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-old", serverId = "s1", itemId = "old-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-new", serverId = "s1", itemId = "new-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-new", serverId = "s1", itemId = "new-next", sequenceOrder = 2f),
+        ))
+
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        // series-new finished more recently → new-next must come first
+        assertEquals(listOf("new-next", "old-next"), result.map { it.id })
+    }
+
+    // C4 — series with null lastOpenedAt on finished sibling still appears (sorted last)
+    @Test
+    fun observeContinueSeriesItems_includesSeriesWithNullLastOpenedAt() = runTest {
+        db.libraryItemDao().upsertAll(listOf(
+            // series-timestamped: finished with a real lastOpenedAt
+            LibraryItemEntity(serverId = "s1", id = "ts-done", libraryId = "lib1", title = "TD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 5000L),
+            LibraryItemEntity(serverId = "s1", id = "ts-next", libraryId = "lib1", title = "TN", author = "A", coverUrl = null, readingProgress = 0f),
+            // series-null: finished with null lastOpenedAt (ABS sometimes omits this field)
+            LibraryItemEntity(serverId = "s1", id = "null-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = null),
+            LibraryItemEntity(serverId = "s1", id = "null-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-ts"), series("series-null")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-ts", serverId = "s1", itemId = "ts-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-ts", serverId = "s1", itemId = "ts-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-null", serverId = "s1", itemId = "null-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-null", serverId = "s1", itemId = "null-next", sequenceOrder = 2f),
+        ))
+
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        // Both series appear; series-ts (real timestamp) before series-null (null → COALESCE 0)
+        assertEquals(listOf("ts-next", "null-next"), result.map { it.id })
+    }
 }
