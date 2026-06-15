@@ -621,6 +621,51 @@ class LibraryRepositoryTest {
         assertFalse(result[0].isCached)
     }
 
+    // ── issue #113: two Servers, colliding item ids — shelves follow the active Server ─────────
+
+    @Test
+    fun `marking read on the active server clears In Progress despite a stale duplicate on another server`() = runTest {
+        // Two ABS Servers point at the same instance, so item ids and libraryId collide (issue
+        // #113). markAsRead set the active Server's (s1) row to finished (1.0); the inactive
+        // duplicate (s2) still holds the old fraction. The In Progress shelf must follow the
+        // active Server, not surface the stale duplicate — otherwise the finished book stays
+        // pinned to In Progress while book detail (which reads the active Server's row) shows 100%.
+        fakeServerRepository.activeServer = activeServer(id = "s1")
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 1.0f),
+            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.45f),
+        ))
+        val repo = makeRepo(libraryItemDao = dao)
+
+        val inProgress = repo.observeInProgressItems("lib-1").first()
+        val finished = repo.observeFinishedItems("lib-1").first()
+
+        assertTrue("a finished book must not remain in In Progress", inProgress.isEmpty())
+        assertEquals(listOf("item-1"), finished.map { it.id })
+    }
+
+    @Test
+    fun `library shelves exclude rows owned by inactive duplicate servers`() = runTest {
+        // The active Server (s1) has the in-progress copy; an inactive duplicate (s2) carries a
+        // different fraction for the same id. Every shelf must show only the active Server's row.
+        fakeServerRepository.activeServer = activeServer(id = "s1")
+        val dao = FakeLibraryItemDao()
+        // Seed the inactive duplicate first so a naive distinctBy{id} would keep the wrong row.
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.9f),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f),
+        ))
+        val repo = makeRepo(libraryItemDao = dao)
+
+        val all = repo.observeLibraryItems("lib-1").first()
+        val inProgress = repo.observeInProgressItems("lib-1").first()
+
+        assertEquals(1, all.size)
+        assertEquals(0.5f, all[0].readingProgress, 0.001f)
+        assertEquals(listOf(0.5f), inProgress.map { it.readingProgress })
+    }
+
     // ── toDomain: ebookFormat → isReadable (regression) ─────────────────────
 
     @Test

@@ -28,6 +28,7 @@ import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
 import com.riffle.core.network.NetworkUserProgressResult
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -61,22 +62,42 @@ class LibraryRepositoryImpl @Inject constructor(
         libraryDao.observeByServerId(serverId).map { list -> list.map { it.toDomain() } }
 
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeByLibraryId(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
+        libraryItemDao.observeByLibraryId(libraryId).scopedToActiveServer()
 
     override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeUngroupedByLibraryId(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
+        libraryItemDao.observeUngroupedByLibraryId(libraryId).scopedToActiveServer()
 
     override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeInProgress(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
+        libraryItemDao.observeInProgress(libraryId).scopedToActiveServer()
 
     override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeFinished(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
+        libraryItemDao.observeFinished(libraryId).scopedToActiveServer()
 
     override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeRecentlyAdded(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
+        libraryItemDao.observeRecentlyAdded(libraryId).scopedToActiveServer()
 
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeAllBooks(libraryId).map { list -> list.distinctBy { it.id }.map { it.toDomain() } }
+        libraryItemDao.observeAllBooks(libraryId).scopedToActiveServer()
+
+    // Id of the Server whose libraries the user is currently browsing. The nav drawer only ever
+    // lists the active Server's libraries, so the visible library always belongs to it.
+    private val activeServerId: Flow<String?> =
+        serverRepository.observeAll()
+            .map { servers -> servers.firstOrNull { it.isActive }?.id }
+            .distinctUntilChanged()
+
+    // Two Servers pointing at the same Audiobookshelf instance emit identical library and item ids
+    // (issue #113), so the libraryId-keyed item-shelf queries return a row per Server. Keep only the
+    // active Server's copy — the one book detail reads and markAsRead/the reader write. Without this,
+    // an inactive duplicate's stale progress keeps a finished book pinned to In Progress even though
+    // detail shows 100%. No active Server → pass rows through (nothing is being browsed anyway), still
+    // collapsing any duplicate ids. Mirrors how observeLibraries/getLibrary/getItem scope by Server.
+    private fun Flow<List<LibraryItemEntity>>.scopedToActiveServer(): Flow<List<LibraryItem>> =
+        combine(activeServerId) { list, serverId ->
+            list.filter { serverId == null || it.serverId == serverId }
+                .distinctBy { it.id }
+                .map { it.toDomain() }
+        }
 
     override fun observeSeries(libraryId: String): Flow<List<Series>> =
         seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
@@ -85,13 +106,13 @@ class LibraryRepositoryImpl @Inject constructor(
         collectionDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
 
     override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
-        seriesDao.observeItemsBySeriesId(seriesId).map { list -> list.map { it.toDomain() } }
+        seriesDao.observeItemsBySeriesId(seriesId).scopedToActiveServer()
 
     override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> =
-        seriesDao.observeContinueSeriesItems(libraryId).map { list -> list.map { it.toDomain() } }
+        seriesDao.observeContinueSeriesItems(libraryId).scopedToActiveServer()
 
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
-        collectionDao.observeItemsByCollectionId(collectionId).map { list -> list.map { it.toDomain() } }
+        collectionDao.observeItemsByCollectionId(collectionId).scopedToActiveServer()
 
     // Item ids are only unique within a Server (ADR 0025); reads/writes here target the active
     // Server's copy, mirroring how reading positions are keyed. No active Server → nothing to do.
