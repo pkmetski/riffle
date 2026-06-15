@@ -399,6 +399,7 @@ class SleepTimerTest {
         override fun observeSeries(libraryId: String) = throw NotImplementedError()
         override fun observeCollections(libraryId: String) = throw NotImplementedError()
         override fun observeSeriesItems(seriesId: String) = throw NotImplementedError()
+        override fun observeContinueSeriesItems(libraryId: String) = throw NotImplementedError()
         override fun observeCollectionItems(collectionId: String) = throw NotImplementedError()
         override suspend fun getLibrary(libraryId: String) = throw NotImplementedError()
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
@@ -553,6 +554,7 @@ class SleepTimerTest {
         override fun observeSeries(libraryId: String) = throw NotImplementedError()
         override fun observeCollections(libraryId: String) = throw NotImplementedError()
         override fun observeSeriesItems(seriesId: String) = throw NotImplementedError()
+        override fun observeContinueSeriesItems(libraryId: String) = throw NotImplementedError()
         override fun observeCollectionItems(collectionId: String) = throw NotImplementedError()
         override suspend fun getLibrary(libraryId: String) = throw NotImplementedError()
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
