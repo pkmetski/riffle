@@ -66,25 +66,52 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `Serif font family — injects Georgia serif stack`() {
+    fun `Serif uses generic serif — matches Readium null mapping`() {
         val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
-        // Without ReadiumCSS the WebView default is sans-serif, so Serif must actively apply
-        // a system serif stack rather than falling back to the EPUB's own (often sans-serif) font.
-        assertTrue("Serif injects Georgia", js.contains("Georgia"))
-        assertTrue("serif fallback present", js.contains("serif"))
+        // FormattingPreferencesMapper maps Serif → null (Readium default = system serif).
+        // Continuous mode must use the same generic so both modes pick the same system font.
+        assertTrue("generic serif keyword present", js.contains("font-family:serif"))
+        assertFalse("no Georgia override", js.contains("Georgia"))
     }
 
     @Test
-    fun `SansSerif sets Arial stack`() {
+    fun `SansSerif uses generic sans-serif — matches Readium mapping`() {
         val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.SansSerif))
-        assertTrue(js.contains("font-family:Arial"))
+        assertTrue(js.contains("font-family:sans-serif"))
     }
 
     @Test
-    fun `Monospace sets Courier stack`() {
+    fun `Monospace uses generic monospace — matches Readium mapping`() {
         val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Monospace))
-        assertTrue(js.contains("font-family:"))
-        assertTrue(js.contains("Courier"))
+        assertTrue(js.contains("font-family:monospace"))
+        assertFalse("no Courier override", js.contains("Courier"))
+    }
+
+    @Test
+    fun `Literata injects font-face and uses Literata family`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Literata))
+        assertTrue("@font-face for Literata", js.contains("font-family:Literata"))
+        assertTrue("ttf url present", js.contains("Literata-Regular.ttf"))
+    }
+
+    @Test
+    fun `Merriweather injects font-face and uses Merriweather family`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Merriweather))
+        assertTrue("@font-face for Merriweather", js.contains("font-family:Merriweather"))
+        assertTrue("ttf url present", js.contains("Merriweather-Regular.ttf"))
+    }
+
+    @Test
+    fun `OpenDyslexic injects font-face and uses OpenDyslexic family`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.OpenDyslexic))
+        assertTrue("@font-face for OpenDyslexic", js.contains("font-family:OpenDyslexic"))
+        assertTrue("otf url present", js.contains("OpenDyslexic-Regular.otf"))
+    }
+
+    @Test
+    fun `Serif does not inject font-face declarations`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
+        assertFalse("no @font-face for Serif", js.contains("@font-face"))
     }
 
     @Test

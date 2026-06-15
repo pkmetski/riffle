@@ -72,18 +72,28 @@ internal class ChapterWebView(context: Context) : WebView(context) {
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val uri = request.url
-                // Readium serves EPUB content via https://readium_package/ — a custom domain
-                // backed by shouldInterceptRequest in EpubNavigatorFragment's own WebViewClient.
-                // Self-managed ChapterWebViews don't have that interceptor, so we replicate it
-                // here by serving resources directly from the Publication container.
+                // All resources we serve use the readium_package virtual host so the WebView
+                // treats them as same-origin with the EPUB chapter content.
                 if (uri.host != "readium_package") return super.shouldInterceptRequest(view, request)
-                val pub = this@ChapterWebView.publication
-                    ?: return super.shouldInterceptRequest(view, request)
-                // Publication.get() resolves against the publication container using paths relative
-                // to the publication root (e.g. "text/part0022_split_000.html"). Passing the full
-                // https://readium_package/... absolute URL doesn't work because pub.get() doesn't
-                // know the readium_package virtual hostname; it just understands relative paths.
+
                 val path = uri.path?.trimStart('/').takeIf { !it.isNullOrEmpty() }
+                    ?: return super.shouldInterceptRequest(view, request)
+
+                // App-bundled fonts (Literata, Merriweather, OpenDyslexic) are served from
+                // Android assets at readium_package/readium/fonts/<name>. The @font-face
+                // declarations in buildCss() reference these URLs so the WebView loads them
+                // at the same origin as the EPUB content — no cross-origin block.
+                if (path.startsWith("readium/fonts/")) {
+                    val assetName = "fonts/${path.removePrefix("readium/fonts/")}"
+                    val mimeType = mimeTypeForPath(path)
+                    return try {
+                        WebResourceResponse(mimeType, null, context.assets.open(assetName))
+                    } catch (_: Exception) {
+                        super.shouldInterceptRequest(view, request)
+                    }
+                }
+
+                val pub = this@ChapterWebView.publication
                     ?: return super.shouldInterceptRequest(view, request)
                 val relUrl = Url(path)
                     ?: return super.shouldInterceptRequest(view, request)
@@ -94,11 +104,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 val encoding = if (mimeType.startsWith("text/") || mimeType.contains("xml") || mimeType.contains("javascript")) "utf-8" else null
 
                 // For HTML/XHTML chapter resources, inject the user-preference CSS into <head>
-                // so the very first paint is already styled. Without this, evaluateJavascript
-                // style injection races with page rendering: the WebView paints with the EPUB's
-                // own CSS first, then reflowing ~50 ms later when the JS fires — producing a
-                // flash of unstyled content and apparent inconsistency between chapters that
-                // happen to load at different speeds.
+                // so the very first paint is already styled, eliminating flash of unstyled content.
                 val finalBytes = if (mimeType == "text/html" || mimeType == "application/xhtml+xml") {
                     injectCssIntoHtml(bytes, ContinuousStyleInjector.buildCss(currentPrefs))
                 } else {

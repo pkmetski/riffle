@@ -35,6 +35,12 @@ internal object ContinuousStyleInjector {
         """.trimIndent()
     }
 
+    /**
+     * URL prefix under which we serve the app's bundled fonts from [ChapterWebView].
+     * These paths are intercepted in `shouldInterceptRequest` and served from Android assets.
+     */
+    private const val FONT_BASE = "https://readium_package/readium/fonts"
+
     internal fun buildCss(prefs: FormattingPreferences): String {
         // Theme colours — mirrors ReaderThemePalette (keep in sync).
         val bg = when (prefs.theme) {
@@ -49,30 +55,49 @@ internal object ContinuousStyleInjector {
             else -> null
         }
 
-        // Font family — all choices override with a system stack. Serif uses Georgia (Android's
-        // standard serif) because without ReadiumCSS the WebView default is sans-serif, so
-        // leaving Serif as null would render the wrong font entirely.
-        // Readium-bundled custom fonts (Literata, Merriweather, OpenDyslexic) are not available
-        // in ChapterWebViews since those fonts are served by the Readium HTTP server, not ours.
+        // Font family mapping mirrors FormattingPreferencesMapper.toEpubPreferences():
+        //   Serif      → null (Readium default) → system generic `serif`
+        //   SansSerif  → FontFamily("sans-serif") → system generic `sans-serif`
+        //   Monospace  → FontFamily("monospace")  → system generic `monospace`
+        //   Literata/Merriweather/OpenDyslexic → app-bundled fonts served from assets via
+        //     shouldInterceptRequest at FONT_BASE; declared here with @font-face.
         val fontFamily: String = when (prefs.fontFamily) {
-            ReaderFontFamily.Serif -> "Georgia, 'Times New Roman', serif"
-            ReaderFontFamily.SansSerif -> "Arial, Helvetica, sans-serif"
-            ReaderFontFamily.Monospace -> "'Courier New', Courier, monospace"
-            ReaderFontFamily.Literata -> "Georgia, serif"
-            ReaderFontFamily.Merriweather -> "Georgia, serif"
-            ReaderFontFamily.OpenDyslexic -> "sans-serif"
+            ReaderFontFamily.Serif -> "serif"
+            ReaderFontFamily.SansSerif -> "sans-serif"
+            ReaderFontFamily.Monospace -> "monospace"
+            ReaderFontFamily.Literata -> "Literata, serif"
+            ReaderFontFamily.Merriweather -> "Merriweather, serif"
+            ReaderFontFamily.OpenDyslexic -> "OpenDyslexic, sans-serif"
         }
 
+        // Include @font-face declarations for bundled fonts whenever one of them is active.
+        // The font files are served by ChapterWebView.shouldInterceptRequest from Android assets.
+        val needsBundledFonts = prefs.fontFamily in setOf(
+            ReaderFontFamily.Literata,
+            ReaderFontFamily.Merriweather,
+            ReaderFontFamily.OpenDyslexic,
+        )
+
         val textAlign = if (prefs.justifyText) "justify" else "left"
-        // margins: 1.0 = normal ≈ 6 % per side; range is typically 0.5–2.0.
+        // margins: 1.0 = normal ≈ 6 % per side (matches Readium's --RS__pageGutter × pageMargins).
         val paddingPct = (prefs.margins * 6f).toInt().coerceIn(1, 14)
 
         return buildString {
+            // @font-face declarations must come before any rule that references the font name.
+            if (needsBundledFonts) {
+                append("@font-face{font-family:Literata;font-style:normal;font-weight:400;")
+                append("src:url('$FONT_BASE/Literata-Regular.ttf') format('truetype');}\n")
+                append("@font-face{font-family:Merriweather;font-style:normal;font-weight:400;")
+                append("src:url('$FONT_BASE/Merriweather-Regular.ttf') format('truetype');}\n")
+                append("@font-face{font-family:OpenDyslexic;font-style:normal;font-weight:400;")
+                append("src:url('$FONT_BASE/OpenDyslexic-Regular.otf') format('opentype');}\n")
+            }
+
             // Background and text colour on both html and body to cover all EPUB layouts.
             append("html,body{")
             if (bg != null) append("background-color:$bg!important;")
             if (fg != null) append("color:$fg!important;")
-            // font-size on html so em/rem-based EPUB content scales correctly.
+            // font-size on html so em/rem-based EPUB content scales with the user preference.
             append("font-size:${prefs.fontSize}rem!important;")
             append("}\n")
 
