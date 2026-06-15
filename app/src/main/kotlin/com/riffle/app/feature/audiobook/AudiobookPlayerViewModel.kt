@@ -394,13 +394,10 @@ class AudiobookPlayerViewModel(
             val item = libraryRepository.getItem(itemId)
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
             // stream from ABS (connectivity-independent: a local copy always beats streaming).
-            val t0Session = System.currentTimeMillis()
-            android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "AB.VM prepare start (startAtSec=$startAtSec)")
             val session = if (serverId.isEmpty()) null
                 else audiobookDownloadRepository.localSession(serverId, itemId)
                     ?: bundleAudiobookSource.localSession(serverId, itemId)
                     ?: audiobookRepository.openSession(serverId, itemId)
-            android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "AB.VM session resolved +${System.currentTimeMillis() - t0Session}ms (local=${session?.localZipFile != null})")
             if (item == null || session == null) {
                 meta.value = meta.value.copy(loading = false, failed = true)
                 return@launch

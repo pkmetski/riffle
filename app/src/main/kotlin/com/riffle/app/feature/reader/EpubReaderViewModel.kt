@@ -72,7 +72,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import org.json.JSONObject
+import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -155,8 +158,24 @@ class EpubReaderViewModel @Inject constructor(
     // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
     // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
     // we auto-start readaloud playing from this second so narration continues where listening left off.
+    // Also observed as a flow so a back-stack return (reader was alive behind the audiobook player) can
+    // receive an updated value set by the audiobook player when it pops back.
     private val startReadaloudAtSec: Double =
         (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
+
+    // Cached WebView host view and Readium fragment — kept alive across composable removal so the
+    // Readium WebView does not reload when the reader re-surfaces from the back stack after the
+    // audiobook player was on top. Cleared in onCleared to prevent leaks on permanent navigation
+    // away. The Activity context embedded in the view is validated in EpubNavigatorView before
+    // reuse so rotation clears and recreates the cache safely (see EpubReaderScreen).
+    //
+    // Storing a View in a ViewModel is non-standard; it is justified here because the WebView
+    // reload (1–2 s) was the dominant latency in the audiobook↔readaloud switch, and all
+    // alternative approaches (overlay composables, Fragment-retain tricks) required far larger
+    // architectural changes. The cache is guarded against rotation via a Context identity check.
+    internal var savedNavigatorContainer: Any? = null   // ScrollBoundaryNavigationContainer
+    internal var savedNavigatorFragment: EpubNavigatorFragment? = null
+    internal var savedNavigatorFragmentIsDoublePage: Boolean? = null
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
@@ -513,7 +532,6 @@ class EpubReaderViewModel @Inject constructor(
             // readaloud from the audiobook's position so narration continues where listening stopped.
             // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
             if (startReadaloudAtSec >= 0.0 && control.enabled) {
-                android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM control.enabled fired — calling startReadaloudAtSecond")
                 startReadaloudAtSecond(startReadaloudAtSec)
             }
 
@@ -563,6 +581,16 @@ class EpubReaderViewModel @Inject constructor(
                     }
                     searchJob = launch { performSearch(query) }
                 }
+        }
+        // Back-stack return: the audiobook player was popped while the reader was alive behind it.
+        // The audiobook sets startReadaloudAtSec in our savedStateHandle before calling popBackStack(),
+        // so we observe subsequent emissions (drop(1) skips the initial value handled in the
+        // control.enabled block above) and auto-start readaloud at the new position.
+        viewModelScope.launch {
+            savedStateHandle.getStateFlow("startReadaloudAtSec", -1f)
+                .drop(1)
+                .filter { it >= 0f }
+                .collect { sec -> startReadaloudAtSecond(sec.toDouble()) }
         }
     }
 
@@ -1068,13 +1096,15 @@ class EpubReaderViewModel @Inject constructor(
         }
         epubZip?.close()
         epubZip = null
+        // Drop the cached WebView container so it can be garbage-collected. In the stacking
+        // navigation model the reader's onCleared fires only when the user permanently leaves
+        // the reader (back from reader, navigate to home, etc.) — at that point the audiobook
+        // has already been popped and stopped, so there is no live session to protect.
+        savedNavigatorContainer = null
+        savedNavigatorFragment = null
+        savedNavigatorFragmentIsDoublePage = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
-        // On a swipe-up handoff the audiobook now owns the shared player and the readaloud handle was
-        // already released without stopping it — closing here would stop the audiobook that just took
-        // over, so skip it.
-        if (!handingOffToAudiobook) {
-            playerCoordinator.close()
-        }
+        playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
         nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Readaloud && it.itemId == itemId }
         // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
@@ -1571,13 +1601,11 @@ class EpubReaderViewModel @Inject constructor(
     /**
      * Swipe-up handoff to the single large player: capture the current listen second, release the
      * shared player to the audiobook WITHOUT stopping it (so the audiobook keeps playing through the
-     * switch), and return the second to hand off. The reader is popped right after, so its onCleared
-     * must skip the normal readaloud stop — see [handingOffToAudiobook].
+     * switch), and return the second to hand off. The reader stays in the Compose Navigation back
+     * stack (stacking model, not swap), so onCleared is NOT called here — no guard needed.
      */
     fun prepareAudiobookHandoff(): Double {
-        android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM prepareAudiobookHandoff (T0 — about to pause)")
         val sec = playbackState.value.positionGlobalSec
-        handingOffToAudiobook = true
         playerCoordinator.releaseForHandoff()
         return sec
     }
@@ -1587,8 +1615,6 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Discard any pre-warm state if the drag was abandoned. */
     fun cancelHandoffHint() = Unit
-
-    private var handingOffToAudiobook = false
 
     fun previousChapter() = playerCoordinator.previousChapter()
 
@@ -1635,7 +1661,6 @@ class EpubReaderViewModel @Inject constructor(
      * disk.
      */
     fun startReadaloudAtSecond(globalSec: Double) {
-        android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM startReadaloudAtSecond called (readaloudAvailable=${_readaloudAvailable.value})")
         if (!_readaloudAvailable.value) return
         val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
         if (bundle == null) {
@@ -1643,11 +1668,8 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         if (!_readaloudOpen.value) openReadaloudSession()
-        val t0 = System.currentTimeMillis()
         viewModelScope.launch {
-            android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM ensureOpened start +${System.currentTimeMillis() - t0}ms (readaloudPrepared=$readaloudPrepared)")
             ensureOpened(bundle) ?: return@launch
-            android.util.Log.d(com.riffle.app.feature.reader.readaloud.ReadaloudController.HANDOFF, "RA.VM ensureOpened done +${System.currentTimeMillis() - t0}ms")
             readaloudStarted = true
             resumeFragmentRef = null
             closeLocator = null

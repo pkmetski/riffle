@@ -409,9 +409,11 @@ fun MainScreen(
                     // stopping it so the audiobook keeps playing.
                     onSwitchToAudiobook = { audiobookItemId, atSec ->
                         val encoded = URLEncoder.encode(audiobookItemId, "UTF-8")
-                        navController.navigate("audiobook_player/$encoded?startAtSec=$atSec") {
-                            popUpTo(EPUB_READER) { inclusive = true }
-                        }
+                        // Push the audiobook player ON TOP of the reader (no popUpTo). The reader
+                        // stays alive in the back stack so its Readium WebView is not destroyed and
+                        // does not need to reload on the return swipe — eliminating the 1–2 s blank
+                        // screen (see EpubNavigatorView WebView cache in EpubReaderScreen).
+                        navController.navigate("audiobook_player/$encoded?startAtSec=$atSec")
                     },
                 )
             }
@@ -440,9 +442,23 @@ fun MainScreen(
                     // the audiobook position. Pop the player off the stack so leaving readaloud doesn't
                     // land back on a dead player, and its onCleared stops audio + flushes progress.
                     onSwitchToReadaloud = { ebookItemId, atSec ->
-                        val encoded = URLEncoder.encode(ebookItemId, "UTF-8")
-                        navController.navigate("epub_reader/$encoded?startReadaloudAtSec=$atSec") {
-                            popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
+                        val prevEntry = navController.previousBackStackEntry
+                        if (prevEntry?.destination?.route?.startsWith(
+                                EPUB_READER.substringBefore("{")
+                            ) == true
+                        ) {
+                            // Reader is alive in the back stack (opened audiobook via swipe-up from
+                            // the reader). Pass the position to resume and pop — the reader's
+                            // WebView was never torn down, so this is instant.
+                            prevEntry.savedStateHandle["startReadaloudAtSec"] = atSec.toFloat()
+                            navController.popBackStack()
+                        } else {
+                            // Audiobook was opened directly (e.g. from the library). Navigate to a
+                            // new reader, replacing the player so Back doesn't return to a dead session.
+                            val encoded = URLEncoder.encode(ebookItemId, "UTF-8")
+                            navController.navigate("epub_reader/$encoded?startReadaloudAtSec=$atSec") {
+                                popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
+                            }
                         }
                     },
                 )

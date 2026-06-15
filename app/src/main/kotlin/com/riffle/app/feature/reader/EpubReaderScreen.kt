@@ -311,6 +311,7 @@ fun EpubReaderScreen(
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
                     EpubNavigatorView(
+                        viewModel = viewModel,
                         state = s,
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = { locator ->
@@ -886,6 +887,7 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
+    viewModel: EpubReaderViewModel,
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
@@ -921,10 +923,13 @@ private fun EpubNavigatorView(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isFixedLayout = state.publication.metadata.layout == Layout.FIXED
     val coroutineScope = rememberCoroutineScope()
-    val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
-    val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
+    // Initialize from the ViewModel cache so the fragment/view survive composable removal while
+    // the reader is in the back stack behind the audiobook player. On back-stack return the
+    // factory returns the same ScrollBoundaryNavigationContainer (WebView intact, no reload).
+    val fragmentRef = remember { mutableStateOf(viewModel.savedNavigatorFragment) }
+    val containerRef = remember { mutableStateOf(viewModel.savedNavigatorContainer as? ScrollBoundaryNavigationContainer) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -934,8 +939,9 @@ private fun EpubNavigatorView(
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
+    // Initialized from the ViewModel so back-stack returns don't re-create a still-valid fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
-    val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
+    val fragmentDoublePageHolder = remember { arrayOf(viewModel.savedNavigatorFragmentIsDoublePage) }
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -1735,22 +1741,34 @@ private fun EpubNavigatorView(
         }
         AndroidView(
             factory = { ctx ->
-                ScrollBoundaryNavigationContainer(ctx).apply {
-                    // Compose handles all inset-based padding (navigationBarsPadding on the outer
-                    // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
-                    // insets here prevents Readium's WebViews from applying status-bar padding,
-                    // which on physical devices remains non-zero even after controller.hide().
-                    ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
-                    onPullStarted = { fwd ->
-                        pullForward = fwd
-                        pullProgress = 0f
-                        pullActive = true
-                    }
-                    onPullEnded = { pullActive = false }
-                    onPullProgress = { p -> pullProgress = p }
-                    val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
-                    addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-                }.also { containerRef.value = it }
+                // Reuse the cached container (and its WebView) when returning from the audiobook
+                // player's back stack entry. The view was removed from the Compose hierarchy (but
+                // kept alive by the ViewModel) while the audiobook was on top; re-adding it here
+                // re-attaches the Fragment's view to the window without recreating the WebView.
+                // Context identity check detects Activity recreation (rotation) and falls through
+                // to create a fresh container in that case.
+                val cached = viewModel.savedNavigatorContainer as? ScrollBoundaryNavigationContainer
+                val container = if (cached != null && cached.context === ctx) {
+                    cached
+                } else {
+                    // Clear stale cache on rotation or first open.
+                    viewModel.savedNavigatorContainer = null
+                    viewModel.savedNavigatorFragment = null
+                    viewModel.savedNavigatorFragmentIsDoublePage = null
+                    fragmentRef.value = null
+                    fragmentDoublePageHolder[0] = null
+                    ScrollBoundaryNavigationContainer(ctx).apply {
+                        // Compose handles all inset-based padding (navigationBarsPadding on the outer
+                        // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
+                        // insets here prevents Readium's WebViews from applying status-bar padding,
+                        // which on physical devices remains non-zero even after controller.hide().
+                        ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
+                        val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
+                        addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                    }.also { viewModel.savedNavigatorContainer = it }
+                }
+                containerRef.value = container
+                container
             },
             update = { container ->
                 // In Continuous mode the fragment is kept alive only to maintain the HTTP server.
@@ -1763,6 +1781,16 @@ private fun EpubNavigatorView(
                     container.visibility = View.VISIBLE
                 }
                 container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
+                // Pull callbacks capture composable-local State vars; re-set on every update so
+                // back-stack returns (which re-create the composable but reuse the cached View)
+                // always write to the current State instances rather than stale ones.
+                container.onPullStarted = { fwd ->
+                    pullForward = fwd
+                    pullProgress = 0f
+                    pullActive = true
+                }
+                container.onPullEnded = { pullActive = false }
+                container.onPullProgress = { p -> pullProgress = p }
 
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
@@ -1793,6 +1821,8 @@ private fun EpubNavigatorView(
                     fm.beginTransaction().remove(existingFrag).commitNow()
                     fragmentRef.value = null
                     fragmentDoublePageHolder[0] = null
+                    viewModel.savedNavigatorFragment = null
+                    viewModel.savedNavigatorFragmentIsDoublePage = null
                 }
 
                 // After Activity recreation, the FragmentManager may have restored an
@@ -1842,6 +1872,8 @@ private fun EpubNavigatorView(
                             animatedTransition = true,
                         ),
                     )
+                    viewModel.savedNavigatorFragment = fragment
+                    viewModel.savedNavigatorFragmentIsDoublePage = isDoublePage
                     fragment.addInputListener(tapListener)
                     coroutineScope.launch {
                         fragment.currentLocator.collect { locator ->
