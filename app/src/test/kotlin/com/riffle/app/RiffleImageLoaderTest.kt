@@ -1,5 +1,6 @@
 package com.riffle.app
 
+import okhttp3.Cache
 import okhttp3.Call
 import okhttp3.Connection
 import okhttp3.Interceptor
@@ -59,5 +60,9 @@ class RiffleImageLoaderTest {
         override fun withReadTimeout(timeout: Int, unit: java.util.concurrent.TimeUnit) = this
         override fun writeTimeoutMillis(): Int = 0
         override fun withWriteTimeout(timeout: Int, unit: java.util.concurrent.TimeUnit) = this
+        override val retryOnConnectionFailure: Boolean get() = false
+        override fun withRetryOnConnectionFailure(retryOnConnectionFailure: Boolean) = this
+        override val cache: Cache? get() = null
+        override fun withCache(cache: Cache?) = this
     }
 }
