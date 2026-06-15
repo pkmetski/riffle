@@ -1295,8 +1295,19 @@ private fun EpubNavigatorView(
         returnNavEvents.collect { goAndSnapWithCover(it) }
     }
 
-    LaunchedEffect(searchNavigationEvents) {
-        searchNavigationEvents.collect { goAndSnapWithCover(it) }
+    LaunchedEffect(searchNavigationEvents, isContinuous) {
+        searchNavigationEvents.collect { locator ->
+            if (isContinuous) {
+                val view = continuousViewRef.value ?: return@collect
+                val href = locator.href.toString()
+                val progression = locator.locations.progression?.toFloat() ?: 0f
+                val highlightText = locator.text.highlight?.take(40) ?: ""
+                view.navigateTo(href, progression)
+                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText)
+            } else {
+                goAndSnapWithCover(locator)
+            }
+        }
     }
 
     // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
@@ -1334,6 +1345,7 @@ private fun EpubNavigatorView(
     // re-applies are idempotent (same id + locator). Re-keys on reflow/pageLoad as well for rotation and
     // formatting reflows, matching the readaloud and annotations decoration effects.
     LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
+        if (isContinuous) return@LaunchedEffect  // ContinuousReaderView uses window.find via highlightInChapter
         if (searchResults.isEmpty()) {
             if (!hasActiveDecorations.value) return@LaunchedEffect
             val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
