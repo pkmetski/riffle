@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -758,12 +757,6 @@ private fun ReadingProgressLabels(
                             color = pillColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .background(
-                                    color = pillColor.copy(alpha = 0.12f),
-                                    shape = RoundedCornerShape(8.dp),
-                                )
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
                 }
