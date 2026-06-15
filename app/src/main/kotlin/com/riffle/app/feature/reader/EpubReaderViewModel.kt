@@ -1814,7 +1814,7 @@ class EpubReaderViewModel @Inject constructor(
         resumeFragmentRef = null
         val loc = lastLocator
         val plan = ReadaloudResumePlanner.plan(
-            isScroll = effectiveFormattingPreferences.value.orientation == ReaderOrientation.Vertical,
+            isScroll = effectiveFormattingPreferences.value.orientation != ReaderOrientation.Horizontal,
             closeHref = closed?.href?.toString(),
             closeProgression = closed?.locations?.progression,
             resumeFragmentRef = resume,

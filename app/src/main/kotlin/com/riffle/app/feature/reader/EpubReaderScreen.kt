@@ -267,7 +267,7 @@ fun EpubReaderScreen(
     // needs no reserve (the player floats over a freely-scrollable page). See ReadaloudReserve.kt.
     val readaloudReservePx: Int = readaloudReserveDp(
         readaloudAvailable = readaloudAvailable,
-        paginated = formattingPrefs.orientation != ReaderOrientation.Vertical,
+        paginated = formattingPrefs.orientation == ReaderOrientation.Horizontal,
     )
 
     // Track the rendered height of the chapter rail overlay so its pixels can be added to the CSS
@@ -1529,7 +1529,7 @@ private fun EpubNavigatorView(
         volumeNavEvents.collect { event ->
             val fragment = fragmentRef.value ?: return@collect
             val container = containerRef.value
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
+            if (currentFormattingPrefs.orientation != ReaderOrientation.Horizontal && container != null) {
                 when (event) {
                     VolumeNavEvent.Forward -> {
                         val atBottom = fragment.evaluateJavascript(
@@ -1596,7 +1596,7 @@ private fun EpubNavigatorView(
     // touch even when scroll position hasn't moved, which broke the previous staleness check.
     LaunchedEffect(fragmentRef.value, currentFormattingPrefs.orientation) {
         val fragment = fragmentRef.value ?: return@LaunchedEffect
-        if (currentFormattingPrefs.orientation != ReaderOrientation.Vertical) return@LaunchedEffect
+        if (currentFormattingPrefs.orientation == ReaderOrientation.Horizontal) return@LaunchedEffect
         while (true) {
             val container = containerRef.value
             if (container != null) {
@@ -1628,7 +1628,7 @@ private fun EpubNavigatorView(
     // page-coloured gutter behind). Scroll / fixed-layout / double-page keep fillMaxSize and the
     // bare modifier, untouched. See reference_reader_right_margin_is_column_snap_bug.
     val density = LocalDensity.current.density
-    val isPaginated = !isFixedLayout && formattingPrefs.orientation != ReaderOrientation.Vertical
+    val isPaginated = !isFixedLayout && formattingPrefs.orientation == ReaderOrientation.Horizontal
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
     val alignViewport = isPaginated && !isDoublePage
     val containerModifier = if (alignViewport) {
@@ -1666,12 +1666,12 @@ private fun EpubNavigatorView(
                 }.also { containerRef.value = it }
             },
             update = { container ->
-                container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+                container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
 
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
 
-                val isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+                val isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
                 val density = container.resources.displayMetrics.density
                 val (topPx, bottomPx) = readerContainerPaddingPx(
                     margins = formattingPrefs.margins,
@@ -1689,7 +1689,7 @@ private fun EpubNavigatorView(
                 // cannot be changed via submitPreferences. Recreate the fragment whenever the
                 // double-page mode changes so the new RS config takes effect.
                 val isDoublePage = !isFixedLayout &&
-                    formattingPrefs.orientation != ReaderOrientation.Vertical &&
+                    formattingPrefs.orientation == ReaderOrientation.Horizontal &&
                     formattingPrefs.doublePageSpread &&
                     isLandscape
                 val existingFrag = fragmentRef.value
