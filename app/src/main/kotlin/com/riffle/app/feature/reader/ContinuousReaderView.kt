@@ -74,6 +74,20 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private val measuredHeights = mutableListOf<Int>()
 
     /**
+     * Window indices (0-based) of chapters that must report their real height before the
+     * initial scroll fires. Populated in [initialize]; cleared as each chapter measures.
+     * When the set empties, [pendingInitialScroll] is invoked and nulled out.
+     */
+    private val pendingInitialMeasureIndices = mutableSetOf<Int>()
+
+    /**
+     * Closure that performs the initial [scrollTo] once all chapters in
+     * [pendingInitialMeasureIndices] have reported their real heights.
+     * Null after the initial scroll has fired or when opening at position 0.
+     */
+    private var pendingInitialScroll: (() -> Unit)? = null
+
+    /**
      * Placeholder height used before real measurement arrives. One screen height keeps the
      * forward-shift trigger working (the last chapter needs enough height to scroll into) while
      * minimising the phantom space the user can fling into before the real height is known.
@@ -133,12 +147,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             .coerceAtLeast(0)
         topIndex = (centerIndex - 1).coerceAtLeast(0)
         val windowSize = minOf(3, chapters.size - topIndex)
-        repeat(windowSize) { i -> appendChapter(topIndex + i) }
-        post {
+
+        // Defer the initial scroll until every chapter AT OR BEFORE the target chapter has
+        // reported its real height. Using placeholder heights produces an inaccurate initial
+        // position: if the preceding chapter is taller than the placeholder, the scroll
+        // compensation in onHeightMeasured pushes the viewport past the intended intra-chapter
+        // offset. Waiting for real heights means a single, correct scrollTo with no follow-up jump.
+        val centerInWindow = (centerIndex - topIndex).coerceIn(0, windowSize - 1)
+        pendingInitialMeasureIndices.clear()
+        for (i in 0..centerInWindow) pendingInitialMeasureIndices.add(i)
+        pendingInitialScroll = {
             val window = buildWindow()
             val offset = ContinuousPositionTracker.scrollOffsetFor(initialHref, initialProgression, window)
             if (offset != null) scrollTo(0, (offset - height / 2).coerceAtLeast(0))
         }
+
+        repeat(windowSize) { i -> appendChapter(topIndex + i) }
     }
 
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
@@ -222,8 +246,21 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 //   ch0 growing pushes ch1+ down; compensate to keep ch1 in place.
                 // Never compensate for a growing ch0 we're still scrolled within — that would
                 // fire a spurious forward jump and immediately re-trigger a backward shift.
-                if (wasPlaceholder && i == 0 && (delta < 0 || scrollY >= oldHeight)) {
+                // Suppressed while initial scroll is pending: the deferred scrollTo below
+                // computes the correct position from real heights and fires once; a premature
+                // scrollBy here would shift the viewport before that calculation runs.
+                if (pendingInitialScroll == null && wasPlaceholder && i == 0 && (delta < 0 || scrollY >= oldHeight)) {
                     scrollBy(0, delta)
+                }
+
+                // Fire the initial scroll once every chapter at or before the target chapter
+                // has reported its real height so the scroll position is accurate.
+                if (wasPlaceholder && pendingInitialMeasureIndices.remove(i) &&
+                    pendingInitialMeasureIndices.isEmpty()
+                ) {
+                    val scroll = pendingInitialScroll
+                    pendingInitialScroll = null
+                    scroll?.invoke()
                 }
             }
         }

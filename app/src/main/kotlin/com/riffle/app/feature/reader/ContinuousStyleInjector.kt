@@ -93,15 +93,20 @@ internal object ContinuousStyleInjector {
                 append("src:url('$FONT_BASE/OpenDyslexic-Regular.otf') format('opentype');}\n")
             }
 
-            // Background and text colour on both html and body to cover all EPUB layouts.
-            append("html,body{")
+            // ReadiumCSS sets -webkit-text-size-adjust:100% on :root to prevent Chrome's
+            // "font inflation" feature from boosting small text on mobile. Without it,
+            // Continuous mode can render text at a different size than Scroll/Paginated mode.
+            append("html{")
             if (bg != null) append("background-color:$bg!important;")
             if (fg != null) append("color:$fg!important;")
             // font-size on html so em/rem-based EPUB content scales with the user preference.
             append("font-size:${prefs.fontSize}rem!important;")
+            append("-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;")
             append("}\n")
 
             append("body{")
+            if (bg != null) append("background-color:$bg!important;")
+            if (fg != null) append("color:$fg!important;")
             append("font-family:$fontFamily!important;")
             append("line-height:${prefs.lineSpacing}!important;")
             append("text-align:$textAlign!important;")
@@ -109,6 +114,14 @@ internal object ContinuousStyleInjector {
             // Zero out all body margin/vertical-padding so the default 8px browser body margin
             // doesn't appear as a visible gap at every chapter boundary in the stacked layout.
             append("margin:0!important;padding-top:0!important;padding-bottom:0!important;")
+            append("}\n")
+
+            // ReadiumCSS advanced mode (publisherStyles=false) sets font-size:1rem!important on
+            // content elements to strip EPUB per-element font-size overrides. Without this,
+            // EPUB rules like `p { font-size: 0.9em }` make paragraphs smaller in Continuous
+            // mode than in Scroll/Paginated mode where ReadiumCSS overrides them.
+            append("p,li,dd,div{")
+            append("font-size:1rem!important;")
             append("}\n")
 
             // Push text-align and line-height down to the elements publishers commonly override.

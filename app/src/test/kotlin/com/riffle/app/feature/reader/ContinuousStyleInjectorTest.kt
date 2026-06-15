@@ -66,6 +66,21 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `text-size-adjust 100 percent — prevents Chrome font inflation`() {
+        val js = css(FormattingPreferences())
+        assertTrue(js.contains("-webkit-text-size-adjust:100%!important"))
+        assertTrue(js.contains("text-size-adjust:100%!important"))
+    }
+
+    @Test
+    fun `paragraph elements reset to 1rem to strip EPUB per-element font-size overrides`() {
+        val js = css(FormattingPreferences())
+        // Mirrors ReadiumCSS advanced-mode: p,li,dd,div{font-size:1rem!important}
+        assertTrue("p,li,dd,div block present", js.contains("p,li,dd,div{"))
+        assertTrue("1rem reset present", js.contains("font-size:1rem!important"))
+    }
+
+    @Test
     fun `Serif uses generic serif — matches Readium null mapping`() {
         val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
         // FormattingPreferencesMapper maps Serif → null (Readium default = system serif).
