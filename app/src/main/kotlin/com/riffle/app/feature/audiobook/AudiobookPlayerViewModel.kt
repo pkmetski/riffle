@@ -131,6 +131,7 @@ data class AudiobookPlayerUiState(
     // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
     val bookmarksOffline: Boolean = false,
     val sleepTimer: SleepTimerMode = SleepTimerMode.None,
+    val skipIntervalSeconds: Int = 30,
 )
 
 @HiltViewModel
@@ -346,6 +347,8 @@ class AudiobookPlayerViewModel(
                 bookmarksOffline = m.bookmarksOffline,
                 sleepTimer = timer,
             )
+        }.combine(skipIntervalSec) { state, skip ->
+            state.copy(skipIntervalSeconds = skip.toInt())
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
     init {
@@ -718,11 +721,11 @@ class AudiobookPlayerViewModel(
      */
     fun setSpeed(speed: Float) {
         controller.setSpeed(speed)
-        if (serverId.isEmpty()) return
         pendingSpeed = speed
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(SPEED_SAVE_DEBOUNCE_MS)
+            if (serverId.isEmpty()) return@launch
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
             pendingSpeed = null
         }

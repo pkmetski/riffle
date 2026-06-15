@@ -2,17 +2,19 @@
 
 package com.riffle.app.feature.reader.readaloud
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AlertDialog
@@ -31,12 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.riffle.app.R
 import com.riffle.app.feature.audio.PlaybackSpeed
 import com.riffle.app.feature.audio.PlaybackSpeedControl
 
@@ -77,6 +79,25 @@ private fun SpeedControl(
 }
 
 
+@Composable
+private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color, iconSize: Dp = 24.dp) {
+    Box(contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = Icons.Filled.Replay,
+            contentDescription = null,
+            tint = tint,
+            modifier = if (forward) Modifier.size(iconSize).scale(scaleX = -1f, scaleY = 1f)
+                       else Modifier.size(iconSize),
+        )
+        Text(
+            text = "$seconds",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = tint,
+        )
+    }
+}
+
 /**
  * Bottom mini-player bar. Sits above the chapter rail in the screen layout.
  */
@@ -84,6 +105,7 @@ private fun SpeedControl(
 fun ReadaloudMiniPlayer(
     isPlaying: Boolean,
     speed: Float,
+    skipIntervalSeconds: Int,
     offlineMessage: Boolean,
     downloadProgress: Float?,
     canPreviousChapter: Boolean,
@@ -138,11 +160,7 @@ fun ReadaloudMiniPlayer(
                 SpeedControl(speed = speed, contentColor = contentColor, onSpeedChange = onSpeedChange)
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = onRewind, modifier = Modifier.testTag("readaloud_rewind")) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_replay_15),
-                        contentDescription = "Rewind 15 seconds",
-                        tint = contentColor,
-                    )
+                    SkipIcon(seconds = skipIntervalSeconds, forward = false, tint = contentColor)
                 }
                 IconButton(
                     onClick = onPreviousChapter,
@@ -165,11 +183,7 @@ fun ReadaloudMiniPlayer(
                     Icon(Icons.Filled.SkipNext, contentDescription = "Next chapter")
                 }
                 IconButton(onClick = onForward, modifier = Modifier.testTag("readaloud_forward")) {
-                    Icon(
-                        imageVector = Icons.Filled.Forward30,
-                        contentDescription = "Forward 30 seconds",
-                        tint = contentColor,
-                    )
+                    SkipIcon(seconds = skipIntervalSeconds, forward = true, tint = contentColor)
                 }
                 Spacer(modifier = Modifier.weight(1f))
             }

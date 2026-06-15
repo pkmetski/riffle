@@ -230,7 +230,7 @@ class EpubReaderViewModel @Inject constructor(
     val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    private val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
+    val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
 

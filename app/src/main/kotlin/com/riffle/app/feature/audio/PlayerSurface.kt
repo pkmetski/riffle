@@ -22,9 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
@@ -52,15 +52,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.riffle.app.R
 import com.riffle.app.feature.audiobook.SleepTimerMode
 import com.riffle.app.feature.audiobook.formatCountdown
 
@@ -90,6 +91,7 @@ data class PlayerSurfaceState(
     val facts: String? = null,
     val description: String? = null,
     val sleepTimer: SleepTimerMode = SleepTimerMode.None,
+    val skipIntervalSeconds: Int = 30,
 )
 
 /** Callbacks the surface invokes. [onSeek] takes an absolute global position in seconds. */
@@ -338,7 +340,7 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton)) {
-            Icon(painterResource(R.drawable.ic_replay_15), contentDescription = "Rewind 15 seconds", modifier = Modifier.size(secondaryIcon))
+            SkipIcon(seconds = state.skipIntervalSeconds, forward = false, iconSize = secondaryIcon)
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {
@@ -365,8 +367,25 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton)) {
-            Icon(Icons.Filled.Forward30, contentDescription = "Forward 30 seconds", modifier = Modifier.size(secondaryIcon))
+            SkipIcon(seconds = state.skipIntervalSeconds, forward = true, iconSize = secondaryIcon)
         }
+    }
+}
+
+@Composable
+private fun SkipIcon(seconds: Int, forward: Boolean, iconSize: Dp) {
+    Box(contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = Icons.Filled.Replay,
+            contentDescription = null,
+            modifier = if (forward) Modifier.size(iconSize).scale(scaleX = -1f, scaleY = 1f)
+                       else Modifier.size(iconSize),
+        )
+        Text(
+            text = "$seconds",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
