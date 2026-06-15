@@ -16,6 +16,7 @@ import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingOverrides
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubOpenResult
@@ -130,6 +131,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+    private val listeningPreferencesStore: ListeningPreferencesStore,
     private val connectivityObserver: ConnectivityObserver,
     private val readerSyncFactory: ReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
@@ -459,7 +461,7 @@ class EpubReaderViewModel @Inject constructor(
                 AudioIdentity(activeServer?.id ?: "", itemId)
             }
             initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
-                ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+                ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
 
             // Restore the readaloud resume position persisted when the book was last left, so the
             // first Play this session continues where narration stopped (same page) or starts at the

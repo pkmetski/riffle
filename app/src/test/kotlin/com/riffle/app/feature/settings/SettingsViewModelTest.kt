@@ -32,6 +32,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.UnmatchedReadaloud
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +95,15 @@ class SettingsViewModelTest {
     private val fakeAppThemeStore = object : AppThemeStore {
         override val appTheme: Flow<AppTheme> = appThemeFlow
         override suspend fun setAppTheme(value: AppTheme) { appThemeFlow.value = value }
+    }
+
+    private val fakeListeningPreferencesStore = object : ListeningPreferencesStore {
+        override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
+        override val skipIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+        override val rewindOnResumeSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
+        override suspend fun setDefaultPlaybackSpeed(speed: Float) { defaultPlaybackSpeed.value = speed }
+        override suspend fun setSkipIntervalSeconds(seconds: Int) { skipIntervalSeconds.value = seconds }
+        override suspend fun setRewindOnResumeSeconds(seconds: Int) { rewindOnResumeSeconds.value = seconds }
     }
 
     private fun server(
@@ -215,6 +225,7 @@ class SettingsViewModelTest {
         orderStore = fakeOrderStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        listeningPreferencesStore = fakeListeningPreferencesStore,
         appThemeStore = fakeAppThemeStore,
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,

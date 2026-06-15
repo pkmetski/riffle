@@ -7,6 +7,7 @@ import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
@@ -18,6 +19,7 @@ import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -141,6 +143,7 @@ class AudiobookPlayerViewModel(
     private val tokenStorage: TokenStorage,
     private val controller: AudiobookController,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+    private val listeningPreferencesStore: ListeningPreferencesStore,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
@@ -179,6 +182,7 @@ class AudiobookPlayerViewModel(
         tokenStorage: TokenStorage,
         controller: AudiobookController,
         audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+        listeningPreferencesStore: ListeningPreferencesStore,
         audioIdentityResolver: AudioIdentityResolver,
         readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
@@ -202,6 +206,7 @@ class AudiobookPlayerViewModel(
         tokenStorage,
         controller,
         audioPlaybackPreferencesStore,
+        listeningPreferencesStore,
         audioIdentityResolver,
         readerSyncFactory,
         readaloudLinkRepository,
@@ -449,7 +454,7 @@ class AudiobookPlayerViewModel(
                 AudioIdentity(serverId, itemId)
             }
             val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
-                ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+                ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
             // Readaloud is only actually offerable when the synced bundle is present — the same gate the
             // reader applies (readaloudControlState): a Storyteller book always qualifies, a matched ABS
             // book only once its bundle is downloaded, an unmatched ABS book never. The bundle is keyed by
