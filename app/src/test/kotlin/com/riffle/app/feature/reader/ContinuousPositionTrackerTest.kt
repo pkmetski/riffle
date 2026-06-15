@@ -60,43 +60,52 @@ class ContinuousPositionTrackerTest {
 
     // ── forwardShiftNeeded ────────────────────────────────────────────────────
 
+    // Window of 5: 1 behind + current + 3 ahead (chaptersBehind = 1).
+
     @Test
-    fun `forwardShiftNeeded — viewport bottom in last chapter triggers FORWARD`() {
-        // window [0,1,2], viewport bottom just entered ch2 (last chapter)
+    fun `forwardShiftNeeded — midpoint past the behind budget triggers FORWARD`() {
+        // window [0..4], chaptersBehind=1; midpoint in ch2 is >1 slot past top → shift
         assertTrue(ContinuousPositionTracker.forwardShiftNeeded(
-            viewportBottomChapterIndex = 2, topIndex = 0, readingOrderSize = 5
+            viewportChapterIndex = 2, topIndex = 0, loadedChapterCount = 5,
+            readingOrderSize = 20, chaptersBehind = 1,
         ))
     }
 
     @Test
-    fun `forwardShiftNeeded — viewport bottom in middle chapter returns false`() {
-        // window [0,1,2], viewport bottom in ch1 (middle)
+    fun `forwardShiftNeeded — midpoint within the behind budget returns false`() {
+        // window [0..4], midpoint in ch1 == topIndex+chaptersBehind → no shift yet
         assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
-            viewportBottomChapterIndex = 1, topIndex = 0, readingOrderSize = 5
+            viewportChapterIndex = 1, topIndex = 0, loadedChapterCount = 5,
+            readingOrderSize = 20, chaptersBehind = 1,
         ))
     }
 
     @Test
     fun `forwardShiftNeeded — no more chapters beyond window returns false`() {
-        // window [3,4,5] with readingOrderSize=6 — ch6 doesn't exist
+        // window covers [15..19], readingOrderSize=20 — nothing left to append
         assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
-            viewportBottomChapterIndex = 5, topIndex = 3, readingOrderSize = 6
+            viewportChapterIndex = 18, topIndex = 15, loadedChapterCount = 5,
+            readingOrderSize = 20, chaptersBehind = 1,
         ))
     }
 
     @Test
-    fun `forwardShiftNeeded — viewport bottom already past last chapter (short chapter)`() {
-        // window [0,1,2], viewport bottom resolves to ch2 even when viewport is larger than ch2
+    fun `forwardShiftNeeded — after FORWARD shift midpoint sits at behind budget so false`() {
+        // After a shift topIndex advances by 1 but the midpoint chapter is unchanged, so the
+        // midpoint is back at topIndex+chaptersBehind → condition clears (no oscillation).
+        assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
+            viewportChapterIndex = 2, topIndex = 1, loadedChapterCount = 5,
+            readingOrderSize = 20, chaptersBehind = 1,
+        ))
+    }
+
+    @Test
+    fun `forwardShiftNeeded — fires while several chapters remain loaded ahead (lead time)`() {
+        // window [0..4], midpoint in ch2 → shift fires even though ch3,ch4 are still loaded
+        // ahead. This is the look-ahead lead time that prevents blank gaps at chapter seams.
         assertTrue(ContinuousPositionTracker.forwardShiftNeeded(
-            viewportBottomChapterIndex = 2, topIndex = 0, readingOrderSize = 10
-        ))
-    }
-
-    @Test
-    fun `forwardShiftNeeded — after FORWARD shift viewport bottom in new middle chapter is false`() {
-        // After FORWARD shift topIdx=0→1; window=[ch1,ch2,ch3]; viewport bottom in ch2 (middle)
-        assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
-            viewportBottomChapterIndex = 2, topIndex = 1, readingOrderSize = 10
+            viewportChapterIndex = 2, topIndex = 0, loadedChapterCount = 5,
+            readingOrderSize = 20, chaptersBehind = 1,
         ))
     }
 }

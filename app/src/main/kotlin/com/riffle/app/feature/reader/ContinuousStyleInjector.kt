@@ -56,13 +56,17 @@ internal object ContinuousStyleInjector {
         }
 
         // Font family mapping mirrors FormattingPreferencesMapper.toEpubPreferences():
-        //   Serif      → null (Readium default) → system generic `serif`
+        //   Serif      → null (Readium default): NO font-family override, so the publisher's
+        //                own font (or the system serif fallback) renders — exactly what Readium
+        //                does in advanced mode when --USER__fontFamily is unset. Forcing
+        //                `serif` here diverged from Scroll/Paginated mode whenever the EPUB
+        //                declared its own body font, which is the "fonts differ" the user saw.
         //   SansSerif  → FontFamily("sans-serif") → system generic `sans-serif`
         //   Monospace  → FontFamily("monospace")  → system generic `monospace`
         //   Literata/Merriweather/OpenDyslexic → app-bundled fonts served from assets via
         //     shouldInterceptRequest at FONT_BASE; declared here with @font-face.
-        val fontFamily: String = when (prefs.fontFamily) {
-            ReaderFontFamily.Serif -> "serif"
+        val fontFamily: String? = when (prefs.fontFamily) {
+            ReaderFontFamily.Serif -> null
             ReaderFontFamily.SansSerif -> "sans-serif"
             ReaderFontFamily.Monospace -> "monospace"
             ReaderFontFamily.Literata -> "Literata, serif"
@@ -107,7 +111,7 @@ internal object ContinuousStyleInjector {
             append("body{")
             if (bg != null) append("background-color:$bg!important;")
             if (fg != null) append("color:$fg!important;")
-            append("font-family:$fontFamily!important;")
+            if (fontFamily != null) append("font-family:$fontFamily!important;")
             append("line-height:${prefs.lineSpacing}!important;")
             append("text-align:$textAlign!important;")
             append("padding-left:${paddingPct}%!important;padding-right:${paddingPct}%!important;")
@@ -130,9 +134,11 @@ internal object ContinuousStyleInjector {
             append("line-height:${prefs.lineSpacing}!important;")
             append("}\n")
 
-            append("p,li,blockquote,dd,dt,h1,h2,h3,h4,h5,h6,figcaption{")
-            append("font-family:$fontFamily!important;")
-            append("}\n")
+            if (fontFamily != null) {
+                append("p,li,blockquote,dd,dt,h1,h2,h3,h4,h5,h6,figcaption{")
+                append("font-family:$fontFamily!important;")
+                append("}\n")
+            }
         }
     }
 

@@ -32,12 +32,21 @@ internal object ContinuousPositionTracker {
     }
 
     /**
-     * Indicates whether the window (3 chapters: [topIndex, topIndex+2]) needs a FORWARD shift.
+     * Indicates whether the loaded window needs a FORWARD shift to keep enough chapters
+     * buffered ahead of the reader.
      *
-     * FORWARD fires when the viewport **bottom** edge enters the last chapter ([topIndex+2]).
-     * Using the viewport bottom (not the midpoint) is critical for short chapters: if the last
-     * chapter is shorter than half the viewport height, the midpoint never enters it and the
-     * shift would never fire.
+     * Trigger is **look-ahead based**, not "you can see the last slot": FORWARD fires as soon as
+     * the chapter at the viewport **midpoint** has advanced more than [chaptersBehind] slots past
+     * the top of the window. Each shift drops the topmost chapter and appends one at the bottom,
+     * so after a shift the midpoint chapter sits exactly [chaptersBehind] slots from the top again
+     * and the condition clears — no oscillation.
+     *
+     * Why midpoint, not the viewport bottom: the previous bottom-edge trigger only fired once the
+     * reader could already *see* the final loaded slot, giving the next chapter zero time to load.
+     * With short "CHAPTER N" divider pages each eating a whole slot, the real content chapter then
+     * started loading exactly when the reader reached it — producing the blank gap + spinner + jump
+     * at every chapter boundary. Triggering on the midpoint keeps several chapters loaded *beyond*
+     * the reader so the next one is already rendered and measured before they arrive.
      *
      * BACKWARD is NOT handled here — it is checked at the call site via a scrollY threshold
      * (`scrollY < firstChapterHeight / 2`). A chapter-index-based backward condition would
@@ -45,8 +54,14 @@ internal object ContinuousPositionTracker {
      * lands in the new first chapter), causing an infinite oscillation.
      */
     fun forwardShiftNeeded(
-        viewportBottomChapterIndex: Int,
+        viewportChapterIndex: Int,
         topIndex: Int,
+        loadedChapterCount: Int,
         readingOrderSize: Int,
-    ): Boolean = viewportBottomChapterIndex > topIndex + 1 && topIndex + 3 < readingOrderSize
+        chaptersBehind: Int,
+    ): Boolean {
+        val moreChaptersExist = topIndex + loadedChapterCount < readingOrderSize
+        val pastBehindBudget = viewportChapterIndex - topIndex > chaptersBehind
+        return moreChaptersExist && pastBehindBudget
+    }
 }

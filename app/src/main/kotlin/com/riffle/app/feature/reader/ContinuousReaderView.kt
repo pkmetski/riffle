@@ -30,6 +30,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : NestedScrollView(context, attrs) {
 
+    companion object {
+        /** Chapters kept loaded behind the reader (for smooth backward scrolling). */
+        private const val CHAPTERS_BEHIND = 1
+
+        /**
+         * Chapters kept loaded ahead of the reader. Must be ≥2 so that a short "CHAPTER N"
+         * divider page and the real content chapter that follows it are BOTH loaded and measured
+         * before the reader arrives — otherwise the content chapter starts loading exactly when
+         * the reader scrolls into it, producing a blank gap, a spinner, and a jump at the seam.
+         */
+        private const val CHAPTERS_AHEAD = 3
+
+        /** Total sliding-window size: the reader's chapter plus the behind/ahead buffers. */
+        private const val WINDOW_SIZE = CHAPTERS_BEHIND + 1 + CHAPTERS_AHEAD
+    }
+
     data class ChapterEntry(val link: Link, val url: String)
 
     /** Called on main thread when position changes; supplies `href` and `progression`. */
@@ -56,7 +72,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /**
      * Index into [allChapters] of the topmost loaded chapter.
-     * The window covers [topIndex, topIndex+1, topIndex+2] (clamped to list bounds).
+     * The window covers [topIndex .. topIndex + loadedCount - 1] (clamped to list bounds),
+     * keeping [CHAPTERS_BEHIND] chapters behind the reader and [CHAPTERS_AHEAD] ahead.
      */
     private var topIndex: Int = 0
 
@@ -145,8 +162,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         this.publication = publication
         val centerIndex = chapters.indexOfFirst { it.link.href.toString() == initialHref }
             .coerceAtLeast(0)
-        topIndex = (centerIndex - 1).coerceAtLeast(0)
-        val windowSize = minOf(3, chapters.size - topIndex)
+        topIndex = (centerIndex - CHAPTERS_BEHIND).coerceAtLeast(0)
+        val windowSize = minOf(WINDOW_SIZE, chapters.size - topIndex)
 
         // Defer the initial scroll until every chapter AT OR BEFORE the target chapter has
         // reported its real height. Using placeholder heights produces an inaccurate initial
@@ -177,7 +194,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     fun navigateTo(href: String, progression: Float) {
         val targetIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
         if (targetIndex < 0) return
-        if (targetIndex < topIndex || targetIndex > topIndex + 2) {
+        if (targetIndex < topIndex || targetIndex > topIndex + webViews.size - 1) {
             rebuildWindowAround(targetIndex)
         }
         // Scroll is computed against current measuredHeights, which may still hold placeholder
@@ -337,17 +354,19 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // A scrollY threshold is immune to that because the post-shift scrollY is deep inside
         // the first chapter (far past the midpoint), not near the top.
         //
-        // FORWARD: fire when the viewport bottom enters the last chapter of the window, using
-        // the chapter index. Using the bottom edge (not the midpoint) handles short last chapters
-        // (shorter than half the viewport) that a midpoint check would never enter.
+        // FORWARD: look-ahead based — fire when the viewport-midpoint chapter has advanced more
+        // than CHAPTERS_BEHIND slots past the window top, so several chapters stay loaded ahead
+        // of the reader (see ContinuousPositionTracker.forwardShiftNeeded).
         val firstChapterHeight = window.firstOrNull()?.height ?: 0
-        val totalH = window.sumOf { it.height }
-        val (bottomHref, _) = ContinuousPositionTracker.locatorAt(
-            (scrollY + height).coerceIn(0, (totalH - 1).coerceAtLeast(0)), 0, window
-        )
-        val viewportBottomIndex = allChapters.indexOfFirst { it.link.href.toString() == bottomHref }
+        val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
         val shouldShiftBackward = scrollY < firstChapterHeight / 2 && topIndex > 0
-        val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(viewportBottomIndex, topIndex, allChapters.size)
+        val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(
+            viewportChapterIndex = viewportMidIndex,
+            topIndex = topIndex,
+            loadedChapterCount = webViews.size,
+            readingOrderSize = allChapters.size,
+            chaptersBehind = CHAPTERS_BEHIND,
+        )
         when {
             shouldShiftBackward -> {
                 shiftInProgress = true
@@ -358,8 +377,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             }
             shouldShiftForward -> {
                 shiftInProgress = true
-                removeTop()
-                val nextIndex = topIndex + 2 // topIndex already incremented in removeTop()
+                removeTop() // topIndex already incremented inside removeTop()
+                // After removeTop the window covers [topIndex .. topIndex + size - 1]; the next
+                // chapter to append is the one immediately past the current last slot.
+                val nextIndex = topIndex + webViews.size
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
                 shiftInProgress = false
             }
@@ -371,8 +392,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         webViews.clear()
         measuredHeights.clear()
         container.removeAllViews()
-        topIndex = (centerIndex - 1).coerceAtLeast(0)
-        val windowSize = minOf(3, allChapters.size - topIndex)
+        topIndex = (centerIndex - CHAPTERS_BEHIND).coerceAtLeast(0)
+        val windowSize = minOf(WINDOW_SIZE, allChapters.size - topIndex)
         repeat(windowSize) { i -> appendChapter(topIndex + i) }
     }
 

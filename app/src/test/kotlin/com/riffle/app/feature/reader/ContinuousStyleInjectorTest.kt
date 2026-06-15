@@ -81,11 +81,13 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `Serif uses generic serif — matches Readium null mapping`() {
+    fun `Serif (default) emits no font-family override — matches Readium null mapping`() {
         val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
-        // FormattingPreferencesMapper maps Serif → null (Readium default = system serif).
-        // Continuous mode must use the same generic so both modes pick the same system font.
-        assertTrue("generic serif keyword present", js.contains("font-family:serif"))
+        // FormattingPreferencesMapper maps Serif → null: Readium leaves --USER__fontFamily unset,
+        // so the publisher's own font (or the system serif fallback) renders. Continuous mode must
+        // likewise NOT force a font for Serif, or it would override the EPUB's font and diverge
+        // from Scroll/Paginated mode (the "fonts differ between views" bug).
+        assertFalse("no font-family override on Serif", js.contains("font-family:"))
         assertFalse("no Georgia override", js.contains("Georgia"))
     }
 
