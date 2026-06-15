@@ -40,7 +40,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
             showReadingProgressLabels = prefs[KEY_SHOW_READING_PROGRESS_LABELS] ?: false,
             showCurrentChapterLabel = prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] ?: false,
-            showReadingTimeEstimate = prefs[KEY_SHOW_READING_TIME_ESTIMATE] ?: true,
+            showReadingTimeEstimate = prefs[KEY_SHOW_READING_TIME_ESTIMATE] ?: false,
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
             justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
             themeSchedule = ThemeSchedule(
