@@ -94,20 +94,19 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     }
 
     /**
-     * Inject style variables + TypographyOverride + trigger height measurement.
-     * Call this from [onPageFinished] after Readium's server has served the page.
+     * Inject user styles + trigger height measurement.
+     * Call this from [onPageFinished] after the page has loaded.
      *
-     * @param variableJs output of [ContinuousStyleInjector.buildVariableInjectionJs]
+     * @param styleJs output of [ContinuousStyleInjector.buildStyleInjectionJs]
      */
-    fun injectStylesAndMeasure(variableJs: String) {
-        evaluateJavascript(variableJs, null)
-        evaluateJavascript(typographyOverrideInjectionJs(), null)
+    fun injectStylesAndMeasure(styleJs: String) {
+        evaluateJavascript(styleJs, null)
         evaluateJavascript(ContinuousStyleInjector.HEIGHT_MEASUREMENT_JS, null)
         evaluateJavascript(ContinuousStyleInjector.TAP_LISTENER_JS, null)
     }
 
-    /** Re-measure after a preference change. */
-    fun reinjectAndRemeasure(variableJs: String) = injectStylesAndMeasure(variableJs)
+    /** Re-inject user styles and re-measure after a preference change. */
+    fun reinjectAndRemeasure(styleJs: String) = injectStylesAndMeasure(styleJs)
 
     private inner class HeightBridge {
         @JavascriptInterface

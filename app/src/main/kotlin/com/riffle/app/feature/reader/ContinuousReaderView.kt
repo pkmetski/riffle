@@ -117,9 +117,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
     fun updatePreferences(prefs: FormattingPreferences) {
+        if (prefs == formattingPrefs) return
         formattingPrefs = prefs
-        val variableJs = ContinuousStyleInjector.buildVariableInjectionJs(prefs)
-        webViews.forEach { wv -> wv.reinjectAndRemeasure(variableJs) }
+        val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(prefs)
+        webViews.forEach { wv -> wv.reinjectAndRemeasure(styleJs) }
     }
 
     /** Scroll to [href] at [progression]. Loads the chapter into the window if needed. */
@@ -179,8 +180,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             }
         }
         wv.onPageFinished = {
-            val variableJs = ContinuousStyleInjector.buildVariableInjectionJs(formattingPrefs)
-            wv.injectStylesAndMeasure(variableJs)
+            val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
+            wv.injectStylesAndMeasure(styleJs)
         }
         webViews.add(wv)
         measuredHeights.add(placeholder)
@@ -205,8 +206,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             }
         }
         wv.onPageFinished = {
-            val variableJs = ContinuousStyleInjector.buildVariableInjectionJs(formattingPrefs)
-            wv.injectStylesAndMeasure(variableJs)
+            val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
+            wv.injectStylesAndMeasure(styleJs)
         }
         webViews.add(0, wv)
         measuredHeights.add(0, placeholder)

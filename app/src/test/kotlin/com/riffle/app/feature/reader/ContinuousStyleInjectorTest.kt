@@ -9,103 +9,107 @@ import org.junit.Test
 
 class ContinuousStyleInjectorTest {
 
+    private fun css(prefs: FormattingPreferences): String =
+        ContinuousStyleInjector.buildStyleInjectionJs(prefs)
+
     @Test
-    fun `default prefs — fontSize 1rem, pageMargins 1, no lineHeight variable`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(FormattingPreferences())
-        assertTrue("fontSize", js.contains("--USER__fontSize', '1.0rem'"))
-        assertTrue("pageMargins", js.contains("--USER__pageMargins', '1.0'"))
-        // lineSpacing == DEFAULT (1.2f) → variable must NOT be set
-        assertFalse("lineHeight not set on default", js.contains("setProperty('--USER__lineHeight'"))
-        assertTrue("lineHeight removed on default", js.contains("removeProperty('--USER__lineHeight'"))
+    fun `output injects a style element with id _riffle_user`() {
+        val js = css(FormattingPreferences())
+        assertTrue(js.contains("_riffle_user"))
+        assertTrue(js.contains("createElement('style')"))
+        assertTrue(js.contains("s.textContent"))
     }
 
     @Test
-    fun `non-default lineSpacing sets --USER__lineHeight`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(lineSpacing = 1.6f)
-        )
-        assertTrue(js.contains("setProperty('--USER__lineHeight', '1.6'"))
+    fun `default prefs — font-size 1rem on html`() {
+        val js = css(FormattingPreferences())
+        assertTrue("fontSize 1.0rem", js.contains("font-size:1.0rem!important"))
     }
 
     @Test
-    fun `justifyText sets --USER__textAlign to justify`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(justifyText = true)
-        )
-        assertTrue(js.contains("setProperty('--USER__textAlign', 'justify'"))
+    fun `non-default fontSize reflected in CSS`() {
+        val js = css(FormattingPreferences(fontSize = 1.5f))
+        assertTrue(js.contains("font-size:1.5rem!important"))
     }
 
     @Test
-    fun `non-justify removes --USER__textAlign`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(justifyText = false)
-        )
-        assertTrue(js.contains("removeProperty('--USER__textAlign'"))
+    fun `default lineSpacing applied to body and paragraph elements`() {
+        val js = css(FormattingPreferences())
+        assertTrue("line-height on body", js.contains("line-height:1.2!important"))
     }
 
     @Test
-    fun `Serif font family (default) — no fontFamily variable set`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(fontFamily = ReaderFontFamily.Serif)
-        )
-        assertFalse(js.contains("setProperty('--USER__fontFamily'"))
-        assertTrue(js.contains("removeProperty('--USER__fontFamily'"))
+    fun `non-default lineSpacing set`() {
+        val js = css(FormattingPreferences(lineSpacing = 1.6f))
+        assertTrue(js.contains("line-height:1.6!important"))
     }
 
     @Test
-    fun `SansSerif family sets sans-serif`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(fontFamily = ReaderFontFamily.SansSerif)
-        )
-        assertTrue(js.contains("setProperty('--USER__fontFamily', 'sans-serif'"))
+    fun `justifyText true — text-align justify`() {
+        val js = css(FormattingPreferences(justifyText = true))
+        assertTrue(js.contains("text-align:justify!important"))
+        assertFalse(js.contains("text-align:left!important"))
     }
 
     @Test
-    fun `Dark theme — textColor NOT set (DarkDim only)`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(theme = ReaderTheme.Dark)
-        )
-        assertFalse(js.contains("setProperty('--USER__textColor'"))
+    fun `justifyText false (default) — text-align left overrides EPUB justify`() {
+        val js = css(FormattingPreferences(justifyText = false))
+        assertTrue(js.contains("text-align:left!important"))
     }
 
     @Test
-    fun `DarkDim theme — textColor set to AAAAAA`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(theme = ReaderTheme.DarkDim)
-        )
-        assertTrue(js.contains("setProperty('--USER__textColor', '#AAAAAA'"))
+    fun `default margins — padding applied`() {
+        val js = css(FormattingPreferences())
+        // margins=1.0 → paddingPct = (1.0*6).toInt() = 6
+        assertTrue(js.contains("padding-left:6%!important"))
+        assertTrue(js.contains("padding-right:6%!important"))
     }
 
     @Test
-    fun `Dark theme — backgroundColor set to black`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(theme = ReaderTheme.Dark)
-        )
-        assertTrue(js.contains("setProperty('--USER__backgroundColor', '#000000'"))
+    fun `Serif font family (default) — no font-family override`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
+        assertFalse("Serif keeps EPUB font", js.contains("font-family:"))
     }
 
     @Test
-    fun `DarkDim theme — backgroundColor set to black`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(theme = ReaderTheme.DarkDim)
-        )
-        assertTrue(js.contains("setProperty('--USER__backgroundColor', '#000000'"))
+    fun `SansSerif sets Arial stack`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.SansSerif))
+        assertTrue(js.contains("font-family:Arial"))
     }
 
     @Test
-    fun `Sepia theme — backgroundColor set`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(theme = ReaderTheme.Sepia)
-        )
-        assertTrue(js.contains("setProperty('--USER__backgroundColor', '#FAF4E8'"))
+    fun `Monospace sets Courier stack`() {
+        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Monospace))
+        assertTrue(js.contains("font-family:"))
+        assertTrue(js.contains("Courier"))
     }
 
     @Test
-    fun `Light theme — backgroundColor removed`() {
-        val js = ContinuousStyleInjector.buildVariableInjectionJs(
-            FormattingPreferences(theme = ReaderTheme.Light)
-        )
-        assertTrue(js.contains("removeProperty('--USER__backgroundColor'"))
+    fun `Dark theme — black background and white text`() {
+        val js = css(FormattingPreferences(theme = ReaderTheme.Dark))
+        assertTrue(js.contains("background-color:#000000!important"))
+        assertTrue(js.contains("color:#FEFEFE!important"))
+    }
+
+    @Test
+    fun `DarkDim theme — black background and dim grey text`() {
+        val js = css(FormattingPreferences(theme = ReaderTheme.DarkDim))
+        assertTrue(js.contains("background-color:#000000!important"))
+        assertTrue(js.contains("color:#AAAAAA!important"))
+    }
+
+    @Test
+    fun `Sepia theme — sepia background and dark text`() {
+        val js = css(FormattingPreferences(theme = ReaderTheme.Sepia))
+        assertTrue(js.contains("background-color:#FAF4E8!important"))
+        assertTrue(js.contains("color:#121212!important"))
+    }
+
+    @Test
+    fun `Light theme — no background or text colour override`() {
+        val js = css(FormattingPreferences(theme = ReaderTheme.Light))
+        assertFalse("no bg override on Light", js.contains("background-color:"))
+        assertFalse("no fg override on Light", js.contains("color:#"))
     }
 
     @Test

@@ -7,89 +7,109 @@ import com.riffle.core.domain.ReaderTheme
 internal object ContinuousStyleInjector {
 
     /**
-     * Produces JS that sets the same `--USER__*` CSS custom properties on `:root` that
-     * Readium's `EpubNavigatorFragment` sets via `submitPreferences()`. The null-gating
-     * logic mirrors [FormattingPreferencesMapper.toEpubPreferences]: when a value equals
-     * the default, Readium passes null — leaving the variable unset so publisher defaults
-     * are preserved. We match that behaviour with `removeProperty`.
+     * Produces JS that injects a `<style id="_riffle_user">` element with real CSS properties
+     * derived from [prefs]. Unlike the `--USER__*` Readium CSS-variable approach, this works
+     * without ReadiumCSS being loaded — ChapterWebViews serve raw EPUB HTML and do not have
+     * Readium's stylesheet present.
      *
-     * NOTE: verify after any Readium SDK upgrade that the variable names and value formats
-     * still match. Run DevTools on a Scroll-mode chapter and compare with the output of
-     * this function for the same [FormattingPreferences].
+     * Colours mirror [ReaderThemePalette]; keep in sync if the palette values change.
+     * Font-size is set on `html` so EPUB content that uses `em`/`rem` scales correctly.
+     * Margins are expressed as body padding (percent of viewport width).
+     * All rules carry `!important` to beat typical publisher CSS specificity.
      */
-    fun buildVariableInjectionJs(prefs: FormattingPreferences): String {
-        val lines = mutableListOf<String>()
-        val r = "document.documentElement.style"
+    fun buildStyleInjectionJs(prefs: FormattingPreferences): String {
+        val css = buildCss(prefs)
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", " ")
+        return """
+            (function() {
+                var s = document.getElementById('_riffle_user');
+                if (!s) {
+                    s = document.createElement('style');
+                    s.id = '_riffle_user';
+                    document.head.appendChild(s);
+                }
+                s.textContent = '$css';
+            })();
+        """.trimIndent()
+    }
 
-        // fontSize — always set (Readium always passes it as a Double)
-        lines += "$r.setProperty('--USER__fontSize', '${prefs.fontSize}rem');"
-
-        // lineHeight — null-gated (matches FormattingPreferencesMapper: null when == default)
-        if (prefs.lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING) {
-            lines += "$r.setProperty('--USER__lineHeight', '${prefs.lineSpacing}');"
-        } else {
-            lines += "$r.removeProperty('--USER__lineHeight');"
+    private fun buildCss(prefs: FormattingPreferences): String {
+        // Theme colours — mirrors ReaderThemePalette (keep in sync).
+        val bg = when (prefs.theme) {
+            ReaderTheme.Dark, ReaderTheme.DarkDim -> "#000000"
+            ReaderTheme.Sepia -> "#FAF4E8"
+            else -> null
+        }
+        val fg = when (prefs.theme) {
+            ReaderTheme.Dark -> "#FEFEFE"
+            ReaderTheme.DarkDim -> "#AAAAAA"
+            ReaderTheme.Sepia -> "#121212"
+            else -> null
         }
 
-        // pageMargins — always set
-        lines += "$r.setProperty('--USER__pageMargins', '${prefs.margins}');"
-
-        // textAlign — null-gated
-        if (prefs.justifyText) {
-            lines += "$r.setProperty('--USER__textAlign', 'justify');"
-        } else {
-            lines += "$r.removeProperty('--USER__textAlign');"
-        }
-
-        // fontFamily — null-gated (Serif is default → no variable, matching mapper)
-        val fontFamilyValue = when (prefs.fontFamily) {
+        // Font family — Serif keeps the EPUB's own font; others override with a system stack.
+        // Readium-bundled fonts (Literata, Merriweather, OpenDyslexic) are not available in
+        // ChapterWebViews since those fonts are served by the Readium HTTP server, not ours.
+        val fontFamily = when (prefs.fontFamily) {
             ReaderFontFamily.Serif -> null
-            ReaderFontFamily.SansSerif -> "sans-serif"
-            ReaderFontFamily.Monospace -> "monospace"
-            ReaderFontFamily.Literata -> "Literata"
-            ReaderFontFamily.Merriweather -> "Merriweather"
-            ReaderFontFamily.OpenDyslexic -> "OpenDyslexic"
-        }
-        if (fontFamilyValue != null) {
-            lines += "$r.setProperty('--USER__fontFamily', '$fontFamilyValue');"
-        } else {
-            lines += "$r.removeProperty('--USER__fontFamily');"
+            ReaderFontFamily.SansSerif -> "Arial, Helvetica, sans-serif"
+            ReaderFontFamily.Monospace -> "'Courier New', Courier, monospace"
+            ReaderFontFamily.Literata -> "Georgia, serif"
+            ReaderFontFamily.Merriweather -> "Georgia, serif"
+            ReaderFontFamily.OpenDyslexic -> "sans-serif"
         }
 
-        // textColor — DarkDim only. #AAAAAA = ReaderThemePalette.DARK_DIM_TEXT; keep in sync if the palette changes
-        if (prefs.theme == ReaderTheme.DarkDim) {
-            lines += "$r.setProperty('--USER__textColor', '#AAAAAA');"
-        } else {
-            lines += "$r.removeProperty('--USER__textColor');"
-        }
+        val textAlign = if (prefs.justifyText) "justify" else "left"
+        // margins: 1.0 = normal ≈ 6 % per side; range is typically 0.5–2.0.
+        val paddingPct = (prefs.margins * 6f).toInt().coerceIn(1, 14)
 
-        // backgroundColor — theme-dependent; mirrors --RS__backgroundColor from Readium's CSS
-        when (prefs.theme) {
-            ReaderTheme.Dark, ReaderTheme.DarkDim -> {
-                lines += "$r.setProperty('--USER__backgroundColor', '#000000');"
-            }
-            ReaderTheme.Sepia -> {
-                // #FAF4E8 = ReaderThemePalette.Sepia.background; keep in sync if the palette changes
-                lines += "$r.setProperty('--USER__backgroundColor', '#FAF4E8');"
-            }
-            else -> {
-                lines += "$r.removeProperty('--USER__backgroundColor');"
+        return buildString {
+            // Background and text colour on both html and body to cover all EPUB layouts.
+            append("html,body{")
+            if (bg != null) append("background-color:$bg!important;")
+            if (fg != null) append("color:$fg!important;")
+            // font-size on html so em/rem-based EPUB content scales correctly.
+            append("font-size:${prefs.fontSize}rem!important;")
+            append("}\n")
+
+            append("body{")
+            if (fontFamily != null) append("font-family:$fontFamily!important;")
+            append("line-height:${prefs.lineSpacing}!important;")
+            append("text-align:$textAlign!important;")
+            append("padding-left:${paddingPct}%!important;padding-right:${paddingPct}%!important;")
+            // Clear any body margin so padding is the sole horizontal spacing control.
+            append("margin-left:0!important;margin-right:0!important;")
+            append("}\n")
+
+            // Push text-align and line-height down to the elements publishers commonly override.
+            append("p,li,blockquote,dd,dt,figcaption{")
+            append("text-align:$textAlign!important;")
+            append("line-height:${prefs.lineSpacing}!important;")
+            append("}\n")
+
+            if (fontFamily != null) {
+                append("p,li,blockquote,dd,dt,h1,h2,h3,h4,h5,h6,figcaption{")
+                append("font-family:$fontFamily!important;")
+                append("}\n")
             }
         }
-
-        return lines.joinToString("\n")
     }
 
     /**
-     * JS that calls `window.RiffleChapter.onHeightMeasured` with the chapter height in device
-     * pixels. Uses `window.devicePixelRatio` to convert from CSS pixels so `LayoutParams.height`
-     * receives the correct device-pixel value regardless of whether the EPUB has a viewport meta
-     * tag. `document.fonts.ready` is tried first; a 500 ms timeout fires as a fallback in case
-     * the promise never resolves (older WebViews or EPUBs with failing font loads).
+     * JS that calls `window.RiffleChapter.onHeightMeasured` with the chapter's CSS-pixel
+     * scroll height once fonts have settled. A `fired` guard prevents the double-call that
+     * would otherwise occur when both `document.fonts.ready` and the 500 ms safety timeout
+     * resolve — on modern Chrome both always fire, and a second `onHeightMeasured` can cause
+     * a spurious layout change or scrollBy in the parent [ContinuousReaderView].
      */
     val HEIGHT_MEASUREMENT_JS = """
         (function() {
+            var fired = false;
             function measure() {
+                if (fired) return;
+                fired = true;
                 var h = document.body.scrollHeight;
                 if (h > 0) window.RiffleChapter.onHeightMeasured(h);
             }
