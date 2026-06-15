@@ -8,6 +8,7 @@ import android.widget.LinearLayout
 import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
 import org.readium.r2.shared.publication.Link
+import org.readium.r2.shared.publication.Publication
 
 /**
  * Renders the entire book as a single vertical scroll by stacking a sliding window of 3
@@ -41,6 +42,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Current formatting preferences for CSS injection. */
     private var formattingPrefs: FormattingPreferences = FormattingPreferences()
 
+    /** Publication used by [ChapterWebView] to serve EPUB resources via shouldInterceptRequest. */
+    private var publication: Publication? = null
+
     /**
      * Index into [allChapters] of the topmost loaded chapter.
      * The window covers [topIndex, topIndex+1, topIndex+2] (clamped to list bounds).
@@ -72,9 +76,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         prefs: FormattingPreferences,
         initialHref: String,
         initialProgression: Float,
+        publication: Publication,
     ) {
         allChapters = chapters
         formattingPrefs = prefs
+        this.publication = publication
         val centerIndex = chapters.indexOfFirst { it.link.href.toString() == initialHref }
             .coerceAtLeast(0)
         topIndex = (centerIndex - 1).coerceAtLeast(0)
@@ -128,6 +134,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private fun appendChapter(index: Int) {
         val entry = allChapters[index]
         val wv = ChapterWebView(context)
+        publication?.let { wv.setPublication(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -154,6 +161,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private fun prependChapter(index: Int) {
         val entry = allChapters[index]
         val wv = ChapterWebView(context)
+        publication?.let { wv.setPublication(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)

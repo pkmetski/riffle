@@ -1892,6 +1892,7 @@ private fun EpubNavigatorView(
                     prefs = formattingPrefs,
                     initialHref = initialLocator.href.toString(),
                     initialProgression = initialLocator.locations.progression?.toFloat() ?: 0f,
+                    publication = state.publication,
                 )
             }
         }
