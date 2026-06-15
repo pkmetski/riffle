@@ -1820,8 +1820,10 @@ private fun EpubNavigatorView(
         )
         val base = serverBaseUrl.value
         if (isContinuous && base != null) {
-            val chapters = state.publication.readingOrder.map { link ->
-                ContinuousReaderView.ChapterEntry(link, "$base/${link.href.toString().trimStart('/')}")
+            val chapters = remember(base) {
+                state.publication.readingOrder.map { link ->
+                    ContinuousReaderView.ChapterEntry(link, "$base/${link.href.toString().trimStart('/')}")
+                }
             }
             AndroidView(
                 factory = { ctx ->
@@ -1841,7 +1843,7 @@ private fun EpubNavigatorView(
                 update = { _ -> },
                 modifier = readerModifier,
             )
-            LaunchedEffect(base, chapters) {
+            LaunchedEffect(base) {
                 val view = continuousViewRef.value ?: return@LaunchedEffect
                 val initialLocator = latestLocator() ?: state.initialLocator ?: return@LaunchedEffect
                 view.initialize(
