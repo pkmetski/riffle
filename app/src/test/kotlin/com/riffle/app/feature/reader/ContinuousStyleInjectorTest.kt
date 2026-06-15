@@ -77,9 +77,48 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `Dark theme — backgroundColor set to black`() {
+        val js = ContinuousStyleInjector.buildVariableInjectionJs(
+            FormattingPreferences(theme = ReaderTheme.Dark)
+        )
+        assertTrue(js.contains("setProperty('--USER__backgroundColor', '#000000'"))
+    }
+
+    @Test
+    fun `DarkDim theme — backgroundColor set to black`() {
+        val js = ContinuousStyleInjector.buildVariableInjectionJs(
+            FormattingPreferences(theme = ReaderTheme.DarkDim)
+        )
+        assertTrue(js.contains("setProperty('--USER__backgroundColor', '#000000'"))
+    }
+
+    @Test
+    fun `Sepia theme — backgroundColor set`() {
+        val js = ContinuousStyleInjector.buildVariableInjectionJs(
+            FormattingPreferences(theme = ReaderTheme.Sepia)
+        )
+        assertTrue(js.contains("setProperty('--USER__backgroundColor', '#FAF4E8'"))
+    }
+
+    @Test
+    fun `Light theme — backgroundColor removed`() {
+        val js = ContinuousStyleInjector.buildVariableInjectionJs(
+            FormattingPreferences(theme = ReaderTheme.Light)
+        )
+        assertTrue(js.contains("removeProperty('--USER__backgroundColor'"))
+    }
+
+    @Test
     fun `highlightTextJs escapes single quotes in text`() {
         val js = ContinuousStyleInjector.highlightTextJs("it's a test")
         assertTrue(js.contains("it\\'s a test"))
         assertFalse(js.contains("it's a test"))
+    }
+
+    @Test
+    fun `highlightTextJs escapes newlines in text`() {
+        val js = ContinuousStyleInjector.highlightTextJs("line one\nline two")
+        assertTrue(js.contains("\\n"))
+        assertFalse(js.contains("line one\nline two"))
     }
 }

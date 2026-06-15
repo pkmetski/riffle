@@ -158,10 +158,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
             if (i >= 0) {
+                val wasPlaceholder = measuredHeights[i] == placeholder
                 val delta = measuredPx - measuredHeights[i]
                 measuredHeights[i] = measuredPx
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
-                scrollBy(0, delta)
+                if (wasPlaceholder) scrollBy(0, delta)
             }
         }
         wv.onPageFinished = {
@@ -211,9 +212,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
             }
             ContinuousPositionTracker.ShiftDirection.BACKWARD -> {
-                removeBottom()
                 val prevIndex = topIndex - 1
                 if (prevIndex >= 0) {
+                    removeBottom()
                     topIndex--
                     prependChapter(prevIndex)
                 }

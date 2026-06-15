@@ -56,11 +56,25 @@ internal object ContinuousStyleInjector {
             lines += "$r.removeProperty('--USER__fontFamily');"
         }
 
-        // textColor — DarkDim only. 0xFFAAAAAA = ReaderThemePalette.DARK_DIM_TEXT
+        // textColor — DarkDim only. #AAAAAA = ReaderThemePalette.DARK_DIM_TEXT; keep in sync if the palette changes
         if (prefs.theme == ReaderTheme.DarkDim) {
             lines += "$r.setProperty('--USER__textColor', '#AAAAAA');"
         } else {
             lines += "$r.removeProperty('--USER__textColor');"
+        }
+
+        // backgroundColor — theme-dependent; mirrors --RS__backgroundColor from Readium's CSS
+        when (prefs.theme) {
+            ReaderTheme.Dark, ReaderTheme.DarkDim -> {
+                lines += "$r.setProperty('--USER__backgroundColor', '#000000');"
+            }
+            ReaderTheme.Sepia -> {
+                // #FAF4E8 = ReaderThemePalette.Sepia.background; keep in sync if the palette changes
+                lines += "$r.setProperty('--USER__backgroundColor', '#FAF4E8');"
+            }
+            else -> {
+                lines += "$r.removeProperty('--USER__backgroundColor');"
+            }
         }
 
         return lines.joinToString("\n")
@@ -93,7 +107,7 @@ internal object ContinuousStyleInjector {
      */
     fun highlightTextJs(text: String): String {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
-        val safe = text.replace("\\", "\\\\").replace("'", "\\'")
+        val safe = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
         return """
             (function() {
                 var existing = document.getElementById('_riffle_hl');
