@@ -1,7 +1,9 @@
 package com.riffle.app.feature.reader
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContinuousPositionTrackerTest {
@@ -56,36 +58,45 @@ class ContinuousPositionTrackerTest {
         assertNull(offset)
     }
 
+    // ── forwardShiftNeeded ────────────────────────────────────────────────────
+
     @Test
-    fun `shiftNeeded — current index below topIndex triggers backward shift`() {
-        // window covers chapters [2,3,4], topIndex=2
-        assertEquals(
-            ContinuousPositionTracker.ShiftDirection.BACKWARD,
-            ContinuousPositionTracker.shiftNeeded(currentChapterIndex = 1, topIndex = 2, readingOrderSize = 5)
-        )
+    fun `forwardShiftNeeded — viewport bottom in last chapter triggers FORWARD`() {
+        // window [0,1,2], viewport bottom just entered ch2 (last chapter)
+        assertTrue(ContinuousPositionTracker.forwardShiftNeeded(
+            viewportBottomChapterIndex = 2, topIndex = 0, readingOrderSize = 5
+        ))
     }
 
     @Test
-    fun `shiftNeeded — current index above topIndex+2 triggers forward shift`() {
-        assertEquals(
-            ContinuousPositionTracker.ShiftDirection.FORWARD,
-            ContinuousPositionTracker.shiftNeeded(currentChapterIndex = 3, topIndex = 0, readingOrderSize = 5)
-        )
+    fun `forwardShiftNeeded — viewport bottom in middle chapter returns false`() {
+        // window [0,1,2], viewport bottom in ch1 (middle)
+        assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
+            viewportBottomChapterIndex = 1, topIndex = 0, readingOrderSize = 5
+        ))
     }
 
     @Test
-    fun `shiftNeeded — current within window returns NONE`() {
-        assertEquals(
-            ContinuousPositionTracker.ShiftDirection.NONE,
-            ContinuousPositionTracker.shiftNeeded(currentChapterIndex = 3, topIndex = 2, readingOrderSize = 5)
-        )
+    fun `forwardShiftNeeded — no more chapters beyond window returns false`() {
+        // window [3,4,5] with readingOrderSize=6 — ch6 doesn't exist
+        assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
+            viewportBottomChapterIndex = 5, topIndex = 3, readingOrderSize = 6
+        ))
     }
 
     @Test
-    fun `shiftNeeded NONE when at first chapter and cannot go backward`() {
-        assertEquals(
-            ContinuousPositionTracker.ShiftDirection.NONE,
-            ContinuousPositionTracker.shiftNeeded(currentChapterIndex = 0, topIndex = 0, readingOrderSize = 3)
-        )
+    fun `forwardShiftNeeded — viewport bottom already past last chapter (short chapter)`() {
+        // window [0,1,2], viewport bottom resolves to ch2 even when viewport is larger than ch2
+        assertTrue(ContinuousPositionTracker.forwardShiftNeeded(
+            viewportBottomChapterIndex = 2, topIndex = 0, readingOrderSize = 10
+        ))
+    }
+
+    @Test
+    fun `forwardShiftNeeded — after FORWARD shift viewport bottom in new middle chapter is false`() {
+        // After FORWARD shift topIdx=0→1; window=[ch1,ch2,ch3]; viewport bottom in ch2 (middle)
+        assertFalse(ContinuousPositionTracker.forwardShiftNeeded(
+            viewportBottomChapterIndex = 2, topIndex = 1, readingOrderSize = 10
+        ))
     }
 }

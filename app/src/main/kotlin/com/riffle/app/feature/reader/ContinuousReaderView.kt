@@ -32,6 +32,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Called on main thread when position changes; supplies `href` and `progression`. */
     var onPositionChanged: ((href: String, progression: Float) -> Unit)? = null
 
+    /**
+     * Called on main thread when the user taps a chapter without scrolling.
+     * Wire to the reader's chrome toggle so top/bottom bars show/hide on tap.
+     */
+    var onTap: (() -> Unit)? = null
+
     private val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
@@ -54,6 +60,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Parallel list to the loaded WebViews; index i matches container.getChildAt(i). */
     private val webViews = mutableListOf<ChapterWebView>()
 
+    /**
+     * True while a window-shift operation (removeTop/removeBottom/prependChapter) is in
+     * progress. Prevents re-entrant handleScrollChange calls — programmatic scrollBy() calls
+     * inside removeTop() and prependChapter() would otherwise fire a second shift mid-operation.
+     */
+    private var shiftInProgress = false
+
     /** Measured content heights for each WebView in the current window. */
     private val measuredHeights = mutableListOf<Int>()
 
@@ -65,6 +78,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         setOnScrollChangeListener { _, _, scrollY, _, _ ->
             handleScrollChange(scrollY)
         }
+    }
+
+    // ChapterWebViews detect vertical motion and call requestDisallowInterceptTouchEvent(true),
+    // which would prevent NestedScrollView from intercepting and owning the scroll — exactly the
+    // same bug ScrollBoundaryNavigationContainer solves for Readium WebViews. We are the scroll
+    // owner, so we never yield the right to intercept.
+    override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
+        if (disallowIntercept) return
+        super.requestDisallowInterceptTouchEvent(false)
     }
 
     /**
@@ -135,15 +157,23 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val entry = allChapters[index]
         val wv = ChapterWebView(context)
         publication?.let { wv.setPublication(it) }
+        wv.onTap = { onTap?.invoke() }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
             if (i >= 0) {
                 val wasPlaceholder = measuredHeights[i] == placeholder
-                val delta = measuredPx - measuredHeights[i]
+                val oldHeight = measuredHeights[i]
+                val delta = measuredPx - oldHeight
                 measuredHeights[i] = measuredPx
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
-                if (wasPlaceholder && i == 0 && scrollY > 0) {
+                // Compensate scroll for ch0 only when:
+                // - chapter shrank (delta < 0): visible content above would shift without compensation
+                // - scrollY is past old ch0 boundary (delta > 0 but user has scrolled past ch0):
+                //   ch0 growing pushes ch1+ down; compensate to keep ch1 in place.
+                // Never compensate for a growing ch0 we're still scrolled within — that would
+                // fire a spurious forward jump and immediately re-trigger a backward shift.
+                if (wasPlaceholder && i == 0 && (delta < 0 || scrollY >= oldHeight)) {
                     scrollBy(0, delta)
                 }
             }
@@ -162,6 +192,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val entry = allChapters[index]
         val wv = ChapterWebView(context)
         publication?.let { wv.setPublication(it) }
+        wv.onTap = { onTap?.invoke() }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -207,27 +238,45 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     private fun handleScrollChange(scrollY: Int) {
+        if (shiftInProgress) return
         val window = buildWindow()
         if (window.isEmpty()) return
         val (href, progression) = ContinuousPositionTracker.locatorAt(scrollY, height, window)
         onPositionChanged?.invoke(href, progression)
 
-        val currentChapterIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
-        when (ContinuousPositionTracker.shiftNeeded(currentChapterIndex, topIndex, allChapters.size)) {
-            ContinuousPositionTracker.ShiftDirection.FORWARD -> {
+        // BACKWARD: fire when scrollY is in the first half of the first chapter. This gives a
+        // hysteresis gap that prevents the oscillation that a chapter-index check causes —
+        // after every FORWARD shift, the scrollBy adjustment lands the viewport inside the new
+        // first chapter (midIdx == topIdx), which would immediately re-trigger BACKWARD.
+        // A scrollY threshold is immune to that because the post-shift scrollY is deep inside
+        // the first chapter (far past the midpoint), not near the top.
+        //
+        // FORWARD: fire when the viewport bottom enters the last chapter of the window, using
+        // the chapter index. Using the bottom edge (not the midpoint) handles short last chapters
+        // (shorter than half the viewport) that a midpoint check would never enter.
+        val firstChapterHeight = window.firstOrNull()?.height ?: 0
+        val totalH = window.sumOf { it.height }
+        val (bottomHref, _) = ContinuousPositionTracker.locatorAt(
+            (scrollY + height).coerceIn(0, (totalH - 1).coerceAtLeast(0)), 0, window
+        )
+        val viewportBottomIndex = allChapters.indexOfFirst { it.link.href.toString() == bottomHref }
+        val shouldShiftBackward = scrollY < firstChapterHeight / 2 && topIndex > 0
+        val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(viewportBottomIndex, topIndex, allChapters.size)
+        when {
+            shouldShiftBackward -> {
+                shiftInProgress = true
+                removeBottom()
+                topIndex--
+                prependChapter(topIndex)
+                shiftInProgress = false
+            }
+            shouldShiftForward -> {
+                shiftInProgress = true
                 removeTop()
                 val nextIndex = topIndex + 2 // topIndex already incremented in removeTop()
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
+                shiftInProgress = false
             }
-            ContinuousPositionTracker.ShiftDirection.BACKWARD -> {
-                val prevIndex = topIndex - 1
-                if (prevIndex >= 0) {
-                    removeBottom()
-                    topIndex--
-                    prependChapter(prevIndex)
-                }
-            }
-            ContinuousPositionTracker.ShiftDirection.NONE -> Unit
         }
     }
 

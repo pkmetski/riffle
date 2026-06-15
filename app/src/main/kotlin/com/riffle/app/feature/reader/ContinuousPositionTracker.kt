@@ -32,14 +32,21 @@ internal object ContinuousPositionTracker {
     }
 
     /**
-     * Indicates whether the window (3 chapters: [topIndex, topIndex+2]) needs to shift
-     * because [currentChapterIndex] has moved outside it.
+     * Indicates whether the window (3 chapters: [topIndex, topIndex+2]) needs a FORWARD shift.
+     *
+     * FORWARD fires when the viewport **bottom** edge enters the last chapter ([topIndex+2]).
+     * Using the viewport bottom (not the midpoint) is critical for short chapters: if the last
+     * chapter is shorter than half the viewport height, the midpoint never enters it and the
+     * shift would never fire.
+     *
+     * BACKWARD is NOT handled here — it is checked at the call site via a scrollY threshold
+     * (`scrollY < firstChapterHeight / 2`). A chapter-index-based backward condition would
+     * immediately re-trigger after every FORWARD shift (the forward scrollBy adjustment always
+     * lands in the new first chapter), causing an infinite oscillation.
      */
-    fun shiftNeeded(currentChapterIndex: Int, topIndex: Int, readingOrderSize: Int): ShiftDirection {
-        return when {
-            currentChapterIndex < topIndex && topIndex > 0 -> ShiftDirection.BACKWARD
-            currentChapterIndex > topIndex + 2 && topIndex + 3 < readingOrderSize -> ShiftDirection.FORWARD
-            else -> ShiftDirection.NONE
-        }
-    }
+    fun forwardShiftNeeded(
+        viewportBottomChapterIndex: Int,
+        topIndex: Int,
+        readingOrderSize: Int,
+    ): Boolean = viewportBottomChapterIndex > topIndex + 1 && topIndex + 3 < readingOrderSize
 }
