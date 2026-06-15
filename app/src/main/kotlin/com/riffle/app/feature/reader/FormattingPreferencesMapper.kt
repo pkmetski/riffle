@@ -53,7 +53,9 @@ fun FormattingPreferences.toEpubPreferences(
             ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
             ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
         },
-        textAlign = if (justifyText) TextAlign.JUSTIFY else null,
+        // TextAlign.START (not null) when justify is off: explicitly overrides any EPUB-level
+        // text-align:justify so the result matches Continuous mode's text-align:left!important.
+        textAlign = if (justifyText) TextAlign.JUSTIFY else TextAlign.START,
         // lineHeight only takes effect when publisherStyles is off
         publisherStyles = false,
         lineHeight = lineSpacing.toDouble().takeIf { lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING },

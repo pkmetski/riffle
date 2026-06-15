@@ -922,7 +922,6 @@ private fun EpubNavigatorView(
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
-    val serverBaseUrl = remember { mutableStateOf<String?>(null) }
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
@@ -1620,20 +1619,6 @@ private fun EpubNavigatorView(
         if (isContinuous) navigating = false
     }
 
-    // In Continuous mode, the fragment is zero-height (HTTP server keeper only).
-    // Once it emits its first locator, extract the HTTP base URL for ContinuousReaderView.
-    LaunchedEffect(fragmentRef.value, isContinuous) {
-        if (!isContinuous) return@LaunchedEffect
-        val fragment = fragmentRef.value ?: return@LaunchedEffect
-        fragment.currentLocator.collect { locator ->
-            if (serverBaseUrl.value != null) return@collect
-            val absoluteUrl = fragment.evaluateJavascript("window.location.href") ?: return@collect
-            val relHref = locator.href.toString().trimStart('/')
-            val base = absoluteUrl.trim('"').removeSuffix("/$relHref")
-            serverBaseUrl.value = base
-        }
-    }
-
     DisposableEffect(tapListener) {
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
@@ -1871,11 +1856,16 @@ private fun EpubNavigatorView(
             },
             modifier = readerModifier,
         )
-        val base = serverBaseUrl.value
-        if (isContinuous && base != null) {
-            val chapters = remember(base) {
+        if (isContinuous) {
+            // Readium always serves EPUB resources at https://readium_package/<href>.
+            // ChapterWebView intercepts that virtual host and fetches from the Publication object,
+            // so we can construct chapter URLs directly without querying the fragment's WebView.
+            val chapters = remember {
                 state.publication.readingOrder.map { link ->
-                    ContinuousReaderView.ChapterEntry(link, "$base/${link.href.toString().trimStart('/')}")
+                    ContinuousReaderView.ChapterEntry(
+                        link,
+                        "https://readium_package/${link.href.toString().trimStart('/')}",
+                    )
                 }
             }
             AndroidView(
@@ -1897,14 +1887,22 @@ private fun EpubNavigatorView(
                 update = { _ -> },
                 modifier = readerModifier,
             )
-            LaunchedEffect(base) {
-                val view = continuousViewRef.value ?: return@LaunchedEffect
-                val initialLocator = latestLocator() ?: state.initialLocator ?: return@LaunchedEffect
+            // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a
+            // layout-phase effect, while LaunchedEffect runs as a composition-phase effect — there
+            // is no guaranteed order between the two on first composition. Keying on the ref means
+            // this coroutine only fires (or re-fires) once the factory has actually populated it.
+            val continuousView = continuousViewRef.value
+            LaunchedEffect(continuousView) {
+                val view = continuousView ?: return@LaunchedEffect
+                val initialLocator = latestLocator() ?: state.initialLocator
+                val initialHref = initialLocator?.href?.toString()
+                    ?: chapters.firstOrNull()?.link?.href?.toString()
+                    ?: return@LaunchedEffect
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,
-                    initialHref = initialLocator.href.toString(),
-                    initialProgression = initialLocator.locations.progression?.toFloat() ?: 0f,
+                    initialHref = initialHref,
+                    initialProgression = initialLocator?.locations?.progression?.toFloat() ?: 0f,
                     publication = state.publication,
                 )
             }
