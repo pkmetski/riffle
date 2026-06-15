@@ -80,7 +80,11 @@ fun DisplaySection(
         Text("Reading mode", style = MaterialTheme.typography.labelMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ReaderOrientation.entries.forEach { orientation ->
-                val label = if (orientation == ReaderOrientation.Horizontal) "Paginated" else "Scroll"
+                val label = when (orientation) {
+                    ReaderOrientation.Horizontal -> "Paginated"
+                    ReaderOrientation.Vertical -> "Scroll"
+                    ReaderOrientation.Continuous -> "Continuous"
+                }
                 FilterChip(
                     selected = prefs.orientation == orientation,
                     onClick = { onPrefsChange(prefs.copy(orientation = orientation)) },

@@ -47,7 +47,11 @@ fun formattingSummary(prefs: FormattingPreferences): String =
     "${prefs.fontFamily.label()} · ${(prefs.fontSize * 100).roundToInt()}% · ${marginsWord(prefs.margins)} margins"
 
 fun displaySummary(prefs: FormattingPreferences): String {
-    val mode = if (prefs.orientation == ReaderOrientation.Horizontal) "Paginated" else "Scroll"
+    val mode = when (prefs.orientation) {
+        ReaderOrientation.Horizontal -> "Paginated"
+        ReaderOrientation.Vertical -> "Scroll"
+        ReaderOrientation.Continuous -> "Continuous"
+    }
     val map = if (prefs.showChapterMap) "map on" else "map off"
     return "${prefs.theme.label()} · $mode · $map"
 }

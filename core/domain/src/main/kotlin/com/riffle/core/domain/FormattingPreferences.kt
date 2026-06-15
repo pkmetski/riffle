@@ -35,7 +35,7 @@ data class FormattingPreferences(
 
 enum class ReaderTheme { Light, Dark, DarkDim, Sepia, Auto }
 enum class ReaderFontFamily { Serif, SansSerif, Monospace, Literata, Merriweather, OpenDyslexic }
-enum class ReaderOrientation { Horizontal, Vertical }
+enum class ReaderOrientation { Horizontal, Vertical, Continuous }
 
 data class ThemeSchedule(
     val dayStart: LocalTime = DEFAULT_DAY_START,

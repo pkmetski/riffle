@@ -168,6 +168,19 @@ internal fun OrientationIcon(orientation: ReaderOrientation) {
                 }
             }
         }
+        ReaderOrientation.Continuous -> {
+            // Two stacked rectangles with a gap between them — multi-chapter scroll.
+            Canvas(modifier = Modifier.size(18.dp)) {
+                val w = size.width * 0.82f
+                val h = size.height * 0.32f
+                val gap = size.height * 0.12f
+                val leftX = (size.width - w) / 2f
+                val totalH = h * 2 + gap
+                val startY = (size.height - totalH) / 2f
+                drawRect(color, topLeft = Offset(leftX, startY), size = Size(w, h))
+                drawRect(color, topLeft = Offset(leftX, startY + h + gap), size = Size(w, h))
+            }
+        }
     }
 }
 
