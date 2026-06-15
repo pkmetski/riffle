@@ -81,6 +81,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
@@ -322,6 +323,7 @@ fun EpubReaderScreen(
                         onPlayFromHere = viewModel::playFromHere,
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = readaloudReservePx,
+                        readaloudHighlightColor = readaloudHighlightColor,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
@@ -794,6 +796,7 @@ private fun EpubNavigatorView(
     onPlayFromHere: (fragmentRef: String) -> Unit,
     readaloudAvailable: Boolean,
     readaloudReservePx: Int = 0,
+    readaloudHighlightColor: ReadaloudHighlightColor,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
