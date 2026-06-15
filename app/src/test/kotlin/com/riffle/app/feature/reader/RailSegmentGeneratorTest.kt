@@ -208,12 +208,15 @@ class RailSegmentGeneratorTest {
     // ── buildRailSegments: multi-file children (part→chapter expansion) ───
 
     @Test
-    fun `part entry with chapter children on different spine files is expanded into chapters`() {
-        // "Influence without authority" structure: Part I → [ch1, ch2, ch3], Part II → [ch4, ch5]
-        val ch1 = TocEntry("Chapter 1", "c01.xhtml")
+    fun `part entry with chapter children that have section anchors is expanded into chapters`() {
+        // "Influence without authority" structure: Part I → [ch1 (with sections), ch2, ch3]
+        // The section anchors on ch1/ch2 are the grandchildren signal that triggers expansion.
+        val sec1 = TocEntry("1.1", "c01.xhtml#s1")
+        val sec4 = TocEntry("4.1", "c04.xhtml#s1")
+        val ch1 = TocEntry("Chapter 1", "c01.xhtml", listOf(sec1))
         val ch2 = TocEntry("Chapter 2", "c02.xhtml")
         val ch3 = TocEntry("Chapter 3", "c03.xhtml")
-        val ch4 = TocEntry("Chapter 4", "c04.xhtml")
+        val ch4 = TocEntry("Chapter 4", "c04.xhtml", listOf(sec4))
         val ch5 = TocEntry("Chapter 5", "c05.xhtml")
         val part1 = TocEntry("Part I", "part01.xhtml", listOf(ch1, ch2, ch3))
         val part2 = TocEntry("Part II", "part02.xhtml", listOf(ch4, ch5))
@@ -266,11 +269,11 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `part with mixed children - some same-file anchors, some different files - expands`() {
-        // Children include both a same-file anchor and a different-file chapter. The
-        // presence of ANY different-file child triggers expansion.
+    fun `part with mixed children expands when the cross-file child has grandchildren`() {
+        // Same-file anchor intro + cross-file chapter that itself has section anchors.
+        val sec1 = TocEntry("Ch 1 intro", "c01.xhtml#s1")
         val intro = TocEntry("Intro", "part01.xhtml#intro")
-        val ch1 = TocEntry("Chapter 1", "c01.xhtml")
+        val ch1 = TocEntry("Chapter 1", "c01.xhtml", listOf(sec1))
         val part1 = TocEntry("Part I", "part01.xhtml", listOf(intro, ch1))
 
         assertEquals(
@@ -279,6 +282,21 @@ class RailSegmentGeneratorTest {
                 RailSegment("Chapter 1", "c01.xhtml"),
             ),
             buildRailSegments(listOf(part1)),
+        )
+    }
+
+    @Test
+    fun `chapter with cross-file leaf children and no grandchildren is NOT expanded`() {
+        // "The Martian" structure: Chapter 20 → [SOL 376 (leaf), SOL 380 (leaf)].
+        // Log-entry files have no sub-entries, so the grandchildren guard blocks expansion.
+        // Without this guard, the cursor would jump between log-entry segments on page turn.
+        val sol376 = TocEntry("LOG ENTRY: SOL 376", "sol376.xhtml")  // leaf — no children
+        val sol380 = TocEntry("LOG ENTRY: SOL 380", "sol380.xhtml")  // leaf — no children
+        val ch20 = TocEntry("Chapter 20", "chapter20.xhtml", listOf(sol376, sol380))
+
+        assertEquals(
+            listOf(RailSegment("Chapter 20", "chapter20.xhtml")),
+            buildRailSegments(listOf(ch20)),
         )
     }
 

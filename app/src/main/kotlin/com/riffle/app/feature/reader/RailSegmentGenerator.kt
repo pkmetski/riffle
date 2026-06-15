@@ -20,13 +20,15 @@ private fun expandIfRedundant(entry: TocEntry, bookTitleNorm: String): List<Rail
     if (isRedundantContainer) {
         return entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
     }
-    // If this entry's children point to different spine files it's a grouping container
-    // (e.g. "Part I" whose TOC children are actual chapter files). Expand into children so
-    // estimates are per-chapter rather than per-part.
+    // If children point to different spine files AND those children themselves have children
+    // (e.g. "Part I → [Ch1 with section anchors, Ch2 with section anchors]"), the parent is
+    // a grouping container — expand so estimates are per-chapter rather than per-part.
+    // The grandchildren check is the key guard: without it, "Chapter 20 → [SOL 376, SOL 380]"
+    // (leaf log-entry files with no sub-entries) would also be expanded, causing the cursor to
+    // jump between log-entry segments on every page turn within the chapter.
     val entryBaseHref = entry.href.substringBefore('#')
-    if (entry.children.isNotEmpty() &&
-        entry.children.any { it.href.substringBefore('#') != entryBaseHref }
-    ) {
+    val crossFileChildren = entry.children.filter { it.href.substringBefore('#') != entryBaseHref }
+    if (crossFileChildren.isNotEmpty() && crossFileChildren.any { it.children.isNotEmpty() }) {
         return entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
     }
     return listOf(RailSegment(entry.title, entry.href))
