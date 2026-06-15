@@ -15,17 +15,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,7 +36,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
+import com.riffle.app.feature.audiobook.SleepTimerMode
+import com.riffle.app.feature.audiobook.formatCountdown
 
 /**
  * Everything [PlayerSurface] renders. Both the standalone Audiobook player and the in-reader
@@ -81,6 +89,7 @@ data class PlayerSurfaceState(
     // ("Audiobook · 10h 53m · Science Fiction"); [description] is the blurb. Both null = nothing shown.
     val facts: String? = null,
     val description: String? = null,
+    val sleepTimer: SleepTimerMode = SleepTimerMode.None,
 )
 
 /** Callbacks the surface invokes. [onSeek] takes an absolute global position in seconds. */
@@ -92,6 +101,8 @@ data class PlayerSurfaceActions(
     val onPreviousChapter: () -> Unit,
     val onNextChapter: () -> Unit,
     val onSpeedChange: (Float) -> Unit,
+    val onSleepTimerSet: (SleepTimerMode) -> Unit,
+    val onSleepTimerCancel: () -> Unit,
 )
 
 /**
@@ -262,10 +273,14 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
         TransportRow(state, actions)
 
         Spacer(Modifier.height(20.dp))
-        // Speed control sits apart from the transport (keeps play centered). The filled-tonal pill
-        // reads as a deliberate control; tapping it opens the shared granular speed sheet (any 0.05×
-        // step in 0.5–3.0×) — the same control as the Read Aloud mini-player.
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Speed + sleep pills sit side-by-side, keeping play centered in the transport row above.
+        var sleepSheetOpen by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier.wrapContentWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             PlaybackSpeedControl(
                 speed = state.speed,
                 onSpeedChange = actions.onSpeedChange,
@@ -277,7 +292,36 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
                     Text(PlaybackSpeed.label(state.speed), style = MaterialTheme.typography.titleSmall)
                 }
             }
-            Text("Speed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            val timerActive = state.sleepTimer !is SleepTimerMode.None
+            val timerLabel = when (val t = state.sleepTimer) {
+                SleepTimerMode.None -> "Sleep"
+                is SleepTimerMode.CountDown -> t.formatCountdown()
+                SleepTimerMode.EndOfChapter -> "End of ch."
+            }
+            FilledTonalButton(
+                onClick = { sleepSheetOpen = true },
+                shape = RoundedCornerShape(50),
+                colors = if (timerActive)
+                    ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                else ButtonDefaults.filledTonalButtonColors(),
+            ) {
+                Icon(Icons.Filled.Bedtime, contentDescription = "Sleep timer", modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text(timerLabel, style = MaterialTheme.typography.titleSmall)
+            }
+        }
+
+        if (sleepSheetOpen) {
+            SleepTimerControl(
+                timerMode = state.sleepTimer,
+                onSetTimer = actions.onSleepTimerSet,
+                onCancel = actions.onSleepTimerCancel,
+                onDismiss = { sleepSheetOpen = false },
+            )
         }
     }
 }

@@ -211,6 +211,7 @@ fun AudiobookPlayerScreen(
                             canNextChapter = state.canNextChapter,
                             facts = state.facts,
                             description = state.description,
+                            sleepTimer = state.sleepTimer,
                         ),
                         twoColumn = twoColumn,
                         actions = PlayerSurfaceActions(
@@ -221,6 +222,8 @@ fun AudiobookPlayerScreen(
                             onPreviousChapter = viewModel::previousChapter,
                             onNextChapter = viewModel::nextChapter,
                             onSpeedChange = viewModel::setSpeed,
+                            onSleepTimerSet = viewModel::setSleepTimer,
+                            onSleepTimerCancel = viewModel::cancelSleepTimer,
                         ),
                     )
                     PlayerListPills(
