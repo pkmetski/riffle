@@ -355,6 +355,21 @@ fun FormattingPanel(
                 )
             }
 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Time remaining",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = prefs.showReadingTimeEstimate,
+                    onCheckedChange = { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) },
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             TextButton(
                 onClick = onReset,
