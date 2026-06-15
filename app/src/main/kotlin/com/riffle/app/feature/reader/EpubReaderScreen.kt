@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -85,6 +86,7 @@ import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.TimeRemaining
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -373,7 +375,8 @@ fun EpubReaderScreen(
             (
                 formattingPrefs.showChapterMap ||
                     formattingPrefs.showReadingProgressLabels ||
-                    formattingPrefs.showCurrentChapterLabel
+                    formattingPrefs.showCurrentChapterLabel ||
+                    formattingPrefs.showReadingTimeEstimate
                 )
         if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
             Column(
@@ -431,6 +434,7 @@ fun EpubReaderScreen(
                         showRail = formattingPrefs.showChapterMap,
                         showProgressLabels = formattingPrefs.showReadingProgressLabels,
                         showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
+                        showReadingTimeEstimate = formattingPrefs.showReadingTimeEstimate,
                         readerTheme = formattingPrefs.theme,
                     )
                 }
@@ -553,6 +557,7 @@ private fun EpubChapterRailOverlay(
     showRail: Boolean,
     showProgressLabels: Boolean,
     showChapterNameLabel: Boolean,
+    showReadingTimeEstimate: Boolean,
     readerTheme: ReaderTheme,
     modifier: Modifier = Modifier,
 ) {
@@ -568,6 +573,8 @@ private fun EpubChapterRailOverlay(
     // whole-book value arrives it wins (and matches book details). At genuine 0% the rail cursor is
     // also ~0, so the fallback is indistinguishable there.
     val labelProgress = totalProgress?.takeIf { it > 0f } ?: cursorPosition
+    val chapterTimeRemaining by viewModel.chapterTimeRemaining.collectAsState()
+    val bookTimeRemaining by viewModel.bookTimeRemaining.collectAsState()
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         // Backdrop is the exact reader-theme page colour so the strip reads as page margin,
@@ -578,7 +585,7 @@ private fun EpubChapterRailOverlay(
                 .fillMaxWidth()
                 .background(readerTheme.palette.background),
         ) {
-            if (showProgressLabels || showChapterNameLabel) {
+            if (showProgressLabels || showChapterNameLabel || showReadingTimeEstimate) {
                 ReadingProgressLabels(
                     activeChapterIndex = activeRailSegmentIndex,
                     chapterCount = railSegments.size,
@@ -587,6 +594,9 @@ private fun EpubChapterRailOverlay(
                     readerTheme = readerTheme,
                     showCountAndPercent = showProgressLabels,
                     showChapterName = showChapterNameLabel,
+                    showReadingTimeEstimate = showReadingTimeEstimate,
+                    chapterTimeRemaining = chapterTimeRemaining,
+                    bookTimeRemaining = bookTimeRemaining,
                 )
             }
             if (showRail) {
@@ -618,6 +628,45 @@ private fun readerThemeLabelColor(theme: ReaderTheme): Color {
     return theme.palette.foreground.copy(alpha = alpha)
 }
 
+private fun formatDuration(sec: Long): String {
+    val hours = sec / 3600
+    val minutes = (sec % 3600) / 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        else -> "${minutes} min"
+    }
+}
+
+private fun formatChapterRemaining(remaining: TimeRemaining): String = when (remaining) {
+    is TimeRemaining.Exact -> {
+        val sec = remaining.sec
+        val h = sec / 3600
+        val m = (sec % 3600) / 60
+        val s = sec % 60
+        if (h > 0) "%d:%02d:%02d in chapter".format(h, m, s)
+        else "%d:%02d in chapter".format(m, s)
+    }
+    is TimeRemaining.Estimated -> when {
+        remaining.sec < 60 -> "< 1 min in chapter"
+        else -> "~${formatDuration(remaining.sec)} in chapter"
+    }
+}
+
+private fun formatBookRemaining(remaining: TimeRemaining): String = when (remaining) {
+    is TimeRemaining.Exact -> {
+        val sec = remaining.sec
+        val h = sec / 3600
+        val m = (sec % 3600) / 60
+        val s = sec % 60
+        if (h > 0) "%d:%02d:%02d left".format(h, m, s)
+        else "%d:%02d left".format(m, s)
+    }
+    is TimeRemaining.Estimated -> when {
+        remaining.sec < 60 -> "< 1 min left"
+        else -> "~${formatDuration(remaining.sec)} left"
+    }
+}
+
 @Composable
 private fun ReadingProgressLabels(
     activeChapterIndex: Int,
@@ -627,6 +676,9 @@ private fun ReadingProgressLabels(
     readerTheme: ReaderTheme,
     showCountAndPercent: Boolean,
     showChapterName: Boolean,
+    showReadingTimeEstimate: Boolean = false,
+    chapterTimeRemaining: TimeRemaining? = null,
+    bookTimeRemaining: TimeRemaining? = null,
 ) {
     val chapterCountText = if (chapterCount > 0) {
         "Chapter ${(activeChapterIndex + 1).coerceAtMost(chapterCount)} of $chapterCount"
@@ -655,20 +707,51 @@ private fun ReadingProgressLabels(
                     .semantics { contentDescription = "Reading progress: $chapterCountText" },
             )
         }
-        if (showChapterName) {
-            Text(
-                text = activeChapterTitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = textColor,
-                textAlign = TextAlign.Center,
-                fontStyle = FontStyle.Italic,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(2f)
-                    .testTag("reading_progress_chapter_name")
-                    .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
-            )
+        val showCenterColumn = showChapterName || showReadingTimeEstimate
+        if (showCenterColumn) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(2f),
+            ) {
+                if (showChapterName) {
+                    Text(
+                        text = activeChapterTitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor,
+                        textAlign = TextAlign.Center,
+                        fontStyle = FontStyle.Italic,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .testTag("reading_progress_chapter_name")
+                            .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
+                    )
+                }
+                if (showReadingTimeEstimate) {
+                    val parts = listOfNotNull(
+                        chapterTimeRemaining?.let { formatChapterRemaining(it) },
+                        bookTimeRemaining?.let { formatBookRemaining(it) },
+                    )
+                    if (parts.isNotEmpty()) {
+                        val pillText = parts.joinToString(" · ")
+                        val isExact = chapterTimeRemaining is TimeRemaining.Exact ||
+                            bookTimeRemaining is TimeRemaining.Exact
+                        val pillColor = if (isExact) MaterialTheme.colorScheme.tertiary
+                                        else textColor
+                        Text(
+                            text = pillText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = pillColor,
+                            modifier = Modifier
+                                .background(
+                                    color = pillColor.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
         }
         if (showCountAndPercent) {
             Text(
