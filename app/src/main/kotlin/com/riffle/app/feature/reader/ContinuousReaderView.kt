@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import android.content.Context
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
@@ -9,6 +10,7 @@ import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Publication
+import kotlin.math.abs
 
 /**
  * Renders the entire book as a single vertical scroll by stacking a sliding window of 3
@@ -88,6 +90,23 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         if (disallowIntercept) return
         super.requestDisallowInterceptTouchEvent(false)
     }
+
+    // Intercept vertical movement as soon as it exceeds a minimal threshold (half the system
+    // touch slop). NestedScrollView's default is to wait for a full touch slop before
+    // intercepting, which leaves the WebView handling touch for long enough that the user
+    // perceives scroll resistance ("fighting"). Intercepting earlier gives us scroll ownership
+    // from the very first detectable movement, matching native smooth-scroll feel.
+    private var interceptDownY = 0f
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> interceptDownY = ev.y
+            MotionEvent.ACTION_MOVE ->
+                if (abs(ev.y - interceptDownY) > touchSlop / 2f) return true
+        }
+        return super.onInterceptTouchEvent(ev)
+    }
+
+    private val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
 
     /**
      * Initialize the view at [initialHref] + [initialProgression].

@@ -66,9 +66,12 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `Serif font family (default) — no font-family override`() {
+    fun `Serif font family — injects Georgia serif stack`() {
         val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
-        assertFalse("Serif keeps EPUB font", js.contains("font-family:"))
+        // Without ReadiumCSS the WebView default is sans-serif, so Serif must actively apply
+        // a system serif stack rather than falling back to the EPUB's own (often sans-serif) font.
+        assertTrue("Serif injects Georgia", js.contains("Georgia"))
+        assertTrue("serif fallback present", js.contains("serif"))
     }
 
     @Test

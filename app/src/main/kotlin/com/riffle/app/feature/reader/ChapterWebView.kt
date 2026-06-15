@@ -51,6 +51,9 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         isScrollContainer = false
         isVerticalScrollBarEnabled = false
         isHorizontalScrollBarEnabled = false
+        // Disable WebView's own over-scroll rubber-band so it doesn't compete with the parent
+        // ContinuousReaderView (NestedScrollView) for scroll ownership at the edges.
+        overScrollMode = OVER_SCROLL_NEVER
         settings.javaScriptEnabled = true
         addJavascriptInterface(HeightBridge(), "RiffleChapter")
         webViewClient = object : WebViewClient() {

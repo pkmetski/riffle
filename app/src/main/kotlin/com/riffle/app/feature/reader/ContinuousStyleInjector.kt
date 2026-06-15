@@ -49,11 +49,13 @@ internal object ContinuousStyleInjector {
             else -> null
         }
 
-        // Font family — Serif keeps the EPUB's own font; others override with a system stack.
-        // Readium-bundled fonts (Literata, Merriweather, OpenDyslexic) are not available in
-        // ChapterWebViews since those fonts are served by the Readium HTTP server, not ours.
+        // Font family — all choices override with a system stack. Serif uses Georgia (Android's
+        // standard serif) because without ReadiumCSS the WebView default is sans-serif, so
+        // leaving Serif as null would render the wrong font entirely.
+        // Readium-bundled custom fonts (Literata, Merriweather, OpenDyslexic) are not available
+        // in ChapterWebViews since those fonts are served by the Readium HTTP server, not ours.
         val fontFamily = when (prefs.fontFamily) {
-            ReaderFontFamily.Serif -> null
+            ReaderFontFamily.Serif -> "Georgia, 'Times New Roman', serif"
             ReaderFontFamily.SansSerif -> "Arial, Helvetica, sans-serif"
             ReaderFontFamily.Monospace -> "'Courier New', Courier, monospace"
             ReaderFontFamily.Literata -> "Georgia, serif"
@@ -79,8 +81,9 @@ internal object ContinuousStyleInjector {
             append("line-height:${prefs.lineSpacing}!important;")
             append("text-align:$textAlign!important;")
             append("padding-left:${paddingPct}%!important;padding-right:${paddingPct}%!important;")
-            // Clear any body margin so padding is the sole horizontal spacing control.
-            append("margin-left:0!important;margin-right:0!important;")
+            // Zero out all body margin/vertical-padding so the default 8px browser body margin
+            // doesn't appear as a visible gap at every chapter boundary in the stacked layout.
+            append("margin:0!important;padding-top:0!important;padding-bottom:0!important;")
             append("}\n")
 
             // Push text-align and line-height down to the elements publishers commonly override.
