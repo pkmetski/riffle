@@ -118,10 +118,6 @@ class PlayerCoordinator @Inject constructor(
 
     fun skipBy(deltaSec: Double) = controller.skipBy(deltaSec)
 
-    fun rewind() = controller.rewind()
-
-    fun forward() = controller.forward()
-
     fun previousChapter() = controller.previousChapter()
 
     fun nextChapter() = controller.nextChapter()
