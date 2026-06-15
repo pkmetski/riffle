@@ -149,6 +149,10 @@ annotation class DeviceIdDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class ReadaloudPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class EpubCacheStore
 
 @Qualifier
