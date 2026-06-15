@@ -44,6 +44,7 @@ import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.ReadingSpeedStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.data.ReadaloudPreferencesStoreImpl
+import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
@@ -80,6 +81,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.ReadaloudPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
 import com.riffle.core.data.StorytellerBundleAudiobookSource
@@ -158,6 +160,10 @@ annotation class ReadaloudPreferencesDataStore
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ReadingSpeedDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ListeningPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -314,6 +320,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindWakeLockPreferencesStore(impl: WakeLockPreferencesStoreImpl): WakeLockPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindListeningPreferencesStore(impl: ListeningPreferencesStoreImpl): ListeningPreferencesStore
 
     @Binds
     @Singleton
@@ -641,6 +651,13 @@ abstract class DataModule {
         fun provideWakeLockPreferencesDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.wakeLockPreferencesDataStore
+
+        @Provides
+        @Singleton
+        @ListeningPreferencesDataStore
+        fun provideListeningPreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.listeningPreferencesDataStore
 
         @Provides
         @Singleton
