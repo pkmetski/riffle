@@ -11,6 +11,7 @@ internal object ContinuousPositionTracker {
      * Falls back to the last slot if [scrollY] is past all content.
      */
     fun locatorAt(scrollY: Int, viewportHeight: Int, window: List<ChapterSlot>): Pair<String, Float> {
+        require(window.isNotEmpty()) { "ChapterSlot window must not be empty" }
         val midY = scrollY + viewportHeight / 2
         val slot = window.lastOrNull { midY >= it.top } ?: window.first()
         val progression = if (slot.height > 0) {

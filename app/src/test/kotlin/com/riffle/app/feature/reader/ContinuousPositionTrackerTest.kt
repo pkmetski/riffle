@@ -36,7 +36,7 @@ class ContinuousPositionTrackerTest {
             scrollY = 5000, viewportHeight = 800, window = window
         )
         assertEquals("B.xhtml", href)
-        assertEquals(1.0f, prog.coerceAtMost(1.0f), 0.001f)
+        assertEquals(1.0f, prog, 0.001f)
     }
 
     @Test
