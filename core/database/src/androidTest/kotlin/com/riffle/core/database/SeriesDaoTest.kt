@@ -137,6 +137,28 @@ class SeriesDaoTest {
         assertEquals(emptyList<String>(), result.map { it.id })
     }
 
+    // C2b — a barely-opened book (< 5% progress) must NOT block the series; only a meaningfully
+    //       in-progress book (>= 5%) triggers the exclusion
+    @Test
+    fun observeContinueSeriesItems_doesNotExcludeSeriesForBarelyOpenedBook() = runTest {
+        db.libraryItemDao().upsertAll(listOf(
+            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.01f),
+            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
+        ))
+        dao.upsertAll(listOf(series("series-A")))
+        dao.upsertAllItems(listOf(
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-3", sequenceOrder = 3f),
+        ))
+
+        // item-2 is barely opened (1% < 5% threshold) → must NOT block the series; item-2 is next
+        val result = dao.observeContinueSeriesItems("lib1").first()
+
+        assertEquals(listOf("item-2"), result.map { it.id })
+    }
+
     // C3 — multiple qualifying series ordered by most-recently-finished sibling DESC
     @Test
     fun observeContinueSeriesItems_orderedByMostRecentlyFinished() = runTest {

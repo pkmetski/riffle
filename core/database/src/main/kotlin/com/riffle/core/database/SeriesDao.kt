@@ -25,7 +25,7 @@ interface SeriesDao {
         SELECT li.* FROM library_items li
         INNER JOIN series_items si ON li.serverId = si.serverId AND li.id = si.itemId
         WHERE li.libraryId = :libraryId
-          AND li.readingProgress < 1.0
+          AND li.readingProgress < 0.99
           AND si.seriesId IN (
               SELECT DISTINCT si2.seriesId
               FROM series_items si2
