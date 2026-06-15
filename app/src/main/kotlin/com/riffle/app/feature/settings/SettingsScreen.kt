@@ -63,7 +63,6 @@ import com.riffle.app.feature.reader.FormattingPanel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.launch
