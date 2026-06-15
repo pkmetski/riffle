@@ -81,16 +81,38 @@ internal object ContinuousStyleInjector {
     }
 
     /**
-     * JS that fires after fonts load + one rAF and calls `window.RiffleChapter.onHeightMeasured`
-     * with `document.body.scrollHeight`. Requires the calling [ChapterWebView] to have
-     * registered a `JavascriptInterface` named `RiffleChapter`.
+     * JS that calls `window.RiffleChapter.onHeightMeasured` with the chapter height in device
+     * pixels. Uses `window.devicePixelRatio` to convert from CSS pixels so `LayoutParams.height`
+     * receives the correct device-pixel value regardless of whether the EPUB has a viewport meta
+     * tag. `document.fonts.ready` is tried first; a 500 ms timeout fires as a fallback in case
+     * the promise never resolves (older WebViews or EPUBs with failing font loads).
      */
     val HEIGHT_MEASUREMENT_JS = """
-        document.fonts.ready.then(function() {
-            requestAnimationFrame(function() {
-                window.RiffleChapter.onHeightMeasured(document.body.scrollHeight);
-            });
-        });
+        (function() {
+            function measure() {
+                var h = document.body.scrollHeight;
+                if (h > 0) window.RiffleChapter.onHeightMeasured(h);
+            }
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(function() { requestAnimationFrame(measure); });
+            }
+            setTimeout(measure, 500);
+        })();
+    """.trimIndent()
+
+    /**
+     * JS that forwards single taps on the document body to `window.RiffleChapter.onTap` so the
+     * Continuous-mode reader chrome (top/bottom bars) can toggle on tap, matching the standard
+     * Readium navigator's [InputListener.onTap] behaviour. The listener is idempotent.
+     */
+    val TAP_LISTENER_JS = """
+        (function() {
+            if (document.__riffleTapWired) return;
+            document.__riffleTapWired = true;
+            document.addEventListener('click', function() {
+                window.RiffleChapter.onTap();
+            }, false);
+        })();
     """.trimIndent()
 
     val CLEAR_HIGHLIGHT_JS = """

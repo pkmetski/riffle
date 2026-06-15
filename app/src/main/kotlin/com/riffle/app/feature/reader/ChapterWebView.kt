@@ -9,7 +9,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.runBlocking
 import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.util.toAbsoluteUrl
+import org.readium.r2.shared.util.Url
 
 /**
  * A [WebView] that:
@@ -28,6 +28,13 @@ internal class ChapterWebView(context: Context) : WebView(context) {
 
     /** Called on the main thread once the page finishes loading (before height is known). */
     var onPageFinished: (() -> Unit)? = null
+
+    /**
+     * Called on the main thread when the user taps the chapter (no scroll movement).
+     * Wire this to the reader's chrome toggle so taps in Continuous mode show/hide the
+     * top/bottom bars, matching the behaviour of the standard Readium navigator.
+     */
+    var onTap: (() -> Unit)? = null
 
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
     var chapterHref: String = ""
@@ -60,12 +67,17 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 if (uri.host != "readium_package") return super.shouldInterceptRequest(view, request)
                 val pub = this@ChapterWebView.publication
                     ?: return super.shouldInterceptRequest(view, request)
-                val absoluteUrl = uri.toAbsoluteUrl()
+                // Publication.get() resolves against the publication container using paths relative
+                // to the publication root (e.g. "text/part0022_split_000.html"). Passing the full
+                // https://readium_package/... absolute URL doesn't work because pub.get() doesn't
+                // know the readium_package virtual hostname; it just understands relative paths.
+                val path = uri.path?.trimStart('/').takeIf { !it.isNullOrEmpty() }
+                    ?: return super.shouldInterceptRequest(view, request)
+                val relUrl = Url(path)
                     ?: return super.shouldInterceptRequest(view, request)
                 // shouldInterceptRequest is called on a background thread; runBlocking is safe here.
-                val bytes = runBlocking { pub.get(absoluteUrl)?.read()?.getOrNull() }
+                val bytes = runBlocking { pub.get(relUrl)?.read()?.getOrNull() }
                     ?: return super.shouldInterceptRequest(view, request)
-                val path = uri.path.orEmpty()
                 val mimeType = mimeTypeForPath(path)
                 val encoding = if (mimeType.startsWith("text/") || mimeType.contains("xml") || mimeType.contains("javascript")) "utf-8" else null
                 return WebResourceResponse(mimeType, encoding, bytes.inputStream())
@@ -91,6 +103,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         evaluateJavascript(variableJs, null)
         evaluateJavascript(typographyOverrideInjectionJs(), null)
         evaluateJavascript(ContinuousStyleInjector.HEIGHT_MEASUREMENT_JS, null)
+        evaluateJavascript(ContinuousStyleInjector.TAP_LISTENER_JS, null)
     }
 
     /** Re-measure after a preference change. */
@@ -100,6 +113,11 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         @JavascriptInterface
         fun onHeightMeasured(height: Int) {
             post { this@ChapterWebView.onHeightMeasured?.invoke(height) }
+        }
+
+        @JavascriptInterface
+        fun onTap() {
+            post { this@ChapterWebView.onTap?.invoke() }
         }
     }
 }

@@ -1242,8 +1242,13 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
-    LaunchedEffect(onNavigationEvents) {
+    LaunchedEffect(onNavigationEvents, isContinuous) {
         onNavigationEvents.collect { link ->
+            // In Continuous mode the Readium fragment is a server-keeper only (invisible,
+            // height=0). Internal-link taps are handled by ContinuousReaderView.navigateTo;
+            // fragment.go() would suspend forever on the invisible WebView, leaving
+            // navigating=true and covering the reader with a permanent blank overlay.
+            if (isContinuous) return@collect
             val fragment = fragmentRef.value ?: return@collect
             // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
             // is instant and needs no mask.
@@ -1608,6 +1613,13 @@ private fun EpubNavigatorView(
         continuousViewRef.value?.updatePreferences(formattingPrefs)
     }
 
+    // If the user switches TO Continuous mode while a navigating cover was active (the
+    // onNavigationEvents LaunchedEffect gets cancelled mid-goAndSnap), navigating would stay
+    // true indefinitely. Clear it whenever isContinuous becomes true.
+    LaunchedEffect(isContinuous) {
+        if (isContinuous) navigating = false
+    }
+
     // In Continuous mode, the fragment is zero-height (HTTP server keeper only).
     // Once it emits its first locator, extract the HTTP base URL for ContinuousReaderView.
     LaunchedEffect(fragmentRef.value, isContinuous) {
@@ -1879,6 +1891,7 @@ private fun EpubNavigatorView(
                             )
                             if (locator != null) onPositionChanged(locator)
                         }
+                        view.onTap = currentOnTap
                     }
                 },
                 update = { _ -> },
