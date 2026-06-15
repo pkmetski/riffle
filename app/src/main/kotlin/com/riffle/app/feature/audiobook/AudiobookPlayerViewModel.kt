@@ -448,6 +448,17 @@ class AudiobookPlayerViewModel(
             // sets an explicit position that must not be reset.
             if (startAtSec < 0.0) {
                 resumeSec = audiobookStartSec(resumeSec, session.timeline.durationSec)
+                // Rewind-on-resume also applies to reopening an in-progress book — the open path plays
+                // directly (below), bypassing togglePlayPause's resume rewind, so without this the setting
+                // would only ever fire on an in-player pause→play and look broken on the far more common
+                // "left and came back" resume. Read straight from the store (not the eager StateFlow, which
+                // may not have emitted yet this early in init). Guarded on resumeSec > 0 so a fresh/replayed
+                // book at the start has nothing to rewind; coerceAtLeast(0) holds the floor. Skipped for the
+                // readaloud→audiobook handoff branch, which must continue seamlessly from the hand-off point.
+                val rewindOnResume = listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble()
+                if (rewindOnResume > 0.0 && resumeSec > 0.0) {
+                    resumeSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
+                }
             }
             // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
             // overriding the store/server resume (which can lag the just-left listen position). Persist

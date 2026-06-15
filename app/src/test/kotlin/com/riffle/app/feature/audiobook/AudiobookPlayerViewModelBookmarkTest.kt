@@ -89,6 +89,7 @@ class AudiobookPlayerViewModelBookmarkTest {
     // members the VM actually touches are overridden; the heavy Media3/Context machinery is bypassed.
     private class FakeController(var position: Double) : AudiobookController() {
         val seeks = mutableListOf<Double>()
+        var preparedStartAtSec: Double? = null
         override val state = MutableStateFlow(PlaybackState())
         override suspend fun prepare(
             trackUrls: List<String>,
@@ -97,7 +98,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             startAtSec: Double,
             localZipFile: File?,
             coverUri: String?,
-        ) { /* no-op */ }
+        ) { preparedStartAtSec = startAtSec }
         override fun play() {}
         override fun setSpeed(speed: Float) {}
         override fun currentAbsoluteSec(): Double = position
@@ -117,6 +118,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         connectivity: FakeConnectivityObserver = FakeConnectivityObserver(online = true),
         prefsStore: AudioPlaybackPreferencesStore = FakePrefsStore,
         listeningStore: ListeningPreferencesStore = FakeListeningPreferencesStore,
+        positionStore: com.riffle.core.domain.AudiobookPositionStore = FakePositionStore(),
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -141,7 +143,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             readaloudLinkRepository = FakeLinkRepository,
             readaloudAudioRepository = FakeAudioRepo,
             nowPlayingStore = NowPlayingStore(),
-            audiobookPositionStore = FakePositionStore(),
+            audiobookPositionStore = positionStore,
             readingSyncStore = FakeSyncStore(),
             audioSyncStore = FakeSyncStoreDouble(),
             readaloudResumeStore = FakeResumeStore,
@@ -343,6 +345,58 @@ class AudiobookPlayerViewModelBookmarkTest {
         vm.clearForTest()
     }
 
+    @Test
+    fun `openBook resuming an in-progress book rewinds the start position by rewindOnResumeSeconds`() = runTest(testDispatcher) {
+        // Reopening a book is the most common "resume" and plays directly (no togglePlayPause), so the
+        // rewind has to be applied to the prepared start position — otherwise the setting only ever fires
+        // on an in-player pause→play and looks broken when you leave and come back.
+        val ctrl = FakeController(position = 0.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 10 }
+        val vm = buildViewModel(
+            ctrl,
+            FakeBookmarkStore(),
+            listeningStore = store,
+            positionStore = FakePositionStore(savedSec = 540.0, savedUpdatedAt = fixedNow),
+        )
+        runCurrent()
+
+        // Resume position 540 rewound by 10 → prepared at 530.
+        assertEquals(530.0, ctrl.preparedStartAtSec!!, 0.0001)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `openBook with zero rewindOnResumeSeconds prepares at the unmodified resume position`() = runTest(testDispatcher) {
+        val ctrl = FakeController(position = 0.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 0 }
+        val vm = buildViewModel(
+            ctrl,
+            FakeBookmarkStore(),
+            listeningStore = store,
+            positionStore = FakePositionStore(savedSec = 540.0, savedUpdatedAt = fixedNow),
+        )
+        runCurrent()
+
+        assertEquals(540.0, ctrl.preparedStartAtSec!!, 0.0001)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `openBook resuming near the start clamps the rewound position to zero`() = runTest(testDispatcher) {
+        val ctrl = FakeController(position = 0.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 10 }
+        val vm = buildViewModel(
+            ctrl,
+            FakeBookmarkStore(),
+            listeningStore = store,
+            positionStore = FakePositionStore(savedSec = 4.0, savedUpdatedAt = fixedNow),
+        )
+        runCurrent()
+
+        assertEquals(0.0, ctrl.preparedStartAtSec!!, 0.0001)
+        vm.clearForTest()
+    }
+
     // --- fakes ---
 
     private class FakeConnectivityObserver(online: Boolean) : com.riffle.core.domain.ConnectivityObserver {
@@ -535,10 +589,13 @@ class AudiobookPlayerViewModelBookmarkTest {
         override suspend fun removeAudio(serverId: String, itemId: String): Long = 0
     }
 
-    private class FakePositionStore : com.riffle.core.domain.AudiobookPositionStore {
+    private class FakePositionStore(
+        private val savedSec: Double? = null,
+        private val savedUpdatedAt: Long = 0,
+    ) : com.riffle.core.domain.AudiobookPositionStore {
         override suspend fun save(serverId: String, itemId: String, payload: Double) {}
-        override suspend fun load(serverId: String, itemId: String): Double? = null
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0
+        override suspend fun load(serverId: String, itemId: String): Double? = savedSec
+        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = savedUpdatedAt
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {}
     }
 
