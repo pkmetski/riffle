@@ -101,6 +101,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         if (targetIndex < topIndex || targetIndex > topIndex + 2) {
             rebuildWindowAround(targetIndex)
         }
+        // Scroll is computed against current measuredHeights, which may still hold placeholder
+        // values if newly-loaded chapters haven't measured yet. The position is approximate until
+        // real heights arrive. TODO: add a post-measurement correction callback for navigateTo.
         post {
             val window = buildWindow()
             val offset = ContinuousPositionTracker.scrollOffsetFor(href, progression, window)
@@ -178,6 +181,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val wv = webViews.removeAt(0)
         container.removeView(wv)
         wv.destroy()
+        // h is the stored measured height at removal time. If the WebView was still loading when
+        // removeTop() fires (h == placeholderHeight), the scroll offset may be over-compensated
+        // and produce a brief jump. Rare in practice: removeTop() only fires after the user scrolls
+        // past the bottom of the top chapter, by which time it has typically measured.
         scrollBy(0, -h)
         topIndex++
     }
