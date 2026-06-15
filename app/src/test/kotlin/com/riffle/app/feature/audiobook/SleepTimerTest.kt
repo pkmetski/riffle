@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -23,17 +24,17 @@ class SleepTimerTest {
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    // ── formatCountdown ─────────────────────────────────────────────────────────
+    // ── formatCountdown ──────────────────────────────────────────────────────────
 
     @Test
     fun `formatCountdown formats minutes and seconds`() {
-        val mode = SleepTimerMode.CountDown(remainingMs = 30 * 60 * 1_000L) // 30 min
+        val mode = SleepTimerMode.CountDown(remainingMs = 30 * 60 * 1_000L)
         assertEquals("30:00", mode.formatCountdown())
     }
 
     @Test
     fun `formatCountdown pads seconds with leading zero`() {
-        val mode = SleepTimerMode.CountDown(remainingMs = 5 * 60 * 1_000L + 7_000L) // 5:07
+        val mode = SleepTimerMode.CountDown(remainingMs = 5 * 60 * 1_000L + 7_000L)
         assertEquals("5:07", mode.formatCountdown())
     }
 
@@ -43,7 +44,7 @@ class SleepTimerTest {
         assertEquals("", SleepTimerMode.EndOfChapter.formatCountdown())
     }
 
-    // ── FakeController behaviour ─────────────────────────────────────────────────
+    // ── FakeController ───────────────────────────────────────────────────────────
 
     private class FakeController : AudiobookController() {
         private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
@@ -69,12 +70,11 @@ class SleepTimerTest {
         }
     }
 
-    // ── ViewModel delegation ─────────────────────────────────────────────────────
+    // ── delegation tests ─────────────────────────────────────────────────────────
 
     @Test
-    fun `setSleepTimer delegates to controller with CountDown mode`() = runTest {
+    fun `setSleepTimer delegates to controller with CountDown mode`() = runTest(UnconfinedTestDispatcher()) {
         val controller = FakeController()
-        // setSleepTimer is a direct delegation — no ViewModel needed for unit test.
         controller.setSleepTimer(SleepTimerMode.CountDown(30 * 60_000L))
 
         assertEquals(1, controller.setSleepTimerCalls.size)
@@ -83,7 +83,7 @@ class SleepTimerTest {
     }
 
     @Test
-    fun `setSleepTimer delegates to controller with EndOfChapter mode`() = runTest {
+    fun `setSleepTimer delegates to controller with EndOfChapter mode`() = runTest(UnconfinedTestDispatcher()) {
         val controller = FakeController()
         controller.setSleepTimer(SleepTimerMode.EndOfChapter)
 
@@ -92,7 +92,7 @@ class SleepTimerTest {
     }
 
     @Test
-    fun `cancelSleepTimer resets timer to None`() = runTest {
+    fun `cancelSleepTimer resets timer to None`() = runTest(UnconfinedTestDispatcher()) {
         val controller = FakeController()
         controller.setSleepTimer(SleepTimerMode.CountDown(30 * 60_000L))
         controller.cancelSleepTimer()
@@ -102,7 +102,7 @@ class SleepTimerTest {
     }
 
     @Test
-    fun `setting a new timer replaces the previous one`() = runTest {
+    fun `setting a new timer replaces the previous one`() = runTest(UnconfinedTestDispatcher()) {
         val controller = FakeController()
         controller.setSleepTimer(SleepTimerMode.CountDown(30 * 60_000L))
         controller.setSleepTimer(SleepTimerMode.EndOfChapter)
