@@ -110,18 +110,18 @@ class BookFormattingOverridesTest {
 
     @Test
     fun `applyTo threads showReadingTimeEstimate`() {
-        val effective = BookFormattingOverrides(showReadingTimeEstimate = false).applyTo(global)
-        assertFalse(effective.showReadingTimeEstimate)
-        // Global default is true
-        assertTrue(BookFormattingOverrides().applyTo(global).showReadingTimeEstimate)
+        val effective = BookFormattingOverrides(showReadingTimeEstimate = true).applyTo(global)
+        assertTrue(effective.showReadingTimeEstimate)
+        // Global default is false
+        assertFalse(BookFormattingOverrides().applyTo(global).showReadingTimeEstimate)
     }
 
     @Test
     fun `withChanges records showReadingTimeEstimate when changed`() {
-        val prev = global
-        val new = global.copy(showReadingTimeEstimate = false)
+        val prev = global  // showReadingTimeEstimate = false (default)
+        val new = global.copy(showReadingTimeEstimate = true)
         val overrides = BookFormattingOverrides().withChanges(prev, new)
-        assertEquals(false, overrides.showReadingTimeEstimate)
+        assertEquals(true, overrides.showReadingTimeEstimate)
         assertNull(overrides.fontSize)
     }
 }
