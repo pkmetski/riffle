@@ -37,7 +37,7 @@ val gitSha: String = runCatching {
 
 android {
     namespace = "com.riffle.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.riffle.app"
