@@ -230,6 +230,10 @@ class EpubReaderViewModel @Inject constructor(
     val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    private val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
+
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
     // Per-field book overrides. null on a field means "follow global", so changing global later
@@ -1549,9 +1553,9 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
-    fun rewind() = playerCoordinator.rewind()
+    fun rewind() = playerCoordinator.skipBy(-skipIntervalSec.value)
 
-    fun forward() = playerCoordinator.forward()
+    fun forward() = playerCoordinator.skipBy(skipIntervalSec.value)
 
     /**
      * Swipe-up handoff to the single large player: capture the current listen second, release the

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -320,6 +321,10 @@ class AudiobookPlayerViewModel(
             ?: return
         readaloudResumeStore.save(serverId, ebookItemId, anchor)
     }
+
+    private val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
 
     val uiState: StateFlow<AudiobookPlayerUiState> =
         combine(meta, controller.state, controller.sleepTimer) { m, playback, timer ->
@@ -649,13 +654,15 @@ class AudiobookPlayerViewModel(
     }
 
     fun rewind() {
-        reconciledResumeSec = (controller.currentAbsoluteSec() - AudiobookController.REWIND_SEC).coerceAtLeast(0.0)
-        controller.rewind()
+        val skipSec = skipIntervalSec.value
+        reconciledResumeSec = (controller.currentAbsoluteSec() - skipSec).coerceAtLeast(0.0)
+        controller.skipBy(-skipSec)
     }
 
     fun forward() {
-        reconciledResumeSec = controller.currentAbsoluteSec() + AudiobookController.FORWARD_SEC
-        controller.forward()
+        val skipSec = skipIntervalSec.value
+        reconciledResumeSec = controller.currentAbsoluteSec() + skipSec
+        controller.skipBy(skipSec)
     }
 
     fun previousChapter() {
