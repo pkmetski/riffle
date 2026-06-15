@@ -552,4 +552,42 @@ class SettingsViewModelTest {
         assertEquals(ReadaloudHighlightColor.YELLOW, emitted.last())
         job.cancel()
     }
+
+    // --- listening preferences ---
+
+    @Test
+    fun `setDefaultPlaybackSpeed updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.defaultPlaybackSpeed.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setDefaultPlaybackSpeed(1.5f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.5f, fakeListeningPreferencesStore.defaultPlaybackSpeed.first())
+    }
+
+    @Test
+    fun `setSkipIntervalSeconds updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.skipIntervalSeconds.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setSkipIntervalSeconds(15)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(15, fakeListeningPreferencesStore.skipIntervalSeconds.first())
+    }
+
+    @Test
+    fun `setRewindOnResumeSeconds updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.rewindOnResumeSeconds.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setRewindOnResumeSeconds(10)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(10, fakeListeningPreferencesStore.rewindOnResumeSeconds.first())
+    }
 }
