@@ -196,25 +196,62 @@ internal object ContinuousStyleInjector {
 
 
     /**
-     * JS that calls `window.RiffleChapter.onHeightMeasured` with the chapter's CSS-pixel
-     * scroll height once fonts have settled. A `fired` guard prevents the double-call that
-     * would otherwise occur when both `document.fonts.ready` and the 500 ms safety timeout
-     * resolve — on modern Chrome both always fire, and a second `onHeightMeasured` can cause
-     * a spurious layout change or scrollBy in the parent [ContinuousReaderView].
+     * JS that reports the chapter's CSS-pixel content height to
+     * `window.RiffleChapter.onHeightMeasured`, and KEEPS reporting whenever the height changes.
+     *
+     * A single measurement is fragile: if it lands before the final reflow (late web-font swap,
+     * image decode, ReadiumCSS type-scale settling) the WebView's height is locked too short,
+     * which clips the last line of the chapter and makes content jump when the sliding window
+     * shifts using the stale height. Instead we:
+     *
+     *  - Measure the *document* height (`documentElement.scrollHeight`, maxed with body and the
+     *    offset heights) so the root's page-margin padding and any bottom margin are included —
+     *    `document.body.scrollHeight` alone omits the `:root` padding ReadiumCSS adds in scroll
+     *    mode, leaving the chapter short.
+     *  - Convert CSS px → device px via `window.devicePixelRatio` before reporting. The parent sizes
+     *    `WebView.layoutParams.height` (device px) directly from this value, so without the
+     *    conversion a chapter measured at e.g. 2602 CSS px on a 2.625-density screen would get a
+     *    2602-device-px view — only ~38% of its true height — clipping the rest of the chapter.
+     *  - Re-report on every later layout change via a [ResizeObserver] (plus a couple of delayed
+     *    safety re-measures), de-duplicated so a stable height reports exactly once. The parent
+     *    [ContinuousReaderView] compensates scroll for height changes above the viewport, so late
+     *    growth never shifts the line being read.
      */
     val HEIGHT_MEASUREMENT_JS = """
         (function() {
-            var fired = false;
-            function measure() {
-                if (fired) return;
-                fired = true;
-                var h = document.body.scrollHeight;
-                if (h > 0) window.RiffleChapter.onHeightMeasured(h);
+            if (window.__riffleMeasureWired) return;
+            window.__riffleMeasureWired = true;
+            function currentHeight() {
+                var de = document.documentElement;
+                var b = document.body;
+                var cssH = Math.max(
+                    de ? de.scrollHeight : 0,
+                    de ? de.offsetHeight : 0,
+                    b ? b.scrollHeight : 0,
+                    b ? b.offsetHeight : 0
+                );
+                // Report device px so the parent can use it as WebView.layoutParams.height directly.
+                return Math.ceil(cssH * (window.devicePixelRatio || 1));
+            }
+            var last = -1;
+            function report() {
+                var h = currentHeight();
+                if (h > 0 && h !== last) {
+                    last = h;
+                    window.RiffleChapter.onHeightMeasured(h);
+                }
+            }
+            report();
+            if (window.ResizeObserver) {
+                var ro = new ResizeObserver(function() { report(); });
+                ro.observe(document.documentElement);
+                if (document.body) ro.observe(document.body);
             }
             if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(function() { requestAnimationFrame(measure); });
+                document.fonts.ready.then(function() { requestAnimationFrame(report); });
             }
-            setTimeout(measure, 500);
+            setTimeout(report, 300);
+            setTimeout(report, 1000);
         })();
     """.trimIndent()
 

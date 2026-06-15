@@ -263,10 +263,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 //   ch0 growing pushes ch1+ down; compensate to keep ch1 in place.
                 // Never compensate for a growing ch0 we're still scrolled within — that would
                 // fire a spurious forward jump and immediately re-trigger a backward shift.
+                // Applies to BOTH the first real measurement (wasPlaceholder) and any later
+                // re-measure: a chapter can grow after first paint (late font swap, image decode,
+                // type-scale settle), and uncompensated growth of an above-viewport ch0 would jump
+                // the line being read.
                 // Suppressed while initial scroll is pending: the deferred scrollTo below
                 // computes the correct position from real heights and fires once; a premature
                 // scrollBy here would shift the viewport before that calculation runs.
-                if (pendingInitialScroll == null && wasPlaceholder && i == 0 && (delta < 0 || scrollY >= oldHeight)) {
+                if (pendingInitialScroll == null && i == 0 && delta != 0 && (delta < 0 || scrollY >= oldHeight)) {
                     scrollBy(0, delta)
                 }
 
@@ -300,11 +304,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
             if (i >= 0) {
-                val wasPlaceholder = measuredHeights[i] == placeholder
                 val delta = measuredPx - measuredHeights[i]
                 measuredHeights[i] = measuredPx
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
-                if (wasPlaceholder) scrollBy(0, delta)
+                // A prepended chapter is above the viewport, so any height change (the first real
+                // measurement replacing the placeholder, or a later reflow re-measure) must be
+                // compensated to keep the content the user is reading visually anchored.
+                if (delta != 0) scrollBy(0, delta)
             }
         }
         wv.onPageFinished = {
