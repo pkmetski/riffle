@@ -7,157 +7,178 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * Continuous mode injects the SAME ReadiumCSS Scroll/Paginated mode uses, driven by the
+ * `--USER__*` settings attribute on `<html>`. These tests pin the attribute that
+ * [FormattingPreferencesMapper] -> Readium's UserProperties would produce for the same prefs, plus
+ * the stylesheet-link injection structure.
+ */
 class ContinuousStyleInjectorTest {
 
-    private fun css(prefs: FormattingPreferences): String =
-        ContinuousStyleInjector.buildStyleInjectionJs(prefs)
+    private fun attr(prefs: FormattingPreferences): String =
+        ContinuousStyleInjector.buildHtmlStyleAttr(prefs)
+
+    // ── html style attribute (--USER__*) ────────────────────────────────────────
 
     @Test
-    fun `output injects a style element with id _riffle_user`() {
-        val js = css(FormattingPreferences())
-        assertTrue(js.contains("_riffle_user"))
-        assertTrue(js.contains("createElement('style')"))
-        assertTrue(js.contains("s.textContent"))
+    fun `always scrolled and advanced (publisher styles off)`() {
+        val s = attr(FormattingPreferences())
+        assertTrue(s.contains("--USER__view: readium-scroll-on !important;"))
+        assertTrue(s.contains("--USER__advancedSettings: readium-advanced-on !important;"))
     }
 
     @Test
-    fun `default prefs — font-size 1rem on html`() {
-        val js = css(FormattingPreferences())
-        assertTrue("fontSize 1.0rem", js.contains("font-size:1.0rem!important"))
+    fun `default font size is 100 percent`() {
+        assertTrue(attr(FormattingPreferences()).contains("--USER__fontSize: 100% !important;"))
     }
 
     @Test
-    fun `non-default fontSize reflected in CSS`() {
-        val js = css(FormattingPreferences(fontSize = 1.5f))
-        assertTrue(js.contains("font-size:1.5rem!important"))
+    fun `non-default font size in percent`() {
+        assertTrue(attr(FormattingPreferences(fontSize = 1.5f)).contains("--USER__fontSize: 150% !important;"))
     }
 
     @Test
-    fun `default lineSpacing applied to body and paragraph elements`() {
-        val js = css(FormattingPreferences())
-        assertTrue("line-height on body", js.contains("line-height:1.2!important"))
+    fun `default page margins emitted as readium double`() {
+        assertTrue(attr(FormattingPreferences()).contains("--USER__pageMargins: 1.0 !important;"))
     }
 
     @Test
-    fun `non-default lineSpacing set`() {
-        val js = css(FormattingPreferences(lineSpacing = 1.6f))
-        assertTrue(js.contains("line-height:1.6!important"))
+    fun `justify on maps to textAlign justify`() {
+        val s = attr(FormattingPreferences(justifyText = true))
+        assertTrue(s.contains("--USER__textAlign: justify !important;"))
     }
 
     @Test
-    fun `justifyText true — text-align justify`() {
-        val js = css(FormattingPreferences(justifyText = true))
-        assertTrue(js.contains("text-align:justify!important"))
-        assertFalse(js.contains("text-align:left!important"))
+    fun `justify off maps to textAlign start (matches Readium default)`() {
+        val s = attr(FormattingPreferences(justifyText = false))
+        assertTrue(s.contains("--USER__textAlign: start !important;"))
     }
 
     @Test
-    fun `justifyText false (default) — text-align left overrides EPUB justify`() {
-        val js = css(FormattingPreferences(justifyText = false))
-        assertTrue(js.contains("text-align:left!important"))
+    fun `default line height is omitted (null-gated like the mapper)`() {
+        assertFalse(attr(FormattingPreferences()).contains("--USER__lineHeight"))
     }
 
     @Test
-    fun `default margins — padding applied`() {
-        val js = css(FormattingPreferences())
-        // margins=1.0 → paddingPct = (1.0*6).toInt() = 6
-        assertTrue(js.contains("padding-left:6%!important"))
-        assertTrue(js.contains("padding-right:6%!important"))
+    fun `non-default line height emitted`() {
+        // Float→Double widening (1.6f.toDouble()) yields 1.6000000238…, exactly as Readium's
+        // Scroll mode emits it (same mapper path), so match on the 1.6 prefix.
+        assertTrue(attr(FormattingPreferences(lineSpacing = 1.6f)).contains("--USER__lineHeight: 1.6"))
+    }
+
+    // ── font family ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `Serif (default) emits no font override — publisher font, matching Readium null mapping`() {
+        val s = attr(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
+        assertFalse("no font override", s.contains("--USER__fontOverride"))
+        assertFalse("no font family", s.contains("--USER__fontFamily"))
     }
 
     @Test
-    fun `text-size-adjust 100 percent — prevents Chrome font inflation`() {
-        val js = css(FormattingPreferences())
-        assertTrue(js.contains("-webkit-text-size-adjust:100%!important"))
-        assertTrue(js.contains("text-size-adjust:100%!important"))
+    fun `SansSerif sets fontOverride and quoted family`() {
+        val s = attr(FormattingPreferences(fontFamily = ReaderFontFamily.SansSerif))
+        assertTrue(s.contains("--USER__fontOverride: readium-font-on !important;"))
+        assertTrue(s.contains("--USER__fontFamily: \"sans-serif\" !important;"))
     }
 
     @Test
-    fun `paragraph elements reset to 1rem to strip EPUB per-element font-size overrides`() {
-        val js = css(FormattingPreferences())
-        // Mirrors ReadiumCSS advanced-mode: p,li,dd,div{font-size:1rem!important}
-        assertTrue("p,li,dd,div block present", js.contains("p,li,dd,div{"))
-        assertTrue("1rem reset present", js.contains("font-size:1rem!important"))
+    fun `Monospace sets quoted family`() {
+        assertTrue(attr(FormattingPreferences(fontFamily = ReaderFontFamily.Monospace))
+            .contains("--USER__fontFamily: \"monospace\" !important;"))
     }
 
     @Test
-    fun `Serif (default) emits no font-family override — matches Readium null mapping`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
-        // FormattingPreferencesMapper maps Serif → null: Readium leaves --USER__fontFamily unset,
-        // so the publisher's own font (or the system serif fallback) renders. Continuous mode must
-        // likewise NOT force a font for Serif, or it would override the EPUB's font and diverge
-        // from Scroll/Paginated mode (the "fonts differ between views" bug).
-        assertFalse("no font-family override on Serif", js.contains("font-family:"))
-        assertFalse("no Georgia override", js.contains("Georgia"))
+    fun `Literata sets quoted family`() {
+        assertTrue(attr(FormattingPreferences(fontFamily = ReaderFontFamily.Literata))
+            .contains("--USER__fontFamily: \"Literata\" !important;"))
+    }
+
+    // ── theme / appearance ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `Light theme — no appearance flag`() {
+        assertFalse(attr(FormattingPreferences(theme = ReaderTheme.Light)).contains("--USER__appearance"))
     }
 
     @Test
-    fun `SansSerif uses generic sans-serif — matches Readium mapping`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.SansSerif))
-        assertTrue(js.contains("font-family:sans-serif"))
+    fun `Dark theme — night appearance, no explicit text colour`() {
+        val s = attr(FormattingPreferences(theme = ReaderTheme.Dark))
+        assertTrue(s.contains("--USER__appearance: readium-night-on !important;"))
+        assertFalse(s.contains("--USER__textColor"))
     }
 
     @Test
-    fun `Monospace uses generic monospace — matches Readium mapping`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Monospace))
-        assertTrue(js.contains("font-family:monospace"))
-        assertFalse("no Courier override", js.contains("Courier"))
+    fun `DarkDim theme — night appearance plus dim grey text colour`() {
+        val s = attr(FormattingPreferences(theme = ReaderTheme.DarkDim))
+        assertTrue(s.contains("--USER__appearance: readium-night-on !important;"))
+        assertTrue(s.contains("--USER__textColor: #AAAAAA !important;"))
     }
 
     @Test
-    fun `Literata injects font-face and uses Literata family`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Literata))
-        assertTrue("@font-face for Literata", js.contains("font-family:Literata"))
-        assertTrue("ttf url present", js.contains("Literata-Regular.ttf"))
+    fun `Sepia theme — sepia appearance`() {
+        assertTrue(attr(FormattingPreferences(theme = ReaderTheme.Sepia))
+            .contains("--USER__appearance: readium-sepia-on !important;"))
+    }
+
+    // ── HTML injection structure ────────────────────────────────────────────────
+
+    private val sampleHtml =
+        "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>t</title></head><body><p>hi</p></body></html>"
+
+    @Test
+    fun `injectInto adds before and after ReadiumCSS links`() {
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())
+        assertTrue(out.contains("readium/readium-css/ReadiumCSS-before.css"))
+        assertTrue(out.contains("readium/readium-css/ReadiumCSS-after.css"))
     }
 
     @Test
-    fun `Merriweather injects font-face and uses Merriweather family`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Merriweather))
-        assertTrue("@font-face for Merriweather", js.contains("font-family:Merriweather"))
-        assertTrue("ttf url present", js.contains("Merriweather-Regular.ttf"))
+    fun `injectInto puts before-css after head open and after-css before head close`() {
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())
+        val before = out.indexOf("ReadiumCSS-before.css")
+        val after = out.indexOf("ReadiumCSS-after.css")
+        val headClose = out.indexOf("</head>")
+        assertTrue("before precedes after", before < after)
+        assertTrue("after precedes </head>", after < headClose)
     }
 
     @Test
-    fun `OpenDyslexic injects font-face and uses OpenDyslexic family`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.OpenDyslexic))
-        assertTrue("@font-face for OpenDyslexic", js.contains("font-family:OpenDyslexic"))
-        assertTrue("otf url present", js.contains("OpenDyslexic-Regular.otf"))
+    fun `injectInto adds the user style attribute onto html`() {
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences(fontSize = 1.5f))
+        assertTrue(out.contains("<html"))
+        assertTrue(out.contains("style="))
+        assertTrue(out.contains("--USER__fontSize: 150% !important;"))
     }
 
     @Test
-    fun `Serif does not inject font-face declarations`() {
-        val js = css(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
-        assertFalse("no @font-face for Serif", js.contains("@font-face"))
+    fun `injectInto includes bundled font-face declarations`() {
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())
+        assertTrue(out.contains("@font-face"))
+        assertTrue(out.contains("Literata-Regular.ttf"))
+        assertTrue(out.contains("OpenDyslexic-Regular.otf"))
     }
 
     @Test
-    fun `Dark theme — black background and white text`() {
-        val js = css(FormattingPreferences(theme = ReaderTheme.Dark))
-        assertTrue(js.contains("background-color:#000000!important"))
-        assertTrue(js.contains("color:#FEFEFE!important"))
+    fun `injectInto adds default-css only when chapter has no author styles`() {
+        val withStyles = "<html><head><style>p{}</style></head><body></body></html>"
+        val without = "<html><head><title>t</title></head><body></body></html>"
+        assertFalse(ContinuousStyleInjector.injectInto(withStyles, FormattingPreferences())
+            .contains("ReadiumCSS-default.css"))
+        assertTrue(ContinuousStyleInjector.injectInto(without, FormattingPreferences())
+            .contains("ReadiumCSS-default.css"))
     }
 
-    @Test
-    fun `DarkDim theme — black background and dim grey text`() {
-        val js = css(FormattingPreferences(theme = ReaderTheme.DarkDim))
-        assertTrue(js.contains("background-color:#000000!important"))
-        assertTrue(js.contains("color:#AAAAAA!important"))
-    }
+    // ── live preference-change JS ───────────────────────────────────────────────
 
     @Test
-    fun `Sepia theme — sepia background and dark text`() {
-        val js = css(FormattingPreferences(theme = ReaderTheme.Sepia))
-        assertTrue(js.contains("background-color:#FAF4E8!important"))
-        assertTrue(js.contains("color:#121212!important"))
+    fun `buildStyleInjectionJs sets the documentElement style attribute`() {
+        val js = ContinuousStyleInjector.buildStyleInjectionJs(FormattingPreferences(fontSize = 1.5f))
+        assertTrue(js.contains("document.documentElement.setAttribute('style'"))
+        assertTrue(js.contains("--USER__fontSize: 150% !important;"))
     }
 
-    @Test
-    fun `Light theme — no background or text colour override`() {
-        val js = css(FormattingPreferences(theme = ReaderTheme.Light))
-        assertFalse("no bg override on Light", js.contains("background-color:"))
-        assertFalse("no fg override on Light", js.contains("color:#"))
-    }
+    // ── highlight helpers (unchanged) ───────────────────────────────────────────
 
     @Test
     fun `highlightTextJs escapes single quotes in text`() {

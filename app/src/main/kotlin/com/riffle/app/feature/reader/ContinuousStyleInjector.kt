@@ -1,146 +1,199 @@
 package com.riffle.app.feature.reader
 
+import androidx.compose.ui.graphics.toArgb
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderTheme
 
+/**
+ * Produces the CSS injection for Continuous-mode chapters.
+ *
+ * Continuous mode renders each chapter in its own [ChapterWebView] from the raw EPUB HTML, so it
+ * does NOT go through Readium's navigator. To keep Continuous mode pixel-identical to Scroll and
+ * Paginated mode, we inject the *exact same ReadiumCSS* Readium itself injects:
+ *
+ *   1. `<link>` to `ReadiumCSS-before.css` at the start of `<head>` (+ a `ReadiumCSS-default.css`
+ *      link when the chapter has no author styles, matching Readium's CSS06 ordering rule).
+ *   2. `<link>` to `ReadiumCSS-after.css` before `</head>`, plus our bundled `@font-face` rules.
+ *   3. A `style="--USER__…: … !important; …"` attribute on `<html>` carrying the user-settings
+ *      CSS variables and the `readium-*-on` flags — computed exactly as Readium's
+ *      `EpubSettings`/`UserProperties.toCss()` does for the same preferences.
+ *
+ * Because the actual styling is then performed by the very same ReadiumCSS stylesheets that Scroll
+ * mode uses, heading sizes (type scale), font switching, line-height compensation, page margins,
+ * justification and theme colours all match Scroll mode by construction — there is no hand-rolled
+ * CSS left to drift. The CSS files and bundled fonts are served from Android assets by
+ * [ChapterWebView.shouldInterceptRequest] under the `readium/readium-css/` and `readium/fonts/`
+ * paths on the `readium_package` virtual host.
+ */
 internal object ContinuousStyleInjector {
 
+    /** Virtual-host base for the bundled ReadiumCSS stylesheets (served from assets). */
+    private const val CSS_BASE = "https://readium_package/readium/readium-css"
+
+    /** Virtual-host base for the app's bundled font files (served from assets). */
+    private const val FONT_BASE = "https://readium_package/readium/fonts"
+
+    /** ReaderThemePalette.DARK_DIM_TEXT as a ReadiumCSS hex colour (matches FormattingPreferencesMapper). */
+    private val DARK_DIM_TEXT_HEX: String = String.format("#%06X", 0xFFFFFF and DARK_DIM_TEXT.toArgb())
+
     /**
-     * Produces JS that injects a `<style id="_riffle_user">` element with real CSS properties
-     * derived from [prefs]. Unlike the `--USER__*` Readium CSS-variable approach, this works
-     * without ReadiumCSS being loaded — ChapterWebViews serve raw EPUB HTML and do not have
-     * Readium's stylesheet present.
+     * Builds the value of the `style` attribute injected onto `<html>` — the `--USER__*` CSS
+     * variables plus `readium-*-on` flags. Mirrors Readium's `EpubSettings.update()` →
+     * `UserProperties.toCss()` for our [FormattingPreferencesMapper] mapping, so Continuous mode
+     * resolves identically to Scroll/Paginated mode.
      *
-     * Colours mirror [ReaderThemePalette]; keep in sync if the palette values change.
-     * Font-size is set on `html` so EPUB content that uses `em`/`rem` scales correctly.
-     * Margins are expressed as body padding (percent of viewport width).
-     * All rules carry `!important` to beat typical publisher CSS specificity.
+     * Continuous mode is always scrolled (`readium-scroll-on`) and always runs in advanced mode
+     * (`readium-advanced-on`, i.e. publisherStyles=false) — the same as our Scroll-mode config.
+     */
+    fun buildHtmlStyleAttr(prefs: FormattingPreferences): String {
+        val props = LinkedHashMap<String, String>()
+
+        // View: always scrolled in Continuous mode.
+        props["--USER__view"] = "readium-scroll-on"
+
+        // Page margins (Readium passes the raw Double via putCss → Double.toString()).
+        props["--USER__pageMargins"] = prefs.margins.toDouble().toString()
+
+        // Appearance + DarkDim text colour (mirrors FormattingPreferencesMapper).
+        when (prefs.theme) {
+            ReaderTheme.Dark, ReaderTheme.DarkDim -> props["--USER__appearance"] = "readium-night-on"
+            ReaderTheme.Sepia -> props["--USER__appearance"] = "readium-sepia-on"
+            ReaderTheme.Light, ReaderTheme.Auto -> { /* no appearance flag */ }
+        }
+        if (prefs.theme == ReaderTheme.DarkDim) {
+            props["--USER__textColor"] = DARK_DIM_TEXT_HEX
+        }
+
+        // Font family: Serif maps to null (no override → publisher/system font, exactly like
+        // Readium). Other families set --USER__fontFamily + the readium-font-on flag.
+        val fontStack = fontFamilyStack(prefs.fontFamily)
+        if (fontStack != null) {
+            props["--USER__fontOverride"] = "readium-font-on"
+            props["--USER__fontFamily"] = fontStack.joinToString(", ") { "\"$it\"" }
+        }
+
+        // Font size as a percentage (Length.Percent → value*100, max 2 fraction digits).
+        props["--USER__fontSize"] = percentCss(prefs.fontSize)
+
+        // Advanced settings: Continuous always runs with publisherStyles off (advanced on).
+        props["--USER__advancedSettings"] = "readium-advanced-on"
+
+        // Text alignment mirrors FormattingPreferencesMapper: justify, else start.
+        props["--USER__textAlign"] = if (prefs.justifyText) "justify" else "start"
+
+        // Line height only when the user moved it off the default (mirrors the mapper's null-gating).
+        if (prefs.lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING) {
+            props["--USER__lineHeight"] = prefs.lineSpacing.toDouble().toString()
+        }
+
+        return props.entries.joinToString(" ") { "${it.key}: ${it.value} !important;" }
+    }
+
+    /**
+     * The font stack for [family], or null when no override should be emitted (Serif → publisher
+     * font). Mirrors Readium's `resolveFontStack`: our app registers Literata/Merriweather/
+     * OpenDyslexic with no alternates, so each resolves to a single-entry stack — identical to
+     * what Scroll mode produces.
+     */
+    private fun fontFamilyStack(family: ReaderFontFamily): List<String>? = when (family) {
+        ReaderFontFamily.Serif -> null
+        ReaderFontFamily.SansSerif -> listOf("sans-serif")
+        ReaderFontFamily.Monospace -> listOf("monospace")
+        ReaderFontFamily.Literata -> listOf("Literata")
+        ReaderFontFamily.Merriweather -> listOf("Merriweather")
+        ReaderFontFamily.OpenDyslexic -> listOf("OpenDyslexic")
+    }
+
+    /** Formats [value] (e.g. 1.0, 1.5) as a ReadiumCSS percentage ("100%", "150%"). */
+    private fun percentCss(value: Float): String {
+        val pct = value * 100.0
+        val rounded = Math.round(pct * 100.0) / 100.0
+        return if (rounded % 1.0 == 0.0) "${rounded.toInt()}%" else "$rounded%"
+    }
+
+    /**
+     * `@font-face` declarations for the app's bundled fonts, served from assets at [FONT_BASE].
+     * Injected unconditionally (like Readium's `fontsInjectableCss`) so the chosen
+     * --USER__fontFamily can resolve whichever bundled font the user selects.
+     */
+    private fun bundledFontFaces(): String = buildString {
+        append("@font-face{font-family:Literata;font-style:normal;font-weight:400;")
+        append("src:url('$FONT_BASE/Literata-Regular.ttf') format('truetype');}\n")
+        append("@font-face{font-family:Merriweather;font-style:normal;font-weight:400;")
+        append("src:url('$FONT_BASE/Merriweather-Regular.ttf') format('truetype');}\n")
+        append("@font-face{font-family:OpenDyslexic;font-style:normal;font-weight:400;")
+        append("src:url('$FONT_BASE/OpenDyslexic-Regular.otf') format('opentype');}\n")
+    }
+
+    /**
+     * Injects ReadiumCSS + the user-settings `style` attribute into a raw EPUB chapter [html],
+     * returning the styled HTML. Mirrors Readium's `ReadiumCss.injectHtml`.
+     */
+    fun injectInto(html: String, prefs: FormattingPreferences): String {
+        var out = html
+
+        // 1. Before-CSS (+ default-CSS when the chapter has no author styles) at <head> start.
+        val hasAuthorStyles = html.contains("<link ", ignoreCase = true) ||
+            html.contains(" style=", ignoreCase = true) ||
+            Regex("<style", RegexOption.IGNORE_CASE).containsMatchIn(html)
+        val headOpen = Regex("<head[^>]*>", RegexOption.IGNORE_CASE).find(out)
+        val beforeBlock = buildString {
+            append("\n<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-before.css\"/>\n")
+            // Match Readium's overflow fix so scroll layout behaves identically.
+            append("<style>:root[style], :root { overflow: visible !important; }")
+            append(":root[style] > body, :root > body { overflow: visible !important; }</style>\n")
+            if (!hasAuthorStyles) {
+                append("<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-default.css\"/>\n")
+            }
+        }
+        out = if (headOpen != null) {
+            out.substring(0, headOpen.range.last + 1) + beforeBlock + out.substring(headOpen.range.last + 1)
+        } else {
+            beforeBlock + out
+        }
+
+        // 2. After-CSS + bundled @font-face before </head>.
+        val afterBlock = buildString {
+            append("\n<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-after.css\"/>\n")
+            append("<style type=\"text/css\">\n")
+            append(bundledFontFaces())
+            append("</style>\n")
+        }
+        val headCloseIdx = out.indexOf("</head>", ignoreCase = true)
+        out = if (headCloseIdx >= 0) {
+            out.substring(0, headCloseIdx) + afterBlock + out.substring(headCloseIdx)
+        } else {
+            out + afterBlock
+        }
+
+        // 3. The --USER__ style attribute on <html>.
+        val styleAttr = buildHtmlStyleAttr(prefs).replace("\"", "&quot;")
+        val htmlTag = Regex("<html[^>]*", RegexOption.IGNORE_CASE).find(out)
+        if (htmlTag != null) {
+            val insertAt = htmlTag.range.last + 1
+            out = out.substring(0, insertAt) + " style=\"$styleAttr\"" + out.substring(insertAt)
+        }
+        return out
+    }
+
+    /**
+     * JS that re-applies the user-settings `style` attribute on `<html>` after a live preference
+     * change (no reload), then re-measures. ReadiumCSS reads the `--USER__*` variables and
+     * `readium-*-on` flags straight from this attribute via its `[style*=…]` selectors, so setting
+     * the whole attribute string is enough to re-style without reloading the chapter.
      */
     fun buildStyleInjectionJs(prefs: FormattingPreferences): String {
-        val css = buildCss(prefs)
+        val styleAttr = buildHtmlStyleAttr(prefs)
             .replace("\\", "\\\\")
             .replace("'", "\\'")
-            .replace("\n", " ")
         return """
             (function() {
-                var s = document.getElementById('_riffle_user');
-                if (!s) {
-                    s = document.createElement('style');
-                    s.id = '_riffle_user';
-                    document.head.appendChild(s);
-                }
-                s.textContent = '$css';
+                document.documentElement.setAttribute('style', '$styleAttr');
             })();
         """.trimIndent()
     }
 
-    /**
-     * URL prefix under which we serve the app's bundled fonts from [ChapterWebView].
-     * These paths are intercepted in `shouldInterceptRequest` and served from Android assets.
-     */
-    private const val FONT_BASE = "https://readium_package/readium/fonts"
-
-    internal fun buildCss(prefs: FormattingPreferences): String {
-        // Theme colours — mirrors ReaderThemePalette (keep in sync).
-        val bg = when (prefs.theme) {
-            ReaderTheme.Dark, ReaderTheme.DarkDim -> "#000000"
-            ReaderTheme.Sepia -> "#FAF4E8"
-            else -> null
-        }
-        val fg = when (prefs.theme) {
-            ReaderTheme.Dark -> "#FEFEFE"
-            ReaderTheme.DarkDim -> "#AAAAAA"
-            ReaderTheme.Sepia -> "#121212"
-            else -> null
-        }
-
-        // Font family mapping mirrors FormattingPreferencesMapper.toEpubPreferences():
-        //   Serif      → null (Readium default): NO font-family override, so the publisher's
-        //                own font (or the system serif fallback) renders — exactly what Readium
-        //                does in advanced mode when --USER__fontFamily is unset. Forcing
-        //                `serif` here diverged from Scroll/Paginated mode whenever the EPUB
-        //                declared its own body font, which is the "fonts differ" the user saw.
-        //   SansSerif  → FontFamily("sans-serif") → system generic `sans-serif`
-        //   Monospace  → FontFamily("monospace")  → system generic `monospace`
-        //   Literata/Merriweather/OpenDyslexic → app-bundled fonts served from assets via
-        //     shouldInterceptRequest at FONT_BASE; declared here with @font-face.
-        val fontFamily: String? = when (prefs.fontFamily) {
-            ReaderFontFamily.Serif -> null
-            ReaderFontFamily.SansSerif -> "sans-serif"
-            ReaderFontFamily.Monospace -> "monospace"
-            ReaderFontFamily.Literata -> "Literata, serif"
-            ReaderFontFamily.Merriweather -> "Merriweather, serif"
-            ReaderFontFamily.OpenDyslexic -> "OpenDyslexic, sans-serif"
-        }
-
-        // Include @font-face declarations for bundled fonts whenever one of them is active.
-        // The font files are served by ChapterWebView.shouldInterceptRequest from Android assets.
-        val needsBundledFonts = prefs.fontFamily in setOf(
-            ReaderFontFamily.Literata,
-            ReaderFontFamily.Merriweather,
-            ReaderFontFamily.OpenDyslexic,
-        )
-
-        val textAlign = if (prefs.justifyText) "justify" else "left"
-        // margins: 1.0 = normal ≈ 6 % per side (matches Readium's --RS__pageGutter × pageMargins).
-        val paddingPct = (prefs.margins * 6f).toInt().coerceIn(1, 14)
-
-        return buildString {
-            // @font-face declarations must come before any rule that references the font name.
-            if (needsBundledFonts) {
-                append("@font-face{font-family:Literata;font-style:normal;font-weight:400;")
-                append("src:url('$FONT_BASE/Literata-Regular.ttf') format('truetype');}\n")
-                append("@font-face{font-family:Merriweather;font-style:normal;font-weight:400;")
-                append("src:url('$FONT_BASE/Merriweather-Regular.ttf') format('truetype');}\n")
-                append("@font-face{font-family:OpenDyslexic;font-style:normal;font-weight:400;")
-                append("src:url('$FONT_BASE/OpenDyslexic-Regular.otf') format('opentype');}\n")
-            }
-
-            // ReadiumCSS sets -webkit-text-size-adjust:100% on :root to prevent Chrome's
-            // "font inflation" feature from boosting small text on mobile. Without it,
-            // Continuous mode can render text at a different size than Scroll/Paginated mode.
-            append("html{")
-            if (bg != null) append("background-color:$bg!important;")
-            if (fg != null) append("color:$fg!important;")
-            // font-size on html so em/rem-based EPUB content scales with the user preference.
-            append("font-size:${prefs.fontSize}rem!important;")
-            append("-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;")
-            append("}\n")
-
-            append("body{")
-            if (bg != null) append("background-color:$bg!important;")
-            if (fg != null) append("color:$fg!important;")
-            if (fontFamily != null) append("font-family:$fontFamily!important;")
-            append("line-height:${prefs.lineSpacing}!important;")
-            append("text-align:$textAlign!important;")
-            append("padding-left:${paddingPct}%!important;padding-right:${paddingPct}%!important;")
-            // Zero out all body margin/vertical-padding so the default 8px browser body margin
-            // doesn't appear as a visible gap at every chapter boundary in the stacked layout.
-            append("margin:0!important;padding-top:0!important;padding-bottom:0!important;")
-            append("}\n")
-
-            // ReadiumCSS advanced mode (publisherStyles=false) sets font-size:1rem!important on
-            // content elements to strip EPUB per-element font-size overrides. Without this,
-            // EPUB rules like `p { font-size: 0.9em }` make paragraphs smaller in Continuous
-            // mode than in Scroll/Paginated mode where ReadiumCSS overrides them.
-            append("p,li,dd,div{")
-            append("font-size:1rem!important;")
-            append("}\n")
-
-            // Push text-align and line-height down to the elements publishers commonly override.
-            append("p,li,blockquote,dd,dt,figcaption{")
-            append("text-align:$textAlign!important;")
-            append("line-height:${prefs.lineSpacing}!important;")
-            append("}\n")
-
-            if (fontFamily != null) {
-                append("p,li,blockquote,dd,dt,h1,h2,h3,h4,h5,h6,figcaption{")
-                append("font-family:$fontFamily!important;")
-                append("}\n")
-            }
-        }
-    }
 
     /**
      * JS that calls `window.RiffleChapter.onHeightMeasured` with the chapter's CSS-pixel

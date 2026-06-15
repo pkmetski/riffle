@@ -79,10 +79,20 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 val path = uri.path?.trimStart('/').takeIf { !it.isNullOrEmpty() }
                     ?: return super.shouldInterceptRequest(view, request)
 
-                // App-bundled fonts (Literata, Merriweather, OpenDyslexic) are served from
-                // Android assets at readium_package/readium/fonts/<name>. The @font-face
-                // declarations in buildCss() reference these URLs so the WebView loads them
-                // at the same origin as the EPUB content — no cross-origin block.
+                // Readium assets served from the merged Android assets so Continuous-mode chapters
+                // use the exact same stylesheets and fonts as the Readium navigator:
+                //   readium/readium-css/<file>  → assets/readium/readium-css/<file>
+                //   readium/fonts/<file>        → assets/fonts/<file>  (app's own bundled fonts)
+                // Both are referenced from injected <link>/@font-face at the readium_package origin,
+                // so the WebView loads them same-origin with the EPUB content (no cross-origin block).
+                if (path.startsWith("readium/readium-css/")) {
+                    val assetName = "readium/readium-css/${path.removePrefix("readium/readium-css/")}"
+                    return try {
+                        WebResourceResponse(mimeTypeForPath(path), null, context.assets.open(assetName))
+                    } catch (_: Exception) {
+                        super.shouldInterceptRequest(view, request)
+                    }
+                }
                 if (path.startsWith("readium/fonts/")) {
                     val assetName = "fonts/${path.removePrefix("readium/fonts/")}"
                     val mimeType = mimeTypeForPath(path)
@@ -103,10 +113,12 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 val mimeType = mimeTypeForPath(path)
                 val encoding = if (mimeType.startsWith("text/") || mimeType.contains("xml") || mimeType.contains("javascript")) "utf-8" else null
 
-                // For HTML/XHTML chapter resources, inject the user-preference CSS into <head>
-                // so the very first paint is already styled, eliminating flash of unstyled content.
+                // For HTML/XHTML chapter resources, inject the same ReadiumCSS stylesheets + the
+                // --USER__ settings attribute Readium injects, so the first paint is already styled
+                // (no FOUC) AND renders identically to Scroll/Paginated mode.
                 val finalBytes = if (mimeType == "text/html" || mimeType == "application/xhtml+xml") {
-                    injectCssIntoHtml(bytes, ContinuousStyleInjector.buildCss(currentPrefs))
+                    ContinuousStyleInjector.injectInto(String(bytes, Charsets.UTF_8), currentPrefs)
+                        .toByteArray(Charsets.UTF_8)
                 } else {
                     bytes
                 }
@@ -153,23 +165,6 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             post { this@ChapterWebView.onTap?.invoke() }
         }
     }
-}
-
-/**
- * Inserts [css] as a `<style id="_riffle_user">` tag just before `</head>` in [htmlBytes].
- * If no `</head>` is found (malformed EPUB HTML), prepends the tag at the start of the document.
- * Returns a new byte array — the input is not mutated.
- */
-private fun injectCssIntoHtml(htmlBytes: ByteArray, css: String): ByteArray {
-    val html = String(htmlBytes, Charsets.UTF_8)
-    val styleTag = "<style id='_riffle_user'>$css</style>"
-    val insertAt = html.indexOf("</head>").takeIf { it >= 0 }
-        ?: html.indexOf("</HEAD>").takeIf { it >= 0 }
-    val injected = if (insertAt != null)
-        html.substring(0, insertAt) + styleTag + html.substring(insertAt)
-    else
-        styleTag + html
-    return injected.toByteArray(Charsets.UTF_8)
 }
 
 private fun mimeTypeForPath(path: String): String = when {
