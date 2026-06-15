@@ -921,6 +921,9 @@ private fun EpubNavigatorView(
     val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
+    val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
+    val serverBaseUrl = remember { mutableStateOf<String?>(null) }
+    val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -1561,6 +1564,21 @@ private fun EpubNavigatorView(
     // after rotation (isLandscape changes while fragmentRef is null, so the call would be lost).
     LaunchedEffect(formattingPrefs, isLandscape, fragmentRef.value) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout))
+        continuousViewRef.value?.updatePreferences(formattingPrefs)
+    }
+
+    // In Continuous mode, the fragment is zero-height (HTTP server keeper only).
+    // Once it emits its first locator, extract the HTTP base URL for ContinuousReaderView.
+    LaunchedEffect(fragmentRef.value, isContinuous) {
+        if (!isContinuous) return@LaunchedEffect
+        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        fragment.currentLocator.collect { locator ->
+            if (serverBaseUrl.value != null) return@collect
+            val absoluteUrl = fragment.evaluateJavascript("window.location.href") ?: return@collect
+            val relHref = locator.href.toString().trimStart('/')
+            val base = absoluteUrl.trim('"').removeSuffix("/$relHref")
+            serverBaseUrl.value = base
+        }
     }
 
     DisposableEffect(tapListener) {
@@ -1596,7 +1614,7 @@ private fun EpubNavigatorView(
     // touch even when scroll position hasn't moved, which broke the previous staleness check.
     LaunchedEffect(fragmentRef.value, currentFormattingPrefs.orientation) {
         val fragment = fragmentRef.value ?: return@LaunchedEffect
-        if (currentFormattingPrefs.orientation == ReaderOrientation.Horizontal) return@LaunchedEffect
+        if (currentFormattingPrefs.orientation != ReaderOrientation.Vertical) return@LaunchedEffect
         while (true) {
             val container = containerRef.value
             if (container != null) {
@@ -1666,6 +1684,15 @@ private fun EpubNavigatorView(
                 }.also { containerRef.value = it }
             },
             update = { container ->
+                // In Continuous mode the fragment is kept alive only to maintain the HTTP server.
+                // Collapse it to zero-height so ContinuousReaderView takes the full screen.
+                if (formattingPrefs.orientation == ReaderOrientation.Continuous) {
+                    container.layoutParams = container.layoutParams?.apply { height = 0 }
+                    container.visibility = View.INVISIBLE
+                } else {
+                    container.layoutParams = container.layoutParams?.apply { height = FrameLayout.LayoutParams.MATCH_PARENT }
+                    container.visibility = View.VISIBLE
+                }
                 container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
 
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
@@ -1791,6 +1818,40 @@ private fun EpubNavigatorView(
             },
             modifier = readerModifier,
         )
+        val base = serverBaseUrl.value
+        if (isContinuous && base != null) {
+            val chapters = state.publication.readingOrder.map { link ->
+                ContinuousReaderView.ChapterEntry(link, "$base/${link.href.toString().trimStart('/')}")
+            }
+            AndroidView(
+                factory = { ctx ->
+                    ContinuousReaderView(ctx).also { view ->
+                        continuousViewRef.value = view
+                        view.onPositionChanged = { href, progression ->
+                            val locator = Locator.fromJSON(
+                                org.json.JSONObject()
+                                    .put("href", href)
+                                    .put("type", "application/xhtml+xml")
+                                    .put("locations", org.json.JSONObject().put("progression", progression.toDouble()))
+                            )
+                            if (locator != null) onPositionChanged(locator)
+                        }
+                    }
+                },
+                update = { _ -> },
+                modifier = readerModifier,
+            )
+            LaunchedEffect(base, chapters) {
+                val view = continuousViewRef.value ?: return@LaunchedEffect
+                val initialLocator = latestLocator() ?: state.initialLocator ?: return@LaunchedEffect
+                view.initialize(
+                    chapters = chapters,
+                    prefs = formattingPrefs,
+                    initialHref = initialLocator.href.toString(),
+                    initialProgression = initialLocator.locations.progression?.toFloat() ?: 0f,
+                )
+            }
+        }
         AnimatedVisibility(
             visible = pullActive,
             enter = slideInVertically(initialOffsetY = { if (pullForward) it else -it }) + fadeIn(),
