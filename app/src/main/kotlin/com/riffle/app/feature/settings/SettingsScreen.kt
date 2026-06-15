@@ -228,7 +228,7 @@ fun SettingsScreen(
                 HorizontalDivider()
                 ListItem(
                     modifier = Modifier.clickable { showFormattingPanel = true },
-                    headlineContent = { Text("Reading settings") },
+                    headlineContent = { Text("Formatting") },
                     supportingContent = { Text("Font, theme, spacing, screen wake, volume keys") },
                     trailingContent = {
                         TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
