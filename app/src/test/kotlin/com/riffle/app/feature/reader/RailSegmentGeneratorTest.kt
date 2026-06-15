@@ -400,6 +400,25 @@ class RailSegmentGeneratorTest {
         assertEquals(1f, weighted[1].weight, 0f)
     }
 
+    @Test
+    fun `segment spanning multiple spine resources accumulates all their positions`() {
+        // "Part I" TOC entry at part01.xhtml (1 pos) owns c01.xhtml (20) + c02.xhtml (30)
+        // until the next TOC entry "Part II" at part02.xhtml.
+        val segs = listOf(
+            RailSegment("Part I", "part01.xhtml"),
+            RailSegment("Part II", "part02.xhtml"),
+        )
+        val weighted = weightSegmentsByChapterLength(
+            segs,
+            spineHrefs = listOf("part01.xhtml", "c01.xhtml", "c02.xhtml", "part02.xhtml", "c03.xhtml"),
+            positionCounts = listOf(1, 20, 30, 1, 15),
+        )
+        // Part I spans indices 0..2 (part01+c01+c02 = 1+20+30 = 51)
+        assertEquals(51f, weighted[0].weight, 0f)
+        // Part II spans indices 3..4 (part02+c03 = 1+15 = 16)
+        assertEquals(16f, weighted[1].weight, 0f)
+    }
+
     // ── railSegmentBounds ─────────────────────────────────────────────────
 
     @Test

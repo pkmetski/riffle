@@ -79,16 +79,27 @@ fun weightSegmentsByChapterLength(
     if (segments.isEmpty()) return segments
     val hrefToSpine: Map<String, Int> = spineHrefs.withIndex().associate { (i, h) -> h to i }
     val spineForSegment: List<Int?> = segments.map { hrefToSpine[it.href.substringBefore('#')] }
-    val countsBySpine: Map<Int, Int> = spineForSegment
+    // When multiple TOC entries point to the same spine resource (sub-sections of one file),
+    // split that file's positions equally across them. When a TOC entry is the sole entry for
+    // its resource, accumulate positions for ALL spine resources up to the next TOC entry —
+    // this handles EPUBs where chapter files have no individual TOC entries and are grouped
+    // under a part/section title page.
+    val sharedCounts: Map<Int, Int> = spineForSegment
         .filterNotNull()
         .groupingBy { it }
         .eachCount()
     return segments.mapIndexed { i, seg ->
-        val spine = spineForSegment[i]
-        val length = spine?.let { positionCounts.getOrNull(it) } ?: 0
-        val share = if (spine != null && length > 0) {
-            length.toFloat() / (countsBySpine[spine] ?: 1)
-        } else 1f
+        val spineStart = spineForSegment[i] ?: return@mapIndexed seg.copy(weight = 1f)
+        val share = if ((sharedCounts[spineStart] ?: 1) > 1) {
+            val length = positionCounts.getOrElse(spineStart) { 0 }
+            if (length > 0) length.toFloat() / (sharedCounts[spineStart] ?: 1) else 1f
+        } else {
+            val nextSpineIdx = ((i + 1)..segments.lastIndex)
+                .firstNotNullOfOrNull { j -> spineForSegment[j] }
+                ?: spineHrefs.size
+            val total = (spineStart until nextSpineIdx).sumOf { positionCounts.getOrElse(it) { 0 } }
+            if (total > 0) total.toFloat() else 1f
+        }
         seg.copy(weight = share)
     }
 }

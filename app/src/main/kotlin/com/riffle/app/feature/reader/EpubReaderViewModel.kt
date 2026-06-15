@@ -1103,7 +1103,8 @@ class EpubReaderViewModel @Inject constructor(
             }
             val spineHrefs = pub.readingOrder.map { it.url().toString() }
             val positionCounts = positions.map { it.size }
-            weightSegmentsByChapterLength(base, spineHrefs, positionCounts)
+            val weighted = weightSegmentsByChapterLength(base, spineHrefs, positionCounts)
+            weighted
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -1193,9 +1194,16 @@ class EpubReaderViewModel @Inject constructor(
             return@combine TimeRemaining.Exact(sec)
         }
 
-        val chapterProg = snap.chapterProgression ?: return@combine null
-        val chapterWeight = segments.getOrNull(segIdx)?.weight?.toFloat() ?: return@combine null
-        val sec = ((1f - chapterProg) * chapterWeight * speed).toLong().coerceAtLeast(0L)
+        val chapterWeight = segments.getOrNull(segIdx)?.weight ?: return@combine null
+        val totalProg = snap.totalProgression ?: return@combine null
+        // Compute where this chapter ends as a fraction of the total book. This works even when a
+        // TOC entry spans multiple spine resources (e.g. a "Part I" title page followed by several
+        // chapter files) because totalProgression increases monotonically across all resources.
+        var weightBefore = 0f
+        for (k in 0 until segIdx) weightBefore += segments[k].weight
+        val chapterEndFrac = (weightBefore + chapterWeight) / totalPositions
+        val remainingFrac = (chapterEndFrac - totalProg).coerceAtLeast(0f)
+        val sec = (remainingFrac * totalPositions * speed).toLong().coerceAtLeast(0L)
         TimeRemaining.Estimated(sec)
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
