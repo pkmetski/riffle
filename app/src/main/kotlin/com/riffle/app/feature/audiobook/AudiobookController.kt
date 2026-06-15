@@ -158,6 +158,7 @@ open class AudiobookController @Inject constructor(
 
     open fun setSleepTimer(mode: SleepTimerMode) {
         timerJob?.cancel()
+        timerJob = null
         _sleepTimer.value = mode
         if (mode is SleepTimerMode.CountDown) {
             timerJob = scope.launch {

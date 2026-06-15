@@ -538,7 +538,7 @@ class AudiobookPlayerViewModel(
                 val idx = state.currentChapterIndex
                 if (eocPrevChapterIndex >= 0
                     && idx > eocPrevChapterIndex
-                    && controller.sleepTimer.value is SleepTimerMode.EndOfChapter
+                    && state.sleepTimer is SleepTimerMode.EndOfChapter
                 ) {
                     controller.triggerSleepNow()
                 }
