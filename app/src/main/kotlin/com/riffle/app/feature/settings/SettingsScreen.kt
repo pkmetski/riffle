@@ -54,6 +54,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
@@ -257,6 +259,10 @@ fun SettingsScreen(
                                             if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                             else Modifier
                                         )
+                                        .semantics {
+                                            contentDescription = color.name.lowercase()
+                                                .replaceFirstChar { it.uppercase() } + " highlight"
+                                        }
                                         .clickable { viewModel.updateReadaloudHighlightColor(color) },
                                 )
                             }

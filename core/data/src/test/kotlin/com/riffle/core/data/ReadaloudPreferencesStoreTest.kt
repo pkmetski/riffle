@@ -1,6 +1,8 @@
 package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,5 +43,16 @@ class ReadaloudPreferencesStoreTest {
             store.update(ReadaloudPreferences(highlightColor = color))
             assertEquals(color, store.preferences.first().highlightColor)
         }
+    }
+
+    @Test
+    fun `unrecognized stored value falls back to BLUE`() = testScope.runTest {
+        val rawStore = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = { tmp.newFile("readaloud_prefs_fallback.preferences_pb") },
+        )
+        rawStore.edit { it[stringPreferencesKey("highlight_color")] = "NOT_A_COLOR" }
+        val store = ReadaloudPreferencesStoreImpl(rawStore)
+        assertEquals(ReadaloudHighlightColor.BLUE, store.preferences.first().highlightColor)
     }
 }

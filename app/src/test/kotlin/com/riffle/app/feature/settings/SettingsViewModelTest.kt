@@ -530,10 +530,15 @@ class SettingsViewModelTest {
     // --- readaloud highlight color ---
 
     @Test
-    fun `updateReadaloudHighlightColor persists new color to store`() = runTest {
+    fun `updateReadaloudHighlightColor persists new color to store and updates StateFlow`() = runTest {
         val vm = makeViewModel()
+        val emitted = mutableListOf<ReadaloudHighlightColor>()
+        val job = launch { vm.readaloudPreferences.collect { emitted.add(it.highlightColor) } }
+        testDispatcher.scheduler.advanceUntilIdle()
         vm.updateReadaloudHighlightColor(ReadaloudHighlightColor.YELLOW)
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(ReadaloudHighlightColor.YELLOW, readaloudPrefsFlow.value.highlightColor)
+        assertEquals(ReadaloudHighlightColor.YELLOW, emitted.last())
+        job.cancel()
     }
 }
