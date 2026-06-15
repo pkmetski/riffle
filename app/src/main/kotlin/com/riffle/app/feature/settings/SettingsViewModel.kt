@@ -16,6 +16,7 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.orderLibraries
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
@@ -52,6 +53,7 @@ class SettingsViewModel @Inject constructor(
     private val orderStore: LibraryOrderPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
+    private val listeningPreferencesStore: ListeningPreferencesStore,
     private val appThemeStore: AppThemeStore,
     private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
@@ -116,6 +118,15 @@ class SettingsViewModel @Inject constructor(
 
     val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val defaultPlaybackSpeed: StateFlow<Float> = listeningPreferencesStore.defaultPlaybackSpeed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
+
+    val skipIntervalSeconds: StateFlow<Int> = listeningPreferencesStore.skipIntervalSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+
+    val rewindOnResumeSeconds: StateFlow<Int> = listeningPreferencesStore.rewindOnResumeSeconds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
 
     val appTheme: StateFlow<AppTheme> = appThemeStore.appTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppTheme.System)
@@ -235,6 +246,18 @@ class SettingsViewModel @Inject constructor(
 
     fun setInvertVolumeKeys(value: Boolean) {
         viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
+    }
+
+    fun setDefaultPlaybackSpeed(speed: Float) {
+        viewModelScope.launch { listeningPreferencesStore.setDefaultPlaybackSpeed(speed) }
+    }
+
+    fun setSkipIntervalSeconds(seconds: Int) {
+        viewModelScope.launch { listeningPreferencesStore.setSkipIntervalSeconds(seconds) }
+    }
+
+    fun setRewindOnResumeSeconds(seconds: Int) {
+        viewModelScope.launch { listeningPreferencesStore.setRewindOnResumeSeconds(seconds) }
     }
 
     fun removeServer(serverId: String) {
