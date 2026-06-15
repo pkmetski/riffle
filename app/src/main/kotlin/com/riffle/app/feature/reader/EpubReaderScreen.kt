@@ -700,6 +700,13 @@ private fun ReadingProgressLabels(
     }
     val pctText = "%.1f%%".format(totalProgress.coerceIn(0f, 1f) * 100f)
     val textColor = readerThemeLabelColor(readerTheme)
+    val isExact = chapterTimeRemaining is TimeRemaining.Exact &&
+        bookTimeRemaining is TimeRemaining.Exact
+    val timeColor = if (isExact) MaterialTheme.colorScheme.tertiary else textColor
+    val chapterTimeText = chapterTimeRemaining?.let { formatChapterRemaining(it) }
+    val bookTimeText = bookTimeRemaining?.let { formatBookRemaining(it) }
+    val showLeftColumn = showCountAndPercent || (showReadingTimeEstimate && chapterTimeText != null)
+    val showRightColumn = showCountAndPercent || (showReadingTimeEstimate && bookTimeText != null)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -707,73 +714,81 @@ private fun ReadingProgressLabels(
             .testTag("reading_progress_labels"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showCountAndPercent) {
-            Text(
-                text = chapterCountText,
-                style = MaterialTheme.typography.labelSmall,
-                color = textColor,
-                textAlign = TextAlign.Start,
-                maxLines = 1,
+        if (showLeftColumn) {
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("reading_progress_chapter")
-                    .semantics { contentDescription = "Reading progress: $chapterCountText" },
-            )
-        }
-        val showCenterColumn = showChapterName || showReadingTimeEstimate
-        if (showCenterColumn) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.weight(2f),
+                    .testTag("reading_progress_chapter"),
             ) {
-                if (showChapterName) {
+                if (showCountAndPercent) {
                     Text(
-                        text = activeChapterTitle,
+                        text = chapterCountText,
                         style = MaterialTheme.typography.labelSmall,
                         color = textColor,
-                        textAlign = TextAlign.Center,
-                        fontStyle = FontStyle.Italic,
+                        textAlign = TextAlign.Start,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .testTag("reading_progress_chapter_name")
-                            .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
+                        modifier = Modifier.semantics {
+                            contentDescription = "Reading progress: $chapterCountText"
+                        },
                     )
                 }
-                if (showReadingTimeEstimate) {
-                    val parts = listOfNotNull(
-                        chapterTimeRemaining?.let { formatChapterRemaining(it) },
-                        bookTimeRemaining?.let { formatBookRemaining(it) },
+                if (showReadingTimeEstimate && chapterTimeText != null) {
+                    Text(
+                        text = chapterTimeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = timeColor,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("reading_progress_chapter_time"),
                     )
-                    if (parts.isNotEmpty()) {
-                        val pillText = parts.joinToString(" · ")
-                        val isExact = chapterTimeRemaining is TimeRemaining.Exact &&
-                            bookTimeRemaining is TimeRemaining.Exact
-                        val pillColor = if (isExact) MaterialTheme.colorScheme.tertiary
-                                        else textColor
-                        Text(
-                            text = pillText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = pillColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
             }
         }
-        if (showCountAndPercent) {
+        if (showChapterName) {
             Text(
-                text = pctText,
+                text = activeChapterTitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = textColor,
-                textAlign = TextAlign.End,
+                textAlign = TextAlign.Center,
+                fontStyle = FontStyle.Italic,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(2f)
+                    .testTag("reading_progress_chapter_name")
+                    .semantics { contentDescription = "Current chapter: $activeChapterTitle" },
+            )
+        }
+        if (showRightColumn) {
+            Column(
+                horizontalAlignment = Alignment.End,
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("reading_progress_percent")
-                    .semantics { contentDescription = "Total progress: $pctText" },
-            )
+                    .testTag("reading_progress_percent"),
+            ) {
+                if (showCountAndPercent) {
+                    Text(
+                        text = pctText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Total progress: $pctText"
+                        },
+                    )
+                }
+                if (showReadingTimeEstimate && bookTimeText != null) {
+                    Text(
+                        text = bookTimeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = timeColor,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("reading_progress_book_time"),
+                    )
+                }
+            }
         }
     }
 }
