@@ -249,7 +249,7 @@ fun SettingsScreen(
                 HorizontalDivider()
                 ListItem(
                     modifier = Modifier.clickable { showListeningPanel = true },
-                    headlineContent = { Text("Listening settings") },
+                    headlineContent = { Text("Preferences") },
                     supportingContent = { Text("Speed, skip interval, rewind on resume") },
                     trailingContent = {
                         TextButton(onClick = { showListeningPanel = true }) { Text("Edit") }
