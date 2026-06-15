@@ -185,7 +185,20 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 val wasPlaceholder = measuredHeights[i] == placeholder
                 val oldHeight = measuredHeights[i]
                 val delta = measuredPx - oldHeight
-                measuredHeights[i] = measuredPx
+                // For non-first chapters whose placeholder shrank to the real height: clamp
+                // scrollY to the new content boundary BEFORE updating layoutParams. Without this,
+                // NestedScrollView runs its own implicit clamp in the layout pass — which fires
+                // invisibly and snaps the user back, appearing as the page "fighting" the scroll.
+                // Short EPUB chapters (separator pages, chapter-number dividers) hit this path
+                // regularly because their real height (e.g. 100 px) is far less than the 3×
+                // screen placeholder.
+                if (wasPlaceholder && i != 0 && delta < 0) {
+                    measuredHeights[i] = measuredPx
+                    val newMaxScroll = (measuredHeights.sum() - height).coerceAtLeast(0)
+                    if (scrollY > newMaxScroll) scrollTo(0, newMaxScroll)
+                } else {
+                    measuredHeights[i] = measuredPx
+                }
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
                 // Compensate scroll for ch0 only when:
                 // - chapter shrank (delta < 0): visible content above would shift without compensation
