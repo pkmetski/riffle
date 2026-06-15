@@ -392,7 +392,8 @@ fun EpubReaderScreen(
                 )
         if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (readaloudOpen) {
                     // Reference the reader-theme palette so the player matches the chapter-rail
