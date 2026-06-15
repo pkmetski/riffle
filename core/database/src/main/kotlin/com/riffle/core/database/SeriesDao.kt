@@ -30,15 +30,15 @@ interface SeriesDao {
               SELECT DISTINCT si2.seriesId
               FROM series_items si2
               INNER JOIN library_items li2 ON li2.serverId = si2.serverId AND li2.id = si2.itemId
-              WHERE li2.libraryId = :libraryId AND li2.readingProgress = 1.0
+              WHERE li2.libraryId = :libraryId AND li2.readingProgress >= 0.99
           )
           AND si.seriesId NOT IN (
               SELECT DISTINCT si5.seriesId
               FROM series_items si5
               INNER JOIN library_items li5 ON li5.serverId = si5.serverId AND li5.id = si5.itemId
               WHERE li5.libraryId = :libraryId
-                AND li5.readingProgress > 0.0
-                AND li5.readingProgress < 1.0
+                AND li5.readingProgress >= 0.05
+                AND li5.readingProgress < 0.99
           )
           AND si.sequenceOrder = (
               SELECT MIN(si3.sequenceOrder)
@@ -46,7 +46,7 @@ interface SeriesDao {
               INNER JOIN library_items li3 ON li3.serverId = si3.serverId AND li3.id = si3.itemId
               WHERE si3.seriesId = si.seriesId
                 AND li3.libraryId = :libraryId
-                AND li3.readingProgress < 1.0
+                AND li3.readingProgress < 0.99
           )
         ORDER BY COALESCE(
             (
@@ -55,7 +55,7 @@ interface SeriesDao {
                 INNER JOIN library_items li4 ON li4.serverId = si4.serverId AND li4.id = si4.itemId
                 WHERE si4.seriesId = si.seriesId
                   AND li4.libraryId = :libraryId
-                  AND li4.readingProgress = 1.0
+                  AND li4.readingProgress >= 0.99
             ), 0
         ) DESC
     """)
