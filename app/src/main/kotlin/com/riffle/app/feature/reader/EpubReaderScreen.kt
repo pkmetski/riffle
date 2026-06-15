@@ -734,7 +734,7 @@ private fun ReadingProgressLabels(
                     )
                     if (parts.isNotEmpty()) {
                         val pillText = parts.joinToString(" · ")
-                        val isExact = chapterTimeRemaining is TimeRemaining.Exact ||
+                        val isExact = chapterTimeRemaining is TimeRemaining.Exact &&
                             bookTimeRemaining is TimeRemaining.Exact
                         val pillColor = if (isExact) MaterialTheme.colorScheme.tertiary
                                         else textColor
@@ -742,6 +742,8 @@ private fun ReadingProgressLabels(
                             text = pillText,
                             style = MaterialTheme.typography.labelSmall,
                             color = pillColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .background(
                                     color = pillColor.copy(alpha = 0.12f),
