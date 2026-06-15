@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
+import android.widget.OverScroller
 import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
 import org.readium.r2.shared.publication.Link
@@ -72,8 +73,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Measured content heights for each WebView in the current window. */
     private val measuredHeights = mutableListOf<Int>()
 
-    /** Placeholder height (3× screen height) used before real measurement arrives. */
-    private val placeholderHeight: Int get() = resources.displayMetrics.heightPixels * 3
+    /**
+     * Placeholder height used before real measurement arrives. One screen height keeps the
+     * forward-shift trigger working (the last chapter needs enough height to scroll into) while
+     * minimising the phantom space the user can fling into before the real height is known.
+     * Three screen heights caused a large snap-back when short chapters (e.g. chapter-number
+     * divider pages) measured far below the placeholder.
+     */
+    private val placeholderHeight: Int get() = resources.displayMetrics.heightPixels
 
     init {
         addView(container, LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -185,17 +192,26 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 val wasPlaceholder = measuredHeights[i] == placeholder
                 val oldHeight = measuredHeights[i]
                 val delta = measuredPx - oldHeight
-                // For non-first chapters whose placeholder shrank to the real height: clamp
-                // scrollY to the new content boundary BEFORE updating layoutParams. Without this,
-                // NestedScrollView runs its own implicit clamp in the layout pass — which fires
-                // invisibly and snaps the user back, appearing as the page "fighting" the scroll.
+                // For non-first chapters whose placeholder shrank to the real height: abort the
+                // fling and clamp scrollY to the new content boundary BEFORE updating layoutParams.
+                //
+                // Without aborting the fling: NestedScrollView.computeScroll() continues running
+                // the OverScroller between our scrollTo() call and the layout pass, overwriting
+                // the clamped position before onLayout's scrollTo() re-clamps with the new height
+                // — the user sees the same "snap back" because the fling won the race.
+                //
+                // Without the pre-layout scrollTo: the implicit clamp in NestedScrollView.onLayout
+                // fires invisibly with no smooth-scroll, producing a jarring jump.
+                //
                 // Short EPUB chapters (separator pages, chapter-number dividers) hit this path
-                // regularly because their real height (e.g. 100 px) is far less than the 3×
-                // screen placeholder.
+                // regularly — their real height (e.g. 100 px) is far less than the placeholder.
                 if (wasPlaceholder && i != 0 && delta < 0) {
                     measuredHeights[i] = measuredPx
                     val newMaxScroll = (measuredHeights.sum() - height).coerceAtLeast(0)
-                    if (scrollY > newMaxScroll) scrollTo(0, newMaxScroll)
+                    if (scrollY > newMaxScroll) {
+                        abortFling()
+                        scrollTo(0, newMaxScroll)
+                    }
                 } else {
                     measuredHeights[i] = measuredPx
                 }
@@ -218,7 +234,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         webViews.add(wv)
         measuredHeights.add(placeholder)
         container.addView(wv, LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
-        wv.loadChapter(entry.link.href.toString(), entry.url)
+        wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
 
     private fun prependChapter(index: Int) {
@@ -245,7 +261,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         measuredHeights.add(0, placeholder)
         container.addView(wv, 0, LinearLayout.LayoutParams(MATCH_PARENT, placeholder))
         scrollBy(0, placeholder)
-        wv.loadChapter(entry.link.href.toString(), entry.url)
+        wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
 
     private fun removeTop() {
@@ -334,5 +350,23 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private fun webViewIndexFor(href: String): Int? {
         val i = webViews.indexOfFirst { it.chapterHref == href }
         return if (i >= 0) i else null
+    }
+
+    /**
+     * Abort any in-progress fling animation so that the OverScroller stops updating scrollY.
+     * Called before a programmatic scrollTo when a chapter measures shorter than its placeholder:
+     * without this, computeScroll() would continue advancing the fling position between our
+     * scrollTo() call and the layout pass, overwriting the clamped scroll before onLayout's own
+     * clamp fires with the updated (smaller) content height.
+     *
+     * NestedScrollView does not expose a public abort-fling API, so we reach the mScroller field
+     * via reflection. The field name is stable across all AOSP/AndroidX versions.
+     */
+    private fun abortFling() {
+        try {
+            val f = NestedScrollView::class.java.getDeclaredField("mScroller")
+            f.isAccessible = true
+            (f.get(this) as? OverScroller)?.abortAnimation()
+        } catch (_: Exception) {}
     }
 }

@@ -35,7 +35,7 @@ internal object ContinuousStyleInjector {
         """.trimIndent()
     }
 
-    private fun buildCss(prefs: FormattingPreferences): String {
+    internal fun buildCss(prefs: FormattingPreferences): String {
         // Theme colours — mirrors ReaderThemePalette (keep in sync).
         val bg = when (prefs.theme) {
             ReaderTheme.Dark, ReaderTheme.DarkDim -> "#000000"
@@ -54,7 +54,7 @@ internal object ContinuousStyleInjector {
         // leaving Serif as null would render the wrong font entirely.
         // Readium-bundled custom fonts (Literata, Merriweather, OpenDyslexic) are not available
         // in ChapterWebViews since those fonts are served by the Readium HTTP server, not ours.
-        val fontFamily = when (prefs.fontFamily) {
+        val fontFamily: String = when (prefs.fontFamily) {
             ReaderFontFamily.Serif -> "Georgia, 'Times New Roman', serif"
             ReaderFontFamily.SansSerif -> "Arial, Helvetica, sans-serif"
             ReaderFontFamily.Monospace -> "'Courier New', Courier, monospace"
@@ -77,7 +77,7 @@ internal object ContinuousStyleInjector {
             append("}\n")
 
             append("body{")
-            if (fontFamily != null) append("font-family:$fontFamily!important;")
+            append("font-family:$fontFamily!important;")
             append("line-height:${prefs.lineSpacing}!important;")
             append("text-align:$textAlign!important;")
             append("padding-left:${paddingPct}%!important;padding-right:${paddingPct}%!important;")
@@ -92,11 +92,9 @@ internal object ContinuousStyleInjector {
             append("line-height:${prefs.lineSpacing}!important;")
             append("}\n")
 
-            if (fontFamily != null) {
-                append("p,li,blockquote,dd,dt,h1,h2,h3,h4,h5,h6,figcaption{")
-                append("font-family:$fontFamily!important;")
-                append("}\n")
-            }
+            append("p,li,blockquote,dd,dt,h1,h2,h3,h4,h5,h6,figcaption{")
+            append("font-family:$fontFamily!important;")
+            append("}\n")
         }
     }
 

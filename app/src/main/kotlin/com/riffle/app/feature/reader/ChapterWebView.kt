@@ -7,6 +7,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.runBlocking
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.Url
@@ -41,6 +42,14 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         private set
 
     private var publication: Publication? = null
+
+    /**
+     * Formatting preferences used to inject CSS at request-intercept time (background thread).
+     * @Volatile ensures the main-thread write in [loadChapter] is visible to the WebCore thread
+     * that calls [shouldInterceptRequest] immediately after [loadUrl].
+     */
+    @Volatile
+    private var currentPrefs: FormattingPreferences = FormattingPreferences()
 
     /** Must be called before [loadChapter] so [shouldInterceptRequest] can serve EPUB resources. */
     fun setPublication(pub: Publication) {
@@ -83,16 +92,32 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                     ?: return super.shouldInterceptRequest(view, request)
                 val mimeType = mimeTypeForPath(path)
                 val encoding = if (mimeType.startsWith("text/") || mimeType.contains("xml") || mimeType.contains("javascript")) "utf-8" else null
-                return WebResourceResponse(mimeType, encoding, bytes.inputStream())
+
+                // For HTML/XHTML chapter resources, inject the user-preference CSS into <head>
+                // so the very first paint is already styled. Without this, evaluateJavascript
+                // style injection races with page rendering: the WebView paints with the EPUB's
+                // own CSS first, then reflowing ~50 ms later when the JS fires — producing a
+                // flash of unstyled content and apparent inconsistency between chapters that
+                // happen to load at different speeds.
+                val finalBytes = if (mimeType == "text/html" || mimeType == "application/xhtml+xml") {
+                    injectCssIntoHtml(bytes, ContinuousStyleInjector.buildCss(currentPrefs))
+                } else {
+                    bytes
+                }
+                return WebResourceResponse(mimeType, encoding, finalBytes.inputStream())
             }
         }
     }
 
     /**
-     * Load [chapterUrl] (absolute URL from Readium's HTTP server) for chapter at [href].
+     * Load [chapterUrl] for chapter at [href], styled with [prefs].
+     * [prefs] is stored before [loadUrl] so [shouldInterceptRequest] (which runs on the WebCore
+     * thread immediately after) can inject the CSS directly into the HTML bytes, eliminating the
+     * flash of unstyled content that occurs when styles are injected via JS after page load.
      */
-    fun loadChapter(href: String, chapterUrl: String) {
+    fun loadChapter(href: String, chapterUrl: String, prefs: FormattingPreferences) {
         chapterHref = href
+        currentPrefs = prefs
         loadUrl(chapterUrl)
     }
 
@@ -122,6 +147,23 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             post { this@ChapterWebView.onTap?.invoke() }
         }
     }
+}
+
+/**
+ * Inserts [css] as a `<style id="_riffle_user">` tag just before `</head>` in [htmlBytes].
+ * If no `</head>` is found (malformed EPUB HTML), prepends the tag at the start of the document.
+ * Returns a new byte array — the input is not mutated.
+ */
+private fun injectCssIntoHtml(htmlBytes: ByteArray, css: String): ByteArray {
+    val html = String(htmlBytes, Charsets.UTF_8)
+    val styleTag = "<style id='_riffle_user'>$css</style>"
+    val insertAt = html.indexOf("</head>").takeIf { it >= 0 }
+        ?: html.indexOf("</HEAD>").takeIf { it >= 0 }
+    val injected = if (insertAt != null)
+        html.substring(0, insertAt) + styleTag + html.substring(insertAt)
+    else
+        styleTag + html
+    return injected.toByteArray(Charsets.UTF_8)
 }
 
 private fun mimeTypeForPath(path: String): String = when {
