@@ -1395,6 +1395,7 @@ private fun EpubNavigatorView(
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
     LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
+        if (isContinuous) return@LaunchedEffect  // handled in the Continuous-mode effect below
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -1429,6 +1430,33 @@ private fun EpubNavigatorView(
             fragment.applyDecorations(listOf(decoration), group = "readaloud")
         }
         hasReadaloudDecoration.value = true
+    }
+
+    // ---- Continuous-mode readaloud highlight -----------------------------------------------
+    // In Continuous mode, decoration APIs are not used. Instead we call ContinuousReaderView's
+    // highlightInChapter / clearHighlightInChapter directly, keyed by the 12-char text prefix
+    // (same heuristic as autoFollowSnapJs). prevHighlightHref tracks the chapter that currently
+    // carries the mark so we can clear it if the narrated chapter changes or playback stops.
+    val prevHighlightHref = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes) {
+        if (!isContinuous) return@LaunchedEffect
+        val view = continuousViewRef.value ?: return@LaunchedEffect
+        val ref = activeFragmentRef
+        if (ref == null) {
+            // Readaloud stopped — clear the last known chapter's highlight
+            prevHighlightHref.value?.let { view.clearHighlightInChapter(it) }
+            prevHighlightHref.value = null
+            return@LaunchedEffect
+        }
+        val chapterHref = ref.substringBefore('#')
+        val sid = ref.substringAfter('#', "")
+        val quote = sentenceQuotes[sid]
+        val highlightText = quote?.highlight?.take(12) ?: return@LaunchedEffect
+        // If the chapter changed, clear the previous chapter's mark
+        val prev = prevHighlightHref.value
+        if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
+        prevHighlightHref.value = chapterHref
+        view.highlightInChapter(chapterHref, highlightText)
     }
 
     // ---- Persisted highlights (ADR 0024) ---------------------------------------------------
@@ -1481,6 +1509,7 @@ private fun EpubNavigatorView(
     // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
     // no longer reflows it, so opening it doesn't move the narrated sentence's column.
     LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
+        if (isContinuous) return@LaunchedEffect
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
