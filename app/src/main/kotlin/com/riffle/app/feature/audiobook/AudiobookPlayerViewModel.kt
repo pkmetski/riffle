@@ -448,17 +448,6 @@ class AudiobookPlayerViewModel(
             // sets an explicit position that must not be reset.
             if (startAtSec < 0.0) {
                 resumeSec = audiobookStartSec(resumeSec, session.timeline.durationSec)
-                // Rewind-on-resume also applies to reopening an in-progress book — the open path plays
-                // directly (below), bypassing togglePlayPause's resume rewind, so without this the setting
-                // would only ever fire on an in-player pause→play and look broken on the far more common
-                // "left and came back" resume. Read straight from the store (not the eager StateFlow, which
-                // may not have emitted yet this early in init). Guarded on resumeSec > 0 so a fresh/replayed
-                // book at the start has nothing to rewind; coerceAtLeast(0) holds the floor. Skipped for the
-                // readaloud→audiobook handoff branch, which must continue seamlessly from the hand-off point.
-                val rewindOnResume = listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble()
-                if (rewindOnResume > 0.0 && resumeSec > 0.0) {
-                    resumeSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
-                }
             }
             // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
             // overriding the store/server resume (which can lag the just-left listen position). Persist
@@ -525,13 +514,31 @@ class AudiobookPlayerViewModel(
                 facts = buildAudiobookFacts(session.timeline.durationSec, item.genres),
                 description = item.description,
             )
+            // Rewind-on-resume also applies to reopening an in-progress book — the open path plays
+            // directly (below), bypassing togglePlayPause's resume rewind, so without this the setting
+            // would only ever fire on an in-player pause→play and look broken on the far more common
+            // "left and came back" resume. It shifts only where playback *starts*, NOT the resume floor
+            // (reconciledResumeSec stays at the true resumeSec below): seeding prepare() lower must not let
+            // the follow-loop / close-persist guards write that lower point back, or repeated open→close
+            // cycles would creep the saved position backward by rewindOnResume each time. Re-hearing the
+            // rewound seconds simply doesn't advance saved progress until playback passes the real resume.
+            // Read straight from the store (not the eager StateFlow, which may not have emitted this early in
+            // init). Guarded on resumeSec > 0 (a fresh/replayed book at the start has nothing to rewind) and
+            // on the normal-open branch only — the handoff must continue seamlessly from its hand-off point.
+            var playbackStartSec = resumeSec
+            if (startAtSec < 0.0) {
+                val rewindOnResume = listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble()
+                if (rewindOnResume > 0.0 && resumeSec > 0.0) {
+                    playbackStartSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
+                }
+            }
             // Resume at the server-recorded position (last-update-wins resume; ADR 0029) so the
             // audio-led canonical never starts behind.
             controller.prepare(
                 trackUrls = session.trackUrls,
                 spans = session.tracks,
                 durationSec = session.timeline.durationSec,
-                startAtSec = resumeSec,
+                startAtSec = playbackStartSec,
                 localZipFile = session.localZipFile,
                 coverUri = item.coverUrl,
             )

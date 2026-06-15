@@ -112,6 +112,10 @@ class AudiobookPlayerViewModelBookmarkTest {
         this.viewModelScope.cancel()
     }
 
+    // Captures the repo built by the most recent buildViewModel() so a test can read what progress the
+    // VM persisted (saveProgress) — used by the rewind-on-resume drift regression test.
+    private var lastAudiobookRepo: FakeAudiobookRepository? = null
+
     private fun buildViewModel(
         controller: FakeController,
         bookmarkStore: AudiobookBookmarkStore,
@@ -127,9 +131,11 @@ class AudiobookPlayerViewModelBookmarkTest {
             serverCurrentTimeSec = 0.0,
             serverLastUpdate = 0L,
         )
+        val repo = FakeAudiobookRepository(session)
+        lastAudiobookRepo = repo
         return AudiobookPlayerViewModel(
             savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
-            audiobookRepository = FakeAudiobookRepository(session),
+            audiobookRepository = repo,
             audiobookDownloadRepository = NoDownloadRepo,
             bundleAudiobookSource = NoBundleSource,
             libraryRepository = FakeLibraryRepository(),
@@ -397,6 +403,34 @@ class AudiobookPlayerViewModelBookmarkTest {
         vm.clearForTest()
     }
 
+    @Test
+    fun `open-path rewind shifts only playback start, not the persisted resume floor`() = runTest(testDispatcher) {
+        // Regression: the rewind must NOT lower the resume floor, or pausing/closing while still inside the
+        // rewound seconds would persist that lower position — letting repeated open→close cycles creep the
+        // saved position backward by rewindOnResume each time. Resume 540, rewind 10 → playback starts at
+        // 530, but the floor stays 540; pausing at the rewound 530 (below the floor) must persist nothing.
+        val ctrl = FakeController(position = 0.0)
+        val store = MutableListeningPreferencesStore().apply { rewindOnResumeSeconds.value = 10 }
+        val vm = buildViewModel(
+            ctrl,
+            FakeBookmarkStore(),
+            listeningStore = store,
+            positionStore = FakePositionStore(savedSec = 540.0, savedUpdatedAt = fixedNow),
+        )
+        runCurrent()
+        assertEquals(530.0, ctrl.preparedStartAtSec!!, 0.0001) // playback starts at the rewound point
+
+        // Simulate the controller settled at the rewound start and playing, then pause.
+        ctrl.position = 530.0
+        ctrl.state.value = AudiobookController.PlaybackState(isPlaying = true)
+        vm.togglePlayPause() // playing → pause → pushProgressOnStop
+        runCurrent()
+
+        // 530 is below the 540 floor, so no backward progress is written.
+        assertEquals(emptyList<Double>(), lastAudiobookRepo!!.savedProgress)
+        vm.clearForTest()
+    }
+
     // --- fakes ---
 
     private class FakeConnectivityObserver(online: Boolean) : com.riffle.core.domain.ConnectivityObserver {
@@ -429,8 +463,11 @@ class AudiobookPlayerViewModelBookmarkTest {
     }
 
     private class FakeAudiobookRepository(private val session: AudiobookSession) : AudiobookRepository {
+        val savedProgress = mutableListOf<Double>()
         override suspend fun openSession(serverId: String, itemId: String): AudiobookSession = session
-        override suspend fun saveProgress(serverId: String, itemId: String, positionSec: Double, durationSec: Double) {}
+        override suspend fun saveProgress(serverId: String, itemId: String, positionSec: Double, durationSec: Double) {
+            savedProgress.add(positionSec)
+        }
     }
 
     private object NoDownloadRepo : AudiobookDownloadRepository {
