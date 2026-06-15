@@ -1120,15 +1120,30 @@ class EpubReaderViewModel @Inject constructor(
         findActiveSegmentIndex(segments, href, spineHrefs)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    // Cursor position within the rail (0..1). Active segment + within-chapter progression are
-    // mapped through cumulative segment weights so the cursor stays inside the highlighted
-    // (active) segment even when segments have unequal widths.
+    // Cursor position within the rail (0..1). Driven by totalProgression (monotonically
+    // increasing across the whole book) rather than chapterProgression (resets to 0 at each
+    // new spine resource). Using chapterProgression caused the cursor to jump backward every
+    // time a new spine resource loaded within the same segment (e.g. reading SOL 376 → SOL 380
+    // inside a single "Chapter 20" segment). totalProgression is converted to a within-segment
+    // fraction so the cursor stays inside the active segment's bounds.
     val railCursorPosition: StateFlow<Float> = combine(
         activeRailSegmentIndex,
         railSegments,
-        currentLocatorProgression,
-    ) { activeIndex, segments, progression ->
-        weightedRailCursorPosition(activeIndex, segments, progression ?: 0f)
+        currentLocatorTotalProgression,
+    ) { activeIndex, segments, totalProg ->
+        if (totalProg == null || segments.isEmpty()) return@combine 0f
+        val totalWeight = segments.fold(0f) { acc, s -> acc + s.weight }
+        if (totalWeight == 0f) return@combine 0f
+        val i = activeIndex.coerceIn(0, segments.size - 1)
+        var weightBefore = 0f
+        for (k in 0 until i) weightBefore += segments[k].weight
+        val segWeight = (segments.getOrNull(i)?.weight ?: 0f).coerceAtLeast(0f)
+        val withinSeg = if (segWeight > 0f) {
+            ((totalProg * totalWeight - weightBefore) / segWeight).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        weightedRailCursorPosition(i, segments, withinSeg)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     // ---- Reading speed tracking & time-remaining estimates -----------------------------------
