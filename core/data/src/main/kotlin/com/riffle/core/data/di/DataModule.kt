@@ -42,6 +42,7 @@ import com.riffle.core.data.CoverGridDensityStoreImpl
 import com.riffle.core.data.AppThemeStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.WakeLockPreferencesStoreImpl
+import com.riffle.core.data.ReadaloudPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
@@ -76,6 +77,7 @@ import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
 import com.riffle.core.data.StorytellerBundleAudiobookSource
@@ -318,6 +320,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindCoverGridDensityStore(impl: CoverGridDensityStoreImpl): CoverGridDensityStore
+
+    @Binds
+    @Singleton
+    abstract fun bindReadaloudPreferencesStore(impl: ReadaloudPreferencesStoreImpl): ReadaloudPreferencesStore
 
     @Binds
     @Singleton
@@ -653,6 +659,13 @@ abstract class DataModule {
         fun provideDeviceIdDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.deviceIdDataStore
+
+        @Provides
+        @Singleton
+        @ReadaloudPreferencesDataStore
+        fun provideReadaloudPreferencesDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.readaloudPreferencesDataStore
 
         @Provides
         @Singleton
