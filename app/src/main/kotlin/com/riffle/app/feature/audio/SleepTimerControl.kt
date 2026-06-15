@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.audiobook.SleepTimerMode
 import com.riffle.app.feature.audiobook.formatCountdown
 
-private val PRESETS_MINUTES = listOf(15, 30, 45, 60, 90)
+private val PRESETS_MINUTES = listOf(5, 15, 30, 45, 60, 90)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,7 +86,7 @@ fun SleepTimerControl(
                 Text("End of chapter")
             }
 
-            // 3-column preset grid: row 1 = 15/30/45, row 2 = 60/90/(blank).
+            // 3-column preset grid: row 1 = 5/15/30, row 2 = 45/60/90.
             val rowOne = PRESETS_MINUTES.take(3)
             val rowTwo = PRESETS_MINUTES.drop(3)
 
@@ -116,9 +116,7 @@ fun SleepTimerControl(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                // Blank cell to keep alignment.
-                Spacer(Modifier.weight(1f))
-            }
+}
         }
     }
 }
