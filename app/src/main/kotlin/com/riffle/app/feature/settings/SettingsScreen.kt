@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.feature.audio.PlaybackSpeed
 import com.riffle.app.feature.reader.FormattingPanel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.AppTheme
@@ -92,6 +93,9 @@ fun SettingsScreen(
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
     val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
+    val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
+    val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
+    val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
@@ -236,6 +240,26 @@ fun SettingsScreen(
                         TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
                     },
                 )
+                Text(
+                    text = "Listening",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                ListeningSpeedRow(
+                    defaultSpeed = defaultPlaybackSpeed,
+                    onDefaultSpeedChange = { viewModel.setDefaultPlaybackSpeed(it) },
+                )
+                HorizontalDivider()
+                ListeningSkipIntervalRow(
+                    skipIntervalSeconds = skipIntervalSeconds,
+                    onSkipIntervalSecondsChange = { viewModel.setSkipIntervalSeconds(it) },
+                )
+                HorizontalDivider()
+                ListeningRewindRow(
+                    rewindOnResumeSeconds = rewindOnResumeSeconds,
+                    onRewindOnResumeSecondsChange = { viewModel.setRewindOnResumeSeconds(it) },
+                )
                 HorizontalDivider()
 
                 Text(
@@ -378,6 +402,86 @@ private fun AppThemeRow(
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
             ) {
                 Text(label)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListeningSpeedRow(
+    defaultSpeed: Float,
+    onDefaultSpeedChange: (Float) -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text("Default speed") },
+        supportingContent = { Text("Starting speed when opening a book for the first time") },
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        PlaybackSpeed.PRESETS.forEachIndexed { index, speed ->
+            SegmentedButton(
+                selected = speed == defaultSpeed,
+                onClick = { onDefaultSpeedChange(speed) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = PlaybackSpeed.PRESETS.size),
+            ) {
+                Text(PlaybackSpeed.label(speed))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListeningSkipIntervalRow(
+    skipIntervalSeconds: Int,
+    onSkipIntervalSecondsChange: (Int) -> Unit,
+) {
+    val options = listOf(10, 15, 30, 45, 60)
+    ListItem(
+        headlineContent = { Text("Skip interval") },
+        supportingContent = { Text("Seconds the ⏪/⏩ buttons jump") },
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        options.forEachIndexed { index, seconds ->
+            SegmentedButton(
+                selected = seconds == skipIntervalSeconds,
+                onClick = { onSkipIntervalSecondsChange(seconds) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+            ) {
+                Text("${seconds}s")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListeningRewindRow(
+    rewindOnResumeSeconds: Int,
+    onRewindOnResumeSecondsChange: (Int) -> Unit,
+) {
+    val options = listOf(0, 5, 10, 30)
+    ListItem(
+        headlineContent = { Text("Rewind on resume") },
+        supportingContent = { Text("Seconds to rewind when resuming after a pause") },
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        options.forEachIndexed { index, seconds ->
+            SegmentedButton(
+                selected = seconds == rewindOnResumeSeconds,
+                onClick = { onRewindOnResumeSecondsChange(seconds) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+            ) {
+                Text(if (seconds == 0) "Off" else "${seconds}s")
             }
         }
     }
