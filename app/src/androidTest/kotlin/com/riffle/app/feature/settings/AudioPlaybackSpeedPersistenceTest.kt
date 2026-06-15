@@ -90,10 +90,12 @@ class AudioPlaybackSpeedPersistenceTest {
     }
 
     @Test
-    fun savingDefaultSpeed1fRemovesTheRow() = runBlocking {
+    fun savingSpeed1fIsHonoredAndNotDeleted() = runBlocking {
+        // A deliberate 1.0x per-book choice must persist so it survives reopen even when the global
+        // default speed is faster — it must NOT be discarded as if it were the absence of a choice.
         val identity = AudioIdentity("srv-1", "book-del")
         store.save(identity, 1.5f)
         store.save(identity, 1.0f)
-        assertNull(store.load(identity))
+        assertEquals(1.0f, store.load(identity))
     }
 }
