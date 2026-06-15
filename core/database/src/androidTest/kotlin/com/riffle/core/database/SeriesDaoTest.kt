@@ -115,9 +115,10 @@ class SeriesDaoTest {
         assertEquals(listOf("item-2"), result.map { it.id })
     }
 
-    // C2 — partially-read book (0.5 < 1.0) qualifies as the next book; returned at min sequenceOrder
+    // C2 — series with an in-progress book (0 < readingProgress < 1.0) must NOT appear;
+    //      the user is already reading it so it belongs in "In Progress", not "Continue Series"
     @Test
-    fun observeContinueSeriesItems_treatsPartiallyReadBookAsNext() = runTest {
+    fun observeContinueSeriesItems_excludesSeriesWithInProgressBook() = runTest {
         db.libraryItemDao().upsertAll(listOf(
             LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
             LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.5f),
@@ -130,10 +131,10 @@ class SeriesDaoTest {
             SeriesItemEntity("series-A", serverId = "s1", itemId = "item-3", sequenceOrder = 3f),
         ))
 
-        // item-2 has readingProgress = 0.5 which is < 1.0, so it IS the next book
+        // item-2 is in progress → the whole series is excluded
         val result = dao.observeContinueSeriesItems("lib1").first()
 
-        assertEquals(listOf("item-2"), result.map { it.id })
+        assertEquals(emptyList<String>(), result.map { it.id })
     }
 
     // C3 — multiple qualifying series ordered by most-recently-finished sibling DESC
