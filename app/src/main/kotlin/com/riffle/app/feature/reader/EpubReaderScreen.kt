@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -87,6 +88,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.TimeRemaining
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -266,6 +268,16 @@ fun EpubReaderScreen(
         paginated = formattingPrefs.orientation != ReaderOrientation.Vertical,
     )
 
+    // Track the rendered height of the chapter rail overlay so its pixels can be added to the CSS
+    // reserve, preventing Readium from paginating text behind the overlay in paged mode.
+    var railOverlayHeightPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val paginated = formattingPrefs.orientation != ReaderOrientation.Vertical
+    val railReserveCssPx: Int = if (paginated) {
+        (railOverlayHeightPx / density.density).roundToInt()
+    } else 0
+    val totalReserveCssPx: Int = readaloudReservePx + railReserveCssPx
+
     // TopAppBar floats as an overlay so its show/hide never resizes the content area —
     // eliminates the compound flicker that Scaffold's topBar slot caused by reflowing the
     // WebView simultaneously with the system-bar animation.
@@ -324,7 +336,7 @@ fun EpubReaderScreen(
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         readaloudAvailable = readaloudAvailable,
-                        readaloudReservePx = readaloudReservePx,
+                        readaloudReservePx = totalReserveCssPx,
                         readaloudHighlightColor = readaloudHighlightColor,
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
@@ -436,6 +448,7 @@ fun EpubReaderScreen(
                         showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
                         showReadingTimeEstimate = formattingPrefs.showReadingTimeEstimate,
                         readerTheme = formattingPrefs.theme,
+                        modifier = Modifier.onSizeChanged { railOverlayHeightPx = it.height },
                     )
                 }
             }
