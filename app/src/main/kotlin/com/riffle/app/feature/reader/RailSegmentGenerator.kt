@@ -17,11 +17,19 @@ private fun expandIfRedundant(entry: TocEntry, bookTitleNorm: String): List<Rail
         entry.title.isBlank() ||
             (bookTitleNorm.isNotEmpty() && entry.title.normalize() == bookTitleNorm)
         )
-    return if (isRedundantContainer) {
-        entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
-    } else {
-        listOf(RailSegment(entry.title, entry.href))
+    if (isRedundantContainer) {
+        return entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
     }
+    // If this entry's children point to different spine files it's a grouping container
+    // (e.g. "Part I" whose TOC children are actual chapter files). Expand into children so
+    // estimates are per-chapter rather than per-part.
+    val entryBaseHref = entry.href.substringBefore('#')
+    if (entry.children.isNotEmpty() &&
+        entry.children.any { it.href.substringBefore('#') != entryBaseHref }
+    ) {
+        return entry.children.flatMap { expandIfRedundant(it, bookTitleNorm) }
+    }
+    return listOf(RailSegment(entry.title, entry.href))
 }
 
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
