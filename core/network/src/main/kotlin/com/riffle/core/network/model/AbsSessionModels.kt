@@ -6,6 +6,9 @@ import kotlinx.serialization.Serializable
 internal data class AbsEbookProgressRequest(
     val ebookLocation: String,
     val ebookProgress: Float,
+    // Omitted from the JSON when null (encodeDefaults=false), so an ordinary position save sends
+    // only the ebook fields and never disturbs the item's finished/audio state.
+    val isFinished: Boolean? = null,
 )
 
 @Serializable

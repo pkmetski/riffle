@@ -185,7 +185,16 @@ class LibraryItemDetailViewModelTest {
     private val noOpSessionRepository = object : ReadingSessionRepository {
         override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
         override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
-        override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
+        override suspend fun touchOpenTimestamp(itemId: String) = Unit
+    }
+
+    /** Records every (itemId, finished) handed to markFinished so a test can assert the fan-out. */
+    private class RecordingSessionRepository : ReadingSessionRepository {
+        val markFinishedCalls = mutableListOf<Pair<String, Boolean>>()
+        override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult = SyncSessionResult.Success
+        override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult = ProgressSyncCycleResult.InSync
+        override suspend fun markFinished(itemId: String, finished: Boolean) { markFinishedCalls += itemId to finished }
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
@@ -242,6 +251,7 @@ class LibraryItemDetailViewModelTest {
         serverRepository: ServerRepository = noOpServerRepo,
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         downloadManager: DownloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
+        sessionRepository: ReadingSessionRepository = noOpSessionRepository,
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,
         crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
@@ -252,7 +262,7 @@ class LibraryItemDetailViewModelTest {
         tokenStorage = noOpTokenStorage,
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
-        sessionRepository = noOpSessionRepository,
+        sessionRepository = sessionRepository,
         toReadRepository = toReadRepo,
         readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = readaloudAudioRepository,
@@ -276,6 +286,22 @@ class LibraryItemDetailViewModelTest {
             override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) = listOf(link)
             override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
             override suspend fun countForServer(serverId: String) = 1
+        }
+
+    /**
+     * A link repo where the opened item and [allLinks] all share one Storyteller book — models a
+     * readaloud's ebook + audiobook as two coupled ABS items.
+     */
+    private fun linkRepoCoupling(allLinks: List<com.riffle.core.domain.ReadaloudLink>) =
+        object : com.riffle.core.domain.ReadaloudLinkRepository {
+            override fun observeAll() = flowOf(allLinks)
+            override fun observeLinkedAbsItemIds() = flowOf(allLinks.map { it.absLibraryItemId }.toSet())
+            override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) =
+                allLinks.firstOrNull { it.absServerId == absServerId && it.absLibraryItemId == absLibraryItemId }
+            override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
+                allLinks.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+            override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
+            override suspend fun countForServer(serverId: String) = allLinks.size
         }
 
     private fun serverRepoReturning(server: Server) = object : ServerRepository {
@@ -529,6 +555,62 @@ class LibraryItemDetailViewModelTest {
 
         assertEquals(listOf(knownItem.id to knownItem.libraryId), toRead.removeCalls)
         assertFalse((vm.uiState.value as Ready).isInToRead)
+    }
+
+    // Bug 1: marking the ebook read must also mark its readaloud-coupled audiobook (a separate ABS
+    // item) finished, so the two don't disagree.
+    @Test
+    fun `markAsRead marks every readaloud-coupled item finished`() = runTest {
+        val ebookLink = com.riffle.core.domain.ReadaloudLink(
+            storytellerServerId = "st-1", storytellerBookId = "book-1",
+            absServerId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
+        )
+        val audiobookLink = ebookLink.copy(absLibraryItemId = "audio-2")
+        val session = RecordingSessionRepository()
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            serverRepository = serverRepoReturning(activeServer()),
+            sessionRepository = session,
+            readaloudLinkRepository = linkRepoCoupling(listOf(ebookLink, audiobookLink)),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            setOf("item-1" to true, "audio-2" to true),
+            session.markFinishedCalls.toSet(),
+        )
+    }
+
+    // Bug 2: marking unread must reset BOTH coupled items to 0 so a surviving audiobook progress
+    // can't reappear as ghost progress.
+    @Test
+    fun `markAsUnread marks every readaloud-coupled item not finished`() = runTest {
+        val ebookLink = com.riffle.core.domain.ReadaloudLink(
+            storytellerServerId = "st-1", storytellerBookId = "book-1",
+            absServerId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
+        )
+        val audiobookLink = ebookLink.copy(absLibraryItemId = "audio-2")
+        val session = RecordingSessionRepository()
+        val vm = makeVm(
+            repo = fakeRepo(knownItem.copy(readingProgress = 1.0f)),
+            serverRepository = serverRepoReturning(activeServer()),
+            sessionRepository = session,
+            readaloudLinkRepository = linkRepoCoupling(listOf(ebookLink, audiobookLink)),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.markAsUnread()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            setOf("item-1" to false, "audio-2" to false),
+            session.markFinishedCalls.toSet(),
+        )
     }
 
     @Test

@@ -13,4 +13,7 @@ interface ReadaloudResumePositionDao {
 
     @Query("SELECT * FROM readaloud_resume_positions WHERE serverId = :serverId AND itemId = :itemId LIMIT 1")
     suspend fun getByItemId(serverId: String, itemId: String): ReadaloudResumePositionEntity?
+
+    @Query("DELETE FROM readaloud_resume_positions WHERE serverId = :serverId AND itemId = :itemId")
+    suspend fun deleteByItemId(serverId: String, itemId: String)
 }

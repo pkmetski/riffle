@@ -27,4 +27,6 @@ class ReadaloudResumeStoreImpl @Inject constructor(
         dao.getByItemId(serverId, itemId)?.let {
             ReadaloudResumePosition(href = it.href, progression = it.progression, fragmentRef = it.fragmentRef)
         }
+
+    override suspend fun clear(serverId: String, itemId: String) = dao.deleteByItemId(serverId, itemId)
 }

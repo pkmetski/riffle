@@ -3,6 +3,11 @@ package com.riffle.core.network
 data class NetworkEbookProgressPayload(
     val ebookLocation: String,
     val ebookProgress: Float,
+    // When non-null, also flips ABS's item-level `isFinished` flag in the same PATCH. This is the
+    // only field that touches the AUDIO dimension (`currentTime`/`progress`) of the shared
+    // media-progress record — `true` sets `progress`=1, `false` zeroes `currentTime`+`progress`.
+    // Left null for ordinary reader position saves so the finished state is untouched.
+    val isFinished: Boolean? = null,
 )
 
 data class NetworkAudiobookProgressPayload(
