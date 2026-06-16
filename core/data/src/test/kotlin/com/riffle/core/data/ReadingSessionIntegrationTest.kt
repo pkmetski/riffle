@@ -66,6 +66,17 @@ class ReadingSessionIntegrationTest {
             override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
             override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
         },
+        audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
+            override suspend fun save(serverId: String, itemId: String, payload: Double) = Unit
+            override suspend fun load(serverId: String, itemId: String): Double? = null
+            override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
+            override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
+        },
+        readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
+            override suspend fun save(serverId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+            override suspend fun load(serverId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+            override suspend fun clear(serverId: String, itemId: String) = Unit
+        },
     )
 
     @Test

@@ -11,6 +11,10 @@ interface ReadingSessionRepository {
      * flips `progress`/`currentTime`). Without the audio half, a finished/in-progress audiobook
      * `progress` survives and re-shadows a 0 `ebookProgress` on the next library refresh (the
      * "unread restores old progress" bug). Bumps the local position timestamp so the change syncs.
+     *
+     * Unread additionally wipes every LOCAL position store for the item (reading position, audiobook
+     * position, readaloud resume) so reopening the book can't restore — and then re-save — a stale
+     * position from a store the server reset didn't cover.
      */
     suspend fun markFinished(itemId: String, finished: Boolean)
 

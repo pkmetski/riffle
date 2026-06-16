@@ -19,6 +19,9 @@ class ReadaloudResumeStoreTest {
         }
         override suspend fun getByItemId(serverId: String, itemId: String): ReadaloudResumePositionEntity? =
             entities[serverId to itemId]
+        override suspend fun deleteByItemId(serverId: String, itemId: String) {
+            entities.remove(serverId to itemId)
+        }
     }
 
     @Test
@@ -73,6 +76,15 @@ class ReadaloudResumeStoreTest {
         val after = System.currentTimeMillis()
         val ts = dao.store["server-A" to "item-1"]?.localUpdatedAt ?: 0L
         assert(ts in before..after) { "Expected timestamp in [$before..$after] but was $ts" }
+    }
+
+    @Test
+    fun `clear removes the saved position so load returns null`() = runTest {
+        val dao = FakeReadaloudResumePositionDao()
+        val store = ReadaloudResumeStoreImpl(dao)
+        store.save("server-A", "item-1", ReadaloudResumePosition("ch1.xhtml", 0.25, "ch1.xhtml#s5"))
+        store.clear("server-A", "item-1")
+        assertNull(store.load("server-A", "item-1"))
     }
 
     @Test

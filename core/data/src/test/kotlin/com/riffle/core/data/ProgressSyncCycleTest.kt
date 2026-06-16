@@ -75,7 +75,34 @@ class ProgressSyncCycleTest {
         ): NetworkGetProgressResult = getResult
     }
 
-    private fun buildRepo(api: AbsSessionApi, positionStore: ReadingPositionStore) =
+    private class FakeAudiobookPositionStore : com.riffle.core.domain.AudiobookPositionStore {
+        var savedPayload: Double? = null
+        var saveCalled = false
+        var updatedTimestamp: Long? = null
+        override suspend fun save(serverId: String, itemId: String, payload: Double) {
+            saveCalled = true
+            savedPayload = payload
+        }
+        override suspend fun load(serverId: String, itemId: String): Double? = null
+        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
+        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
+            updatedTimestamp = millis
+        }
+    }
+
+    private class FakeReadaloudResumeStore : com.riffle.core.domain.ReadaloudResumeStore {
+        var clearCalled = false
+        override suspend fun save(serverId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+        override suspend fun load(serverId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+        override suspend fun clear(serverId: String, itemId: String) { clearCalled = true }
+    }
+
+    private fun buildRepo(
+        api: AbsSessionApi,
+        positionStore: ReadingPositionStore,
+        audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore = FakeAudiobookPositionStore(),
+        readaloudResumeStore: com.riffle.core.domain.ReadaloudResumeStore = FakeReadaloudResumeStore(),
+    ) =
         ReadingSessionRepositoryImpl(
             api = api,
             serverRepository = object : ServerRepository {
@@ -94,6 +121,8 @@ class ProgressSyncCycleTest {
                 override suspend fun deleteToken(serverId: String) = Unit
             },
             positionStore = positionStore,
+            audiobookPositionStore = audiobookPositionStore,
+            readaloudResumeStore = readaloudResumeStore,
         )
 
     private val payload = SessionPayload("epubcfi(/6/4!/4/1:0)", 0.25f)
@@ -238,11 +267,13 @@ class ProgressSyncCycleTest {
         // on the server so it can't re-shadow the 0 ebookProgress on the next refresh (bug 2:
         // "marking unread restores an old progress").
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
+        val audiobookStore = FakeAudiobookPositionStore()
+        val resumeStore = FakeReadaloudResumeStore()
         val api = FakeSessionApi(
             getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
             patchResult = NetworkSyncSessionResult.Success(2_000L),
         )
-        val repo = buildRepo(api, positionStore)
+        val repo = buildRepo(api, positionStore, audiobookStore, resumeStore)
 
         repo.markFinished("item-1", finished = false)
 
@@ -255,6 +286,28 @@ class ProgressSyncCycleTest {
         assertEquals("", positionStore.savedPayload)
         assertNotNull(positionStore.updatedTimestamp)
         assertTrue(positionStore.updatedTimestamp!! > 0L)
+        // ...and wipes the other stores that could otherwise restore the position on open.
+        assertTrue(audiobookStore.saveCalled)
+        assertEquals(0.0, audiobookStore.savedPayload)
+        assertNotNull(audiobookStore.updatedTimestamp)
+        assertTrue(resumeStore.clearCalled)
+    }
+
+    @Test
+    fun `markFinished true does not wipe audiobook or readaloud-resume stores`() = runTest {
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
+        val audiobookStore = FakeAudiobookPositionStore()
+        val resumeStore = FakeReadaloudResumeStore()
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
+            patchResult = NetworkSyncSessionResult.Success(2_000L),
+        )
+        val repo = buildRepo(api, positionStore, audiobookStore, resumeStore)
+
+        repo.markFinished("item-1", finished = true)
+
+        assertFalse(audiobookStore.saveCalled)
+        assertFalse(resumeStore.clearCalled)
     }
 
     // --- 404-equivalent (server has no progress record) ---

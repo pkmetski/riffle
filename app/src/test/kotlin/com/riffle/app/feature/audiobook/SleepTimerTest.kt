@@ -518,6 +518,7 @@ class SleepTimerTest {
     private object FakeResumeStore : ReadaloudResumeStore {
         override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {}
         override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(serverId: String, itemId: String) {}
     }
 
     private class TestReaderSyncFactory : ReaderSyncFactory(

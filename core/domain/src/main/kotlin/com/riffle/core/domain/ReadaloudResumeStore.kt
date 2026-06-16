@@ -20,4 +20,7 @@ data class ReadaloudResumePosition(
 interface ReadaloudResumeStore {
     suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition)
     suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition?
+
+    /** Drop the saved resume position so a reopened book starts fresh (e.g. after "mark unread"). */
+    suspend fun clear(serverId: String, itemId: String)
 }

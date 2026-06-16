@@ -1,6 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.ProgressSyncCycleResult
+import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.Server
@@ -20,6 +22,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val positionStore: ReadingPositionStore,
+    private val audiobookPositionStore: AudiobookPositionStore,
+    private val readaloudResumeStore: ReadaloudResumeStore,
 ) : ReadingSessionRepository {
 
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult {
@@ -96,10 +100,20 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         // Read = keep the saved page; unread = clear it so the reader reopens at the start and the
         // 0 progress isn't contradicted by a stale cfi.
         val ebookLocation = if (finished) (positionStore.load(server.id, itemId) ?: "") else ""
-        if (!finished) positionStore.save(server.id, itemId, "")
+        val now = System.currentTimeMillis()
+        if (!finished) {
+            // Wipe EVERY local position store that could otherwise restore a stale position the next
+            // time the book is opened (and re-save it, resurrecting the progress). The ebook reading
+            // position alone isn't enough: a matched/readaloud book also resumes from the audiobook
+            // position (translated back into an ebook locator on open) and the readaloud-resume row.
+            positionStore.save(server.id, itemId, "")
+            audiobookPositionStore.save(server.id, itemId, 0.0)
+            audiobookPositionStore.updateLocalTimestamp(server.id, itemId, now)
+            readaloudResumeStore.clear(server.id, itemId)
+        }
         // Bump before token check: marks the record dirty so the sync cycle pushes it
         // even if the token is missing right now.
-        positionStore.updateLocalTimestamp(server.id, itemId, System.currentTimeMillis())
+        positionStore.updateLocalTimestamp(server.id, itemId, now)
         val token = tokenStorage.getToken(server.id) ?: return
         api.syncEbookProgress(
             server.url.value, itemId,

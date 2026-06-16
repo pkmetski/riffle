@@ -655,6 +655,7 @@ class AudiobookPlayerViewModelBookmarkTest {
     private object FakeResumeStore : ReadaloudResumeStore {
         override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {}
         override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(serverId: String, itemId: String) {}
     }
 
     // A ReaderSyncFactory whose two attach methods return null, so the player stays on its single-peer
