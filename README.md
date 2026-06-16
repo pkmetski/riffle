@@ -65,7 +65,7 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 |---------|--------|
 | Google Play Store | Planned |
 | F-Droid | Planned |
-| Codeberg Releases | CI-built signed APK |
+| GitHub Releases | CI-built signed APK |
 
 ## Architecture
 
