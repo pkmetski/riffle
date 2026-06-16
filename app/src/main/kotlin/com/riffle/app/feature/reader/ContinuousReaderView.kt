@@ -113,11 +113,46 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private val placeholderHeight: Int get() = resources.displayMetrics.heightPixels
 
+    /**
+     * Pool of detached [ChapterWebView]s kept for reuse across window shifts. Constructing a WebView
+     * costs ~5-15ms on the main thread — doing it inside the scroll callback at every chapter border
+     * drops a frame and reads as a stutter. Recycling the WebView that just scrolled off the far end
+     * into the one being added at the near end keeps shifts cheap (a reload, no construction/destroy).
+     * Capped at [WINDOW_SIZE]; any excess is destroyed.
+     */
+    private val recycledViews = ArrayDeque<ChapterWebView>()
+
+    /** A recycled WebView if one is available, else a freshly constructed one. */
+    private fun obtainWebView(): ChapterWebView =
+        recycledViews.removeFirstOrNull() ?: ChapterWebView(context)
+
+    /**
+     * Detach [wv] from active use and pool it for reuse (or destroy it if the pool is full).
+     * Callbacks are cleared so an in-flight measure/page-finished from its previous chapter can't
+     * fire against stale state before the WebView is reloaded for its next chapter.
+     */
+    private fun recycle(wv: ChapterWebView) {
+        wv.onHeightMeasured = null
+        wv.onPageFinished = null
+        wv.onTap = null
+        if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
+    }
+
     init {
         addView(container, LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         setOnScrollChangeListener { _, _, scrollY, _, _ ->
             handleScrollChange(scrollY)
         }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        // Destroy every WebView we hold — both the live window and the recycle pool — so they don't
+        // leak when the reader screen goes away.
+        webViews.forEach { it.destroy() }
+        webViews.clear()
+        recycledViews.forEach { it.destroy() }
+        recycledViews.clear()
     }
 
     // ChapterWebViews detect vertical motion and call requestDisallowInterceptTouchEvent(true),
@@ -162,24 +197,39 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         this.publication = publication
         val centerIndex = chapters.indexOfFirst { it.link.href.toString() == initialHref }
             .coerceAtLeast(0)
-        topIndex = (centerIndex - CHAPTERS_BEHIND).coerceAtLeast(0)
-        val windowSize = minOf(WINDOW_SIZE, chapters.size - topIndex)
 
-        // Defer the initial scroll until every chapter AT OR BEFORE the target chapter has
-        // reported its real height. Using placeholder heights produces an inaccurate initial
-        // position: if the preceding chapter is taller than the placeholder, the scroll
-        // compensation in onHeightMeasured pushes the viewport past the intended intra-chapter
-        // offset. Waiting for real heights means a single, correct scrollTo with no follow-up jump.
-        val centerInWindow = (centerIndex - topIndex).coerceIn(0, windowSize - 1)
+        // Open with the TARGET chapter at the top of the window (no behind buffer yet). The behind
+        // buffer exists only for smooth *backward* scrolling, which the reader can't do until after
+        // the first frame — so blocking the first paint on it just makes opening slow. With the
+        // target at window-index 0 its layout top is 0, so the initial scroll offset depends only on
+        // the target's own height: we wait for exactly one chapter to measure, not two.
+        topIndex = centerIndex
+        val initialAhead = minOf(1 + CHAPTERS_AHEAD, chapters.size - topIndex)
+
         pendingInitialMeasureIndices.clear()
-        for (i in 0..centerInWindow) pendingInitialMeasureIndices.add(i)
+        pendingInitialMeasureIndices.add(0) // the target chapter only
         pendingInitialScroll = {
             val window = buildWindow()
             val offset = ContinuousPositionTracker.scrollOffsetFor(initialHref, initialProgression, window)
             if (offset != null) scrollTo(0, (offset - height / 2).coerceAtLeast(0))
+            // Now that the target is visible, fill in the behind buffer for smooth backward
+            // scrolling. prependChapter compensates scroll for the added height, so the content the
+            // user is already looking at stays visually anchored — no post-paint jump.
+            // shiftInProgress guards the compensating scrollBy from re-entering handleScrollChange
+            // and oscillating (the same guard the on-scroll shifts use).
+            post {
+                shiftInProgress = true
+                repeat(CHAPTERS_BEHIND) {
+                    if (topIndex > 0) {
+                        topIndex--
+                        prependChapter(topIndex)
+                    }
+                }
+                shiftInProgress = false
+            }
         }
 
-        repeat(windowSize) { i -> appendChapter(topIndex + i) }
+        repeat(initialAhead) { i -> appendChapter(topIndex + i) }
     }
 
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
@@ -223,7 +273,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     private fun appendChapter(index: Int) {
         val entry = allChapters[index]
-        val wv = ChapterWebView(context)
+        val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
         wv.onTap = { onTap?.invoke() }
         val placeholder = placeholderHeight
@@ -297,7 +347,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     private fun prependChapter(index: Int) {
         val entry = allChapters[index]
-        val wv = ChapterWebView(context)
+        val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
         wv.onTap = { onTap?.invoke() }
         val placeholder = placeholderHeight
@@ -329,7 +379,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val h = measuredHeights.removeAt(0)
         val wv = webViews.removeAt(0)
         container.removeView(wv)
-        wv.destroy()
+        recycle(wv)
         // h is the stored measured height at removal time. If the WebView was still loading when
         // removeTop() fires (h == placeholderHeight), the scroll offset may be over-compensated
         // and produce a brief jump. Rare in practice: removeTop() only fires after the user scrolls
@@ -343,7 +393,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         measuredHeights.removeAt(measuredHeights.lastIndex)
         val wv = webViews.removeAt(webViews.lastIndex)
         container.removeView(wv)
-        wv.destroy()
+        recycle(wv)
     }
 
     private fun handleScrollChange(scrollY: Int) {
