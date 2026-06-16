@@ -51,6 +51,16 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     @Volatile
     private var currentPrefs: FormattingPreferences = FormattingPreferences()
 
+    /**
+     * Incremented on every [loadChapter]. Each loaded page stamps this value into
+     * `window.__riffleToken` (see [injectStylesAndMeasure]) and echoes it back with every height
+     * report. [HeightBridge] drops reports whose token != the current one, so a recycled WebView's
+     * *previous* chapter — whose ResizeObserver / delayed re-measure timers may still fire for a
+     * moment after the view is reused — can't deliver a stale (typically much taller) height to the
+     * new chapter and leave it over-sized (a large white gap below the content).
+     */
+    private var loadToken = 0
+
     /** Must be called before [loadChapter] so [shouldInterceptRequest] can serve EPUB resources. */
     fun setPublication(pub: Publication) {
         publication = pub
@@ -136,6 +146,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     fun loadChapter(href: String, chapterUrl: String, prefs: FormattingPreferences) {
         chapterHref = href
         currentPrefs = prefs
+        loadToken++
         loadUrl(chapterUrl)
     }
 
@@ -147,6 +158,10 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      */
     fun injectStylesAndMeasure(styleJs: String) {
         evaluateJavascript(styleJs, null)
+        // Stamp this page with the current load token BEFORE wiring measurement, so every height
+        // report (including late ResizeObserver / timeout fires) carries it and the bridge can
+        // reject reports from a recycled WebView's previous page.
+        evaluateJavascript("window.__riffleToken=$loadToken;", null)
         evaluateJavascript(ContinuousStyleInjector.HEIGHT_MEASUREMENT_JS, null)
         evaluateJavascript(ContinuousStyleInjector.TAP_LISTENER_JS, null)
     }
@@ -156,8 +171,9 @@ internal class ChapterWebView(context: Context) : WebView(context) {
 
     private inner class HeightBridge {
         @JavascriptInterface
-        fun onHeightMeasured(height: Int) {
-            post { this@ChapterWebView.onHeightMeasured?.invoke(height) }
+        fun onHeightMeasured(height: Int, token: Int) {
+            // Drop reports from a previous chapter still settling in this (recycled) WebView.
+            post { if (token == loadToken) this@ChapterWebView.onHeightMeasured?.invoke(height) }
         }
 
         @JavascriptInterface

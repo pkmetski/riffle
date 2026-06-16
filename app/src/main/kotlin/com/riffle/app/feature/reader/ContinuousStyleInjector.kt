@@ -238,7 +238,9 @@ internal object ContinuousStyleInjector {
                 var h = currentHeight();
                 if (h > 0 && h !== last) {
                     last = h;
-                    window.RiffleChapter.onHeightMeasured(h);
+                    // Pass this page's load token so the parent can reject stale reports from a
+                    // previous chapter still settling in a recycled WebView (see ChapterWebView).
+                    window.RiffleChapter.onHeightMeasured(h, (window.__riffleToken | 0));
                 }
             }
             report();
