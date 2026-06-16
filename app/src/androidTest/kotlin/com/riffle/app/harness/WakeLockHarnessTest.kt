@@ -74,8 +74,10 @@ class WakeLockHarnessTest {
         // Disable "Keep screen on" in Settings before opening a book
         addServerAndNavigateToSettings()
 
-        // Open the Reading settings panel which now hosts the wake-lock toggle.
-        composeTestRule.onNodeWithText("Reading settings").performClick()
+        // Open the reader formatting panel (titled "Reading settings") which hosts the wake-lock
+        // toggle. On the Settings screen the entry is the "Formatting" item under the "Reading"
+        // section; "Reading settings" is only the panel's own title once it is open.
+        composeTestRule.onNodeWithText("Formatting").performClick()
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Keep screen on").assertExists()
