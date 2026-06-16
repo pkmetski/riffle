@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,6 +51,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -269,21 +271,40 @@ fun SettingsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ReadaloudHighlightColor.entries.forEach { color ->
                                 val isSelected = readaloudPreferences.highlightColor == color
+                                val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
+                                // Selected swatch reads clearly in both themes: an offset ring
+                                // (onSurface ring at the outer edge, separated from the swatch by a
+                                // transparent gap) plus a centred checkmark. The swatch keeps a
+                                // constant 28dp size whether or not it's selected — the 4dp padding
+                                // is always reserved, so the row layout doesn't shift on selection.
                                 Box(
+                                    contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(28.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(Color(color.argb.toLong() and 0xFFFFFFFFL))
+                                        .clickable { viewModel.updateReadaloudHighlightColor(color) }
                                         .then(
                                             if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                             else Modifier
                                         )
+                                        .padding(4.dp)
+                                        .clip(CircleShape)
+                                        .background(swatchColor)
                                         .semantics {
                                             contentDescription = color.name.lowercase()
-                                                .replaceFirstChar { it.uppercase() } + " highlight"
-                                        }
-                                        .clickable { viewModel.updateReadaloudHighlightColor(color) },
-                                )
+                                                .replaceFirstChar { it.uppercase() } + " highlight" +
+                                                if (isSelected) ", selected" else ""
+                                        },
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color(0xDD000000),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
                     },

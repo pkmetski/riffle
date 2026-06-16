@@ -11,6 +11,7 @@ import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.epub.EpubPreferences
 import org.readium.r2.navigator.epub.css.ColCount
 import org.readium.r2.navigator.epub.css.RsProperties
+import org.readium.r2.navigator.html.HtmlDecorationTemplates
 import org.readium.r2.navigator.preferences.Color
 import org.readium.r2.navigator.preferences.FontFamily
 import org.readium.r2.navigator.preferences.Spread
@@ -82,6 +83,12 @@ fun FormattingPreferences.toFragmentConfiguration(
         // falls back to the default serif — Literata/Merriweather/OpenDyslexic would all
         // render identically.
         servedAssets = listOf("fonts/.*"),
+        // Keep Readium's built-in templates (used by persisted + search highlights) and add a
+        // dedicated readaloud highlight template whose opacity tracks the tint's alpha channel,
+        // so the synced highlight can be strengthened on dark reading themes (see readerTint()).
+        decorationTemplates = HtmlDecorationTemplates.defaultTemplates().apply {
+            set(ReadaloudHighlightStyle::class, readaloudHighlightTemplate())
+        },
         readiumCssRsProperties = when {
             isDoublePage -> RsProperties(
                 colCount = ColCount.TWO,

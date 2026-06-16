@@ -15,10 +15,12 @@ The readaloud sentence-highlight color setting (added in #191) has three rough e
 2. **The palette is washed out.** The five options are near-white pastels
    (`#7DD3FC`, `#FDE68A`, `#86EFAC`, `#FDA4AF`, `#C4B5FD`), which read as low-contrast and
    hard to tell apart.
-3. **The highlight is illegible / invisible on a dark reading page.** Readium's default
-   `Decoration.Style.Highlight` paints the tint with `mix-blend-mode: multiply`. On the
-   Dark/DarkDim reading themes the page background is black, and `multiply(black, tint)`
-   collapses to black — so the highlight effectively disappears behind the white book text.
+3. **The highlight is too faint on a dark reading page.** Readium's default
+   `Decoration.Style.Highlight` paints the tint as `background-color: rgba(tint, 0.3)` (normal
+   blend, a fixed 30% alpha). On the Dark/DarkDim themes the page background is black, so 30% of
+   a colour over black reads as a barely-visible dim wash behind the white body text.
+   *(Correction: an earlier draft assumed `mix-blend-mode: multiply`; the actual Readium 3.3.0
+   template uses a fixed-alpha rgba fill. The fix below is unchanged either way.)*
 
 ## Goals
 
