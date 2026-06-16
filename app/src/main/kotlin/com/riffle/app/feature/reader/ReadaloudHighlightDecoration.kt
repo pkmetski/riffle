@@ -19,6 +19,11 @@ import org.readium.r2.navigator.html.toCss
 // template below honours the tint's alpha channel (`toCss()` with no override), so the caller picks
 // the strength by baking an alpha byte into the tint — see readerTint().
 
+// Fill opacity baked into the tint's alpha channel per reading theme (see readerTint). Dark pages
+// need a stronger alpha so the highlight reads as a clear selection box behind the white body text.
+internal const val READALOUD_HIGHLIGHT_ALPHA_DARK = 0x73 // ~45%
+internal const val READALOUD_HIGHLIGHT_ALPHA_LIGHT = 0x4D // ~30%
+
 /** Dedicated decoration style for the readaloud synced highlight. */
 class ReadaloudHighlightStyle(
     @ColorInt override val tint: Int,
@@ -29,6 +34,13 @@ class ReadaloudHighlightStyle(
     override fun writeToParcel(dest: Parcel, flags: Int) {
         dest.writeInt(tint)
     }
+
+    // Value semantics so Readium's decoration diff (DecorationChange.areContentsTheSame compares
+    // style ==) treats an unchanged tint as unchanged, mirroring the built-in data-class styles.
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is ReadaloudHighlightStyle && other.tint == tint)
+
+    override fun hashCode(): Int = tint
 
     companion object {
         @JvmField
@@ -61,7 +73,7 @@ fun readaloudHighlightTemplate(): HtmlDecorationTemplate =
                 border-radius: 3px;
                 box-sizing: border-box;
             }
-        """.trimIndent(),
+        """.trimIndent(), // geometry matches Readium's built-in highlight (BOXES, 1px h-padding)
     )
 
 /**
@@ -72,8 +84,8 @@ fun readaloudHighlightTemplate(): HtmlDecorationTemplate =
 @ColorInt
 fun ReadaloudHighlightColor.readerTint(theme: ReaderTheme): Int {
     val alpha = when (theme) {
-        ReaderTheme.Dark, ReaderTheme.DarkDim -> 0x73 // ~45%
-        else -> 0x4D // ~30%
+        ReaderTheme.Dark, ReaderTheme.DarkDim -> READALOUD_HIGHLIGHT_ALPHA_DARK
+        else -> READALOUD_HIGHLIGHT_ALPHA_LIGHT
     }
     return (argb and 0x00FFFFFF) or (alpha shl 24)
 }

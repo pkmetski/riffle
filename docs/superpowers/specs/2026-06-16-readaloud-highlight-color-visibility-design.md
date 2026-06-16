@@ -125,5 +125,8 @@ if needed.
 
 ## Out of scope / follow-ups
 
-- Theme-aware rendering for persisted and search highlights (same dark-page washout).
+- Theme-aware rendering for persisted and search highlights (same dark-page washout). When this is
+  picked up, generalize the existing mechanism (the `readerTint`-style alpha-by-theme + a single
+  alpha-honoring template) rather than cloning `ReadaloudHighlightStyle` / `readaloudHighlightTemplate()`
+  per highlight kind, to avoid three near-identical templates.
 - Per-color alpha tuning beyond a single shared dark-page alpha, if it proves necessary.
