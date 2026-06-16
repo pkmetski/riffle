@@ -57,6 +57,33 @@ class AbsApiClientSessionTest {
         assertTrue(body.contains("\"ebookProgress\":0.25"))
     }
 
+    // A plain reader position save (isFinished = null) must NOT carry isFinished, or every save
+    // would risk flipping the item's finished/audio state on the server.
+    @Test
+    fun `syncEbookProgress omits isFinished from body when null`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        client.syncEbookProgress(
+            baseUrl(), "item-1",
+            NetworkEbookProgressPayload("cfi", 0.25f, isFinished = null),
+            "tok", false,
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(!body.contains("isFinished"))
+    }
+
+    // A mark-read/unread carries isFinished so ABS also resets the audio dimension in the same PATCH.
+    @Test
+    fun `syncEbookProgress includes isFinished in body when set`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        client.syncEbookProgress(
+            baseUrl(), "item-1",
+            NetworkEbookProgressPayload("", 0.0f, isFinished = false),
+            "tok", false,
+        )
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"isFinished\":false"))
+    }
+
     @Test
     fun `syncEbookProgress sends Authorization Bearer header`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))

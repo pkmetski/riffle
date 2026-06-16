@@ -170,7 +170,7 @@ class SeriesIntegrationTest {
             com.riffle.core.domain.SyncSessionResult.Success
         override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
             com.riffle.core.domain.ProgressSyncCycleResult.InSync
-        override suspend fun setProgress(itemId: String, progress: Float) = Unit
+        override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
         override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 

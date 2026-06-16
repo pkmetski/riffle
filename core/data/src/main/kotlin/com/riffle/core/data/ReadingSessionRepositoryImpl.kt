@@ -91,16 +91,25 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun setProgress(itemId: String, progress: Float) {
+    override suspend fun markFinished(itemId: String, finished: Boolean) {
         val server = serverRepository.getActive() ?: return
-        val cfi = positionStore.load(server.id, itemId) ?: ""
+        // Read = keep the saved page; unread = clear it so the reader reopens at the start and the
+        // 0 progress isn't contradicted by a stale cfi.
+        val ebookLocation = if (finished) (positionStore.load(server.id, itemId) ?: "") else ""
+        if (!finished) positionStore.save(server.id, itemId, "")
         // Bump before token check: marks the record dirty so the sync cycle pushes it
         // even if the token is missing right now.
         positionStore.updateLocalTimestamp(server.id, itemId, System.currentTimeMillis())
         val token = tokenStorage.getToken(server.id) ?: return
         api.syncEbookProgress(
             server.url.value, itemId,
-            NetworkEbookProgressPayload(cfi, progress),
+            // isFinished resets the audio half of the record too: true→progress 1, false→currentTime
+            // and progress 0. Both halves move together so neither can re-shadow the other.
+            NetworkEbookProgressPayload(
+                ebookLocation = ebookLocation,
+                ebookProgress = if (finished) 1.0f else 0.0f,
+                isFinished = finished,
+            ),
             token, server.insecureConnectionAllowed,
         )
         // PATCH failure intentionally ignored — next sync cycle will push

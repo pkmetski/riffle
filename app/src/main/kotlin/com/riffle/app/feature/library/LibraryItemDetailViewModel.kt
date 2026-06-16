@@ -226,8 +226,7 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     fun markAsRead() {
         viewModelScope.launch {
-            repository.updateReadingProgress(itemId, 1.0f)
-            sessionRepository.setProgress(itemId, 1.0f)
+            setFinishedAcrossCoupledItems(finished = true)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 // invariant: ADR 0018 — Read books are never in To Read
@@ -242,13 +241,42 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     fun markAsUnread() {
         viewModelScope.launch {
-            repository.updateReadingProgress(itemId, 0.0f)
-            sessionRepository.setProgress(itemId, 0.0f)
+            setFinishedAcrossCoupledItems(finished = false)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 _uiState.value = current.copy(item = current.item.copy(readingProgress = 0.0f))
             }
         }
+    }
+
+    /**
+     * Mark read/unread across every ABS item coupled by the same readaloud bundle — the ebook AND
+     * its audiobook counterpart — so the two never disagree (a readaloud's ebook and audiobook are
+     * separate ABS items that should track one finished state). Falls back to just this item when
+     * there's no link or no active server.
+     */
+    private suspend fun setFinishedAcrossCoupledItems(finished: Boolean) {
+        val progress = if (finished) 1.0f else 0.0f
+        val serverId = serverRepository.getActive()?.id
+        val ids = if (serverId != null) coupledAbsItemIds(serverId) else listOf(itemId)
+        ids.forEach { id ->
+            repository.updateReadingProgress(id, progress)
+            sessionRepository.markFinished(id, finished)
+        }
+    }
+
+    /**
+     * The set of ABS item ids on the active server that share this item's readaloud bundle
+     * (always includes [itemId]). Cross-server matches are excluded — `markFinished` operates on
+     * the active server only.
+     */
+    private suspend fun coupledAbsItemIds(serverId: String): List<String> {
+        val link = readaloudLinkRepository.findByAbsItem(serverId, itemId) ?: return listOf(itemId)
+        val siblings = readaloudLinkRepository
+            .findByStorytellerBook(link.storytellerServerId, link.storytellerBookId)
+            .filter { it.absServerId == serverId }
+            .map { it.absLibraryItemId }
+        return (siblings + itemId).distinct()
     }
 
     fun toggleToRead() {

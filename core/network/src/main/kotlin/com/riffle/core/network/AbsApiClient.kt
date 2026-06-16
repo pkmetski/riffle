@@ -522,7 +522,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         insecureAllowed: Boolean,
     ): NetworkSyncSessionResult = withContext(Dispatchers.IO) {
         val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val body = json.encodeToString(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress))
+        val body = json.encodeToString(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress, payload.isFinished))
             .toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/me/progress/$libraryItemId")

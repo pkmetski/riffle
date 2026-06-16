@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,11 +30,20 @@ class ProgressSyncCycleTest {
 
     // --- fakes ---
 
-    private class FakePositionStore(var localUpdatedAt: Long = 0L) : ReadingPositionStore {
+    private class FakePositionStore(
+        var localUpdatedAt: Long = 0L,
+        private var storedCfi: String? = null,
+    ) : ReadingPositionStore {
         var updatedTimestamp: Long? = null
         var updatedServerId: String? = null
-        override suspend fun save(serverId: String, itemId: String, payload: String) = Unit
-        override suspend fun load(serverId: String, itemId: String): String? = null
+        var savedPayload: String? = null
+        var saveCalled = false
+        override suspend fun save(serverId: String, itemId: String, payload: String) {
+            saveCalled = true
+            savedPayload = payload
+            storedCfi = payload
+        }
+        override suspend fun load(serverId: String, itemId: String): String? = storedCfi
         override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
         override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
             updatedServerId = serverId
@@ -47,11 +57,13 @@ class ProgressSyncCycleTest {
         private val patchResult: NetworkSyncSessionResult = NetworkSyncSessionResult.Success(0L),
     ) : AbsSessionApi {
         var patchCallCount = 0
+        var lastEbookPayload: NetworkEbookProgressPayload? = null
         override suspend fun syncEbookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload,
             token: String, insecureAllowed: Boolean,
         ): NetworkSyncSessionResult {
             patchCallCount++
+            lastEbookPayload = payload
             return patchResult
         }
         override suspend fun syncAudiobookProgress(
@@ -198,17 +210,49 @@ class ProgressSyncCycleTest {
     }
 
     @Test
-    fun `setProgress bumps localUpdatedAt and attempts PATCH`() = runTest {
-        val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
+    fun `markFinished true PATCHes ebookProgress 1 and isFinished true, keeps saved position`() = runTest {
+        // Read = mark complete on BOTH dimensions. isFinished=true is what flips the audio
+        // `progress` to 100% (bug 1: "marking read doesn't mark the related audiobook").
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
         val api = FakeSessionApi(
             getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
             patchResult = NetworkSyncSessionResult.Success(2_000L),
         )
         val repo = buildRepo(api, positionStore)
 
-        repo.setProgress("item-1", 1.0f)
+        repo.markFinished("item-1", finished = true)
 
         assertEquals(1, api.patchCallCount)
+        assertEquals(1.0f, api.lastEbookPayload?.ebookProgress)
+        assertEquals(true, api.lastEbookPayload?.isFinished)
+        // Read keeps the page the user reached.
+        assertEquals("epubcfi(/6/8!/4/1:0)", api.lastEbookPayload?.ebookLocation)
+        assertFalse(positionStore.saveCalled)
+        assertNotNull(positionStore.updatedTimestamp)
+        assertTrue(positionStore.updatedTimestamp!! > 0L)
+    }
+
+    @Test
+    fun `markFinished false PATCHes ebookProgress 0 and isFinished false, clears the saved position`() = runTest {
+        // Unread = reset BOTH dimensions to 0. isFinished=false zeroes the audio currentTime/progress
+        // on the server so it can't re-shadow the 0 ebookProgress on the next refresh (bug 2:
+        // "marking unread restores an old progress").
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
+        val api = FakeSessionApi(
+            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
+            patchResult = NetworkSyncSessionResult.Success(2_000L),
+        )
+        val repo = buildRepo(api, positionStore)
+
+        repo.markFinished("item-1", finished = false)
+
+        assertEquals(1, api.patchCallCount)
+        assertEquals(0.0f, api.lastEbookPayload?.ebookProgress)
+        assertEquals(false, api.lastEbookPayload?.isFinished)
+        assertEquals("", api.lastEbookPayload?.ebookLocation)
+        // Unread clears the local saved position so the reader reopens at the start.
+        assertTrue(positionStore.saveCalled)
+        assertEquals("", positionStore.savedPayload)
         assertNotNull(positionStore.updatedTimestamp)
         assertTrue(positionStore.updatedTimestamp!! > 0L)
     }
@@ -265,7 +309,7 @@ class ProgressSyncCycleTest {
     }
 
     @Test
-    fun `setProgress bumps localUpdatedAt even when PATCH fails`() = runTest {
+    fun `markFinished bumps localUpdatedAt even when PATCH fails`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
         val api = FakeSessionApi(
             getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
@@ -273,7 +317,7 @@ class ProgressSyncCycleTest {
         )
         val repo = buildRepo(api, positionStore)
 
-        repo.setProgress("item-1", 1.0f)
+        repo.markFinished("item-1", finished = true)
 
         assertEquals(1, api.patchCallCount)
         assertNotNull(positionStore.updatedTimestamp)
