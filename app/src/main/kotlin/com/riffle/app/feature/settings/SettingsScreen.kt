@@ -92,11 +92,16 @@ fun SettingsScreen(
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
     val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
+    val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
+    val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
+    val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
+    val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     var expanded by remember { mutableStateOf(false) }
     var showFormattingPanel by remember { mutableStateOf(false) }
+    var showListeningPanel by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -236,6 +241,20 @@ fun SettingsScreen(
                         TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
                     },
                 )
+                Text(
+                    text = "Listening",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                ListItem(
+                    modifier = Modifier.clickable { showListeningPanel = true },
+                    headlineContent = { Text("Preferences") },
+                    supportingContent = { Text("Speed, skip interval, rewind on resume") },
+                    trailingContent = {
+                        TextButton(onClick = { showListeningPanel = true }) { Text("Edit") }
+                    },
+                )
                 HorizontalDivider()
 
                 Text(
@@ -348,6 +367,20 @@ fun SettingsScreen(
             invertVolumeKeys = invertVolumeKeys,
             onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             fullScreen = true,
+        )
+    }
+
+    if (showListeningPanel) {
+        ListeningPreferencesPanel(
+            defaultSpeed = defaultPlaybackSpeed,
+            onDefaultSpeedChange = { viewModel.setDefaultPlaybackSpeed(it) },
+            skipIntervalSeconds = skipIntervalSeconds,
+            onSkipIntervalSecondsChange = { viewModel.setSkipIntervalSeconds(it) },
+            rewindIntervalSeconds = rewindIntervalSeconds,
+            onRewindIntervalSecondsChange = { viewModel.setRewindIntervalSeconds(it) },
+            rewindOnResumeSeconds = rewindOnResumeSeconds,
+            onRewindOnResumeSecondsChange = { viewModel.setRewindOnResumeSeconds(it) },
+            onDismiss = { showListeningPanel = false },
         )
     }
 }

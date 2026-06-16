@@ -26,11 +26,14 @@ class AudioPlaybackPreferencesStoreImplTest {
     }
 
     @Test
-    fun `saving the default removes the record`() = runTest {
+    fun `saving 1x persists an explicit per-book choice and does not delete the row`() = runTest {
+        // 1.0x is a deliberate "play THIS book at normal speed" choice that must survive even when the
+        // global default speed is faster — deleting the row would snap the book back to that global
+        // default on reopen. (Pre-global-default this deleted the row under "no row == 1.0x default".)
         val store = AudioPlaybackPreferencesStoreImpl(FakeDao())
         store.save(id, 1.5f)
         store.save(id, DEFAULT_PLAYBACK_SPEED)
-        assertNull("default speed must not persist a row", store.load(id))
+        assertEquals(DEFAULT_PLAYBACK_SPEED, store.load(id))
     }
 
     @Test

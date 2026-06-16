@@ -32,6 +32,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.UnmatchedReadaloud
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +95,17 @@ class SettingsViewModelTest {
     private val fakeAppThemeStore = object : AppThemeStore {
         override val appTheme: Flow<AppTheme> = appThemeFlow
         override suspend fun setAppTheme(value: AppTheme) { appThemeFlow.value = value }
+    }
+
+    private val fakeListeningPreferencesStore = object : ListeningPreferencesStore {
+        override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
+        override val skipIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+        override val rewindIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
+        override val rewindOnResumeSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
+        override suspend fun setDefaultPlaybackSpeed(speed: Float) { defaultPlaybackSpeed.value = speed }
+        override suspend fun setSkipIntervalSeconds(seconds: Int) { skipIntervalSeconds.value = seconds }
+        override suspend fun setRewindIntervalSeconds(seconds: Int) { rewindIntervalSeconds.value = seconds }
+        override suspend fun setRewindOnResumeSeconds(seconds: Int) { rewindOnResumeSeconds.value = seconds }
     }
 
     private fun server(
@@ -215,6 +227,7 @@ class SettingsViewModelTest {
         orderStore = fakeOrderStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
         volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        listeningPreferencesStore = fakeListeningPreferencesStore,
         appThemeStore = fakeAppThemeStore,
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
@@ -540,5 +553,43 @@ class SettingsViewModelTest {
         assertEquals(ReadaloudHighlightColor.YELLOW, readaloudPrefsFlow.value.highlightColor)
         assertEquals(ReadaloudHighlightColor.YELLOW, emitted.last())
         job.cancel()
+    }
+
+    // --- listening preferences ---
+
+    @Test
+    fun `setDefaultPlaybackSpeed updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.defaultPlaybackSpeed.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setDefaultPlaybackSpeed(1.5f)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.5f, fakeListeningPreferencesStore.defaultPlaybackSpeed.first())
+    }
+
+    @Test
+    fun `setSkipIntervalSeconds updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.skipIntervalSeconds.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setSkipIntervalSeconds(15)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(15, fakeListeningPreferencesStore.skipIntervalSeconds.first())
+    }
+
+    @Test
+    fun `setRewindOnResumeSeconds updates the store`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.rewindOnResumeSeconds.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setRewindOnResumeSeconds(10)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(10, fakeListeningPreferencesStore.rewindOnResumeSeconds.first())
     }
 }

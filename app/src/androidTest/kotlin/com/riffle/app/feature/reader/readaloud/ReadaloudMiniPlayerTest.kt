@@ -46,6 +46,8 @@ class ReadaloudMiniPlayerTest {
                 onForward = onForward,
                 onPreviousChapter = onPreviousChapter,
                 onNextChapter = onNextChapter,
+                skipIntervalSeconds = 30,
+                rewindIntervalSeconds = 15,
                 onClose = {},
             )
         }
@@ -129,6 +131,8 @@ class ReadaloudMiniPlayerTest {
                 onForward = {},
                 onPreviousChapter = {},
                 onNextChapter = {},
+                skipIntervalSeconds = 30,
+                rewindIntervalSeconds = 15,
                 onClose = {},
             )
         }

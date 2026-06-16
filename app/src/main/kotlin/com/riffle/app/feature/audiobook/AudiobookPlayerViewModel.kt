@@ -7,6 +7,7 @@ import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
@@ -18,8 +19,10 @@ import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -128,6 +131,8 @@ data class AudiobookPlayerUiState(
     // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
     val bookmarksOffline: Boolean = false,
     val sleepTimer: SleepTimerMode = SleepTimerMode.None,
+    val skipIntervalSeconds: Int = 30,
+    val rewindIntervalSeconds: Int = 15,
 )
 
 @HiltViewModel
@@ -141,6 +146,7 @@ class AudiobookPlayerViewModel(
     private val tokenStorage: TokenStorage,
     private val controller: AudiobookController,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+    private val listeningPreferencesStore: ListeningPreferencesStore,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
@@ -179,6 +185,7 @@ class AudiobookPlayerViewModel(
         tokenStorage: TokenStorage,
         controller: AudiobookController,
         audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+        listeningPreferencesStore: ListeningPreferencesStore,
         audioIdentityResolver: AudioIdentityResolver,
         readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
@@ -202,6 +209,7 @@ class AudiobookPlayerViewModel(
         tokenStorage,
         controller,
         audioPlaybackPreferencesStore,
+        listeningPreferencesStore,
         audioIdentityResolver,
         readerSyncFactory,
         readaloudLinkRepository,
@@ -316,6 +324,18 @@ class AudiobookPlayerViewModel(
         readaloudResumeStore.save(serverId, ebookItemId, anchor)
     }
 
+    private val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
+
+    private val rewindIntervalSec: StateFlow<Double> = listeningPreferencesStore.rewindIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS.toDouble())
+
+    private val rewindOnResumeSec: StateFlow<Double> = listeningPreferencesStore.rewindOnResumeSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
+
     val uiState: StateFlow<AudiobookPlayerUiState> =
         combine(meta, controller.state, controller.sleepTimer) { m, playback, timer ->
             val pos = playback.positionSec
@@ -336,6 +356,10 @@ class AudiobookPlayerViewModel(
                 bookmarksOffline = m.bookmarksOffline,
                 sleepTimer = timer,
             )
+        }.combine(skipIntervalSec) { state, skip ->
+            state.copy(skipIntervalSeconds = skip.toInt())
+        }.combine(rewindIntervalSec) { state, rewind ->
+            state.copy(rewindIntervalSeconds = rewind.toInt())
         }.stateIn(viewModelScope, SharingStarted.Eagerly, AudiobookPlayerUiState(loading = true))
 
     init {
@@ -449,7 +473,7 @@ class AudiobookPlayerViewModel(
                 AudioIdentity(serverId, itemId)
             }
             val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
-                ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+                ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
             // Readaloud is only actually offerable when the synced bundle is present — the same gate the
             // reader applies (readaloudControlState): a Storyteller book always qualifies, a matched ABS
             // book only once its bundle is downloaded, an unmatched ABS book never. The bundle is keyed by
@@ -490,13 +514,31 @@ class AudiobookPlayerViewModel(
                 facts = buildAudiobookFacts(session.timeline.durationSec, item.genres),
                 description = item.description,
             )
+            // Rewind-on-resume also applies to reopening an in-progress book — the open path plays
+            // directly (below), bypassing togglePlayPause's resume rewind, so without this the setting
+            // would only ever fire on an in-player pause→play and look broken on the far more common
+            // "left and came back" resume. It shifts only where playback *starts*, NOT the resume floor
+            // (reconciledResumeSec stays at the true resumeSec below): seeding prepare() lower must not let
+            // the follow-loop / close-persist guards write that lower point back, or repeated open→close
+            // cycles would creep the saved position backward by rewindOnResume each time. Re-hearing the
+            // rewound seconds simply doesn't advance saved progress until playback passes the real resume.
+            // Read straight from the store (not the eager StateFlow, which may not have emitted this early in
+            // init). Guarded on resumeSec > 0 (a fresh/replayed book at the start has nothing to rewind) and
+            // on the normal-open branch only — the handoff must continue seamlessly from its hand-off point.
+            var playbackStartSec = resumeSec
+            if (startAtSec < 0.0) {
+                val rewindOnResume = listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble()
+                if (rewindOnResume > 0.0 && resumeSec > 0.0) {
+                    playbackStartSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
+                }
+            }
             // Resume at the server-recorded position (last-update-wins resume; ADR 0029) so the
             // audio-led canonical never starts behind.
             controller.prepare(
                 trackUrls = session.trackUrls,
                 spans = session.tracks,
                 durationSec = session.timeline.durationSec,
-                startAtSec = resumeSec,
+                startAtSec = playbackStartSec,
                 localZipFile = session.localZipFile,
                 coverUri = item.coverUrl,
             )
@@ -632,6 +674,12 @@ class AudiobookPlayerViewModel(
             controller.pause()
             pushProgressOnStop()
         } else {
+            val rewindSec = rewindOnResumeSec.value
+            if (rewindSec > 0) {
+                val newPos = (controller.currentAbsoluteSec() - rewindSec).coerceAtLeast(0.0)
+                reconciledResumeSec = newPos
+                controller.seekTo(newPos)
+            }
             controller.play()
         }
     }
@@ -644,13 +692,15 @@ class AudiobookPlayerViewModel(
     }
 
     fun rewind() {
-        reconciledResumeSec = (controller.currentAbsoluteSec() - AudiobookController.REWIND_SEC).coerceAtLeast(0.0)
-        controller.rewind()
+        val rewindSec = rewindIntervalSec.value
+        reconciledResumeSec = (controller.currentAbsoluteSec() - rewindSec).coerceAtLeast(0.0)
+        controller.skipBy(-rewindSec)
     }
 
     fun forward() {
-        reconciledResumeSec = controller.currentAbsoluteSec() + AudiobookController.FORWARD_SEC
-        controller.forward()
+        val skipSec = skipIntervalSec.value
+        reconciledResumeSec = controller.currentAbsoluteSec() + skipSec
+        controller.skipBy(skipSec)
     }
 
     fun previousChapter() {
@@ -706,11 +756,11 @@ class AudiobookPlayerViewModel(
      */
     fun setSpeed(speed: Float) {
         controller.setSpeed(speed)
-        if (serverId.isEmpty()) return
         pendingSpeed = speed
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(SPEED_SAVE_DEBOUNCE_MS)
+            if (serverId.isEmpty()) return@launch
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
             pendingSpeed = null
         }
@@ -725,7 +775,9 @@ class AudiobookPlayerViewModel(
         speedSaveJob?.cancel()
         pendingSpeed = null
         if (serverId.isEmpty()) return
-        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+        // progressFlushScope, not viewModelScope: onCleared cancels viewModelScope before calling
+        // this, so a launch there never executes (same reasoning as pushProgressOnStop).
+        progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
     /**

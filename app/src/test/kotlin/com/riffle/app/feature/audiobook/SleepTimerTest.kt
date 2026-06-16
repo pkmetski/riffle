@@ -13,6 +13,7 @@ import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookDownloadRepository
@@ -192,6 +193,7 @@ class SleepTimerTest {
             tokenStorage = FakeTokenStorage,
             controller = controller,
             audioPlaybackPreferencesStore = FakePrefsStore,
+            listeningPreferencesStore = FakeListeningPreferencesStore,
             audioIdentityResolver = FakeIdentityResolver,
             readerSyncFactory = TestReaderSyncFactory(),
             readaloudLinkRepository = FakeLinkRepository,
@@ -448,6 +450,17 @@ class SleepTimerTest {
         override suspend fun save(identity: AudioIdentity, speed: Float) {}
         override suspend fun clear(identity: AudioIdentity) {}
         override suspend fun rekey(old: AudioIdentity, new: AudioIdentity) {}
+    }
+
+    private object FakeListeningPreferencesStore : ListeningPreferencesStore {
+        override val defaultPlaybackSpeed = MutableStateFlow(ListeningPreferencesStore.DEFAULT_PLAYBACK_SPEED)
+        override val skipIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS)
+        override val rewindIntervalSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS)
+        override val rewindOnResumeSeconds = MutableStateFlow(ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS)
+        override suspend fun setDefaultPlaybackSpeed(speed: Float) {}
+        override suspend fun setSkipIntervalSeconds(seconds: Int) {}
+        override suspend fun setRewindIntervalSeconds(seconds: Int) {}
+        override suspend fun setRewindOnResumeSeconds(seconds: Int) {}
     }
 
     private object FakeIdentityResolver : AudioIdentityResolver {

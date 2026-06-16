@@ -16,6 +16,7 @@ import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingOverrides
+import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubOpenResult
@@ -130,6 +131,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
+    private val listeningPreferencesStore: ListeningPreferencesStore,
     private val connectivityObserver: ConnectivityObserver,
     private val readerSyncFactory: ReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
@@ -227,6 +229,18 @@ class EpubReaderViewModel @Inject constructor(
 
     val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_SKIP_INTERVAL_SECONDS.toDouble())
+
+    val rewindIntervalSec: StateFlow<Double> = listeningPreferencesStore.rewindIntervalSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_INTERVAL_SECONDS.toDouble())
+
+    private val rewindOnResumeSec: StateFlow<Double> = listeningPreferencesStore.rewindOnResumeSeconds
+        .map { it.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
 
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
@@ -459,7 +473,7 @@ class EpubReaderViewModel @Inject constructor(
                 AudioIdentity(activeServer?.id ?: "", itemId)
             }
             initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
-                ?: AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
+                ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
 
             // Restore the readaloud resume position persisted when the book was last left, so the
             // first Play this session continues where narration stopped (same page) or starts at the
@@ -1533,6 +1547,7 @@ class EpubReaderViewModel @Inject constructor(
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
             delay(SPEED_SAVE_DEBOUNCE_MS)
+            if (audioSettingsIdentity.serverId.isEmpty()) return@launch
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
             pendingSpeed = null
         }
@@ -1544,12 +1559,13 @@ class EpubReaderViewModel @Inject constructor(
         val speed = pendingSpeed ?: return
         speedSaveJob?.cancel()
         pendingSpeed = null
-        viewModelScope.launch { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
+        if (audioSettingsIdentity.serverId.isEmpty()) return
+        progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
-    fun rewind() = playerCoordinator.rewind()
+    fun rewind() = playerCoordinator.skipBy(-rewindIntervalSec.value)
 
-    fun forward() = playerCoordinator.forward()
+    fun forward() = playerCoordinator.skipBy(skipIntervalSec.value)
 
     /**
      * Swipe-up handoff to the single large player: capture the current listen second, release the
@@ -1722,7 +1738,9 @@ class EpubReaderViewModel @Inject constructor(
         // Record the active readaloud so a media-notification tap reopens this book's reader.
         nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Readaloud(itemId))
         if (readaloudStarted) {
-            // Resume after a pause: ExoPlayer kept its place, just play.
+            // Resume after a pause: rewind by the configured amount then play.
+            val rewindSec = rewindOnResumeSec.value
+            if (rewindSec > 0) playerCoordinator.skipBy(-rewindSec)
             playerCoordinator.play()
             return
         }

@@ -116,9 +116,7 @@ class PlayerCoordinator @Inject constructor(
         _narrationProgress.value = null
     }
 
-    fun rewind() = controller.rewind()
-
-    fun forward() = controller.forward()
+    fun skipBy(deltaSec: Double) = controller.skipBy(deltaSec)
 
     fun previousChapter() = controller.previousChapter()
 
