@@ -87,6 +87,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private var shiftInProgress = false
 
+    /**
+     * True while a window-shift is scheduled (posted) but not yet executed. Shifts are deferred off
+     * the scroll callback (see [handleScrollChange]); this coalesces the many scroll events during a
+     * fling into a single pending shift so we don't queue a backlog of redundant shift runnables.
+     */
+    private var shiftPending = false
+
     /** Measured content heights for each WebView in the current window. */
     private val measuredHeights = mutableListOf<Int>()
 
@@ -403,6 +410,34 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val (href, progression) = ContinuousPositionTracker.locatorAt(scrollY, height, window)
         onPositionChanged?.invoke(href, progression)
 
+        // Defer window shifts off the scroll callback. A shift's compensating scrollBy() would
+        // otherwise run re-entrantly inside NestedScrollView.computeScroll() (this callback fires
+        // synchronously from there during a fling); computeScroll then mis-reads the extra scroll
+        // delta as having hit a content edge and aborts the OverScroller — killing the fling's
+        // momentum at every chapter boundary. Running the shift in a posted runnable (next message,
+        // outside computeScroll) lets the fling continue smoothly across the seam. shiftPending
+        // coalesces the per-frame scroll events into a single scheduled shift.
+        if (!shiftPending) {
+            shiftPending = true
+            post {
+                shiftPending = false
+                maybeShift()
+            }
+        }
+    }
+
+    /**
+     * Evaluate the current scroll position and shift the sliding window by one chapter if needed.
+     * Runs from a posted runnable (never re-entrantly inside the fling computation) so the
+     * compensating scrollBy() does not abort an in-progress fling.
+     */
+    private fun maybeShift() {
+        if (shiftInProgress) return
+        val window = buildWindow()
+        if (window.isEmpty()) return
+        val sY = scrollY
+        val (href, _) = ContinuousPositionTracker.locatorAt(sY, height, window)
+
         // BACKWARD: fire when scrollY is in the first half of the first chapter. This gives a
         // hysteresis gap that prevents the oscillation that a chapter-index check causes —
         // after every FORWARD shift, the scrollBy adjustment lands the viewport inside the new
@@ -415,7 +450,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // of the reader (see ContinuousPositionTracker.forwardShiftNeeded).
         val firstChapterHeight = window.firstOrNull()?.height ?: 0
         val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
-        val shouldShiftBackward = scrollY < firstChapterHeight / 2 && topIndex > 0
+        val shouldShiftBackward = sY < firstChapterHeight / 2 && topIndex > 0
         val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(
             viewportChapterIndex = viewportMidIndex,
             topIndex = topIndex,
