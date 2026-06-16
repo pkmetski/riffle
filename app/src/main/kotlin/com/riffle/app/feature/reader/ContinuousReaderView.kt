@@ -218,7 +218,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         pendingInitialScroll = {
             val window = buildWindow()
             val offset = ContinuousPositionTracker.scrollOffsetFor(initialHref, initialProgression, window)
-            if (offset != null) scrollTo(0, (offset - height / 2).coerceAtLeast(0))
+            // Top-align the opening position rather than centring it. Centring (offset - height/2)
+            // scrolls the target point to mid-screen, which leaves the top half showing the
+            // *previous* content — or blank, when opening at a chapter start or the book's front
+            // matter (title/epigraph pages that are mostly whitespace). Top-aligning puts the target
+            // line at the top of the viewport so the reader sees content immediately, with unread
+            // text below — the natural "resume / open here" position. (navigateTo keeps centring so
+            // a search hit / link target lands comfortably in the middle.)
+            if (offset != null) scrollTo(0, offset.coerceAtLeast(0))
             // Now that the target is visible, fill in the behind buffer for smooth backward
             // scrolling. prependChapter compensates scroll for the added height, so the content the
             // user is already looking at stays visually anchored — no post-paint jump.
@@ -430,6 +437,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * Evaluate the current scroll position and shift the sliding window by one chapter if needed.
      * Runs from a posted runnable (never re-entrantly inside the fling computation) so the
      * compensating scrollBy() does not abort an in-progress fling.
+     *
+     * Deliberately at most one shift per call: each shift's scroll compensation uses the *stored*
+     * height of the chapter it removes, which is only accurate once that chapter has measured.
+     * Shifting several times in one pass (to chase a fast fling) can remove not-yet-measured
+     * chapters, so the compensation drifts and opens a blank gap. One shift per frame keeps the
+     * compensation correct; the look-ahead buffer (CHAPTERS_AHEAD) absorbs the lead a fling needs.
      */
     private fun maybeShift() {
         if (shiftInProgress) return
