@@ -120,13 +120,23 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 // shouldInterceptRequest is called on a background thread; runBlocking is safe here.
                 val bytes = runBlocking { pub.get(relUrl)?.read()?.getOrNull() }
                     ?: return super.shouldInterceptRequest(view, request)
-                val mimeType = mimeTypeForPath(path)
+                val rawMime = mimeTypeForPath(path)
+                val isHtml = rawMime == "text/html" || rawMime == "application/xhtml+xml"
+                // EPUB content documents are XHTML even when their file extension is .htm/.html.
+                // Serving them as text/html makes the WebView use the lenient HTML parser, which
+                // ignores XML self-closing syntax on non-void elements — e.g. `<h1 class="chapter"/>`
+                // with no `</h1>` is treated as an *open* heading that then wraps the entire chapter
+                // body, so every paragraph inherits the heading's `text-align: center`. Serving as
+                // application/xhtml+xml (as Readium's own navigator does) selects the XHTML parser,
+                // which honours the self-close, leaving the heading empty and the body correctly
+                // aligned. EPUB requires well-formed XHTML, so strict parsing is safe here.
+                val mimeType = if (isHtml) "application/xhtml+xml" else rawMime
                 val encoding = if (mimeType.startsWith("text/") || mimeType.contains("xml") || mimeType.contains("javascript")) "utf-8" else null
 
                 // For HTML/XHTML chapter resources, inject the same ReadiumCSS stylesheets + the
                 // --USER__ settings attribute Readium injects, so the first paint is already styled
                 // (no FOUC) AND renders identically to Scroll/Paginated mode.
-                val finalBytes = if (mimeType == "text/html" || mimeType == "application/xhtml+xml") {
+                val finalBytes = if (isHtml) {
                     ContinuousStyleInjector.injectInto(String(bytes, Charsets.UTF_8), currentPrefs)
                         .toByteArray(Charsets.UTF_8)
                 } else {
