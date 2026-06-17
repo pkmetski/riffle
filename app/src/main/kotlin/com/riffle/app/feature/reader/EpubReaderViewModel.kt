@@ -91,6 +91,7 @@ private const val SYNC_INTERVAL_MS = 30_000L
 // A reading-position progression change beyond this (or any href change) counts as navigating off the
 // page readaloud was parked on; smaller deltas are settle jitter on the same page (ADR 0031).
 private const val PARK_PAGE_EPS = 0.001
+private const val BOOKMARK_PAGE_EPS = 0.05   // ±5% within-chapter progression window
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
 private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
@@ -313,6 +314,11 @@ class EpubReaderViewModel @Inject constructor(
     private val _highlightRenders = MutableStateFlow<List<HighlightRender>>(emptyList())
     val highlightRenders: StateFlow<List<HighlightRender>> = _highlightRenders
 
+    /** A persisted bookmark decoded to its chapter position for page-level indicator matching. */
+    data class BookmarkPosition(val id: String, val chapterHref: String, val progression: Double)
+
+    private val _bookmarkPositions = MutableStateFlow<List<BookmarkPosition>>(emptyList())
+
     private val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
 
@@ -521,6 +527,7 @@ class EpubReaderViewModel @Inject constructor(
                 annotationServerId = activeServer.id
                 _annotationsAvailable.value = true
                 observeHighlights(activeServer.id)
+                observeBookmarks(activeServer.id)
             }
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
@@ -988,6 +995,27 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    private fun observeBookmarks(serverId: String) {
+        viewModelScope.launch {
+            combine(
+                annotationStore.observeBookmarks(serverId, itemId),
+                state,
+            ) { annotations, st -> annotations to (st is ReaderState.Ready) }
+                .collect { (annotations, ready) ->
+                    _bookmarkPositions.value =
+                        if (!ready) emptyList() else annotations.mapNotNull { annotationToBookmarkPosition(it) }
+                }
+        }
+    }
+
+    private suspend fun annotationToBookmarkPosition(a: Annotation): BookmarkPosition? {
+        val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return null
+        val html = readChapterHtml(spineIndex) ?: return null
+        val docPath = extractCfiDocPath(a.cfi) ?: return null
+        val progression = cfiDocPathToProgression(docPath, html) ?: return null
+        return BookmarkPosition(a.id, a.chapterHref, progression)
+    }
+
     // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
     fun createHighlight(selectionLocator: Locator) {
@@ -1013,6 +1041,36 @@ class EpubReaderViewModel @Inject constructor(
                 chapterHref = href,
             )
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
+        }
+    }
+
+    /**
+     * Toggle the bookmark for the reader's current page. If the page is already bookmarked (within
+     * [BOOKMARK_PAGE_EPS] progression), removes it; otherwise creates a new bookmark anchored to the
+     * top-of-viewport CFI with the surrounding text as snippet.
+     */
+    fun toggleBookmark() {
+        val serverId = annotationServerId ?: return
+        viewModelScope.launch {
+            val locator = lastLocator ?: return@launch
+            val href = locator.href.toString()
+            val prog = locator.locations.progression ?: 0.0
+            val existing = _bookmarkPositions.value.firstOrNull { bm ->
+                bm.chapterHref == href && kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS
+            }
+            if (existing != null) {
+                annotationStore.delete(existing.id)
+            } else {
+                val cfi = locator.toPayload().ebookLocation
+                val snippet = locator.text?.before?.take(200).orEmpty()
+                annotationStore.createBookmark(
+                    serverId = serverId,
+                    itemId = itemId,
+                    cfi = cfi,
+                    textSnippet = snippet,
+                    chapterHref = href,
+                )
+            }
         }
     }
 
@@ -1085,6 +1143,22 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _currentLocatorProgression = MutableStateFlow<Float?>(null)
     val currentLocatorProgression: StateFlow<Float?> = _currentLocatorProgression
+
+    /**
+     * True when one of this item's bookmarks falls on the reader's current page (chapter href +
+     * within-chapter progression within [BOOKMARK_PAGE_EPS]).
+     */
+    val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
+        _bookmarkPositions,
+        _currentLocatorHref,
+        _currentLocatorProgression,
+    ) { positions, href, prog ->
+        if (href == null) false
+        else positions.any { bm ->
+            bm.chapterHref == href &&
+                (prog == null || kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // Whole-book progress (0..1) for the reading "% read" label — the same coordinate persisted as
     // ebookProgress and shown in book details. Distinct from railCursorPosition, which is a
