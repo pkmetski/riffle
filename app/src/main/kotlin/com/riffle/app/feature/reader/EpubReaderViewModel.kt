@@ -39,6 +39,7 @@ import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ReadaloudResumePosition
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
@@ -322,6 +323,13 @@ class EpubReaderViewModel @Inject constructor(
     data class BookmarkPosition(val id: String, val chapterHref: String, val progression: Double)
 
     private val _bookmarkPositions = MutableStateFlow<List<BookmarkPosition>>(emptyList())
+
+    private val _highlightToEdit = MutableStateFlow<String?>(null)
+    /** Id of a highlight whose actions sheet should be open (just-created or tapped), else null. */
+    val highlightToEdit: StateFlow<String?> = _highlightToEdit
+
+    fun openHighlightActions(id: String) { _highlightToEdit.value = id }
+    fun dismissHighlightActions() { _highlightToEdit.value = null }
 
     private val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
@@ -1048,13 +1056,14 @@ class EpubReaderViewModel @Inject constructor(
             val progression = selectionLocator.locations.progression ?: 0.0
             val cfiRange = buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
                 ?: return@launch
-            annotationStore.createHighlight(
+            val created = annotationStore.createHighlight(
                 serverId = serverId,
                 itemId = itemId,
                 cfi = cfiRange,
                 textSnippet = snippet,
                 chapterHref = href,
             )
+            _highlightToEdit.value = created.id
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
         }
     }
@@ -1086,6 +1095,19 @@ class EpubReaderViewModel @Inject constructor(
                     chapterHref = href,
                 )
             }
+        }
+    }
+
+    /** Recolour an existing highlight; observeHighlights re-emits → decoration re-applies. */
+    fun recolorHighlight(id: String, color: HighlightColor) {
+        viewModelScope.launch { annotationStore.recolor(id, color.token) }
+    }
+
+    /** Soft-delete a highlight; observeHighlights re-emits without it → decoration is removed. */
+    fun deleteHighlight(id: String) {
+        viewModelScope.launch {
+            annotationStore.delete(id)
+            if (_highlightToEdit.value == id) _highlightToEdit.value = null
         }
     }
 
