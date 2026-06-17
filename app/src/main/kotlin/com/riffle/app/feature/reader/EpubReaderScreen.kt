@@ -87,6 +87,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
@@ -1564,7 +1565,7 @@ private fun EpubNavigatorView(
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of
     // every highlight when the book is reopened, and the immediate paint after a new highlight.
     val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         if (highlightRenders.isEmpty()) {
             if (!hasHighlightDecorations.value) return@LaunchedEffect
@@ -1578,7 +1579,9 @@ private fun EpubNavigatorView(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = Decoration.Style.Highlight(tint = highlightTint(h.color)),
+                style = HighlightTintStyle(
+                    tint = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme),
+                ),
             )
         }
         withContext(Dispatchers.Main) {
