@@ -94,6 +94,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private var shiftPending = false
 
+    /** True while rebuilding the window after a WebView renderer-process death (debounces the
+     * per-WebView onRenderProcessGone events that all fire at once). */
+    private var rendererRecovering = false
+
     /** Measured content heights for each WebView in the current window. */
     private val measuredHeights = mutableListOf<Int>()
 
@@ -142,6 +146,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onHeightMeasured = null
         wv.onPageFinished = null
         wv.onTap = null
+        wv.onRenderGone = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
     }
 
@@ -202,7 +207,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         allChapters = chapters
         formattingPrefs = prefs
         this.publication = publication
-        val centerIndex = chapters.indexOfFirst { it.link.href.toString() == initialHref }
+        openWindowAt(initialHref, initialProgression)
+    }
+
+    /**
+     * Builds the sliding window with [initialHref] at the top and scrolls to [initialProgression]
+     * once it has measured. Used both for the first open and to recover after the WebView renderer
+     * process is killed (see [onRenderProcessGone] wiring in [appendChapter]).
+     */
+    private fun openWindowAt(initialHref: String, initialProgression: Float) {
+        val centerIndex = allChapters.indexOfFirst { it.link.href.toString() == initialHref }
             .coerceAtLeast(0)
 
         // Open with the TARGET chapter at the top of the window (no behind buffer yet). The behind
@@ -211,7 +225,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // target at window-index 0 its layout top is 0, so the initial scroll offset depends only on
         // the target's own height: we wait for exactly one chapter to measure, not two.
         topIndex = centerIndex
-        val initialAhead = minOf(1 + CHAPTERS_AHEAD, chapters.size - topIndex)
+        val initialAhead = minOf(1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
 
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.add(0) // the target chapter only
@@ -244,6 +258,33 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
         repeat(initialAhead) { i -> appendChapter(topIndex + i) }
+    }
+
+    /**
+     * Recover after the shared WebView renderer process is gone (Android reclaims it under memory
+     * pressure — likelier with very large chapters held in several stacked WebViews). All WebViews
+     * become permanently blank, and if [ChapterWebView] did not consume the event the whole app
+     * would crash. We capture the current reading position, tear down every (now-dead) WebView, and
+     * rebuild the window around that position so the reader restores itself in place instead of
+     * showing blank pages. Debounced because the event fires once per live WebView at the same time.
+     */
+    private fun recoverFromRendererGone() {
+        if (rendererRecovering) return
+        rendererRecovering = true
+        val window = buildWindow()
+        val (href, progression) = if (window.isNotEmpty()) {
+            ContinuousPositionTracker.locatorAt(scrollY, height, window)
+        } else {
+            (allChapters.getOrNull(topIndex)?.link?.href?.toString() ?: "") to 0f
+        }
+        webViews.forEach { it.destroy() }
+        webViews.clear()
+        measuredHeights.clear()
+        container.removeAllViews()
+        recycledViews.forEach { it.destroy() }
+        recycledViews.clear()
+        if (href.isNotEmpty()) openWindowAt(href, progression)
+        post { rendererRecovering = false }
     }
 
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
@@ -290,6 +331,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
         wv.onTap = { onTap?.invoke() }
+        wv.onRenderGone = { recoverFromRendererGone() }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -364,6 +406,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
         wv.onTap = { onTap?.invoke() }
+        wv.onRenderGone = { recoverFromRendererGone() }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)

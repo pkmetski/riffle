@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -36,6 +37,14 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      * top/bottom bars, matching the behaviour of the standard Readium navigator.
      */
     var onTap: (() -> Unit)? = null
+
+    /**
+     * Called on the main thread when this WebView's renderer process is gone (reclaimed by the
+     * system under memory pressure, or crashed). The dead WebView renders blank from here on, so
+     * the parent must rebuild it. If this event is not consumed the platform's default behaviour is
+     * to crash the whole app.
+     */
+    var onRenderGone: (() -> Unit)? = null
 
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
     var chapterHref: String = ""
@@ -78,6 +87,15 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 this@ChapterWebView.onPageFinished?.invoke()
+            }
+
+            override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                // The renderer process backing this WebView is gone — typically reclaimed by the
+                // system under memory pressure (large chapters held in several stacked WebViews make
+                // this likelier). Returning true tells the platform we've handled it, so the app is
+                // NOT killed; the parent rebuilds the (now-dead, permanently blank) WebView.
+                this@ChapterWebView.onRenderGone?.invoke()
+                return true
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
