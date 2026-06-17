@@ -635,6 +635,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private fun maybeShift() {
         if (shiftInProgress) return
+        // Don't shift the window until the initial scroll has landed. The initial-scroll latch keys
+        // on window indices; a shift here (from an early scroll/re-measure during the open) would
+        // renumber the slots out from under it, so it could fire against the wrong chapter or never
+        // empty. Once the target is positioned, normal shifting resumes.
+        if (pendingInitialScroll != null) return
         val window = buildWindow()
         if (window.isEmpty()) return
         val sY = scrollY

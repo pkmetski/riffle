@@ -79,6 +79,10 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      */
     @Volatile
     private var rawChapterHtml: String? = null
+    // @Volatile: reset on the main thread in loadChapter() but read + lazily cached on the WebView
+    // JS binder thread in onFootnoteAnchorTap(); without it the binder thread could miss the reset
+    // after a recycle and resolve a footnote against the previous chapter's parsed document.
+    @Volatile
     private var footnoteDoc: org.jsoup.nodes.Document? = null
 
     /** When true, the text-selection menu offers "Play from here" (readaloud books only). */
