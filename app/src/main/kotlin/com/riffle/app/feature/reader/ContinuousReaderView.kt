@@ -241,11 +241,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /**
      * Builds the sliding window with [initialHref] at the top and scrolls to [initialProgression]
-     * once it has measured. Used both for the first open and to recover after the WebView renderer
+     * (or, when [anchorFragment] names an element, to that element) once the target has measured.
+     * Used for the first open, for a far TOC/link jump, and to recover after the WebView renderer
      * process is killed (see [onRenderProcessGone] wiring in [appendChapter]).
      */
-    private fun openWindowAt(initialHref: String, initialProgression: Float) {
-        val centerIndex = allChapters.indexOfFirst { it.link.href.toString() == initialHref }
+    private fun openWindowAt(initialHref: String, initialProgression: Float, anchorFragment: String = "") {
+        val centerIndex = ContinuousPositionTracker
+            .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
             .coerceAtLeast(0)
 
         // Open with the TARGET chapter at the top of the window (no behind buffer yet). The behind
@@ -259,30 +261,39 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.add(0) // the target chapter only
         pendingInitialScroll = {
-            val window = buildWindow()
-            val offset = ContinuousPositionTracker.scrollOffsetFor(initialHref, initialProgression, window)
-            // Top-align the opening position rather than centring it. Centring (offset - height/2)
-            // scrolls the target point to mid-screen, which leaves the top half showing the
-            // *previous* content — or blank, when opening at a chapter start or the book's front
-            // matter (title/epigraph pages that are mostly whitespace). Top-aligning puts the target
-            // line at the top of the viewport so the reader sees content immediately, with unread
-            // text below — the natural "resume / open here" position. (navigateTo keeps centring so
-            // a search hit / link target lands comfortably in the middle.)
-            if (offset != null) scrollTo(0, offset.coerceAtLeast(0))
-            // Now that the target is visible, fill in the behind buffer for smooth backward
-            // scrolling. prependChapter compensates scroll for the added height, so the content the
-            // user is already looking at stays visually anchored — no post-paint jump.
-            // shiftInProgress guards the compensating scrollBy from re-entering handleScrollChange
-            // and oscillating (the same guard the on-scroll shifts use).
-            post {
-                shiftInProgress = true
-                repeat(CHAPTERS_BEHIND) {
-                    if (topIndex > 0) {
-                        topIndex--
-                        prependChapter(topIndex)
+            // Fill the behind buffer for smooth backward scrolling — but only AFTER the target scroll
+            // has landed. prependChapter compensates scroll for the added height, so the content the
+            // user is now looking at stays anchored; running it before the (possibly async, anchor-
+            // resolving) scroll would shift the layout and land us in the wrong place.
+            val fillBehindBuffer = {
+                post {
+                    shiftInProgress = true
+                    repeat(CHAPTERS_BEHIND) {
+                        if (topIndex > 0) {
+                            topIndex--
+                            prependChapter(topIndex)
+                        }
                     }
+                    shiftInProgress = false
                 }
-                shiftInProgress = false
+            }
+            val window = buildWindow()
+            val slot = window.firstOrNull { it.href.substringBefore('#') == initialHref.substringBefore('#') }
+            // Top-align the opening position rather than centring it: centring would leave the top
+            // half showing the *previous* content (or blank at a chapter start / front matter), so the
+            // reader wouldn't "focus on the correct page". With an anchor fragment (a TOC/cross-ref
+            // target) land on that element instead of the resource top, so entries pointing past
+            // front-matter inside a resource are accurate. The target is at window-index 0 here
+            // (slot.top == 0), so the scroll lands cleanly before the behind buffer is added.
+            val targetWv = webViews.firstOrNull { it.chapterHref.substringBefore('#') == initialHref.substringBefore('#') }
+            if (slot != null && anchorFragment.isNotEmpty() && targetWv != null) {
+                targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
+                    scrollTo(0, (slot.top + (anchorOffset ?: (initialProgression * slot.height).toInt())).coerceAtLeast(0))
+                    fillBehindBuffer()
+                }
+            } else {
+                if (slot != null) scrollTo(0, (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0))
+                fillBehindBuffer()
             }
         }
 
@@ -329,20 +340,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // TOC entries / chapter-map segments / internal links may carry a #fragment that the spine
         // hrefs don't have; match on the resource path so the chapter is still found.
         val target = href.substringBefore('#')
+        val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
             allChapters.map { it.link.href.toString() }, href,
         )
         if (targetIndex < 0) return
         val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
-            // Already loaded and measured: scroll straight to it, centring the target (good for a
-            // nearby search hit).
-            post {
-                val window = buildWindow()
-                val matchHref = window.firstOrNull { it.href.substringBefore('#') == target }?.href ?: target
-                val offset = ContinuousPositionTracker.scrollOffsetFor(matchHref, progression, window)
-                if (offset != null) smoothScrollTo(0, (offset - height / 2).coerceAtLeast(0))
-            }
+            // Already loaded and measured: scroll straight to it.
+            post { scrollToLoadedChapter(target, progression, fragment, smooth = true) }
         } else {
             // Far jump (typical TOC / chapter-map tap): rebuild the window around the target and land
             // via the open path, which defers the scroll until the target's REAL height is known.
@@ -354,7 +360,34 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             container.removeAllViews()
             recycledViews.forEach { it.destroy() }
             recycledViews.clear()
-            openWindowAt(target, progression)
+            openWindowAt(target, progression, fragment)
+        }
+    }
+
+    /**
+     * Scroll the (already loaded) chapter [target] into view. When [fragment] names an element, land
+     * on that element (so a TOC/cross-ref anchor lands at the heading, not the resource top). With no
+     * fragment, a chapter start ([progression] ~0) is TOP-aligned — centring it would push the
+     * previous chapter into the top half ("wrong page"); a mid-chapter position (search hit) is
+     * centred so the hit is comfortably visible.
+     */
+    private fun scrollToLoadedChapter(target: String, progression: Float, fragment: String, smooth: Boolean) {
+        val window = buildWindow()
+        val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
+        fun go(y: Int) {
+            val clamped = y.coerceAtLeast(0)
+            if (smooth) smoothScrollTo(0, clamped) else scrollTo(0, clamped)
+        }
+        val wvIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
+        if (fragment.isNotEmpty() && wvIndex >= 0) {
+            webViews[wvIndex].anchorOffsetTopDevicePx(fragment) { anchorOffset ->
+                if (anchorOffset != null) go(slot.top + anchorOffset)
+                else go(slot.top + (progression * slot.height).toInt())
+            }
+        } else {
+            val base = slot.top + (progression * slot.height).toInt()
+            // Top-align a chapter start; centre a mid-chapter target.
+            go(if (progression <= 0.001f) base else base - height / 2)
         }
     }
 

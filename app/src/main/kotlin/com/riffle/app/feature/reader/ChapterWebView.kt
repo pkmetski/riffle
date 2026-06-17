@@ -240,6 +240,28 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     /** Re-inject user styles and re-measure after a preference change. */
     fun reinjectAndRemeasure(styleJs: String) = injectStylesAndMeasure(styleJs)
 
+    /**
+     * Resolve [fragment] (an element id / name from a TOC or cross-reference link) to its top offset
+     * within this chapter, in DEVICE px (so it composes with the chapter's layout height). Calls
+     * [callback] with null when the element isn't found. Used to land a TOC/anchor jump on the actual
+     * heading instead of the resource top.
+     */
+    fun anchorOffsetTopDevicePx(fragment: String, callback: (Int?) -> Unit) {
+        val esc = fragment.replace("\\", "\\\\").replace("'", "\\'")
+        val js = """(function(){
+            var e = document.getElementById('$esc') ||
+                    document.querySelector("[id='$esc'], [name='$esc'], a[name='$esc']");
+            if (!e) return -1;
+            var r = e.getBoundingClientRect();
+            var y = r.top + (window.pageYOffset || document.documentElement.scrollTop || 0);
+            return Math.max(0, Math.round(y * (window.devicePixelRatio || 1)));
+        })()"""
+        evaluateJavascript(js) { raw ->
+            val v = raw?.trim('"')?.toIntOrNull()
+            callback(if (v == null || v < 0) null else v)
+        }
+    }
+
     // ── Text-selection menu ──────────────────────────────────────────────────────
     // The Readium fragment provides Riffle's custom selection menu in paged/scroll mode; in
     // Continuous mode selection happens in these WebViews, so we wrap their action mode to offer the
