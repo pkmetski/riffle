@@ -44,6 +44,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
         /** Total sliding-window size: the reader's chapter plus the behind/ahead buffers. */
         private const val WINDOW_SIZE = CHAPTERS_BEHIND + 1 + CHAPTERS_AHEAD
+
+        /**
+         * Grace period after a window (re)build before the initial scroll is forced to fire even if
+         * not every required chapter has measured — so a slow/failed measurement can't strand the
+         * reader on a blank position. Long enough that a normal load measures first (chapters
+         * typically measure in <300ms), short enough that a stuck case recovers quickly.
+         */
+        private const val INITIAL_SCROLL_FALLBACK_MS = 700L
     }
 
     data class ChapterEntry(val link: Link, val url: String)
@@ -239,7 +247,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * count on a debug device.
      */
     private val maxFlingVelocity =
-        (android.view.ViewConfiguration.get(context).scaledMaximumFlingVelocity * 0.45f).toInt()
+        (android.view.ViewConfiguration.get(context).scaledMaximumFlingVelocity * 0.60f).toInt()
 
     override fun fling(velocityY: Int) {
         super.fling(velocityY.coerceIn(-maxFlingVelocity, maxFlingVelocity))
@@ -313,6 +321,21 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
         repeat(totalChapters) { i -> appendChapter(topIndex + i) }
+
+        // Safety net: the scroll above waits for the behind buffer AND the target to measure. If a
+        // chapter is slow to load/measure (large resource, slow device, transient renderer hiccup),
+        // never leave the window stranded on a stale scroll offset showing a blank — fire the scroll
+        // after a short grace period with whatever heights are known. Lands the target at the behind
+        // buffer's placeholder height; the index-0 height compensation then corrects it to the exact
+        // top once the behind buffer's real height arrives. A no-op if the normal path already fired.
+        postDelayed({
+            if (pendingInitialScroll != null) {
+                val scroll = pendingInitialScroll
+                pendingInitialScroll = null
+                pendingInitialMeasureIndices.clear()
+                scroll?.invoke()
+            }
+        }, INITIAL_SCROLL_FALLBACK_MS)
     }
 
     /**
