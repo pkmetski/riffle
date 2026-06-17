@@ -25,7 +25,7 @@ fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
     isFixedLayout: Boolean = false,
 ): EpubPreferences {
-    val isDoublePage = orientation != ReaderOrientation.Vertical && doublePageSpread && isLandscape
+    val isDoublePage = orientation == ReaderOrientation.Horizontal && doublePageSpread && isLandscape
     return EpubPreferences(
         fontSize = fontSize.toDouble(),
         theme = when (theme) {
@@ -53,12 +53,16 @@ fun FormattingPreferences.toEpubPreferences(
             ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
             ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
         },
+        // null (not TextAlign.START) when justify is off, so --USER__textAlign stays unset and the
+        // publisher's text alignment is preserved — the original Paginated/Scroll contract (see
+        // FormattingPreferencesMapperTest.justifyTextFalseMapsToNullTextAlign). Continuous mode sets
+        // its own text-align in ContinuousStyleInjector and does not depend on this mapper.
         textAlign = if (justifyText) TextAlign.JUSTIFY else null,
         // lineHeight only takes effect when publisherStyles is off
         publisherStyles = false,
         lineHeight = lineSpacing.toDouble().takeIf { lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING },
         pageMargins = margins.toDouble(),
-        scroll = orientation == ReaderOrientation.Vertical,
+        scroll = orientation != ReaderOrientation.Horizontal,
         // Fixed-layout: spread controls two-page side-by-side rendering.
         // Reflowable: column count is set via RS properties in toFragmentConfiguration().
         spread = if (isFixedLayout) (if (isDoublePage) Spread.ALWAYS else Spread.NEVER) else null,
@@ -74,7 +78,7 @@ fun FormattingPreferences.toFragmentConfiguration(
     // --RS__colWidth must be "auto" to remove the default 45em minimum which would otherwise
     // prevent two columns from fitting in a phone-width viewport.
     val isDoublePage = !isFixedLayout &&
-        orientation != ReaderOrientation.Vertical &&
+        orientation == ReaderOrientation.Horizontal &&
         doublePageSpread &&
         isLandscape
     return EpubNavigatorFragment.Configuration(
@@ -100,7 +104,7 @@ fun FormattingPreferences.toFragmentConfiguration(
             // default so a phone-width viewport rendered TWO columns — and its decoration renderer
             // mispositions the readaloud highlight in a multi-column layout, so the synced highlight
             // silently vanished. (Landscape double-page still uses TWO columns above, by design.)
-            !isFixedLayout && orientation != ReaderOrientation.Vertical ->
+            !isFixedLayout && orientation == ReaderOrientation.Horizontal ->
                 RsProperties(colCount = ColCount.ONE)
             // Scroll mode and fixed-layout: column count doesn't apply.
             else -> RsProperties()

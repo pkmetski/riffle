@@ -267,7 +267,7 @@ fun EpubReaderScreen(
     // needs no reserve (the player floats over a freely-scrollable page). See ReadaloudReserve.kt.
     val readaloudReservePx: Int = readaloudReserveDp(
         readaloudAvailable = readaloudAvailable,
-        paginated = formattingPrefs.orientation != ReaderOrientation.Vertical,
+        paginated = formattingPrefs.orientation == ReaderOrientation.Horizontal,
     )
 
     // Track the rendered height of the chapter rail overlay so its pixels can be added to the CSS
@@ -921,6 +921,8 @@ private fun EpubNavigatorView(
     val coroutineScope = rememberCoroutineScope()
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
+    val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
+    val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -1239,8 +1241,20 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
-    LaunchedEffect(onNavigationEvents) {
+    LaunchedEffect(onNavigationEvents, isContinuous) {
         onNavigationEvents.collect { link ->
+            // In Continuous mode the Readium fragment is a server-keeper only (invisible,
+            // height=0): fragment.go() would suspend forever on the invisible WebView, leaving
+            // navigating=true and covering the reader with a permanent blank overlay. So TOC entries,
+            // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
+            // instead of the fragment.
+            if (isContinuous) {
+                val view = continuousViewRef.value ?: return@collect
+                // TOC entries / chapter-map segments are Links (no progression) — land at the start
+                // of the target chapter.
+                view.navigateTo(link.href.toString(), 0f)
+                return@collect
+            }
             val fragment = fragmentRef.value ?: return@collect
             // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
             // is instant and needs no mask.
@@ -1258,10 +1272,19 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(serverLocatorEvents) {
+    LaunchedEffect(serverLocatorEvents, isContinuous) {
         serverLocatorEvents.collect { locator ->
-            // Background position sync (peer/resume): navigate and snap onto the target's column, tracked
-            // through the new chapter's reflow, but never cover — a cover here would flash mid-reading.
+            // Background position sync (peer/resume/audiobook handoff): in Continuous mode the
+            // fragment is the invisible server-keeper, so route the jump to the continuous view.
+            if (isContinuous) {
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                )
+                return@collect
+            }
+            // Paginated/scroll: navigate and snap onto the target's column, tracked through the new
+            // chapter's reflow, but never cover — a cover here would flash mid-reading.
             val fragment = fragmentRef.value ?: return@collect
             // A background sync (audiobook/peer) carries a within-chapter progression but no DOM
             // fragment; preserve where go() landed (round to the column grid) instead of snapping to
@@ -1288,12 +1311,32 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(returnNavEvents) {
-        returnNavEvents.collect { goAndSnapWithCover(it) }
+    LaunchedEffect(returnNavEvents, isContinuous) {
+        returnNavEvents.collect { locator ->
+            if (isContinuous) {
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                )
+            } else {
+                goAndSnapWithCover(locator)
+            }
+        }
     }
 
-    LaunchedEffect(searchNavigationEvents) {
-        searchNavigationEvents.collect { goAndSnapWithCover(it) }
+    LaunchedEffect(searchNavigationEvents, isContinuous) {
+        searchNavigationEvents.collect { locator ->
+            if (isContinuous) {
+                val view = continuousViewRef.value ?: return@collect
+                val href = locator.href.toString()
+                val progression = locator.locations.progression?.toFloat() ?: 0f
+                val highlightText = locator.text.highlight?.take(40) ?: ""
+                view.navigateTo(href, progression)
+                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText)
+            } else {
+                goAndSnapWithCover(locator)
+            }
+        }
     }
 
     // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
@@ -1331,6 +1374,7 @@ private fun EpubNavigatorView(
     // re-applies are idempotent (same id + locator). Re-keys on reflow/pageLoad as well for rotation and
     // formatting reflows, matching the readaloud and annotations decoration effects.
     LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
+        if (isContinuous) return@LaunchedEffect  // ContinuousReaderView uses window.find via highlightInChapter
         if (searchResults.isEmpty()) {
             if (!hasActiveDecorations.value) return@LaunchedEffect
             val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
@@ -1392,6 +1436,7 @@ private fun EpubNavigatorView(
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
     LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
+        if (isContinuous) return@LaunchedEffect  // handled in the Continuous-mode effect below
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -1426,6 +1471,33 @@ private fun EpubNavigatorView(
             fragment.applyDecorations(listOf(decoration), group = "readaloud")
         }
         hasReadaloudDecoration.value = true
+    }
+
+    // ---- Continuous-mode readaloud highlight -----------------------------------------------
+    // In Continuous mode, decoration APIs are not used. Instead we call ContinuousReaderView's
+    // highlightInChapter / clearHighlightInChapter directly, keyed by the 12-char text prefix
+    // (same heuristic as autoFollowSnapJs). prevHighlightHref tracks the chapter that currently
+    // carries the mark so we can clear it if the narrated chapter changes or playback stops.
+    val prevHighlightHref = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes) {
+        if (!isContinuous) return@LaunchedEffect
+        val view = continuousViewRef.value ?: return@LaunchedEffect
+        val ref = activeFragmentRef
+        if (ref == null) {
+            // Readaloud stopped — clear the last known chapter's highlight
+            prevHighlightHref.value?.let { view.clearHighlightInChapter(it) }
+            prevHighlightHref.value = null
+            return@LaunchedEffect
+        }
+        val chapterHref = ref.substringBefore('#')
+        val sid = ref.substringAfter('#', "")
+        val quote = sentenceQuotes[sid]
+        val highlightText = quote?.highlight?.take(12) ?: return@LaunchedEffect
+        // If the chapter changed, clear the previous chapter's mark
+        val prev = prevHighlightHref.value
+        if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
+        prevHighlightHref.value = chapterHref
+        view.highlightInChapter(chapterHref, highlightText)
     }
 
     // ---- Persisted highlights (ADR 0024) ---------------------------------------------------
@@ -1478,6 +1550,7 @@ private fun EpubNavigatorView(
     // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
     // no longer reflows it, so opening it doesn't move the narrated sentence's column.
     LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
+        if (isContinuous) return@LaunchedEffect
         val ref = activeFragmentRef ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
@@ -1525,11 +1598,15 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(volumeNavEvents) {
+    LaunchedEffect(volumeNavEvents, isContinuous) {
         volumeNavEvents.collect { event ->
+            if (isContinuous) {
+                continuousViewRef.value?.scrollByPage(forward = event == VolumeNavEvent.Forward)
+                return@collect
+            }
             val fragment = fragmentRef.value ?: return@collect
             val container = containerRef.value
-            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
+            if (currentFormattingPrefs.orientation != ReaderOrientation.Horizontal && container != null) {
                 when (event) {
                     VolumeNavEvent.Forward -> {
                         val atBottom = fragment.evaluateJavascript(
@@ -1561,6 +1638,14 @@ private fun EpubNavigatorView(
     // after rotation (isLandscape changes while fragmentRef is null, so the call would be lost).
     LaunchedEffect(formattingPrefs, isLandscape, fragmentRef.value) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout))
+        continuousViewRef.value?.updatePreferences(formattingPrefs)
+    }
+
+    // If the user switches TO Continuous mode while a navigating cover was active (the
+    // onNavigationEvents LaunchedEffect gets cancelled mid-goAndSnap), navigating would stay
+    // true indefinitely. Clear it whenever isContinuous becomes true.
+    LaunchedEffect(isContinuous) {
+        if (isContinuous) navigating = false
     }
 
     DisposableEffect(tapListener) {
@@ -1628,7 +1713,7 @@ private fun EpubNavigatorView(
     // page-coloured gutter behind). Scroll / fixed-layout / double-page keep fillMaxSize and the
     // bare modifier, untouched. See reference_reader_right_margin_is_column_snap_bug.
     val density = LocalDensity.current.density
-    val isPaginated = !isFixedLayout && formattingPrefs.orientation != ReaderOrientation.Vertical
+    val isPaginated = !isFixedLayout && formattingPrefs.orientation == ReaderOrientation.Horizontal
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
     val alignViewport = isPaginated && !isDoublePage
     val containerModifier = if (alignViewport) {
@@ -1666,12 +1751,21 @@ private fun EpubNavigatorView(
                 }.also { containerRef.value = it }
             },
             update = { container ->
-                container.isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+                // In Continuous mode the fragment is kept alive only to maintain the HTTP server.
+                // Collapse it to zero-height so ContinuousReaderView takes the full screen.
+                if (formattingPrefs.orientation == ReaderOrientation.Continuous) {
+                    container.layoutParams = container.layoutParams?.apply { height = 0 }
+                    container.visibility = View.INVISIBLE
+                } else {
+                    container.layoutParams = container.layoutParams?.apply { height = FrameLayout.LayoutParams.MATCH_PARENT }
+                    container.visibility = View.VISIBLE
+                }
+                container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
 
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
 
-                val isScrollMode = formattingPrefs.orientation == ReaderOrientation.Vertical
+                val isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
                 val density = container.resources.displayMetrics.density
                 val (topPx, bottomPx) = readerContainerPaddingPx(
                     margins = formattingPrefs.margins,
@@ -1689,7 +1783,7 @@ private fun EpubNavigatorView(
                 // cannot be changed via submitPreferences. Recreate the fragment whenever the
                 // double-page mode changes so the new RS config takes effect.
                 val isDoublePage = !isFixedLayout &&
-                    formattingPrefs.orientation != ReaderOrientation.Vertical &&
+                    formattingPrefs.orientation == ReaderOrientation.Horizontal &&
                     formattingPrefs.doublePageSpread &&
                     isLandscape
                 val existingFrag = fragmentRef.value
@@ -1791,6 +1885,98 @@ private fun EpubNavigatorView(
             },
             modifier = readerModifier,
         )
+        if (isContinuous) {
+            // Readium always serves EPUB resources at https://readium_package/<href>.
+            // ChapterWebView intercepts that virtual host and fetches from the Publication object,
+            // so we can construct chapter URLs directly without querying the fragment's WebView.
+            val chapters = remember {
+                state.publication.readingOrder.map { link ->
+                    ContinuousReaderView.ChapterEntry(
+                        link,
+                        "https://readium_package/${link.href.toString().trimStart('/')}",
+                    )
+                }
+            }
+            AndroidView(
+                factory = { ctx ->
+                    ContinuousReaderView(ctx).also { view ->
+                        continuousViewRef.value = view
+                        view.onPositionChanged = { href, progression ->
+                            val locator = Locator.fromJSON(
+                                org.json.JSONObject()
+                                    .put("href", href)
+                                    .put("type", "application/xhtml+xml")
+                                    .put("locations", org.json.JSONObject().put("progression", progression.toDouble()))
+                            )
+                            if (locator != null) onPositionChanged(locator)
+                        }
+                        view.onTap = currentOnTap
+                        view.onInternalLinkTapped = onInternalLinkTapped@{ href ->
+                            // Reuse the return-aware internal-link path: capture the origin (for the
+                            // "Back" card) and navigate. Look up the spine Link so the existing
+                            // followInternalLink wiring (capture + navigation event) handles it; fall
+                            // back to a direct jump for a target outside the reading order.
+                            val origin = currentLatestLocator()
+                            val path = href.substringBefore('#')
+                            val link = state.publication.readingOrder
+                                .firstOrNull { it.href.toString() == path }
+                            if (link != null && origin != null) {
+                                currentOnFollowInternalLink(link, origin)
+                            } else {
+                                view.navigateTo(href, 0f)
+                            }
+                        }
+                        view.onExternalLinkTapped = { url ->
+                            runCatching {
+                                ctx.startActivity(
+                                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        }
+                        view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
+                        view.readaloudAvailable = currentReadaloudAvailable
+                        view.onPlayFromHereSelection = { chapterHref, selectedText ->
+                            // Resolve the selection to a narrated sentence id and start playback there.
+                            // Scope the candidate sentences to the TAPPED chapter first (same as the
+                            // paged path): handed the whole book, a short selection can match a foreign
+                            // chapter's sentence whose text recurs in this one, so playback would jump to
+                            // a completely different sentence (and the highlight, keyed on this chapter,
+                            // would never appear). scopeSentencesToChapter removes the cross-chapter
+                            // candidates; within one chapter the text containment match is reliable.
+                            val scoped = scopeSentencesToChapter(
+                                currentSentenceQuotes, currentSentenceChapters, chapterHref,
+                            ).toMap()
+                            val sid = ContinuousPositionTracker.sentenceIdForSelection(selectedText, scoped)
+                            if (sid != null) currentOnPlayFromHere("$chapterHref#$sid")
+                        }
+                    }
+                },
+                // readaloudAvailability can flip mid-session (e.g. a bundle finishes downloading),
+                // so keep the selection menu's "Play from here" gate in sync.
+                update = { it.readaloudAvailable = readaloudAvailable },
+                modifier = readerModifier,
+            )
+            // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a
+            // layout-phase effect, while LaunchedEffect runs as a composition-phase effect — there
+            // is no guaranteed order between the two on first composition. Keying on the ref means
+            // this coroutine only fires (or re-fires) once the factory has actually populated it.
+            val continuousView = continuousViewRef.value
+            LaunchedEffect(continuousView) {
+                val view = continuousView ?: return@LaunchedEffect
+                val initialLocator = latestLocator() ?: state.initialLocator
+                val initialHref = initialLocator?.href?.toString()
+                    ?: chapters.firstOrNull()?.link?.href?.toString()
+                    ?: return@LaunchedEffect
+                view.initialize(
+                    chapters = chapters,
+                    prefs = formattingPrefs,
+                    initialHref = initialHref,
+                    initialProgression = initialLocator?.locations?.progression?.toFloat() ?: 0f,
+                    publication = state.publication,
+                )
+            }
+        }
         AnimatedVisibility(
             visible = pullActive,
             enter = slideInVertically(initialOffsetY = { if (pullForward) it else -it }) + fadeIn(),
