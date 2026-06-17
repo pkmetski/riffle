@@ -1938,10 +1938,16 @@ private fun EpubNavigatorView(
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->
                             // Resolve the selection to a narrated sentence id and start playback there.
-                            val sid = ContinuousPositionTracker.sentenceIdForSelection(
-                                selectedText,
-                                currentSentenceQuotes.mapValues { it.value.highlight },
-                            )
+                            // Scope the candidate sentences to the TAPPED chapter first (same as the
+                            // paged path): handed the whole book, a short selection can match a foreign
+                            // chapter's sentence whose text recurs in this one, so playback would jump to
+                            // a completely different sentence (and the highlight, keyed on this chapter,
+                            // would never appear). scopeSentencesToChapter removes the cross-chapter
+                            // candidates; within one chapter the text containment match is reliable.
+                            val scoped = scopeSentencesToChapter(
+                                currentSentenceQuotes, currentSentenceChapters, chapterHref,
+                            ).toMap()
+                            val sid = ContinuousPositionTracker.sentenceIdForSelection(selectedText, scoped)
                             if (sid != null) currentOnPlayFromHere("$chapterHref#$sid")
                         }
                     }
