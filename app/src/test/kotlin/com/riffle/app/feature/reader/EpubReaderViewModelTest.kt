@@ -1018,7 +1018,6 @@ class ReadaloudSpeedPersistenceTest {
     }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class BookmarkIndicatorTest {
 
     // Extracted pure logic: given a list of BookmarkPositions and a current locator,

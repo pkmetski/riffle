@@ -1062,7 +1062,7 @@ class EpubReaderViewModel @Inject constructor(
                 annotationStore.delete(existing.id)
             } else {
                 val cfi = locator.toPayload().ebookLocation
-                val snippet = locator.text?.before?.take(200).orEmpty()
+                val snippet = locator.text.before?.take(200).orEmpty()
                 annotationStore.createBookmark(
                     serverId = serverId,
                     itemId = itemId,
