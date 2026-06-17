@@ -35,12 +35,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         private const val CHAPTERS_BEHIND = 1
 
         /**
-         * Chapters kept loaded ahead of the reader. Must be ≥2 so that a short "CHAPTER N"
-         * divider page and the real content chapter that follows it are BOTH loaded and measured
-         * before the reader arrives — otherwise the content chapter starts loading exactly when
-         * the reader scrolls into it, producing a blank gap, a spinner, and a jump at the seam.
+         * Chapters kept loaded ahead of the reader. The buffer is count-based, but EPUBs split a
+         * book into many small spine files (e.g. The Martian: 168 spine items for 31 TOC chapters —
+         * short "LOG ENTRY" entries and "CHAPTER N" divider pages), so a few chapters ahead can be
+         * less than one screen of pixels. When the reader scrolls faster than those tiny chapters
+         * load, it reaches one that hasn't rendered yet — a blank gap (and loading spinner) at the
+         * seam. A larger ahead-buffer keeps enough *pixels* loaded across runs of short chapters.
+         * (A pixel-aware buffer would be more precise; this is the low-risk mitigation.)
          */
-        private const val CHAPTERS_AHEAD = 3
+        private const val CHAPTERS_AHEAD = 6
 
         /** Total sliding-window size: the reader's chapter plus the behind/ahead buffers. */
         private const val WINDOW_SIZE = CHAPTERS_BEHIND + 1 + CHAPTERS_AHEAD
