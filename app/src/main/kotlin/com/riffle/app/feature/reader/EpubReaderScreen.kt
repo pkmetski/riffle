@@ -102,6 +102,7 @@ import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
+import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Link
@@ -1735,6 +1736,16 @@ private fun EpubNavigatorView(
                         ?: return@AndroidView
                     fragmentRef.value = fragment
                     fragmentDoublePageHolder[0] = isDoublePage
+                    // Readium's built-in ANIMATED page transition (Kotlin toolkit 3.2.0+): edge taps
+                    // turn the page with a smooth slide instead of an instant jump. Added before
+                    // tapListener so the adapter consumes horizontal edge taps and tapListener only
+                    // sees the center taps it doesn't handle.
+                    fragment.addInputListener(
+                        DirectionalNavigationAdapter(
+                            navigator = fragment,
+                            animatedTransition = true,
+                        ),
+                    )
                     fragment.addInputListener(tapListener)
                     coroutineScope.launch {
                         fragment.currentLocator.collect { locator ->
