@@ -26,7 +26,9 @@ class AnnotationStoreImpl(
     )
 
     override fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>> =
-        dao.observeForItem(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
+        dao.observeForItem(serverId, itemId).map { rows ->
+            rows.filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }.map { it.toDomain() }
+        }
 
     override fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>> =
         dao.observeForItem(serverId, itemId).map { rows ->

@@ -179,4 +179,18 @@ class AnnotationStoreTest {
 
         assertTrue(store.observeBookmarks("abs1", "item1").first().isEmpty())
     }
+
+    @Test
+    fun `observeHighlights does not include bookmarks`() = runTest {
+        val dao = FakeAnnotationDao()
+        var n = 0
+        val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
+
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c")
+        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c")
+
+        val highlights = store.observeHighlights("abs1", "item1").first()
+        assertEquals(1, highlights.size)
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, highlights[0].type)
+    }
 }
