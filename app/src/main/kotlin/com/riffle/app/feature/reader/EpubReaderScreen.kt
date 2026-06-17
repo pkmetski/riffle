@@ -1244,10 +1244,17 @@ private fun EpubNavigatorView(
     LaunchedEffect(onNavigationEvents, isContinuous) {
         onNavigationEvents.collect { link ->
             // In Continuous mode the Readium fragment is a server-keeper only (invisible,
-            // height=0). Internal-link taps are handled by ContinuousReaderView.navigateTo;
-            // fragment.go() would suspend forever on the invisible WebView, leaving
-            // navigating=true and covering the reader with a permanent blank overlay.
-            if (isContinuous) return@collect
+            // height=0): fragment.go() would suspend forever on the invisible WebView, leaving
+            // navigating=true and covering the reader with a permanent blank overlay. So TOC entries,
+            // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
+            // instead of the fragment.
+            if (isContinuous) {
+                val view = continuousViewRef.value ?: return@collect
+                // TOC entries / chapter-map segments are Links (no progression) — land at the start
+                // of the target chapter.
+                view.navigateTo(link.href.toString(), 0f)
+                return@collect
+            }
             val fragment = fragmentRef.value ?: return@collect
             // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
             // is instant and needs no mask.

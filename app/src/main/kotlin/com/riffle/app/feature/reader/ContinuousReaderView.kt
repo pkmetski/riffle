@@ -297,18 +297,33 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** Scroll to [href] at [progression]. Loads the chapter into the window if needed. */
     fun navigateTo(href: String, progression: Float) {
-        val targetIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
+        // TOC entries / chapter-map segments / internal links may carry a #fragment that the spine
+        // hrefs don't have; match on the resource path so the chapter is still found.
+        val target = href.substringBefore('#')
+        val targetIndex = allChapters.indexOfFirst { it.link.href.toString().substringBefore('#') == target }
         if (targetIndex < 0) return
-        if (targetIndex < topIndex || targetIndex > topIndex + webViews.size - 1) {
-            rebuildWindowAround(targetIndex)
-        }
-        // Scroll is computed against current measuredHeights, which may still hold placeholder
-        // values if newly-loaded chapters haven't measured yet. The position is approximate until
-        // real heights arrive. TODO: add a post-measurement correction callback for navigateTo.
-        post {
-            val window = buildWindow()
-            val offset = ContinuousPositionTracker.scrollOffsetFor(href, progression, window)
-            if (offset != null) smoothScrollTo(0, (offset - height / 2).coerceAtLeast(0))
+        val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
+        if (inWindow) {
+            // Already loaded and measured: scroll straight to it, centring the target (good for a
+            // nearby search hit).
+            post {
+                val window = buildWindow()
+                val matchHref = window.firstOrNull { it.href.substringBefore('#') == target }?.href ?: target
+                val offset = ContinuousPositionTracker.scrollOffsetFor(matchHref, progression, window)
+                if (offset != null) smoothScrollTo(0, (offset - height / 2).coerceAtLeast(0))
+            }
+        } else {
+            // Far jump (typical TOC / chapter-map tap): rebuild the window around the target and land
+            // via the open path, which defers the scroll until the target's REAL height is known.
+            // Scrolling immediately against placeholder heights would misposition and flash blank
+            // until measurement settled.
+            webViews.forEach { it.destroy() }
+            webViews.clear()
+            measuredHeights.clear()
+            container.removeAllViews()
+            recycledViews.forEach { it.destroy() }
+            recycledViews.clear()
+            openWindowAt(target, progression)
         }
     }
 
@@ -534,15 +549,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
     }
 
-    private fun rebuildWindowAround(centerIndex: Int) {
-        webViews.forEach { it.destroy() }
-        webViews.clear()
-        measuredHeights.clear()
-        container.removeAllViews()
-        topIndex = (centerIndex - CHAPTERS_BEHIND).coerceAtLeast(0)
-        val windowSize = minOf(WINDOW_SIZE, allChapters.size - topIndex)
-        repeat(windowSize) { i -> appendChapter(topIndex + i) }
-    }
 
     private fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> {
         var top = 0
