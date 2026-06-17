@@ -275,7 +275,22 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         super.startActionMode(wrapSelectionCallback(callback), type)
 
     private fun wrapSelectionCallback(inner: android.view.ActionMode.Callback) =
-        object : android.view.ActionMode.Callback {
+        object : android.view.ActionMode.Callback2() {
+            // The floating selection toolbar anchors to the rect returned here. We MUST forward to
+            // the WebView's own callback (a Callback2 that reports the selection's bounds in view
+            // coordinates): in Continuous mode each ChapterWebView is sized to its whole chapter
+            // (up to tens of thousands of px) and scrolled far above the screen, so the default
+            // content rect — the view's full bounds — would anchor the toolbar to the top of that
+            // giant rect, making the menu appear at the top of the screen instead of next to the
+            // selection. Forwarding gives the framework the real selection rect to map to screen.
+            override fun onGetContentRect(mode: android.view.ActionMode, view: android.view.View, outRect: android.graphics.Rect) {
+                if (inner is android.view.ActionMode.Callback2) {
+                    inner.onGetContentRect(mode, view, outRect)
+                } else {
+                    super.onGetContentRect(mode, view, outRect)
+                }
+            }
+
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.clear()
                 menu.add(0, MENU_COPY, 0, android.R.string.copy)
