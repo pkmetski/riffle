@@ -32,4 +32,8 @@ interface AnnotationDao {
     /** Tombstone an annotation so the delete can later propagate to other devices. */
     @Query("UPDATE annotations SET deleted = 1, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
     suspend fun tombstone(id: String, updatedAt: Long, deviceId: String)
+
+    /** Recolour an annotation in place, bumping updatedAt + provenance so the change can propagate. */
+    @Query("UPDATE annotations SET color = :color, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
+    suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String)
 }

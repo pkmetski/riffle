@@ -120,4 +120,18 @@ class AnnotationDaoTest {
 
         assertEquals(listOf("early", "mid", "late"), ids)
     }
+
+    @Test
+    fun recolor_updatesColourAndBumpsUpdatedAtAndDevice() = runTest {
+        dao.upsert(highlight("h1", createdAt = 1000L))
+
+        dao.recolor("h1", color = "green", updatedAt = 2000L, deviceId = "device-B")
+
+        val row = dao.getById("h1")
+        assertEquals("green", row?.color)
+        assertEquals(2000L, row?.updatedAt)
+        assertEquals("device-B", row?.lastModifiedByDeviceId)
+        // The live query still returns it (recolour is not a delete).
+        assertEquals(listOf("h1"), dao.observeForItem("abs1", "item1").first().map { it.id })
+    }
 }
