@@ -109,6 +109,15 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.util.AbsoluteUrl
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
+import java.net.URLEncoder
 
 // Gates the "Highlight" text-selection action. ADR 0024 shipped highlight create + render +
 // sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
@@ -153,8 +162,8 @@ internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EpubReaderScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onSwitchToAudiobook: (audiobookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -289,6 +298,17 @@ fun EpubReaderScreen(
     // to edge and the nav bar floats over the last sliver of content. Padding would carve
     // out a solid strip behind the bar that doesn't blend with any reader theme — exactly
     // the "white/black bar" the user reported when exiting Immersive mode.
+    var audiobookOverlayItemId by rememberSaveable { mutableStateOf("") }
+    var audiobookOverlayStartAtSec by rememberSaveable { mutableStateOf(-1f) }
+    val showAudiobookOverlay = audiobookOverlayItemId.isNotEmpty()
+
+    // Dismiss the audiobook overlay when the system back button is pressed, rather than
+    // navigating back through the outer NavHost (which would exit the reader entirely).
+    BackHandler(enabled = showAudiobookOverlay) {
+        audiobookOverlayItemId = ""
+        viewModel.onAudiobookOverlayDismissed()
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Status bar insets are consumed at the AndroidView root (see
         // ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so they never
@@ -311,7 +331,6 @@ fun EpubReaderScreen(
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
                     EpubNavigatorView(
-                        viewModel = viewModel,
                         state = s,
                         formattingPrefs = formattingPrefs,
                         onPositionChanged = { locator ->
@@ -420,7 +439,8 @@ fun EpubReaderScreen(
                         onSwipeUp = {
                             audiobookItemId?.let { abId ->
                                 val sec = viewModel.prepareAudiobookHandoff()
-                                onSwitchToAudiobook(abId, sec)
+                                audiobookOverlayStartAtSec = sec.toFloat()
+                                audiobookOverlayItemId = abId
                             }
                         },
                         onDragHint = { viewModel.hintAudiobookHandoff() },
@@ -555,6 +575,21 @@ fun EpubReaderScreen(
             ReturnToPositionCard(
                 onReturn = viewModel::returnToCapturedPosition,
                 onDismiss = viewModel::dismissReturnTarget,
+            )
+        }
+        if (showAudiobookOverlay) {
+            AudiobookPlayerOverlay(
+                itemId = audiobookOverlayItemId,
+                startAtSec = audiobookOverlayStartAtSec,
+                windowSizeClass = windowSizeClass,
+                onDismiss = {
+                    audiobookOverlayItemId = ""
+                    viewModel.onAudiobookOverlayDismissed()
+                },
+                onSwitchToReadaloud = { atSec ->
+                    audiobookOverlayItemId = ""
+                    viewModel.startReadaloudAtSecond(atSec)
+                },
             )
         }
     }
@@ -887,7 +922,6 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
-    viewModel: EpubReaderViewModel,
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
@@ -925,11 +959,8 @@ private fun EpubNavigatorView(
     val coroutineScope = rememberCoroutineScope()
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
-    // Initialize from the ViewModel cache so the fragment/view survive composable removal while
-    // the reader is in the back stack behind the audiobook player. On back-stack return the
-    // factory returns the same ScrollBoundaryNavigationContainer (WebView intact, no reload).
-    val fragmentRef = remember { mutableStateOf(viewModel.savedNavigatorFragment) }
-    val containerRef = remember { mutableStateOf(viewModel.savedNavigatorContainer as? ScrollBoundaryNavigationContainer) }
+    val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+    val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -939,9 +970,8 @@ private fun EpubNavigatorView(
     // navigation callbacks. Using a plain array avoids triggering recomposition on scroll.
     val currentHrefHolder = remember { arrayOf<String?>(null) }
     // Tracks the isDoublePage value the current fragment was created with; null = no fragment.
-    // Initialized from the ViewModel so back-stack returns don't re-create a still-valid fragment.
     // Plain array (not MutableState) to avoid triggering recomposition.
-    val fragmentDoublePageHolder = remember { arrayOf(viewModel.savedNavigatorFragmentIsDoublePage) }
+    val fragmentDoublePageHolder = remember { arrayOf<Boolean?>(null) }
     val currentFormattingPrefs by rememberUpdatedState(formattingPrefs)
 
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
@@ -1741,34 +1771,15 @@ private fun EpubNavigatorView(
         }
         AndroidView(
             factory = { ctx ->
-                // Reuse the cached container (and its WebView) when returning from the audiobook
-                // player's back stack entry. The view was removed from the Compose hierarchy (but
-                // kept alive by the ViewModel) while the audiobook was on top; re-adding it here
-                // re-attaches the Fragment's view to the window without recreating the WebView.
-                // Context identity check detects Activity recreation (rotation) and falls through
-                // to create a fresh container in that case.
-                val cached = viewModel.savedNavigatorContainer as? ScrollBoundaryNavigationContainer
-                val container = if (cached != null && cached.context === ctx) {
-                    cached
-                } else {
-                    // Clear stale cache on rotation or first open.
-                    viewModel.savedNavigatorContainer = null
-                    viewModel.savedNavigatorFragment = null
-                    viewModel.savedNavigatorFragmentIsDoublePage = null
-                    fragmentRef.value = null
-                    fragmentDoublePageHolder[0] = null
-                    ScrollBoundaryNavigationContainer(ctx).apply {
-                        // Compose handles all inset-based padding (navigationBarsPadding on the outer
-                        // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
-                        // insets here prevents Readium's WebViews from applying status-bar padding,
-                        // which on physical devices remains non-zero even after controller.hide().
-                        ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
-                        val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
-                        addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-                    }.also { viewModel.savedNavigatorContainer = it }
-                }
-                containerRef.value = container
-                container
+                ScrollBoundaryNavigationContainer(ctx).apply {
+                    // Compose handles all inset-based padding (navigationBarsPadding on the outer
+                    // Box, TopAppBarDefaults.windowInsets on the floating TopAppBar). Consuming
+                    // insets here prevents Readium's WebViews from applying status-bar padding,
+                    // which on physical devices remains non-zero even after controller.hide().
+                    ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
+                    val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
+                    addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                }.also { containerRef.value = it }
             },
             update = { container ->
                 // In Continuous mode the fragment is kept alive only to maintain the HTTP server.
@@ -1821,8 +1832,6 @@ private fun EpubNavigatorView(
                     fm.beginTransaction().remove(existingFrag).commitNow()
                     fragmentRef.value = null
                     fragmentDoublePageHolder[0] = null
-                    viewModel.savedNavigatorFragment = null
-                    viewModel.savedNavigatorFragmentIsDoublePage = null
                 }
 
                 // After Activity recreation, the FragmentManager may have restored an
@@ -1872,8 +1881,6 @@ private fun EpubNavigatorView(
                             animatedTransition = true,
                         ),
                     )
-                    viewModel.savedNavigatorFragment = fragment
-                    viewModel.savedNavigatorFragmentIsDoublePage = isDoublePage
                     fragment.addInputListener(tapListener)
                     coroutineScope.launch {
                         fragment.currentLocator.collect { locator ->
@@ -2077,3 +2084,38 @@ private fun PullChip(forward: Boolean, progress: Float) {
 // later colour-picker slice maps `color` to other tints.
 private fun highlightTint(color: String): Int =
     android.graphics.Color.parseColor("#FFFDE68A")
+
+@Composable
+private fun AudiobookPlayerOverlay(
+    itemId: String,
+    startAtSec: Float,
+    windowSizeClass: WindowSizeClass,
+    onDismiss: () -> Unit,
+    onSwitchToReadaloud: (Double) -> Unit,
+) {
+    val navController = rememberNavController()
+    val encoded = URLEncoder.encode(itemId, "UTF-8")
+    val startRoute = "overlay_audiobook/$encoded?startAtSec=$startAtSec"
+    NavHost(
+        navController = navController,
+        startDestination = startRoute,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        composable(
+            route = "overlay_audiobook/{itemId}?startAtSec={startAtSec}",
+            arguments = listOf(
+                navArgument("itemId") { type = NavType.StringType },
+                navArgument("startAtSec") {
+                    type = NavType.FloatType
+                    defaultValue = -1f
+                },
+            ),
+        ) {
+            AudiobookPlayerScreen(
+                windowSizeClass = windowSizeClass,
+                onNavigateBack = onDismiss,
+                onSwitchToReadaloud = { _, atSec -> onSwitchToReadaloud(atSec) },
+            )
+        }
+    }
+}

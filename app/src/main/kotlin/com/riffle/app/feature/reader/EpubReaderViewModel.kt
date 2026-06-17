@@ -72,10 +72,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.filter
 import org.json.JSONObject
-import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -162,20 +159,6 @@ class EpubReaderViewModel @Inject constructor(
     // receive an updated value set by the audiobook player when it pops back.
     private val startReadaloudAtSec: Double =
         (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
-
-    // Cached WebView host view and Readium fragment — kept alive across composable removal so the
-    // Readium WebView does not reload when the reader re-surfaces from the back stack after the
-    // audiobook player was on top. Cleared in onCleared to prevent leaks on permanent navigation
-    // away. The Activity context embedded in the view is validated in EpubNavigatorView before
-    // reuse so rotation clears and recreates the cache safely (see EpubReaderScreen).
-    //
-    // Storing a View in a ViewModel is non-standard; it is justified here because the WebView
-    // reload (1–2 s) was the dominant latency in the audiobook↔readaloud switch, and all
-    // alternative approaches (overlay composables, Fragment-retain tricks) required far larger
-    // architectural changes. The cache is guarded against rotation via a Context identity check.
-    internal var savedNavigatorContainer: Any? = null   // ScrollBoundaryNavigationContainer
-    internal var savedNavigatorFragment: EpubNavigatorFragment? = null
-    internal var savedNavigatorFragmentIsDoublePage: Boolean? = null
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
@@ -581,16 +564,6 @@ class EpubReaderViewModel @Inject constructor(
                     }
                     searchJob = launch { performSearch(query) }
                 }
-        }
-        // Back-stack return: the audiobook player was popped while the reader was alive behind it.
-        // The audiobook sets startReadaloudAtSec in our savedStateHandle before calling popBackStack(),
-        // so we observe subsequent emissions (drop(1) skips the initial value handled in the
-        // control.enabled block above) and auto-start readaloud at the new position.
-        viewModelScope.launch {
-            savedStateHandle.getStateFlow("startReadaloudAtSec", -1f)
-                .drop(1)
-                .filter { it >= 0f }
-                .collect { sec -> startReadaloudAtSecond(sec.toDouble()) }
         }
     }
 
@@ -1096,13 +1069,6 @@ class EpubReaderViewModel @Inject constructor(
         }
         epubZip?.close()
         epubZip = null
-        // Drop the cached WebView container so it can be garbage-collected. In the stacking
-        // navigation model the reader's onCleared fires only when the user permanently leaves
-        // the reader (back from reader, navigate to home, etc.) — at that point the audiobook
-        // has already been popped and stopped, so there is no live session to protect.
-        savedNavigatorContainer = null
-        savedNavigatorFragment = null
-        savedNavigatorFragmentIsDoublePage = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
@@ -1610,6 +1576,15 @@ class EpubReaderViewModel @Inject constructor(
         return sec
     }
 
+    /**
+     * Called when the audiobook overlay is dismissed (back button or navigate-back) without a
+     * readaloud handoff. Resets [readaloudPrepared] so the next play re-prepares the media session
+     * with the readaloud's audio items (the audiobook replaced them during playback).
+     */
+    fun onAudiobookOverlayDismissed() {
+        readaloudPrepared = false
+    }
+
     /** Called when the user starts dragging up (before the threshold) — reserved for future pre-warm. */
     fun hintAudiobookHandoff() = Unit
 
@@ -1668,6 +1643,7 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         if (!_readaloudOpen.value) openReadaloudSession()
+        readaloudPrepared = false
         viewModelScope.launch {
             ensureOpened(bundle) ?: return@launch
             readaloudStarted = true
