@@ -64,6 +64,23 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     /** Called on the main thread when the user taps an external (http/https) link. */
     var onExternalLink: ((url: String) -> Unit)? = null
 
+    /**
+     * Called on the main thread with the resolved footnote body when the user taps a same-document
+     * footnote anchor. The host shows the footnote popup. Continuous mode resolves the note from the
+     * chapter's own HTML (see [rawChapterHtml]) using [FootnoteResolver].
+     */
+    var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+
+    /**
+     * The raw HTML of the chapter document currently loaded, retained so a footnote tap can resolve
+     * the note body without a re-fetch. Set the first time an HTML resource is served for a load (the
+     * main document is fetched first), cleared on each [loadChapter]. The parsed form is cached lazily
+     * in [footnoteDoc].
+     */
+    @Volatile
+    private var rawChapterHtml: String? = null
+    private var footnoteDoc: org.jsoup.nodes.Document? = null
+
     /** When true, the text-selection menu offers "Play from here" (readaloud books only). */
     var readaloudAvailable: Boolean = false
 
@@ -198,8 +215,11 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 // --USER__ settings attribute Readium injects, so the first paint is already styled
                 // (no FOUC) AND renders identically to Scroll/Paginated mode.
                 val finalBytes = if (isHtml) {
-                    ContinuousStyleInjector.injectInto(String(bytes, Charsets.UTF_8), currentPrefs)
-                        .toByteArray(Charsets.UTF_8)
+                    val html = String(bytes, Charsets.UTF_8)
+                    // Retain the first HTML document served for this load (the main chapter, fetched
+                    // before any sub-resource) so a footnote tap can resolve the note body locally.
+                    if (rawChapterHtml == null) rawChapterHtml = html
+                    ContinuousStyleInjector.injectInto(html, currentPrefs).toByteArray(Charsets.UTF_8)
                 } else {
                     bytes
                 }
@@ -217,6 +237,8 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     fun loadChapter(href: String, chapterUrl: String, prefs: FormattingPreferences) {
         chapterHref = href
         currentPrefs = prefs
+        rawChapterHtml = null
+        footnoteDoc = null
         loadToken++
         loadUrl(chapterUrl)
     }
@@ -235,6 +257,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         evaluateJavascript("window.__riffleToken=$loadToken;", null)
         evaluateJavascript(ContinuousStyleInjector.HEIGHT_MEASUREMENT_JS, null)
         evaluateJavascript(ContinuousStyleInjector.TAP_LISTENER_JS, null)
+        evaluateJavascript(ContinuousStyleInjector.FOOTNOTE_LISTENER_JS, null)
     }
 
     /** Re-inject user styles and re-measure after a preference change. */
@@ -370,6 +393,21 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         @JavascriptInterface
         fun onTap() {
             post { this@ChapterWebView.onTap?.invoke() }
+        }
+
+        /**
+         * Resolve the same-document anchor [id] against this chapter's HTML. Returns true (so the JS
+         * suppresses the default in-page scroll) and posts the note body to [onFootnoteContent] when
+         * the target is a footnote; false for a regular cross-reference (left to default handling).
+         * Runs on the JS binder thread — Jsoup parsing here is safe.
+         */
+        @JavascriptInterface
+        fun onFootnoteAnchorTap(id: String): Boolean {
+            val html = rawChapterHtml ?: return false
+            val doc = footnoteDoc ?: FootnoteResolver.parse(html).also { footnoteDoc = it }
+            val content = FootnoteResolver.extractFootnoteContent(doc, id) ?: return false
+            post { this@ChapterWebView.onFootnoteContent?.invoke(content) }
+            return true
         }
     }
 }

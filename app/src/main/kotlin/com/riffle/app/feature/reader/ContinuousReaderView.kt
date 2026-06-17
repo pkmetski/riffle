@@ -83,6 +83,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     var onPlayFromHereSelection: ((href: String, selectedText: String) -> Unit)? = null
 
+    /**
+     * Called on the main thread with the resolved footnote body when the user taps a footnote
+     * anchor in a chapter. The host shows the footnote popup.
+     */
+    var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+
     private val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
@@ -176,6 +182,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = null
         wv.onExternalLink = null
         wv.onPlayFromHere = null
+        wv.onFootnoteContent = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
     }
 
@@ -429,6 +436,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
+        wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -508,6 +516,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
+        wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)

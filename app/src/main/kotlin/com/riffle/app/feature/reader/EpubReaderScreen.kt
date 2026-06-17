@@ -1934,6 +1934,7 @@ private fun EpubNavigatorView(
                                 )
                             }
                         }
+                        view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->
                             // Resolve the selection to a narrated sentence id and start playback there.

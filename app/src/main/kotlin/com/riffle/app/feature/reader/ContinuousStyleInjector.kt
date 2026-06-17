@@ -299,6 +299,37 @@ internal object ContinuousStyleInjector {
         })();
     """.trimIndent()
 
+    /**
+     * JS that intercepts taps on same-document anchors (`<a href="#id">`) in the capture phase,
+     * before the WebView performs its default in-page scroll, and asks the native side whether the
+     * target is a footnote via `window.RiffleChapter.onFootnoteAnchorTap(id)`. When it is (returns
+     * true) the default scroll is suppressed so the reader shows the footnote popup instead. In
+     * Continuous mode the WebView's own scrolling is disabled, so without this a footnote tap would
+     * do nothing at all. Mirrors the paged-mode [FootnoteAnchorBridge], but per-WebView (each stacked
+     * chapter resolves against its own document) rather than via the single shared bridge.
+     */
+    val FOOTNOTE_LISTENER_JS = """
+        (function() {
+            if (document.__riffleFootnoteWired) return;
+            document.__riffleFootnoteWired = true;
+            document.addEventListener('click', function(e) {
+                var t = e.target;
+                while (t && t.nodeType === 1 && (!t.tagName || t.tagName.toLowerCase() !== 'a')) t = t.parentNode;
+                if (!t || !t.tagName || t.tagName.toLowerCase() !== 'a') return;
+                var href = t.getAttribute('href');
+                if (!href || href.charAt(0) !== '#') return;
+                var id = href.substring(1);
+                if (!id) return;
+                try {
+                    if (window.RiffleChapter.onFootnoteAnchorTap(id)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                } catch (err) {}
+            }, true);
+        })();
+    """.trimIndent()
+
     val CLEAR_HIGHLIGHT_JS = """
         (function() {
             var m = document.getElementById('_riffle_hl');
