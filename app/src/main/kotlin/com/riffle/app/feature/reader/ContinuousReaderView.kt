@@ -277,22 +277,23 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                     shiftInProgress = false
                 }
             }
-            val window = buildWindow()
-            val slot = window.firstOrNull { it.href.substringBefore('#') == initialHref.substringBefore('#') }
-            // Top-align the opening position rather than centring it: centring would leave the top
-            // half showing the *previous* content (or blank at a chapter start / front matter), so the
-            // reader wouldn't "focus on the correct page". With an anchor fragment (a TOC/cross-ref
-            // target) land on that element instead of the resource top, so entries pointing past
-            // front-matter inside a resource are accurate. The target is at window-index 0 here
-            // (slot.top == 0), so the scroll lands cleanly before the behind buffer is added.
-            val targetWv = webViews.firstOrNull { it.chapterHref.substringBefore('#') == initialHref.substringBefore('#') }
-            if (slot != null && anchorFragment.isNotEmpty() && targetWv != null) {
+            // The target chapter is window-index 0 right after the rebuild — its layout top is 0 —
+            // and this runs from index 0's own measurement, so address it directly rather than
+            // looking it up by href in the window (that lookup could miss if the window changed and
+            // would then silently skip the scroll, leaving the reader on the previous chapter — the
+            // "navigates to a position that is not the TOC href" bug).
+            // Top-align the opening position (centring would put the *previous* chapter in the top
+            // half). With an anchor fragment (TOC/cross-ref target) land on that element instead of
+            // the resource top, so entries pointing past front-matter inside a resource are accurate.
+            val targetWv = webViews.firstOrNull()
+            val targetHeight = measuredHeights.firstOrNull() ?: 0
+            if (targetWv != null && anchorFragment.isNotEmpty()) {
                 targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                    scrollTo(0, (slot.top + (anchorOffset ?: (initialProgression * slot.height).toInt())).coerceAtLeast(0))
+                    scrollTo(0, (anchorOffset ?: (initialProgression * targetHeight).toInt()).coerceAtLeast(0))
                     fillBehindBuffer()
                 }
             } else {
-                if (slot != null) scrollTo(0, (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0))
+                if (targetWv != null) scrollTo(0, (initialProgression * targetHeight).toInt().coerceAtLeast(0))
                 fillBehindBuffer()
             }
         }
