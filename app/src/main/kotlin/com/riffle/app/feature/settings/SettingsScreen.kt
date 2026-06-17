@@ -63,7 +63,9 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.riffle.app.feature.reader.FormattingPanel
+import com.riffle.app.feature.reader.behaviorSummary
+import com.riffle.app.feature.reader.displaySummary
+import com.riffle.app.feature.reader.formattingSummary
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.ReadaloudHighlightColor
@@ -103,6 +105,8 @@ fun SettingsScreen(
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     var expanded by remember { mutableStateOf(false) }
     var showFormattingPanel by remember { mutableStateOf(false) }
+    var showDisplayPanel by remember { mutableStateOf(false) }
+    var showBehaviorPanel by remember { mutableStateOf(false) }
     var showListeningPanel by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -238,9 +242,25 @@ fun SettingsScreen(
                 ListItem(
                     modifier = Modifier.clickable { showFormattingPanel = true },
                     headlineContent = { Text("Formatting") },
-                    supportingContent = { Text("Font, theme, spacing, screen wake, volume keys") },
+                    supportingContent = { Text(formattingSummary(globalFormatting)) },
                     trailingContent = {
                         TextButton(onClick = { showFormattingPanel = true }) { Text("Edit") }
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { showDisplayPanel = true },
+                    headlineContent = { Text("Display") },
+                    supportingContent = { Text(displaySummary(globalFormatting)) },
+                    trailingContent = {
+                        TextButton(onClick = { showDisplayPanel = true }) { Text("Edit") }
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { showBehaviorPanel = true },
+                    headlineContent = { Text("Behavior") },
+                    supportingContent = { Text(behaviorSummary(keepScreenOn, volumeKeyNavigationEnabled)) },
+                    trailingContent = {
+                        TextButton(onClick = { showBehaviorPanel = true }) { Text("Edit") }
                     },
                 )
                 Text(
@@ -375,19 +395,30 @@ fun SettingsScreen(
     }
 
     if (showFormattingPanel) {
-        FormattingPanel(
+        FormattingSettingsPanel(
             prefs = globalFormatting,
-            hasBookOverrides = false,
             onPrefsChange = { viewModel.updateGlobalFormatting(it) },
-            onReset = {},
             onDismiss = { showFormattingPanel = false },
+        )
+    }
+
+    if (showDisplayPanel) {
+        DisplaySettingsPanel(
+            prefs = globalFormatting,
+            onPrefsChange = { viewModel.updateGlobalFormatting(it) },
+            onDismiss = { showDisplayPanel = false },
+        )
+    }
+
+    if (showBehaviorPanel) {
+        BehaviorSettingsPanel(
             keepScreenOn = keepScreenOn,
             onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
             volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
             onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
             invertVolumeKeys = invertVolumeKeys,
             onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
-            fullScreen = true,
+            onDismiss = { showBehaviorPanel = false },
         )
     }
 
