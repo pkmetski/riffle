@@ -223,6 +223,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
 
     /**
+     * Cap fling velocity. A very fast fling demands new raster tiles faster than the WebView
+     * renderer's shared tile-memory budget can satisfy across the stacked full-height chapter
+     * WebViews — Chromium then logs "tile memory limits exceeded, some content may not draw" and
+     * drops tiles, which shows as blank regions until they re-rasterize (briefly on a fast GPU,
+     * for longer on a slower device). Clamping the launch velocity keeps the per-frame tile demand
+     * within budget while still allowing a brisk fling. Tuned against the tile-overflow warning
+     * count on a debug device.
+     */
+    private val maxFlingVelocity =
+        (android.view.ViewConfiguration.get(context).scaledMaximumFlingVelocity * 0.45f).toInt()
+
+    override fun fling(velocityY: Int) {
+        super.fling(velocityY.coerceIn(-maxFlingVelocity, maxFlingVelocity))
+    }
+
+    /**
      * Initialize the view at [initialHref] + [initialProgression].
      * Call once after attaching to the window.
      */
