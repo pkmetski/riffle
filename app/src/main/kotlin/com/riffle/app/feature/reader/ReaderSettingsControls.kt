@@ -22,7 +22,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -90,17 +89,6 @@ internal fun StepperRow(
             ) { Text("+", style = MaterialTheme.typography.titleLarge) }
         }
     }
-}
-
-// Subtle group separator. Less visual weight than a full HorizontalDivider.
-@Composable
-internal fun SectionDivider() {
-    Spacer(Modifier.height(20.dp))
-    HorizontalDivider(
-        thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
-    Spacer(Modifier.height(16.dp))
 }
 
 @Composable
@@ -183,6 +171,11 @@ internal fun OrientationIcon(orientation: ReaderOrientation) {
     }
 }
 
+// Font and theme chips are laid out with manual `Row`s (split across two rows by the callers)
+// rather than `FlowRow`. This is deliberate: the compile classpath's compose-foundation (1.7.5)
+// and the runtime (1.9.2) disagree on FlowRow's signature (runtime added an Alignment.Vertical
+// param), so calling FlowRow throws NoSuchMethodError at runtime. Do not "simplify" these into
+// FlowRow.
 @Composable
 internal fun FontChipRow(
     fonts: List<ReaderFontFamily>,

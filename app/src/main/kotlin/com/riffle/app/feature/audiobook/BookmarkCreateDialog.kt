@@ -54,7 +54,8 @@ fun BookmarkCreateDialog(
                 if (distinctSuggestions.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     // Manual wrapping rows instead of FlowRow: this project deliberately avoids
-                    // FlowRow due to its compose-foundation 1.7 API mismatch (see FormattingPanel).
+                    // FlowRow due to its compose-foundation 1.7 API mismatch (see FontChipRow in
+                    // ReaderSettingsControls.kt).
                     distinctSuggestions.chunked(2).forEach { rowItems ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             rowItems.forEach { suggestion ->
