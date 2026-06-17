@@ -129,7 +129,7 @@ import java.net.URLEncoder
 // sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
 // creating one is a dead end. Keep the create/render plumbing live but hide the affordance until
 // that management UI exists. Flip to true to re-enable.
-private const val ANNOTATIONS_UI_ENABLED = false
+private const val ANNOTATIONS_UI_ENABLED = true
 
 /**
  * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
@@ -252,6 +252,7 @@ fun EpubReaderScreen(
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
+    val highlightToEdit by viewModel.highlightToEdit.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
@@ -371,6 +372,11 @@ fun EpubReaderScreen(
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
+                        highlightToEdit = highlightToEdit,
+                        onOpenHighlightActions = viewModel::openHighlightActions,
+                        onDismissHighlightActions = viewModel::dismissHighlightActions,
+                        onRecolorHighlight = viewModel::recolorHighlight,
+                        onDeleteHighlight = viewModel::deleteHighlight,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -972,6 +978,11 @@ private fun EpubNavigatorView(
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
+    highlightToEdit: String?,
+    onOpenHighlightActions: (String) -> Unit,
+    onDismissHighlightActions: () -> Unit,
+    onRecolorHighlight: (String, HighlightColor) -> Unit,
+    onDeleteHighlight: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1007,6 +1018,7 @@ private fun EpubNavigatorView(
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
+    val currentOnOpenHighlightActions by rememberUpdatedState(onOpenHighlightActions)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
@@ -1590,6 +1602,21 @@ private fun EpubNavigatorView(
         hasHighlightDecorations.value = true
     }
 
+    // ---- Decoration tap listener (annotations) ---------------------------------------------
+    // Opens the highlight-actions sheet when the user taps an existing highlight decoration.
+    DisposableEffect(fragmentRef.value) {
+        val fragment = fragmentRef.value as? DecorableNavigator
+        val listener = object : DecorableNavigator.Listener {
+            override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
+                if (event.group != "annotations") return false
+                currentOnOpenHighlightActions(event.decoration.id)
+                return true
+            }
+        }
+        fragment?.addDecorationListener("annotations", listener)
+        onDispose { fragment?.removeDecorationListener(listener) }
+    }
+
     // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
     // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence); the
     // page should follow the narrated sentence. Readium 3.0.0 can't enumerate visible fragments, so
@@ -2067,6 +2094,20 @@ private fun EpubNavigatorView(
                     .background(formattingPrefs.theme.palette.background)
                     .testTag("reader_nav_cover")
                     .semantics { contentDescription = "Loading" },
+            )
+        }
+
+        // Highlight actions sheet — opens when the user taps an existing highlight or immediately
+        // after creating one. Floats as an overlay inside the reader so it has access to the
+        // reader's BoxWithConstraints scope and sits above the reader content.
+        val editId = highlightToEdit
+        if (editId != null) {
+            val current = highlightRenders.firstOrNull { it.id == editId }
+            HighlightActionsSheet(
+                selected = current?.let { HighlightColor.fromToken(it.color) },
+                onPick = { color -> onRecolorHighlight(editId, color) },
+                onDelete = { onDeleteHighlight(editId) },
+                onDismiss = onDismissHighlightActions,
             )
         }
     }
