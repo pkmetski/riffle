@@ -6,6 +6,8 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,6 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -235,6 +240,7 @@ fun EpubReaderScreen(
     val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
+    val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
@@ -466,6 +472,23 @@ fun EpubReaderScreen(
                 onDismiss = viewModel::dismissDownloadPrompt,
             )
         }
+
+        // Corner bookmark ribbon — always visible (not gated on chrome), ABS-only.
+        // Positioned just below the status bar, sliding below the top bar when visible.
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val topBarOffset by animateDpAsState(
+            targetValue = if (immersiveState.isImmersive) 0.dp else 64.dp,
+            animationSpec = tween(durationMillis = 300),
+            label = "bookmarkTopOffset",
+        )
+        CornerBookmarkIndicator(
+            isBookmarked = isCurrentPageBookmarked,
+            isVisible = annotationsAvailable && state is ReaderState.Ready,
+            onToggle = viewModel::toggleBookmark,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = statusBarTop + topBarOffset),
+        )
 
         AnimatedVisibility(
             visible = !immersiveState.isImmersive,
