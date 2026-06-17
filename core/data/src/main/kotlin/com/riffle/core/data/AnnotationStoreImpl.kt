@@ -28,6 +28,11 @@ class AnnotationStoreImpl(
     override fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>> =
         dao.observeForItem(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
 
+    override fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>> =
+        dao.observeForItem(serverId, itemId).map { rows ->
+            rows.filter { it.type == AnnotationEntity.TYPE_BOOKMARK }.map { it.toDomain() }
+        }
+
     override suspend fun createHighlight(
         serverId: String,
         itemId: String,
@@ -45,6 +50,35 @@ class AnnotationStoreImpl(
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = cfi,
             color = color,
+            note = null,
+            textSnippet = textSnippet,
+            chapterHref = chapterHref,
+            createdAt = now,
+            updatedAt = now,
+            originDeviceId = deviceId,
+            lastModifiedByDeviceId = deviceId,
+            deleted = false,
+        )
+        dao.upsert(entity)
+        return entity.toDomain()
+    }
+
+    override suspend fun createBookmark(
+        serverId: String,
+        itemId: String,
+        cfi: String,
+        textSnippet: String,
+        chapterHref: String,
+    ): Annotation {
+        val deviceId = deviceIdStore.getOrCreate()
+        val now = clock()
+        val entity = AnnotationEntity(
+            id = idGenerator(),
+            serverId = serverId,
+            itemId = itemId,
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = cfi,
+            color = "",
             note = null,
             textSnippet = textSnippet,
             chapterHref = chapterHref,

@@ -116,4 +116,67 @@ class AnnotationStoreTest {
         assertTrue(tomb.deleted)
         assertEquals(7000L, tomb.updatedAt)
     }
+
+    @Test
+    fun `createBookmark persists a bookmark with correct type and empty color`() = runTest {
+        val dao = FakeAnnotationDao()
+        val store = buildStore(dao = dao, deviceId = "device-A", clock = { 9000L }, idGenerator = { "bm-1" })
+
+        store.createBookmark(
+            serverId = "abs1",
+            itemId = "item1",
+            cfi = "epubcfi(/6/4!/4/2)",
+            textSnippet = "It seems increasingly likely",
+            chapterHref = "chapter01.xhtml",
+        )
+
+        val saved = dao.getById("bm-1")!!
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, saved.type)
+        assertEquals("epubcfi(/6/4!/4/2)", saved.cfi)
+        assertEquals("", saved.color)
+        assertNull(saved.note)
+        assertEquals("It seems increasingly likely", saved.textSnippet)
+        assertEquals("chapter01.xhtml", saved.chapterHref)
+        assertEquals(9000L, saved.createdAt)
+        assertEquals(9000L, saved.updatedAt)
+        assertEquals("device-A", saved.originDeviceId)
+        assertEquals("device-A", saved.lastModifiedByDeviceId)
+        assertFalse(saved.deleted)
+    }
+
+    @Test
+    fun `createBookmark returns the created annotation`() = runTest {
+        val store = buildStore(idGenerator = { "bm-1" })
+
+        val created = store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c.xhtml")
+
+        assertEquals("bm-1", created.id)
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, created.type)
+    }
+
+    @Test
+    fun `observeBookmarks emits only bookmark-type annotations for the item`() = runTest {
+        val dao = FakeAnnotationDao()
+        var n = 0
+        val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
+
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c")
+        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c")
+        store.createBookmark("abs1", "item2", "epubcfi(c)", "snip", "c")  // different item
+
+        val list = store.observeBookmarks("abs1", "item1").first()
+        assertEquals(1, list.size)
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, list[0].type)
+    }
+
+    @Test
+    fun `delete tombstones a bookmark so it leaves observeBookmarks`() = runTest {
+        val dao = FakeAnnotationDao()
+        val store = buildStore(dao = dao, idGenerator = { "bm-1" })
+        store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c")
+
+        store.delete("bm-1")
+
+        assertTrue(store.observeBookmarks("abs1", "item1").first().isEmpty())
+    }
 }

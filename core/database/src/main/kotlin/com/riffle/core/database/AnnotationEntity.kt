@@ -51,6 +51,7 @@ data class AnnotationEntity(
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"
+        const val TYPE_BOOKMARK = "BOOKMARK"
         const val COLOR_YELLOW = "yellow"
     }
 }
