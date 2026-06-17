@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -64,6 +65,13 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.audiobook.SleepTimerMode
 import com.riffle.app.feature.audiobook.formatCountdown
+
+/**
+ * How far down (as a fraction of the icon size) to nudge the "15"/"30" interval number so it lands in
+ * the open centre of the [Icons.Filled.Replay] loop rather than over the arrowhead at the top. Shared
+ * by both this surface and the Readaloud mini-player so the two affordances stay visually identical.
+ */
+internal const val SKIP_NUMBER_DOWN_FRACTION = 0.09f
 
 /**
  * Everything [PlayerSurface] renders. Both the standalone Audiobook player and the in-reader
@@ -335,13 +343,16 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
     // 48dp/24dp default) and a 60dp primary play circle with a 32dp glyph, separated by 10dp gaps.
     val secondaryButton = 56.dp
     val secondaryIcon = 30.dp
+    // The rewind/forward circular-arrow glyphs are enlarged so the overlaid "15"/"30" interval
+    // numbers sit comfortably inside the arc rather than spilling past it.
+    val skipIcon = 38.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = actions.onRewind, modifier = Modifier.size(secondaryButton)) {
-            SkipIcon(seconds = state.rewindIntervalSeconds, forward = false, iconSize = secondaryIcon)
+            SkipIcon(seconds = state.rewindIntervalSeconds, forward = false, iconSize = skipIcon)
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onPreviousChapter, enabled = state.canPreviousChapter, modifier = Modifier.size(secondaryButton)) {
@@ -368,7 +379,7 @@ private fun TransportRow(state: PlayerSurfaceState, actions: PlayerSurfaceAction
         }
         Spacer(Modifier.size(10.dp))
         IconButton(onClick = actions.onForward, modifier = Modifier.size(secondaryButton)) {
-            SkipIcon(seconds = state.skipIntervalSeconds, forward = true, iconSize = secondaryIcon)
+            SkipIcon(seconds = state.skipIntervalSeconds, forward = true, iconSize = skipIcon)
         }
     }
 }
@@ -386,6 +397,10 @@ private fun SkipIcon(seconds: Int, forward: Boolean, iconSize: Dp) {
             text = "$seconds",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
+            // The Replay glyph's arrowhead sits at the top, so the loop's open centre is below the
+            // icon's geometric centre. Nudge the interval number down (proportional to the glyph) so
+            // it reads as centred inside the loop. Mirror-safe: the offset is vertical only.
+            modifier = Modifier.offset(y = iconSize * SKIP_NUMBER_DOWN_FRACTION),
         )
     }
 }
