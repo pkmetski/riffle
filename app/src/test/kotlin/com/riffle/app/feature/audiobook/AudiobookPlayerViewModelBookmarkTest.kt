@@ -160,6 +160,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             progressFlushScope = ProgressFlushScope(CoroutineScope(testDispatcher)),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
+            audiobookHandoffState = AudiobookHandoffState(),
             now = { fixedNow },
         )
     }

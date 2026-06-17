@@ -210,6 +210,7 @@ class SleepTimerTest {
             progressFlushScope = ProgressFlushScope(CoroutineScope(testDispatcher)),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
+            audiobookHandoffState = AudiobookHandoffState(),
             now = { 0L },
         )
     }

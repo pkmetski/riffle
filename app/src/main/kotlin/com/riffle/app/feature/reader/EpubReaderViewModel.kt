@@ -6,6 +6,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.feature.audiobook.AudiobookHandoffState
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.core.data.StorytellerPositionSyncController
@@ -148,6 +149,7 @@ class EpubReaderViewModel @Inject constructor(
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val readingSpeedStore: ReadingSpeedStore,
+    private val audiobookHandoffState: AudiobookHandoffState,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -1573,16 +1575,23 @@ class EpubReaderViewModel @Inject constructor(
     fun prepareAudiobookHandoff(): Double {
         val sec = playbackState.value.positionGlobalSec
         playerCoordinator.releaseForHandoff()
+        // Signal the pre-warmed AudiobookPlayerViewModel to activate from this position.
+        val abId = _audiobookItemId.value
+        if (abId != null) audiobookHandoffState.signal(abId, sec)
         return sec
     }
 
     /**
-     * Called when the audiobook overlay is dismissed (back button or navigate-back) without a
-     * readaloud handoff. Resets [readaloudPrepared] so the next play re-prepares the media session
-     * with the readaloud's audio items (the audiobook replaced them during playback).
+     * Called when the audiobook overlay is dismissed (back button) without a readaloud handoff.
+     * Resets [readaloudPrepared] so the next play re-prepares the media session with the
+     * readaloud's audio items (the audiobook replaced them during playback).
+     * Also signals the pre-warmed [AudiobookPlayerViewModel] to pause its controller so audiobook
+     * audio stops while the reader is visible.
      */
     fun onAudiobookOverlayDismissed() {
         readaloudPrepared = false
+        val abId = _audiobookItemId.value
+        if (abId != null) audiobookHandoffState.dismiss(abId)
     }
 
     /** Called when the user starts dragging up (before the threshold) — reserved for future pre-warm. */

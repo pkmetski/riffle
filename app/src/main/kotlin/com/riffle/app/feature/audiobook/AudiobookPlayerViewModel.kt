@@ -19,6 +19,8 @@ import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -167,6 +169,7 @@ class AudiobookPlayerViewModel(
     private val progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
     private val bookmarkStore: AudiobookBookmarkStore,
     private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
+    private val audiobookHandoffState: AudiobookHandoffState,
     // Wall-clock for bookmark stamps (createdAt + dirty); a () -> Long for deterministic tests, the
     // established clock-injection pattern in this codebase (e.g. ReadaloudMatchingService).
     private val now: () -> Long = System::currentTimeMillis,
@@ -201,6 +204,7 @@ class AudiobookPlayerViewModel(
         progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
         bookmarkStore: AudiobookBookmarkStore,
         connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
+        audiobookHandoffState: AudiobookHandoffState,
     ) : this(
         savedStateHandle,
         audiobookRepository,
@@ -226,13 +230,25 @@ class AudiobookPlayerViewModel(
         progressFlushScope,
         bookmarkStore,
         connectivityObserver,
+        audiobookHandoffState,
         System::currentTimeMillis,
     )
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
 
-    // readaloud→audiobook swipe handoff: the listen position to continue from (-1 = opened normally).
+    // readaloud→audiobook swipe handoff: the listen position to continue from.
+    // -2 = PREWARM_SENTINEL: pre-warm mode (overlay always-mounted, actual position arrives via
+    //      AudiobookHandoffState when the user swipes up — controller.prepare() is deferred).
+    // -1 = normal resume from saved position.
+    // ≥0 = explicit start second (handoff from the standalone reader path).
     private val startAtSec: Double = (savedStateHandle.get<Float>("startAtSec") ?: -1f).toDouble()
+
+    // Stored during pre-warm init so activateFromHandoff() can prepare the controller without
+    // re-fetching. Set even in normal-open mode so re-activations (second+ swipe-up) can
+    // re-prepare the controller after releaseForHandoff() clears the spans.
+    private var resolvedSession: com.riffle.core.domain.AudiobookSession? = null
+    private var resolvedCoverUri: String? = null
+    private var resolvedInitialSpeed: Float = 1f
 
     private val meta = MutableStateFlow(
         AudiobookPlayerUiState(loading = true),
@@ -535,45 +551,82 @@ class AudiobookPlayerViewModel(
                     playbackStartSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
                 }
             }
-            // Resume at the server-recorded position (last-update-wins resume; ADR 0029) so the
-            // audio-led canonical never starts behind.
-            controller.prepare(
-                trackUrls = session.trackUrls,
-                spans = session.tracks,
-                durationSec = session.timeline.durationSec,
-                startAtSec = playbackStartSec,
-                localZipFile = session.localZipFile,
-                coverUri = item.coverUrl,
-            )
-            // Record the active session so a media-notification tap reopens this audiobook player.
-            nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
-            // Apply the persisted per-book speed to the freshly-prepared (singleton) controller, which
-            // would otherwise retain the previous book's speed. Set directly on the controller (not the
-            // VM's setSpeed) so restoring the saved value doesn't re-save it.
-            controller.setSpeed(initialSpeed)
-            reconciledResumeSec = resumeSec
-            localUpdatedAt = resumeStamp
-            // Opening the player is itself a "play" intent (the user tapped Listen), so start playback
-            // immediately rather than landing on a paused player. A genuinely-newer remote resume is
-            // still honoured: attachReaderSync's inbound-only reconcile seeks the already-playing
-            // position to the reconciled point (ADR 0029).
-            controller.play()
 
-            // The cross-EPUB index build (needed for the full ebook-sync coordinator) is self-healed by
-            // ReaderSyncFactory.createIfApplicable below: if the bundle is present but the index isn't
-            // built yet, it enqueues the build there — so this open is itself the player-open retry path
-            // (ADR 0031). No explicit enqueue needed here.
+            // Store resolved data so handoff activations (first swipe-up or re-activations after
+            // a swipe-down) can re-prepare the controller without re-fetching (ADR 0032).
+            resolvedSession = session
+            resolvedCoverUri = item.coverUrl
+            resolvedInitialSpeed = initialSpeed
 
-            // Attach the matched 2-peer cycle if its prerequisites are already cached (the follow loop
-            // re-attaches later if the index is still building). Seed it with the reconciled resume so
-            // a genuinely-newer local listen can lead the first cycle. Use resumeStamp (== resumeUpdatedAt
-            // normally, but the fresh now-stamp on a readaloud→audiobook handoff) so the handed-off
-            // position leads the first cycle instead of being pulled back to a stale server position.
-            attachReaderSync(resumeSec, resumeStamp)
-            // Always run the follow loop so the listen position reaches ABS while playing — in the
-            // matched case it drives both ABS peers (audio-led), otherwise it pushes the single ABS
-            // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.
-            startFollowLoop()
+            if (startAtSec != PREWARM_SENTINEL) {
+                // Normal open or readaloud→audiobook handoff via nav arg: prepare and play now.
+                // Resume at the server-recorded position (last-update-wins resume; ADR 0029).
+                controller.prepare(
+                    trackUrls = session.trackUrls,
+                    spans = session.tracks,
+                    durationSec = session.timeline.durationSec,
+                    startAtSec = playbackStartSec,
+                    localZipFile = session.localZipFile,
+                    coverUri = item.coverUrl,
+                )
+                // Record the active session so a media-notification tap reopens this audiobook player.
+                nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
+                // Apply the persisted per-book speed to the freshly-prepared (singleton) controller,
+                // which would otherwise retain the previous book's speed. Set directly on the controller
+                // (not the VM's setSpeed) so restoring the saved value doesn't re-save it.
+                controller.setSpeed(initialSpeed)
+                reconciledResumeSec = resumeSec
+                localUpdatedAt = resumeStamp
+                // Opening the player is itself a "play" intent (the user tapped Listen), so start
+                // playback immediately rather than landing on a paused player. A genuinely-newer remote
+                // resume is still honoured: attachReaderSync's inbound-only reconcile seeks the
+                // already-playing position to the reconciled point (ADR 0029).
+                controller.play()
+
+                // The cross-EPUB index build (needed for the full ebook-sync coordinator) is self-healed
+                // by ReaderSyncFactory.createIfApplicable below: if the bundle is present but the index
+                // isn't built yet, it enqueues the build there — so this open is itself the player-open
+                // retry path (ADR 0031). No explicit enqueue needed here.
+
+                // Attach the matched 2-peer cycle if its prerequisites are already cached (the follow
+                // loop re-attaches later if the index is still building). Seed it with the reconciled
+                // resume so a genuinely-newer local listen can lead the first cycle. Use resumeStamp
+                // (== resumeUpdatedAt normally, but the fresh now-stamp on a readaloud→audiobook
+                // handoff) so the handed-off position leads the first cycle.
+                attachReaderSync(resumeSec, resumeStamp)
+                // Always run the follow loop so the listen position reaches ABS while playing — in the
+                // matched case it drives both ABS peers (audio-led), otherwise it pushes the single ABS
+                // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.
+                startFollowLoop()
+            }
+            // PREWARM_SENTINEL: controller.prepare() is intentionally skipped here. The handoff
+            // watcher below receives the actual start position when the user swipes up.
+        }
+
+        // Watch for the swipe-up handoff signal from EpubReaderViewModel. Runs in all modes so
+        // re-activations (second+ swipe-up after a swipe-down) also work.
+        viewModelScope.launch {
+            audiobookHandoffState.pendingHandoff
+                .filterNotNull()
+                .filter { it.itemId == itemId }
+                .collect { signal ->
+                    audiobookHandoffState.consumeHandoff()
+                    activateFromHandoff(signal.atSec)
+                }
+        }
+
+        // Watch for the overlay-dismissed signal (back button without a swipe-down handoff).
+        // Pause the controller so audiobook audio stops while the reader is visible.
+        viewModelScope.launch {
+            audiobookHandoffState.pendingDismiss
+                .filterNotNull()
+                .filter { it == itemId }
+                .collect {
+                    audiobookHandoffState.consumeDismiss()
+                    followJob?.cancel()
+                    followJob = null
+                    controller.pause()
+                }
         }
 
         // End-of-chapter sleep timer: fire when chapter index advances while EoC mode is active.
@@ -845,8 +898,42 @@ class AudiobookPlayerViewModel(
     fun prepareReadaloudHandoff() {
         if (handingOffToReadaloud) return
         handingOffToReadaloud = true
+        // Cancel the follow loop now (VM stays alive in the always-mounted overlay, so onCleared
+        // won't do this until the user exits the reader entirely).
+        followJob?.cancel()
+        followJob = null
         pushProgressOnStop()
         controller.releaseForHandoff()
+    }
+
+    /**
+     * Prepare and start the audiobook controller from [atSec] on the concatenated timeline.
+     * Called by the handoff watcher when the user swipes up (for both first activation from
+     * pre-warm state and subsequent re-activations after a swipe-down).
+     */
+    private suspend fun activateFromHandoff(atSec: Double) {
+        val session = resolvedSession ?: return
+        handingOffToReadaloud = false
+        val finalSec = atSec.coerceIn(0.0, session.timeline.durationSec)
+        controller.prepare(
+            trackUrls = session.trackUrls,
+            spans = session.tracks,
+            durationSec = session.timeline.durationSec,
+            startAtSec = finalSec,
+            localZipFile = session.localZipFile,
+            coverUri = resolvedCoverUri,
+        )
+        controller.setSpeed(resolvedInitialSpeed)
+        reconciledResumeSec = finalSec
+        localUpdatedAt = System.currentTimeMillis()
+        if (serverId.isNotEmpty()) {
+            audiobookPositionStore.save(serverId, itemId, finalSec)
+            audiobookPositionStore.updateLocalTimestamp(serverId, itemId, localUpdatedAt)
+        }
+        nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
+        controller.play()
+        attachReaderSync(finalSec, localUpdatedAt)
+        startFollowLoop()
     }
 
     private fun saveProgress() {
@@ -888,5 +975,8 @@ class AudiobookPlayerViewModel(
         // (covers a seek/buffer landing within a tick); anything further behind is a transient that
         // must not lead. Small, so a genuine book-start 0 can never drive the ebook.
         const val SETTLE_EPS_SEC = 3.0
+        // Sentinel for startAtSec: the overlay is always mounted for pre-warming; the actual start
+        // position arrives via AudiobookHandoffState when the user swipes up.
+        const val PREWARM_SENTINEL = -2.0
     }
 }

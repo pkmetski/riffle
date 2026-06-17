@@ -298,14 +298,15 @@ fun EpubReaderScreen(
     // to edge and the nav bar floats over the last sliver of content. Padding would carve
     // out a solid strip behind the bar that doesn't blend with any reader theme — exactly
     // the "white/black bar" the user reported when exiting Immersive mode.
-    var audiobookOverlayItemId by rememberSaveable { mutableStateOf("") }
-    var audiobookOverlayStartAtSec by rememberSaveable { mutableStateOf(-1f) }
-    val showAudiobookOverlay = audiobookOverlayItemId.isNotEmpty()
+
+    // `showAudiobookOverlay` drives visibility; the overlay composable itself is always mounted
+    // when `audiobookItemId != null` so AudiobookPlayerViewModel pre-warms in the background.
+    var showAudiobookOverlay by rememberSaveable { mutableStateOf(false) }
 
     // Dismiss the audiobook overlay when the system back button is pressed, rather than
     // navigating back through the outer NavHost (which would exit the reader entirely).
     BackHandler(enabled = showAudiobookOverlay) {
-        audiobookOverlayItemId = ""
+        showAudiobookOverlay = false
         viewModel.onAudiobookOverlayDismissed()
     }
 
@@ -437,10 +438,9 @@ fun EpubReaderScreen(
                         handleColor = readerPalette.foreground,
                         enabled = audiobookItemId != null,
                         onSwipeUp = {
-                            audiobookItemId?.let { abId ->
-                                val sec = viewModel.prepareAudiobookHandoff()
-                                audiobookOverlayStartAtSec = sec.toFloat()
-                                audiobookOverlayItemId = abId
+                            if (audiobookItemId != null) {
+                                viewModel.prepareAudiobookHandoff()
+                                showAudiobookOverlay = true
                             }
                         },
                         onDragHint = { viewModel.hintAudiobookHandoff() },
@@ -577,17 +577,20 @@ fun EpubReaderScreen(
                 onDismiss = viewModel::dismissReturnTarget,
             )
         }
-        if (showAudiobookOverlay) {
+        // Always mount the overlay when an audiobook is linked so AudiobookPlayerViewModel
+        // can pre-warm (session open, metadata load) while the user reads. The overlay is
+        // rendered at size 0 when hidden, making it invisible and non-interactive.
+        audiobookItemId?.let { abItemId ->
             AudiobookPlayerOverlay(
-                itemId = audiobookOverlayItemId,
-                startAtSec = audiobookOverlayStartAtSec,
+                itemId = abItemId,
+                visible = showAudiobookOverlay,
                 windowSizeClass = windowSizeClass,
                 onDismiss = {
-                    audiobookOverlayItemId = ""
+                    showAudiobookOverlay = false
                     viewModel.onAudiobookOverlayDismissed()
                 },
                 onSwitchToReadaloud = { atSec ->
-                    audiobookOverlayItemId = ""
+                    showAudiobookOverlay = false
                     viewModel.startReadaloudAtSecond(atSec)
                 },
             )
@@ -2088,18 +2091,22 @@ private fun highlightTint(color: String): Int =
 @Composable
 private fun AudiobookPlayerOverlay(
     itemId: String,
-    startAtSec: Float,
+    visible: Boolean,
     windowSizeClass: WindowSizeClass,
     onDismiss: () -> Unit,
     onSwitchToReadaloud: (Double) -> Unit,
 ) {
     val navController = rememberNavController()
     val encoded = URLEncoder.encode(itemId, "UTF-8")
-    val startRoute = "overlay_audiobook/$encoded?startAtSec=$startAtSec"
+    // Always use the PREWARM_SENTINEL (-2f) so the NavBackStackEntry — and therefore
+    // AudiobookPlayerViewModel — is created once and kept alive between swipe-up/down cycles.
+    // The actual start position arrives via AudiobookHandoffState when the overlay is revealed.
+    val startRoute = "overlay_audiobook/$encoded?startAtSec=-2.0"
     NavHost(
         navController = navController,
         startDestination = startRoute,
-        modifier = Modifier.fillMaxSize(),
+        // size(0.dp) renders but hides the composable; fillMaxSize when shown.
+        modifier = if (visible) Modifier.fillMaxSize() else Modifier.size(0.dp),
     ) {
         composable(
             route = "overlay_audiobook/{itemId}?startAtSec={startAtSec}",
@@ -2107,7 +2114,7 @@ private fun AudiobookPlayerOverlay(
                 navArgument("itemId") { type = NavType.StringType },
                 navArgument("startAtSec") {
                     type = NavType.FloatType
-                    defaultValue = -1f
+                    defaultValue = -2f
                 },
             ),
         ) {
