@@ -1390,7 +1390,7 @@ private fun EpubNavigatorView(
     // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
         if (ref == null) {
@@ -1407,9 +1407,10 @@ private fun EpubNavigatorView(
         val decoration = Decoration(
             id = "readaloud_active",
             locator = locator,
-            style = Decoration.Style.Highlight(
-                tint = readaloudHighlightColor.argb,
-                isActive = false,
+            // Dedicated readaloud style/template: opacity follows the tint's alpha so the highlight
+            // is stronger on dark reading themes and stays legible behind the white body text.
+            style = ReadaloudHighlightStyle(
+                tint = readaloudHighlightColor.readerTint(formattingPrefs.theme),
             ),
         )
         // Clear the group before re-applying. After the fragment is recreated (rotation) or its page
