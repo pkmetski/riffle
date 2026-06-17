@@ -282,7 +282,18 @@ internal object ContinuousStyleInjector {
         (function() {
             if (document.__riffleTapWired) return;
             document.__riffleTapWired = true;
-            document.addEventListener('click', function() {
+            document.addEventListener('click', function(e) {
+                // Only a tap on the background toggles the reader chrome. A tap on a link (footnote,
+                // cross-reference, external) or other interactive control must NOT also toggle the
+                // bars — otherwise following an internal link in Continuous mode flips out of
+                // immersive mode at the same time (the link's own handler navigates separately).
+                var t = e.target;
+                while (t && t.nodeType === 1) {
+                    var tag = t.tagName ? t.tagName.toLowerCase() : '';
+                    if (tag === 'a' || tag === 'button' || tag === 'input' ||
+                        tag === 'select' || tag === 'textarea' || tag === 'label') return;
+                    t = t.parentNode;
+                }
                 window.RiffleChapter.onTap();
             }, false);
         })();

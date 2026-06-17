@@ -262,59 +262,50 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * process is killed (see [onRenderProcessGone] wiring in [appendChapter]).
      */
     private fun openWindowAt(initialHref: String, initialProgression: Float, anchorFragment: String = "") {
-        val centerIndex = ContinuousPositionTracker
+        val targetIndex = ContinuousPositionTracker
             .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
             .coerceAtLeast(0)
 
-        // Open with the TARGET chapter at the top of the window (no behind buffer yet). The behind
-        // buffer exists only for smooth *backward* scrolling, which the reader can't do until after
-        // the first frame — so blocking the first paint on it just makes opening slow. With the
-        // target at window-index 0 its layout top is 0, so the initial scroll offset depends only on
-        // the target's own height: we wait for exactly one chapter to measure, not two.
-        topIndex = centerIndex
-        val initialAhead = minOf(1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
+        // Build the full window — behind buffer + target + ahead buffer — up front, with the behind
+        // buffer included from the start. The target then sits at window index [targetWindowIndex],
+        // and we land on it with the SAME slot-based math the in-window (chapter-map) path uses:
+        // scroll to (sum of the measured heights before the target) + the in-chapter offset. This is
+        // exact and needs no incremental scroll compensation.
+        //
+        // Earlier this opened with the target at window-index 0 and filled the behind buffer
+        // afterwards via prependChapter's running scrollBy compensation. That async compensation
+        // landed imprecisely — a far TOC jump came to rest about a screen above the target (the
+        // previous chapter showing, the target's heading pushed to the bottom). Waiting for the
+        // behind buffer to measure costs one extra chapter's load before the first paint, which is
+        // an acceptable trade for landing exactly where the TOC entry points.
+        val behind = minOf(CHAPTERS_BEHIND, targetIndex)
+        topIndex = targetIndex - behind
+        val targetWindowIndex = behind
+        val totalChapters = minOf(behind + 1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
 
+        // Land only once every chapter up to and including the target has reported its real height,
+        // so the target's slot.top (the sum of the heights before it) is exact.
         pendingInitialMeasureIndices.clear()
-        pendingInitialMeasureIndices.add(0) // the target chapter only
+        pendingInitialMeasureIndices.addAll(0..targetWindowIndex)
         pendingInitialScroll = {
-            // Fill the behind buffer for smooth backward scrolling — but only AFTER the target scroll
-            // has landed. prependChapter compensates scroll for the added height, so the content the
-            // user is now looking at stays anchored; running it before the (possibly async, anchor-
-            // resolving) scroll would shift the layout and land us in the wrong place.
-            val fillBehindBuffer = {
-                post {
-                    shiftInProgress = true
-                    repeat(CHAPTERS_BEHIND) {
-                        if (topIndex > 0) {
-                            topIndex--
-                            prependChapter(topIndex)
-                        }
+            val slot = buildWindow().getOrNull(targetWindowIndex)
+            val targetWv = webViews.getOrNull(targetWindowIndex)
+            if (slot != null) {
+                // With an anchor fragment (TOC/cross-ref target) land on that element inside the
+                // resource; otherwise land at the resource top (progression 0) or the saved
+                // progression offset (resume).
+                if (anchorFragment.isNotEmpty() && targetWv != null) {
+                    targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
+                        val within = anchorOffset ?: (initialProgression * slot.height).toInt()
+                        scrollTo(0, (slot.top + within).coerceAtLeast(0))
                     }
-                    shiftInProgress = false
+                } else {
+                    scrollTo(0, (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0))
                 }
-            }
-            // The target chapter is window-index 0 right after the rebuild — its layout top is 0 —
-            // and this runs from index 0's own measurement, so address it directly rather than
-            // looking it up by href in the window (that lookup could miss if the window changed and
-            // would then silently skip the scroll, leaving the reader on the previous chapter — the
-            // "navigates to a position that is not the TOC href" bug).
-            // Top-align the opening position (centring would put the *previous* chapter in the top
-            // half). With an anchor fragment (TOC/cross-ref target) land on that element instead of
-            // the resource top, so entries pointing past front-matter inside a resource are accurate.
-            val targetWv = webViews.firstOrNull()
-            val targetHeight = measuredHeights.firstOrNull() ?: 0
-            if (targetWv != null && anchorFragment.isNotEmpty()) {
-                targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                    scrollTo(0, (anchorOffset ?: (initialProgression * targetHeight).toInt()).coerceAtLeast(0))
-                    fillBehindBuffer()
-                }
-            } else {
-                if (targetWv != null) scrollTo(0, (initialProgression * targetHeight).toInt().coerceAtLeast(0))
-                fillBehindBuffer()
             }
         }
 
-        repeat(initialAhead) { i -> appendChapter(topIndex + i) }
+        repeat(totalChapters) { i -> appendChapter(topIndex + i) }
     }
 
     /**
