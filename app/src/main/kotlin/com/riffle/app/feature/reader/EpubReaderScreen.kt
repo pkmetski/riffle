@@ -1934,9 +1934,20 @@ private fun EpubNavigatorView(
                                 )
                             }
                         }
+                        view.readaloudAvailable = currentReadaloudAvailable
+                        view.onPlayFromHereSelection = { chapterHref, selectedText ->
+                            // Resolve the selection to a narrated sentence id and start playback there.
+                            val sid = ContinuousPositionTracker.sentenceIdForSelection(
+                                selectedText,
+                                currentSentenceQuotes.mapValues { it.value.highlight },
+                            )
+                            if (sid != null) currentOnPlayFromHere("$chapterHref#$sid")
+                        }
                     }
                 },
-                update = { _ -> },
+                // readaloudAvailability can flip mid-session (e.g. a bundle finishes downloading),
+                // so keep the selection menu's "Play from here" gate in sync.
+                update = { it.readaloudAvailable = readaloudAvailable },
                 modifier = readerModifier,
             )
             // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a

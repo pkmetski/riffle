@@ -164,4 +164,32 @@ class ContinuousPositionTrackerTest {
         assertEquals(0, ContinuousPositionTracker.pageScrollDelta(0))
         assertEquals(0, ContinuousPositionTracker.pageScrollDelta(-5))
     }
+
+    // ── sentenceIdForSelection (Play from here) ───────────────────────────────
+
+    private val quoteTexts = mapOf(
+        "c1-s1" to "It was a bright cold day in April.",
+        "c1-s2" to "The clocks were striking thirteen.",
+        "c1-s3" to "Winston Smith slipped quickly through the glass doors.",
+    )
+
+    @Test
+    fun `sentenceIdForSelection finds the sentence containing the full selection`() {
+        assertEquals("c1-s2", ContinuousPositionTracker.sentenceIdForSelection("clocks were striking", quoteTexts))
+    }
+
+    @Test
+    fun `sentenceIdForSelection falls back to the leading chunk of a partial selection`() {
+        // Selection runs past the sentence end; the leading chunk still pins it.
+        assertEquals(
+            "c1-s3",
+            ContinuousPositionTracker.sentenceIdForSelection("Winston Smith slipped quickly and then more text", quoteTexts),
+        )
+    }
+
+    @Test
+    fun `sentenceIdForSelection returns null for blank or unmatched selection`() {
+        assertNull(ContinuousPositionTracker.sentenceIdForSelection("   ", quoteTexts))
+        assertNull(ContinuousPositionTracker.sentenceIdForSelection("nothing like this exists here", quoteTexts))
+    }
 }

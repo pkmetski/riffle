@@ -25,6 +25,14 @@ import org.readium.r2.shared.util.Url
 @SuppressLint("SetJavaScriptEnabled")
 internal class ChapterWebView(context: Context) : WebView(context) {
 
+    private companion object {
+        // Text-selection menu item ids (see wrapSelectionCallback).
+        const val MENU_COPY = android.view.Menu.FIRST
+        const val MENU_PLAY = android.view.Menu.FIRST + 1
+        const val MENU_SEARCH = android.view.Menu.FIRST + 2
+        const val MENU_SHARE = android.view.Menu.FIRST + 3
+    }
+
     /** Called on the main thread once the content height is known. */
     var onHeightMeasured: ((heightPx: Int) -> Unit)? = null
 
@@ -55,6 +63,15 @@ internal class ChapterWebView(context: Context) : WebView(context) {
 
     /** Called on the main thread when the user taps an external (http/https) link. */
     var onExternalLink: ((url: String) -> Unit)? = null
+
+    /** When true, the text-selection menu offers "Play from here" (readaloud books only). */
+    var readaloudAvailable: Boolean = false
+
+    /**
+     * Called on the main thread with the selected text when the user taps "Play from here".
+     * The host resolves it to a narrated sentence and starts playback there.
+     */
+    var onPlayFromHere: ((selectedText: String) -> Unit)? = null
 
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
     var chapterHref: String = ""
@@ -222,6 +239,89 @@ internal class ChapterWebView(context: Context) : WebView(context) {
 
     /** Re-inject user styles and re-measure after a preference change. */
     fun reinjectAndRemeasure(styleJs: String) = injectStylesAndMeasure(styleJs)
+
+    // ── Text-selection menu ──────────────────────────────────────────────────────
+    // The Readium fragment provides Riffle's custom selection menu in paged/scroll mode; in
+    // Continuous mode selection happens in these WebViews, so we wrap their action mode to offer the
+    // same items (Copy / Search / Share, plus "Play from here" for readaloud books) instead of the
+    // bare browser default. Both startActionMode overloads are wrapped to cover the floating menu.
+
+    override fun startActionMode(callback: android.view.ActionMode.Callback): android.view.ActionMode =
+        super.startActionMode(wrapSelectionCallback(callback))
+
+    override fun startActionMode(callback: android.view.ActionMode.Callback, type: Int): android.view.ActionMode =
+        super.startActionMode(wrapSelectionCallback(callback), type)
+
+    private fun wrapSelectionCallback(inner: android.view.ActionMode.Callback) =
+        object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                menu.clear()
+                menu.add(0, MENU_COPY, 0, android.R.string.copy)
+                if (readaloudAvailable) menu.add(0, MENU_PLAY, 1, "Play from here")
+                menu.add(0, MENU_SEARCH, 2, "Search")
+                menu.add(0, MENU_SHARE, 3, "Share")
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = false
+
+            override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                when (item.itemId) {
+                    MENU_COPY -> withSelectionText { copyToClipboard(it) }
+                    MENU_SEARCH -> withSelectionText { webSearch(it) }
+                    MENU_SHARE -> withSelectionText { shareText(it) }
+                    MENU_PLAY -> withSelectionText { onPlayFromHere?.invoke(it) }
+                    else -> return inner.onActionItemClicked(mode, item)
+                }
+                mode.finish()
+                return true
+            }
+
+            override fun onDestroyActionMode(mode: android.view.ActionMode) {
+                inner.onDestroyActionMode(mode)
+            }
+        }
+
+    /** Read the current selection's plain text (async, on the JS thread) then run [block] with it. */
+    private fun withSelectionText(block: (String) -> Unit) {
+        evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
+            val text = decodeJsString(raw)
+            if (text.isNotBlank()) block(text)
+            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+        }
+    }
+
+    private fun decodeJsString(raw: String?): String {
+        if (raw == null || raw == "null") return ""
+        return try {
+            org.json.JSONArray("[$raw]").getString(0)
+        } catch (_: Exception) {
+            raw.trim('"')
+        }
+    }
+
+    private fun copyToClipboard(text: String) {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("Riffle", text))
+    }
+
+    private fun webSearch(text: String) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
+            .putExtra(android.app.SearchManager.QUERY, text)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent.resolveActivity(context.packageManager) != null) runCatching { context.startActivity(intent) }
+    }
+
+    private fun shareText(text: String) {
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(android.content.Intent.EXTRA_TEXT, text)
+        runCatching {
+            context.startActivity(
+                android.content.Intent.createChooser(send, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
 
     private inner class HeightBridge {
         @JavascriptInterface

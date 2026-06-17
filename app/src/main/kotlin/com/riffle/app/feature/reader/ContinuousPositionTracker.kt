@@ -62,6 +62,21 @@ internal object ContinuousPositionTracker {
         if (viewportHeightPx <= 0) 0 else (viewportHeightPx * 0.9f).toInt()
 
     /**
+     * Resolve a text selection to the narrated-sentence id whose sentence contains it, for
+     * "Play from here" in Continuous mode. [quoteTexts] maps sentence id → sentence text (built from
+     * the readaloud quote map). Returns the id of the sentence that contains the selection (prefer a
+     * full-text containment; fall back to containing the selection's leading chunk so a partial
+     * selection still resolves), or null if nothing matches / the selection is blank.
+     */
+    fun sentenceIdForSelection(selectedText: String, quoteTexts: Map<String, String>): String? {
+        val needle = selectedText.trim()
+        if (needle.isEmpty()) return null
+        quoteTexts.entries.firstOrNull { it.value.contains(needle) }?.let { return it.key }
+        val head = needle.take(20)
+        return quoteTexts.entries.firstOrNull { it.value.contains(head) }?.key
+    }
+
+    /**
      * Indicates whether the loaded window needs a FORWARD shift to keep enough chapters
      * buffered ahead of the reader.
      *

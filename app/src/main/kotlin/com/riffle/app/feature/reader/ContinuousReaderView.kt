@@ -70,6 +70,19 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     var onExternalLinkTapped: ((url: String) -> Unit)? = null
 
+    /** Whether the text-selection menu should offer "Play from here" (readaloud books only). */
+    var readaloudAvailable: Boolean = false
+        set(value) {
+            field = value
+            webViews.forEach { it.readaloudAvailable = value }
+        }
+
+    /**
+     * Called on the main thread with (chapter href, selected text) when the user taps
+     * "Play from here". The host resolves the selection to a narrated sentence and starts playback.
+     */
+    var onPlayFromHereSelection: ((href: String, selectedText: String) -> Unit)? = null
+
     private val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
@@ -162,6 +175,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onRenderGone = null
         wv.onInternalLink = null
         wv.onExternalLink = null
+        wv.onPlayFromHere = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
     }
 
@@ -372,6 +386,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onRenderGone = { recoverFromRendererGone() }
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
+        wv.readaloudAvailable = readaloudAvailable
+        wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -449,6 +465,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onRenderGone = { recoverFromRendererGone() }
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
+        wv.readaloudAvailable = readaloudAvailable
+        wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
