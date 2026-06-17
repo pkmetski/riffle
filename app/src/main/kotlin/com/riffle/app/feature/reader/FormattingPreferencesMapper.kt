@@ -53,9 +53,11 @@ fun FormattingPreferences.toEpubPreferences(
             ReaderFontFamily.Merriweather -> FontFamily("Merriweather")
             ReaderFontFamily.OpenDyslexic -> FontFamily("OpenDyslexic")
         },
-        // TextAlign.START (not null) when justify is off: explicitly overrides any EPUB-level
-        // text-align:justify so the result matches Continuous mode's text-align:left!important.
-        textAlign = if (justifyText) TextAlign.JUSTIFY else TextAlign.START,
+        // null (not TextAlign.START) when justify is off, so --USER__textAlign stays unset and the
+        // publisher's text alignment is preserved — the original Paginated/Scroll contract (see
+        // FormattingPreferencesMapperTest.justifyTextFalseMapsToNullTextAlign). Continuous mode sets
+        // its own text-align in ContinuousStyleInjector and does not depend on this mapper.
+        textAlign = if (justifyText) TextAlign.JUSTIFY else null,
         // lineHeight only takes effect when publisherStyles is off
         publisherStyles = false,
         lineHeight = lineSpacing.toDouble().takeIf { lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING },
