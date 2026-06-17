@@ -1272,10 +1272,19 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(serverLocatorEvents) {
+    LaunchedEffect(serverLocatorEvents, isContinuous) {
         serverLocatorEvents.collect { locator ->
-            // Background position sync (peer/resume): navigate and snap onto the target's column, tracked
-            // through the new chapter's reflow, but never cover — a cover here would flash mid-reading.
+            // Background position sync (peer/resume/audiobook handoff): in Continuous mode the
+            // fragment is the invisible server-keeper, so route the jump to the continuous view.
+            if (isContinuous) {
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                )
+                return@collect
+            }
+            // Paginated/scroll: navigate and snap onto the target's column, tracked through the new
+            // chapter's reflow, but never cover — a cover here would flash mid-reading.
             val fragment = fragmentRef.value ?: return@collect
             // A background sync (audiobook/peer) carries a within-chapter progression but no DOM
             // fragment; preserve where go() landed (round to the column grid) instead of snapping to
@@ -1302,8 +1311,17 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(returnNavEvents) {
-        returnNavEvents.collect { goAndSnapWithCover(it) }
+    LaunchedEffect(returnNavEvents, isContinuous) {
+        returnNavEvents.collect { locator ->
+            if (isContinuous) {
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                )
+            } else {
+                goAndSnapWithCover(locator)
+            }
+        }
     }
 
     LaunchedEffect(searchNavigationEvents, isContinuous) {
@@ -1580,8 +1598,12 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(volumeNavEvents) {
+    LaunchedEffect(volumeNavEvents, isContinuous) {
         volumeNavEvents.collect { event ->
+            if (isContinuous) {
+                continuousViewRef.value?.scrollByPage(forward = event == VolumeNavEvent.Forward)
+                return@collect
+            }
             val fragment = fragmentRef.value ?: return@collect
             val container = containerRef.value
             if (currentFormattingPrefs.orientation != ReaderOrientation.Horizontal && container != null) {
@@ -1889,6 +1911,29 @@ private fun EpubNavigatorView(
                             if (locator != null) onPositionChanged(locator)
                         }
                         view.onTap = currentOnTap
+                        view.onInternalLinkTapped = onInternalLinkTapped@{ href ->
+                            // Reuse the return-aware internal-link path: capture the origin (for the
+                            // "Back" card) and navigate. Look up the spine Link so the existing
+                            // followInternalLink wiring (capture + navigation event) handles it; fall
+                            // back to a direct jump for a target outside the reading order.
+                            val origin = currentLatestLocator()
+                            val path = href.substringBefore('#')
+                            val link = state.publication.readingOrder
+                                .firstOrNull { it.href.toString() == path }
+                            if (link != null && origin != null) {
+                                currentOnFollowInternalLink(link, origin)
+                            } else {
+                                view.navigateTo(href, 0f)
+                            }
+                        }
+                        view.onExternalLinkTapped = { url ->
+                            runCatching {
+                                ctx.startActivity(
+                                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        }
                     }
                 },
                 update = { _ -> },

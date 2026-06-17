@@ -31,6 +31,36 @@ internal object ContinuousPositionTracker {
         return (slot.top + progression * slot.height).toInt()
     }
 
+    /** Host that [ChapterWebView] serves all EPUB resources from. */
+    const val RESOURCE_HOST = "readium_package"
+
+    /**
+     * Resolve a URL the WebView is about to navigate to (a tapped in-book link) to the EPUB resource
+     * href it points at (keeping any `#fragment`), or null when it points outside the book (an
+     * external http(s) URL). In-book resources are served at `https://[RESOURCE_HOST]/<href>`.
+     */
+    fun internalLinkHref(url: String): String? {
+        val marker = "://$RESOURCE_HOST/"
+        val i = url.indexOf(marker)
+        return if (i >= 0) url.substring(i + marker.length) else null
+    }
+
+    /**
+     * Index into [hrefs] (the reading order) of the chapter [targetHref] refers to, comparing on the
+     * resource path so a `#fragment` on either side doesn't prevent a match. -1 when not found.
+     */
+    fun chapterIndexForHref(hrefs: List<String>, targetHref: String): Int {
+        val target = targetHref.substringBefore('#')
+        return hrefs.indexOfFirst { it.substringBefore('#') == target }
+    }
+
+    /**
+     * Pixels to scroll for a volume-key "page" in continuous mode: one viewport minus a small overlap
+     * so the line at the seam isn't skipped. Returns 0 for a non-positive viewport.
+     */
+    fun pageScrollDelta(viewportHeightPx: Int): Int =
+        if (viewportHeightPx <= 0) 0 else (viewportHeightPx * 0.9f).toInt()
+
     /**
      * Indicates whether the loaded window needs a FORWARD shift to keep enough chapters
      * buffered ahead of the reader.

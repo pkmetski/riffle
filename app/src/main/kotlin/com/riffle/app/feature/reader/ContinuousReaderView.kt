@@ -57,6 +57,19 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     var onTap: (() -> Unit)? = null
 
+    /**
+     * Called on the main thread when the user taps an in-book link inside a chapter (footnote,
+     * cross-reference). [href] is the target resource path (with any `#fragment`). The host wires
+     * this to the return-aware navigation path so a "Back" card can restore the pre-jump position.
+     */
+    var onInternalLinkTapped: ((href: String) -> Unit)? = null
+
+    /**
+     * Called on the main thread when the user taps an external (http/https) link. [url] is the
+     * absolute URL; the host opens it in a browser.
+     */
+    var onExternalLinkTapped: ((url: String) -> Unit)? = null
+
     private val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
@@ -147,6 +160,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = null
         wv.onTap = null
         wv.onRenderGone = null
+        wv.onInternalLink = null
+        wv.onExternalLink = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
     }
 
@@ -300,7 +315,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // TOC entries / chapter-map segments / internal links may carry a #fragment that the spine
         // hrefs don't have; match on the resource path so the chapter is still found.
         val target = href.substringBefore('#')
-        val targetIndex = allChapters.indexOfFirst { it.link.href.toString().substringBefore('#') == target }
+        val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
+            allChapters.map { it.link.href.toString() }, href,
+        )
         if (targetIndex < 0) return
         val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
@@ -327,6 +344,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
     }
 
+    /** Scroll one viewport-page forward/backward (wired to the volume keys). */
+    fun scrollByPage(forward: Boolean) {
+        val delta = ContinuousPositionTracker.pageScrollDelta(height)
+        smoothScrollBy(0, if (forward) delta else -delta)
+    }
+
     /** Inject a highlight for [text] in the chapter matching [href]. Clear if blank. */
     fun highlightInChapter(href: String, text: String) {
         val i = webViewIndexFor(href) ?: return
@@ -347,6 +370,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         publication?.let { wv.setPublication(it) }
         wv.onTap = { onTap?.invoke() }
         wv.onRenderGone = { recoverFromRendererGone() }
+        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
+        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -422,6 +447,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         publication?.let { wv.setPublication(it) }
         wv.onTap = { onTap?.invoke() }
         wv.onRenderGone = { recoverFromRendererGone() }
+        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
+        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)

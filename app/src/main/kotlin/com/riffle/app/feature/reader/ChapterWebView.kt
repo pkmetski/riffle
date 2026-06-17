@@ -46,6 +46,16 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      */
     var onRenderGone: (() -> Unit)? = null
 
+    /**
+     * Called on the main thread when the user taps an in-book link (footnote / cross-reference).
+     * [href] is the target EPUB resource path with any `#fragment`. The WebView does NOT follow the
+     * link itself (that would replace this chapter's content); the parent navigates instead.
+     */
+    var onInternalLink: ((href: String) -> Unit)? = null
+
+    /** Called on the main thread when the user taps an external (http/https) link. */
+    var onExternalLink: ((url: String) -> Unit)? = null
+
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
     var chapterHref: String = ""
         private set
@@ -87,6 +97,22 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 this@ChapterWebView.onPageFinished?.invoke()
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                // Not called for the initial loadChapter() load, only for navigations the page
+                // initiates — i.e. a tapped link. Intercept so the link doesn't replace this
+                // chapter's content; route in-book links to the parent (which navigates the reader
+                // with a return card) and external links out to a browser.
+                val url = request.url.toString()
+                val internal = ContinuousPositionTracker.internalLinkHref(url)
+                return if (internal != null) {
+                    onInternalLink?.invoke(internal)
+                    true
+                } else {
+                    onExternalLink?.invoke(url)
+                    true
+                }
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {

@@ -108,4 +108,60 @@ class ContinuousPositionTrackerTest {
             readingOrderSize = 20, chaptersBehind = 1,
         ))
     }
+
+    // ── internalLinkHref ──────────────────────────────────────────────────────
+
+    @Test
+    fun `internalLinkHref extracts the resource path for an in-book url`() {
+        assertEquals(
+            "text/ch5.xhtml",
+            ContinuousPositionTracker.internalLinkHref("https://readium_package/text/ch5.xhtml"),
+        )
+    }
+
+    @Test
+    fun `internalLinkHref keeps the fragment`() {
+        assertEquals(
+            "text/ch5.xhtml#note3",
+            ContinuousPositionTracker.internalLinkHref("https://readium_package/text/ch5.xhtml#note3"),
+        )
+    }
+
+    @Test
+    fun `internalLinkHref returns null for an external url`() {
+        assertNull(ContinuousPositionTracker.internalLinkHref("https://example.com/page"))
+        assertNull(ContinuousPositionTracker.internalLinkHref("mailto:a@b.com"))
+    }
+
+    // ── chapterIndexForHref ───────────────────────────────────────────────────
+
+    private val order = listOf("text/ch1.xhtml", "text/ch2.xhtml", "text/ch3.xhtml")
+
+    @Test
+    fun `chapterIndexForHref matches exact href`() {
+        assertEquals(1, ContinuousPositionTracker.chapterIndexForHref(order, "text/ch2.xhtml"))
+    }
+
+    @Test
+    fun `chapterIndexForHref matches ignoring a fragment on the target`() {
+        assertEquals(2, ContinuousPositionTracker.chapterIndexForHref(order, "text/ch3.xhtml#figure-4-1"))
+    }
+
+    @Test
+    fun `chapterIndexForHref returns -1 when not found`() {
+        assertEquals(-1, ContinuousPositionTracker.chapterIndexForHref(order, "text/missing.xhtml"))
+    }
+
+    // ── pageScrollDelta ───────────────────────────────────────────────────────
+
+    @Test
+    fun `pageScrollDelta is a viewport minus a small overlap`() {
+        assertEquals(900, ContinuousPositionTracker.pageScrollDelta(1000))
+    }
+
+    @Test
+    fun `pageScrollDelta is zero for a non-positive viewport`() {
+        assertEquals(0, ContinuousPositionTracker.pageScrollDelta(0))
+        assertEquals(0, ContinuousPositionTracker.pageScrollDelta(-5))
+    }
 }
