@@ -1514,7 +1514,7 @@ private fun EpubNavigatorView(
             locator = locator,
             // Dedicated readaloud style/template: opacity follows the tint's alpha so the highlight
             // is stronger on dark reading themes and stays legible behind the white body text.
-            style = ReadaloudHighlightStyle(
+            style = HighlightTintStyle(
                 tint = readaloudHighlightColor.readerTint(formattingPrefs.theme),
             ),
         )
