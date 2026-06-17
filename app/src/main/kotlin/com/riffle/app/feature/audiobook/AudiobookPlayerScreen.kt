@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -42,7 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -78,16 +79,24 @@ private data class BookmarkDraft(
     val chapterTitle: String,
 )
 
-/** Caption hinting that dragging the cover down switches to the read-along reader. */
+/**
+ * Small drag handle hinting that dragging the player down switches to the read-along reader. Mirrors
+ * the handle on the in-reader mini player (see ReadaloudPeek) so the swipe-down ↔ swipe-up gesture
+ * pair reads as one continuous affordance across both surfaces.
+ */
 @Composable
-private fun ReadAlongSwipeHint() {
-    Text(
-        "Swipe down to read along",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+private fun ReadAlongDragHandle() {
+    Box(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-        textAlign = TextAlign.Center,
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                .size(width = 32.dp, height = 4.dp),
+        )
+    }
 }
 
 /** The two quiet affordances under the scrubber: Chapters and the bookmark count. */
@@ -178,10 +187,10 @@ fun AudiobookPlayerScreen(
                     }
                     .padding(horizontal = 24.dp),
             ) {
-                // Leave room for the back button overlaid above, plus the read-along hint when present.
+                // Leave room for the back button overlaid above, plus the read-along handle when present.
                 Spacer(Modifier.size(48.dp))
                 if (state.readaloudEbookItemId != null) {
-                    ReadAlongSwipeHint()
+                    ReadAlongDragHandle()
                 }
 
                 when {

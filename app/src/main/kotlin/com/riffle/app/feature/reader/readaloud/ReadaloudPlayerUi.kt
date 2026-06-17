@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.audio.PlaybackSpeed
 import com.riffle.app.feature.audio.PlaybackSpeedControl
+import com.riffle.app.feature.audio.SKIP_NUMBER_DOWN_FRACTION
 
 /**
  * The mini-player speed control: a compact chip on the bar that opens the shared granular speed
@@ -80,7 +82,9 @@ private fun SpeedControl(
 
 
 @Composable
-private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color, iconSize: Dp = 24.dp) {
+// The circular-arrow glyph is enlarged (from the 24dp default) so the overlaid "15"/"30" interval
+// numbers fit inside the arc rather than spilling past its edges.
+private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color, iconSize: Dp = 32.dp) {
     Box(contentAlignment = Alignment.Center) {
         Icon(
             imageVector = Icons.Filled.Replay,
@@ -94,6 +98,10 @@ private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color, iconSize: Dp =
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = tint,
+            // The Replay glyph's arrowhead sits at the top, so the loop's open centre is below the
+            // icon's geometric centre. Nudge the interval number down (proportional to the glyph) so
+            // it reads as centred inside the loop. Mirror-safe: the offset is vertical only.
+            modifier = Modifier.offset(y = iconSize * SKIP_NUMBER_DOWN_FRACTION),
         )
     }
 }
