@@ -526,7 +526,7 @@ fun EpubReaderScreen(
         }
 
         if (showFormattingPanel) {
-            FormattingPanel(
+            ReaderSettingsSheet(
                 prefs = pickedPrefs,
                 hasBookOverrides = hasBookOverrides,
                 onPrefsChange = { viewModel.updateFormatting(it) },
