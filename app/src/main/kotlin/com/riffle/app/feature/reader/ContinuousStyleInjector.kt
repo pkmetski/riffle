@@ -204,10 +204,11 @@ internal object ContinuousStyleInjector {
      * which clips the last line of the chapter and makes content jump when the sliding window
      * shifts using the stale height. Instead we:
      *
-     *  - Measure the *document* height (`documentElement.scrollHeight`, maxed with body and the
-     *    offset heights) so the root's page-margin padding and any bottom margin are included —
-     *    `document.body.scrollHeight` alone omits the `:root` padding ReadiumCSS adds in scroll
-     *    mode, leaving the chapter short.
+     *  - Measure the true content extent — the body's bottom edge plus the `:root` bottom padding
+     *    ReadiumCSS adds in scroll mode — maxed with the body/root *offset* heights. We avoid
+     *    `documentElement.scrollHeight`: the root scrolling element's scrollHeight is clamped to
+     *    `max(content, viewport)`, so a chapter shorter than the viewport (a chapter-title divider
+     *    page) would measure a full screen tall and insert a large blank gap after it.
      *  - Convert CSS px → device px via `window.devicePixelRatio` before reporting. The parent sizes
      *    `WebView.layoutParams.height` (device px) directly from this value, so without the
      *    conversion a chapter measured at e.g. 2602 CSS px on a 2.625-density screen would get a
@@ -224,11 +225,26 @@ internal object ContinuousStyleInjector {
             function currentHeight() {
                 var de = document.documentElement;
                 var b = document.body;
+                // True content extent = body's bottom edge in document space + the :root bottom
+                // padding ReadiumCSS adds in scroll mode. We deliberately do NOT use
+                // documentElement.scrollHeight here: the root scrolling element's scrollHeight is
+                // clamped to max(content, viewport) by spec, so a chapter shorter than the viewport
+                // (e.g. a chapter-title divider page with only a heading) would measure a full
+                // screen tall and insert a large blank gap after it in the continuous stack.
+                // de.offsetHeight / b.offsetHeight are border-box heights and are NOT viewport-
+                // clamped, so they (and the body-bottom measure) give the real height for both
+                // short and tall chapters.
+                var bodyBottom = b ? (b.getBoundingClientRect().bottom + (window.pageYOffset || 0)) : 0;
+                var rootPadBottom = 0;
+                if (de) {
+                    var pb = parseFloat(getComputedStyle(de).paddingBottom);
+                    if (pb === pb) rootPadBottom = pb; // NaN-guard without isNaN()
+                }
                 var cssH = Math.max(
-                    de ? de.scrollHeight : 0,
+                    bodyBottom + rootPadBottom,
                     de ? de.offsetHeight : 0,
-                    b ? b.scrollHeight : 0,
-                    b ? b.offsetHeight : 0
+                    b ? b.offsetHeight : 0,
+                    b ? b.scrollHeight : 0
                 );
                 // Report device px so the parent can use it as WebView.layoutParams.height directly.
                 return Math.ceil(cssH * (window.devicePixelRatio || 1));
