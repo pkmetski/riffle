@@ -50,6 +50,33 @@ class ContinuousPositionTrackerTest {
         assertEquals(1250, offset)
     }
 
+    // ── scrollYForProgression (resume round-trip — inverse of locatorAt) ───────
+
+    @Test
+    fun `scrollYForProgression round-trips locatorAt so a resumed position does not drift`() {
+        val viewport = 800
+        // Sweep scroll offsets whose viewport midpoint sits comfortably inside a chapter (not on a
+        // boundary, not past the last chapter — those clamp and can't round-trip). Each must survive
+        // save (locatorAt) + restore unchanged.
+        for (scrollY in listOf(200, 400, 700, 900)) {
+            val (href, prog) = ContinuousPositionTracker.locatorAt(scrollY, viewport, window)
+            val slot = window.first { it.href == href }
+            val restored = ContinuousPositionTracker.scrollYForProgression(
+                slot.top, slot.height, prog, viewport,
+            )
+            // Within rounding (progression is a float, scrollY/2 is integer-divided).
+            assertEquals("scrollY=$scrollY", scrollY.toFloat(), restored.toFloat(), 2f)
+        }
+    }
+
+    @Test
+    fun `scrollYForProgression top-aligns a chapter start and never goes negative`() {
+        // progression 0 → top of the chapter (no half-viewport shift up into the previous chapter).
+        assertEquals(1000, ContinuousPositionTracker.scrollYForProgression(1000, 500, 0f, 800))
+        // a tiny progression near a chapter start would compute negative — clamps to 0.
+        assertEquals(0, ContinuousPositionTracker.scrollYForProgression(0, 500, 0.1f, 800))
+    }
+
     @Test
     fun `scrollOffsetFor returns null when chapter not in window`() {
         val offset = ContinuousPositionTracker.scrollOffsetFor(

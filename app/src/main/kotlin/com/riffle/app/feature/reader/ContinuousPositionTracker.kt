@@ -31,6 +31,21 @@ internal object ContinuousPositionTracker {
         return (slot.top + progression * slot.height).toInt()
     }
 
+    /**
+     * The scrollY that lands [progression] within a chapter at [slotTop]/[slotHeight] — the inverse
+     * of [locatorAt]. Because [locatorAt] measures progression at the viewport MIDPOINT, a restored
+     * mid-chapter progression must be placed back at the midpoint (subtract half the viewport),
+     * NOT at the top. Placing it at the top shifts the view down by half a viewport, so a saved
+     * reading position would drift forward by half a screen on every reopen. A chapter start
+     * (progression ~0, e.g. a TOC jump) stays top-aligned so it doesn't scroll up into the previous
+     * chapter. Never negative.
+     */
+    fun scrollYForProgression(slotTop: Int, slotHeight: Int, progression: Float, viewportHeight: Int): Int {
+        val base = slotTop + (progression * slotHeight).toInt()
+        val y = if (progression <= 0.001f) base else base - viewportHeight / 2
+        return y.coerceAtLeast(0)
+    }
+
     /** Host that [ChapterWebView] serves all EPUB resources from. */
     const val RESOURCE_HOST = "readium_package"
 

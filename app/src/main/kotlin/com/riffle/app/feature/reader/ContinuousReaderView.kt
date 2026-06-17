@@ -311,11 +311,25 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 // progression offset (resume).
                 if (anchorFragment.isNotEmpty() && targetWv != null) {
                     targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                        val within = anchorOffset ?: (initialProgression * slot.height).toInt()
-                        scrollTo(0, (slot.top + within).coerceAtLeast(0))
+                        val y = if (anchorOffset != null) {
+                            (slot.top + anchorOffset).coerceAtLeast(0)
+                        } else {
+                            ContinuousPositionTracker.scrollYForProgression(
+                                slot.top, slot.height, initialProgression, height,
+                            )
+                        }
+                        scrollTo(0, y)
                     }
                 } else {
-                    scrollTo(0, (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0))
+                    // Restore at the viewport midpoint (inverse of locatorAt) so a resumed position
+                    // doesn't drift forward half a screen on every reopen; a chapter start stays at
+                    // the top.
+                    scrollTo(
+                        0,
+                        ContinuousPositionTracker.scrollYForProgression(
+                            slot.top, slot.height, initialProgression, height,
+                        ),
+                    )
                 }
             }
         }
@@ -423,9 +437,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 else go(slot.top + (progression * slot.height).toInt())
             }
         } else {
-            val base = slot.top + (progression * slot.height).toInt()
-            // Top-align a chapter start; centre a mid-chapter target.
-            go(if (progression <= 0.001f) base else base - height / 2)
+            // Top-align a chapter start; centre a mid-chapter target (inverse of locatorAt).
+            go(ContinuousPositionTracker.scrollYForProgression(slot.top, slot.height, progression, height))
         }
     }
 
