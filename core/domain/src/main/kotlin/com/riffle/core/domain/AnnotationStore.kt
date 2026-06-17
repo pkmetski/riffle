@@ -42,6 +42,9 @@ interface AnnotationStore {
     /** Tombstone an annotation so the delete can later propagate to other devices. */
     suspend fun delete(id: String)
 
+    /** Recolour an existing highlight in place, bumping its updatedAt. */
+    suspend fun recolor(id: String, color: String)
+
     companion object {
         const val DEFAULT_COLOR = "yellow"
     }

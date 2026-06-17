@@ -35,6 +35,11 @@ class AnnotationStoreTest {
                 if (it.id == id) it.copy(deleted = true, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+        override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {
+            rows.value = rows.value.map {
+                if (it.id == id) it.copy(color = color, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+            }
+        }
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {

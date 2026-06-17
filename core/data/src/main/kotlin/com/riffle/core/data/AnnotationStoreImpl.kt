@@ -97,6 +97,10 @@ class AnnotationStoreImpl(
     override suspend fun delete(id: String) {
         dao.tombstone(id, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
+
+    override suspend fun recolor(id: String, color: String) {
+        dao.recolor(id, color = color, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
+    }
 }
 
 private fun AnnotationEntity.toDomain() = Annotation(
