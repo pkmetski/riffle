@@ -126,11 +126,6 @@ import androidx.navigation.navArgument
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import java.net.URLEncoder
 
-// Gates the "Highlight" text-selection action. ADR 0024 shipped highlight create + render +
-// sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
-// creating one is a dead end. Keep the create/render plumbing live but hide the affordance until
-// that management UI exists. Flip to true to re-enable.
-private const val ANNOTATIONS_UI_ENABLED = true
 
 /**
  * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
@@ -1058,9 +1053,6 @@ private fun EpubNavigatorView(
     // readaloudAvailable so it only shows where the toolbar readaloud control is enabled — i.e. a
     // Storyteller book or a matched-ABS book with a downloaded bundle, never a plain EPUB.
     val playFromHereMenuId = remember { View.generateViewId() }
-    // "Highlight" creates a persisted annotation, but there's no UI yet to view/delete/recolor
-    // highlights (ADR 0024 shipped create + render only). Keep the plumbing wired but hidden behind
-    // ANNOTATIONS_UI_ENABLED until that management UI lands, so the affordance isn't a dead end.
     val highlightMenuId = remember { View.generateViewId() }
     val copyMenuId = remember { View.generateViewId() }
     val searchMenuId = remember { View.generateViewId() }
@@ -1069,8 +1061,9 @@ private fun EpubNavigatorView(
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
-                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) {
+                if (currentAnnotationsAvailable) {
                     menu.add(0, highlightMenuId, 1, "Highlight")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (currentReadaloudAvailable) {
                     menu.add(0, playFromHereMenuId, 2, "Play")

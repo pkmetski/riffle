@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -61,27 +62,29 @@ fun AnnotationsPanel(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Text(
-            text = "Annotations",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-        )
-        if (annotations.isEmpty()) {
+        Column(modifier = Modifier.fillMaxHeight()) {
             Text(
-                text = "No annotations yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                text = "Annotations",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
             )
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(annotations, key = { it.id }) { annotation ->
-                    AnnotationRow(
-                        annotation = annotation,
-                        onClick = { onNavigate(annotation.id) },
-                        onDelete = { onDelete(annotation.id) },
-                        onRename = { renamingId = annotation.id },
-                    )
+            if (annotations.isEmpty()) {
+                Text(
+                    text = "No annotations yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(annotations, key = { it.id }) { annotation ->
+                        AnnotationRow(
+                            annotation = annotation,
+                            onClick = { onNavigate(annotation.id) },
+                            onDelete = { onDelete(annotation.id) },
+                            onRename = { renamingId = annotation.id },
+                        )
+                    }
                 }
             }
         }
