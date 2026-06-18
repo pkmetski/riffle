@@ -1133,6 +1133,7 @@ class EpubReaderViewModel @Inject constructor(
                 val spineHrefs = pub.readingOrder.map { it.url().toString() }
                 val segIdx = findActiveSegmentIndex(railSegments.value, href, spineHrefs)
                 val chapterTitle = railSegments.value.getOrNull(segIdx)?.title?.takeIf { it.isNotBlank() }
+                    ?.let { if (it.length > 30) it.take(30).trimEnd() + "…" else it }
                 val title = if (chapterTitle != null) {
                     val pct = (prog * 100).roundToInt().coerceIn(0, 100)
                     "$chapterTitle · $pct%"
