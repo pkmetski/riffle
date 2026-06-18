@@ -49,6 +49,8 @@ class NoteGlyphStyle : Decoration.Style, Parcelable {
  * the selection; its ::before pseudo-element is absolutely positioned to the left of the
  * div (right: 100%), placing the note icon in the left gutter alongside the text.
  * overflow: visible on the host div prevents the gutter icon from being clipped.
+ * Uses CSS masking (`-webkit-mask-image`) so the icon inherits `currentColor` — readable
+ * on both light and dark reading themes.
  */
 fun noteGlyphTemplate(): HtmlDecorationTemplate =
     HtmlDecorationTemplate(
@@ -68,9 +70,10 @@ fun noteGlyphTemplate(): HtmlDecorationTemplate =
                 margin-right: 4px;
                 width: 16px;
                 height: 16px;
-                background-image: url("$NOTE_GLYPH_SVG_DATA_URI");
-                background-size: contain;
-                background-repeat: no-repeat;
+                -webkit-mask-image: url("$NOTE_GLYPH_SVG_DATA_URI");
+                -webkit-mask-size: contain;
+                -webkit-mask-repeat: no-repeat;
+                background-color: currentColor;
                 opacity: 0.55;
                 pointer-events: none;
             }

@@ -1646,11 +1646,10 @@ private fun EpubNavigatorView(
         hasHighlightDecorations.value = true
     }
 
-    // ---- Note underline decorations (annotation-notes) -------------------------------------
-    // Draws a subtle underline under every noted highlight so the reader can see a note is
+    // ---- Note glyph decorations (annotation-notes) -----------------------------------------
+    // Renders a small margin note icon next to every highlighted range that has a note
     // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
-    // Tapping the underlined range fires the existing "annotations" listener (both decorations
-    // overlap the same text, so the listener already registered above handles it).
+    // Tapping the glyph fires the dedicated "annotation-notes" tap listener below.
     val hasNoteDecorations = remember { mutableStateOf(false) }
     LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect

@@ -106,7 +106,7 @@ fun HighlightActionsPopup(
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var noteExpanded by remember { mutableStateOf(false) }
+    var noteExpanded by remember(note) { mutableStateOf(false) }
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
     val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }

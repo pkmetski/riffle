@@ -36,10 +36,14 @@ class NoteGlyphDecorationTest {
     }
 
     @Test
-    fun `noteGlyphTemplate stylesheet references the SVG data URI`() {
+    fun `noteGlyphTemplate stylesheet uses mask-image for theme-aware colouring`() {
         val stylesheet = noteGlyphTemplate().stylesheet ?: ""
-        assertTrue("stylesheet must include SVG data URI background-image",
+        assertTrue("stylesheet must use -webkit-mask-image so glyph inherits currentColor",
+            stylesheet.contains("-webkit-mask-image"))
+        assertTrue("mask image must reference the SVG data URI",
             stylesheet.contains("data:image/svg+xml"))
+        assertTrue("glyph must use currentColor background to be theme-aware",
+            stylesheet.contains("background-color: currentColor"))
     }
 
     // NOTE: Parcelable round-trip test is omitted here because android.os.Parcel is a JVM stub.
