@@ -12,19 +12,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,9 +38,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.riffle.core.domain.HighlightColor
 
 /**
@@ -88,9 +94,9 @@ fun HighlightSwatchRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HighlightActionsSheet(
+fun HighlightActionsPopup(
+    anchorRect: IntRect,
     selected: HighlightColor?,
     note: String?,
     onPick: (HighlightColor) -> Unit,
@@ -99,61 +105,74 @@ fun HighlightActionsSheet(
     onDismiss: () -> Unit,
 ) {
     var noteEditorOpen by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val margin = with(density) { 8.dp.roundToPx() }
+    val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, dragHandle = null) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Popup(
+        popupPositionProvider = provider,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            shadowElevation = 4.dp,
+            tonalElevation = 0.dp,
         ) {
-            HighlightSwatchRow(selected = selected, onPick = onPick)
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete highlight",
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { noteEditorOpen = true }
-                .padding(horizontal = 24.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (note != null) "Note" else "Add note",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (note != null) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            Column(modifier = Modifier.width(280.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    HighlightSwatchRow(selected = selected, onPick = onPick)
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete highlight",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onDismiss()
+                            noteEditorOpen = true
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (note != null) "Note" else "Add note",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (note != null) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = note,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
-            Icon(
-                imageVector = Icons.Outlined.Edit,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
         }
-
-        Spacer(Modifier.height(8.dp))
     }
 
     if (noteEditorOpen) {
