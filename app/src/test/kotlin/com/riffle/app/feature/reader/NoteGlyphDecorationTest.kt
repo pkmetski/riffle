@@ -27,12 +27,21 @@ class NoteGlyphDecorationTest {
     }
 
     @Test
-    fun `noteGlyphTemplate stylesheet positions glyph in the left gutter`() {
-        // The ::before pseudo-element must be placed to the left of the bounding box.
+    fun `noteGlyphTemplate stylesheet targets inner icon class for tap-bubbling element`() {
+        // The icon must be a real DOM child (not ::before) so taps bubble to Readium's listener.
+        // We verify by checking the stylesheet styles the inner icon class, not a pseudo-element.
         val stylesheet = noteGlyphTemplate().stylesheet ?: ""
-        assertTrue("stylesheet must contain '::before'", stylesheet.contains("::before"))
-        assertTrue("stylesheet must position glyph left of bounds via 'right: 100%'",
-            stylesheet.contains("right: 100%"))
+        assertTrue("stylesheet must style the inner icon div class",
+            stylesheet.contains("riffle-note-glyph-icon"))
+        assertTrue("stylesheet must not use ::before — taps on pseudo-elements fall outside the hit area",
+            !stylesheet.contains("::before"))
+    }
+
+    @Test
+    fun `noteGlyphTemplate stylesheet positions icon div in the left gutter`() {
+        val stylesheet = noteGlyphTemplate().stylesheet ?: ""
+        assertTrue("stylesheet must position icon left of selection bounds",
+            stylesheet.contains("left: -24px"))
     }
 
     @Test

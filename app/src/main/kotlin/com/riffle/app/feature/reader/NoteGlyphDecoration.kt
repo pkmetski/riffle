@@ -19,6 +19,7 @@ internal const val NOTE_GLYPH_SVG_DATA_URI =
     "%3C/svg%3E"
 
 private const val NOTE_GLYPH_CLASS = "riffle-note-glyph"
+private const val NOTE_GLYPH_ICON_CLASS = "riffle-note-glyph-icon"
 
 /**
  * Marker decoration style for noted highlights. No tint — the glyph is monochrome.
@@ -45,37 +46,36 @@ class NoteGlyphStyle : Decoration.Style, Parcelable {
 }
 
 /**
- * Decoration template for [NoteGlyphStyle]. A single transparent BOUNDS div sits over
- * the selection; its ::before pseudo-element is absolutely positioned to the left of the
- * div (right: 100%), placing the note icon in the left gutter alongside the text.
- * overflow: visible on the host div prevents the gutter icon from being clipped.
- * Uses CSS masking (`-webkit-mask-image`) so the icon inherits `currentColor` — readable
- * on both light and dark reading themes.
+ * Decoration template for [NoteGlyphStyle]. A transparent BOUNDS div covers the selection;
+ * an inner div child is absolutely positioned 24px to the left of the selection's left edge,
+ * landing in the left gutter. Using a real DOM child (not ::before) means tap events bubble
+ * up through the inner div → outer div → Readium's decoration listener, so glyph taps are
+ * reliably detected. Uses CSS masking so the icon inherits `currentColor` — readable on
+ * both light and dark reading themes.
  */
 fun noteGlyphTemplate(): HtmlDecorationTemplate =
     HtmlDecorationTemplate(
         layout = HtmlDecorationTemplate.Layout.BOUNDS,
-        element = { _ -> """<div class="$NOTE_GLYPH_CLASS"/>""" },
+        element = { _ ->
+            """<div class="$NOTE_GLYPH_CLASS"><div class="$NOTE_GLYPH_ICON_CLASS"></div></div>"""
+        },
         stylesheet = """
             .$NOTE_GLYPH_CLASS {
                 background: none;
                 overflow: visible;
                 position: relative;
             }
-            .$NOTE_GLYPH_CLASS::before {
-                content: "";
+            .$NOTE_GLYPH_ICON_CLASS {
                 position: absolute;
-                right: 100%;
-                top: 0;
-                margin-right: 4px;
-                width: 16px;
-                height: 16px;
+                left: -24px;
+                top: 2px;
+                width: 20px;
+                height: 20px;
                 -webkit-mask-image: url("$NOTE_GLYPH_SVG_DATA_URI");
                 -webkit-mask-size: contain;
                 -webkit-mask-repeat: no-repeat;
                 background-color: currentColor;
                 opacity: 0.55;
-                pointer-events: none;
             }
         """.trimIndent(),
     )
