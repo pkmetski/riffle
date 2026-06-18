@@ -6,8 +6,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
+
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -474,20 +473,15 @@ fun EpubReaderScreen(
         }
 
         // Corner bookmark ribbon — always visible (not gated on chrome), ABS-only.
-        // Positioned just below the status bar, sliding below the top bar when visible.
+        // Fixed just below the top bar; does not move when immersive mode toggles.
         val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        val topBarOffset by animateDpAsState(
-            targetValue = if (immersiveState.isImmersive) 0.dp else 64.dp,
-            animationSpec = tween(durationMillis = 300),
-            label = "bookmarkTopOffset",
-        )
         CornerBookmarkIndicator(
             isBookmarked = isCurrentPageBookmarked,
             isVisible = annotationsAvailable && state is ReaderState.Ready,
             onToggle = viewModel::toggleBookmark,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = statusBarTop + topBarOffset),
+                .padding(top = statusBarTop + 64.dp, end = 4.dp),
         )
 
         AnimatedVisibility(
