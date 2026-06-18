@@ -466,6 +466,17 @@ class EpubReaderViewModel @Inject constructor(
                     }
                     ?.absLibraryItemId
             }
+            android.util.Log.d("RIFFLE_HANDOFF", "RA.audiobookItemId resolved=${_audiobookItemId.value} (overlay can now mount)")
+            // Pre-warm the SMIL track parse so the first audiobook→readaloud swipe-down skips
+            // the ~1.5 s MediaOverlayReader.readTrack() cost (parses every .smil in the bundle).
+            // Stored so startReadaloudAtSecond() can join() it instead of double-parsing the zip.
+            preWarmTrackJob = viewModelScope.launch {
+                readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
+                    android.util.Log.d("RIFFLE_HANDOFF", "RA.preWarmTrack start")
+                    ensureTrack(bundle)
+                    android.util.Log.d("RIFFLE_HANDOFF", "RA.preWarmTrack done (readaloudTrack=${readaloudTrack != null})")
+                }
+            }
             // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
             activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
 
@@ -1574,9 +1585,9 @@ class EpubReaderViewModel @Inject constructor(
      */
     fun prepareAudiobookHandoff(): Double {
         val sec = playbackState.value.positionGlobalSec
-        playerCoordinator.releaseForHandoff()
-        // Signal the pre-warmed AudiobookPlayerViewModel to activate from this position.
         val abId = _audiobookItemId.value
+        android.util.Log.d("RIFFLE_HANDOFF", "RA.prepareAudiobookHandoff sec=$sec abId=$abId")
+        playerCoordinator.releaseForHandoff()
         if (abId != null) audiobookHandoffState.signal(abId, sec)
         return sec
     }
@@ -1654,6 +1665,7 @@ class EpubReaderViewModel @Inject constructor(
         if (!_readaloudOpen.value) openReadaloudSession()
         readaloudPrepared = false
         viewModelScope.launch {
+            preWarmTrackJob?.join()  // wait for background SMIL parse to finish before ensureTrack
             ensureOpened(bundle) ?: return@launch
             readaloudStarted = true
             resumeFragmentRef = null
@@ -1725,6 +1737,10 @@ class EpubReaderViewModel @Inject constructor(
     fun dismissDownloadPrompt() {
         _downloadPromptBytes.value = null
     }
+
+    // Job from the background SMIL pre-warm launched at book-open. startReadaloudAtSecond() joins
+    // this before calling ensureTrack so it never double-parses the zip concurrently.
+    private var preWarmTrackJob: Job? = null
 
     // True once the controller has been pointed at the bundle this session, so resuming after a
     // pause doesn't re-prepare (which would reset playback to the start).

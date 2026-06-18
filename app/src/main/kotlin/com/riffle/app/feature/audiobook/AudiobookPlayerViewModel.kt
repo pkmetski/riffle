@@ -1,5 +1,6 @@
 package com.riffle.app.feature.audiobook
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -26,7 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /**
@@ -247,6 +250,9 @@ class AudiobookPlayerViewModel(
     // re-fetching. Set even in normal-open mode so re-activations (second+ swipe-up) can
     // re-prepare the controller after releaseForHandoff() clears the spans.
     private var resolvedSession: com.riffle.core.domain.AudiobookSession? = null
+    // Completed (with the session or null on failure) when init finishes, so activateFromHandoff()
+    // can await rather than drop when a swipe arrives before the ~1–2 s bundle-session fetch is done.
+    private val sessionDeferred = CompletableDeferred<com.riffle.core.domain.AudiobookSession?>()
     private var resolvedCoverUri: String? = null
     private var resolvedInitialSpeed: Float = 1f
 
@@ -383,6 +389,9 @@ class AudiobookPlayerViewModel(
 
     init {
         viewModelScope.launch {
+            try {
+            val t0 = System.currentTimeMillis()
+            log("AB.VM init start itemId=$itemId startAtSec=$startAtSec")
             val server = serverRepository.getActive()
             serverId = server?.id ?: ""
             // Claim this audiobook so the durable sweep leaves it to this player's own cycle (ADR 0030).
@@ -407,14 +416,20 @@ class AudiobookPlayerViewModel(
                 }
             }
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
+            log("AB.VM init: got server +${System.currentTimeMillis() - t0}ms")
             val item = libraryRepository.getItem(itemId)
+            log("AB.VM init: got item +${System.currentTimeMillis() - t0}ms")
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
             // stream from ABS (connectivity-independent: a local copy always beats streaming).
             val session = if (serverId.isEmpty()) null
                 else audiobookDownloadRepository.localSession(serverId, itemId)
+                    ?.also { log("AB.VM init: local download session +${System.currentTimeMillis() - t0}ms") }
                     ?: bundleAudiobookSource.localSession(serverId, itemId)
+                    ?.also { log("AB.VM init: bundle session +${System.currentTimeMillis() - t0}ms") }
                     ?: audiobookRepository.openSession(serverId, itemId)
+                    ?.also { log("AB.VM init: ABS network session +${System.currentTimeMillis() - t0}ms") }
             if (item == null || session == null) {
+                log("AB.VM init: FAILED (item=${item != null} session=${session != null}) +${System.currentTimeMillis() - t0}ms")
                 meta.value = meta.value.copy(loading = false, failed = true)
                 return@launch
             }
@@ -555,10 +570,18 @@ class AudiobookPlayerViewModel(
             // Store resolved data so handoff activations (first swipe-up or re-activations after
             // a swipe-down) can re-prepare the controller without re-fetching (ADR 0032).
             resolvedSession = session
+            sessionDeferred.complete(session)
             resolvedCoverUri = item.coverUrl
             resolvedInitialSpeed = initialSpeed
+            log("AB.VM init: resolvedSession ready +${System.currentTimeMillis() - t0}ms (startAtSec=$startAtSec)")
 
-            if (startAtSec != PREWARM_SENTINEL) {
+            if (startAtSec == PREWARM_SENTINEL) {
+                // Pre-connect the binder now so the first swipe-up pays ~0 ms instead of the full
+                // MediaController.Builder.buildAsync round-trip (ADR 0032).
+                log("AB.VM init: warming binder +${System.currentTimeMillis() - t0}ms")
+                controller.warmBinder()
+                log("AB.VM init: binder warm +${System.currentTimeMillis() - t0}ms")
+            } else {
                 // Normal open or readaloud→audiobook handoff via nav arg: prepare and play now.
                 // Resume at the server-recorded position (last-update-wins resume; ADR 0029).
                 controller.prepare(
@@ -599,8 +622,14 @@ class AudiobookPlayerViewModel(
                 // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.
                 startFollowLoop()
             }
-            // PREWARM_SENTINEL: controller.prepare() is intentionally skipped here. The handoff
-            // watcher below receives the actual start position when the user swipes up.
+            // PREWARM_SENTINEL: controller.prepare() is intentionally deferred. The binder is
+            // pre-connected above; the handoff watcher below receives the actual start position
+            // when the user swipes up.
+            } finally {
+                // Guarantee the deferred is always completed so activateFromHandoff() never
+                // hangs on await() when init fails or returns early (e.g. missing item/session).
+                if (!sessionDeferred.isCompleted) sessionDeferred.complete(null)
+            }
         }
 
         // Watch for the swipe-up handoff signal from EpubReaderViewModel. Runs in all modes so
@@ -912,7 +941,16 @@ class AudiobookPlayerViewModel(
      * pre-warm state and subsequent re-activations after a swipe-down).
      */
     private suspend fun activateFromHandoff(atSec: Double) {
-        val session = resolvedSession ?: return
+        val t0 = System.currentTimeMillis()
+        log("AB.activateFromHandoff start atSec=$atSec resolvedSession=${resolvedSession != null}")
+        val session = resolvedSession ?: run {
+            // Init still running — await the bundle-session fetch rather than drop the handoff.
+            log("AB.activateFromHandoff: init in progress, awaiting session (up to 10s)")
+            withTimeoutOrNull(10_000L) { sessionDeferred.await() }
+        } ?: run {
+            log("AB.activateFromHandoff: DROPPED — session unavailable after waiting")
+            return
+        }
         handingOffToReadaloud = false
         val finalSec = atSec.coerceIn(0.0, session.timeline.durationSec)
         controller.prepare(
@@ -923,6 +961,7 @@ class AudiobookPlayerViewModel(
             localZipFile = session.localZipFile,
             coverUri = resolvedCoverUri,
         )
+        log("AB.activateFromHandoff: prepare() done +${System.currentTimeMillis() - t0}ms")
         controller.setSpeed(resolvedInitialSpeed)
         reconciledResumeSec = finalSec
         localUpdatedAt = System.currentTimeMillis()
@@ -932,6 +971,7 @@ class AudiobookPlayerViewModel(
         }
         nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
         controller.play()
+        log("AB.activateFromHandoff: play() called +${System.currentTimeMillis() - t0}ms")
         attachReaderSync(finalSec, localUpdatedAt)
         startFollowLoop()
     }
@@ -978,5 +1018,8 @@ class AudiobookPlayerViewModel(
         // Sentinel for startAtSec: the overlay is always mounted for pre-warming; the actual start
         // position arrives via AudiobookHandoffState when the user swipes up.
         const val PREWARM_SENTINEL = -2.0
+        private const val HANDOFF = "RIFFLE_HANDOFF"
+        // android.util.Log is not available in JVM unit tests; swallow the RuntimeException.
+        fun log(msg: String) = try { Log.d(HANDOFF, msg) } catch (_: Throwable) { }
     }
 }

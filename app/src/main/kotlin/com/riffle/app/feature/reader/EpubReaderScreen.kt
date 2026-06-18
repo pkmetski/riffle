@@ -6,6 +6,9 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -2102,11 +2106,33 @@ private fun AudiobookPlayerOverlay(
     // AudiobookPlayerViewModel — is created once and kept alive between swipe-up/down cycles.
     // The actual start position arrives via AudiobookHandoffState when the overlay is revealed.
     val startRoute = "overlay_audiobook/$encoded?startAtSec=-2.0"
+
+    // Slide up on show, slide down on dismiss. `overlayVisible` trails `visible` on the way out —
+    // it stays true until the slide-down animation finishes, then flips to false (size 0).
+    val slideProgress = remember { Animatable(0f) }
+    var overlayVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(visible) {
+        if (visible) {
+            overlayVisible = true
+            slideProgress.snapTo(0f)
+            slideProgress.animateTo(1f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+        } else {
+            slideProgress.animateTo(0f, tween(durationMillis = 280, easing = FastOutSlowInEasing))
+            overlayVisible = false
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startRoute,
-        // size(0.dp) renders but hides the composable; fillMaxSize when shown.
-        modifier = if (visible) Modifier.fillMaxSize() else Modifier.size(0.dp),
+        // size(0.dp) keeps the composable in the tree for pre-warming but makes it invisible.
+        modifier = if (overlayVisible) {
+            Modifier.fillMaxSize().graphicsLayer {
+                translationY = (1f - slideProgress.value) * size.height
+            }
+        } else {
+            Modifier.size(0.dp)
+        },
     ) {
         composable(
             route = "overlay_audiobook/{itemId}?startAtSec={startAtSec}",

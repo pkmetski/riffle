@@ -79,7 +79,7 @@ open class AudiobookController @Inject constructor(
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
-            if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
+            if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
                 Log.d(HANDOFF, "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
             }
             maybeStart(player)
@@ -131,6 +131,15 @@ open class AudiobookController @Inject constructor(
         // player is ready (see [ResumePlaybackGate]); otherwise the listener starts it on STATE_READY.
         maybeStart(c)
         pushState()
+    }
+
+    /**
+     * Establishes the [MediaController] binder connection without touching media items. Call during
+     * pre-warm so the first swipe-up pays ~0 ms instead of the full [MediaController.Builder.buildAsync]
+     * round-trip (ADR 0032).
+     */
+    open suspend fun warmBinder() {
+        ensureConnected()
     }
 
     open fun play() {
