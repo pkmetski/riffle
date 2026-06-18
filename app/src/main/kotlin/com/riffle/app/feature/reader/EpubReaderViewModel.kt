@@ -981,11 +981,17 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun cfiStringToLocator(rawCfi: String): Locator? {
         val pub = publication ?: return null
         val cfi = rawCfi.takeIf { it.startsWith("epubcfi(") } ?: return null
-        val docPath = extractCfiDocPath(cfi)
         val spineIndex = epubCfiToSpineIndex(cfi)
         val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
         val html = spineIndex?.let { readChapterHtml(it) }
-        val chapterProgression = if (docPath != null && html != null) cfiDocPathToProgression(docPath, html) else null
+        val docPath = extractCfiDocPath(cfi)
+        val isRangeCfi = docPath != null && docPath.contains(',')
+        val chapterProgression = when {
+            html == null -> null
+            isRangeCfi -> highlightStartProgression(cfi, html)
+            docPath != null -> cfiDocPathToProgression(docPath, html)
+            else -> null
+        }
         if (link == null || chapterProgression == null) return null
         return try {
             Locator.fromJSON(
