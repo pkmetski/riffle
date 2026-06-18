@@ -47,6 +47,9 @@ interface AnnotationStore {
     /** Recolour an existing highlight in place, bumping its updatedAt. */
     suspend fun recolor(id: String, color: String)
 
+    /** Set (or clear) the note on an existing highlight, bumping its updatedAt. Null removes the note. */
+    suspend fun updateNote(id: String, note: String?)
+
     companion object {
         const val DEFAULT_COLOR = "yellow"
     }

@@ -40,6 +40,12 @@ class AnnotationStoreImplTest {
                 if (it.id == id) it.copy(color = color, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+
+        override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {
+            rows.value = rows.value.map {
+                if (it.id == id) it.copy(note = note, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+            }
+        }
     }
 
     private val deviceIdStore = object : DeviceIdStore {
@@ -77,6 +83,47 @@ class AnnotationStoreImplTest {
         assertEquals("blue", row?.color)
         assertEquals(5000L, row?.updatedAt)
         assertEquals("device-X", row?.lastModifiedByDeviceId)
+    }
+
+    @Test
+    fun `updateNote adds a note and bumps updatedAt and device`() = runTest {
+        val s = store()
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        now = 7000L
+
+        s.updateNote(created.id, "My note")
+
+        val row = dao.getById(created.id)
+        assertEquals("My note", row?.note)
+        assertEquals(7000L, row?.updatedAt)
+        assertEquals("device-X", row?.lastModifiedByDeviceId)
+    }
+
+    @Test
+    fun `updateNote edits an existing note`() = runTest {
+        val s = store()
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        s.updateNote(created.id, "First")
+        now = 8000L
+
+        s.updateNote(created.id, "Revised")
+
+        assertEquals("Revised", dao.getById(created.id)?.note)
+        assertEquals(8000L, dao.getById(created.id)?.updatedAt)
+    }
+
+    @Test
+    fun `updateNote with null clears the note and leaves the highlight intact`() = runTest {
+        val s = store()
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        s.updateNote(created.id, "To be removed")
+
+        s.updateNote(created.id, null)
+
+        val row = dao.getById(created.id)
+        assertEquals(null, row?.note)
+        assertEquals(false, row?.deleted)
+        assertEquals("t", row?.textSnippet)
     }
 
     @Test

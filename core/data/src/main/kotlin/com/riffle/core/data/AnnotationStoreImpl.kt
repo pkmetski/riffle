@@ -105,6 +105,10 @@ class AnnotationStoreImpl(
     override suspend fun recolor(id: String, color: String) {
         dao.recolor(id, color = color, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
+
+    override suspend fun updateNote(id: String, note: String?) {
+        dao.updateNote(id, note = note, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
+    }
 }
 
 private fun AnnotationEntity.toDomain() = Annotation(
