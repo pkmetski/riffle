@@ -2097,6 +2097,16 @@ private fun EpubNavigatorView(
                             }
                         }
                         view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
+                        view.annotationsAvailable = currentAnnotationsAvailable
+                        view.onHighlightSelection = { chapterHref, selectedText ->
+                            val locator = org.readium.r2.shared.publication.Locator.fromJSON(
+                                org.json.JSONObject()
+                                    .put("href", chapterHref)
+                                    .put("type", "application/xhtml+xml")
+                                    .put("text", org.json.JSONObject().put("highlight", selectedText))
+                            )
+                            if (locator != null) currentOnHighlight(locator)
+                        }
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->
                             // Resolve the selection to a narrated sentence id and start playback there.
@@ -2114,9 +2124,11 @@ private fun EpubNavigatorView(
                         }
                     }
                 },
-                // readaloudAvailability can flip mid-session (e.g. a bundle finishes downloading),
-                // so keep the selection menu's "Play from here" gate in sync.
-                update = { it.readaloudAvailable = readaloudAvailable },
+                // Availability flags can flip mid-session, so keep the selection menu gates in sync.
+                update = {
+                    it.annotationsAvailable = annotationsAvailable
+                    it.readaloudAvailable = readaloudAvailable
+                },
                 modifier = readerModifier,
             )
             // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a
