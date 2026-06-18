@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookPositionEntity::class,
         AudiobookBookmarkEntity::class,
     ],
-    version = 37,
+    version = 38,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -709,6 +709,18 @@ abstract class RiffleDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `textBefore` TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `textAfter` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        // Adds three positional + display fields to annotations (issue #73):
+        // - `spineIndex` — zero-based spine position, for cross-chapter sort order in the panel.
+        // - `progression` — within-chapter fractional offset (0.0–1.0), for intra-chapter order.
+        // - `bookmarkTitle` — user-editable label on BOOKMARK type annotations.
+        val MIGRATION_37_38 = object : Migration(37, 38) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `spineIndex` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `progression` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `bookmarkTitle` TEXT NOT NULL DEFAULT ''")
             }
         }
 

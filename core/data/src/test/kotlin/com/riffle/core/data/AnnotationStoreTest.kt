@@ -45,6 +45,18 @@ class AnnotationStoreTest {
                 if (it.id == id) it.copy(note = note, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+
+        override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
+            rows.map { list ->
+                list.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+                    .sortedWith(compareBy({ it.spineIndex }, { it.progression }))
+            }
+
+        override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {
+            rows.value = rows.value.map {
+                if (it.id == id) it.copy(bookmarkTitle = title, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+            }
+        }
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {

@@ -1563,6 +1563,48 @@ class MigrationTest {
     }
 
     @Test
+    fun migration37To38_addsPositionAndTitleColumnsToAnnotations() {
+        helper.createDatabase(TEST_DB, 37).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            // Pre-existing highlight row with all v37 columns (no spineIndex/progression/bookmarkTitle yet).
+            db.execSQL(
+                "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                    "VALUES ('a1', 's1', 'book1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:0,/1:7)', 'yellow', 'meaning', '', '', 'ch1.xhtml', 1000, 1000, 'dev', 'dev', 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 38, true, RiffleDatabase.MIGRATION_37_38)
+
+        // Pre-existing row preserved; new columns default correctly.
+        db.query(
+            "SELECT id, spineIndex, progression, bookmarkTitle FROM annotations WHERE id = 'a1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("a1", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1))         // spineIndex DEFAULT 0
+            assertEquals(0.0, cursor.getDouble(2), 0.0001) // progression DEFAULT 0.0
+            assertEquals("", cursor.getString(3))     // bookmarkTitle DEFAULT ''
+        }
+
+        // New bookmark row with populated fields round-trips correctly.
+        db.execSQL(
+            "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "VALUES ('b1', 's1', 'book1', 'BOOKMARK', 'epubcfi(/6/6!/4/1:0)', '', '', '', '', 'ch2.xhtml', 2, 0.42, 'Where it gets weird', 2000, 2000, 'dev', 'dev', 0)"
+        )
+        db.query("SELECT spineIndex, progression, bookmarkTitle FROM annotations WHERE id = 'b1'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals(2, cursor.getInt(0))
+            assertEquals(0.42, cursor.getDouble(1), 0.001)
+            assertEquals("Where it gets weird", cursor.getString(2))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1571,7 +1613,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 37, true,
+            TEST_DB, 38, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1608,6 +1650,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_34_35,
             RiffleDatabase.MIGRATION_35_36,
             RiffleDatabase.MIGRATION_36_37,
+            RiffleDatabase.MIGRATION_37_38,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
