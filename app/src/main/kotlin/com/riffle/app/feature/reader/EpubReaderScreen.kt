@@ -1667,9 +1667,7 @@ private fun EpubNavigatorView(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = Decoration.Style.Underline(
-                    tint = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme),
-                ),
+                style = NoteGlyphStyle(),
             )
         }
         withContext(Dispatchers.Main) {
@@ -1694,6 +1692,26 @@ private fun EpubNavigatorView(
             }
         }
         fragment?.addDecorationListener("annotations", listener)
+        onDispose { fragment?.removeDecorationListener(listener) }
+    }
+
+    // ---- Decoration tap listener (annotation-notes) ----------------------------------------
+    // Tapping the margin note glyph opens the same highlight-actions popup as tapping the
+    // highlight text. The glyph lives in the left gutter (outside the text hit area), so the
+    // "annotations" listener above does NOT fire for it — this dedicated listener is required.
+    DisposableEffect(fragmentRef.value) {
+        val fragment = fragmentRef.value as? DecorableNavigator
+        val listener = object : DecorableNavigator.Listener {
+            override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
+                if (event.group != "annotation-notes") return false
+                val container = containerRef.value ?: return false
+                val rawRect = event.rect ?: return false
+                val rect = rawRect.toWindowIntRect(container)
+                currentOnOpenHighlightActions(event.decoration.id, rect)
+                return true
+            }
+        }
+        fragment?.addDecorationListener("annotation-notes", listener)
         onDispose { fragment?.removeDecorationListener(listener) }
     }
 
