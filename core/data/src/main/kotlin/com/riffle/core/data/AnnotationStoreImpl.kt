@@ -35,6 +35,9 @@ class AnnotationStoreImpl(
             rows.filter { it.type == AnnotationEntity.TYPE_BOOKMARK }.map { it.toDomain() }
         }
 
+    override fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>> =
+        dao.observeAnnotationsByPosition(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
+
     override suspend fun createHighlight(
         serverId: String,
         itemId: String,
@@ -59,6 +62,9 @@ class AnnotationStoreImpl(
             textBefore = textBefore,
             textAfter = textAfter,
             chapterHref = chapterHref,
+            spineIndex = 0,
+            progression = 0.0,
+            bookmarkTitle = "",
             createdAt = now,
             updatedAt = now,
             originDeviceId = deviceId,
@@ -75,6 +81,9 @@ class AnnotationStoreImpl(
         cfi: String,
         textSnippet: String,
         chapterHref: String,
+        spineIndex: Int,
+        progression: Double,
+        bookmarkTitle: String,
     ): Annotation {
         val deviceId = deviceIdStore.getOrCreate()
         val now = clock()
@@ -88,6 +97,9 @@ class AnnotationStoreImpl(
             note = null,
             textSnippet = textSnippet,
             chapterHref = chapterHref,
+            spineIndex = spineIndex,
+            progression = progression,
+            bookmarkTitle = bookmarkTitle,
             createdAt = now,
             updatedAt = now,
             originDeviceId = deviceId,
@@ -109,6 +121,10 @@ class AnnotationStoreImpl(
     override suspend fun updateNote(id: String, note: String?) {
         dao.updateNote(id, note = note, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
+
+    override suspend fun renameBookmark(id: String, title: String) {
+        dao.renameBookmark(id, title = title, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
+    }
 }
 
 private fun AnnotationEntity.toDomain() = Annotation(
@@ -123,6 +139,9 @@ private fun AnnotationEntity.toDomain() = Annotation(
     textBefore = textBefore,
     textAfter = textAfter,
     chapterHref = chapterHref,
+    spineIndex = spineIndex,
+    progression = progression,
+    bookmarkTitle = bookmarkTitle,
     createdAt = createdAt,
     updatedAt = updatedAt,
 )

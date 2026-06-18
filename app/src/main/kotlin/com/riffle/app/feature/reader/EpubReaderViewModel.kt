@@ -1113,6 +1113,9 @@ class EpubReaderViewModel @Inject constructor(
                     cfi = cfi,
                     textSnippet = snippet,
                     chapterHref = href,
+                    spineIndex = 0,
+                    progression = 0.0,
+                    bookmarkTitle = "",
                 )
             }
         }
