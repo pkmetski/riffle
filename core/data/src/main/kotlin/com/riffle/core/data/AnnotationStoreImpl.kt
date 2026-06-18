@@ -47,6 +47,8 @@ class AnnotationStoreImpl(
         textBefore: String,
         textAfter: String,
         color: String,
+        spineIndex: Int,
+        progression: Double,
     ): Annotation {
         val deviceId = deviceIdStore.getOrCreate()
         val now = clock()
@@ -62,8 +64,8 @@ class AnnotationStoreImpl(
             textBefore = textBefore,
             textAfter = textAfter,
             chapterHref = chapterHref,
-            spineIndex = 0,
-            progression = 0.0,
+            spineIndex = spineIndex,
+            progression = progression,
             bookmarkTitle = "",
             createdAt = now,
             updatedAt = now,

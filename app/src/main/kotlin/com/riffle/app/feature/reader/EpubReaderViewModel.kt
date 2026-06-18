@@ -1095,6 +1095,8 @@ class EpubReaderViewModel @Inject constructor(
                 chapterHref = href,
                 textBefore = selectionLocator.text.before ?: "",
                 textAfter = selectionLocator.text.after ?: "",
+                spineIndex = spineIndex,
+                progression = progression,
             )
             _highlightToEdit.value = created.id
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
@@ -1119,7 +1121,7 @@ class EpubReaderViewModel @Inject constructor(
                 annotationStore.delete(existing.id)
             } else {
                 val pub = publication ?: return@launch
-                val spineIdx = pub.readingOrder.indexOfFirst { it.url().toString() == href }.coerceAtLeast(0)
+                val spineIdx = pub.readingOrder.indexOfFirst { normalizeEpubHref(it.url().toString()) == normalizeEpubHref(href) }.coerceAtLeast(0)
                 val totalProg = locator.locations.totalProgression
                 val title = EpubBookmarkTitleBuilder.build(
                     chapterHref = href,

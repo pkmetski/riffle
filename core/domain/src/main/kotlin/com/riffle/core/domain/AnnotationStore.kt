@@ -22,6 +22,8 @@ interface AnnotationStore {
         textBefore: String = "",
         textAfter: String = "",
         color: String = DEFAULT_COLOR,
+        spineIndex: Int = 0,
+        progression: Double = 0.0,
     ): Annotation
 
     suspend fun createBookmark(

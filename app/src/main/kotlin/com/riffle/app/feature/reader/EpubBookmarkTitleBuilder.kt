@@ -20,8 +20,9 @@ object EpubBookmarkTitleBuilder {
     }
 
     private fun findTitle(entries: List<TocEntry>, href: String): String? {
+        val normalizedHref = normalizeEpubHref(href)
         for (entry in entries) {
-            if (entry.href == href && entry.title.isNotBlank()) return entry.title
+            if (normalizeEpubHref(entry.href) == normalizedHref && entry.title.isNotBlank()) return entry.title
             val child = findTitle(entry.children, href)
             if (child != null) return child
         }
