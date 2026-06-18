@@ -986,6 +986,9 @@ class EpubReaderViewModel @Inject constructor(
         val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
         val html = spineIndex?.let { readChapterHtml(it) }
         val docPath = extractCfiDocPath(cfi)
+        // A comma in the doc-path portion unambiguously marks a range CFI
+        // (format: "docBase,startOffset,endOffset" after the resource assertion).
+        // extractCfiDocPath strips the resource part first, so commas here are always range delimiters.
         val isRangeCfi = docPath != null && docPath.contains(',')
         val chapterProgression = when {
             html == null -> null
@@ -1133,7 +1136,7 @@ class EpubReaderViewModel @Inject constructor(
                 val spineHrefs = pub.readingOrder.map { it.url().toString() }
                 val segIdx = findActiveSegmentIndex(railSegments.value, href, spineHrefs)
                 val chapterTitle = railSegments.value.getOrNull(segIdx)?.title?.takeIf { it.isNotBlank() }
-                    ?.let { if (it.length > 30) it.take(30).trimEnd() + "…" else it }
+                    ?.let { if (it.length > 30) it.take(30).trimEnd { c -> !c.isLetterOrDigit() } + "…" else it }
                 val title = if (chapterTitle != null) {
                     val pct = (prog * 100).roundToInt().coerceIn(0, 100)
                     "$chapterTitle · $pct%"
@@ -1306,6 +1309,8 @@ class EpubReaderViewModel @Inject constructor(
     private val _annotations = MutableStateFlow<List<com.riffle.core.domain.Annotation>>(emptyList())
     val annotations: StateFlow<List<com.riffle.core.domain.Annotation>> = _annotations
 
+    // CONFLATED is intentional: navigateToAnnotation closes the panel before sending, so a second
+    // navigation tap cannot occur before the first is consumed. If that ever changes, switch to BUFFERED.
     private val _annotationNavigationChannel = Channel<Locator>(Channel.CONFLATED)
     val annotationNavigationEvents: Flow<Locator> = _annotationNavigationChannel.receiveAsFlow()
 

@@ -49,6 +49,6 @@ interface AnnotationDao {
     fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>>
 
     /** Update the user-editable title of a bookmark, bumping updatedAt + provenance. */
-    @Query("UPDATE annotations SET bookmarkTitle = :title, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
+    @Query("UPDATE annotations SET bookmarkTitle = :title, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'BOOKMARK'")
     suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String)
 }

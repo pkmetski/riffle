@@ -417,6 +417,8 @@ fun EpubReaderScreen(
                     // EpubNavigatorView) so it sits above the AndroidView in the Compose hit-test
                     // tree. Placing it in the outer Box means the fillMaxSize AndroidView consumes
                     // all touches before Compose's outer-box elements ever see them.
+                    // `isVisible = annotationsAvailable` omits the `state is ReaderState.Ready`
+                    // guard deliberately — we're already inside that branch, so it's implicit.
                     CornerBookmarkIndicator(
                         isBookmarked = isCurrentPageBookmarked,
                         isVisible = annotationsAvailable,
