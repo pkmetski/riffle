@@ -42,6 +42,8 @@ data class AnnotationEntity(
     val color: String = COLOR_YELLOW,
     val note: String? = null,
     val textSnippet: String,
+    val textBefore: String = "",
+    val textAfter: String = "",
     val chapterHref: String,
     val createdAt: Long,
     val updatedAt: Long,

@@ -87,6 +87,7 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
@@ -128,7 +129,7 @@ import java.net.URLEncoder
 // sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
 // creating one is a dead end. Keep the create/render plumbing live but hide the affordance until
 // that management UI exists. Flip to true to re-enable.
-private const val ANNOTATIONS_UI_ENABLED = false
+private const val ANNOTATIONS_UI_ENABLED = true
 
 /**
  * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
@@ -251,6 +252,7 @@ fun EpubReaderScreen(
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
+    val highlightToEdit by viewModel.highlightToEdit.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
@@ -370,6 +372,11 @@ fun EpubReaderScreen(
                         annotationsAvailable = annotationsAvailable,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
+                        highlightToEdit = highlightToEdit,
+                        onOpenHighlightActions = viewModel::openHighlightActions,
+                        onDismissHighlightActions = viewModel::dismissHighlightActions,
+                        onRecolorHighlight = viewModel::recolorHighlight,
+                        onDeleteHighlight = viewModel::deleteHighlight,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -971,6 +978,11 @@ private fun EpubNavigatorView(
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator) -> Unit,
+    highlightToEdit: String?,
+    onOpenHighlightActions: (String) -> Unit,
+    onDismissHighlightActions: () -> Unit,
+    onRecolorHighlight: (String, HighlightColor) -> Unit,
+    onDeleteHighlight: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1006,6 +1018,7 @@ private fun EpubNavigatorView(
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
+    val currentOnOpenHighlightActions by rememberUpdatedState(onOpenHighlightActions)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
@@ -1036,8 +1049,13 @@ private fun EpubNavigatorView(
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
-                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) menu.add(0, highlightMenuId, 1, "Highlight")
-                if (currentReadaloudAvailable) menu.add(0, playFromHereMenuId, 2, "Play from here")
+                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) {
+                    menu.add(0, highlightMenuId, 1, "Highlight")
+                }
+                if (currentReadaloudAvailable) {
+                    menu.add(0, playFromHereMenuId, 2, "Play")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
                 menu.add(0, searchMenuId, 3, "Search")
                 menu.add(0, shareMenuId, 4, "Share")
                 return true
@@ -1514,7 +1532,7 @@ private fun EpubNavigatorView(
             locator = locator,
             // Dedicated readaloud style/template: opacity follows the tint's alpha so the highlight
             // is stronger on dark reading themes and stays legible behind the white body text.
-            style = ReadaloudHighlightStyle(
+            style = HighlightTintStyle(
                 tint = readaloudHighlightColor.readerTint(formattingPrefs.theme),
             ),
         )
@@ -1564,7 +1582,7 @@ private fun EpubNavigatorView(
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of
     // every highlight when the book is reopened, and the immediate paint after a new highlight.
     val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         if (highlightRenders.isEmpty()) {
             if (!hasHighlightDecorations.value) return@LaunchedEffect
@@ -1578,13 +1596,36 @@ private fun EpubNavigatorView(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = Decoration.Style.Highlight(tint = highlightTint(h.color)),
+                style = HighlightTintStyle(
+                    tint = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme),
+                ),
             )
         }
         withContext(Dispatchers.Main) {
+            // Clear before re-applying so the Readium JS group starts from a clean slate.
+            // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
+            // JS state was reset on page load (e.g. on book re-entry), leaving decorations
+            // visually missing; a stale DOM element from a prior session can also add a ghost
+            // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
+            fragment.applyDecorations(emptyList(), group = "annotations")
             fragment.applyDecorations(decorations, group = "annotations")
         }
         hasHighlightDecorations.value = true
+    }
+
+    // ---- Decoration tap listener (annotations) ---------------------------------------------
+    // Opens the highlight-actions sheet when the user taps an existing highlight decoration.
+    DisposableEffect(fragmentRef.value) {
+        val fragment = fragmentRef.value as? DecorableNavigator
+        val listener = object : DecorableNavigator.Listener {
+            override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
+                if (event.group != "annotations") return false
+                currentOnOpenHighlightActions(event.decoration.id)
+                return true
+            }
+        }
+        fragment?.addDecorationListener("annotations", listener)
+        onDispose { fragment?.removeDecorationListener(listener) }
     }
 
     // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
@@ -2064,6 +2105,20 @@ private fun EpubNavigatorView(
                     .background(formattingPrefs.theme.palette.background)
                     .testTag("reader_nav_cover")
                     .semantics { contentDescription = "Loading" },
+            )
+        }
+
+        // Highlight actions sheet — opens when the user taps an existing highlight or immediately
+        // after creating one. Floats as an overlay inside the reader so it has access to the
+        // reader's BoxWithConstraints scope and sits above the reader content.
+        val editId = highlightToEdit
+        if (editId != null) {
+            val current = highlightRenders.firstOrNull { it.id == editId }
+            HighlightActionsSheet(
+                selected = current?.let { HighlightColor.fromToken(it.color) },
+                onPick = { color -> onRecolorHighlight(editId, color) },
+                onDelete = { onDeleteHighlight(editId) },
+                onDismiss = onDismissHighlightActions,
             )
         }
     }

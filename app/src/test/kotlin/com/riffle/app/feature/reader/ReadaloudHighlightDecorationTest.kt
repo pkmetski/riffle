@@ -19,7 +19,7 @@ class ReadaloudHighlightDecorationTest {
     fun darkThemesUseStrongerAlpha() {
         for (theme in listOf(ReaderTheme.Dark, ReaderTheme.DarkDim)) {
             val tint = ReadaloudHighlightColor.BLUE.readerTint(theme)
-            assertEquals("alpha for $theme", READALOUD_HIGHLIGHT_ALPHA_DARK, alpha(tint))
+            assertEquals("alpha for $theme", HIGHLIGHT_ALPHA_DARK, alpha(tint))
             // The hue itself is preserved; only the alpha byte changes.
             assertEquals(rgb(ReadaloudHighlightColor.BLUE.argb), rgb(tint))
         }
@@ -29,16 +29,16 @@ class ReadaloudHighlightDecorationTest {
     fun lightThemesUseDefaultAlpha() {
         for (theme in listOf(ReaderTheme.Light, ReaderTheme.Sepia, ReaderTheme.Auto)) {
             val tint = ReadaloudHighlightColor.GREEN.readerTint(theme)
-            assertEquals("alpha for $theme", READALOUD_HIGHLIGHT_ALPHA_LIGHT, alpha(tint))
+            assertEquals("alpha for $theme", HIGHLIGHT_ALPHA_LIGHT, alpha(tint))
             assertEquals(rgb(ReadaloudHighlightColor.GREEN.argb), rgb(tint))
         }
     }
 
     @Test
-    fun fragmentConfigurationRegistersReadaloudTemplateAlongsideDefaults() {
+    fun fragmentConfigurationRegistersHighlightTemplateAlongsideDefaults() {
         val templates = FormattingPreferences().toFragmentConfiguration().decorationTemplates
-        // Our dedicated readaloud style is registered...
-        assertNotNull(templates[ReadaloudHighlightStyle::class])
+        // Our shared tinted-highlight style is registered...
+        assertNotNull(templates[HighlightTintStyle::class])
         // ...without dropping the built-in highlight used by persisted + search highlights.
         assertNotNull(templates[Decoration.Style.Highlight::class])
     }

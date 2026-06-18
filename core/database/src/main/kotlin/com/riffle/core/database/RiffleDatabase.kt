@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookPositionEntity::class,
         AudiobookBookmarkEntity::class,
     ],
-    version = 36,
+    version = 37,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -700,6 +700,15 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_35_36 = object : Migration(35, 36) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `book_formatting_preferences` ADD COLUMN `showReadingTimeEstimate` INTEGER DEFAULT NULL")
+            }
+        }
+
+        // Adds text context columns to annotations so the rendering Locator can disambiguate
+        // multiple occurrences of the same word on a page (Readium's text-search uses before/after).
+        val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `textBefore` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `textAfter` TEXT NOT NULL DEFAULT ''")
             }
         }
 

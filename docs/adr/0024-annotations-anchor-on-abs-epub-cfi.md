@@ -28,3 +28,17 @@ CFI is the same coordinate family ABS already stores in `mediaProgress.ebookLoca
 - Annotations require an ABS EPUB; the affordance is absent on Storyteller-only books and on the Readaloud reading side in v1.
 - Synced annotation data is always exact ABS-EPUB CFI; no best-effort translation ever enters the stored/synced record.
 - EPUB only in v1. PDF (page + rect anchors, a different anchor type the W3C format can also carry) is out of scope.
+
+## Amendment (2026-06-17): colour palette + rendering (#70)
+
+The highlight colour is one of four tokens — `yellow` (default), `green`, `blue`, `pink` —
+modelled by `HighlightColor` (`core/domain`). Tokens are stored verbatim in
+`AnnotationEntity.color`; an unknown/missing token resolves to yellow (sync forward-compat).
+The four hues match the readaloud palette for visual consistency but are a separate, smaller
+vocabulary (no PURPLE, yellow default) decoupled from `ReadaloudHighlightColor`.
+
+Rendering reuses the shared `HighlightTintStyle` decoration + `tintForTheme()`: the reader theme
+bakes per-theme alpha into the base hue (~45% on Dark/DarkDim, ~30% on Light/Sepia) so a highlight
+stays legible in any theme. Recolour updates the row in place (bumping `updatedAt`); delete sets the
+`deleted` tombstone (bumping `updatedAt`) and tombstoned rows are excluded from the live query, so
+they never render.

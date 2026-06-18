@@ -91,7 +91,7 @@ fun FormattingPreferences.toFragmentConfiguration(
         // dedicated readaloud highlight template whose opacity tracks the tint's alpha channel,
         // so the synced highlight can be strengthened on dark reading themes (see readerTint()).
         decorationTemplates = HtmlDecorationTemplates.defaultTemplates().apply {
-            set(ReadaloudHighlightStyle::class, readaloudHighlightTemplate())
+            set(HighlightTintStyle::class, highlightTintTemplate())
         },
         readiumCssRsProperties = when {
             isDoublePage -> RsProperties(
