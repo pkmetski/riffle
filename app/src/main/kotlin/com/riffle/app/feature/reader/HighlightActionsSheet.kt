@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -104,6 +106,7 @@ fun HighlightActionsPopup(
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    var noteExpanded by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
     val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }
@@ -140,8 +143,11 @@ fun HighlightActionsPopup(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            onDismiss()
-                            onOpenNoteEditor()
+                            when {
+                                note == null -> { onDismiss(); onOpenNoteEditor() }
+                                noteExpanded -> noteExpanded = false
+                                else -> noteExpanded = true
+                            }
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -152,7 +158,7 @@ fun HighlightActionsPopup(
                             text = if (note != null) "Note" else "Add note",
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                        if (note != null) {
+                        if (note != null && !noteExpanded) {
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 text = note,
@@ -162,10 +168,31 @@ fun HighlightActionsPopup(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                        if (note != null && noteExpanded) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = note,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            TextButton(
+                                onClick = { onDismiss(); onOpenNoteEditor() },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text("Edit")
+                            }
+                        }
                     }
                     Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = null,
+                        imageVector = when {
+                            note == null -> Icons.Outlined.Edit
+                            noteExpanded -> Icons.Filled.KeyboardArrowUp
+                            else -> Icons.Filled.KeyboardArrowDown
+                        },
+                        contentDescription = when {
+                            note == null -> null
+                            noteExpanded -> "Collapse note"
+                            else -> "Expand note"
+                        },
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
