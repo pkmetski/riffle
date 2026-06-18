@@ -993,9 +993,9 @@ private fun EpubNavigatorView(
     readaloudHighlightColor: ReadaloudHighlightColor,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
-    onHighlight: (Locator) -> Unit,
-    highlightToEdit: String?,
-    onOpenHighlightActions: (String) -> Unit,
+    onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
+    highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
+    onOpenHighlightActions: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onDismissHighlightActions: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
@@ -1109,9 +1109,12 @@ private fun EpubNavigatorView(
                     highlightMenuId -> {
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
                             ?: return false
+                        val container = containerRef.value ?: return false
                         coroutineScope.launch {
                             val selection = selectable.currentSelection() ?: return@launch
-                            currentOnHighlight(selection.locator)
+                            val rawRect = selection.rect ?: return@launch
+                            val rect = rawRect.toWindowIntRect(container)
+                            currentOnHighlight(selection.locator, rect)
                             selectable.clearSelection()
                         }
                     }
@@ -1682,7 +1685,10 @@ private fun EpubNavigatorView(
         val listener = object : DecorableNavigator.Listener {
             override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
                 if (event.group != "annotations") return false
-                currentOnOpenHighlightActions(event.decoration.id)
+                val container = containerRef.value ?: return false
+                val rawRect = event.rect ?: return false
+                val rect = rawRect.toWindowIntRect(container)
+                currentOnOpenHighlightActions(event.decoration.id, rect)
                 return true
             }
         }
@@ -2185,15 +2191,16 @@ private fun EpubNavigatorView(
         // Highlight actions sheet — opens when the user taps an existing highlight or immediately
         // after creating one. Floats as an overlay inside the reader so it has access to the
         // reader's BoxWithConstraints scope and sits above the reader content.
-        val editId = highlightToEdit
-        if (editId != null) {
-            val current = highlightRenders.firstOrNull { it.id == editId }
-            HighlightActionsSheet(
+        val editTarget = highlightToEdit
+        if (editTarget != null) {
+            val current = highlightRenders.firstOrNull { it.id == editTarget.id }
+            HighlightActionsPopup(
+                anchorRect = editTarget.anchorRect,
                 selected = current?.let { HighlightColor.fromToken(it.color) },
                 note = current?.note,
-                onPick = { color -> onRecolorHighlight(editId, color) },
-                onDelete = { onDeleteHighlight(editId) },
-                onUpdateNote = { note -> onUpdateHighlightNote(editId, note) },
+                onPick = { color -> onRecolorHighlight(editTarget.id, color) },
+                onDelete = { onDeleteHighlight(editTarget.id) },
+                onUpdateNote = { note -> onUpdateHighlightNote(editTarget.id, note) },
                 onDismiss = onDismissHighlightActions,
             )
         }
