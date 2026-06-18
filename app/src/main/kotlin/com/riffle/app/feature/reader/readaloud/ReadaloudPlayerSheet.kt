@@ -29,6 +29,10 @@ fun ReadaloudPeek(
     // the affordance is never shown for a title with no audiobook to swipe up to.
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    // Pre-warm callbacks for the drag gesture (ADR 0032): called as soon as a drag starts so the
+    // incoming audiobook player can connect/prepare during the gesture rather than after the threshold.
+    onDragHint: () -> Unit = {},
+    onDragAbandoned: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     if (!enabled) {
@@ -39,9 +43,11 @@ fun ReadaloudPeek(
         modifier = modifier.pointerInput(Unit) {
             var total = 0f
             detectVerticalDragGestures(
-                onDragStart = { total = 0f },
+                onDragStart = { total = 0f; onDragHint() },
                 onVerticalDrag = { change, dragAmount -> total += dragAmount; change.consume() },
-                onDragEnd = { if (total < -SWIPE_UP_THRESHOLD_PX) onSwipeUp() },
+                onDragEnd = {
+                    if (total < -SWIPE_UP_THRESHOLD_PX) onSwipeUp() else onDragAbandoned()
+                },
             )
         },
     ) {

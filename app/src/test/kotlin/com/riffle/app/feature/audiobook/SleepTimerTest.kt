@@ -122,6 +122,8 @@ class SleepTimerTest {
 
     // ── FakeController ───────────────────────────────────────────────────────────
 
+    private class FakeReadaloudController : com.riffle.app.feature.reader.readaloud.ReadaloudController()
+
     private class FakeController(position: Double = 0.0) : AudiobookController() {
         var position: Double = position
 
@@ -192,6 +194,7 @@ class SleepTimerTest {
             serverRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
+            readaloudController = FakeReadaloudController(),
             audioPlaybackPreferencesStore = FakePrefsStore,
             listeningPreferencesStore = FakeListeningPreferencesStore,
             audioIdentityResolver = FakeIdentityResolver,
@@ -207,6 +210,7 @@ class SleepTimerTest {
             progressFlushScope = ProgressFlushScope(CoroutineScope(testDispatcher)),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
+            audiobookHandoffState = AudiobookHandoffState(),
             now = { 0L },
         )
     }

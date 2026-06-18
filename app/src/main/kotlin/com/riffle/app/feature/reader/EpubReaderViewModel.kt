@@ -6,6 +6,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.feature.audiobook.AudiobookHandoffState
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.core.data.StorytellerPositionSyncController
@@ -148,6 +149,7 @@ class EpubReaderViewModel @Inject constructor(
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val readingSpeedStore: ReadingSpeedStore,
+    private val audiobookHandoffState: AudiobookHandoffState,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -155,6 +157,8 @@ class EpubReaderViewModel @Inject constructor(
     // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
     // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
     // we auto-start readaloud playing from this second so narration continues where listening left off.
+    // Also observed as a flow so a back-stack return (reader was alive behind the audiobook player) can
+    // receive an updated value set by the audiobook player when it pops back.
     private val startReadaloudAtSec: Double =
         (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
 
@@ -461,6 +465,17 @@ class EpubReaderViewModel @Inject constructor(
                             libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
                     }
                     ?.absLibraryItemId
+            }
+            android.util.Log.d("RIFFLE_HANDOFF", "RA.audiobookItemId resolved=${_audiobookItemId.value} (overlay can now mount)")
+            // Pre-warm the SMIL track parse so the first audiobook→readaloud swipe-down skips
+            // the ~1.5 s MediaOverlayReader.readTrack() cost (parses every .smil in the bundle).
+            // Stored so startReadaloudAtSecond() can join() it instead of double-parsing the zip.
+            preWarmTrackJob = viewModelScope.launch {
+                readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
+                    android.util.Log.d("RIFFLE_HANDOFF", "RA.preWarmTrack start")
+                    ensureTrack(bundle)
+                    android.util.Log.d("RIFFLE_HANDOFF", "RA.preWarmTrack done (readaloudTrack=${readaloudTrack != null})")
+                }
             }
             // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
             activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
@@ -1068,12 +1083,7 @@ class EpubReaderViewModel @Inject constructor(
         epubZip?.close()
         epubZip = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
-        // On a swipe-up handoff the audiobook now owns the shared player and the readaloud handle was
-        // already released without stopping it — closing here would stop the audiobook that just took
-        // over, so skip it.
-        if (!handingOffToAudiobook) {
-            playerCoordinator.close()
-        }
+        playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
         nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Readaloud && it.itemId == itemId }
         // Cancel the coordinator's state-collection scope so it isn't leaked past this ViewModel.
@@ -1570,17 +1580,36 @@ class EpubReaderViewModel @Inject constructor(
     /**
      * Swipe-up handoff to the single large player: capture the current listen second, release the
      * shared player to the audiobook WITHOUT stopping it (so the audiobook keeps playing through the
-     * switch), and return the second to hand off. The reader is popped right after, so its onCleared
-     * must skip the normal readaloud stop — see [handingOffToAudiobook].
+     * switch), and return the second to hand off. The reader stays in the Compose Navigation back
+     * stack (stacking model, not swap), so onCleared is NOT called here — no guard needed.
      */
     fun prepareAudiobookHandoff(): Double {
         val sec = playbackState.value.positionGlobalSec
-        handingOffToAudiobook = true
+        val abId = _audiobookItemId.value
+        android.util.Log.d("RIFFLE_HANDOFF", "RA.prepareAudiobookHandoff sec=$sec abId=$abId")
         playerCoordinator.releaseForHandoff()
+        if (abId != null) audiobookHandoffState.signal(abId, sec)
         return sec
     }
 
-    private var handingOffToAudiobook = false
+    /**
+     * Called when the audiobook overlay is dismissed (back button) without a readaloud handoff.
+     * Resets [readaloudPrepared] so the next play re-prepares the media session with the
+     * readaloud's audio items (the audiobook replaced them during playback).
+     * Also signals the pre-warmed [AudiobookPlayerViewModel] to pause its controller so audiobook
+     * audio stops while the reader is visible.
+     */
+    fun onAudiobookOverlayDismissed() {
+        readaloudPrepared = false
+        val abId = _audiobookItemId.value
+        if (abId != null) audiobookHandoffState.dismiss(abId)
+    }
+
+    /** Called when the user starts dragging up (before the threshold) — reserved for future pre-warm. */
+    fun hintAudiobookHandoff() = Unit
+
+    /** Discard any pre-warm state if the drag was abandoned. */
+    fun cancelHandoffHint() = Unit
 
     fun previousChapter() = playerCoordinator.previousChapter()
 
@@ -1634,7 +1663,9 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         if (!_readaloudOpen.value) openReadaloudSession()
+        readaloudPrepared = false
         viewModelScope.launch {
+            preWarmTrackJob?.join()  // wait for background SMIL parse to finish before ensureTrack
             ensureOpened(bundle) ?: return@launch
             readaloudStarted = true
             resumeFragmentRef = null
@@ -1706,6 +1737,10 @@ class EpubReaderViewModel @Inject constructor(
     fun dismissDownloadPrompt() {
         _downloadPromptBytes.value = null
     }
+
+    // Job from the background SMIL pre-warm launched at book-open. startReadaloudAtSecond() joins
+    // this before calling ensureTrack so it never double-parses the zip concurrently.
+    private var preWarmTrackJob: Job? = null
 
     // True once the controller has been pointed at the bundle this session, so resuming after a
     // pause doesn't re-prepare (which would reset playback to the start).

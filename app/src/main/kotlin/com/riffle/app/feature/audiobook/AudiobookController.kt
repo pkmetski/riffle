@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.app.feature.reader.readaloud.AudioPlayerService
+import com.riffle.app.feature.reader.readaloud.ReadaloudController.Companion.HANDOFF
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
@@ -65,6 +66,7 @@ open class AudiobookController @Inject constructor(
     private var timerJob: Job? = null
 
     private var controller: MediaController? = null
+    private var listenerAttached = false
     private var pollJob: Job? = null
     private var spans: List<AudiobookTrackSpan> = emptyList()
     private var durationSec: Double = 0.0
@@ -77,6 +79,9 @@ open class AudiobookController @Inject constructor(
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
+                Log.d(HANDOFF, "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
+            }
             maybeStart(player)
             pushState()
         }
@@ -97,6 +102,8 @@ open class AudiobookController @Inject constructor(
         localZipFile: File? = null,
         coverUri: String? = null,
     ) {
+        Log.d(HANDOFF, "AB.prepare start (controller already connected=${controller != null})")
+        val t0 = System.currentTimeMillis()
         this.spans = spans
         this.durationSec = durationSec
         // Bundle-backed audio: the track mediaIds are zip-entry paths the service reads from this file
@@ -105,6 +112,7 @@ open class AudiobookController @Inject constructor(
         ownsSharedBundle = localZipFile != null
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
+        Log.d(HANDOFF, "AB.prepare ensureConnected +${System.currentTimeMillis() - t0}ms")
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
             .build()
@@ -117,11 +125,21 @@ open class AudiobookController @Inject constructor(
         val start = AudiobookTracks.startPositionFor(startAtSec, durationSec, spans)
         c.setMediaItems(items, start.trackIndex, start.offsetMs)
         c.prepare()
+        Log.d(HANDOFF, "AB.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms")
         prepared = true
         // If the user pressed play before preparation finished, honour it now — but only once the
         // player is ready (see [ResumePlaybackGate]); otherwise the listener starts it on STATE_READY.
         maybeStart(c)
         pushState()
+    }
+
+    /**
+     * Establishes the [MediaController] binder connection without touching media items. Call during
+     * pre-warm so the first swipe-up pays ~0 ms instead of the full [MediaController.Builder.buildAsync]
+     * round-trip (ADR 0032).
+     */
+    open suspend fun warmBinder() {
+        ensureConnected()
     }
 
     open fun play() {
@@ -226,6 +244,7 @@ open class AudiobookController @Inject constructor(
             release()
         }
         controller = null
+        listenerAttached = false
         spans = emptyList()
         prepared = false
         wantsToPlay = false
@@ -243,8 +262,12 @@ open class AudiobookController @Inject constructor(
      * the audiobook goes silent immediately, but does NOT `stop()`/`clearMediaItems()`: readaloud's
      * own `setMediaItems` replaces the queue, and clearing here would kill the readaloud playback that
      * is about to start (the "swipe down pauses readaloud" bug). Leaves the bundle for readaloud.
+     *
+     * Keeps the [MediaController] Binder connection alive (ADR 0032) so the incoming side reconnects
+     * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
      */
     fun releaseForHandoff() {
+        Log.d(HANDOFF, "AB.releaseForHandoff (T0 — audio pausing)")
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
@@ -252,9 +275,8 @@ open class AudiobookController @Inject constructor(
             setVolume(1f)
             pause()
             removeListener(listener)
-            release()
         }
-        controller = null
+        listenerAttached = false
         spans = emptyList()
         prepared = false
         wantsToPlay = false
@@ -263,15 +285,20 @@ open class AudiobookController @Inject constructor(
     }
 
     private suspend fun ensureConnected(): MediaController? {
-        controller?.let { return it }
-        val context = this.context ?: return null
-        val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
-        val future = MediaController.Builder(context, token).buildAsync()
-        val c = suspendCancellableCoroutine<MediaController?> { cont ->
-            future.addListener({ cont.resume(runCatching { future.get() }.getOrNull()) }, ContextCompat.getMainExecutor(context))
+        val c = controller ?: run {
+            val context = this.context ?: return null
+            val token = SessionToken(context, ComponentName(context, AudioPlayerService::class.java))
+            val future = MediaController.Builder(context, token).buildAsync()
+            val newC = suspendCancellableCoroutine<MediaController?> { cont ->
+                future.addListener({ cont.resume(runCatching { future.get() }.getOrNull()) }, ContextCompat.getMainExecutor(context))
+            }
+            controller = newC
+            newC
         }
-        c?.addListener(listener)
-        controller = c
+        if (!listenerAttached && c != null) {
+            c.addListener(listener)
+            listenerAttached = true
+        }
         pushState()
         return c
     }

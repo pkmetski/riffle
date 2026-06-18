@@ -6,6 +6,9 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -109,6 +113,15 @@ import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Layout
 import org.readium.r2.shared.util.AbsoluteUrl
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
+import java.net.URLEncoder
 
 // Gates the "Highlight" text-selection action. ADR 0024 shipped highlight create + render +
 // sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
@@ -153,8 +166,8 @@ internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EpubReaderScreen(
+    windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onSwitchToAudiobook: (audiobookItemId: String, atSec: Double) -> Unit = { _, _ -> },
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -289,6 +302,18 @@ fun EpubReaderScreen(
     // to edge and the nav bar floats over the last sliver of content. Padding would carve
     // out a solid strip behind the bar that doesn't blend with any reader theme — exactly
     // the "white/black bar" the user reported when exiting Immersive mode.
+
+    // `showAudiobookOverlay` drives visibility; the overlay composable itself is always mounted
+    // when `audiobookItemId != null` so AudiobookPlayerViewModel pre-warms in the background.
+    var showAudiobookOverlay by rememberSaveable { mutableStateOf(false) }
+
+    // Dismiss the audiobook overlay when the system back button is pressed, rather than
+    // navigating back through the outer NavHost (which would exit the reader entirely).
+    BackHandler(enabled = showAudiobookOverlay) {
+        showAudiobookOverlay = false
+        viewModel.onAudiobookOverlayDismissed()
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Status bar insets are consumed at the AndroidView root (see
         // ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so they never
@@ -417,11 +442,13 @@ fun EpubReaderScreen(
                         handleColor = readerPalette.foreground,
                         enabled = audiobookItemId != null,
                         onSwipeUp = {
-                            audiobookItemId?.let { abId ->
-                                val sec = viewModel.prepareAudiobookHandoff()
-                                onSwitchToAudiobook(abId, sec)
+                            if (audiobookItemId != null) {
+                                viewModel.prepareAudiobookHandoff()
+                                showAudiobookOverlay = true
                             }
                         },
+                        onDragHint = { viewModel.hintAudiobookHandoff() },
+                        onDragAbandoned = { viewModel.cancelHandoffHint() },
                     ) {
                         ReadaloudMiniPlayer(
                             isPlaying = playbackState.isPlaying,
@@ -552,6 +579,24 @@ fun EpubReaderScreen(
             ReturnToPositionCard(
                 onReturn = viewModel::returnToCapturedPosition,
                 onDismiss = viewModel::dismissReturnTarget,
+            )
+        }
+        // Always mount the overlay when an audiobook is linked so AudiobookPlayerViewModel
+        // can pre-warm (session open, metadata load) while the user reads. The overlay is
+        // rendered at size 0 when hidden, making it invisible and non-interactive.
+        audiobookItemId?.let { abItemId ->
+            AudiobookPlayerOverlay(
+                itemId = abItemId,
+                visible = showAudiobookOverlay,
+                windowSizeClass = windowSizeClass,
+                onDismiss = {
+                    showAudiobookOverlay = false
+                    viewModel.onAudiobookOverlayDismissed()
+                },
+                onSwitchToReadaloud = { atSec ->
+                    showAudiobookOverlay = false
+                    viewModel.startReadaloudAtSecond(atSec)
+                },
             )
         }
     }
@@ -919,10 +964,10 @@ private fun EpubNavigatorView(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isFixedLayout = state.publication.metadata.layout == Layout.FIXED
     val coroutineScope = rememberCoroutineScope()
-    val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
-    val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
+    val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+    val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -1739,13 +1784,6 @@ private fun EpubNavigatorView(
                     // insets here prevents Readium's WebViews from applying status-bar padding,
                     // which on physical devices remains non-zero even after controller.hide().
                     ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
-                    onPullStarted = { fwd ->
-                        pullForward = fwd
-                        pullProgress = 0f
-                        pullActive = true
-                    }
-                    onPullEnded = { pullActive = false }
-                    onPullProgress = { p -> pullProgress = p }
                     val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
                     addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                 }.also { containerRef.value = it }
@@ -1761,6 +1799,16 @@ private fun EpubNavigatorView(
                     container.visibility = View.VISIBLE
                 }
                 container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
+                // Pull callbacks capture composable-local State vars; re-set on every update so
+                // back-stack returns (which re-create the composable but reuse the cached View)
+                // always write to the current State instances rather than stale ones.
+                container.onPullStarted = { fwd ->
+                    pullForward = fwd
+                    pullProgress = 0f
+                    pullActive = true
+                }
+                container.onPullEnded = { pullActive = false }
+                container.onPullProgress = { p -> pullProgress = p }
 
                 val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
@@ -2043,3 +2091,64 @@ private fun PullChip(forward: Boolean, progress: Float) {
 // later colour-picker slice maps `color` to other tints.
 private fun highlightTint(color: String): Int =
     android.graphics.Color.parseColor("#FFFDE68A")
+
+@Composable
+private fun AudiobookPlayerOverlay(
+    itemId: String,
+    visible: Boolean,
+    windowSizeClass: WindowSizeClass,
+    onDismiss: () -> Unit,
+    onSwitchToReadaloud: (Double) -> Unit,
+) {
+    val navController = rememberNavController()
+    val encoded = URLEncoder.encode(itemId, "UTF-8")
+    // Always use the PREWARM_SENTINEL (-2f) so the NavBackStackEntry — and therefore
+    // AudiobookPlayerViewModel — is created once and kept alive between swipe-up/down cycles.
+    // The actual start position arrives via AudiobookHandoffState when the overlay is revealed.
+    val startRoute = "overlay_audiobook/$encoded?startAtSec=-2.0"
+
+    // Slide up on show, slide down on dismiss. `overlayVisible` trails `visible` on the way out —
+    // it stays true until the slide-down animation finishes, then flips to false (size 0).
+    val slideProgress = remember { Animatable(0f) }
+    var overlayVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(visible) {
+        if (visible) {
+            overlayVisible = true
+            slideProgress.snapTo(0f)
+            slideProgress.animateTo(1f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+        } else {
+            slideProgress.animateTo(0f, tween(durationMillis = 280, easing = FastOutSlowInEasing))
+            overlayVisible = false
+        }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = startRoute,
+        // size(0.dp) keeps the composable in the tree for pre-warming but makes it invisible.
+        modifier = if (overlayVisible) {
+            Modifier.fillMaxSize().graphicsLayer {
+                translationY = (1f - slideProgress.value) * size.height
+            }
+        } else {
+            Modifier.size(0.dp)
+        },
+    ) {
+        composable(
+            route = "overlay_audiobook/{itemId}?startAtSec={startAtSec}",
+            arguments = listOf(
+                navArgument("itemId") { type = NavType.StringType },
+                navArgument("startAtSec") {
+                    type = NavType.FloatType
+                    defaultValue = -2f
+                },
+            ),
+        ) {
+            AudiobookPlayerScreen(
+                windowSizeClass = windowSizeClass,
+                onNavigateBack = onDismiss,
+                onSwitchToReadaloud = { _, atSec -> onSwitchToReadaloud(atSec) },
+            )
+        }
+    }
+}

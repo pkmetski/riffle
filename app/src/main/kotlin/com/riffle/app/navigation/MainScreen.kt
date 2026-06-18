@@ -402,17 +402,8 @@ fun MainScreen(
                 )
             ) {
                 EpubReaderScreen(
+                    windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
-                    // Swipe up → switch to the single large player (the audiobook), continuing from the
-                    // listen position. Replace the reader (popUpTo inclusive) so the two surfaces swap
-                    // rather than stack; the reader's onCleared releases the shared player without
-                    // stopping it so the audiobook keeps playing.
-                    onSwitchToAudiobook = { audiobookItemId, atSec ->
-                        val encoded = URLEncoder.encode(audiobookItemId, "UTF-8")
-                        navController.navigate("audiobook_player/$encoded?startAtSec=$atSec") {
-                            popUpTo(EPUB_READER) { inclusive = true }
-                        }
-                    },
                 )
             }
             composable(
@@ -440,6 +431,8 @@ fun MainScreen(
                     // the audiobook position. Pop the player off the stack so leaving readaloud doesn't
                     // land back on a dead player, and its onCleared stops audio + flushes progress.
                     onSwitchToReadaloud = { ebookItemId, atSec ->
+                        // Audiobook opened from the library (not from the reader overlay). Navigate
+                        // to the reader, replacing the player so Back doesn't return to a dead session.
                         val encoded = URLEncoder.encode(ebookItemId, "UTF-8")
                         navController.navigate("epub_reader/$encoded?startReadaloudAtSec=$atSec") {
                             popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }

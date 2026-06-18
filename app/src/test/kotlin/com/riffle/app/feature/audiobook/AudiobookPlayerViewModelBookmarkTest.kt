@@ -85,6 +85,8 @@ class AudiobookPlayerViewModelBookmarkTest {
         ),
     )
 
+    private class FakeReadaloudController : com.riffle.app.feature.reader.readaloud.ReadaloudController()
+
     // A fake controller whose book-absolute position is settable and whose seekTo is recorded. Only the
     // members the VM actually touches are overridden; the heavy Media3/Context machinery is bypassed.
     private class FakeController(var position: Double) : AudiobookController() {
@@ -142,6 +144,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             serverRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
+            readaloudController = FakeReadaloudController(),
             audioPlaybackPreferencesStore = prefsStore,
             listeningPreferencesStore = listeningStore,
             audioIdentityResolver = FakeIdentityResolver,
@@ -157,6 +160,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             progressFlushScope = ProgressFlushScope(CoroutineScope(testDispatcher)),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
+            audiobookHandoffState = AudiobookHandoffState(),
             now = { fixedNow },
         )
     }
