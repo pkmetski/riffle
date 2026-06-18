@@ -100,6 +100,9 @@ private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 // Debounce window for persisting a playback-speed change, so a granular scrub/slide settles to a
 // single write rather than one per intermediate 0.05× value.
 private const val SPEED_SAVE_DEBOUNCE_MS = 400L
+// Characters of textAfter used to build each highlight's context window for position
+// disambiguation in the overlap-detection logic (see createHighlight).
+private const val OVERLAP_CONTEXT_LEN = 60
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -1041,6 +1044,8 @@ class EpubReaderViewModel @Inject constructor(
 
     // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
+    // Any existing highlights in the same chapter that overlap the new selection are deleted first —
+    // a larger selection subsuming a previously highlighted word replaces that highlight.
     fun createHighlight(selectionLocator: Locator) {
         val serverId = annotationServerId ?: return
         viewModelScope.launch {
@@ -1054,6 +1059,19 @@ class EpubReaderViewModel @Inject constructor(
             val spineStep = (spineIndex + 1) * 2
             val html = readChapterHtml(spineIndex) ?: return@launch
             val progression = selectionLocator.locations.progression ?: 0.0
+
+            // Delete existing highlights in the same chapter that the new selection covers.
+            val newAfter = selectionLocator.text.after ?: ""
+            _highlightRenders.value
+                .filter { normalizeEpubHref(it.locator.href.toString()) == normalizeEpubHref(href) }
+                .forEach { render ->
+                    val existSnippet = render.locator.text.highlight ?: return@forEach
+                    val existAfter = render.locator.text.after ?: ""
+                    if (highlightOverlapsAtSamePosition(snippet, newAfter, existSnippet, existAfter)) {
+                        annotationStore.delete(render.id)
+                    }
+                }
+
             val cfiRange = buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
                 ?: return@launch
             val created = annotationStore.createHighlight(
@@ -1062,6 +1080,8 @@ class EpubReaderViewModel @Inject constructor(
                 cfi = cfiRange,
                 textSnippet = snippet,
                 chapterHref = href,
+                textBefore = selectionLocator.text.before ?: "",
+                textAfter = selectionLocator.text.after ?: "",
             )
             _highlightToEdit.value = created.id
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
@@ -1125,7 +1145,10 @@ class EpubReaderViewModel @Inject constructor(
                     .put("href", link.href.toString())
                     .put("type", "application/xhtml+xml")
                     .put("locations", JSONObject().put("progression", progression))
-                    .put("text", JSONObject().put("highlight", a.textSnippet)),
+                    .put("text", JSONObject()
+                        .put("before", a.textBefore)
+                        .put("highlight", a.textSnippet)
+                        .put("after", a.textAfter)),
             )
         } catch (_: Exception) {
             null
@@ -2061,4 +2084,38 @@ class EpubReaderViewModel @Inject constructor(
             }
         }
     }
+}
+
+/**
+ * Returns true when [newSnippet]/[newAfter] and [existSnippet]/[existAfter] refer to the same
+ * region of text — i.e. one highlight should be replaced by the other.
+ *
+ * Two conditions must BOTH hold:
+ *  1. **Text overlap** — one snippet contains the other (substring test, case-insensitive).
+ *  2. **Position match** — the "snippet + after-text" context window of each highlight must
+ *     contain the other's window. After-text is used (not before-text) so that the check still
+ *     passes when the new selection starts earlier than the existing one (a larger selection
+ *     covering a smaller word). If [existAfter] is empty (pre-context annotation), position
+ *     matching is skipped and text overlap alone is sufficient.
+ *
+ * The function is `internal` so it can be unit-tested from `app:test`.
+ */
+internal fun highlightOverlapsAtSamePosition(
+    newSnippet: String,
+    newAfter: String,
+    existSnippet: String,
+    existAfter: String,
+    contextLen: Int = OVERLAP_CONTEXT_LEN,
+): Boolean {
+    val newTrimmed = newSnippet.trim().takeIf { it.isNotBlank() } ?: return false
+    val existTrimmed = existSnippet.trim().takeIf { it.isNotBlank() } ?: return false
+    val textOverlap = newTrimmed.contains(existTrimmed, ignoreCase = true) ||
+        existTrimmed.contains(newTrimmed, ignoreCase = true)
+    if (!textOverlap) return false
+    val existAfterStart = existAfter.take(contextLen)
+    if (existAfterStart.isEmpty()) return true
+    val newContext = newTrimmed + newAfter.take(contextLen)
+    val existContext = existTrimmed + existAfterStart
+    return newContext.contains(existContext, ignoreCase = true) ||
+        existContext.contains(newContext, ignoreCase = true)
 }

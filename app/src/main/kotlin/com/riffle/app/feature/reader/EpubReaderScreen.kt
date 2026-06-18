@@ -1049,8 +1049,13 @@ private fun EpubNavigatorView(
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
-                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) menu.add(0, highlightMenuId, 1, "Highlight")
-                if (currentReadaloudAvailable) menu.add(0, playFromHereMenuId, 2, "Play from here")
+                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) {
+                    menu.add(0, highlightMenuId, 1, "Highlight")
+                }
+                if (currentReadaloudAvailable) {
+                    menu.add(0, playFromHereMenuId, 2, "Play")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
                 menu.add(0, searchMenuId, 3, "Search")
                 menu.add(0, shareMenuId, 4, "Share")
                 return true
@@ -1597,6 +1602,12 @@ private fun EpubNavigatorView(
             )
         }
         withContext(Dispatchers.Main) {
+            // Clear before re-applying so the Readium JS group starts from a clean slate.
+            // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
+            // JS state was reset on page load (e.g. on book re-entry), leaving decorations
+            // visually missing; a stale DOM element from a prior session can also add a ghost
+            // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
+            fragment.applyDecorations(emptyList(), group = "annotations")
             fragment.applyDecorations(decorations, group = "annotations")
         }
         hasHighlightDecorations.value = true
