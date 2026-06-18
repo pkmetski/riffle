@@ -9,18 +9,24 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.PopupPositionProvider
 import kotlin.math.roundToInt
 
-internal fun RectF.toWindowIntRect(viewLeft: Int, viewTop: Int): IntRect = IntRect(
-    left   = viewLeft + left.roundToInt(),
-    top    = viewTop  + top.roundToInt(),
-    right  = viewLeft + right.roundToInt(),
-    bottom = viewTop  + bottom.roundToInt(),
-)
+internal fun RectF.toWindowIntRect(viewLeft: Int, viewTop: Int): IntRect =
+    toWindowIntRect(left, top, right, bottom, viewLeft, viewTop)
 
 internal fun RectF.toWindowIntRect(view: View): IntRect {
     val loc = IntArray(2)
     view.getLocationOnScreen(loc)
     return toWindowIntRect(loc[0], loc[1])
 }
+
+internal fun toWindowIntRect(
+    rectLeft: Float, rectTop: Float, rectRight: Float, rectBottom: Float,
+    viewLeft: Int, viewTop: Int,
+): IntRect = IntRect(
+    left   = viewLeft + rectLeft.roundToInt(),
+    top    = viewTop  + rectTop.roundToInt(),
+    right  = viewLeft + rectRight.roundToInt(),
+    bottom = viewTop  + rectBottom.roundToInt(),
+)
 
 internal class HighlightPopupPositionProvider(
     private val anchorRect: IntRect,

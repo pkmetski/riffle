@@ -1,31 +1,31 @@
 package com.riffle.app.feature.reader
 
-import android.graphics.RectF
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 
-@RunWith(RobolectricTestRunner::class)
 class ReaderCoordinatesTest {
 
     // ── toWindowIntRect ──────────────────────────────────────────────────────
 
     @Test
     fun `toWindowIntRect adds view offset to rect coordinates`() {
-        val rect = RectF(10f, 20f, 50f, 60f)
-        val result = rect.toWindowIntRect(viewLeft = 100, viewTop = 200)
+        val result = toWindowIntRect(
+            rectLeft = 10f, rectTop = 20f, rectRight = 50f, rectBottom = 60f,
+            viewLeft = 100, viewTop = 200,
+        )
         assertEquals(IntRect(left = 110, top = 220, right = 150, bottom = 260), result)
     }
 
     @Test
     fun `toWindowIntRect rounds float coordinates`() {
-        val rect = RectF(10.4f, 20.6f, 50.3f, 60.7f)
-        val result = rect.toWindowIntRect(viewLeft = 0, viewTop = 0)
+        val result = toWindowIntRect(
+            rectLeft = 10.4f, rectTop = 20.6f, rectRight = 50.3f, rectBottom = 60.7f,
+            viewLeft = 0, viewTop = 0,
+        )
         assertEquals(IntRect(left = 10, top = 21, right = 50, bottom = 61), result)
     }
 
