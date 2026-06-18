@@ -102,9 +102,9 @@ fun HighlightActionsPopup(
     onPick: (HighlightColor) -> Unit,
     onDelete: () -> Unit,
     onUpdateNote: (String?) -> Unit,
+    onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var noteEditorOpen by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
     val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }
@@ -142,7 +142,7 @@ fun HighlightActionsPopup(
                         .fillMaxWidth()
                         .clickable {
                             onDismiss()
-                            noteEditorOpen = true
+                            onOpenNoteEditor()
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -174,21 +174,10 @@ fun HighlightActionsPopup(
             }
         }
     }
-
-    if (noteEditorOpen) {
-        NoteEditorDialog(
-            initialNote = note ?: "",
-            onConfirm = { text ->
-                onUpdateNote(text.takeIf { it.isNotBlank() })
-                noteEditorOpen = false
-            },
-            onDismiss = { noteEditorOpen = false },
-        )
-    }
 }
 
 @Composable
-private fun NoteEditorDialog(
+internal fun NoteEditorDialog(
     initialNote: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,

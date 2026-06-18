@@ -1679,7 +1679,7 @@ private fun EpubNavigatorView(
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------
-    // Opens the highlight-actions sheet when the user taps an existing highlight decoration.
+    // Opens the highlight-actions popup when the user taps an existing highlight decoration.
     DisposableEffect(fragmentRef.value) {
         val fragment = fragmentRef.value as? DecorableNavigator
         val listener = object : DecorableNavigator.Listener {
@@ -2191,6 +2191,7 @@ private fun EpubNavigatorView(
         // Highlight actions sheet — opens when the user taps an existing highlight or immediately
         // after creating one. Floats as an overlay inside the reader so it has access to the
         // reader's BoxWithConstraints scope and sits above the reader content.
+        var noteEditorTarget by remember { mutableStateOf<EpubReaderViewModel.HighlightEditTarget?>(null) }
         val editTarget = highlightToEdit
         if (editTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == editTarget.id }
@@ -2201,7 +2202,22 @@ private fun EpubNavigatorView(
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onUpdateNote = { note -> onUpdateHighlightNote(editTarget.id, note) },
+                onOpenNoteEditor = {
+                    noteEditorTarget = editTarget
+                },
                 onDismiss = onDismissHighlightActions,
+            )
+        }
+        val noteTarget = noteEditorTarget
+        if (noteTarget != null) {
+            val current = highlightRenders.firstOrNull { it.id == noteTarget.id }
+            NoteEditorDialog(
+                initialNote = current?.note ?: "",
+                onConfirm = { text ->
+                    onUpdateHighlightNote(noteTarget.id, text.takeIf { it.isNotBlank() })
+                    noteEditorTarget = null
+                },
+                onDismiss = { noteEditorTarget = null },
             )
         }
     }

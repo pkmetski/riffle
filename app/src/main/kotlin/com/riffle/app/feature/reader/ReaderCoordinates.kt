@@ -41,7 +41,12 @@ internal class HighlightPopupPositionProvider(
         // anchorBounds (Compose's composable anchor) is intentionally ignored — anchorRect is
         // already mapped to window coordinates from the WebView's coordinate space.
         val preferredTop = anchorRect.top - popupContentSize.height - margin
-        val top = if (preferredTop >= margin) preferredTop else anchorRect.bottom + margin
+        val maxTop = windowSize.height - popupContentSize.height - margin
+        val top = if (preferredTop >= margin) {
+            preferredTop
+        } else {
+            (anchorRect.bottom + margin).coerceAtMost(maxTop)
+        }
         val centreX = anchorRect.center.x - popupContentSize.width / 2
         val maxLeft = maxOf(margin, windowSize.width - popupContentSize.width - margin)
         val left = centreX.coerceIn(margin, maxLeft)

@@ -93,4 +93,15 @@ class ReaderCoordinatesTest {
         val result = position(provider(anchor, margin = 8), IntSize(100, 800), IntSize(150, 100))
         assertEquals(8, result.x)
     }
+
+    @Test
+    fun `popup bottom-clamped when anchor near bottom and no space above`() {
+        // anchor spans nearly the full height → no space above, flip-below would overflow
+        // windowHeight=800, popupHeight=100, margin=8 → maxTop = 800-100-8 = 692
+        // anchorTop=10 → preferredTop = 10-100-8 = -98 < 8 → flip: anchorBottom+8 = 790+8=798
+        // 798.coerceAtMost(692) = 692
+        val anchor = IntRect(left = 100, top = 10, right = 200, bottom = 790)
+        val result = position(provider(anchor, margin = 8), IntSize(400, 800), IntSize(280, 100))
+        assertEquals(692, result.y)
+    }
 }
