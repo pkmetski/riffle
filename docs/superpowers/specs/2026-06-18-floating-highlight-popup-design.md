@@ -108,8 +108,13 @@ private class HighlightPopupPositionProvider(
         } else {
             anchorRect.bottom + margin  // flip below
         }
+        // anchorBounds (the Compose anchor) is intentionally ignored — anchorRect carries
+        // the WebView-space rect already mapped to window coordinates.
         val centreX = anchorRect.center.x - popupContentSize.width / 2
-        val left = centreX.coerceIn(margin, windowSize.width - popupContentSize.width - margin)
+        // Guard: on a very narrow screen the max bound could be less than margin.
+        val minLeft = margin
+        val maxLeft = maxOf(margin, windowSize.width - popupContentSize.width - margin)
+        val left = centreX.coerceIn(minLeft, maxLeft)
         return IntOffset(left, top)
     }
 }
