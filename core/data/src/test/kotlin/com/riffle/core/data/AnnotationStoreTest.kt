@@ -45,6 +45,18 @@ class AnnotationStoreTest {
                 if (it.id == id) it.copy(note = note, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+
+        override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
+            rows.map { list ->
+                list.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+                    .sortedWith(compareBy({ it.spineIndex }, { it.progression }))
+            }
+
+        override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {
+            rows.value = rows.value.map {
+                if (it.id == id) it.copy(bookmarkTitle = title, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+            }
+        }
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {
@@ -138,6 +150,9 @@ class AnnotationStoreTest {
             cfi = "epubcfi(/6/4!/4/2)",
             textSnippet = "It seems increasingly likely",
             chapterHref = "chapter01.xhtml",
+            spineIndex = 0,
+            progression = 0.0,
+            bookmarkTitle = "",
         )
 
         val saved = dao.getById("bm-1")!!
@@ -158,7 +173,8 @@ class AnnotationStoreTest {
     fun `createBookmark returns the created annotation`() = runTest {
         val store = buildStore(idGenerator = { "bm-1" })
 
-        val created = store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c.xhtml")
+        val created = store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
 
         assertEquals("bm-1", created.id)
         assertEquals(AnnotationEntity.TYPE_BOOKMARK, created.type)
@@ -171,8 +187,10 @@ class AnnotationStoreTest {
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
         store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c")
-        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c")
-        store.createBookmark("abs1", "item2", "epubcfi(c)", "snip", "c")  // different item
+        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
+        store.createBookmark("abs1", "item2", "epubcfi(c)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "")  // different item
 
         val list = store.observeBookmarks("abs1", "item1").first()
         assertEquals(1, list.size)
@@ -183,7 +201,8 @@ class AnnotationStoreTest {
     fun `delete tombstones a bookmark so it leaves observeBookmarks`() = runTest {
         val dao = FakeAnnotationDao()
         val store = buildStore(dao = dao, idGenerator = { "bm-1" })
-        store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c")
+        store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
 
         store.delete("bm-1")
 
@@ -197,7 +216,8 @@ class AnnotationStoreTest {
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
         store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c")
-        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c")
+        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
 
         val highlights = store.observeHighlights("abs1", "item1").first()
         assertEquals(1, highlights.size)

@@ -46,6 +46,18 @@ class AnnotationStoreImplTest {
                 if (it.id == id) it.copy(note = note, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+
+        override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
+            rows.map { all ->
+                all.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+                    .sortedWith(compareBy({ it.spineIndex }, { it.progression }))
+            }
+
+        override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {
+            rows.value = rows.value.map {
+                if (it.id == id) it.copy(bookmarkTitle = title, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+            }
+        }
     }
 
     private val deviceIdStore = object : DeviceIdStore {
@@ -135,5 +147,68 @@ class AnnotationStoreImplTest {
         s.delete(created.id)
 
         assertTrue(s.observeHighlights("abs1", "item1").first().isEmpty())
+    }
+
+    @Test
+    fun `createBookmark stores spineIndex, progression and bookmarkTitle`() = runTest {
+        val created = store().createBookmark(
+            serverId = "abs1", itemId = "item1",
+            cfi = "epubcfi(/6/6!/4/1:0)",
+            textSnippet = "", chapterHref = "ch2.xhtml",
+            spineIndex = 3, progression = 0.42, bookmarkTitle = "The Egg · 42%",
+        )
+        assertEquals(3, created.spineIndex)
+        assertEquals(0.42, created.progression, 0.001)
+        assertEquals("The Egg · 42%", created.bookmarkTitle)
+    }
+
+    @Test
+    fun `renameBookmark updates the title in the store`() = runTest {
+        val s = store()
+        val created = s.createBookmark(
+            "abs1", "item1", "epubcfi(/6/6!/4/1:0)", "", "ch2.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "42%",
+        )
+        s.renameBookmark(created.id, "Where it gets weird")
+        val updated = dao.getById(created.id)
+        assertEquals("Where it gets weird", updated?.bookmarkTitle)
+    }
+
+    @Test
+    fun `observeAnnotations returns highlights and bookmarks sorted by spineIndex then progression`() = runTest {
+        var idCounter = 0
+        fun storeWithUniqueIds() = AnnotationStoreImpl(
+            dao = dao,
+            deviceIdStore = deviceIdStore,
+            clock = { now },
+            idGenerator = { "id-${idCounter++}" },
+        )
+        val s = storeWithUniqueIds()
+        // Insert out-of-order
+        s.createHighlight("abs1", "item1", "cfi1", "text", "ch3.xhtml",
+            textBefore = "", textAfter = "")
+            .also { rows.value = rows.value.map { e -> if (e.id == it.id) e.copy(spineIndex = 2, progression = 0.1) else e } }
+        s.createBookmark("abs1", "item1", "cfi2", "", "ch1.xhtml",
+            spineIndex = 0, progression = 0.9, bookmarkTitle = "bm1")
+        s.createHighlight("abs1", "item1", "cfi3", "text2", "ch1.xhtml",
+            textBefore = "", textAfter = "")
+            .also { rows.value = rows.value.map { e -> if (e.id == it.id) e.copy(spineIndex = 0, progression = 0.2) else e } }
+
+        val result = storeWithUniqueIds().observeAnnotations("abs1", "item1").first()
+        // ch1 progression=0.2, ch1 progression=0.9, ch3 progression=0.1
+        assertEquals(3, result.size)
+        assertEquals(0, result[0].spineIndex); assertEquals(0.2, result[0].progression, 0.001)
+        assertEquals(0, result[1].spineIndex); assertEquals(0.9, result[1].progression, 0.001)
+        assertEquals(2, result[2].spineIndex)
+    }
+
+    @Test
+    fun `observeAnnotations excludes tombstoned annotations`() = runTest {
+        val s = store()
+        val bm = s.createBookmark("abs1", "item1", "cfi", "", "ch.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "x")
+        s.delete(bm.id)
+        val result = s.observeAnnotations("abs1", "item1").first()
+        assertTrue(result.isEmpty())
     }
 }

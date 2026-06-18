@@ -78,7 +78,20 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     var onExternalLinkTapped: ((url: String) -> Unit)? = null
 
-    /** Whether the text-selection menu should offer "Play from here" (readaloud books only). */
+    /** Whether the text-selection menu should offer "Highlight" (books with annotations UI). */
+    var annotationsAvailable: Boolean = false
+        set(value) {
+            field = value
+            webViews.forEach { it.annotationsAvailable = value }
+        }
+
+    /**
+     * Called on the main thread with (chapter href, selected text) when the user taps "Highlight".
+     * The host builds a Locator and persists the highlight.
+     */
+    var onHighlightSelection: ((href: String, selectedText: String) -> Unit)? = null
+
+    /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
         set(value) {
             field = value
@@ -86,8 +99,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
     /**
-     * Called on the main thread with (chapter href, selected text) when the user taps
-     * "Play from here". The host resolves the selection to a narrated sentence and starts playback.
+     * Called on the main thread with (chapter href, selected text) when the user taps "Play".
+     * The host resolves the selection to a narrated sentence and starts playback.
      */
     var onPlayFromHereSelection: ((href: String, selectedText: String) -> Unit)? = null
 
@@ -189,6 +202,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onRenderGone = null
         wv.onInternalLink = null
         wv.onExternalLink = null
+        wv.onHighlight = null
         wv.onPlayFromHere = null
         wv.onFootnoteContent = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
@@ -470,6 +484,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onRenderGone = { recoverFromRendererGone() }
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
+        wv.annotationsAvailable = annotationsAvailable
+        wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
@@ -550,6 +566,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onRenderGone = { recoverFromRendererGone() }
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
+        wv.annotationsAvailable = annotationsAvailable
+        wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }

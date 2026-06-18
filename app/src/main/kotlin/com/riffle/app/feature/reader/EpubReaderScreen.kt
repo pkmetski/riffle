@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
@@ -125,11 +126,6 @@ import androidx.navigation.navArgument
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import java.net.URLEncoder
 
-// Gates the "Highlight" text-selection action. ADR 0024 shipped highlight create + render +
-// sync-ready persistence, but there's still no UI to view, delete, or recolor highlights — so
-// creating one is a dead end. Keep the create/render plumbing live but hide the affordance until
-// that management UI exists. Flip to true to re-enable.
-private const val ANNOTATIONS_UI_ENABLED = true
 
 /**
  * A generation counter that increments a few times shortly after [reflowTrigger] changes — so
@@ -250,6 +246,8 @@ fun EpubReaderScreen(
     val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
+    val annotationsPanelVisible by viewModel.annotationsPanelVisible.collectAsState()
+    val annotations by viewModel.annotations.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
@@ -350,6 +348,7 @@ fun EpubReaderScreen(
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         searchNavigationEvents = viewModel.searchNavigationEvents,
+                        annotationNavigationEvents = viewModel.annotationNavigationEvents,
                         searchResults = searchResults,
                         currentSearchIndex = currentSearchIndex,
                         volumeNavEvents = viewModel.volumeNavEvents,
@@ -405,6 +404,30 @@ fun EpubReaderScreen(
                             onDismiss = viewModel::closeToc,
                         )
                     }
+                    if (annotationsPanelVisible) {
+                        AnnotationsPanel(
+                            annotations = annotations,
+                            onNavigate = { id -> viewModel.navigateToAnnotation(id) },
+                            onDelete = { id -> viewModel.deleteAnnotation(id) },
+                            onRename = { id, title -> viewModel.renameBookmark(id, title) },
+                            onDismiss = viewModel::closeAnnotationsPanel,
+                        )
+                    }
+                    // Corner bookmark ribbon: must live inside this inner Box (sibling of
+                    // EpubNavigatorView) so it sits above the AndroidView in the Compose hit-test
+                    // tree. Placing it in the outer Box means the fillMaxSize AndroidView consumes
+                    // all touches before Compose's outer-box elements ever see them.
+                    // `isVisible = annotationsAvailable` omits the `state is ReaderState.Ready`
+                    // guard deliberately — we're already inside that branch, so it's implicit.
+                    CornerBookmarkIndicator(
+                        isBookmarked = isCurrentPageBookmarked,
+                        isVisible = annotationsAvailable,
+                        onToggle = viewModel::toggleBookmark,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(end = 12.dp),
+                    )
                 }
                 is ReaderState.Error -> {
                     Text(
@@ -504,18 +527,6 @@ fun EpubReaderScreen(
             )
         }
 
-        // Corner bookmark ribbon — flush against the top of the content area (just below the
-        // status bar), ABS-only. Does not shift when the app bar slides in/out.
-        CornerBookmarkIndicator(
-            isBookmarked = isCurrentPageBookmarked,
-            isVisible = annotationsAvailable && state is ReaderState.Ready,
-            onToggle = viewModel::toggleBookmark,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = 12.dp),
-        )
-
         AnimatedVisibility(
             visible = !immersiveState.isImmersive,
             enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
@@ -547,6 +558,9 @@ fun EpubReaderScreen(
                             }
                             IconButton(onClick = viewModel::openToc) {
                                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                            }
+                            IconButton(onClick = viewModel::openAnnotationsPanel) {
+                                Icon(Icons.Filled.Bookmarks, contentDescription = "Annotations")
                             }
                             IconButton(onClick = { showFormattingPanel = true }) {
                                 Text(
@@ -957,6 +971,7 @@ private fun EpubNavigatorView(
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
+    annotationNavigationEvents: Flow<Locator>,
     searchResults: List<Locator>,
     currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
@@ -1041,9 +1056,6 @@ private fun EpubNavigatorView(
     // readaloudAvailable so it only shows where the toolbar readaloud control is enabled — i.e. a
     // Storyteller book or a matched-ABS book with a downloaded bundle, never a plain EPUB.
     val playFromHereMenuId = remember { View.generateViewId() }
-    // "Highlight" creates a persisted annotation, but there's no UI yet to view/delete/recolor
-    // highlights (ADR 0024 shipped create + render only). Keep the plumbing wired but hidden behind
-    // ANNOTATIONS_UI_ENABLED until that management UI lands, so the affordance isn't a dead end.
     val highlightMenuId = remember { View.generateViewId() }
     val copyMenuId = remember { View.generateViewId() }
     val searchMenuId = remember { View.generateViewId() }
@@ -1052,8 +1064,9 @@ private fun EpubNavigatorView(
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
-                if (ANNOTATIONS_UI_ENABLED && currentAnnotationsAvailable) {
+                if (currentAnnotationsAvailable) {
                     menu.add(0, highlightMenuId, 1, "Highlight")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (currentReadaloudAvailable) {
                     menu.add(0, playFromHereMenuId, 2, "Play")
@@ -1413,6 +1426,19 @@ private fun EpubNavigatorView(
                 val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
                 if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText)
+            } else {
+                goAndSnapWithCover(locator)
+            }
+        }
+    }
+
+    LaunchedEffect(annotationNavigationEvents, isContinuous) {
+        annotationNavigationEvents.collect { locator ->
+            if (isContinuous) {
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                )
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -2074,6 +2100,16 @@ private fun EpubNavigatorView(
                             }
                         }
                         view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
+                        view.annotationsAvailable = currentAnnotationsAvailable
+                        view.onHighlightSelection = { chapterHref, selectedText ->
+                            val locator = org.readium.r2.shared.publication.Locator.fromJSON(
+                                org.json.JSONObject()
+                                    .put("href", chapterHref)
+                                    .put("type", "application/xhtml+xml")
+                                    .put("text", org.json.JSONObject().put("highlight", selectedText))
+                            )
+                            if (locator != null) currentOnHighlight(locator)
+                        }
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->
                             // Resolve the selection to a narrated sentence id and start playback there.
@@ -2091,9 +2127,11 @@ private fun EpubNavigatorView(
                         }
                     }
                 },
-                // readaloudAvailability can flip mid-session (e.g. a bundle finishes downloading),
-                // so keep the selection menu's "Play from here" gate in sync.
-                update = { it.readaloudAvailable = readaloudAvailable },
+                // Availability flags can flip mid-session, so keep the selection menu gates in sync.
+                update = {
+                    it.annotationsAvailable = annotationsAvailable
+                    it.readaloudAvailable = readaloudAvailable
+                },
                 modifier = readerModifier,
             )
             // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a

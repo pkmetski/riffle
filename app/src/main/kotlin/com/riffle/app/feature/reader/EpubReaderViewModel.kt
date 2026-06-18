@@ -74,6 +74,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -554,6 +555,7 @@ class EpubReaderViewModel @Inject constructor(
                 _annotationsAvailable.value = true
                 observeHighlights(activeServer.id)
                 observeBookmarks(activeServer.id)
+                observeAnnotationsForPanel(activeServer.id)
             }
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
@@ -980,11 +982,20 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun cfiStringToLocator(rawCfi: String): Locator? {
         val pub = publication ?: return null
         val cfi = rawCfi.takeIf { it.startsWith("epubcfi(") } ?: return null
-        val docPath = extractCfiDocPath(cfi)
         val spineIndex = epubCfiToSpineIndex(cfi)
         val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
         val html = spineIndex?.let { readChapterHtml(it) }
-        val chapterProgression = if (docPath != null && html != null) cfiDocPathToProgression(docPath, html) else null
+        val docPath = extractCfiDocPath(cfi)
+        // A comma in the doc-path portion unambiguously marks a range CFI
+        // (format: "docBase,startOffset,endOffset" after the resource assertion).
+        // extractCfiDocPath strips the resource part first, so commas here are always range delimiters.
+        val isRangeCfi = docPath != null && docPath.contains(',')
+        val chapterProgression = when {
+            html == null -> null
+            isRangeCfi -> highlightStartProgression(cfi, html)
+            docPath != null -> cfiDocPathToProgression(docPath, html)
+            else -> null
+        }
         if (link == null || chapterProgression == null) return null
         return try {
             Locator.fromJSON(
@@ -1030,6 +1041,18 @@ class EpubReaderViewModel @Inject constructor(
                 .collect { (annotations, ready) ->
                     _bookmarkPositions.value =
                         if (!ready) emptyList() else annotations.mapNotNull { annotationToBookmarkPosition(it) }
+                }
+        }
+    }
+
+    private fun observeAnnotationsForPanel(serverId: String) {
+        viewModelScope.launch {
+            combine(
+                annotationStore.observeAnnotations(serverId, itemId),
+                state,
+            ) { list, st -> list to (st is ReaderState.Ready) }
+                .collect { (list, ready) ->
+                    _annotations.value = if (!ready) emptyList() else list
                 }
         }
     }
@@ -1082,6 +1105,8 @@ class EpubReaderViewModel @Inject constructor(
                 chapterHref = href,
                 textBefore = selectionLocator.text.before ?: "",
                 textAfter = selectionLocator.text.after ?: "",
+                spineIndex = spineIndex,
+                progression = progression,
             )
             _highlightToEdit.value = created.id
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
@@ -1105,6 +1130,20 @@ class EpubReaderViewModel @Inject constructor(
             if (existing != null) {
                 annotationStore.delete(existing.id)
             } else {
+                val pub = publication ?: return@launch
+                val spineIdx = pub.readingOrder.indexOfFirst { normalizeEpubHref(it.url().toString()) == normalizeEpubHref(href) }.coerceAtLeast(0)
+                val totalProg = locator.locations.totalProgression
+                val spineHrefs = pub.readingOrder.map { it.url().toString() }
+                val segIdx = findActiveSegmentIndex(railSegments.value, href, spineHrefs)
+                val chapterTitle = railSegments.value.getOrNull(segIdx)?.title?.takeIf { it.isNotBlank() }
+                    ?.let { if (it.length > 30) it.take(30).trimEnd { c -> !c.isLetterOrDigit() } + "…" else it }
+                val title = if (chapterTitle != null) {
+                    val pct = (prog * 100).roundToInt().coerceIn(0, 100)
+                    "$chapterTitle · $pct%"
+                } else {
+                    val pct = ((totalProg ?: prog) * 100).roundToInt().coerceIn(0, 100)
+                    "${pct}%"
+                }
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
                 annotationStore.createBookmark(
@@ -1113,6 +1152,9 @@ class EpubReaderViewModel @Inject constructor(
                     cfi = cfi,
                     textSnippet = snippet,
                     chapterHref = href,
+                    spineIndex = spineIdx,
+                    progression = prog,
+                    bookmarkTitle = title,
                 )
             }
         }
@@ -1125,6 +1167,29 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Soft-delete a highlight; observeHighlights re-emits without it → decoration is removed. */
     fun deleteHighlight(id: String) {
+        viewModelScope.launch {
+            annotationStore.delete(id)
+            if (_highlightToEdit.value == id) _highlightToEdit.value = null
+        }
+    }
+
+    /** Navigate the reader to the annotation with [id], then close the annotations panel. */
+    fun navigateToAnnotation(id: String) {
+        viewModelScope.launch {
+            val annotation = _annotations.value.firstOrNull { it.id == id } ?: return@launch
+            val locator = cfiStringToLocator(annotation.cfi) ?: return@launch
+            _annotationNavigationChannel.trySend(locator)
+            _annotationsPanelVisible.value = false
+        }
+    }
+
+    /** Rename a bookmark; observeAnnotationsForPanel re-emits with the new title. */
+    fun renameBookmark(id: String, title: String) {
+        viewModelScope.launch { annotationStore.renameBookmark(id, title) }
+    }
+
+    /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
+    fun deleteAnnotation(id: String) {
         viewModelScope.launch {
             annotationStore.delete(id)
             if (_highlightToEdit.value == id) _highlightToEdit.value = null
@@ -1232,8 +1297,31 @@ class EpubReaderViewModel @Inject constructor(
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
 
-    fun openToc() { _tocVisible.value = true }
+    fun openToc() {
+        _annotationsPanelVisible.value = false
+        _tocVisible.value = true
+    }
     fun closeToc() { _tocVisible.value = false }
+
+    private val _annotationsPanelVisible = MutableStateFlow(false)
+    val annotationsPanelVisible: StateFlow<Boolean> = _annotationsPanelVisible
+
+    private val _annotations = MutableStateFlow<List<com.riffle.core.domain.Annotation>>(emptyList())
+    val annotations: StateFlow<List<com.riffle.core.domain.Annotation>> = _annotations
+
+    // CONFLATED is intentional: navigateToAnnotation closes the panel before sending, so a second
+    // navigation tap cannot occur before the first is consumed. If that ever changes, switch to BUFFERED.
+    private val _annotationNavigationChannel = Channel<Locator>(Channel.CONFLATED)
+    val annotationNavigationEvents: Flow<Locator> = _annotationNavigationChannel.receiveAsFlow()
+
+    fun openAnnotationsPanel() {
+        _tocVisible.value = false
+        _annotationsPanelVisible.value = true
+    }
+
+    fun closeAnnotationsPanel() {
+        _annotationsPanelVisible.value = false
+    }
 
     val tocEntries: StateFlow<List<TocEntry>> = state
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }

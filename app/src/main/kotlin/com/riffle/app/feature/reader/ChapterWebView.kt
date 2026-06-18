@@ -28,9 +28,10 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     private companion object {
         // Text-selection menu item ids (see wrapSelectionCallback).
         const val MENU_COPY = android.view.Menu.FIRST
-        const val MENU_PLAY = android.view.Menu.FIRST + 1
-        const val MENU_SEARCH = android.view.Menu.FIRST + 2
-        const val MENU_SHARE = android.view.Menu.FIRST + 3
+        const val MENU_HIGHLIGHT = android.view.Menu.FIRST + 1
+        const val MENU_PLAY = android.view.Menu.FIRST + 2
+        const val MENU_SEARCH = android.view.Menu.FIRST + 3
+        const val MENU_SHARE = android.view.Menu.FIRST + 4
     }
 
     /** Called on the main thread once the content height is known. */
@@ -85,11 +86,17 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     @Volatile
     private var footnoteDoc: org.jsoup.nodes.Document? = null
 
-    /** When true, the text-selection menu offers "Play from here" (readaloud books only). */
+    /** When true, the text-selection menu offers "Highlight" (books with annotations UI). */
+    var annotationsAvailable: Boolean = false
+
+    /** Called on the main thread with the selected text when the user taps "Highlight". */
+    var onHighlight: ((selectedText: String) -> Unit)? = null
+
+    /** When true, the text-selection menu offers "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
 
     /**
-     * Called on the main thread with the selected text when the user taps "Play from here".
+     * Called on the main thread with the selected text when the user taps "Play".
      * The host resolves it to a narrated sentence and starts playback there.
      */
     var onPlayFromHere: ((selectedText: String) -> Unit)? = null
@@ -321,9 +328,16 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 menu.clear()
                 menu.add(0, MENU_COPY, 0, android.R.string.copy)
-                if (readaloudAvailable) menu.add(0, MENU_PLAY, 1, "Play from here")
-                menu.add(0, MENU_SEARCH, 2, "Search")
-                menu.add(0, MENU_SHARE, 3, "Share")
+                if (annotationsAvailable) {
+                    menu.add(0, MENU_HIGHLIGHT, 1, "Highlight")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
+                if (readaloudAvailable) {
+                    menu.add(0, MENU_PLAY, 2, "Play")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
+                menu.add(0, MENU_SEARCH, 3, "Search")
+                menu.add(0, MENU_SHARE, 4, "Share")
                 return true
             }
 
@@ -332,6 +346,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
                     MENU_COPY -> withSelectionText { copyToClipboard(it) }
+                    MENU_HIGHLIGHT -> withSelectionText { onHighlight?.invoke(it) }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
                     MENU_PLAY -> withSelectionText { onPlayFromHere?.invoke(it) }
