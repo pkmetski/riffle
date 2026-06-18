@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Row
@@ -248,6 +249,7 @@ fun EpubReaderScreen(
     val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
+    val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
@@ -493,6 +495,18 @@ fun EpubReaderScreen(
                 onDismiss = viewModel::dismissDownloadPrompt,
             )
         }
+
+        // Corner bookmark ribbon — flush against the top of the content area (just below the
+        // status bar), ABS-only. Does not shift when the app bar slides in/out.
+        CornerBookmarkIndicator(
+            isBookmarked = isCurrentPageBookmarked,
+            isVisible = annotationsAvailable && state is ReaderState.Ready,
+            onToggle = viewModel::toggleBookmark,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 12.dp),
+        )
 
         AnimatedVisibility(
             visible = !immersiveState.isImmersive,

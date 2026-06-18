@@ -1017,3 +1017,67 @@ class ReadaloudSpeedPersistenceTest {
         assertEquals(1.5f, store.persisted)
     }
 }
+
+class BookmarkIndicatorTest {
+
+    // Extracted pure logic: given a list of BookmarkPositions and a current locator,
+    // derive whether the current page is bookmarked.
+    private data class BookmarkPosition(val id: String, val chapterHref: String, val progression: Double)
+
+    private fun isCurrentPageBookmarked(
+        positions: List<BookmarkPosition>,
+        href: String?,
+        progression: Float?,
+    ): Boolean {
+        if (href == null) return false
+        return positions.any { bm ->
+            bm.chapterHref == href &&
+                (progression == null || kotlin.math.abs(bm.progression - progression) < 0.05)
+        }
+    }
+
+    @Test
+    fun `returns false when href is null`() {
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.3)
+        assertFalse(isCurrentPageBookmarked(listOf(bm), href = null, progression = 0.3f))
+    }
+
+    @Test
+    fun `returns false when no bookmarks`() {
+        assertFalse(isCurrentPageBookmarked(emptyList(), "ch1.xhtml", 0.3f))
+    }
+
+    @Test
+    fun `returns true when href matches and progression is within eps`() {
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.30)
+        assertTrue(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.31f))
+    }
+
+    @Test
+    fun `returns false when href matches but progression is outside eps`() {
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.10)
+        assertFalse(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.20f))
+    }
+
+    @Test
+    fun `returns false when progression matches but href differs`() {
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.30)
+        assertFalse(isCurrentPageBookmarked(listOf(bm), "ch2.xhtml", 0.30f))
+    }
+
+    @Test
+    fun `returns true when progression is null (unknown position matches any page in chapter)`() {
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.50)
+        assertTrue(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", progression = null))
+    }
+
+    @Test
+    fun `matches the first bookmark whose href and progression align`() {
+        val bms = listOf(
+            BookmarkPosition("id1", "ch1.xhtml", 0.10),
+            BookmarkPosition("id2", "ch1.xhtml", 0.50),
+        )
+        // Near 0.10, not 0.50
+        assertTrue(isCurrentPageBookmarked(bms, "ch1.xhtml", 0.11f))
+    }
+}
