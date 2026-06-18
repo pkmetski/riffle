@@ -13,6 +13,8 @@ data class Annotation(
     val color: String,
     val note: String?,
     val textSnippet: String,
+    val textBefore: String,
+    val textAfter: String,
     val chapterHref: String,
     val createdAt: Long,
     val updatedAt: Long,

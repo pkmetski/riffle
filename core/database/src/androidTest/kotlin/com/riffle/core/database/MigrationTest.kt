@@ -1522,6 +1522,47 @@ class MigrationTest {
     }
 
     @Test
+    fun migration36To37_addsTextContextColumnsToAnnotations() {
+        helper.createDatabase(TEST_DB, 36).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('s1', 'http://media-server', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            // A pre-existing annotation row with all v36 columns (no textBefore/textAfter yet).
+            db.execSQL(
+                "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                    "VALUES ('a1', 's1', 'book1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:0,/1:7)', 'yellow', 'meaning', 'chapter1.xhtml', 1000, 1000, 'dev', 'dev', 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 37, true, RiffleDatabase.MIGRATION_36_37)
+
+        // Pre-existing annotation preserved; new columns default to empty string.
+        db.query(
+            "SELECT id, textSnippet, textBefore, textAfter FROM annotations WHERE id = 'a1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("a1", cursor.getString(0))
+            assertEquals("meaning", cursor.getString(1))
+            assertEquals("", cursor.getString(2))
+            assertEquals("", cursor.getString(3))
+        }
+
+        // New annotations with context round-trip correctly.
+        db.execSQL(
+            "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "VALUES ('a2', 's1', 'book1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:8,/1:15)', 'green', 'example', 'before context', 'after context', 'chapter1.xhtml', 2000, 2000, 'dev', 'dev', 0)"
+        )
+        db.query("SELECT textBefore, textAfter FROM annotations WHERE id = 'a2'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("before context", cursor.getString(0))
+            assertEquals("after context", cursor.getString(1))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1530,7 +1571,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 36, true,
+            TEST_DB, 37, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1566,6 +1607,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_33_34,
             RiffleDatabase.MIGRATION_34_35,
             RiffleDatabase.MIGRATION_35_36,
+            RiffleDatabase.MIGRATION_36_37,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

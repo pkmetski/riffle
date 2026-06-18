@@ -41,6 +41,8 @@ class AnnotationStoreImpl(
         cfi: String,
         textSnippet: String,
         chapterHref: String,
+        textBefore: String,
+        textAfter: String,
         color: String,
     ): Annotation {
         val deviceId = deviceIdStore.getOrCreate()
@@ -54,6 +56,8 @@ class AnnotationStoreImpl(
             color = color,
             note = null,
             textSnippet = textSnippet,
+            textBefore = textBefore,
+            textAfter = textAfter,
             chapterHref = chapterHref,
             createdAt = now,
             updatedAt = now,
@@ -112,6 +116,8 @@ private fun AnnotationEntity.toDomain() = Annotation(
     color = color,
     note = note,
     textSnippet = textSnippet,
+    textBefore = textBefore,
+    textAfter = textAfter,
     chapterHref = chapterHref,
     createdAt = createdAt,
     updatedAt = updatedAt,

@@ -24,6 +24,8 @@ interface AnnotationStore {
         cfi: String,
         textSnippet: String,
         chapterHref: String,
+        textBefore: String = "",
+        textAfter: String = "",
         color: String = DEFAULT_COLOR,
     ): Annotation
 
