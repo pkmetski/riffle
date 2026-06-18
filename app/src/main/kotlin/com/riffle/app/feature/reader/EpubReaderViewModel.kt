@@ -1128,9 +1128,10 @@ class EpubReaderViewModel @Inject constructor(
             } else {
                 val pub = publication ?: return@launch
                 val spineIdx = pub.readingOrder.indexOfFirst { normalizeEpubHref(it.url().toString()) == normalizeEpubHref(href) }.coerceAtLeast(0)
+                val spineHref = pub.readingOrder.getOrNull(spineIdx)?.href?.toString() ?: href
                 val totalProg = locator.locations.totalProgression
                 val title = EpubBookmarkTitleBuilder.build(
-                    chapterHref = href,
+                    chapterHref = spineHref,
                     chapterProgression = prog,
                     totalProgression = totalProg,
                     tocEntries = tocEntries.value,
