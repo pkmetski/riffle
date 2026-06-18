@@ -38,6 +38,7 @@ fun CornerBookmarkIndicator(
     isVisible: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    contentDescription: String = if (isBookmarked) "Remove bookmark" else "Bookmark this page",
 ) {
     if (!isVisible) return
 
@@ -63,7 +64,7 @@ fun CornerBookmarkIndicator(
             )
             .semantics {
                 role = Role.Button
-                contentDescription = if (isBookmarked) "Remove bookmark" else "Bookmark this page"
+                this.contentDescription = contentDescription
             },
     ) {
         Canvas(modifier = Modifier.size(width = 24.dp, height = 32.dp)) {

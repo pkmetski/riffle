@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,6 +50,7 @@ import com.riffle.app.feature.audio.PlayerSurface
 import com.riffle.app.feature.audio.PlayerSurfaceActions
 import com.riffle.app.feature.audio.PlayerSurfaceState
 import com.riffle.app.feature.audio.formatHms
+import com.riffle.app.feature.reader.CornerBookmarkIndicator
 import com.riffle.core.domain.AudiobookBookmark
 import kotlinx.coroutines.launch
 
@@ -257,10 +257,15 @@ fun AudiobookPlayerScreen(
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            // One-tap bookmark-add, in the top app-bar row opposite the back arrow. Pin the position
-            // (and title/chapter derived from it) at tap time so the dialog is stable while playing.
-            IconButton(
-                onClick = {
+            // Corner bookmark ribbon — same shape/placement as the ebook reader. Filled when the
+            // playhead is within ±3 s of an existing bookmark, or while the add-bookmark dialog is open.
+            val nearBookmark = state.bookmarks.any { bm ->
+                kotlin.math.abs(bm.positionSec - state.positionSec) <= 3.0
+            }
+            CornerBookmarkIndicator(
+                isBookmarked = createDraft != null || nearBookmark,
+                isVisible = true,
+                onToggle = {
                     val positionSec = viewModel.currentPositionSec()
                     createDraft = BookmarkDraft(
                         positionSec = positionSec,
@@ -268,12 +273,12 @@ fun AudiobookPlayerScreen(
                         chapterTitle = state.currentChapterTitle?.trim().orEmpty(),
                     )
                 },
-                // safeDrawingPadding (mirrors the back arrow) so the icon clears the status bar, nav bar
-                // and any display cutout, including in landscape.
-                modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(4.dp),
-            ) {
-                Icon(Icons.Filled.BookmarkAdd, contentDescription = "Add bookmark")
-            }
+                contentDescription = if (nearBookmark && createDraft == null) "Bookmark nearby" else "Add bookmark",
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .safeDrawingPadding()
+                    .padding(end = 12.dp),
+            )
             SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
         }
     }

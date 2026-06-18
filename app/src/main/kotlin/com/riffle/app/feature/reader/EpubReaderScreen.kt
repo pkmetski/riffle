@@ -6,7 +6,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,9 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -472,16 +469,16 @@ fun EpubReaderScreen(
             )
         }
 
-        // Corner bookmark ribbon — always visible (not gated on chrome), ABS-only.
-        // Fixed just below the top bar; does not move when immersive mode toggles.
-        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        // Corner bookmark ribbon — flush against the top of the content area (just below the
+        // status bar), ABS-only. Does not shift when the app bar slides in/out.
         CornerBookmarkIndicator(
             isBookmarked = isCurrentPageBookmarked,
             isVisible = annotationsAvailable && state is ReaderState.Ready,
             onToggle = viewModel::toggleBookmark,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = statusBarTop + 64.dp, end = 4.dp),
+                .statusBarsPadding()
+                .padding(end = 12.dp),
         )
 
         AnimatedVisibility(

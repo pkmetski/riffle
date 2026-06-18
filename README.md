@@ -24,6 +24,12 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 - Volume-key page navigation (with optional inverted direction)
 - Keep screen on
 
+### Highlights, Notes & Bookmarks
+- Highlight passages in any color while reading
+- Attach notes to highlights for personal commentary
+- Bookmark pages for quick return
+- All annotations are **local only** — Audiobookshelf does not currently expose an API for syncing highlights, notes, or bookmarks, so they are stored on-device and will not transfer across devices or survive a reinstall
+
 ### Listening
 - Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server — including audiobook-only items with no paired ebook
 - Transport controls: play/pause, skip 15s back / 30s forward, and previous/next chapter
