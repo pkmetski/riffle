@@ -3,6 +3,7 @@
 package com.riffle.app.feature.reader
 
 import android.app.Application
+import androidx.compose.ui.unit.IntRect
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -328,11 +329,15 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _bookmarkPositions = MutableStateFlow<List<BookmarkPosition>>(emptyList())
 
-    private val _highlightToEdit = MutableStateFlow<String?>(null)
-    /** Id of a highlight whose actions sheet should be open (just-created or tapped), else null. */
-    val highlightToEdit: StateFlow<String?> = _highlightToEdit
+    data class HighlightEditTarget(val id: String, val anchorRect: IntRect)
 
-    fun openHighlightActions(id: String) { _highlightToEdit.value = id }
+    private val _highlightToEdit = MutableStateFlow<HighlightEditTarget?>(null)
+    /** Highlight whose actions popup should be open (just-created or tapped), else null. */
+    val highlightToEdit: StateFlow<HighlightEditTarget?> = _highlightToEdit
+
+    fun openHighlightActions(id: String, anchorRect: IntRect) {
+        _highlightToEdit.value = HighlightEditTarget(id, anchorRect)
+    }
     fun dismissHighlightActions() { _highlightToEdit.value = null }
 
     private val _readaloudAvailable = MutableStateFlow(false)
@@ -1069,7 +1074,7 @@ class EpubReaderViewModel @Inject constructor(
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
     // Any existing highlights in the same chapter that overlap the new selection are deleted first —
     // a larger selection subsuming a previously highlighted word replaces that highlight.
-    fun createHighlight(selectionLocator: Locator) {
+    fun createHighlight(selectionLocator: Locator, anchorRect: IntRect) {
         val serverId = annotationServerId ?: return
         viewModelScope.launch {
             val pub = publication ?: return@launch
@@ -1108,7 +1113,7 @@ class EpubReaderViewModel @Inject constructor(
                 spineIndex = spineIndex,
                 progression = progression,
             )
-            _highlightToEdit.value = created.id
+            openHighlightActions(created.id, anchorRect)
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
         }
     }
@@ -1169,7 +1174,7 @@ class EpubReaderViewModel @Inject constructor(
     fun deleteHighlight(id: String) {
         viewModelScope.launch {
             annotationStore.delete(id)
-            if (_highlightToEdit.value == id) _highlightToEdit.value = null
+            if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
         }
     }
 
@@ -1192,7 +1197,7 @@ class EpubReaderViewModel @Inject constructor(
     fun deleteAnnotation(id: String) {
         viewModelScope.launch {
             annotationStore.delete(id)
-            if (_highlightToEdit.value == id) _highlightToEdit.value = null
+            if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
         }
     }
 
