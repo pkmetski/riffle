@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
@@ -250,6 +251,8 @@ fun EpubReaderScreen(
     val footnotePopup by viewModel.footnotePopup.collectAsState()
 
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
+    val annotationsPanelVisible by viewModel.annotationsPanelVisible.collectAsState()
+    val annotations by viewModel.annotations.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
@@ -350,6 +353,7 @@ fun EpubReaderScreen(
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         searchNavigationEvents = viewModel.searchNavigationEvents,
+                        annotationNavigationEvents = viewModel.annotationNavigationEvents,
                         searchResults = searchResults,
                         currentSearchIndex = currentSearchIndex,
                         volumeNavEvents = viewModel.volumeNavEvents,
@@ -403,6 +407,15 @@ fun EpubReaderScreen(
                                 immersiveState.hide()
                             },
                             onDismiss = viewModel::closeToc,
+                        )
+                    }
+                    if (annotationsPanelVisible) {
+                        AnnotationsPanel(
+                            annotations = annotations,
+                            onNavigate = { id -> viewModel.navigateToAnnotation(id) },
+                            onDelete = { id -> viewModel.deleteAnnotation(id) },
+                            onRename = { id, title -> viewModel.renameBookmark(id, title) },
+                            onDismiss = viewModel::closeAnnotationsPanel,
                         )
                     }
                 }
@@ -547,6 +560,9 @@ fun EpubReaderScreen(
                             }
                             IconButton(onClick = viewModel::openToc) {
                                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                            }
+                            IconButton(onClick = viewModel::openAnnotationsPanel) {
+                                Icon(Icons.Filled.Bookmarks, contentDescription = "Annotations")
                             }
                             IconButton(onClick = { showFormattingPanel = true }) {
                                 Text(
@@ -957,6 +973,7 @@ private fun EpubNavigatorView(
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
+    annotationNavigationEvents: Flow<Locator>,
     searchResults: List<Locator>,
     currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
@@ -1413,6 +1430,19 @@ private fun EpubNavigatorView(
                 val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
                 if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText)
+            } else {
+                goAndSnapWithCover(locator)
+            }
+        }
+    }
+
+    LaunchedEffect(annotationNavigationEvents, isContinuous) {
+        annotationNavigationEvents.collect { locator ->
+            if (isContinuous) {
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                )
             } else {
                 goAndSnapWithCover(locator)
             }
