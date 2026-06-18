@@ -21,6 +21,12 @@ internal const val NOTE_GLYPH_SVG_DATA_URI =
 private const val NOTE_GLYPH_CLASS = "riffle-note-glyph"
 private const val NOTE_GLYPH_ICON_CLASS = "riffle-note-glyph-icon"
 
+// data-activable="1" tells Readium to use THIS element's rect for hit-testing rather than
+// falling back to D.children (the outer BOUNDS div, which only covers the text selection).
+// Without it, taps on the gutter icon miss Readium's rect-based activation check.
+internal const val NOTE_GLYPH_ELEMENT_HTML =
+    """<div class="$NOTE_GLYPH_CLASS"><div class="$NOTE_GLYPH_ICON_CLASS" data-activable="1"></div></div>"""
+
 /**
  * Marker decoration style for noted highlights. No tint — the glyph is monochrome.
  * All noted highlights share the same icon regardless of highlight colour or theme.
@@ -56,9 +62,7 @@ class NoteGlyphStyle : Decoration.Style, Parcelable {
 fun noteGlyphTemplate(): HtmlDecorationTemplate =
     HtmlDecorationTemplate(
         layout = HtmlDecorationTemplate.Layout.BOUNDS,
-        element = { _ ->
-            """<div class="$NOTE_GLYPH_CLASS"><div class="$NOTE_GLYPH_ICON_CLASS"></div></div>"""
-        },
+        element = { _ -> NOTE_GLYPH_ELEMENT_HTML },
         stylesheet = """
             .$NOTE_GLYPH_CLASS {
                 background: none;
@@ -69,8 +73,8 @@ fun noteGlyphTemplate(): HtmlDecorationTemplate =
                 position: absolute;
                 left: -24px;
                 top: 2px;
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
                 -webkit-mask-image: url("$NOTE_GLYPH_SVG_DATA_URI");
                 -webkit-mask-size: contain;
                 -webkit-mask-repeat: no-repeat;

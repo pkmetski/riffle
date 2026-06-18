@@ -27,13 +27,19 @@ class NoteGlyphDecorationTest {
     }
 
     @Test
+    fun `noteGlyphTemplate element has data-activable on inner icon div`() {
+        // Readium hit-tests using data-activable='1' elements; without it, it falls back to
+        // D.children (the outer BOUNDS div covering the text selection), which misses the gutter.
+        assertTrue("inner icon div must carry data-activable='1' so Readium uses its gutter rect",
+            NOTE_GLYPH_ELEMENT_HTML.contains("data-activable=\"1\""))
+    }
+
+    @Test
     fun `noteGlyphTemplate stylesheet targets inner icon class for tap-bubbling element`() {
-        // The icon must be a real DOM child (not ::before) so taps bubble to Readium's listener.
-        // We verify by checking the stylesheet styles the inner icon class, not a pseudo-element.
         val stylesheet = noteGlyphTemplate().stylesheet ?: ""
         assertTrue("stylesheet must style the inner icon div class",
             stylesheet.contains("riffle-note-glyph-icon"))
-        assertTrue("stylesheet must not use ::before — taps on pseudo-elements fall outside the hit area",
+        assertTrue("stylesheet must not use ::before — pseudo-elements outside the hit area",
             !stylesheet.contains("::before"))
     }
 
