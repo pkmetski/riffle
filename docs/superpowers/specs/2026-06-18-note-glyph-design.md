@@ -35,7 +35,11 @@ class NoteGlyphStyle : Decoration.Style, Parcelable {
     override fun equals(other: Any?) = other is NoteGlyphStyle
     override fun hashCode() = NoteGlyphStyle::class.hashCode()
     companion object {
-        @JvmField val CREATOR: Parcelable.Creator<NoteGlyphStyle> = ...
+        @JvmField val CREATOR: Parcelable.Creator<NoteGlyphStyle> =
+            object : Parcelable.Creator<NoteGlyphStyle> {
+                override fun createFromParcel(source: Parcel) = NoteGlyphStyle()
+                override fun newArray(size: Int): Array<NoteGlyphStyle?> = arrayOfNulls(size)
+            }
     }
 }
 ```
