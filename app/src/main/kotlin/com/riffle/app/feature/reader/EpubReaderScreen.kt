@@ -1621,22 +1621,32 @@ private fun EpubNavigatorView(
     // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
     // Tapping the underlined range fires the existing "annotations" listener (both decorations
     // overlap the same text, so the listener already registered above handles it).
-    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+    val hasNoteDecorations = remember { mutableStateOf(false) }
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val noted = highlightRenders.filter { it.note != null }
+        if (noted.isEmpty()) {
+            if (!hasNoteDecorations.value) return@LaunchedEffect
+            withContext(Dispatchers.Main) {
+                fragment.applyDecorations(emptyList(), group = "annotation-notes")
+            }
+            hasNoteDecorations.value = false
+            return@LaunchedEffect
+        }
         val noteDecorations = noted.map { h ->
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = Decoration.Style.Underline(tint = android.graphics.Color.argb(180, 80, 80, 80)),
+                style = Decoration.Style.Underline(
+                    tint = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme),
+                ),
             )
         }
         withContext(Dispatchers.Main) {
             fragment.applyDecorations(emptyList(), group = "annotation-notes")
-            if (noteDecorations.isNotEmpty()) {
-                fragment.applyDecorations(noteDecorations, group = "annotation-notes")
-            }
+            fragment.applyDecorations(noteDecorations, group = "annotation-notes")
         }
+        hasNoteDecorations.value = true
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------

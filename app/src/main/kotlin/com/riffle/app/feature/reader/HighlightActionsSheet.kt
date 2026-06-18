@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -97,7 +98,7 @@ fun HighlightActionsSheet(
     onUpdateNote: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var noteEditorOpen by rememberSaveable { mutableStateOf(false) }
+    var noteEditorOpen by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, dragHandle = null) {
         Row(
