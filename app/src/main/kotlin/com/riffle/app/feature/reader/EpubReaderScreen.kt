@@ -413,6 +413,19 @@ fun EpubReaderScreen(
                             onDismiss = viewModel::closeAnnotationsPanel,
                         )
                     }
+                    // Corner bookmark ribbon: must live inside this inner Box (sibling of
+                    // EpubNavigatorView) so it sits above the AndroidView in the Compose hit-test
+                    // tree. Placing it in the outer Box means the fillMaxSize AndroidView consumes
+                    // all touches before Compose's outer-box elements ever see them.
+                    CornerBookmarkIndicator(
+                        isBookmarked = isCurrentPageBookmarked,
+                        isVisible = annotationsAvailable,
+                        onToggle = viewModel::toggleBookmark,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(end = 12.dp),
+                    )
                 }
                 is ReaderState.Error -> {
                     Text(
@@ -511,18 +524,6 @@ fun EpubReaderScreen(
                 onDismiss = viewModel::dismissDownloadPrompt,
             )
         }
-
-        // Corner bookmark ribbon — flush against the top of the content area (just below the
-        // status bar), ABS-only. Does not shift when the app bar slides in/out.
-        CornerBookmarkIndicator(
-            isBookmarked = isCurrentPageBookmarked,
-            isVisible = annotationsAvailable && state is ReaderState.Ready,
-            onToggle = viewModel::toggleBookmark,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = 12.dp),
-        )
 
         AnimatedVisibility(
             visible = !immersiveState.isImmersive,
