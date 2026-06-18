@@ -316,8 +316,8 @@ class EpubReaderViewModel @Inject constructor(
     private val _annotationsAvailable = MutableStateFlow(false)
     val annotationsAvailable: StateFlow<Boolean> = _annotationsAvailable
 
-    /** A persisted highlight reconstructed into a renderable Readium locator + colour token. */
-    data class HighlightRender(val id: String, val locator: Locator, val color: String)
+    /** A persisted highlight reconstructed into a renderable Readium locator + colour token + optional note. */
+    data class HighlightRender(val id: String, val locator: Locator, val color: String, val note: String?)
 
     private val _highlightRenders = MutableStateFlow<List<HighlightRender>>(emptyList())
     val highlightRenders: StateFlow<List<HighlightRender>> = _highlightRenders
@@ -1131,6 +1131,11 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
+    fun updateHighlightNote(id: String, note: String?) {
+        viewModelScope.launch { annotationStore.updateNote(id, note?.takeIf { it.isNotBlank() }) }
+    }
+
     // Reconstruct a persisted highlight into a renderable Readium locator. The CFI start re-anchors
     // the within-chapter position; the text snippet lets Readium's decorator locate the range.
     private suspend fun annotationToRender(a: Annotation): HighlightRender? {
@@ -1153,7 +1158,7 @@ class EpubReaderViewModel @Inject constructor(
         } catch (_: Exception) {
             null
         } ?: return null
-        return HighlightRender(a.id, locator, a.color)
+        return HighlightRender(a.id, locator, a.color, a.note)
     }
 
     private suspend fun readChapterHtml(spineIndex: Int): String? {

@@ -36,4 +36,8 @@ interface AnnotationDao {
     /** Recolour an annotation in place, bumping updatedAt + provenance so the change can propagate. */
     @Query("UPDATE annotations SET color = :color, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
     suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String)
+
+    /** Set (or clear) the note on a highlight in place, bumping updatedAt + provenance. */
+    @Query("UPDATE annotations SET note = :note, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
+    suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String)
 }

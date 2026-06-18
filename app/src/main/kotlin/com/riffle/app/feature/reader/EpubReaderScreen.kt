@@ -377,6 +377,7 @@ fun EpubReaderScreen(
                         onDismissHighlightActions = viewModel::dismissHighlightActions,
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
+                        onUpdateHighlightNote = viewModel::updateHighlightNote,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -983,6 +984,7 @@ private fun EpubNavigatorView(
     onDismissHighlightActions: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
+    onUpdateHighlightNote: (String, String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1019,6 +1021,7 @@ private fun EpubNavigatorView(
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentOnOpenHighlightActions by rememberUpdatedState(onOpenHighlightActions)
+    val currentOnUpdateHighlightNote by rememberUpdatedState(onUpdateHighlightNote)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
@@ -1613,6 +1616,29 @@ private fun EpubNavigatorView(
         hasHighlightDecorations.value = true
     }
 
+    // ---- Note underline decorations (annotation-notes) -------------------------------------
+    // Draws a subtle underline under every noted highlight so the reader can see a note is
+    // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
+    // Tapping the underlined range fires the existing "annotations" listener (both decorations
+    // overlap the same text, so the listener already registered above handles it).
+    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
+        val noted = highlightRenders.filter { it.note != null }
+        val noteDecorations = noted.map { h ->
+            Decoration(
+                id = h.id,
+                locator = h.locator,
+                style = Decoration.Style.Underline(tint = android.graphics.Color.argb(180, 80, 80, 80)),
+            )
+        }
+        withContext(Dispatchers.Main) {
+            fragment.applyDecorations(emptyList(), group = "annotation-notes")
+            if (noteDecorations.isNotEmpty()) {
+                fragment.applyDecorations(noteDecorations, group = "annotation-notes")
+            }
+        }
+    }
+
     // ---- Decoration tap listener (annotations) ---------------------------------------------
     // Opens the highlight-actions sheet when the user taps an existing highlight decoration.
     DisposableEffect(fragmentRef.value) {
@@ -2116,8 +2142,10 @@ private fun EpubNavigatorView(
             val current = highlightRenders.firstOrNull { it.id == editId }
             HighlightActionsSheet(
                 selected = current?.let { HighlightColor.fromToken(it.color) },
+                note = current?.note,
                 onPick = { color -> onRecolorHighlight(editId, color) },
                 onDelete = { onDeleteHighlight(editId) },
+                onUpdateNote = { note -> onUpdateHighlightNote(editId, note) },
                 onDismiss = onDismissHighlightActions,
             )
         }
