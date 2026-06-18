@@ -217,9 +217,10 @@ private fun BookmarkRenameDialog(
             )
         },
         confirmButton = {
+            val trimmed = title.trim()
             TextButton(
-                onClick = { onConfirm(title.trim()) },
-                enabled = title.isNotBlank(),
+                onClick = { onConfirm(trimmed) },
+                enabled = trimmed.isNotEmpty(),
             ) { Text("Save") }
         },
         dismissButton = {
