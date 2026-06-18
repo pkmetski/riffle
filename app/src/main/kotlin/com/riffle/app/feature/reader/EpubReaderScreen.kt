@@ -1112,7 +1112,8 @@ private fun EpubNavigatorView(
                         val container = containerRef.value ?: return false
                         coroutineScope.launch {
                             val selection = selectable.currentSelection() ?: return@launch
-                            val rawRect = selection.rect ?: return@launch
+                            val rawRect = selection.rect
+                                ?: run { selectable.clearSelection(); return@launch }
                             val rect = rawRect.toWindowIntRect(container)
                             currentOnHighlight(selection.locator, rect)
                             selectable.clearSelection()
@@ -2114,7 +2115,8 @@ private fun EpubNavigatorView(
                                     .put("type", "application/xhtml+xml")
                                     .put("text", org.json.JSONObject().put("highlight", selectedText))
                             )
-                            if (locator != null) currentOnHighlight(locator)
+                            // No WebView rect available in this path; popup falls back to top-left.
+                            if (locator != null) currentOnHighlight(locator, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
                         }
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->
@@ -2201,7 +2203,6 @@ private fun EpubNavigatorView(
                 note = current?.note,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
-                onUpdateNote = { note -> onUpdateHighlightNote(editTarget.id, note) },
                 onOpenNoteEditor = {
                     noteEditorTarget = editTarget
                 },

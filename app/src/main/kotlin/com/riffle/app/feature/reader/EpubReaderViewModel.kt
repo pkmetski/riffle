@@ -1197,7 +1197,7 @@ class EpubReaderViewModel @Inject constructor(
     fun deleteAnnotation(id: String) {
         viewModelScope.launch {
             annotationStore.delete(id)
-            if (_highlightToEdit.value == id) _highlightToEdit.value = null
+            if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
         }
     }
 

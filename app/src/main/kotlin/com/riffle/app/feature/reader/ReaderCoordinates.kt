@@ -43,7 +43,7 @@ internal class HighlightPopupPositionProvider(
         val preferredTop = anchorRect.top - popupContentSize.height - margin
         val maxTop = windowSize.height - popupContentSize.height - margin
         val top = if (preferredTop >= margin) {
-            preferredTop
+            preferredTop.coerceAtMost(maxTop)
         } else {
             (anchorRect.bottom + margin).coerceAtMost(maxTop)
         }

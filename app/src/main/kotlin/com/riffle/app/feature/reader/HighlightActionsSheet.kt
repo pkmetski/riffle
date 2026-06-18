@@ -101,7 +101,6 @@ fun HighlightActionsPopup(
     note: String?,
     onPick: (HighlightColor) -> Unit,
     onDelete: () -> Unit,
-    onUpdateNote: (String?) -> Unit,
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
 ) {
