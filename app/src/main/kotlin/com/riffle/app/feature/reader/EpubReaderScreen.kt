@@ -2124,15 +2124,7 @@ private fun EpubNavigatorView(
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
                         view.onPositionChanged = { href, progression ->
-                            val totalProg = computeTotalProgression(href, progression, currentRailSegments)
-                            val locations = org.json.JSONObject().put("progression", progression.toDouble())
-                            if (totalProg != null) locations.put("totalProgression", totalProg.toDouble())
-                            val locator = Locator.fromJSON(
-                                org.json.JSONObject()
-                                    .put("href", href)
-                                    .put("type", "application/xhtml+xml")
-                                    .put("locations", locations)
-                            )
+                            val locator = buildContinuousLocator(href, progression, currentRailSegments)
                             if (locator != null) onPositionChanged(locator)
                         }
                         view.onTap = currentOnTap
