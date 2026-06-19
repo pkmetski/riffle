@@ -1431,7 +1431,7 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchNavigationEvents, isContinuous) {
+    LaunchedEffect(searchNavigationEvents, isContinuous, readaloudHighlightColor, formattingPrefs.theme) {
         searchNavigationEvents.collect { locator ->
             if (isContinuous) {
                 val view = continuousViewRef.value ?: return@collect
@@ -1439,7 +1439,7 @@ private fun EpubNavigatorView(
                 val progression = locator.locations.progression?.toFloat() ?: 0f
                 val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
-                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, "#FDE68A")
+                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, readaloudHighlightColor.readerTint(formattingPrefs.theme).toCssRgba())
             } else {
                 goAndSnapWithCover(locator)
             }
