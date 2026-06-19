@@ -252,6 +252,7 @@ fun EpubReaderScreen(
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
+    val railSegments by viewModel.railSegments.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
@@ -339,6 +340,7 @@ fun EpubReaderScreen(
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
+                        railSegments = railSegments,
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
@@ -966,6 +968,7 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
+    railSegments: List<RailSegment>,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
@@ -1044,6 +1047,10 @@ private fun EpubNavigatorView(
     // freshly loaded page re-applies the current value.
     val currentReadaloudReservePx by rememberUpdatedState(readaloudReservePx)
     val currentPublication by rememberUpdatedState(state.publication)
+    // rememberUpdatedState: railSegments arrives asynchronously (Readium computes positions after
+    // publication load). The AndroidView factory captures this reference so the continuous
+    // onPositionChanged lambda always reads the latest list.
+    val currentRailSegments by rememberUpdatedState(railSegments)
 
     // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
     // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
@@ -2121,11 +2128,14 @@ private fun EpubNavigatorView(
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
                         view.onPositionChanged = { href, progression ->
+                            val totalProg = computeTotalProgression(href, progression, currentRailSegments)
+                            val locations = org.json.JSONObject().put("progression", progression.toDouble())
+                            if (totalProg != null) locations.put("totalProgression", totalProg.toDouble())
                             val locator = Locator.fromJSON(
                                 org.json.JSONObject()
                                     .put("href", href)
                                     .put("type", "application/xhtml+xml")
-                                    .put("locations", org.json.JSONObject().put("progression", progression.toDouble()))
+                                    .put("locations", locations)
                             )
                             if (locator != null) onPositionChanged(locator)
                         }
