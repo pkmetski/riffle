@@ -386,6 +386,14 @@ internal object ContinuousStyleInjector {
                         mark.appendChild(frag);
                         range.insertNode(mark);
                     }
+                    // Capture mark + id in an IIFE so the click listener closes over the correct values.
+                    (function(markEl, annId) {
+                        markEl.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            var r = markEl.getBoundingClientRect();
+                            window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
+                        });
+                    })(mark, ann.id);
                 });
                 if (sel) sel.removeAllRanges();
             })($json);

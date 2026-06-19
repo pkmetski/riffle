@@ -92,6 +92,12 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     /** Called on the main thread with the selected text when the user taps "Highlight". */
     var onHighlight: ((selectedText: String) -> Unit)? = null
 
+    /**
+     * Called on the main thread when the user taps an injected annotation mark (`<mark
+     * data-riffle-ann>`). [rect] is in device pixels relative to this WebView's top-left corner.
+     */
+    var onAnnotationTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
+
     /** When true, the text-selection menu offers "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
 
@@ -412,6 +418,20 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         @JavascriptInterface
         fun onTap() {
             post { this@ChapterWebView.onTap?.invoke() }
+        }
+
+        @JavascriptInterface
+        fun onAnnotationTap(id: String, cssLeft: Float, cssTop: Float, cssRight: Float, cssBottom: Float) {
+            post {
+                val dpr = resources.displayMetrics.density
+                val rect = android.graphics.Rect(
+                    (cssLeft * dpr).toInt(),
+                    (cssTop * dpr).toInt(),
+                    (cssRight * dpr).toInt(),
+                    (cssBottom * dpr).toInt(),
+                )
+                this@ChapterWebView.onAnnotationTap?.invoke(id, rect)
+            }
         }
 
         /**

@@ -205,6 +205,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = null
         wv.onExternalLink = null
         wv.onHighlight = null
+        wv.onAnnotationTap = null
         wv.onPlayFromHere = null
         wv.onFootnoteContent = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
@@ -511,6 +512,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
     }
 
+    /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
+    var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
+
     /**
      * Apply persisted annotation highlights to all currently loaded chapters.
      * [annotationsByHref] maps each chapter href to the annotations that belong to it.
@@ -541,6 +545,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
         wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
+        wv.onAnnotationTap = { id, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
+        }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
@@ -623,6 +633,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
         wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
+        wv.onAnnotationTap = { id, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
+        }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }

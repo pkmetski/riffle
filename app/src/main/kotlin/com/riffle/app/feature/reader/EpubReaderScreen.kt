@@ -1651,7 +1651,8 @@ private fun EpubNavigatorView(
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of
     // every highlight when the book is reopened, and the immediate paint after a new highlight.
     val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, isContinuous) {
+        if (isContinuous) return@LaunchedEffect
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         if (highlightRenders.isEmpty()) {
             if (!hasHighlightDecorations.value) return@LaunchedEffect
@@ -1687,7 +1688,8 @@ private fun EpubNavigatorView(
     // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
     // Tapping the glyph fires the dedicated "annotation-notes" tap listener below.
     val hasNoteDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, isContinuous) {
+        if (isContinuous) return@LaunchedEffect
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val noted = highlightRenders.filter { it.note != null }
         if (noted.isEmpty()) {
@@ -2161,6 +2163,10 @@ private fun EpubNavigatorView(
                         }
                         view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
                         view.annotationsAvailable = currentAnnotationsAvailable
+                        view.onAnnotationTap = { _, id, androidRect ->
+                            val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
+                            currentOnOpenHighlightActions(id, rect)
+                        }
                         view.onHighlightSelection = { chapterHref, selectedText ->
                             val locator = org.readium.r2.shared.publication.Locator.fromJSON(
                                 org.json.JSONObject()
