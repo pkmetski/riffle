@@ -13,6 +13,7 @@ internal data class AbsLibraryItemsResponse(val results: List<AbsLibraryItemDto>
         val media: AbsMediaDto,
         val userMediaProgress: AbsProgressDto? = null,
         val addedAt: Long? = null,
+        val updatedAt: Long? = null,
     )
 
     @Serializable

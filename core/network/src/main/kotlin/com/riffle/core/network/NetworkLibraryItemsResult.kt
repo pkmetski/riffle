@@ -19,6 +19,7 @@ data class NetworkLibraryItem(
     val publisher: String? = null,
     val language: String? = null,
     val addedAt: Long? = null,
+    val updatedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
 ) {

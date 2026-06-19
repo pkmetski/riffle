@@ -20,6 +20,7 @@ internal data class AbsSeriesResponse(val results: List<AbsSeriesDto>) {
         val seriesSequence: String? = null,
         val media: AbsSeriesMediaDto,
         val userMediaProgress: AbsSeriesProgressDto? = null,
+        val updatedAt: Long? = null,
     )
 
     @Serializable

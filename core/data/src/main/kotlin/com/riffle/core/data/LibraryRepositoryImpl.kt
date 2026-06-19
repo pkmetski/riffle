@@ -194,7 +194,7 @@ class LibraryRepositoryImpl @Inject constructor(
                             libraryId = item.libraryId,
                             title = item.title,
                             author = item.author,
-                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
+                            coverUrl = absCoverUrl(server.url.value, item.id, item.updatedAt),
                             // For an audiobook-only item the ABS user-progress fallback already maps
                             // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
                             // progress), so this single field is the unified "how far through this
@@ -244,7 +244,9 @@ class LibraryRepositoryImpl @Inject constructor(
                         id = s.id,
                         libraryId = s.libraryId,
                         name = s.name,
-                        coverUrl = s.items.firstOrNull()?.let { "${server.url.value}/api/items/${it.id}/cover" },
+                        coverUrl = s.items.firstOrNull()?.let { first ->
+                            absCoverUrl(server.url.value, first.id, first.updatedAt)
+                        },
                         bookCount = s.bookCount,
                     )
                 }
@@ -332,6 +334,9 @@ class LibraryRepositoryImpl @Inject constructor(
         coverUrl = coverUrl,
         bookCount = bookCount,
     )
+
+    private fun absCoverUrl(baseUrl: String, itemId: String, updatedAt: Long?) =
+        "$baseUrl/api/items/$itemId/cover" + (updatedAt?.let { "?t=$it" } ?: "")
 
     private fun CollectionEntity.toDomain() = Collection(
         id = id,

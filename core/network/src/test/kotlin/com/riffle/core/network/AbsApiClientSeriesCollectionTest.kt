@@ -124,6 +124,30 @@ class AbsApiClientSeriesCollectionTest {
     }
 
     @Test
+    fun `getSeries parses updatedAt from book items`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("""{"results":[{"id":"ser-1","name":"Discworld","libraryId":"lib-1","books":[{"id":"item-1","libraryId":"lib-1","updatedAt":1762902014957,"media":{"metadata":{"title":"Colour of Magic","authorName":"Pratchett"},"ebookFormat":"epub"}}]}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
+        val item = (result as NetworkSeriesResult.Success).series[0].items[0]
+        assertEquals(1762902014957L, item.updatedAt)
+    }
+
+    @Test
+    fun `getSeries sets book updatedAt to null when absent`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("""{"results":[{"id":"ser-1","name":"Discworld","libraryId":"lib-1","books":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Colour of Magic","authorName":"Pratchett"},"ebookFormat":"epub"}}]}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
+        val item = (result as NetworkSeriesResult.Success).series[0].items[0]
+        assertNull(item.updatedAt)
+    }
+
+    @Test
     fun `getSeries returns NetworkError on unreachable host`() = runTest {
         server.shutdown()
         val result = client.getSeries("http://127.0.0.1:1", "lib-1", "token", false)

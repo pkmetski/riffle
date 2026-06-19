@@ -201,6 +201,32 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getLibraryItems parses updatedAt timestamp`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","updatedAt":1719000000000,"media":{"metadata":{"title":"Dune","authorName":"Frank Herbert"},"ebookFormat":"epub"}}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
+        val success = result as NetworkLibraryItemsResult.Success
+        assertEquals(1719000000000L, success.items[0].updatedAt)
+    }
+
+    @Test
+    fun `getLibraryItems sets updatedAt to null when field is absent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"results":[{"id":"item-1","libraryId":"lib-1","media":{"metadata":{"title":"Dune","authorName":"Frank Herbert"},"ebookFormat":"epub"}}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
+        val success = result as NetworkLibraryItemsResult.Success
+        assertNull(success.items[0].updatedAt)
+    }
+
+    @Test
     fun `getLibraryItems sets addedAt to null when field is absent`() = runTest {
         server.enqueue(
             MockResponse()
