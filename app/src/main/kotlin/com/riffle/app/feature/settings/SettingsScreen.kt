@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.feature.reader.HIGHLIGHT_ALPHA_LIGHT
 import com.riffle.app.feature.reader.behaviorSummary
 import com.riffle.app.feature.reader.displaySummary
 import com.riffle.app.feature.reader.formattingSummary
@@ -291,7 +292,7 @@ fun SettingsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ReadaloudHighlightColor.entries.forEach { color ->
                                 val isSelected = readaloudPreferences.highlightColor == color
-                                val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
+                                val swatchColor = Color(color.argb).copy(alpha = HIGHLIGHT_ALPHA_LIGHT / 255f)
                                 // Selected swatch reads clearly in both themes: an offset ring
                                 // (onSurface ring at the outer edge, separated from the swatch by a
                                 // transparent gap) plus a centred checkmark. The swatch keeps a
