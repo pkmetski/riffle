@@ -147,4 +147,51 @@ class StorytellerBundleApiTest {
 
         assertTrue(result is NetworkStorytellerBundleSizeResult.NetworkError)
     }
+
+    @Test fun probeBundleSize_slowSynced_failsFast_doesNotHang() = runBlocking {
+        // Storyteller lazily generates the whole aligned bundle before answering /synced — for a large
+        // cold book that can be minutes. The size probe must NOT inherit the download's unbounded timeout
+        // (else the streaming-play path that awaits the sidecar wedges forever, ADR 0028). A bounded
+        // sidecar client makes a slow /synced fail fast so the caller falls back.
+        val bounded = StorytellerBundleApiImpl(OkHttpClient(), sidecarCallTimeoutSeconds = 1)
+        server.enqueue(
+            MockResponse()
+                .setHeader("Content-Length", "315074677")
+                .setHeadersDelay(10, TimeUnit.SECONDS),
+        )
+
+        val start = System.nanoTime()
+        val result = (bounded as StorytellerBundleProbeApi).probeBundleSize(
+            baseUrl = server.url("/").toString().trimEnd('/'),
+            bookId = "42",
+            token = "tkn",
+            insecureAllowed = false,
+        )
+        val elapsedMs = (System.nanoTime() - start) / 1_000_000
+
+        assertTrue("Expected NetworkError on a slow probe but got $result", result is NetworkStorytellerBundleSizeResult.NetworkError)
+        assertTrue("Probe should have failed fast (~1s), took ${elapsedMs}ms", elapsedMs < 5_000)
+    }
+
+    @Test fun streamSidecar_wedgedSynced_failsWithinTimeout_doesNotHangForever() = runBlocking {
+        // A coroutine timeout can't cancel the blocking execute(), so the streaming sidecar fetch relies
+        // on a real callTimeout to fail a wedged /synced — otherwise the "Preparing…" indicator sticks
+        // forever (ADR 0028). With a 1s bound, a 10s-delayed response must come back as NetworkError fast.
+        val bounded = StorytellerBundleApiImpl(OkHttpClient(), sidecarStreamTimeoutSeconds = 1)
+        server.enqueue(
+            MockResponse().setBody(Buffer().write(ByteArray(64))).setHeadersDelay(10, TimeUnit.SECONDS),
+        )
+
+        val start = System.nanoTime()
+        val result = bounded.streamSidecar(
+            baseUrl = server.url("/").toString().trimEnd('/'),
+            bookId = "42",
+            token = "tkn",
+            insecureAllowed = false,
+        )
+        val elapsedMs = (System.nanoTime() - start) / 1_000_000
+
+        assertTrue("Expected NetworkError on a wedged /synced but got $result", result is NetworkStorytellerBundleResult.NetworkError)
+        assertTrue("streamSidecar must give up at its callTimeout (~1s), took ${elapsedMs}ms", elapsedMs < 5_000)
+    }
 }

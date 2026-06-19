@@ -344,6 +344,7 @@ class ReadaloudMatchingServiceTest {
     }
 
     private class RecordingReadaloudLinkDao : ReadaloudLinkDao {
+        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String) = Unit
         val upserts = mutableListOf<ReadaloudLinkEntity>()
         val deletions = mutableListOf<Pair<String, String>>()
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()

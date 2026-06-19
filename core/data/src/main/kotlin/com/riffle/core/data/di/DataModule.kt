@@ -497,6 +497,20 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideStorytellerSidecarFetcher(api: StorytellerBundleApiImpl): com.riffle.core.data.StorytellerSidecarFetcher =
+            // Bind to the BOUNDED streaming GET so a wedged /synced fails the background prepare instead
+            // of hanging the "Preparing…" indicator forever (ADR 0028). The full download stays unbounded.
+            com.riffle.core.data.StorytellerSidecarFetcher(
+                bundleApi = { url, bookId, token, insecure -> api.streamSidecar(url, bookId, token, insecure) },
+            )
+
+        @Provides
+        @Singleton
+        fun provideReadaloudSidecarPrefetcher(store: com.riffle.core.data.ReadaloudSidecarStore): com.riffle.core.data.ReadaloudSidecarPrefetcher =
+            store
+
+        @Provides
+        @Singleton
         fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
             AudiobookBundleApiImpl(okHttpClient)
 

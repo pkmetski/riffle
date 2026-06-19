@@ -21,15 +21,18 @@ data class LocalItemUi(
 data class DownloadsUiState(
     val downloadedItems: List<LocalItemUi> = emptyList(),
     val cachedItems: List<LocalItemUi> = emptyList(),
+    val readaloudSidecars: List<LocalItemUi> = emptyList(),
 ) {
     val downloadedTotalBytes: Long get() = downloadedItems.sumOf { it.sizeBytes }
     val cachedTotalBytes: Long get() = cachedItems.sumOf { it.sizeBytes }
+    val readaloudSidecarsTotalBytes: Long get() = readaloudSidecars.sumOf { it.sizeBytes }
 }
 
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
     private val downloadsRepository: DownloadsRepository,
     private val libraryRepository: LibraryRepository,
+    private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadsUiState())
@@ -54,8 +57,19 @@ class DownloadsViewModel @Inject constructor(
                     LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
                 }
             }
+            // Prepared readaloud sidecars (ADR 0028): the small audio-free streaming caches. Keyed by the
+            // Storyteller (serverId, bookId); resolve the title from the Storyteller readaloud library item.
+            val readaloudSidecars = sidecarStore.listCached().mapNotNull { sc ->
+                libraryRepository.getItem(sc.storytellerServerId, sc.storytellerBookId)?.let {
+                    LocalItemUi(sc.storytellerServerId, it, sc.sizeBytes)
+                }
+            }
 
-            _uiState.value = DownloadsUiState(downloadedItems = downloadedItems, cachedItems = cachedItems)
+            _uiState.value = DownloadsUiState(
+                downloadedItems = downloadedItems,
+                cachedItems = cachedItems,
+                readaloudSidecars = readaloudSidecars,
+            )
         }
     }
 
@@ -85,5 +99,15 @@ class DownloadsViewModel @Inject constructor(
             downloadsRepository.clearAllCached()
             load()
         }
+    }
+
+    fun removeReadaloudSidecar(storytellerServerId: String, storytellerBookId: String) {
+        sidecarStore.remove(storytellerServerId, storytellerBookId)
+        load()
+    }
+
+    fun clearAllReadaloudSidecars() {
+        sidecarStore.clearAll()
+        load()
     }
 }

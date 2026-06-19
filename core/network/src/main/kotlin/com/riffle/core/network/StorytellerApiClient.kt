@@ -3,6 +3,7 @@ package com.riffle.core.network
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.StorytellerBookResponse
 import com.riffle.core.network.model.StorytellerLoginResponse
+import com.riffle.core.network.model.StorytellerV2BookResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -144,6 +145,34 @@ class StorytellerApiClient(
 
     override fun coverUrl(baseUrl: String, bookId: Long): String =
         "$baseUrl/api/books/$bookId/cover"
+
+    override suspend fun getAudiobookFingerprint(
+        baseUrl: String,
+        bookId: Long,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookFingerprintResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/v2/books/$bookId")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext NetworkAudiobookFingerprintResult.NetworkError(IOException("HTTP ${response.code}"))
+                }
+                val raw = response.body?.string()
+                    ?: return@withContext NetworkAudiobookFingerprintResult.NetworkError(IOException("Empty response body"))
+                val fingerprint = json.decodeFromString<StorytellerV2BookResponse>(raw).toFingerprint()
+                if (fingerprint == null) NetworkAudiobookFingerprintResult.NoAudiobook
+                else NetworkAudiobookFingerprintResult.Success(fingerprint)
+            }
+        } catch (e: IOException) {
+            NetworkAudiobookFingerprintResult.NetworkError(e)
+        }
+    }
 
     private fun StorytellerBookResponse.toNetwork(): NetworkStorytellerBook =
         NetworkStorytellerBook(

@@ -1605,6 +1605,47 @@ class MigrationTest {
     }
 
     @Test
+    fun migration38To39_addsIdentityResultToReadaloudLinks() {
+        helper.createDatabase(TEST_DB, 38).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('abs', 'http://abs', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('st', 'http://st', 0, 0, 'test', 'STORYTELLER')"
+            )
+            db.execSQL(
+                "INSERT INTO readaloud_links " +
+                    "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                    "VALUES ('abs', 'item1', 'st', '42', 'CONFIRMED', 1, 100, 200)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 39, true, RiffleDatabase.MIGRATION_38_39)
+
+        // The pre-existing link is preserved and its new identity verdict defaults to UNKNOWN.
+        db.query(
+            "SELECT identityResult, userConfirmed, storytellerBookId, createdAt FROM readaloud_links " +
+                "WHERE absServerId = 'abs' AND absLibraryItemId = 'item1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertEquals("UNKNOWN", cursor.getString(0))
+            assertEquals(1, cursor.getInt(1))
+            assertEquals("42", cursor.getString(2))
+            assertEquals(100L, cursor.getLong(3))
+        }
+
+        // The verdict column is writable.
+        db.execSQL("UPDATE readaloud_links SET identityResult = 'VERIFIED' WHERE absServerId = 'abs'")
+        db.query("SELECT identityResult FROM readaloud_links WHERE absServerId = 'abs'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("VERIFIED", cursor.getString(0))
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1613,7 +1654,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 38, true,
+            TEST_DB, 39, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1651,6 +1692,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_35_36,
             RiffleDatabase.MIGRATION_36_37,
             RiffleDatabase.MIGRATION_37_38,
+            RiffleDatabase.MIGRATION_38_39,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

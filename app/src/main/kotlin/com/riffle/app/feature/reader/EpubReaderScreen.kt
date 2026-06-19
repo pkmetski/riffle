@@ -236,6 +236,8 @@ fun EpubReaderScreen(
         }
     }
 
+    val skipIntervalSec by viewModel.skipIntervalSec.collectAsState()
+    val rewindIntervalSec by viewModel.rewindIntervalSec.collectAsState()
     val isSearchActive by viewModel.isSearchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -260,9 +262,7 @@ fun EpubReaderScreen(
     val readaloudHighlightColor by viewModel.readaloudHighlightColor.collectAsState()
     val sentenceChapters by viewModel.sentenceChapters.collectAsState()
     val downloadPromptBytes by viewModel.downloadPromptBytes.collectAsState()
-    val readaloudOfflineMessage by viewModel.readaloudOfflineMessage.collectAsState()
-    val skipIntervalSec by viewModel.skipIntervalSec.collectAsState()
-    val rewindIntervalSec by viewModel.rewindIntervalSec.collectAsState()
+    val readaloudBarMessage by viewModel.readaloudBarMessage.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
 
     // Starting (or resuming) readaloud is a "lean back and listen" intent, so drop into
@@ -487,12 +487,12 @@ fun EpubReaderScreen(
                             speed = playbackState.speed,
                             skipIntervalSeconds = skipIntervalSec.toInt(),
                             rewindIntervalSeconds = rewindIntervalSec.toInt(),
-                            offlineMessage = readaloudOfflineMessage,
+                            barMessage = readaloudBarMessage,
                             downloadProgress = downloadProgress,
                             canPreviousChapter = playbackState.currentChapterIndex > 0,
                             canNextChapter = playbackState.currentChapterIndex >= 0 &&
                                 playbackState.currentChapterIndex < playbackState.chapterCount - 1,
-                            containerColor = readerPalette.background.copy(alpha = 0.85f),
+                            containerColor = readerPalette.background.copy(alpha = 0.65f),
                             contentColor = readerPalette.foreground,
                             onPlayPause = viewModel::togglePlayPause,
                             onSpeedChange = viewModel::setSpeed,

@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
+import com.riffle.core.domain.AudiobookIdentityResult
 import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import kotlinx.coroutines.flow.Flow
@@ -32,11 +33,16 @@ class ReadaloudLinkRepositoryImpl @Inject constructor(
     override suspend fun countForServer(serverId: String): Int =
         dao.countForServer(serverId)
 
+    override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) =
+        dao.updateIdentityResult(absServerId, absLibraryItemId, result.name)
+
     private fun ReadaloudLinkEntity.toDomain() = ReadaloudLink(
         storytellerServerId = storytellerServerId,
         storytellerBookId = storytellerBookId,
         absServerId = absServerId,
         absLibraryItemId = absLibraryItemId,
         userConfirmed = userConfirmed,
+        identityResult = runCatching { AudiobookIdentityResult.valueOf(identityResult) }
+            .getOrDefault(AudiobookIdentityResult.UNKNOWN),
     )
 }

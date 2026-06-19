@@ -13,4 +13,6 @@ data class ReadaloudLink(
     val absServerId: String,
     val absLibraryItemId: String,
     val userConfirmed: Boolean,
+    /** Streaming identity verdict for this ABS item, persisted after a check (ADR 0028). */
+    val identityResult: AudiobookIdentityResult = AudiobookIdentityResult.UNKNOWN,
 )

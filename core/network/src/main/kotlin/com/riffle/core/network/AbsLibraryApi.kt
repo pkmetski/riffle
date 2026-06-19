@@ -120,4 +120,22 @@ interface AbsLibraryApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkEpubDownloadResult = throw UnsupportedOperationException("downloadEpub not implemented")
+
+    /** The ABS audiobook's identity fingerprint for the streaming check (ADR 0028). */
+    suspend fun getAudiobookFingerprint(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookFingerprintResult =
+        NetworkAudiobookFingerprintResult.NetworkError(NotImplementedError("getAudiobookFingerprint"))
+
+    /** The ABS audiobook's streamable tracks (ino + duration) for streaming playback (ADR 0028). */
+    suspend fun getAudiobookTracks(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkAudiobookTracksResult =
+        NetworkAudiobookTracksResult.NetworkError(NotImplementedError("getAudiobookTracks"))
 }

@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookPositionEntity::class,
         AudiobookBookmarkEntity::class,
     ],
-    version = 38,
+    version = 39,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -750,6 +750,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_serverId_itemId` " +
                         "ON `audiobook_bookmarks` (`serverId`, `itemId`)"
+                )
+            }
+        }
+
+        // ADR 0028: persist the streaming identity verdict on each readaloud link.
+        val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `readaloud_links` ADD COLUMN `identityResult` TEXT NOT NULL DEFAULT 'UNKNOWN'"
                 )
             }
         }

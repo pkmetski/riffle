@@ -134,6 +134,29 @@ fun DownloadsScreen(
                         )
                     }
                 }
+
+                item {
+                    SectionHeader(
+                        title = "Readaloud (streaming)",
+                        totalLabel = if (uiState.readaloudSidecars.isNotEmpty()) formatBytes(uiState.readaloudSidecarsTotalBytes) else null,
+                        actionLabel = if (uiState.readaloudSidecars.isNotEmpty()) "Clear all" else null,
+                        onAction = { viewModel.clearAllReadaloudSidecars() },
+                    )
+                }
+                if (uiState.readaloudSidecars.isEmpty()) {
+                    item {
+                        EmptySection("No prepared readalouds")
+                    }
+                } else {
+                    items(uiState.readaloudSidecars, key = { "sidecar/" + it.serverId + "/" + it.item.id }) { entry ->
+                        LocalItemRow(
+                            entry = entry,
+                            pillColor = PillColor.Readaloud,
+                            onClick = { onItemSelected(entry.item) },
+                            onRemove = { viewModel.removeReadaloudSidecar(entry.serverId, entry.item.id) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -173,7 +196,7 @@ private fun EmptySection(message: String) {
     }
 }
 
-private enum class PillColor { Downloaded, Cached }
+private enum class PillColor { Downloaded, Cached, Readaloud }
 
 @Composable
 private fun LocalItemRow(
@@ -185,10 +208,12 @@ private fun LocalItemRow(
     val containerColor = when (pillColor) {
         PillColor.Downloaded -> MaterialTheme.colorScheme.primary
         PillColor.Cached -> MaterialTheme.colorScheme.secondary
+        PillColor.Readaloud -> MaterialTheme.colorScheme.tertiary
     }
     val contentColor = when (pillColor) {
         PillColor.Downloaded -> MaterialTheme.colorScheme.onPrimary
         PillColor.Cached -> MaterialTheme.colorScheme.onSecondary
+        PillColor.Readaloud -> MaterialTheme.colorScheme.onTertiary
     }
     Row(
         modifier = Modifier

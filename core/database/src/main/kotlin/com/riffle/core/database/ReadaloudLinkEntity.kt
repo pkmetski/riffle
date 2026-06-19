@@ -51,8 +51,11 @@ data class ReadaloudLinkEntity(
     val userConfirmed: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    /** Streaming identity verdict for this link (ADR 0028): VERIFIED / MISMATCH / NO_AUDIOBOOK / UNKNOWN. */
+    val identityResult: String = IDENTITY_UNKNOWN,
 ) {
     companion object {
         const val STATE_CONFIRMED = "CONFIRMED"
+        const val IDENTITY_UNKNOWN = "UNKNOWN"
     }
 }
