@@ -342,12 +342,143 @@ internal object ContinuousStyleInjector {
         })();
     """.trimIndent()
 
+    val CLEAR_ANNOTATION_HIGHLIGHTS_JS = """
+        (function() {
+            document.querySelectorAll('[data-riffle-note-glyph]').forEach(function(s) { s.remove(); });
+            document.querySelectorAll('[data-riffle-ann]').forEach(function(m) { m.outerHTML = m.innerHTML; });
+        })();
+    """.trimIndent()
+
+    /**
+     * JS that applies [annotations] as `<mark>` elements (keyed by `data-riffle-ann`) and optional
+     * note-glyph `<span>` elements (keyed by `data-riffle-note-glyph`).
+     *
+     * Smart DOM diffing avoids the clear-and-reapply pattern: existing marks are updated in-place
+     * (colour only, no DOM structure change), marks for deleted annotations are removed, and only
+     * newly-added annotations go through `window.find()`. This prevents the race where clearing
+     * existing marks via `outerHTML = innerHTML` modifies the DOM just before `window.find()` is
+     * called — Chrome won't reliably find text in a DOM it just mutated synchronously — so a new
+     * highlight appears immediately without requiring a page reload.
+     *
+     * For annotations with notes a small ◆ glyph span is injected after the mark. Tapping it calls
+     * `window.RiffleChapter.onAnnotationNoteTap` so the host can open the note reader.
+     */
+    fun applyAnnotationHighlightsJs(annotations: List<AnnotationHighlight>): String {
+        val json = buildString {
+            append('[')
+            annotations.forEachIndexed { i, ann ->
+                if (i > 0) append(',')
+                val safeId = ann.id.replace("\\", "\\\\").replace("'", "\\'")
+                val safeText = ann.text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                // cssColor is machine-generated (e.g. "rgba(56,189,248,0.50)") — no quote escaping needed.
+                append("{id:'$safeId',t:'$safeText',c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}}")
+            }
+            append(']')
+        }
+        // Single quotes inside the SVG percent-encoded URI must be escaped for JS string embedding.
+        val safeSvgUri = NOTE_GLYPH_SVG_DATA_URI.replace("'", "\\'")
+        return """
+            (function(anns) {
+                var SVG_URI = '$safeSvgUri';
+                // makeGlyph: positions the NoteAlt icon 28px to the left of anchorEl's first line,
+                // matching the paged-mode NoteGlyphStyle margin position.
+                var makeGlyph = function(id, anchorEl) {
+                    // Walk up to the nearest block ancestor so we can position within its coordinate space.
+                    var blockEl = document.body || document.documentElement;
+                    var p = anchorEl.parentNode;
+                    while (p && p.nodeType === 1 && p !== document.documentElement) {
+                        var d = window.getComputedStyle(p).display;
+                        if (d === 'block' || d === 'list-item') { blockEl = p; break; }
+                        p = p.parentNode;
+                    }
+                    if (window.getComputedStyle(blockEl).position === 'static') {
+                        blockEl.style.position = 'relative';
+                    }
+                    var markRect = anchorEl.getBoundingClientRect();
+                    var blockRect = blockEl.getBoundingClientRect();
+                    var relTop = Math.max(0, markRect.top - blockRect.top + 2);
+                    // Mirror paged-mode NoteGlyphStyle: position 28px to the LEFT of the mark's
+                    // first-line left edge (not the block's left edge, which is the page margin).
+                    var relLeft = markRect.left - blockRect.left - 28;
+                    var s = document.createElement('span');
+                    s.setAttribute('data-riffle-note-glyph', id);
+                    s.style.cssText = 'position:absolute;left:' + relLeft + 'px;top:' + relTop + 'px;' +
+                        'width:28px;height:28px;cursor:pointer;opacity:0.40;' +
+                        '-webkit-mask-image:url("' + SVG_URI + '");' +
+                        '-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;' +
+                        'background-color:currentColor;' +
+                        '-webkit-user-select:none;user-select:none;';
+                    s.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var r = s.getBoundingClientRect();
+                        window.RiffleChapter.onAnnotationNoteTap(id, r.left, r.top, r.right, r.bottom);
+                    });
+                    blockEl.appendChild(s);
+                };
+                // Remove marks/glyphs for annotations no longer in the list.
+                var validIds = {};
+                anns.forEach(function(a) { validIds[a.id] = true; });
+                document.querySelectorAll('[data-riffle-ann]').forEach(function(m) {
+                    if (!validIds[m.getAttribute('data-riffle-ann')]) {
+                        var g = document.querySelector('[data-riffle-note-glyph="' + m.getAttribute('data-riffle-ann') + '"]');
+                        if (g) g.remove();
+                        m.outerHTML = m.innerHTML;
+                    }
+                });
+                var sel = window.getSelection();
+                anns.forEach(function(ann) {
+                    var existing = document.querySelector('[data-riffle-ann="' + ann.id + '"]');
+                    if (existing) {
+                        // Update colour in-place — no window.find() needed, no DOM structure change.
+                        existing.style.background = ann.c;
+                        var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
+                        if (ann.n && !eg) {
+                            makeGlyph(ann.id, existing);
+                        } else if (!ann.n && eg) {
+                            eg.remove();
+                        }
+                        return;
+                    }
+                    // New annotation — locate via window.find() on the unmodified DOM.
+                    if (sel) sel.removeAllRanges();
+                    if (!window.find(ann.t, false, false, false, false, false, false)) return;
+                    sel = window.getSelection();
+                    if (!sel || sel.rangeCount === 0) return;
+                    var range = sel.getRangeAt(0);
+                    var mark = document.createElement('mark');
+                    mark.setAttribute('data-riffle-ann', ann.id);
+                    mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
+                    try {
+                        range.surroundContents(mark);
+                    } catch(e) {
+                        var frag = range.extractContents();
+                        mark.appendChild(frag);
+                        range.insertNode(mark);
+                    }
+                    (function(markEl, annId) {
+                        markEl.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            var r = markEl.getBoundingClientRect();
+                            window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
+                        });
+                    })(mark, ann.id);
+                    if (ann.n) makeGlyph(ann.id, mark);
+                });
+                if (sel) sel.removeAllRanges();
+            })($json);
+        """.trimIndent()
+    }
+
     /**
      * JS that highlights [text] via `window.find` + DOM `<mark>` injection, replacing
      * any existing mark with id `_riffle_hl`. Pass an empty string to clear.
      * Single quotes and backslashes in [text] are escaped before embedding in JS.
+     *
+     * `surroundContents()` throws when the selection range crosses an inline element boundary
+     * (e.g. `<em>`, `<span class="smallcaps">`). The fallback uses `extractContents()` +
+     * `insertNode()` which handles multi-node ranges correctly.
      */
-    fun highlightTextJs(text: String): String {
+    fun highlightTextJs(text: String, cssColor: String): String {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
         val safe = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
         return """
@@ -360,8 +491,15 @@ internal object ContinuousStyleInjector {
                 var range = sel.getRangeAt(0);
                 var mark = document.createElement('mark');
                 mark.id = '_riffle_hl';
-                mark.style.cssText = 'background:#7DD3FC;color:inherit;';
-                try { range.surroundContents(mark); } catch(e) {}
+                mark.style.cssText = 'background:$cssColor;color:inherit;';
+                try {
+                    range.surroundContents(mark);
+                } catch(e) {
+                    // Range crosses an inline element boundary — extract contents into mark instead.
+                    var frag = range.extractContents();
+                    mark.appendChild(frag);
+                    range.insertNode(mark);
+                }
                 sel.removeAllRanges();
             })();
         """.trimIndent()

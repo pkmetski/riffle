@@ -89,8 +89,25 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     /** When true, the text-selection menu offers "Highlight" (books with annotations UI). */
     var annotationsAvailable: Boolean = false
 
-    /** Called on the main thread with the selected text when the user taps "Highlight". */
-    var onHighlight: ((selectedText: String) -> Unit)? = null
+    /**
+     * Called on the main thread with the selected text, its within-chapter progression (0..1),
+     * and its bounding rect in device pixels relative to this WebView's top-left corner.
+     * The progression lets [createHighlight] build a correctly-anchored CFI range; the rect
+     * lets the host position the highlight-actions popup next to the selected text.
+     */
+    var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect) -> Unit)? = null
+
+    /**
+     * Called on the main thread when the user taps an injected annotation mark (`<mark
+     * data-riffle-ann>`). [rect] is in device pixels relative to this WebView's top-left corner.
+     */
+    var onAnnotationTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
+
+    /**
+     * Called on the main thread when the user taps the note glyph (`<span data-riffle-note-glyph>`)
+     * next to an annotation that has a note. [rect] is in device pixels relative to this WebView.
+     */
+    var onAnnotationNoteTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
 
     /** When true, the text-selection menu offers "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -346,7 +363,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
                     MENU_COPY -> withSelectionText { copyToClipboard(it) }
-                    MENU_HIGHLIGHT -> withSelectionText { onHighlight?.invoke(it) }
+                    MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog, rect -> onHighlight?.invoke(text, prog, rect) }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
                     MENU_PLAY -> withSelectionText { onPlayFromHere?.invoke(it) }
@@ -366,6 +383,56 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
             val text = decodeJsString(raw)
             if (text.isNotBlank()) block(text)
+            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+        }
+    }
+
+    /**
+     * Read the current selection's plain text, its within-document progression (0..1), and the
+     * selection's bounding rect in device pixels relative to this WebView, then run [block].
+     *
+     * progression = selectionTop / documentHeight — correct in Continuous mode because the WebView
+     * never scrolls (pageYOffset=0), so getBoundingClientRect().top equals the absolute document
+     * position. The rect is CSS px × devicePixelRatio so it composes with [getLocationOnScreen].
+     */
+    private fun withSelectionTextAndProgression(block: (text: String, progression: Double, rect: android.graphics.Rect) -> Unit) {
+        val js = """(function() {
+            var sel = window.getSelection ? window.getSelection() : null;
+            var text = sel ? sel.toString() : '';
+            var prog = 0.0;
+            var l = 0, t = 0, r = 0, b = 0;
+            if (sel && sel.rangeCount > 0) {
+                var rect = sel.getRangeAt(0).getBoundingClientRect();
+                var docH = Math.max(
+                    document.documentElement ? document.documentElement.offsetHeight : 0,
+                    document.body ? document.body.offsetHeight : 0,
+                    1
+                );
+                prog = Math.max(0, Math.min(1, rect.top / docH));
+                l = rect.left; t = rect.top; r = rect.right; b = rect.bottom;
+            }
+            return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b});
+        })()"""
+        evaluateJavascript(js) { raw ->
+            val jsonStr = decodeJsString(raw)
+            val text: String
+            val prog: Double
+            val rect: android.graphics.Rect
+            try {
+                val obj = org.json.JSONObject(jsonStr)
+                text = obj.optString("text", "")
+                prog = obj.optDouble("p", 0.0)
+                val dpr = resources.displayMetrics.density
+                rect = android.graphics.Rect(
+                    (obj.optDouble("l", 0.0) * dpr).toInt(),
+                    (obj.optDouble("t", 0.0) * dpr).toInt(),
+                    (obj.optDouble("r", 0.0) * dpr).toInt(),
+                    (obj.optDouble("b", 0.0) * dpr).toInt(),
+                )
+            } catch (_: Exception) {
+                return@evaluateJavascript
+            }
+            if (text.isNotBlank()) block(text, prog, rect)
             evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
         }
     }
@@ -412,6 +479,34 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         @JavascriptInterface
         fun onTap() {
             post { this@ChapterWebView.onTap?.invoke() }
+        }
+
+        @JavascriptInterface
+        fun onAnnotationTap(id: String, cssLeft: Float, cssTop: Float, cssRight: Float, cssBottom: Float) {
+            post {
+                val dpr = resources.displayMetrics.density
+                val rect = android.graphics.Rect(
+                    (cssLeft * dpr).toInt(),
+                    (cssTop * dpr).toInt(),
+                    (cssRight * dpr).toInt(),
+                    (cssBottom * dpr).toInt(),
+                )
+                this@ChapterWebView.onAnnotationTap?.invoke(id, rect)
+            }
+        }
+
+        @JavascriptInterface
+        fun onAnnotationNoteTap(id: String, cssLeft: Float, cssTop: Float, cssRight: Float, cssBottom: Float) {
+            post {
+                val dpr = resources.displayMetrics.density
+                val rect = android.graphics.Rect(
+                    (cssLeft * dpr).toInt(),
+                    (cssTop * dpr).toInt(),
+                    (cssRight * dpr).toInt(),
+                    (cssBottom * dpr).toInt(),
+                )
+                this@ChapterWebView.onAnnotationNoteTap?.invoke(id, rect)
+            }
         }
 
         /**

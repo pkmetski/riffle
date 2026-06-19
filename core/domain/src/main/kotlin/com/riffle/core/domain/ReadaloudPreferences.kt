@@ -2,17 +2,16 @@ package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
 
-// Medium-saturation (Tailwind ~400-level) hues: vivid enough to tell apart in the picker and to
-// read clearly behind text, without being neon. `argb` carries the full-opacity base color used
-// for the settings swatch; the reader applies a theme-dependent alpha (see readerTint()).
-// Enum names are intentionally unchanged from the original pastels so persisted preferences (which
-// store the name string) keep resolving without a migration.
+// Medium-saturation (Tailwind ~400-level) hues at ~50% opacity. `argb` is the final rendered color
+// used by both the settings swatch and the reader — no further transformation applied. The alpha
+// is pre-baked so text remains legible through the highlight. Enum names are unchanged so persisted
+// preferences keep resolving without a migration.
 enum class ReadaloudHighlightColor(val argb: Int) {
-    BLUE(0xFF38BDF8.toInt()),
-    YELLOW(0xFFFBBF24.toInt()),
-    GREEN(0xFF34D399.toInt()),
-    PINK(0xFFFB7185.toInt()),
-    PURPLE(0xFFA78BFA.toInt()),
+    BLUE(0x8038BDF8.toInt()),
+    YELLOW(0x80FBBF24.toInt()),
+    GREEN(0x8034D399.toInt()),
+    PINK(0x80FB7185.toInt()),
+    PURPLE(0x80A78BFA.toInt()),
 }
 
 data class ReadaloudPreferences(

@@ -25,6 +25,8 @@ import kotlin.math.abs
  * Adding a chapter at the TOP adjusts [scrollY] by the new chapter's height to keep the
  * visible content stable.
  */
+internal data class AnnotationHighlight(val id: String, val text: String, val cssColor: String, val hasNote: Boolean = false)
+
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -86,10 +88,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
     /**
-     * Called on the main thread with (chapter href, selected text) when the user taps "Highlight".
-     * The host builds a Locator and persists the highlight.
+     * Called on the main thread with (chapter href, selected text, within-chapter progression,
+     * screen rect of the selection in device pixels) when the user taps "Highlight".
+     * The progression lets the host build a correctly-anchored CFI range; the rect positions
+     * the highlight-actions popup next to the selected text.
      */
-    var onHighlightSelection: ((href: String, selectedText: String) -> Unit)? = null
+    var onHighlightSelection: ((href: String, selectedText: String, progression: Double, screenRect: android.graphics.Rect) -> Unit)? = null
 
     /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -203,6 +207,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = null
         wv.onExternalLink = null
         wv.onHighlight = null
+        wv.onAnnotationTap = null
+        wv.onAnnotationNoteTap = null
         wv.onPlayFromHere = null
         wv.onFootnoteContent = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
@@ -462,19 +468,109 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         smoothScrollBy(0, if (forward) delta else -delta)
     }
 
-    /** Inject a highlight for [text] in the chapter matching [href]. Clear if blank. */
-    fun highlightInChapter(href: String, text: String) {
+    /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href] and scroll it into view. */
+    fun highlightInChapter(href: String, text: String, cssColor: String) {
         val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text), null)
+        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
+            // Re-lookup by href rather than using the captured index: the window may have shifted
+            // between the evaluateJavascript call and this callback, making i stale.
+            scrollToHighlight(href)
+        }
     }
 
-    /** Clear any active highlight in the chapter at [href]. */
+    private fun scrollToHighlight(href: String) {
+        val i = webViewIndexFor(href) ?: return
+        val wv = webViews[i]
+        // getBoundingClientRect().top is in CSS pixels; multiply by devicePixelRatio to get device
+        // pixels so the result is in the same coordinate space as slot.top and scrollY.
+        wv.evaluateJavascript(
+            """(function(){
+                var el=document.getElementById('_riffle_hl');
+                if(!el) return -1;
+                var r=el.getBoundingClientRect();
+                var y=r.top+(window.pageYOffset||document.documentElement.scrollTop||0);
+                return Math.max(0,Math.round(y*(window.devicePixelRatio||1)));
+            })()"""
+        ) { result ->
+            val elementTop = result?.toFloatOrNull()?.toInt() ?: return@evaluateJavascript
+            if (elementTop < 0) return@evaluateJavascript
+            // Re-lookup window state fresh — a shift between the two evaluateJavascript calls
+            // would have changed slot positions.
+            val freshI = webViewIndexFor(href) ?: return@evaluateJavascript
+            val slot = buildWindow().getOrNull(freshI) ?: return@evaluateJavascript
+            val absoluteY = slot.top + elementTop
+            val targetScrollY = (absoluteY - height / 3).coerceAtLeast(0)
+            // Scroll whenever the current position is more than height/8 away from the target.
+            // Using abs() avoids the previous bug where absoluteY just inside the top of the
+            // viewport triggered a backward scroll (absoluteY < scrollY+margin → target < scrollY).
+            if (abs(targetScrollY - scrollY) > height / 8) {
+                smoothScrollTo(0, targetScrollY)
+            }
+        }
+    }
+
+    /** Clear any active readaloud highlight in the chapter at [href]. */
     fun clearHighlightInChapter(href: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
     }
 
+    /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
+    var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
+
+    /** Called on the main thread when the user taps a note glyph next to an annotation mark. */
+    var onAnnotationNoteTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
+
+    // Annotation state persisted so onPageFinished can re-apply marks when a chapter loads or
+    // the sliding window cycles in a new chapter without the LaunchedEffect re-running.
+    private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
+
+    /**
+     * Apply persisted annotation highlights to all currently loaded chapters and remember the
+     * state so that chapters entering the sliding window later (via [appendChapter] /
+     * [prependChapter]) automatically receive their marks in [onPageFinished].
+     */
+    fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
+        currentAnnotationsByHref = annotationsByHref
+        for (wv in webViews) {
+            val href = wv.chapterHref
+            if (href.isEmpty()) continue
+            val annotations = annotationsByHref[href]
+            if (annotations.isNullOrEmpty()) {
+                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
+            } else {
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
+        }
+    }
+
     // ── private ────────────────────────────────────────────────────────────────
+
+    /**
+     * Wire all annotation-related callbacks on [wv]. The coordinate transform is done at event
+     * time (not at wiring time) so it always reflects the WebView's current screen position.
+     * Extracted to avoid duplication between [appendChapter] and [prependChapter].
+     */
+    private fun wireAnnotationCallbacks(wv: ChapterWebView) {
+        wv.onHighlight = { text, prog, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect)
+        }
+        wv.onAnnotationTap = { id, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
+        }
+        wv.onAnnotationNoteTap = { id, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
+        }
+    }
 
     private fun appendChapter(index: Int) {
         val entry = allChapters[index]
@@ -485,7 +581,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
+        wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
@@ -551,6 +647,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
+            val annotations = currentAnnotationsByHref[wv.chapterHref]
+            if (!annotations.isNullOrEmpty()) {
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
         }
         webViews.add(wv)
         measuredHeights.add(placeholder)
@@ -567,7 +667,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
+        wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
@@ -587,6 +687,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
+            val annotations = currentAnnotationsByHref[wv.chapterHref]
+            if (!annotations.isNullOrEmpty()) {
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
         }
         webViews.add(0, wv)
         measuredHeights.add(0, placeholder)

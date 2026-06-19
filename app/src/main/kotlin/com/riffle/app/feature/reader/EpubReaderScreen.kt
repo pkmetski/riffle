@@ -1431,7 +1431,7 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchNavigationEvents, isContinuous) {
+    LaunchedEffect(searchNavigationEvents, isContinuous, readaloudHighlightColor) {
         searchNavigationEvents.collect { locator ->
             if (isContinuous) {
                 val view = continuousViewRef.value ?: return@collect
@@ -1439,7 +1439,7 @@ private fun EpubNavigatorView(
                 val progression = locator.locations.progression?.toFloat() ?: 0f
                 val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
-                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText)
+                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, readaloudHighlightColor.argb.toCssRgba())
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -1555,7 +1555,7 @@ private fun EpubNavigatorView(
     // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
         if (isContinuous) return@LaunchedEffect  // handled in the Continuous-mode effect below
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
@@ -1576,7 +1576,7 @@ private fun EpubNavigatorView(
             // Dedicated readaloud style/template: opacity follows the tint's alpha so the highlight
             // is stronger on dark reading themes and stays legible behind the white body text.
             style = HighlightTintStyle(
-                tint = readaloudHighlightColor.readerTint(formattingPrefs.theme),
+                tint = readaloudHighlightColor.argb,
             ),
         )
         // Clear the group before re-applying. After the fragment is recreated (rotation) or its page
@@ -1594,12 +1594,14 @@ private fun EpubNavigatorView(
     }
 
     // ---- Continuous-mode readaloud highlight -----------------------------------------------
-    // In Continuous mode, decoration APIs are not used. Instead we call ContinuousReaderView's
-    // highlightInChapter / clearHighlightInChapter directly, keyed by the 12-char text prefix
-    // (same heuristic as autoFollowSnapJs). prevHighlightHref tracks the chapter that currently
-    // carries the mark so we can clear it if the narrated chapter changes or playback stops.
+    // ChapterWebView serves the ABS EPUB HTML directly (no Readium stripping), but the ABS EPUB
+    // does NOT have Storyteller's per-sentence spans — those exist only in the Storyteller bundle.
+    // We therefore use window.find() to locate the sentence by its full text, then inject a <mark>
+    // element. The fallback in highlightTextJs uses extractContents()+insertNode() to handle the
+    // common case where the sentence spans inline elements (em, span, strong) and surroundContents()
+    // would throw. sentenceQuotes is re-keyed here so the highlight re-applies once quotes are built.
     val prevHighlightHref = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes) {
+    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes, readaloudHighlightColor) {
         if (!isContinuous) return@LaunchedEffect
         val view = continuousViewRef.value ?: return@LaunchedEffect
         val ref = activeFragmentRef
@@ -1611,13 +1613,38 @@ private fun EpubNavigatorView(
         }
         val chapterHref = ref.substringBefore('#')
         val sid = ref.substringAfter('#', "")
-        val quote = sentenceQuotes[sid]
-        val highlightText = quote?.highlight?.take(12) ?: return@LaunchedEffect
+        if (sid.isBlank()) return@LaunchedEffect
+        val text = sentenceQuotes[sid]?.highlight ?: return@LaunchedEffect
         // If the chapter changed, clear the previous chapter's mark
         val prev = prevHighlightHref.value
         if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
         prevHighlightHref.value = chapterHref
-        view.highlightInChapter(chapterHref, highlightText)
+        val cssColor = readaloudHighlightColor.argb.toCssRgba()
+        view.highlightInChapter(chapterHref, text, cssColor)
+    }
+
+    // ---- Persisted highlights — continuous mode -------------------------------------------
+    // Paged mode uses Readium's DecorableNavigator (below). Continuous mode injects <mark> elements
+    // via window.find(), mirroring the readaloud highlight approach. Re-keyed on the current chapter
+    // href (derived from activeFragmentRef) so annotations re-apply when a new chapter enters the
+    // sliding window.
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, activeFragmentRef?.substringBefore('#'), isContinuous) {
+        if (!isContinuous) return@LaunchedEffect
+        val view = continuousViewRef.value ?: return@LaunchedEffect
+        val annotationsByHref = highlightRenders
+            .filter { !it.locator.text.highlight.isNullOrBlank() }
+            .groupBy { it.locator.href.toString() }
+            .mapValues { (_, renders) ->
+                renders.map { h ->
+                    AnnotationHighlight(
+                        id = h.id,
+                        text = h.locator.text.highlight!!,
+                        cssColor = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme).toCssRgba(),
+                        hasNote = h.note != null,
+                    )
+                }
+            }
+        view.applyAnnotationHighlights(annotationsByHref)
     }
 
     // ---- Persisted highlights (ADR 0024) ---------------------------------------------------
@@ -1625,7 +1652,8 @@ private fun EpubNavigatorView(
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of
     // every highlight when the book is reopened, and the immediate paint after a new highlight.
     val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, isContinuous) {
+        if (isContinuous) return@LaunchedEffect
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         if (highlightRenders.isEmpty()) {
             if (!hasHighlightDecorations.value) return@LaunchedEffect
@@ -1661,7 +1689,8 @@ private fun EpubNavigatorView(
     // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
     // Tapping the glyph fires the dedicated "annotation-notes" tap listener below.
     val hasNoteDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, isContinuous) {
+        if (isContinuous) return@LaunchedEffect
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val noted = highlightRenders.filter { it.note != null }
         if (noted.isEmpty()) {
@@ -2135,15 +2164,26 @@ private fun EpubNavigatorView(
                         }
                         view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
                         view.annotationsAvailable = currentAnnotationsAvailable
-                        view.onHighlightSelection = { chapterHref, selectedText ->
+                        view.onAnnotationTap = { _, id, androidRect ->
+                            val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
+                            currentOnOpenHighlightActions(id, rect)
+                        }
+                        view.onAnnotationNoteTap = { _, id, androidRect ->
+                            val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
+                            currentOnOpenNoteReader(id, rect)
+                        }
+                        view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect ->
                             val locator = org.readium.r2.shared.publication.Locator.fromJSON(
                                 org.json.JSONObject()
                                     .put("href", chapterHref)
                                     .put("type", "application/xhtml+xml")
+                                    .put("locations", org.json.JSONObject().put("progression", progression))
                                     .put("text", org.json.JSONObject().put("highlight", selectedText))
                             )
-                            // No WebView rect available in this path; popup falls back to top-left.
-                            if (locator != null) currentOnHighlight(locator, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+                            if (locator != null) {
+                                val rect = androidx.compose.ui.unit.IntRect(selectionScreenRect.left, selectionScreenRect.top, selectionScreenRect.right, selectionScreenRect.bottom)
+                                currentOnHighlight(locator, rect)
+                            }
                         }
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->

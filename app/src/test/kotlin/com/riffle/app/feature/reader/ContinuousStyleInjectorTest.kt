@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -183,15 +184,222 @@ class ContinuousStyleInjectorTest {
 
     @Test
     fun `highlightTextJs escapes single quotes in text`() {
-        val js = ContinuousStyleInjector.highlightTextJs("it's a test")
+        val js = ContinuousStyleInjector.highlightTextJs("it's a test", "rgba(56,189,248,0.30)")
         assertTrue(js.contains("it\\'s a test"))
         assertFalse(js.contains("it's a test"))
     }
 
     @Test
     fun `highlightTextJs escapes newlines in text`() {
-        val js = ContinuousStyleInjector.highlightTextJs("line one\nline two")
+        val js = ContinuousStyleInjector.highlightTextJs("line one\nline two", "rgba(56,189,248,0.30)")
         assertTrue(js.contains("\\n"))
         assertFalse(js.contains("line one\nline two"))
+    }
+
+    // ── CLEAR_ANNOTATION_HIGHLIGHTS_JS ─────────────────────────────────────────
+
+    @Test
+    fun `CLEAR removes note-glyph spans before unwrapping marks`() {
+        val js = ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS
+        val glyphIdx = js.indexOf("data-riffle-note-glyph")
+        val markIdx = js.indexOf("data-riffle-ann")
+        assertTrue("glyph selector present", glyphIdx >= 0)
+        assertTrue("mark selector present", markIdx >= 0)
+        assertTrue("glyphs removed before marks (child must go before parent)", glyphIdx < markIdx)
+    }
+
+    @Test
+    fun `CLEAR uses outerHTML replacement to unwrap marks`() {
+        assertTrue(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS.contains("outerHTML = m.innerHTML"))
+    }
+
+    // ── applyAnnotationHighlightsJs — JSON payload ───────────────────────────
+
+    private fun applyJs(vararg annotations: AnnotationHighlight) =
+        ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations.toList())
+
+    @Test
+    fun `empty list produces empty JSON array`() {
+        val js = ContinuousStyleInjector.applyAnnotationHighlightsJs(emptyList())
+        assertTrue(js.contains("([])"))
+    }
+
+    @Test
+    fun `annotation without note emits n colon 0`() {
+        val js = applyJs(AnnotationHighlight("ann1", "hello", "#ff0000", hasNote = false))
+        assertTrue(js.contains("n:0"))
+        assertFalse(js.contains("n:1"))
+    }
+
+    @Test
+    fun `annotation with note emits n colon 1`() {
+        val js = applyJs(AnnotationHighlight("ann1", "hello", "#ff0000", hasNote = true))
+        assertTrue(js.contains("n:1"))
+    }
+
+    @Test
+    fun `each annotation is emitted with id text color and note fields`() {
+        val js = applyJs(AnnotationHighlight("myId", "my text", "#abc123", hasNote = false))
+        assertTrue("id field", js.contains("id:'myId'"))
+        assertTrue("text field", js.contains("t:'my text'"))
+        assertTrue("color field", js.contains("c:'#abc123'"))
+        assertTrue("note field", js.contains("n:0"))
+    }
+
+    @Test
+    fun `multiple annotations are comma-separated in JSON`() {
+        val js = applyJs(
+            AnnotationHighlight("a1", "first", "#111", hasNote = false),
+            AnnotationHighlight("a2", "second", "#222", hasNote = true),
+        )
+        assertTrue("first id present", js.contains("id:'a1'"))
+        assertTrue("second id present", js.contains("id:'a2'"))
+        assertTrue("first text present", js.contains("t:'first'"))
+        assertTrue("second text present", js.contains("t:'second'"))
+        assertTrue("first has n:0", js.contains("n:0"))
+        assertTrue("second has n:1", js.contains("n:1"))
+    }
+
+    @Test
+    fun `single quotes in annotation id are escaped`() {
+        val js = applyJs(AnnotationHighlight("it's-id", "text", "#000"))
+        assertTrue(js.contains("id:'it\\'s-id'"))
+        assertFalse("raw single quote must not appear in id", js.contains("id:'it's-id'"))
+    }
+
+    @Test
+    fun `single quotes in annotation text are escaped`() {
+        val js = applyJs(AnnotationHighlight("ann1", "don't stop", "#000"))
+        assertTrue(js.contains("t:'don\\'t stop'"))
+        assertFalse("raw single quote must not appear in text", js.contains("t:'don't stop'"))
+    }
+
+    @Test
+    fun `backslashes in text are escaped`() {
+        val js = applyJs(AnnotationHighlight("ann1", "back\\slash", "#000"))
+        assertTrue(js.contains("back\\\\slash"))
+    }
+
+    @Test
+    fun `newlines in text are escaped as backslash-n`() {
+        val js = applyJs(AnnotationHighlight("ann1", "line1\nline2", "#000"))
+        assertTrue(js.contains("\\n"))
+        assertFalse("literal newline must not appear in JS string", js.contains("line1\nline2"))
+    }
+
+    @Test
+    fun `carriage returns in text are escaped as backslash-r`() {
+        val js = applyJs(AnnotationHighlight("ann1", "cr\rtext", "#000"))
+        assertTrue(js.contains("\\r"))
+    }
+
+    // ── applyAnnotationHighlightsJs — DOM logic ──────────────────────────────
+
+    @Test
+    fun `JS sets data-riffle-ann attribute on injected mark`() {
+        val js = applyJs(AnnotationHighlight("ann42", "some text", "#ff0"))
+        assertTrue(js.contains("data-riffle-ann"))
+    }
+
+    @Test
+    fun `JS sets data-riffle-note-glyph attribute on injected glyph`() {
+        val js = applyJs(AnnotationHighlight("ann42", "text", "#ff0", hasNote = true))
+        assertTrue(js.contains("data-riffle-note-glyph"))
+    }
+
+    @Test
+    fun `existing mark is updated in-place via style-background — no window-find`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        // The in-place update path sets style.background on the existing mark.
+        assertTrue(js.contains("existing.style.background"))
+        // And it calls window.find() only for NEW annotations (after the in-place branch returns).
+        assertTrue(js.contains("window.find("))
+    }
+
+    @Test
+    fun `stale marks are removed when their id is no longer in the annotation list`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        // validIds is the guard that removes marks whose id is absent from the current list.
+        assertTrue(js.contains("validIds"))
+        assertTrue(js.contains("outerHTML = m.innerHTML"))
+    }
+
+    @Test
+    fun `glyph is added when annotation gains a note`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = true))
+        // The branch: if ann.n && !eg → makeGlyph
+        assertTrue(js.contains("ann.n && !eg"))
+        assertTrue(js.contains("makeGlyph"))
+    }
+
+    @Test
+    fun `glyph is removed when annotation loses its note`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = false))
+        // The branch: !ann.n && eg → eg.remove()
+        assertTrue(js.contains("!ann.n && eg"))
+        assertTrue(js.contains("eg.remove()"))
+    }
+
+    @Test
+    fun `glyph is positioned 28px to the left of the mark edge not the block edge`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = true))
+        // relLeft = markRect.left - blockRect.left - 28 (28px left of mark, not block left)
+        assertTrue(js.contains("markRect.left - blockRect.left - 28"))
+    }
+
+    @Test
+    fun `glyph click calls onAnnotationNoteTap bridge method`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = true))
+        assertTrue(js.contains("onAnnotationNoteTap"))
+    }
+
+    @Test
+    fun `mark click calls onAnnotationTap bridge method`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        assertTrue(js.contains("onAnnotationTap"))
+    }
+
+    @Test
+    fun `selection is cleared after applying annotations`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        assertTrue(js.contains("removeAllRanges"))
+    }
+
+    // ── applyAnnotationHighlightsJs — note-glyph SVG ────────────────────────
+
+    @Test
+    fun `NoteAlt SVG data-URI is embedded in the JS`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = true))
+        // The SVG URI contains the document-page path.
+        assertTrue(js.contains("data:image/svg+xml,"))
+        // webkit-mask-image is used to render the icon (inherits currentColor).
+        assertTrue(js.contains("-webkit-mask-image"))
+    }
+
+    @Test
+    fun `single quotes in SVG URI are escaped for JS embedding`() {
+        // NOTE_GLYPH_SVG_DATA_URI contains literal single quotes (e.g. xmlns='...').
+        // The injector must escape them so the SVG_URI string assignment is syntactically valid JS.
+        assertTrue("SVG constant has single quotes to escape", NOTE_GLYPH_SVG_DATA_URI.contains("'"))
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = true))
+        // After escaping, xmlns=' becomes xmlns=\' — the raw xmlns=' must not appear in the JS.
+        assertFalse("raw xmlns=' must be escaped in the JS", js.contains("xmlns='"))
+        // The escaped form IS present.
+        assertTrue("escaped xmlns=\\' must appear in the JS", js.contains("xmlns=\\'"))
+    }
+
+    // ── AnnotationHighlight data class ───────────────────────────────────────
+
+    @Test
+    fun `AnnotationHighlight hasNote defaults to false`() {
+        val ann = AnnotationHighlight("id", "text", "#000")
+        assertFalse(ann.hasNote)
+    }
+
+    @Test
+    fun `AnnotationHighlight equality and copy`() {
+        val ann = AnnotationHighlight("id", "text", "#000", hasNote = true)
+        assertEquals(ann, AnnotationHighlight("id", "text", "#000", hasNote = true))
+        assertFalse(ann == ann.copy(hasNote = false))
     }
 }
