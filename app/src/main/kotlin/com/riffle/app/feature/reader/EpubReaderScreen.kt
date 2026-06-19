@@ -906,6 +906,16 @@ private const val NAV_COVER_SETTLE_MS = 250L
 private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
     Locator.fromJSON(readaloudLocatorJson(ref, quote))
 
+private suspend fun DecorableNavigator.applyDecorationsWithClear(
+    decorations: List<Decoration>,
+    group: String,
+) {
+    withContext(Dispatchers.Main) {
+        applyDecorations(emptyList(), group = group)
+        applyDecorations(decorations, group = group)
+    }
+}
+
 /**
  * The narrated sentences (span id → text) to feed [resolveSelectionSentenceJs] for a "Play from here"
  * tap, scoped to the chapter being read ([currentHref]). The resolver locates a tapped sentence by
@@ -1535,10 +1545,7 @@ private fun EpubNavigatorView(
         for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
             delay(settleDelayMs)
             if (fragmentRef.value !== navFragment) break // navigated away / fragment recreated — newer effect owns it
-            withContext(Dispatchers.Main) {
-                fragment.applyDecorations(emptyList(), group = "search")
-                fragment.applyDecorations(decorations, group = "search")
-            }
+            fragment.applyDecorationsWithClear(decorations, group = "search")
         }
     }
 
@@ -1582,10 +1589,7 @@ private fun EpubNavigatorView(
         // empty apply runs the JS group's clear() (it removes the whole decoration container element),
         // so the subsequent apply always leaves exactly one highlight. The two calls execute back to
         // back on the main thread, so there is no visible gap on a normal sentence advance.
-        withContext(Dispatchers.Main) {
-            fragment.applyDecorations(emptyList(), group = "readaloud")
-            fragment.applyDecorations(listOf(decoration), group = "readaloud")
-        }
+        fragment.applyDecorationsWithClear(listOf(decoration), group = "readaloud")
         hasReadaloudDecoration.value = true
     }
 
@@ -1668,15 +1672,12 @@ private fun EpubNavigatorView(
                 ),
             )
         }
-        withContext(Dispatchers.Main) {
-            // Clear before re-applying so the Readium JS group starts from a clean slate.
-            // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
-            // JS state was reset on page load (e.g. on book re-entry), leaving decorations
-            // visually missing; a stale DOM element from a prior session can also add a ghost
-            // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
-            fragment.applyDecorations(emptyList(), group = "annotations")
-            fragment.applyDecorations(decorations, group = "annotations")
-        }
+        // Clear before re-applying so the Readium JS group starts from a clean slate.
+        // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
+        // JS state was reset on page load (e.g. on book re-entry), leaving decorations
+        // visually missing; a stale DOM element from a prior session can also add a ghost
+        // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
+        fragment.applyDecorationsWithClear(decorations, group = "annotations")
         hasHighlightDecorations.value = true
     }
 
@@ -1704,10 +1705,7 @@ private fun EpubNavigatorView(
                 style = NoteGlyphStyle(),
             )
         }
-        withContext(Dispatchers.Main) {
-            fragment.applyDecorations(emptyList(), group = "annotation-notes")
-            fragment.applyDecorations(noteDecorations, group = "annotation-notes")
-        }
+        fragment.applyDecorationsWithClear(noteDecorations, group = "annotation-notes")
         hasNoteDecorations.value = true
     }
 
