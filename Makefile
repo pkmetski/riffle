@@ -126,6 +126,9 @@ define run_harness_tests
 		done); \
 	done; \
 	until [ "$$(adb -s $$SERIAL shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 2; done; \
+	adb -s $$SERIAL shell input keyevent KEYCODE_WAKEUP; \
+	adb -s $$SERIAL shell wm dismiss-keyguard; \
+	adb -s $$SERIAL shell svc power stayon true; \
 	echo "Running harness tests on $$SERIAL..."; \
 	adb -s $$SERIAL shell pm clear com.riffle.app 2>/dev/null || true; \
 	ANDROID_SERIAL=$$SERIAL ./gradlew :app:connectedDebugAndroidTest $(2); \
