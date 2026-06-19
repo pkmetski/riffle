@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -284,7 +285,7 @@ fun AudiobookPlayerScreen(
                     .safeDrawingPadding()
                     .padding(end = 12.dp),
             )
-            SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+            SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         }
     }
 
@@ -304,6 +305,7 @@ fun AudiobookPlayerScreen(
                     val result = snackbarHostState.showSnackbar(
                         message = "Bookmark saved",
                         actionLabel = "Undo",
+                        duration = SnackbarDuration.Long,
                     )
                     if (result == SnackbarResult.ActionPerformed) {
                         // The add is asynchronous; by the time Undo is tapped the id has been published
