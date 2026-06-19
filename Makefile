@@ -105,6 +105,8 @@ define run_harness_tests
 	BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr -cs '[:alnum:]' '-' | sed 's/-*$$//'); \
 	AVD_NAME="Harness_$${BRANCH}_$$$$"; \
 	AVD_DIR="$$HOME/.android/avd/$$AVD_NAME.avd"; \
+	EMU_PID=""; SERIAL=""; \
+	trap 'adb -s "$$SERIAL" emu kill 2>/dev/null || true; wait $$EMU_PID 2>/dev/null || true; kill -9 $$EMU_PID 2>/dev/null || true; rm -rf "$$AVD_DIR" "$$HOME/.android/avd/$$AVD_NAME.ini" 2>/dev/null || true' EXIT INT TERM; \
 	echo "Cloning $$AVD_BASE → $$AVD_NAME..."; \
 	cp -c -R "$$HOME/.android/avd/$$AVD_BASE.avd" "$$AVD_DIR"; \
 	sed "s|/$$AVD_BASE\.avd|/$$AVD_NAME.avd|g; s|$$AVD_BASE\.avd|$$AVD_NAME.avd|g" \
@@ -116,7 +118,7 @@ define run_harness_tests
 		"$$AVD_DIR/snapshot.trace" "$$AVD_DIR/read-snapshot.txt" 2>/dev/null || true; \
 	echo "Starting emulator '$$AVD_NAME'..."; \
 	emulator -avd "$$AVD_NAME" -no-window -no-audio -no-boot-anim -no-snapshot-load -no-snapshot-save \
-		&> /tmp/riffle-emulator.log & \
+		&> "/tmp/riffle-emulator-$$AVD_NAME.log" & \
 	EMU_PID=$$!; \
 	echo "Waiting for emulator to boot (pid $$EMU_PID)..."; \
 	SERIAL=""; \
