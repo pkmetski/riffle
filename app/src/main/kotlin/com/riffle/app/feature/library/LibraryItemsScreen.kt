@@ -1213,63 +1213,58 @@ private fun AllBooksTabContent(
     onToggleNotStartedFilter: () -> Unit = {},
 ) {
     if (isLoading) return
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(coverGridMinCellSize()),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
-        modifier = Modifier
-            .pinchCoverZoom(onCoverScaleChange)
-            .fillMaxSize(),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column {
-                SectionHeader("All Books (${items.size})")
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item {
-                        FilterChip(
-                            selected = notStartedFilterActive,
-                            onClick = onToggleNotStartedFilter,
-                            label = { Text("Not Started") },
-                            leadingIcon = if (notStartedFilterActive) {
-                                {
-                                    Icon(
-                                        Icons.Filled.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                    )
-                                }
-                            } else null,
-                        )
-                    }
-                }
+    Column(modifier = Modifier.fillMaxSize()) {
+        SectionHeader("All Books (${items.size})")
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                FilterChip(
+                    selected = notStartedFilterActive,
+                    onClick = onToggleNotStartedFilter,
+                    label = { Text("Not Started") },
+                    leadingIcon = if (notStartedFilterActive) {
+                        {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(FilterChipDefaults.IconSize),
+                            )
+                        }
+                    } else null,
+                )
             }
         }
         if (items.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 48.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = if (notStartedFilterActive) "No unstarted books" else "No items in this library",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-        items(items, key = { it.id }) { item ->
-            Box(modifier = Modifier.padding(4.dp)) {
-                BookCoverTile(
-                    item = item,
-                    token = token,
-                    onClick = { onItemSelected(item) },
-                    hasReadaloudLink = item.id in linkedItemIds,
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (notStartedFilterActive) "No unstarted books" else "No items in this library",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(coverGridMinCellSize()),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
+                modifier = Modifier
+                    .pinchCoverZoom(onCoverScaleChange)
+                    .fillMaxSize(),
+            ) {
+                items(items, key = { it.id }) { item ->
+                    Box(modifier = Modifier.padding(4.dp)) {
+                        BookCoverTile(
+                            item = item,
+                            token = token,
+                            onClick = { onItemSelected(item) },
+                            hasReadaloudLink = item.id in linkedItemIds,
+                        )
+                    }
+                }
             }
         }
     }
