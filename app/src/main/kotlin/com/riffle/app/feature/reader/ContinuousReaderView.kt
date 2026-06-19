@@ -515,12 +515,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
     var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
 
+    // Annotation state persisted so onPageFinished can re-apply marks when a chapter loads or
+    // the sliding window cycles in a new chapter without the LaunchedEffect re-running.
+    private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
+
     /**
-     * Apply persisted annotation highlights to all currently loaded chapters.
-     * [annotationsByHref] maps each chapter href to the annotations that belong to it.
-     * Chapters in the window that have no entry are cleared of any stale marks.
+     * Apply persisted annotation highlights to all currently loaded chapters and remember the
+     * state so that chapters entering the sliding window later (via [appendChapter] /
+     * [prependChapter]) automatically receive their marks in [onPageFinished].
      */
     fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
+        currentAnnotationsByHref = annotationsByHref
         for (wv in webViews) {
             val href = wv.chapterHref
             if (href.isEmpty()) continue
@@ -616,6 +621,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
+            val annotations = currentAnnotationsByHref[wv.chapterHref]
+            if (!annotations.isNullOrEmpty()) {
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
         }
         webViews.add(wv)
         measuredHeights.add(placeholder)
@@ -658,6 +667,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
+            val annotations = currentAnnotationsByHref[wv.chapterHref]
+            if (!annotations.isNullOrEmpty()) {
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
         }
         webViews.add(0, wv)
         measuredHeights.add(0, placeholder)
