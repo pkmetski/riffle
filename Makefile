@@ -93,27 +93,28 @@ clean: ## Clean build outputs
 install: wrapper fonts ## Build debug APK and install on connected device
 	./gradlew :app:installDebug
 
-PHONE_AVD := Harness_Medium_Phone
-TABLET_AVD := Harness_Medium_Tablet
+PHONE_AVD_BASE := Harness_Medium_Phone_2
+TABLET_AVD_BASE := Harness_Medium_Tablet
 TABLET_ANNOTATION := com.riffle.app.harness.TabletLayout
 
-# $(1) = AVD name, $(2) = extra gradle args (annotation include/exclude filter)
+# $(1) = base AVD to clone (must be API 25 / Android 7.1.1), $(2) = extra gradle args
+# Each invocation clones a fresh ephemeral AVD from the base, runs tests, then deletes it.
+# Using a unique name (PID) avoids any interference from parallel workspace runs.
 define run_harness_tests
-	AVD_NAME="$(1)"; \
-	AVD_CONFIG=$$HOME/.android/avd/$$AVD_NAME.avd/config.ini; \
-	echo "Ensuring AVD heap is 1024 MB (was: $$(grep vm.heapSize $$AVD_CONFIG))..."; \
-	sed -i '' 's/^vm\.heapSize=.*/vm.heapSize=1024/' "$$AVD_CONFIG"; \
-	STALE=$$(for s in $$(adb devices 2>/dev/null | grep emulator | cut -f1); do \
-		name=$$(adb -s $$s emu avd name 2>/dev/null | head -1 | tr -d '\r'); \
-		[ "$$name" = "$$AVD_NAME" ] && echo $$s; \
-	done); \
-	if [ -n "$$STALE" ]; then \
-		echo "Killing stale emulator $$STALE..."; \
-		adb -s $$STALE emu kill 2>/dev/null || true; \
-		until ! adb devices 2>/dev/null | grep -q "$$STALE"; do sleep 2; done; \
-	fi; \
+	AVD_BASE="$(1)"; \
+	AVD_NAME="Harness_Temp_$$$$"; \
+	AVD_DIR="$$HOME/.android/avd/$$AVD_NAME.avd"; \
+	echo "Cloning $$AVD_BASE → $$AVD_NAME..."; \
+	cp -c -R "$$HOME/.android/avd/$$AVD_BASE.avd" "$$AVD_DIR"; \
+	sed "s|/$$AVD_BASE\.avd|/$$AVD_NAME.avd|g; s|$$AVD_BASE\.avd|$$AVD_NAME.avd|g" \
+		"$$HOME/.android/avd/$$AVD_BASE.ini" > "$$HOME/.android/avd/$$AVD_NAME.ini"; \
+	sed -i '' "s/^AvdId=.*/AvdId=$$AVD_NAME/" "$$AVD_DIR/config.ini"; \
+	sed -i '' "s/^avd.ini.displayname=.*/avd.ini.displayname=Harness Temp $$$$/" "$$AVD_DIR/config.ini"; \
+	sed -i '' 's/^vm\.heapSize=.*/vm.heapSize=1024/' "$$AVD_DIR/config.ini"; \
+	rm -rf "$$AVD_DIR/snapshots" "$$AVD_DIR"/*.lock \
+		"$$AVD_DIR/snapshot.trace" "$$AVD_DIR/read-snapshot.txt" 2>/dev/null || true; \
 	echo "Starting emulator '$$AVD_NAME'..."; \
-	emulator -avd "$$AVD_NAME" -no-window -no-audio -no-boot-anim -no-snapshot-load \
+	emulator -avd "$$AVD_NAME" -no-window -no-audio -no-boot-anim -no-snapshot-load -no-snapshot-save \
 		&> /tmp/riffle-emulator.log & \
 	EMU_PID=$$!; \
 	echo "Waiting for emulator to boot (pid $$EMU_PID)..."; \
@@ -137,17 +138,19 @@ define run_harness_tests
 	adb -s $$SERIAL emu kill; \
 	wait $$EMU_PID 2>/dev/null || true; \
 	kill -9 $$EMU_PID 2>/dev/null || true; \
+	echo "Deleting temp AVD $$AVD_NAME..."; \
+	rm -rf "$$AVD_DIR" "$$HOME/.android/avd/$$AVD_NAME.ini"; \
 	exit $$TEST_EXIT
 endef
 
 .PHONY: harness-test
-harness-test: wrapper fonts ## Boot "Harness Medium Phone" AVD, run non-tablet harness tests, then shut it down
-	@$(call run_harness_tests,$(PHONE_AVD),-Pandroid.testInstrumentationRunnerArguments.notAnnotation=$(TABLET_ANNOTATION))
+harness-test: wrapper fonts ## Clone a fresh API-25 phone AVD, run non-tablet harness tests, then delete it
+	@$(call run_harness_tests,$(PHONE_AVD_BASE),-Pandroid.testInstrumentationRunnerArguments.notAnnotation=$(TABLET_ANNOTATION))
 
 .PHONY: harness-test-tablet
-harness-test-tablet: wrapper fonts ## Boot "Harness Medium Tablet" AVD, run @TabletLayout tests only, then shut it down
-	@$(call run_harness_tests,$(TABLET_AVD),-Pandroid.testInstrumentationRunnerArguments.annotation=$(TABLET_ANNOTATION))
+harness-test-tablet: wrapper fonts ## Clone a fresh API-25 tablet AVD, run @TabletLayout tests only, then delete it
+	@$(call run_harness_tests,$(TABLET_AVD_BASE),-Pandroid.testInstrumentationRunnerArguments.annotation=$(TABLET_ANNOTATION))
 
 .PHONY: harness-test-class
-harness-test-class: wrapper fonts ## Boot the phone AVD and run a single test CLASS=<fqcn> (or pkg.Class#method), then shut it down
-	@$(call run_harness_tests,$(PHONE_AVD),-Pandroid.testInstrumentationRunnerArguments.class=$(CLASS))
+harness-test-class: wrapper fonts ## Clone a fresh API-25 phone AVD, run a single test CLASS=<fqcn> (or pkg.Class#method), then delete it
+	@$(call run_harness_tests,$(PHONE_AVD_BASE),-Pandroid.testInstrumentationRunnerArguments.class=$(CLASS))
