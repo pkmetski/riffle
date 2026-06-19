@@ -67,6 +67,20 @@ class CornerBookmarkIndicatorTest {
     }
 
     @Test
+    fun tap_bookmarked_firesToggleCallback() {
+        var toggled = false
+        composeTestRule.setContent {
+            CornerBookmarkIndicator(
+                isBookmarked = true,
+                isVisible = true,
+                onToggle = { toggled = true },
+            )
+        }
+        composeTestRule.onNodeWithContentDescription("Remove bookmark").performClick()
+        assertTrue("tapping the ribbon while bookmarked must call onToggle", toggled)
+    }
+
+    @Test
     fun customContentDescription_overridesDefault() {
         composeTestRule.setContent {
             CornerBookmarkIndicator(
