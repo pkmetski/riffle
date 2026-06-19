@@ -1623,6 +1623,29 @@ private fun EpubNavigatorView(
         view.highlightInChapter(chapterHref, text, cssColor)
     }
 
+    // ---- Persisted highlights — continuous mode -------------------------------------------
+    // Paged mode uses Readium's DecorableNavigator (below). Continuous mode injects <mark> elements
+    // via window.find(), mirroring the readaloud highlight approach. Re-keyed on the current chapter
+    // href (derived from activeFragmentRef) so annotations re-apply when a new chapter enters the
+    // sliding window.
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, activeFragmentRef?.substringBefore('#'), isContinuous) {
+        if (!isContinuous) return@LaunchedEffect
+        val view = continuousViewRef.value ?: return@LaunchedEffect
+        val annotationsByHref = highlightRenders
+            .filter { !it.locator.text.highlight.isNullOrBlank() }
+            .groupBy { it.locator.href.toString() }
+            .mapValues { (_, renders) ->
+                renders.map { h ->
+                    AnnotationHighlight(
+                        id = h.id,
+                        text = h.locator.text.highlight!!,
+                        cssColor = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme).toCssRgba(),
+                    )
+                }
+            }
+        view.applyAnnotationHighlights(annotationsByHref)
+    }
+
     // ---- Persisted highlights (ADR 0024) ---------------------------------------------------
     // Renders all of a book's stored highlights via the same DecorableNavigator mechanism, on its
     // own "annotations" group. Re-applied whenever the set changes — including the re-render of

@@ -342,6 +342,56 @@ internal object ContinuousStyleInjector {
         })();
     """.trimIndent()
 
+    val CLEAR_ANNOTATION_HIGHLIGHTS_JS = """
+        (function() {
+            document.querySelectorAll('[data-riffle-ann]').forEach(function(m) { m.outerHTML = m.innerHTML; });
+        })();
+    """.trimIndent()
+
+    /**
+     * JS that applies [annotations] as `<mark>` elements, keyed by their ID via `data-riffle-ann`.
+     * Clears any existing annotation marks first. Uses the same window.find() + surroundContents()
+     * approach as [highlightTextJs], with the extractContents() fallback for inline-spanning ranges.
+     * Selection is reset to the document start before each find so consecutive searches don't
+     * accumulate position.
+     */
+    fun applyAnnotationHighlightsJs(annotations: List<AnnotationHighlight>): String {
+        val json = buildString {
+            append('[')
+            annotations.forEachIndexed { i, ann ->
+                if (i > 0) append(',')
+                val safeId = ann.id.replace("\\", "\\\\").replace("'", "\\'")
+                val safeText = ann.text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                append("{id:'$safeId',t:'$safeText',c:'${ann.cssColor}'}")
+            }
+            append(']')
+        }
+        return """
+            (function(anns) {
+                document.querySelectorAll('[data-riffle-ann]').forEach(function(m) { m.outerHTML = m.innerHTML; });
+                var sel = window.getSelection();
+                anns.forEach(function(ann) {
+                    sel.removeAllRanges();
+                    if (!window.find(ann.t, false, false, false, false, false, false)) return;
+                    sel = window.getSelection();
+                    if (!sel || sel.rangeCount === 0) return;
+                    var range = sel.getRangeAt(0);
+                    var mark = document.createElement('mark');
+                    mark.setAttribute('data-riffle-ann', ann.id);
+                    mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
+                    try {
+                        range.surroundContents(mark);
+                    } catch(e) {
+                        var frag = range.extractContents();
+                        mark.appendChild(frag);
+                        range.insertNode(mark);
+                    }
+                });
+                if (sel) sel.removeAllRanges();
+            })($json);
+        """.trimIndent()
+    }
+
     /**
      * JS that highlights [text] via `window.find` + DOM `<mark>` injection, replacing
      * any existing mark with id `_riffle_hl`. Pass an empty string to clear.

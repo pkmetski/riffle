@@ -25,6 +25,8 @@ import kotlin.math.abs
  * Adding a chapter at the TOP adjusts [scrollY] by the new chapter's height to keep the
  * visible content stable.
  */
+internal data class AnnotationHighlight(val id: String, val text: String, val cssColor: String)
+
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -507,6 +509,24 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     fun clearHighlightInChapter(href: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
+    }
+
+    /**
+     * Apply persisted annotation highlights to all currently loaded chapters.
+     * [annotationsByHref] maps each chapter href to the annotations that belong to it.
+     * Chapters in the window that have no entry are cleared of any stale marks.
+     */
+    fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
+        for (wv in webViews) {
+            val href = wv.chapterHref
+            if (href.isEmpty()) continue
+            val annotations = annotationsByHref[href]
+            if (annotations.isNullOrEmpty()) {
+                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
+            } else {
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
+        }
     }
 
     // ── private ────────────────────────────────────────────────────────────────
