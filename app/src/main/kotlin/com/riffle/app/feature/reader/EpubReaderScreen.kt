@@ -373,6 +373,7 @@ fun EpubReaderScreen(
                         onHighlight = viewModel::createHighlight,
                         highlightToEdit = highlightToEdit,
                         onOpenHighlightActions = viewModel::openHighlightActions,
+                        onOpenNoteReader = viewModel::openNoteReader,
                         onDismissHighlightActions = viewModel::dismissHighlightActions,
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
@@ -996,6 +997,7 @@ private fun EpubNavigatorView(
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
     highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
     onOpenHighlightActions: (String, androidx.compose.ui.unit.IntRect) -> Unit,
+    onOpenNoteReader: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onDismissHighlightActions: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
@@ -1036,6 +1038,7 @@ private fun EpubNavigatorView(
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentOnOpenHighlightActions by rememberUpdatedState(onOpenHighlightActions)
+    val currentOnOpenNoteReader by rememberUpdatedState(onOpenNoteReader)
     val currentOnUpdateHighlightNote by rememberUpdatedState(onUpdateHighlightNote)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
@@ -1646,11 +1649,10 @@ private fun EpubNavigatorView(
         hasHighlightDecorations.value = true
     }
 
-    // ---- Note underline decorations (annotation-notes) -------------------------------------
-    // Draws a subtle underline under every noted highlight so the reader can see a note is
+    // ---- Note glyph decorations (annotation-notes) -----------------------------------------
+    // Renders a small margin note icon next to every highlighted range that has a note
     // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
-    // Tapping the underlined range fires the existing "annotations" listener (both decorations
-    // overlap the same text, so the listener already registered above handles it).
+    // Tapping the glyph fires the dedicated "annotation-notes" tap listener below.
     val hasNoteDecorations = remember { mutableStateOf(false) }
     LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value) {
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
@@ -1667,9 +1669,7 @@ private fun EpubNavigatorView(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = Decoration.Style.Underline(
-                    tint = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme),
-                ),
+                style = NoteGlyphStyle(),
             )
         }
         withContext(Dispatchers.Main) {
@@ -1694,6 +1694,26 @@ private fun EpubNavigatorView(
             }
         }
         fragment?.addDecorationListener("annotations", listener)
+        onDispose { fragment?.removeDecorationListener(listener) }
+    }
+
+    // ---- Decoration tap listener (annotation-notes) ----------------------------------------
+    // Tapping the margin note glyph opens the same highlight-actions popup as tapping the
+    // highlight text. The glyph lives in the left gutter (outside the text hit area), so the
+    // "annotations" listener above does NOT fire for it — this dedicated listener is required.
+    DisposableEffect(fragmentRef.value) {
+        val fragment = fragmentRef.value as? DecorableNavigator
+        val listener = object : DecorableNavigator.Listener {
+            override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
+                if (event.group != "annotation-notes") return false
+                val container = containerRef.value ?: return false
+                val rawRect = event.rect ?: return false
+                val rect = rawRect.toWindowIntRect(container)
+                currentOnOpenNoteReader(event.decoration.id, rect)
+                return true
+            }
+        }
+        fragment?.addDecorationListener("annotation-notes", listener)
         onDispose { fragment?.removeDecorationListener(listener) }
     }
 
@@ -2207,6 +2227,7 @@ private fun EpubNavigatorView(
                     noteEditorTarget = editTarget
                 },
                 onDismiss = onDismissHighlightActions,
+                noteOnly = editTarget.noteOnly,
             )
         }
         val noteTarget = noteEditorTarget

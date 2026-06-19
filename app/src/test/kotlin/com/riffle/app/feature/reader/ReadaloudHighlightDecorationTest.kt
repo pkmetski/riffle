@@ -41,5 +41,7 @@ class ReadaloudHighlightDecorationTest {
         assertNotNull(templates[HighlightTintStyle::class])
         // ...without dropping the built-in highlight used by persisted + search highlights.
         assertNotNull(templates[Decoration.Style.Highlight::class])
+        // ...and the note-glyph style for annotation-notes group is also registered.
+        assertNotNull(templates[NoteGlyphStyle::class])
     }
 }

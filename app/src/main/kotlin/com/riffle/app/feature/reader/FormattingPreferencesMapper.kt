@@ -92,6 +92,7 @@ fun FormattingPreferences.toFragmentConfiguration(
         // so the synced highlight can be strengthened on dark reading themes (see readerTint()).
         decorationTemplates = HtmlDecorationTemplates.defaultTemplates().apply {
             set(HighlightTintStyle::class, highlightTintTemplate())
+            set(NoteGlyphStyle::class, noteGlyphTemplate())
         },
         readiumCssRsProperties = when {
             isDoublePage -> RsProperties(

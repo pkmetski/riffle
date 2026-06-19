@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -103,6 +105,7 @@ fun HighlightActionsPopup(
     onDelete: () -> Unit,
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
+    noteOnly: Boolean = false,
 ) {
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
@@ -119,56 +122,113 @@ fun HighlightActionsPopup(
             tonalElevation = 0.dp,
         ) {
             Column(modifier = Modifier.width(280.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    HighlightSwatchRow(selected = selected, onPick = onPick)
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete highlight",
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            onDismiss()
-                            onOpenNoteEditor()
-                        }
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (note != null) "Note" else "Add note",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        if (note != null) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = note,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
+                if (!noteOnly) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        HighlightSwatchRow(selected = selected, onPick = onPick)
+                        IconButton(onClick = onDelete) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete highlight",
+                                tint = MaterialTheme.colorScheme.error,
                             )
                         }
                     }
-                    Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                }
+                if (noteOnly) {
+                    // Read-only note view: full text + Edit button. No colour pickers, no delete.
+                    // note==null is a transient race (glyph decorated before note deletion lands);
+                    // guard defensively rather than showing a broken "Edit" with no content.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                    ) {
+                        Text(
+                            text = "Note",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (note != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = note,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(
+                                onClick = { onDismiss(); onOpenNoteEditor() },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text("Edit")
+                            }
+                        }
+                    }
+                } else {
+                    var noteExpanded by remember(note) { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                when {
+                                    note == null -> { onDismiss(); onOpenNoteEditor() }
+                                    noteExpanded -> noteExpanded = false
+                                    else -> noteExpanded = true
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (note != null) "Note" else "Add note",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (note != null && !noteExpanded) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (note != null && noteExpanded) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = note,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                TextButton(
+                                    onClick = { onDismiss(); onOpenNoteEditor() },
+                                    modifier = Modifier.align(Alignment.End),
+                                ) {
+                                    Text("Edit")
+                                }
+                            }
+                        }
+                        Icon(
+                            imageVector = when {
+                                note == null -> Icons.Outlined.Edit
+                                noteExpanded -> Icons.Filled.KeyboardArrowUp
+                                else -> Icons.Filled.KeyboardArrowDown
+                            },
+                            contentDescription = when {
+                                note == null -> null
+                                noteExpanded -> "Collapse note"
+                                else -> "Expand note"
+                            },
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
         }
