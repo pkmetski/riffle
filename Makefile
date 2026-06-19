@@ -93,7 +93,7 @@ clean: ## Clean build outputs
 install: wrapper fonts ## Build debug APK and install on connected device
 	./gradlew :app:installDebug
 
-PHONE_AVD_BASE := Harness_Medium_Phone_2
+PHONE_AVD_BASE := Harness_Medium_Phone
 TABLET_AVD_BASE := Harness_Medium_Tablet
 TABLET_ANNOTATION := com.riffle.app.harness.TabletLayout
 
@@ -102,14 +102,15 @@ TABLET_ANNOTATION := com.riffle.app.harness.TabletLayout
 # Using a unique name (PID) avoids any interference from parallel workspace runs.
 define run_harness_tests
 	AVD_BASE="$(1)"; \
-	AVD_NAME="Harness_Temp_$$$$"; \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr -cs '[:alnum:]' '-' | sed 's/-*$$//'); \
+	AVD_NAME="Harness_$${BRANCH}_$$$$"; \
 	AVD_DIR="$$HOME/.android/avd/$$AVD_NAME.avd"; \
 	echo "Cloning $$AVD_BASE → $$AVD_NAME..."; \
 	cp -c -R "$$HOME/.android/avd/$$AVD_BASE.avd" "$$AVD_DIR"; \
 	sed "s|/$$AVD_BASE\.avd|/$$AVD_NAME.avd|g; s|$$AVD_BASE\.avd|$$AVD_NAME.avd|g" \
 		"$$HOME/.android/avd/$$AVD_BASE.ini" > "$$HOME/.android/avd/$$AVD_NAME.ini"; \
 	sed -i '' "s/^AvdId=.*/AvdId=$$AVD_NAME/" "$$AVD_DIR/config.ini"; \
-	sed -i '' "s/^avd.ini.displayname=.*/avd.ini.displayname=Harness Temp $$$$/" "$$AVD_DIR/config.ini"; \
+	sed -i '' "s/^avd.ini.displayname=.*/avd.ini.displayname=Harness $${BRANCH} $$$$/" "$$AVD_DIR/config.ini"; \
 	sed -i '' 's/^vm\.heapSize=.*/vm.heapSize=1024/' "$$AVD_DIR/config.ini"; \
 	rm -rf "$$AVD_DIR/snapshots" "$$AVD_DIR"/*.lock \
 		"$$AVD_DIR/snapshot.trace" "$$AVD_DIR/read-snapshot.txt" 2>/dev/null || true; \
