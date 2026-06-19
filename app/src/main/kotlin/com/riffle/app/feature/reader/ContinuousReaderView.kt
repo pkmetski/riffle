@@ -462,10 +462,29 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         smoothScrollBy(0, if (forward) delta else -delta)
     }
 
-    /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href]. */
+    /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href] and scroll it into view. */
     fun highlightInChapter(href: String, text: String) {
         val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text), null)
+        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text)) { _ ->
+            scrollToHighlight(i)
+        }
+    }
+
+    private fun scrollToHighlight(webViewIndex: Int) {
+        val wv = webViews.getOrNull(webViewIndex) ?: return
+        wv.evaluateJavascript(
+            "(function(){var el=document.getElementById('_riffle_hl');return el?el.getBoundingClientRect().top:-1;})()"
+        ) { result ->
+            val elementTop = result?.toFloatOrNull()?.toInt() ?: return@evaluateJavascript
+            if (elementTop < 0) return@evaluateJavascript
+            val slot = buildWindow().getOrNull(webViewIndex) ?: return@evaluateJavascript
+            val absoluteY = slot.top + elementTop
+            // Only scroll if the highlight is outside the middle two-thirds of the viewport.
+            val margin = height / 4
+            if (absoluteY < scrollY + margin || absoluteY > scrollY + height - margin) {
+                smoothScrollTo(0, (absoluteY - height / 3).coerceAtLeast(0))
+            }
+        }
     }
 
     /** Clear any active readaloud highlight in the chapter at [href]. */
