@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.GridView
@@ -45,6 +47,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -139,6 +144,7 @@ fun LibraryItemsScreen(
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
+    val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -273,6 +279,8 @@ fun LibraryItemsScreen(
                         onItemSelected = onItemSelected,
                         linkedItemIds = linkedItemIds,
                         onCoverScaleChange = onCoverScaleChange,
+                        notStartedFilterActive = notStartedFilterActive,
+                        onToggleNotStartedFilter = viewModel::toggleNotStartedFilter,
                     )
                     else -> {}
                 }
@@ -1192,6 +1200,7 @@ private fun ToReadTabContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AllBooksTabContent(
     items: List<LibraryItem>,
@@ -1200,29 +1209,67 @@ private fun AllBooksTabContent(
     onItemSelected: (LibraryItem) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
     onCoverScaleChange: (Float) -> Unit = {},
+    notStartedFilterActive: Boolean = false,
+    onToggleNotStartedFilter: () -> Unit = {},
 ) {
     if (isLoading) return
-    if (items.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No items in this library")
-        }
-        return
-    }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(coverGridMinCellSize()),
-        contentPadding = PaddingValues(
-            start = 12.dp, end = 12.dp, bottom = 16.dp,
-        ),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
         modifier = Modifier
             .pinchCoverZoom(onCoverScaleChange)
             .fillMaxSize(),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader("All Books (${items.size})")
+            Column {
+                SectionHeader("All Books (${items.size})")
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = notStartedFilterActive,
+                            onClick = onToggleNotStartedFilter,
+                            label = { Text("Not Started") },
+                            leadingIcon = if (notStartedFilterActive) {
+                                {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                    )
+                                }
+                            } else null,
+                        )
+                    }
+                }
+            }
+        }
+        if (items.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (notStartedFilterActive) "No unstarted books" else "No items in this library",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
-                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
+                BookCoverTile(
+                    item = item,
+                    token = token,
+                    onClick = { onItemSelected(item) },
+                    hasReadaloudLink = item.id in linkedItemIds,
+                )
             }
         }
     }
