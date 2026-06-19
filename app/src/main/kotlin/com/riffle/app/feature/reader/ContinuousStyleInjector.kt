@@ -374,8 +374,43 @@ internal object ContinuousStyleInjector {
             }
             append(']')
         }
+        // Single quotes inside the SVG percent-encoded URI must be escaped for JS string embedding.
+        val safeSvgUri = NOTE_GLYPH_SVG_DATA_URI.replace("'", "\\'")
         return """
             (function(anns) {
+                var SVG_URI = '$safeSvgUri';
+                // makeGlyph: positions the NoteAlt icon 28px to the left of anchorEl's first line,
+                // matching the paged-mode NoteGlyphStyle margin position.
+                var makeGlyph = function(id, anchorEl) {
+                    // Walk up to the nearest block ancestor so we can position within its coordinate space.
+                    var blockEl = document.body || document.documentElement;
+                    var p = anchorEl.parentNode;
+                    while (p && p.nodeType === 1 && p !== document.documentElement) {
+                        var d = window.getComputedStyle(p).display;
+                        if (d === 'block' || d === 'list-item') { blockEl = p; break; }
+                        p = p.parentNode;
+                    }
+                    if (window.getComputedStyle(blockEl).position === 'static') {
+                        blockEl.style.position = 'relative';
+                    }
+                    var markRect = anchorEl.getBoundingClientRect();
+                    var blockRect = blockEl.getBoundingClientRect();
+                    var relTop = Math.max(0, markRect.top - blockRect.top + 2);
+                    var s = document.createElement('span');
+                    s.setAttribute('data-riffle-note-glyph', id);
+                    s.style.cssText = 'position:absolute;left:-28px;top:' + relTop + 'px;' +
+                        'width:28px;height:28px;cursor:pointer;opacity:0.40;' +
+                        '-webkit-mask-image:url("' + SVG_URI + '");' +
+                        '-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;' +
+                        'background-color:currentColor;' +
+                        '-webkit-user-select:none;user-select:none;';
+                    s.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var r = s.getBoundingClientRect();
+                        window.RiffleChapter.onAnnotationNoteTap(id, r.left, r.top, r.right, r.bottom);
+                    });
+                    blockEl.appendChild(s);
+                };
                 // Remove marks/glyphs for annotations no longer in the list.
                 var validIds = {};
                 anns.forEach(function(a) { validIds[a.id] = true; });
@@ -394,7 +429,7 @@ internal object ContinuousStyleInjector {
                         existing.style.background = ann.c;
                         var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
                         if (ann.n && !eg) {
-                            existing.insertAdjacentElement('afterend', makeGlyph(ann.id));
+                            makeGlyph(ann.id, existing);
                         } else if (!ann.n && eg) {
                             eg.remove();
                         }
@@ -423,21 +458,9 @@ internal object ContinuousStyleInjector {
                             window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
                         });
                     })(mark, ann.id);
-                    if (ann.n) mark.insertAdjacentElement('afterend', makeGlyph(ann.id));
+                    if (ann.n) makeGlyph(ann.id, mark);
                 });
                 if (sel) sel.removeAllRanges();
-                function makeGlyph(id) {
-                    var s = document.createElement('span');
-                    s.setAttribute('data-riffle-note-glyph', id);
-                    s.textContent = '◆';
-                    s.style.cssText = 'display:inline;position:relative;top:-0.4em;font-size:0.5em;cursor:pointer;opacity:0.8;margin-left:1px;-webkit-user-select:none;user-select:none;';
-                    s.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        var r = s.getBoundingClientRect();
-                        window.RiffleChapter.onAnnotationNoteTap(id, r.left, r.top, r.right, r.bottom);
-                    });
-                    return s;
-                }
             })($json);
         """.trimIndent()
     }
