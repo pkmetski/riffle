@@ -21,3 +21,20 @@ When adding a new Room migration:
      - `helper.runMigrationsAndValidate(TEST_DB, N+1, true, RiffleDatabase.MIGRATION_N_(N+1))`
      - Cursor assertions verifying new columns have correct default values and all pre-existing data is preserved
    - Add the new migration to the `migrateFullChain` test's `runMigrationsAndValidate` call.
+
+## Reader mode changes
+
+The reader has three modes: paginated, vertical, and continuous.
+
+Paginated and vertical both use Readium's EpubNavigatorFragment (scroll=false vs
+scroll=true). Readium drives navigation, emits position updates, and populates Locator
+fields automatically.
+
+Continuous uses a custom ContinuousReaderView with a fully manual position pipeline.
+Anything Readium provides for free to paginated/vertical must be explicitly computed
+and threaded through the continuous onPositionChanged lambda in EpubReaderScreen.kt.
+
+Any change that touches the reader — position tracking, navigation events, new ViewModel
+state, UI driven by the current locator — must be verified to work in all three modes,
+with particular attention to continuous: if paginated/vertical get something from Readium,
+ask whether continuous needs to compute an equivalent.

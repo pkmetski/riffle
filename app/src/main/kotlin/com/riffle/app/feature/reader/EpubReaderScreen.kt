@@ -252,6 +252,7 @@ fun EpubReaderScreen(
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
+    val railSegments by viewModel.railSegments.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
     val readaloudOpen by viewModel.readaloudOpen.collectAsState()
@@ -339,6 +340,7 @@ fun EpubReaderScreen(
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
+                        railSegments = railSegments,
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
@@ -904,6 +906,16 @@ private const val NAV_COVER_SETTLE_MS = 250L
 private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
     Locator.fromJSON(readaloudLocatorJson(ref, quote))
 
+private suspend fun DecorableNavigator.applyDecorationsWithClear(
+    decorations: List<Decoration>,
+    group: String,
+) {
+    withContext(Dispatchers.Main) {
+        applyDecorations(emptyList(), group = group)
+        applyDecorations(decorations, group = group)
+    }
+}
+
 /**
  * The narrated sentences (span id → text) to feed [resolveSelectionSentenceJs] for a "Play from here"
  * tap, scoped to the chapter being read ([currentHref]). The resolver locates a tapped sentence by
@@ -966,6 +978,7 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
 private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
+    railSegments: List<RailSegment>,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
@@ -1044,6 +1057,10 @@ private fun EpubNavigatorView(
     // freshly loaded page re-applies the current value.
     val currentReadaloudReservePx by rememberUpdatedState(readaloudReservePx)
     val currentPublication by rememberUpdatedState(state.publication)
+    // rememberUpdatedState: railSegments arrives asynchronously (Readium computes positions after
+    // publication load). The AndroidView factory captures this reference so the continuous
+    // onPositionChanged lambda always reads the latest list.
+    val currentRailSegments by rememberUpdatedState(railSegments)
 
     // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
     // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
@@ -1339,6 +1356,13 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
+    val goToContinuous: suspend (Locator) -> Unit = { locator ->
+        continuousViewRef.value?.navigateTo(
+            locator.href.toString(),
+            locator.locations.progression?.toFloat() ?: 0f,
+        )
+    }
+
     LaunchedEffect(onNavigationEvents, isContinuous) {
         onNavigationEvents.collect { link ->
             // In Continuous mode the Readium fragment is a server-keeper only (invisible,
@@ -1375,10 +1399,7 @@ private fun EpubNavigatorView(
             // Background position sync (peer/resume/audiobook handoff): in Continuous mode the
             // fragment is the invisible server-keeper, so route the jump to the continuous view.
             if (isContinuous) {
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                )
+                goToContinuous(locator)
                 return@collect
             }
             // Paginated/scroll: navigate and snap onto the target's column, tracked through the new
@@ -1412,10 +1433,7 @@ private fun EpubNavigatorView(
     LaunchedEffect(returnNavEvents, isContinuous) {
         returnNavEvents.collect { locator ->
             if (isContinuous) {
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                )
+                goToContinuous(locator)
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -1440,10 +1458,7 @@ private fun EpubNavigatorView(
     LaunchedEffect(annotationNavigationEvents, isContinuous) {
         annotationNavigationEvents.collect { locator ->
             if (isContinuous) {
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                )
+                goToContinuous(locator)
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -1530,10 +1545,7 @@ private fun EpubNavigatorView(
         for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
             delay(settleDelayMs)
             if (fragmentRef.value !== navFragment) break // navigated away / fragment recreated — newer effect owns it
-            withContext(Dispatchers.Main) {
-                fragment.applyDecorations(emptyList(), group = "search")
-                fragment.applyDecorations(decorations, group = "search")
-            }
+            fragment.applyDecorationsWithClear(decorations, group = "search")
         }
     }
 
@@ -1577,10 +1589,7 @@ private fun EpubNavigatorView(
         // empty apply runs the JS group's clear() (it removes the whole decoration container element),
         // so the subsequent apply always leaves exactly one highlight. The two calls execute back to
         // back on the main thread, so there is no visible gap on a normal sentence advance.
-        withContext(Dispatchers.Main) {
-            fragment.applyDecorations(emptyList(), group = "readaloud")
-            fragment.applyDecorations(listOf(decoration), group = "readaloud")
-        }
+        fragment.applyDecorationsWithClear(listOf(decoration), group = "readaloud")
         hasReadaloudDecoration.value = true
     }
 
@@ -1663,15 +1672,12 @@ private fun EpubNavigatorView(
                 ),
             )
         }
-        withContext(Dispatchers.Main) {
-            // Clear before re-applying so the Readium JS group starts from a clean slate.
-            // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
-            // JS state was reset on page load (e.g. on book re-entry), leaving decorations
-            // visually missing; a stale DOM element from a prior session can also add a ghost
-            // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
-            fragment.applyDecorations(emptyList(), group = "annotations")
-            fragment.applyDecorations(decorations, group = "annotations")
-        }
+        // Clear before re-applying so the Readium JS group starts from a clean slate.
+        // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
+        // JS state was reset on page load (e.g. on book re-entry), leaving decorations
+        // visually missing; a stale DOM element from a prior session can also add a ghost
+        // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
+        fragment.applyDecorationsWithClear(decorations, group = "annotations")
         hasHighlightDecorations.value = true
     }
 
@@ -1699,10 +1705,7 @@ private fun EpubNavigatorView(
                 style = NoteGlyphStyle(),
             )
         }
-        withContext(Dispatchers.Main) {
-            fragment.applyDecorations(emptyList(), group = "annotation-notes")
-            fragment.applyDecorations(noteDecorations, group = "annotation-notes")
-        }
+        fragment.applyDecorationsWithClear(noteDecorations, group = "annotation-notes")
         hasNoteDecorations.value = true
     }
 
@@ -2121,12 +2124,7 @@ private fun EpubNavigatorView(
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
                         view.onPositionChanged = { href, progression ->
-                            val locator = Locator.fromJSON(
-                                org.json.JSONObject()
-                                    .put("href", href)
-                                    .put("type", "application/xhtml+xml")
-                                    .put("locations", org.json.JSONObject().put("progression", progression.toDouble()))
-                            )
+                            val locator = buildContinuousLocator(href, progression, currentRailSegments)
                             if (locator != null) onPositionChanged(locator)
                         }
                         view.onTap = currentOnTap
