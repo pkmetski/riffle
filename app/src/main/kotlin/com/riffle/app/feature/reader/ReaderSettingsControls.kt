@@ -157,28 +157,26 @@ internal fun OrientationIcon(orientation: ReaderOrientation) {
             }
         }
         ReaderOrientation.Vertical -> {
+            // Tall page with a seam — one long document with a visible chapter boundary.
             Canvas(modifier = Modifier.size(18.dp)) {
-                val w = size.width * 0.82f
-                val h = size.height * 0.12f
+                val w = size.width * 0.60f
+                val h = size.height * 0.92f
                 val leftX = (size.width - w) / 2f
-                val totalH = h * 5
-                val startY = (size.height - totalH) / 2f
-                repeat(3) { i ->
-                    drawRect(color, topLeft = Offset(leftX, startY + i * 2 * h), size = Size(w, h))
-                }
+                val topY = (size.height - h) / 2f
+                val seamH = size.height * 0.06f
+                val halfH = (h - seamH) / 2f
+                drawRect(color, topLeft = Offset(leftX, topY), size = Size(w, halfH))
+                drawRect(color, topLeft = Offset(leftX, topY + halfH + seamH), size = Size(w, halfH))
             }
         }
         ReaderOrientation.Continuous -> {
-            // Two stacked rectangles with a gap between them — multi-chapter scroll.
+            // Single uninterrupted tall page — chapters flow seamlessly.
             Canvas(modifier = Modifier.size(18.dp)) {
-                val w = size.width * 0.82f
-                val h = size.height * 0.32f
-                val gap = size.height * 0.12f
+                val w = size.width * 0.60f
+                val h = size.height * 0.92f
                 val leftX = (size.width - w) / 2f
-                val totalH = h * 2 + gap
-                val startY = (size.height - totalH) / 2f
-                drawRect(color, topLeft = Offset(leftX, startY), size = Size(w, h))
-                drawRect(color, topLeft = Offset(leftX, startY + h + gap), size = Size(w, h))
+                val topY = (size.height - h) / 2f
+                drawRect(color, topLeft = Offset(leftX, topY), size = Size(w, h))
             }
         }
     }
