@@ -25,7 +25,7 @@ import kotlin.math.abs
  * Adding a chapter at the TOP adjusts [scrollY] by the new chapter's height to keep the
  * visible content stable.
  */
-internal data class AnnotationHighlight(val id: String, val text: String, val cssColor: String)
+internal data class AnnotationHighlight(val id: String, val text: String, val cssColor: String, val hasNote: Boolean = false)
 
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
@@ -206,6 +206,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onExternalLink = null
         wv.onHighlight = null
         wv.onAnnotationTap = null
+        wv.onAnnotationNoteTap = null
         wv.onPlayFromHere = null
         wv.onFootnoteContent = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
@@ -515,6 +516,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
     var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
 
+    /** Called on the main thread when the user taps a note glyph next to an annotation mark. */
+    var onAnnotationNoteTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
+
     // Annotation state persisted so onPageFinished can re-apply marks when a chapter loads or
     // the sliding window cycles in a new chapter without the LaunchedEffect re-running.
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
@@ -555,6 +559,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             wv.getLocationOnScreen(loc)
             val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
             onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
+        }
+        wv.onAnnotationNoteTap = { id, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
         }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
@@ -647,6 +657,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             wv.getLocationOnScreen(loc)
             val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
             onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
+        }
+        wv.onAnnotationNoteTap = { id, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
         }
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }

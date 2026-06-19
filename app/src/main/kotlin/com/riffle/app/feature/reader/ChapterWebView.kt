@@ -98,6 +98,12 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      */
     var onAnnotationTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
 
+    /**
+     * Called on the main thread when the user taps the note glyph (`<span data-riffle-note-glyph>`)
+     * next to an annotation that has a note. [rect] is in device pixels relative to this WebView.
+     */
+    var onAnnotationNoteTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
+
     /** When true, the text-selection menu offers "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
 
@@ -431,6 +437,20 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                     (cssBottom * dpr).toInt(),
                 )
                 this@ChapterWebView.onAnnotationTap?.invoke(id, rect)
+            }
+        }
+
+        @JavascriptInterface
+        fun onAnnotationNoteTap(id: String, cssLeft: Float, cssTop: Float, cssRight: Float, cssBottom: Float) {
+            post {
+                val dpr = resources.displayMetrics.density
+                val rect = android.graphics.Rect(
+                    (cssLeft * dpr).toInt(),
+                    (cssTop * dpr).toInt(),
+                    (cssRight * dpr).toInt(),
+                    (cssBottom * dpr).toInt(),
+                )
+                this@ChapterWebView.onAnnotationNoteTap?.invoke(id, rect)
             }
         }
 

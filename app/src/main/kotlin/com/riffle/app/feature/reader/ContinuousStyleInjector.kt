@@ -344,16 +344,24 @@ internal object ContinuousStyleInjector {
 
     val CLEAR_ANNOTATION_HIGHLIGHTS_JS = """
         (function() {
+            document.querySelectorAll('[data-riffle-note-glyph]').forEach(function(s) { s.remove(); });
             document.querySelectorAll('[data-riffle-ann]').forEach(function(m) { m.outerHTML = m.innerHTML; });
         })();
     """.trimIndent()
 
     /**
-     * JS that applies [annotations] as `<mark>` elements, keyed by their ID via `data-riffle-ann`.
-     * Clears any existing annotation marks first. Uses the same window.find() + surroundContents()
-     * approach as [highlightTextJs], with the extractContents() fallback for inline-spanning ranges.
-     * Selection is reset to the document start before each find so consecutive searches don't
-     * accumulate position.
+     * JS that applies [annotations] as `<mark>` elements (keyed by `data-riffle-ann`) and optional
+     * note-glyph `<span>` elements (keyed by `data-riffle-note-glyph`).
+     *
+     * Smart DOM diffing avoids the clear-and-reapply pattern: existing marks are updated in-place
+     * (colour only, no DOM structure change), marks for deleted annotations are removed, and only
+     * newly-added annotations go through `window.find()`. This prevents the race where clearing
+     * existing marks via `outerHTML = innerHTML` modifies the DOM just before `window.find()` is
+     * called — Chrome won't reliably find text in a DOM it just mutated synchronously — so a new
+     * highlight appears immediately without requiring a page reload.
+     *
+     * For annotations with notes a small ◆ glyph span is injected after the mark. Tapping it calls
+     * `window.RiffleChapter.onAnnotationNoteTap` so the host can open the note reader.
      */
     fun applyAnnotationHighlightsJs(annotations: List<AnnotationHighlight>): String {
         val json = buildString {
@@ -362,15 +370,37 @@ internal object ContinuousStyleInjector {
                 if (i > 0) append(',')
                 val safeId = ann.id.replace("\\", "\\\\").replace("'", "\\'")
                 val safeText = ann.text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
-                append("{id:'$safeId',t:'$safeText',c:'${ann.cssColor}'}")
+                append("{id:'$safeId',t:'$safeText',c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}}")
             }
             append(']')
         }
         return """
             (function(anns) {
-                document.querySelectorAll('[data-riffle-ann]').forEach(function(m) { m.outerHTML = m.innerHTML; });
+                // Remove marks/glyphs for annotations no longer in the list.
+                var validIds = {};
+                anns.forEach(function(a) { validIds[a.id] = true; });
+                document.querySelectorAll('[data-riffle-ann]').forEach(function(m) {
+                    if (!validIds[m.getAttribute('data-riffle-ann')]) {
+                        var g = document.querySelector('[data-riffle-note-glyph="' + m.getAttribute('data-riffle-ann') + '"]');
+                        if (g) g.remove();
+                        m.outerHTML = m.innerHTML;
+                    }
+                });
                 var sel = window.getSelection();
                 anns.forEach(function(ann) {
+                    var existing = document.querySelector('[data-riffle-ann="' + ann.id + '"]');
+                    if (existing) {
+                        // Update colour in-place — no window.find() needed, no DOM structure change.
+                        existing.style.background = ann.c;
+                        var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
+                        if (ann.n && !eg) {
+                            existing.insertAdjacentElement('afterend', makeGlyph(ann.id));
+                        } else if (!ann.n && eg) {
+                            eg.remove();
+                        }
+                        return;
+                    }
+                    // New annotation — locate via window.find() on the unmodified DOM.
                     sel.removeAllRanges();
                     if (!window.find(ann.t, false, false, false, false, false, false)) return;
                     sel = window.getSelection();
@@ -386,7 +416,6 @@ internal object ContinuousStyleInjector {
                         mark.appendChild(frag);
                         range.insertNode(mark);
                     }
-                    // Capture mark + id in an IIFE so the click listener closes over the correct values.
                     (function(markEl, annId) {
                         markEl.addEventListener('click', function(e) {
                             e.stopPropagation();
@@ -394,8 +423,21 @@ internal object ContinuousStyleInjector {
                             window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
                         });
                     })(mark, ann.id);
+                    if (ann.n) mark.insertAdjacentElement('afterend', makeGlyph(ann.id));
                 });
                 if (sel) sel.removeAllRanges();
+                function makeGlyph(id) {
+                    var s = document.createElement('span');
+                    s.setAttribute('data-riffle-note-glyph', id);
+                    s.textContent = '◆';
+                    s.style.cssText = 'display:inline-block;vertical-align:super;font-size:0.55em;cursor:pointer;opacity:0.75;margin-left:2px;-webkit-user-select:none;user-select:none;';
+                    s.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var r = s.getBoundingClientRect();
+                        window.RiffleChapter.onAnnotationNoteTap(id, r.left, r.top, r.right, r.bottom);
+                    });
+                    return s;
+                }
             })($json);
         """.trimIndent()
     }

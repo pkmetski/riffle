@@ -1640,6 +1640,7 @@ private fun EpubNavigatorView(
                         id = h.id,
                         text = h.locator.text.highlight!!,
                         cssColor = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme).toCssRgba(),
+                        hasNote = h.note != null,
                     )
                 }
             }
@@ -2166,6 +2167,10 @@ private fun EpubNavigatorView(
                         view.onAnnotationTap = { _, id, androidRect ->
                             val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
                             currentOnOpenHighlightActions(id, rect)
+                        }
+                        view.onAnnotationNoteTap = { _, id, androidRect ->
+                            val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
+                            currentOnOpenNoteReader(id, rect)
                         }
                         view.onHighlightSelection = { chapterHref, selectedText ->
                             val locator = org.readium.r2.shared.publication.Locator.fromJSON(
