@@ -79,8 +79,13 @@ internal object ContinuousStyleInjector {
         // Advanced settings: Continuous always runs with publisherStyles off (advanced on).
         props["--USER__advancedSettings"] = "readium-advanced-on"
 
-        // Text alignment mirrors FormattingPreferencesMapper: justify, else start.
-        props["--USER__textAlign"] = if (prefs.justifyText) "justify" else "start"
+        // Text alignment: set only when justify is on. When off, omit --USER__textAlign entirely
+        // so the publisher's own text-align is preserved — matching FormattingPreferencesMapper's
+        // contract (null when justifyText=false) and the Scroll/Paginated mode behaviour where the
+        // variable is left unset and the publisher's alignment shows through.
+        if (prefs.justifyText) {
+            props["--USER__textAlign"] = "justify"
+        }
 
         // Line height only when the user moved it off the default (mirrors the mapper's null-gating).
         if (prefs.lineSpacing != FormattingPreferences.DEFAULT_LINE_SPACING) {

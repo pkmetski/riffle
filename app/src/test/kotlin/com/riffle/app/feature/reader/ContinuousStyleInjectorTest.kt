@@ -49,9 +49,9 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `justify off maps to textAlign start (matches Readium default)`() {
+    fun `justify off omits textAlign — publisher alignment preserved (mirrors Readium null contract)`() {
         val s = attr(FormattingPreferences(justifyText = false))
-        assertTrue(s.contains("--USER__textAlign: start !important;"))
+        assertFalse("--USER__textAlign must not be set when justifyText=false", s.contains("--USER__textAlign"))
     }
 
     @Test
@@ -176,6 +176,7 @@ class ContinuousStyleInjectorTest {
         val js = ContinuousStyleInjector.buildStyleInjectionJs(FormattingPreferences(fontSize = 1.5f))
         assertTrue(js.contains("document.documentElement.setAttribute('style'"))
         assertTrue(js.contains("--USER__fontSize: 150% !important;"))
+        assertFalse("--USER__textAlign absent when justifyText=false", js.contains("--USER__textAlign"))
     }
 
     // ── highlight helpers (unchanged) ───────────────────────────────────────────
