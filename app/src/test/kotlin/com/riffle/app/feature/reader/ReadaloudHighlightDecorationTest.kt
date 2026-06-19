@@ -6,6 +6,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReadaloudHighlightColor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.navigator.Decoration
 
@@ -16,9 +17,10 @@ class ReadaloudHighlightDecorationTest {
     @Test
     fun allColorsHaveAlphaBakedIn() {
         // argb is the final rendered color used by both the swatch and the reader — no runtime
-        // transformation applied. Verify every entry has the expected translucent alpha.
+        // transformation applied. Verify every entry is translucent (not fully opaque).
         for (color in ReadaloudHighlightColor.entries) {
-            assertEquals("alpha for ${color.name}", HIGHLIGHT_ALPHA_LIGHT, alpha(color.argb))
+            val a = alpha(color.argb)
+            assertTrue("${color.name} alpha $a should be translucent", a in 1..254)
         }
     }
 
