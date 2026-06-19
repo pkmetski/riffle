@@ -867,6 +867,109 @@ class LibraryItemsViewModelTest {
         assertEquals(50, vm.filteredRecentlyAdded.value.size)
     }
 
+    // --- notStartedFilterActive ---
+
+    @Test
+    fun `notStartedFilterActive starts as false`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.notStartedFilterActive.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.notStartedFilterActive.value)
+    }
+
+    @Test
+    fun `toggleNotStartedFilter flips active to true`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.notStartedFilterActive.collect {} }
+        vm.toggleNotStartedFilter()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.notStartedFilterActive.value)
+    }
+
+    @Test
+    fun `toggleNotStartedFilter flips active back to false on second call`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.notStartedFilterActive.collect {} }
+        vm.toggleNotStartedFilter()
+        vm.toggleNotStartedFilter()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.notStartedFilterActive.value)
+    }
+
+    @Test
+    fun `filteredAllBooks shows only zero-progress items when notStartedFilterActive`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.notStartedFilterActive.collect {} }
+        allBooksFlow.value = listOf(
+            LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub),
+            LibraryItem("id-Martian", "lib-1", "The Martian", "Weir", null, 0.42f, false, false, EbookFormat.Epub),
+            LibraryItem("id-Wool", "lib-1", "Wool", "Howey", null, 1f, false, false, EbookFormat.Epub),
+        )
+        vm.toggleNotStartedFilter()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf(LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub)),
+            vm.filteredAllBooks.value,
+        )
+    }
+
+    @Test
+    fun `filteredAllBooks shows all items when notStartedFilter is toggled back off`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        val all = listOf(
+            LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub),
+            LibraryItem("id-Martian", "lib-1", "The Martian", "Weir", null, 0.42f, false, false, EbookFormat.Epub),
+        )
+        allBooksFlow.value = all
+        vm.toggleNotStartedFilter()
+        vm.toggleNotStartedFilter()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(all, vm.filteredAllBooks.value)
+    }
+
+    @Test
+    fun `filteredAllBooks not-started filter composes with offline filter`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
+        )
+        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.isOffline.collect {} }
+        allBooksFlow.value = listOf(
+            // not started AND downloaded — should appear
+            LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub),
+            // not started but NOT downloaded — offline filter removes it
+            LibraryItem("id-Foundation", "lib-1", "Foundation", "Asimov", null, 0f, false, false, EbookFormat.Epub),
+            // in progress AND downloaded — not-started filter removes it
+            LibraryItem("id-Martian", "lib-1", "The Martian", "Weir", null, 0.42f, false, false, EbookFormat.Epub),
+        )
+        vm.toggleNotStartedFilter()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            listOf(LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub)),
+            vm.filteredAllBooks.value,
+        )
+    }
+
+    @Test
+    fun `filteredAllBooks includes zero-progress audiobook-only items when notStartedFilterActive`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        val audiobook = LibraryItem(
+            "id-Audiobook", "lib-1", "Project Hail Mary", "Weir", null, 0f, false, false,
+            EbookFormat.Unsupported, hasAudio = true,
+        )
+        allBooksFlow.value = listOf(
+            audiobook,
+            LibraryItem("id-Started", "lib-1", "Dune", "Herbert", null, 0.1f, false, false, EbookFormat.Epub),
+        )
+        vm.toggleNotStartedFilter()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(audiobook), vm.filteredAllBooks.value)
+    }
+
     // --- searchQuery persistence (issue #60) ---
 
     @Test

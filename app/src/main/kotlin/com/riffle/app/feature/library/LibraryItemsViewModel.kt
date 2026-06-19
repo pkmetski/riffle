@@ -202,8 +202,20 @@ class LibraryItemsViewModel @Inject constructor(
         filtered.take(20)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(allBooks, isOffline) { items, offline ->
-        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+    private val _notStartedFilterActive = MutableStateFlow(false)
+    val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
+
+    fun toggleNotStartedFilter() {
+        _notStartedFilterActive.value = !_notStartedFilterActive.value
+    }
+
+    val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(
+        allBooks,
+        isOffline,
+        _notStartedFilterActive,
+    ) { items, offline, notStartedOnly ->
+        val afterOffline = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
+        if (notStartedOnly) afterOffline.filter { it.readingProgress == 0f } else afterOffline
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val toReadItems: StateFlow<List<LibraryItem>> = combine(toReadItemIds, allBooks, isOffline) { ids, all, offline ->
