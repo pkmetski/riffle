@@ -33,11 +33,10 @@ class AudiobookPlayerSnackbarTest {
     @get:Rule val rule = createComposeRule()
 
     // Shared setup: show the "Bookmark saved" snackbar with the same parameters used in
-    // AudiobookPlayerScreen and advance the clock enough for it to appear.
+    // AudiobookPlayerScreen and wait for it to appear.
     // Returns the SnackbarHostState so individual tests can drive it further.
     private fun showBookmarkSavedSnackbar(): SnackbarHostState {
         val state = SnackbarHostState()
-        rule.mainClock.autoAdvance = false
 
         rule.setContent {
             Box(Modifier.fillMaxSize()) {
@@ -55,9 +54,6 @@ class AudiobookPlayerSnackbarTest {
             }
         }
 
-        // Allow the LaunchedEffect to start and the snackbar to appear.
-        rule.mainClock.advanceTimeBy(100L)
-        rule.waitForIdle()
         rule.onNodeWithText("Bookmark saved").assertIsDisplayed()
         return state
     }
@@ -89,6 +85,8 @@ class AudiobookPlayerSnackbarTest {
         // Perform the action — equivalent to tapping the Undo button.
         state.currentSnackbarData?.performAction()
 
+        // Advance the clock slightly so the coroutine resumption propagates.
+        rule.mainClock.advanceTimeBy(100L)
         rule.waitForIdle()
         rule.onNodeWithText("Bookmark saved").assertDoesNotExist()
     }
