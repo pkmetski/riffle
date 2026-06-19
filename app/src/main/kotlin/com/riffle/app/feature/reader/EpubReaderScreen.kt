@@ -236,6 +236,8 @@ fun EpubReaderScreen(
         }
     }
 
+    val skipIntervalSec by viewModel.skipIntervalSec.collectAsState()
+    val rewindIntervalSec by viewModel.rewindIntervalSec.collectAsState()
     val isSearchActive by viewModel.isSearchActive.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -489,6 +491,8 @@ fun EpubReaderScreen(
                         ReadaloudMiniPlayer(
                             isPlaying = playbackState.isPlaying,
                             speed = playbackState.speed,
+                            skipIntervalSeconds = skipIntervalSec.toInt(),
+                            rewindIntervalSeconds = rewindIntervalSec.toInt(),
                             barMessage = readaloudBarMessage,
                             downloadProgress = downloadProgress,
                             canPreviousChapter = playbackState.currentChapterIndex > 0,

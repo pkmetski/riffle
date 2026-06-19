@@ -2,6 +2,7 @@
 
 package com.riffle.app.feature.reader.readaloud
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -114,6 +115,8 @@ private fun SkipIcon(seconds: Int, forward: Boolean, tint: Color, iconSize: Dp =
 fun ReadaloudMiniPlayer(
     isPlaying: Boolean,
     speed: Float,
+    skipIntervalSeconds: Int,
+    rewindIntervalSeconds: Int,
     barMessage: String?,
     downloadProgress: Float?,
     canPreviousChapter: Boolean,
