@@ -22,6 +22,7 @@ class HighlightActionsPopupTest {
 
     private fun showPopup(
         note: String? = null,
+        noteOnly: Boolean = false,
         onOpenNoteEditor: () -> Unit = {},
         onDismiss: () -> Unit = {},
     ) {
@@ -34,6 +35,7 @@ class HighlightActionsPopupTest {
                 onDelete = {},
                 onOpenNoteEditor = onOpenNoteEditor,
                 onDismiss = onDismiss,
+                noteOnly = noteOnly,
             )
         }
     }
@@ -69,5 +71,24 @@ class HighlightActionsPopupTest {
         composeTestRule.onNodeWithText("Note").performClick()   // expand
         composeTestRule.onNodeWithText("Edit").performClick()   // open editor
         assertTrue("tapping Edit in expanded state must call onOpenNoteEditor", called)
+    }
+
+    @Test
+    fun noteOnly_hidesColorRowAndShowsNoteDirectly() {
+        showPopup(note = "My note", noteOnly = true)
+        composeTestRule.onNodeWithText("Note").assertIsDisplayed()
+        composeTestRule.onNodeWithText("My note").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
+        // Colour swatches and delete must not be visible in note-only mode
+        composeTestRule.onNodeWithContentDescription("Delete highlight").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Yellow highlight, selected").assertDoesNotExist()
+    }
+
+    @Test
+    fun noteOnly_tapEditButton_callsOnOpenNoteEditor() {
+        var called = false
+        showPopup(note = "My note", noteOnly = true, onOpenNoteEditor = { called = true })
+        composeTestRule.onNodeWithText("Edit").performClick()
+        assertTrue("Edit in note-only mode must call onOpenNoteEditor", called)
     }
 }

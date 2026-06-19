@@ -329,7 +329,7 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _bookmarkPositions = MutableStateFlow<List<BookmarkPosition>>(emptyList())
 
-    data class HighlightEditTarget(val id: String, val anchorRect: IntRect)
+    data class HighlightEditTarget(val id: String, val anchorRect: IntRect, val noteOnly: Boolean = false)
 
     private val _highlightToEdit = MutableStateFlow<HighlightEditTarget?>(null)
     /** Highlight whose actions popup should be open (just-created or tapped), else null. */
@@ -337,6 +337,10 @@ class EpubReaderViewModel @Inject constructor(
 
     fun openHighlightActions(id: String, anchorRect: IntRect) {
         _highlightToEdit.value = HighlightEditTarget(id, anchorRect)
+    }
+    /** Opens the popup in note-only read mode (no colour pickers, no delete). Used by the margin glyph. */
+    fun openNoteReader(id: String, anchorRect: IntRect) {
+        _highlightToEdit.value = HighlightEditTarget(id, anchorRect, noteOnly = true)
     }
     fun dismissHighlightActions() { _highlightToEdit.value = null }
 

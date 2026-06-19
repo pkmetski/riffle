@@ -373,6 +373,7 @@ fun EpubReaderScreen(
                         onHighlight = viewModel::createHighlight,
                         highlightToEdit = highlightToEdit,
                         onOpenHighlightActions = viewModel::openHighlightActions,
+                        onOpenNoteReader = viewModel::openNoteReader,
                         onDismissHighlightActions = viewModel::dismissHighlightActions,
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
@@ -996,6 +997,7 @@ private fun EpubNavigatorView(
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
     highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
     onOpenHighlightActions: (String, androidx.compose.ui.unit.IntRect) -> Unit,
+    onOpenNoteReader: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onDismissHighlightActions: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
@@ -1036,6 +1038,7 @@ private fun EpubNavigatorView(
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
     val currentOnOpenHighlightActions by rememberUpdatedState(onOpenHighlightActions)
+    val currentOnOpenNoteReader by rememberUpdatedState(onOpenNoteReader)
     val currentOnUpdateHighlightNote by rememberUpdatedState(onUpdateHighlightNote)
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
@@ -1706,7 +1709,7 @@ private fun EpubNavigatorView(
                 val container = containerRef.value ?: return false
                 val rawRect = event.rect ?: return false
                 val rect = rawRect.toWindowIntRect(container)
-                currentOnOpenHighlightActions(event.decoration.id, rect)
+                currentOnOpenNoteReader(event.decoration.id, rect)
                 return true
             }
         }
@@ -2224,6 +2227,7 @@ private fun EpubNavigatorView(
                     noteEditorTarget = editTarget
                 },
                 onDismiss = onDismissHighlightActions,
+                noteOnly = editTarget.noteOnly,
             )
         }
         val noteTarget = noteEditorTarget
