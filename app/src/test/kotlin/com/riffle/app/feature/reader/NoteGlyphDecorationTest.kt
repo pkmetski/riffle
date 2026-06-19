@@ -47,7 +47,7 @@ class NoteGlyphDecorationTest {
     fun `noteGlyphTemplate stylesheet positions icon div in the left gutter`() {
         val stylesheet = noteGlyphTemplate().stylesheet ?: ""
         assertTrue("stylesheet must position icon left of selection bounds",
-            stylesheet.contains("left: -24px"))
+            stylesheet.contains("left: -28px"))
     }
 
     @Test

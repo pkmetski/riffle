@@ -7,15 +7,14 @@ import android.os.Parcelable
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.html.HtmlDecorationTemplate
 
-// SVG path from Icons.AutoMirrored.Outlined.StickyNote2 (Apache 2.0).
+// SVG path from Icons.Outlined.NoteAlt (Apache 2.0): document page with ruled lines.
 // Percent-encoded so it can be embedded directly in a CSS url() without base64.
 // %3C/%3E = < / >
 internal const val NOTE_GLYPH_SVG_DATA_URI =
     "data:image/svg+xml," +
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E" +
-    "%3Cpath d='M19,5v9l-5,0,0,5H5V5H19M19,3H5C3.9,3,3,3.9,3,5v14" +
-    "c0,1.1,.9,2,2,2h10l6,-6V5C21,3.9,20.1,3,19,3Z" +
-    "M12,14H7v-2h5V14ZM17,10H7V8h10V10Z'/%3E" +
+    "%3Cpath d='M22,10l-6,-6H4C2.9,4,2,4.9,2,6v12c0,1.1,0.9,2,2,2h16c1.1,0,2,-0.9,2,-2V10Z" +
+    "M16,4l4,4h-4V4ZM13,18H7v-2h6V18ZM17,14H7v-2h10V14ZM17,10H7V8h10V10Z'/%3E" +
     "%3C/svg%3E"
 
 private const val NOTE_GLYPH_CLASS = "riffle-note-glyph"
@@ -71,15 +70,15 @@ fun noteGlyphTemplate(): HtmlDecorationTemplate =
             }
             .$NOTE_GLYPH_ICON_CLASS {
                 position: absolute;
-                left: -24px;
+                left: -28px;
                 top: 2px;
-                width: 24px;
-                height: 24px;
+                width: 28px;
+                height: 28px;
                 -webkit-mask-image: url("$NOTE_GLYPH_SVG_DATA_URI");
                 -webkit-mask-size: contain;
                 -webkit-mask-repeat: no-repeat;
                 background-color: currentColor;
-                opacity: 0.55;
+                opacity: 0.40;
             }
         """.trimIndent(),
     )
