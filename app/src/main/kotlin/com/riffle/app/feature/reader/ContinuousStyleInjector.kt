@@ -351,7 +351,7 @@ internal object ContinuousStyleInjector {
      * (e.g. `<em>`, `<span class="smallcaps">`). The fallback uses `extractContents()` +
      * `insertNode()` which handles multi-node ranges correctly.
      */
-    fun highlightTextJs(text: String): String {
+    fun highlightTextJs(text: String, cssColor: String): String {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
         val safe = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
         return """
@@ -364,7 +364,7 @@ internal object ContinuousStyleInjector {
                 var range = sel.getRangeAt(0);
                 var mark = document.createElement('mark');
                 mark.id = '_riffle_hl';
-                mark.style.cssText = 'background:#7DD3FC;color:inherit;';
+                mark.style.cssText = 'background:$cssColor;color:inherit;';
                 try {
                     range.surroundContents(mark);
                 } catch(e) {

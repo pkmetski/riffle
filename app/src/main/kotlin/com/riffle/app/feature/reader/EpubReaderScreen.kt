@@ -1439,7 +1439,7 @@ private fun EpubNavigatorView(
                 val progression = locator.locations.progression?.toFloat() ?: 0f
                 val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
-                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText)
+                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, "#FDE68A")
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -1601,7 +1601,7 @@ private fun EpubNavigatorView(
     // common case where the sentence spans inline elements (em, span, strong) and surroundContents()
     // would throw. sentenceQuotes is re-keyed here so the highlight re-applies once quotes are built.
     val prevHighlightHref = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes) {
+    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
         if (!isContinuous) return@LaunchedEffect
         val view = continuousViewRef.value ?: return@LaunchedEffect
         val ref = activeFragmentRef
@@ -1619,7 +1619,8 @@ private fun EpubNavigatorView(
         val prev = prevHighlightHref.value
         if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
         prevHighlightHref.value = chapterHref
-        view.highlightInChapter(chapterHref, text)
+        val cssColor = readaloudHighlightColor.readerTint(formattingPrefs.theme).toCssRgba()
+        view.highlightInChapter(chapterHref, text, cssColor)
     }
 
     // ---- Persisted highlights (ADR 0024) ---------------------------------------------------

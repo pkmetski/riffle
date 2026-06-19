@@ -463,9 +463,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href] and scroll it into view. */
-    fun highlightInChapter(href: String, text: String) {
+    fun highlightInChapter(href: String, text: String, cssColor: String) {
         val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text)) { _ ->
+        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
             // Re-lookup by href rather than using the captured index: the window may have shifted
             // between the evaluateJavascript call and this callback, making i stale.
             scrollToHighlight(href)
