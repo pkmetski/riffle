@@ -16,6 +16,7 @@ data class NetworkSeriesItem(
     val publishedYear: String? = null,
     val genres: List<String> = emptyList(),
     val publisher: String? = null,
+    val updatedAt: Long? = null,
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }

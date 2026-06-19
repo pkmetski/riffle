@@ -194,6 +194,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                     publisher = dto.media.metadata.publisher,
                     language = dto.media.metadata.language,
                     addedAt = dto.addedAt,
+                    updatedAt = dto.updatedAt,
                     isbn = dto.media.metadata.isbn,
                     asin = dto.media.metadata.asin,
                 )
@@ -243,6 +244,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                             publishedYear = book.media.metadata.publishedYear,
                             genres = book.media.metadata.genres,
                             publisher = book.media.metadata.publisher,
+                            updatedAt = book.updatedAt,
                         )
                     },
                 )

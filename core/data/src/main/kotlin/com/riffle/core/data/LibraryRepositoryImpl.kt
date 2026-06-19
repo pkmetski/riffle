@@ -194,7 +194,8 @@ class LibraryRepositoryImpl @Inject constructor(
                             libraryId = item.libraryId,
                             title = item.title,
                             author = item.author,
-                            coverUrl = "${server.url.value}/api/items/${item.id}/cover",
+                            coverUrl = "${server.url.value}/api/items/${item.id}/cover" +
+                                (item.updatedAt?.let { "?t=$it" } ?: ""),
                             // For an audiobook-only item the ABS user-progress fallback already maps
                             // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
                             // progress), so this single field is the unified "how far through this
@@ -244,7 +245,10 @@ class LibraryRepositoryImpl @Inject constructor(
                         id = s.id,
                         libraryId = s.libraryId,
                         name = s.name,
-                        coverUrl = s.items.firstOrNull()?.let { "${server.url.value}/api/items/${it.id}/cover" },
+                        coverUrl = s.items.firstOrNull()?.let { first ->
+                            "${server.url.value}/api/items/${first.id}/cover" +
+                                (first.updatedAt?.let { "?t=$it" } ?: "")
+                        },
                         bookCount = s.bookCount,
                     )
                 }

@@ -550,6 +550,54 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `refreshLibraryItems appends updatedAt as cache-buster to cover URL`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, updatedAt = 1_762_902_014_957L)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(
+            "https://abs.example.com/api/items/item-1/cover?t=1762902014957",
+            dao.itemsFor("lib-1").first().coverUrl,
+        )
+    }
+
+    @Test
+    fun `refreshLibraryItems uses plain cover URL when updatedAt is absent`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", null, ebookFormat = EbookFormat.Epub, updatedAt = null)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(
+            "https://abs.example.com/api/items/item-1/cover",
+            dao.itemsFor("lib-1").first().coverUrl,
+        )
+    }
+
+    @Test
     fun `observeRecentlyAddedItems emits items from DAO ordered by addedAt`() = runTest {
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
@@ -801,6 +849,59 @@ class LibraryRepositoryTest {
         }
         val result = makeRepo(api = api).refreshSeries("lib-1")
         assertTrue(result is LibraryRefreshResult.NetworkError)
+    }
+
+    @Test
+    fun `refreshSeries uses first book updatedAt as cache-buster in cover URL`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeSeriesDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(listOf(
+                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
+                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub, updatedAt = 1_762_902_014_957L),
+                        NetworkSeriesItem("item-2", "lib-1", "WoR", "Sanderson", "2", 0f, EbookFormat.Epub, updatedAt = 1_762_000_000_000L),
+                    )),
+                ))
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(seriesDao = dao, api = api).refreshSeries("lib-1")
+        assertEquals(
+            "https://abs.example.com/api/items/item-1/cover?t=1762902014957",
+            dao.upsertedSeries.first().coverUrl,
+        )
+    }
+
+    @Test
+    fun `refreshSeries uses plain cover URL when first book updatedAt is absent`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeSeriesDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(listOf(
+                    NetworkSeries("ser-1", "lib-1", "Stormlight", listOf(
+                        NetworkSeriesItem("item-1", "lib-1", "WoK", "Sanderson", "1", 0f, EbookFormat.Epub, updatedAt = null),
+                    )),
+                ))
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(seriesDao = dao, api = api).refreshSeries("lib-1")
+        assertEquals(
+            "https://abs.example.com/api/items/item-1/cover",
+            dao.upsertedSeries.first().coverUrl,
+        )
     }
 
     // ── observeSeries ─────────────────────────────────────────────────────────
