@@ -91,4 +91,13 @@ class HighlightActionsPopupTest {
         composeTestRule.onNodeWithText("Edit").performClick()
         assertTrue("Edit in note-only mode must call onOpenNoteEditor", called)
     }
+
+    @Test
+    fun noteOnly_nullNote_showsLabelButNoEditButton() {
+        // Race: glyph decoration still visible in WebView while note was just deleted in Kotlin state.
+        // The popup must not render an orphaned "Edit" button with no note content.
+        showPopup(note = null, noteOnly = true)
+        composeTestRule.onNodeWithText("Note").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Edit").assertDoesNotExist()
+    }
 }

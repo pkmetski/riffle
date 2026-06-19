@@ -107,7 +107,6 @@ fun HighlightActionsPopup(
     onDismiss: () -> Unit,
     noteOnly: Boolean = false,
 ) {
-    var noteExpanded by remember(note) { mutableStateOf(false) }
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
     val provider = remember(anchorRect) { HighlightPopupPositionProvider(anchorRect, margin) }
@@ -144,6 +143,8 @@ fun HighlightActionsPopup(
                 }
                 if (noteOnly) {
                     // Read-only note view: full text + Edit button. No colour pickers, no delete.
+                    // note==null is a transient race (glyph decorated before note deletion lands);
+                    // guard defensively rather than showing a broken "Edit" with no content.
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -160,15 +161,16 @@ fun HighlightActionsPopup(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        }
-                        TextButton(
-                            onClick = { onDismiss(); onOpenNoteEditor() },
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text("Edit")
+                            TextButton(
+                                onClick = { onDismiss(); onOpenNoteEditor() },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text("Edit")
+                            }
                         }
                     }
                 } else {
+                    var noteExpanded by remember(note) { mutableStateOf(false) }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
