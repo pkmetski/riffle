@@ -176,6 +176,7 @@ class ContinuousStyleInjectorTest {
         val js = ContinuousStyleInjector.buildStyleInjectionJs(FormattingPreferences(fontSize = 1.5f))
         assertTrue(js.contains("document.documentElement.setAttribute('style'"))
         assertTrue(js.contains("--USER__fontSize: 150% !important;"))
+        assertFalse("--USER__textAlign absent when justifyText=false", js.contains("--USER__textAlign"))
     }
 
     // ── highlight helpers (unchanged) ───────────────────────────────────────────
