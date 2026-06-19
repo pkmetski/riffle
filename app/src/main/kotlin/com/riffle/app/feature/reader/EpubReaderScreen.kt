@@ -19,7 +19,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Row
@@ -289,6 +288,9 @@ fun EpubReaderScreen(
     // reserve, preventing Readium from paginating text behind the overlay in paged mode.
     var railOverlayHeightPx by remember { mutableStateOf(0) }
     val density = LocalDensity.current
+    // Latch the top-bar's full measured height so the bookmark can sit permanently below it.
+    // Max-only updates mean it never shrinks during the slide-out animation.
+    var topBarStableHeightPx by remember { mutableStateOf(0) }
     val paginated = formattingPrefs.orientation != ReaderOrientation.Vertical
     val railReserveCssPx: Int = if (paginated) {
         (railOverlayHeightPx / density.density).roundToInt()
@@ -426,8 +428,10 @@ fun EpubReaderScreen(
                         onToggle = viewModel::toggleBookmark,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .statusBarsPadding()
-                            .padding(end = 12.dp),
+                            .padding(
+                                top = with(density) { topBarStableHeightPx.toDp() },
+                                end = 12.dp,
+                            ),
                     )
                 }
                 is ReaderState.Error -> {
@@ -532,6 +536,9 @@ fun EpubReaderScreen(
             visible = !immersiveState.isImmersive,
             enter = slideInVertically(initialOffsetY = { -it }) + expandVertically(expandFrom = Alignment.Top),
             exit = slideOutVertically(targetOffsetY = { -it }) + shrinkVertically(shrinkTowards = Alignment.Top),
+            modifier = Modifier.onSizeChanged { size ->
+                if (size.height > topBarStableHeightPx) topBarStableHeightPx = size.height
+            },
         ) {
             if (isSearchActive) {
                 SearchTopBar(
