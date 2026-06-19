@@ -8,6 +8,10 @@ Do not `adb install` a build onto an emulator unless the user explicitly asks, o
 
 Always run harness tests via `make harness-test` (phone-form-factor tests) or `make harness-test-tablet` (tests annotated with `@TabletLayout`). Never call `./gradlew :app:connectedDebugAndroidTest` directly — it targets all connected devices and will interfere with the developer's physical device. Each target boots its dedicated AVD ("Harness Medium Phone" or "Harness Medium Tablet"), runs its filtered test subset against it exclusively, then shuts it down. The two subsets are mutually exclusive, so tests never double-run across targets.
 
+## Reader mode changes
+
+Any change that affects reading behaviour — typography, scrolling, navigation, decorations, layout, text size, margins, or similar — must be considered and tested in **both paged and continuous modes**. Continuous mode has distinct scroll mechanics (native Android scroll vs. Readium column pagination) and separate JS injection paths; a fix that works in paged mode often breaks or is a no-op in continuous mode and vice versa.
+
 ## Database migrations
 
 When adding a new Room migration:
