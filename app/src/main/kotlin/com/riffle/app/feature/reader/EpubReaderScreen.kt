@@ -1346,6 +1346,13 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
+    val goToContinuous: suspend (Locator) -> Unit = { locator ->
+        continuousViewRef.value?.navigateTo(
+            locator.href.toString(),
+            locator.locations.progression?.toFloat() ?: 0f,
+        )
+    }
+
     LaunchedEffect(onNavigationEvents, isContinuous) {
         onNavigationEvents.collect { link ->
             // In Continuous mode the Readium fragment is a server-keeper only (invisible,
@@ -1382,10 +1389,7 @@ private fun EpubNavigatorView(
             // Background position sync (peer/resume/audiobook handoff): in Continuous mode the
             // fragment is the invisible server-keeper, so route the jump to the continuous view.
             if (isContinuous) {
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                )
+                goToContinuous(locator)
                 return@collect
             }
             // Paginated/scroll: navigate and snap onto the target's column, tracked through the new
@@ -1419,10 +1423,7 @@ private fun EpubNavigatorView(
     LaunchedEffect(returnNavEvents, isContinuous) {
         returnNavEvents.collect { locator ->
             if (isContinuous) {
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                )
+                goToContinuous(locator)
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -1447,10 +1448,7 @@ private fun EpubNavigatorView(
     LaunchedEffect(annotationNavigationEvents, isContinuous) {
         annotationNavigationEvents.collect { locator ->
             if (isContinuous) {
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                )
+                goToContinuous(locator)
             } else {
                 goAndSnapWithCover(locator)
             }
