@@ -89,8 +89,12 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     /** When true, the text-selection menu offers "Highlight" (books with annotations UI). */
     var annotationsAvailable: Boolean = false
 
-    /** Called on the main thread with the selected text when the user taps "Highlight". */
-    var onHighlight: ((selectedText: String) -> Unit)? = null
+    /**
+     * Called on the main thread with the selected text and its within-chapter progression (0..1)
+     * when the user taps "Highlight". The progression is computed from the selection's position
+     * in the chapter document so [createHighlight] can build a correctly-anchored CFI range.
+     */
+    var onHighlight: ((selectedText: String, progression: Double) -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps an injected annotation mark (`<mark
@@ -358,7 +362,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
                     MENU_COPY -> withSelectionText { copyToClipboard(it) }
-                    MENU_HIGHLIGHT -> withSelectionText { onHighlight?.invoke(it) }
+                    MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog -> onHighlight?.invoke(text, prog) }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
                     MENU_PLAY -> withSelectionText { onPlayFromHere?.invoke(it) }
@@ -378,6 +382,45 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
             val text = decodeJsString(raw)
             if (text.isNotBlank()) block(text)
+            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+        }
+    }
+
+    /**
+     * Read the current selection's plain text AND its within-document progression (0..1), then
+     * run [block]. The progression is `selectionTop / documentHeight` — correct in Continuous mode
+     * because the WebView never scrolls (pageYOffset=0), so getBoundingClientRect().top equals the
+     * absolute document position. Used when creating a highlight so [buildHighlightCfiRangeForSelection]
+     * receives a real startProgression instead of 0.0, placing the CFI at the actual text location.
+     */
+    private fun withSelectionTextAndProgression(block: (text: String, progression: Double) -> Unit) {
+        val js = """(function() {
+            var sel = window.getSelection ? window.getSelection() : null;
+            var text = sel ? sel.toString() : '';
+            var prog = 0.0;
+            if (sel && sel.rangeCount > 0) {
+                var r = sel.getRangeAt(0).getBoundingClientRect();
+                var docH = Math.max(
+                    document.documentElement ? document.documentElement.offsetHeight : 0,
+                    document.body ? document.body.offsetHeight : 0,
+                    1
+                );
+                prog = Math.max(0, Math.min(1, r.top / docH));
+            }
+            return JSON.stringify({t: text, p: prog});
+        })()"""
+        evaluateJavascript(js) { raw ->
+            val jsonStr = decodeJsString(raw)
+            val text: String
+            val prog: Double
+            try {
+                val obj = org.json.JSONObject(jsonStr)
+                text = obj.optString("t", "")
+                prog = obj.optDouble("p", 0.0)
+            } catch (_: Exception) {
+                return@evaluateJavascript
+            }
+            if (text.isNotBlank()) block(text, prog)
             evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
         }
     }

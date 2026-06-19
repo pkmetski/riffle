@@ -88,10 +88,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
     /**
-     * Called on the main thread with (chapter href, selected text) when the user taps "Highlight".
-     * The host builds a Locator and persists the highlight.
+     * Called on the main thread with (chapter href, selected text, within-chapter progression)
+     * when the user taps "Highlight". The progression comes from the selection's document position
+     * so the host can build a correctly-anchored CFI range.
      */
-    var onHighlightSelection: ((href: String, selectedText: String) -> Unit)? = null
+    var onHighlightSelection: ((href: String, selectedText: String, progression: Double) -> Unit)? = null
 
     /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -553,7 +554,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
+        wv.onHighlight = { text, prog -> onHighlightSelection?.invoke(wv.chapterHref, text, prog) }
         wv.onAnnotationTap = { id, rect ->
             val loc = IntArray(2)
             wv.getLocationOnScreen(loc)
@@ -651,7 +652,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text -> onHighlightSelection?.invoke(wv.chapterHref, text) }
+        wv.onHighlight = { text, prog -> onHighlightSelection?.invoke(wv.chapterHref, text, prog) }
         wv.onAnnotationTap = { id, rect ->
             val loc = IntArray(2)
             wv.getLocationOnScreen(loc)
