@@ -472,8 +472,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     private fun scrollToHighlight(webViewIndex: Int) {
         val wv = webViews.getOrNull(webViewIndex) ?: return
+        // getBoundingClientRect().top is in CSS pixels; multiply by devicePixelRatio to get device
+        // pixels so the result is in the same coordinate space as slot.top and scrollY.
         wv.evaluateJavascript(
-            "(function(){var el=document.getElementById('_riffle_hl');return el?el.getBoundingClientRect().top:-1;})()"
+            """(function(){
+                var el=document.getElementById('_riffle_hl');
+                if(!el) return -1;
+                var r=el.getBoundingClientRect();
+                var y=r.top+(window.pageYOffset||document.documentElement.scrollTop||0);
+                return Math.max(0,Math.round(y*(window.devicePixelRatio||1)));
+            })()"""
         ) { result ->
             val elementTop = result?.toFloatOrNull()?.toInt() ?: return@evaluateJavascript
             if (elementTop < 0) return@evaluateJavascript
