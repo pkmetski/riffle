@@ -173,7 +173,10 @@ The second tab in the Library Tab Bar. Displays all Series in the current Librar
 The third tab in the Library Tab Bar. Displays all Collections in the current Library as a full cover grid.
 
 ### All Books Tab
-The fourth tab in the Library Tab Bar. Displays every Library Item in the current Library as a full cover grid.
+The fourth tab in the Library Tab Bar. Displays every Library Item in the current Library as a full cover grid. Contains a persistent **Not Started filter chip** — always visible below the count header — that narrows the grid to items the user has not yet begun (see [Not Started]).
+
+### Not Started
+A Library Item the user has never begun — no ebook page opened, no audio played. Applies uniformly to all item types: ebook-only ([Readable]), audiobook-only ([Listenable]), and combined items. A combined item is Not Started only when neither the ebook nor the audio has been touched. Distinct from *In Progress* (started but unfinished) and *Completed*. Surfaced as the **Not Started** filter chip on the [All Books Tab].
 
 ### Tablet Layout
 The variant of the app's UI applied when the current window's width is in Material 3's **Expanded** size class (≥ 840dp). Compact (< 600dp) and Medium (600–839dp) windows continue to use the standard phone UI — so a phone in landscape, an unfolded foldable, and a small tablet in portrait all stay on the phone layout. The Tablet Layout differs from the phone layout in three places: the Navigation Drawer becomes a Permanent Navigation Drawer; the Library Item Detail Screen splits into a two-column layout (cover and action row in a fixed left pane, metadata and description in an independently scrolling right pane); and single-column list/form screens (Settings, Downloads Screen, AddServerScreen, Library Visibility Preferences) are width-capped and centred in the content pane. The Library Tab Bar remains pinned to the bottom, cover grids continue to use adaptive cell sizing (with a larger minimum cell size on Expanded), and the reader is unchanged. The layout switches reactively on configuration change — unfolding a foldable, resizing a ChromeOS window, or entering split-screen all re-evaluate the size class.
