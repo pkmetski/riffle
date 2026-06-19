@@ -430,7 +430,7 @@ internal object ContinuousStyleInjector {
                     var s = document.createElement('span');
                     s.setAttribute('data-riffle-note-glyph', id);
                     s.textContent = '◆';
-                    s.style.cssText = 'display:inline-block;vertical-align:super;font-size:0.55em;cursor:pointer;opacity:0.75;margin-left:2px;-webkit-user-select:none;user-select:none;';
+                    s.style.cssText = 'display:inline;position:relative;top:-0.4em;font-size:0.5em;cursor:pointer;opacity:0.8;margin-left:1px;-webkit-user-select:none;user-select:none;';
                     s.addEventListener('click', function(e) {
                         e.stopPropagation();
                         var r = s.getBoundingClientRect();
