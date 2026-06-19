@@ -546,15 +546,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     // ── private ────────────────────────────────────────────────────────────────
 
-    private fun appendChapter(index: Int) {
-        val entry = allChapters[index]
-        val wv = obtainWebView()
-        publication?.let { wv.setPublication(it) }
-        wv.onTap = { onTap?.invoke() }
-        wv.onRenderGone = { recoverFromRendererGone() }
-        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
-        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
-        wv.annotationsAvailable = annotationsAvailable
+    /**
+     * Wire all annotation-related callbacks on [wv]. The coordinate transform is done at event
+     * time (not at wiring time) so it always reflects the WebView's current screen position.
+     * Extracted to avoid duplication between [appendChapter] and [prependChapter].
+     */
+    private fun wireAnnotationCallbacks(wv: ChapterWebView) {
         wv.onHighlight = { text, prog, rect ->
             val loc = IntArray(2)
             wv.getLocationOnScreen(loc)
@@ -573,6 +570,18 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
             onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
         }
+    }
+
+    private fun appendChapter(index: Int) {
+        val entry = allChapters[index]
+        val wv = obtainWebView()
+        publication?.let { wv.setPublication(it) }
+        wv.onTap = { onTap?.invoke() }
+        wv.onRenderGone = { recoverFromRendererGone() }
+        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
+        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
+        wv.annotationsAvailable = annotationsAvailable
+        wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
@@ -658,24 +667,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text, prog, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect)
-        }
-        wv.onAnnotationTap = { id, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
-        }
-        wv.onAnnotationNoteTap = { id, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
-        }
+        wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }

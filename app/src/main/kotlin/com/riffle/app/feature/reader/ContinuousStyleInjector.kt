@@ -370,6 +370,7 @@ internal object ContinuousStyleInjector {
                 if (i > 0) append(',')
                 val safeId = ann.id.replace("\\", "\\\\").replace("'", "\\'")
                 val safeText = ann.text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                // cssColor is machine-generated (e.g. "rgba(56,189,248,0.50)") — no quote escaping needed.
                 append("{id:'$safeId',t:'$safeText',c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}}")
             }
             append(']')
@@ -439,7 +440,7 @@ internal object ContinuousStyleInjector {
                         return;
                     }
                     // New annotation — locate via window.find() on the unmodified DOM.
-                    sel.removeAllRanges();
+                    if (sel) sel.removeAllRanges();
                     if (!window.find(ann.t, false, false, false, false, false, false)) return;
                     sel = window.getSelection();
                     if (!sel || sel.rangeCount === 0) return;
