@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 39,
-    "identityHash": "b73f625897dd28d1fccdc6e26250a2c1",
+    "identityHash": "d6a6caf72c5cad0e241abc0c53e76317",
     "entities": [
       {
         "tableName": "servers",
@@ -487,7 +487,7 @@
       },
       {
         "tableName": "book_formatting_preferences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, `margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, `showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, `justifyText` INTEGER, PRIMARY KEY(`serverId`, `itemId`), FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, `margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, `showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, `justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, PRIMARY KEY(`serverId`, `itemId`), FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "serverId",
@@ -554,6 +554,11 @@
           {
             "fieldPath": "justifyText",
             "columnName": "justifyText",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "showReadingTimeEstimate",
+            "columnName": "showReadingTimeEstimate",
             "affinity": "INTEGER"
           }
         ],
@@ -878,7 +883,7 @@
       },
       {
         "tableName": "annotations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `type` TEXT NOT NULL, `cfi` TEXT NOT NULL, `color` TEXT NOT NULL, `note` TEXT, `textSnippet` TEXT NOT NULL, `chapterHref` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `originDeviceId` TEXT NOT NULL, `lastModifiedByDeviceId` TEXT NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `serverId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `type` TEXT NOT NULL, `cfi` TEXT NOT NULL, `color` TEXT NOT NULL, `note` TEXT, `textSnippet` TEXT NOT NULL, `textBefore` TEXT NOT NULL, `textAfter` TEXT NOT NULL, `chapterHref` TEXT NOT NULL, `spineIndex` INTEGER NOT NULL, `progression` REAL NOT NULL, `bookmarkTitle` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `originDeviceId` TEXT NOT NULL, `lastModifiedByDeviceId` TEXT NOT NULL, `deleted` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`serverId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -928,8 +933,38 @@
             "notNull": true
           },
           {
+            "fieldPath": "textBefore",
+            "columnName": "textBefore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "textAfter",
+            "columnName": "textAfter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
             "fieldPath": "chapterHref",
             "columnName": "chapterHref",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spineIndex",
+            "columnName": "spineIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progression",
+            "columnName": "progression",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bookmarkTitle",
+            "columnName": "bookmarkTitle",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -1291,7 +1326,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b73f625897dd28d1fccdc6e26250a2c1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd6a6caf72c5cad0e241abc0c53e76317')"
     ]
   }
 }
