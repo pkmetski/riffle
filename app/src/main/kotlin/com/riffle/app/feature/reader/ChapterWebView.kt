@@ -155,6 +155,23 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         // ContinuousReaderView (NestedScrollView) for scroll ownership at the edges.
         overScrollMode = OVER_SCROLL_NEVER
         settings.javaScriptEnabled = true
+        // Explicitly override OEM defaults that differ from AOSP and break text sizing:
+        //
+        // useWideViewPort: some manufacturers default this to true, which makes a chapter without
+        // a <meta name="viewport"> use a 980px layout viewport. With loadWithOverviewMode also
+        // defaulting to true on those devices the page is then zoomed to ~42% of normal size,
+        // making text appear far smaller in Continuous mode than in Scroll/Paginated mode.
+        // Forcing false pins the layout viewport to the WebView's CSS-pixel width regardless of
+        // any viewport meta in the EPUB HTML, which is always correct for reflowable content.
+        //
+        // textZoom: some OEM WebViews automatically apply the system font-scale to textZoom
+        // (making it < 100 when the user picks "Small" in Accessibility → Font Size). Readium
+        // overrides textZoom explicitly to implement its own font-size preference, so its text
+        // is unaffected. We control font size via --USER__fontSize CSS; pinning textZoom to 100
+        // keeps Continuous mode visually identical to Scroll/Paginated mode at the same setting.
+        settings.useWideViewPort = false
+        settings.loadWithOverviewMode = false
+        settings.textZoom = 100
         addJavascriptInterface(HeightBridge(), "RiffleChapter")
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
