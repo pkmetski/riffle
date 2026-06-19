@@ -1594,10 +1594,12 @@ private fun EpubNavigatorView(
     }
 
     // ---- Continuous-mode readaloud highlight -----------------------------------------------
-    // In Continuous mode, decoration APIs are not used. Instead we call ContinuousReaderView's
-    // highlightInChapter / clearHighlightInChapter directly, keyed by the 12-char text prefix
-    // (same heuristic as autoFollowSnapJs). prevHighlightHref tracks the chapter that currently
-    // carries the mark so we can clear it if the narrated chapter changes or playback stops.
+    // ChapterWebView serves the ABS EPUB HTML directly (no Readium stripping), but the ABS EPUB
+    // does NOT have Storyteller's per-sentence spans — those exist only in the Storyteller bundle.
+    // We therefore use window.find() to locate the sentence by its full text, then inject a <mark>
+    // element. The fallback in highlightTextJs uses extractContents()+insertNode() to handle the
+    // common case where the sentence spans inline elements (em, span, strong) and surroundContents()
+    // would throw. sentenceQuotes is re-keyed here so the highlight re-applies once quotes are built.
     val prevHighlightHref = remember { mutableStateOf<String?>(null) }
     LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes) {
         if (!isContinuous) return@LaunchedEffect
@@ -1611,13 +1613,13 @@ private fun EpubNavigatorView(
         }
         val chapterHref = ref.substringBefore('#')
         val sid = ref.substringAfter('#', "")
-        val quote = sentenceQuotes[sid]
-        val highlightText = quote?.highlight?.take(12) ?: return@LaunchedEffect
+        if (sid.isBlank()) return@LaunchedEffect
+        val text = sentenceQuotes[sid]?.highlight ?: return@LaunchedEffect
         // If the chapter changed, clear the previous chapter's mark
         val prev = prevHighlightHref.value
         if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
         prevHighlightHref.value = chapterHref
-        view.highlightInChapter(chapterHref, highlightText)
+        view.highlightInChapter(chapterHref, text)
     }
 
     // ---- Persisted highlights (ADR 0024) ---------------------------------------------------

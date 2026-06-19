@@ -346,6 +346,10 @@ internal object ContinuousStyleInjector {
      * JS that highlights [text] via `window.find` + DOM `<mark>` injection, replacing
      * any existing mark with id `_riffle_hl`. Pass an empty string to clear.
      * Single quotes and backslashes in [text] are escaped before embedding in JS.
+     *
+     * `surroundContents()` throws when the selection range crosses an inline element boundary
+     * (e.g. `<em>`, `<span class="smallcaps">`). The fallback uses `extractContents()` +
+     * `insertNode()` which handles multi-node ranges correctly.
      */
     fun highlightTextJs(text: String): String {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
@@ -361,7 +365,14 @@ internal object ContinuousStyleInjector {
                 var mark = document.createElement('mark');
                 mark.id = '_riffle_hl';
                 mark.style.cssText = 'background:#7DD3FC;color:inherit;';
-                try { range.surroundContents(mark); } catch(e) {}
+                try {
+                    range.surroundContents(mark);
+                } catch(e) {
+                    // Range crosses an inline element boundary — extract contents into mark instead.
+                    var frag = range.extractContents();
+                    mark.appendChild(frag);
+                    range.insertNode(mark);
+                }
                 sel.removeAllRanges();
             })();
         """.trimIndent()

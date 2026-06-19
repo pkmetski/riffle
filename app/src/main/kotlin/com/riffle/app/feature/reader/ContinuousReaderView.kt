@@ -462,13 +462,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         smoothScrollBy(0, if (forward) delta else -delta)
     }
 
-    /** Inject a highlight for [text] in the chapter matching [href]. Clear if blank. */
+    /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href]. */
     fun highlightInChapter(href: String, text: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text), null)
     }
 
-    /** Clear any active highlight in the chapter at [href]. */
+    /** Clear any active readaloud highlight in the chapter at [href]. */
     fun clearHighlightInChapter(href: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
