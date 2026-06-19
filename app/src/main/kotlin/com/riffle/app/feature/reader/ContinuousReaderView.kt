@@ -88,11 +88,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
     /**
-     * Called on the main thread with (chapter href, selected text, within-chapter progression)
-     * when the user taps "Highlight". The progression comes from the selection's document position
-     * so the host can build a correctly-anchored CFI range.
+     * Called on the main thread with (chapter href, selected text, within-chapter progression,
+     * screen rect of the selection in device pixels) when the user taps "Highlight".
+     * The progression lets the host build a correctly-anchored CFI range; the rect positions
+     * the highlight-actions popup next to the selected text.
      */
-    var onHighlightSelection: ((href: String, selectedText: String, progression: Double) -> Unit)? = null
+    var onHighlightSelection: ((href: String, selectedText: String, progression: Double, screenRect: android.graphics.Rect) -> Unit)? = null
 
     /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -554,7 +555,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text, prog -> onHighlightSelection?.invoke(wv.chapterHref, text, prog) }
+        wv.onHighlight = { text, prog, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect)
+        }
         wv.onAnnotationTap = { id, rect ->
             val loc = IntArray(2)
             wv.getLocationOnScreen(loc)
@@ -652,7 +658,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
-        wv.onHighlight = { text, prog -> onHighlightSelection?.invoke(wv.chapterHref, text, prog) }
+        wv.onHighlight = { text, prog, rect ->
+            val loc = IntArray(2)
+            wv.getLocationOnScreen(loc)
+            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
+            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect)
+        }
         wv.onAnnotationTap = { id, rect ->
             val loc = IntArray(2)
             wv.getLocationOnScreen(loc)

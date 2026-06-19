@@ -2172,7 +2172,7 @@ private fun EpubNavigatorView(
                             val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
                             currentOnOpenNoteReader(id, rect)
                         }
-                        view.onHighlightSelection = { chapterHref, selectedText, progression ->
+                        view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect ->
                             val locator = org.readium.r2.shared.publication.Locator.fromJSON(
                                 org.json.JSONObject()
                                     .put("href", chapterHref)
@@ -2180,8 +2180,10 @@ private fun EpubNavigatorView(
                                     .put("locations", org.json.JSONObject().put("progression", progression))
                                     .put("text", org.json.JSONObject().put("highlight", selectedText))
                             )
-                            // No WebView rect available in this path; popup falls back to top-left.
-                            if (locator != null) currentOnHighlight(locator, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+                            if (locator != null) {
+                                val rect = androidx.compose.ui.unit.IntRect(selectionScreenRect.left, selectionScreenRect.top, selectionScreenRect.right, selectionScreenRect.bottom)
+                                currentOnHighlight(locator, rect)
+                            }
                         }
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onPlayFromHereSelection = { chapterHref, selectedText ->
