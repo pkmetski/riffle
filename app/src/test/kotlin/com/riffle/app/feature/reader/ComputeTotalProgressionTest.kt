@@ -69,4 +69,16 @@ class ComputeTotalProgressionTest {
         val segments = listOf(seg("only.xhtml", 2f))
         assertEquals(0.5f, computeTotalProgression("only.xhtml", 0.5f, segments)!!, 0.001f)
     }
+
+    @Test
+    fun `matches segment whose href has fragment when caller passes bare path`() {
+        // TOC entries often store hrefs with #fragment (e.g. "ch1.xhtml#intro"),
+        // while ContinuousReaderView reports the spine href without fragment.
+        val segments = listOf(
+            RailSegment(title = "ch1", href = "ch1.xhtml#intro", weight = 1f),
+            RailSegment(title = "ch2", href = "ch2.xhtml#start", weight = 1f),
+        )
+        // bare "ch2.xhtml" should match "ch2.xhtml#start"
+        assertEquals(0.5f, computeTotalProgression("ch2.xhtml", 0f, segments)!!, 0.001f)
+    }
 }

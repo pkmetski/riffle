@@ -12,7 +12,8 @@ fun computeTotalProgression(
     progression: Float,
     segments: List<RailSegment>,
 ): Float? {
-    val idx = segments.indexOfFirst { it.href == href }
+    val hrefBase = href.substringBefore('#')
+    val idx = segments.indexOfFirst { it.href.substringBefore('#') == hrefBase }
     if (idx < 0) return null
     val totalWeight = segments.sumOf { it.weight.toDouble() }.toFloat()
     if (totalWeight == 0f) return null
