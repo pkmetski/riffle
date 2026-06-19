@@ -1431,7 +1431,7 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchNavigationEvents, isContinuous, readaloudHighlightColor, formattingPrefs.theme) {
+    LaunchedEffect(searchNavigationEvents, isContinuous, readaloudHighlightColor) {
         searchNavigationEvents.collect { locator ->
             if (isContinuous) {
                 val view = continuousViewRef.value ?: return@collect
@@ -1439,7 +1439,7 @@ private fun EpubNavigatorView(
                 val progression = locator.locations.progression?.toFloat() ?: 0f
                 val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
-                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, readaloudHighlightColor.readerTint(formattingPrefs.theme).toCssRgba())
+                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, readaloudHighlightColor.argb.toCssRgba())
             } else {
                 goAndSnapWithCover(locator)
             }
@@ -1555,7 +1555,7 @@ private fun EpubNavigatorView(
     // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
     // off the main thread after the track loads) become available.
     val hasReadaloudDecoration = remember { mutableStateOf(false) }
-    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
+    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
         if (isContinuous) return@LaunchedEffect  // handled in the Continuous-mode effect below
         val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
         val ref = activeFragmentRef
@@ -1576,7 +1576,7 @@ private fun EpubNavigatorView(
             // Dedicated readaloud style/template: opacity follows the tint's alpha so the highlight
             // is stronger on dark reading themes and stays legible behind the white body text.
             style = HighlightTintStyle(
-                tint = readaloudHighlightColor.readerTint(formattingPrefs.theme),
+                tint = readaloudHighlightColor.argb,
             ),
         )
         // Clear the group before re-applying. After the fragment is recreated (rotation) or its page
@@ -1601,7 +1601,7 @@ private fun EpubNavigatorView(
     // common case where the sentence spans inline elements (em, span, strong) and surroundContents()
     // would throw. sentenceQuotes is re-keyed here so the highlight re-applies once quotes are built.
     val prevHighlightHref = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes, readaloudHighlightColor, formattingPrefs.theme) {
+    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes, readaloudHighlightColor) {
         if (!isContinuous) return@LaunchedEffect
         val view = continuousViewRef.value ?: return@LaunchedEffect
         val ref = activeFragmentRef
@@ -1619,7 +1619,7 @@ private fun EpubNavigatorView(
         val prev = prevHighlightHref.value
         if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
         prevHighlightHref.value = chapterHref
-        val cssColor = readaloudHighlightColor.readerTint(formattingPrefs.theme).toCssRgba()
+        val cssColor = readaloudHighlightColor.argb.toCssRgba()
         view.highlightInChapter(chapterHref, text, cssColor)
     }
 

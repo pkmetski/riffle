@@ -183,14 +183,14 @@ class ContinuousStyleInjectorTest {
 
     @Test
     fun `highlightTextJs escapes single quotes in text`() {
-        val js = ContinuousStyleInjector.highlightTextJs("it's a test")
+        val js = ContinuousStyleInjector.highlightTextJs("it's a test", "rgba(56,189,248,0.30)")
         assertTrue(js.contains("it\\'s a test"))
         assertFalse(js.contains("it's a test"))
     }
 
     @Test
     fun `highlightTextJs escapes newlines in text`() {
-        val js = ContinuousStyleInjector.highlightTextJs("line one\nline two")
+        val js = ContinuousStyleInjector.highlightTextJs("line one\nline two", "rgba(56,189,248,0.30)")
         assertTrue(js.contains("\\n"))
         assertFalse(js.contains("line one\nline two"))
     }

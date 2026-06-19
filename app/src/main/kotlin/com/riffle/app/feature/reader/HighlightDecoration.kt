@@ -92,10 +92,6 @@ fun tintForTheme(@ColorInt argb: Int, theme: ReaderTheme): Int {
 @ColorInt
 fun HighlightColor.readerTint(theme: ReaderTheme): Int = tintForTheme(argb, theme)
 
-/** The tint to paint the readaloud "now speaking" highlight with on the given reading [theme]. */
-@ColorInt
-fun ReadaloudHighlightColor.readerTint(theme: ReaderTheme): Int = tintForTheme(argb, theme)
-
 /** Convert an ARGB color int to a CSS rgba() string for injection into WebView JS. */
 fun @receiver:ColorInt Int.toCssRgba(): String {
     val a = (this ushr 24 and 0xFF) / 255.0

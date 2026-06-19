@@ -4,7 +4,6 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -13,24 +12,13 @@ import org.readium.r2.navigator.Decoration
 class ReadaloudHighlightDecorationTest {
 
     private fun alpha(argb: Int): Int = (argb ushr 24) and 0xFF
-    private fun rgb(argb: Int): Int = argb and 0x00FFFFFF
 
     @Test
-    fun darkThemesUseStrongerAlpha() {
-        for (theme in listOf(ReaderTheme.Dark, ReaderTheme.DarkDim)) {
-            val tint = ReadaloudHighlightColor.BLUE.readerTint(theme)
-            assertEquals("alpha for $theme", HIGHLIGHT_ALPHA_DARK, alpha(tint))
-            // The hue itself is preserved; only the alpha byte changes.
-            assertEquals(rgb(ReadaloudHighlightColor.BLUE.argb), rgb(tint))
-        }
-    }
-
-    @Test
-    fun lightThemesUseDefaultAlpha() {
-        for (theme in listOf(ReaderTheme.Light, ReaderTheme.Sepia, ReaderTheme.Auto)) {
-            val tint = ReadaloudHighlightColor.GREEN.readerTint(theme)
-            assertEquals("alpha for $theme", HIGHLIGHT_ALPHA_LIGHT, alpha(tint))
-            assertEquals(rgb(ReadaloudHighlightColor.GREEN.argb), rgb(tint))
+    fun allColorsHaveAlphaBakedIn() {
+        // argb is the final rendered color used by both the swatch and the reader — no runtime
+        // transformation applied. Verify every entry has the expected translucent alpha.
+        for (color in ReadaloudHighlightColor.entries) {
+            assertEquals("alpha for ${color.name}", HIGHLIGHT_ALPHA_LIGHT, alpha(color.argb))
         }
     }
 

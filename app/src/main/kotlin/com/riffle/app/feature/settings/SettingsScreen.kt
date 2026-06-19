@@ -64,8 +64,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.behaviorSummary
-import com.riffle.app.feature.reader.tintForTheme
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.app.feature.reader.displaySummary
 import com.riffle.app.feature.reader.formattingSummary
 import com.riffle.app.ui.TabletContentWidthContainer
@@ -293,7 +291,7 @@ fun SettingsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ReadaloudHighlightColor.entries.forEach { color ->
                                 val isSelected = readaloudPreferences.highlightColor == color
-                                val swatchColor = Color(tintForTheme(color.argb, ReaderTheme.Light))
+                                val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
                                 // Selected swatch reads clearly in both themes: an offset ring
                                 // (onSurface ring at the outer edge, separated from the swatch by a
                                 // transparent gap) plus a centred checkmark. The swatch keeps a
