@@ -466,12 +466,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     fun highlightInChapter(href: String, text: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text)) { _ ->
-            scrollToHighlight(i)
+            // Re-lookup by href rather than using the captured index: the window may have shifted
+            // between the evaluateJavascript call and this callback, making i stale.
+            scrollToHighlight(href)
         }
     }
 
-    private fun scrollToHighlight(webViewIndex: Int) {
-        val wv = webViews.getOrNull(webViewIndex) ?: return
+    private fun scrollToHighlight(href: String) {
+        val i = webViewIndexFor(href) ?: return
+        val wv = webViews[i]
         // getBoundingClientRect().top is in CSS pixels; multiply by devicePixelRatio to get device
         // pixels so the result is in the same coordinate space as slot.top and scrollY.
         wv.evaluateJavascript(
@@ -485,12 +488,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         ) { result ->
             val elementTop = result?.toFloatOrNull()?.toInt() ?: return@evaluateJavascript
             if (elementTop < 0) return@evaluateJavascript
-            val slot = buildWindow().getOrNull(webViewIndex) ?: return@evaluateJavascript
+            // Re-lookup window state fresh — a shift between the two evaluateJavascript calls
+            // would have changed slot positions.
+            val freshI = webViewIndexFor(href) ?: return@evaluateJavascript
+            val slot = buildWindow().getOrNull(freshI) ?: return@evaluateJavascript
             val absoluteY = slot.top + elementTop
-            // Only scroll if the highlight is outside the middle two-thirds of the viewport.
-            val margin = height / 4
-            if (absoluteY < scrollY + margin || absoluteY > scrollY + height - margin) {
-                smoothScrollTo(0, (absoluteY - height / 3).coerceAtLeast(0))
+            val targetScrollY = (absoluteY - height / 3).coerceAtLeast(0)
+            // Scroll whenever the current position is more than height/8 away from the target.
+            // Using abs() avoids the previous bug where absoluteY just inside the top of the
+            // viewport triggered a backward scroll (absoluteY < scrollY+margin → target < scrollY).
+            if (abs(targetScrollY - scrollY) > height / 8) {
+                smoothScrollTo(0, targetScrollY)
             }
         }
     }
