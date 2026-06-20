@@ -1972,7 +1972,7 @@ private fun EpubNavigatorView(
                     // FragmentContainerView, which is final) we substitute the JS-captured rect
                     // from RiffleSelBridge (written by selectionchange before startActionMode fires)
                     // and the toolbar anchors to the actual selection.
-                    val actionModeInterceptor = object : android.widget.FrameLayout(ctx) {
+                    val actionModeInterceptor = object : FrameLayout(ctx) {
                         override fun startActionModeForChild(
                             originalView: android.view.View,
                             callback: android.view.ActionMode.Callback?,
