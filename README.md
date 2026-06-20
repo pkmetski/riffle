@@ -11,11 +11,11 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/screenshots/library-home.png" alt="Home library cover grid" width="240"><br>
+      <img src="docs/screenshots/library-home.png" alt="Library home — Children of Dune in In Progress cover grid" width="240"><br>
       <sub><b>Library</b> — cover grid with book details</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/book-detail.png" alt="Book detail screen" width="240"><br>
+      <img src="docs/screenshots/book-detail.png" alt="Children of Dune audiobook detail — listen, series &amp; progress" width="240"><br>
       <sub><b>Book detail</b> — read, listen, series &amp; progress</sub>
     </td>
     <td align="center" width="33%">
@@ -47,7 +47,7 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
       <sub><b>Highlights</b> — colors &amp; attached notes</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/screenshots/audiobook-player.png" alt="Audiobook player" width="240"><br>
+      <img src="docs/screenshots/audiobook-player.png" alt="Children of Dune audiobook player" width="240"><br>
       <sub><b>Listening</b> — full audiobook player</sub>
     </td>
   </tr>
