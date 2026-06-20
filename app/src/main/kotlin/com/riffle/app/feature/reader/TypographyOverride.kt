@@ -123,16 +123,18 @@ internal fun typographyOverrideCss(): String =
         """.trimIndent()
     }
 
-/**
- * JavaScript that idempotently injects [typographyOverrideCss] into `document.head`.
- * Safe to evaluate multiple times — the stable id prevents duplicate `<style>` elements.
- */
-internal fun typographyOverrideInjectionJs(): String {
-    val css = typographyOverrideCss()
+// Cached because the output is fully determined by the compile-time TYPOGRAPHY_OVERRIDES
+// constant. Called on every chapter load (ContinuousStyleInjector.injectInto) and every page
+// load in paginated/scroll mode (typographyOverrideInjectionJs), so recomputing joinToString
+// and string splits on each call wastes allocations on the WebCore/UI thread hot paths.
+internal val TYPOGRAPHY_OVERRIDE_CSS: String = typographyOverrideCss()
+
+private val TYPOGRAPHY_OVERRIDE_INJECTION_JS: String = run {
+    val css = TYPOGRAPHY_OVERRIDE_CSS
         .replace("\\", "\\\\")
         .replace("`", "\\`")
         .replace("\$", "\\\$")
-    return """
+    """
         (function() {
           var id = 'riffle-typography-override';
           if (document.getElementById(id)) return;
@@ -143,3 +145,9 @@ internal fun typographyOverrideInjectionJs(): String {
         })();
     """.trimIndent()
 }
+
+/**
+ * JavaScript that idempotently injects [typographyOverrideCss] into `document.head`.
+ * Safe to evaluate multiple times — the stable id prevents duplicate `<style>` elements.
+ */
+internal fun typographyOverrideInjectionJs(): String = TYPOGRAPHY_OVERRIDE_INJECTION_JS

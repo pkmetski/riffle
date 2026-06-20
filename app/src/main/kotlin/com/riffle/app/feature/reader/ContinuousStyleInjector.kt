@@ -37,6 +37,12 @@ internal object ContinuousStyleInjector {
     /** ReaderThemePalette.DARK_DIM_TEXT as a ReadiumCSS hex colour (matches FormattingPreferencesMapper). */
     private val DARK_DIM_TEXT_HEX: String = String.format("#%06X", 0xFFFFFF and DARK_DIM_TEXT.toArgb())
 
+    // Regex patterns used in injectInto() — hoisted so they are compiled once rather than on
+    // every chapter load (shouldInterceptRequest is on the WebCore hot path).
+    private val REGEX_STYLE_TAG = Regex("<style", RegexOption.IGNORE_CASE)
+    private val REGEX_HEAD_OPEN = Regex("<head[^>]*>", RegexOption.IGNORE_CASE)
+    private val REGEX_HTML_OPEN = Regex("<html[^>]*", RegexOption.IGNORE_CASE)
+
     /**
      * Builds the value of the `style` attribute injected onto `<html>` — the `--USER__*` CSS
      * variables plus `readium-*-on` flags. Mirrors Readium's `EpubSettings.update()` →
@@ -141,8 +147,8 @@ internal object ContinuousStyleInjector {
         // 1. Before-CSS (+ default-CSS when the chapter has no author styles) at <head> start.
         val hasAuthorStyles = html.contains("<link ", ignoreCase = true) ||
             html.contains(" style=", ignoreCase = true) ||
-            Regex("<style", RegexOption.IGNORE_CASE).containsMatchIn(html)
-        val headOpen = Regex("<head[^>]*>", RegexOption.IGNORE_CASE).find(out)
+            REGEX_STYLE_TAG.containsMatchIn(html)
+        val headOpen = REGEX_HEAD_OPEN.find(out)
         val beforeBlock = buildString {
             append("\n<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-before.css\"/>\n")
             // Match Readium's overflow fix so scroll layout behaves identically.
@@ -170,7 +176,7 @@ internal object ContinuousStyleInjector {
             append(bundledFontFaces())
             append("</style>\n")
             append("<style type=\"text/css\" id=\"riffle-typography-override\">\n")
-            append(typographyOverrideCss())
+            append(TYPOGRAPHY_OVERRIDE_CSS)
             append("</style>\n")
         }
         val headCloseIdx = out.indexOf("</head>", ignoreCase = true)
@@ -182,7 +188,7 @@ internal object ContinuousStyleInjector {
 
         // 3. The --USER__ style attribute on <html>.
         val styleAttr = buildHtmlStyleAttr(prefs).replace("\"", "&quot;")
-        val htmlTag = Regex("<html[^>]*", RegexOption.IGNORE_CASE).find(out)
+        val htmlTag = REGEX_HTML_OPEN.find(out)
         if (htmlTag != null) {
             val insertAt = htmlTag.range.last + 1
             out = out.substring(0, insertAt) + " style=\"$styleAttr\"" + out.substring(insertAt)
