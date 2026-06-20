@@ -2176,8 +2176,19 @@ class EpubReaderViewModel @Inject constructor(
                 // it asks the WebView for the first narrated sentence whose start is on the page and
                 // replies via onPageTopResolved(), which starts playback there. Falls back to plain play
                 // only when there is no reader page at all.
+                //
+                // For the streaming path (sidecar just became ready), the sentence-quote map may still
+                // be building when the probe fires, so the WebView returns null → onPageTopResolved with
+                // null fragmentId → resolveStartClip with href only. Skip the probe in that case and
+                // call playFromReaderPosition directly: it uses the sameChapter() tolerance to find the
+                // chapter's first clip even when ABS and Storyteller hrefs differ by an OEBPS prefix,
+                // giving a chapter-top start rather than leaving the player paused.
                 if (loc != null) {
-                    _pageTopProbeChannel.trySend(loc.href.toString())
+                    if (_sentenceQuotes.value.isNotEmpty()) {
+                        _pageTopProbeChannel.trySend(loc.href.toString())
+                    } else {
+                        playerCoordinator.playFromReaderPosition(loc.href.toString(), null)
+                    }
                 } else {
                     playerCoordinator.play()
                 }

@@ -674,6 +674,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         StubLocalStore,
         StubLocalStore,
         StubBuildTrigger,
+        sidecarCache = { _, _ -> null },
     ) {
         override suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? = null
         override suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? = null

@@ -170,6 +170,12 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
         }
         fun chapterHref(clip: MediaOverlayClip) = clip.textFragmentRef.substringBefore('#').trimStart('/')
         clips.firstOrNull { chapterHref(it) == target }?.let { return it }
+        // Same tolerance as the fragment-id path: ABS and Storyteller EPUBs can carry the same chapter
+        // under different href prefixes (e.g. "Text/ch01.xhtml" vs "OEBPS/Text/ch01.xhtml"). Without
+        // this, a streaming play with no sentence-quote map yet (quotes build races playback startup)
+        // sends a null fragmentId here and the lexicographic ">= target" fallback picks the wrong clip
+        // or returns null when Storyteller hrefs are lexicographically less than the ABS href.
+        clips.firstOrNull { sameChapter(it, target) }?.let { return it }
         return clips.firstOrNull { chapterHref(it) >= target }
     }
 

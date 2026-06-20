@@ -12,6 +12,7 @@ import com.riffle.core.domain.ExtractedEpub
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
@@ -35,6 +36,7 @@ open class ReaderSyncFactory @Inject constructor(
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
     private val crossEpubIndexBuildTrigger: CrossEpubIndexBuildTrigger,
+    private val sidecarCache: ReadaloudSidecarCache,
 ) {
     /**
      * @param itemId the ABS Library Item id the reader opened. A book is always read from the ABS
@@ -129,7 +131,14 @@ open class ReaderSyncFactory @Inject constructor(
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)
         val audioTarget = targets.audio ?: return null
-        val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId) ?: return null
+        // For the streaming path (ADR 0028) the sidecar stands in for the full bundle: it carries the
+        // SMIL clips and chapter HTML needed by CanonicalPositionTranslator and ReadaloudTextQuotes, so
+        // AudiobookFollow can be built without a downloaded bundle. createIfApplicable() still requires
+        // the full bundle (for cross-EPUB index checksums), so the coordinator stays on the sidecar-only
+        // path until the bundle is downloaded.
+        val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId)
+            ?: sidecarCache.cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId)
+            ?: return null
         val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
         val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == audioTarget.absLibraryItemId }?.audioDurationSec ?: 0.0
         val endpoint = absEndpointFor(audioTarget.absServerId, audioTarget.absLibraryItemId, durationSec) ?: return null
