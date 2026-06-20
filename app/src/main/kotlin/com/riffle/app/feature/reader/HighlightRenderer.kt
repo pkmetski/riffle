@@ -15,6 +15,12 @@ internal val SEARCH_ACTIVE_ARGB: Int = 0xFFF5A623.toInt()
 internal val SEARCH_INACTIVE_ARGB: Int = 0xFFFDE68A.toInt()
 
 /**
+ * Alpha applied by Readium's [Decoration.Style.Highlight] for search results.
+ * The continuous renderer uses this constant so both pipelines render at the same opacity.
+ */
+internal const val SEARCH_DECORATION_ALPHA = 0.30
+
+/**
  * Abstracts the two rendering pipelines for reader highlights:
  *  - [ReadiumHighlightRenderer]: paginated and scroll modes via DecorableNavigator
  *  - [ContinuousHighlightRenderer]: continuous mode via ChapterWebView JS injection
