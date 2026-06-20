@@ -4,7 +4,6 @@ import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.BookSyncState
-import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.CanonicalPositionTranslator
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EpubChecksum
@@ -13,6 +12,7 @@ import com.riffle.core.domain.ExtractedEpub
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLinkRepository
+import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
