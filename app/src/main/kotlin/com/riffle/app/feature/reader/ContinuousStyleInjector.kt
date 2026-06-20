@@ -158,11 +158,19 @@ internal object ContinuousStyleInjector {
             beforeBlock + out
         }
 
-        // 2. After-CSS + bundled @font-face before </head>.
+        // 2. After-CSS + bundled @font-face + typography overrides before </head>.
+        // The typography override CSS must come after ReadiumCSS-after.css because it needs to
+        // beat after.css's `text-align: inherit !important` rule (specificity 0,2,4) for justify.
+        // It uses the same gate selectors as the paginated-mode typographyOverrideInjectionJs()
+        // path, so toggling justify via buildStyleInjectionJs() (which updates --USER__textAlign
+        // on <html>) automatically activates/deactivates the override without reloading the page.
         val afterBlock = buildString {
             append("\n<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-after.css\"/>\n")
             append("<style type=\"text/css\">\n")
             append(bundledFontFaces())
+            append("</style>\n")
+            append("<style type=\"text/css\" id=\"riffle-typography-override\">\n")
+            append(typographyOverrideCss())
             append("</style>\n")
         }
         val headCloseIdx = out.indexOf("</head>", ignoreCase = true)
