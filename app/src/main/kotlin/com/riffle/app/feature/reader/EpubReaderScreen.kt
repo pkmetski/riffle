@@ -2175,19 +2175,28 @@ private fun EpubNavigatorView(
                             }
                         }
                         view.readaloudAvailable = currentReadaloudAvailable
-                        view.onPlayFromHereSelection = { chapterHref, selectedText ->
-                            // Resolve the selection to a narrated sentence id and start playback there.
-                            // Scope the candidate sentences to the TAPPED chapter first (same as the
-                            // paged path): handed the whole book, a short selection can match a foreign
-                            // chapter's sentence whose text recurs in this one, so playback would jump to
-                            // a completely different sentence (and the highlight, keyed on this chapter,
-                            // would never appear). scopeSentencesToChapter removes the cross-chapter
-                            // candidates; within one chapter the text containment match is reliable.
+                        view.onPlayFromHereSelection = { chapterHref, selectedText, evalJs ->
+                            // Scope candidates to the tapped chapter first — same reason as the paged
+                            // path (cross-chapter text recurrence → wrong sentence).
                             val scoped = scopeSentencesToChapter(
                                 currentSentenceQuotes, currentSentenceChapters, chapterHref,
-                            ).toMap()
-                            val sid = ContinuousPositionTracker.sentenceIdForSelection(selectedText, scoped)
-                            if (sid != null) currentOnPlayFromHere("$chapterHref#$sid")
+                            )
+                            // Preferred: geometry-based resolution (same as paged mode). Reads
+                            // window.__riffleSelRect stashed by SELECTION_SPAN_TRACKER_JS on
+                            // selectionchange, then walks text nodes to find the sentence whose start
+                            // is latest-in-reading-order at-or-before the selection position. Immune
+                            // to duplicate words; returns "" when nothing resolves.
+                            //
+                            // Fallback: text-substring match — reliable only when the selected text
+                            // is unique within the chapter (the original approach), kept as safety net.
+                            evalJs(resolveSelectionSentenceJs(scoped)) { raw ->
+                                val geomId = raw?.trim('"')?.takeIf { it.isNotEmpty() }
+                                val sid = geomId
+                                    ?: ContinuousPositionTracker.sentenceIdForSelection(
+                                        selectedText, scoped.toMap(),
+                                    )
+                                if (sid != null) currentOnPlayFromHere("$chapterHref#$sid")
+                            }
                         }
                     }
                 },

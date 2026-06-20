@@ -113,10 +113,10 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     var readaloudAvailable: Boolean = false
 
     /**
-     * Called on the main thread with the selected text when the user taps "Play".
-     * The host resolves it to a narrated sentence and starts playback there.
+     * Called on the main thread when the user taps "Play". Receives the selected text and this
+     * WebView's [evaluateJavascript] so the host can run geometry-based sentence resolution.
      */
-    var onPlayFromHere: ((selectedText: String) -> Unit)? = null
+    var onPlayFromHere: ((selectedText: String, evalJs: (String, (String?) -> Unit) -> Unit) -> Unit)? = null
 
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
     var chapterHref: String = ""
@@ -383,7 +383,9 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                     MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog, rect -> onHighlight?.invoke(text, prog, rect) }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
-                    MENU_PLAY -> withSelectionText { onPlayFromHere?.invoke(it) }
+                    MENU_PLAY -> withSelectionText { text ->
+                        onPlayFromHere?.invoke(text) { js, cb -> evaluateJavascript(js, cb) }
+                    }
                     else -> return inner.onActionItemClicked(mode, item)
                 }
                 mode.finish()

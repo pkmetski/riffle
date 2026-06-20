@@ -103,10 +103,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
 
     /**
-     * Called on the main thread with (chapter href, selected text) when the user taps "Play".
-     * The host resolves the selection to a narrated sentence and starts playback.
+     * Called on the main thread with (chapter href, selected text, evalJs) when the user taps
+     * "Play". [evalJs] is the WebView's evaluateJavascript so the host can run geometry-based
+     * sentence resolution before falling back to text matching.
      */
-    var onPlayFromHereSelection: ((href: String, selectedText: String) -> Unit)? = null
+    var onPlayFromHereSelection: ((href: String, selectedText: String, evalJs: (String, (String?) -> Unit) -> Unit) -> Unit)? = null
 
     /**
      * Called on the main thread with the resolved footnote body when the user taps a footnote
@@ -583,7 +584,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.annotationsAvailable = annotationsAvailable
         wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
-        wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
+        wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
@@ -647,6 +648,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
+            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
             val annotations = currentAnnotationsByHref[wv.chapterHref]
             if (!annotations.isNullOrEmpty()) {
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
@@ -669,7 +671,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.annotationsAvailable = annotationsAvailable
         wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
-        wv.onPlayFromHere = { text -> onPlayFromHereSelection?.invoke(wv.chapterHref, text) }
+        wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
         wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
@@ -687,6 +689,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
+            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
             val annotations = currentAnnotationsByHref[wv.chapterHref]
             if (!annotations.isNullOrEmpty()) {
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
