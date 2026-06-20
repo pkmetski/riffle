@@ -104,7 +104,6 @@ import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.readium.r2.navigator.DecorableNavigator
-import org.readium.r2.navigator.Decoration
 import org.readium.r2.navigator.HyperlinkNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFactory
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
@@ -907,16 +906,6 @@ private const val NAV_COVER_SETTLE_MS = 250L
 private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
     Locator.fromJSON(readaloudLocatorJson(ref, quote))
 
-private suspend fun DecorableNavigator.applyDecorationsWithClear(
-    decorations: List<Decoration>,
-    group: String,
-) {
-    withContext(Dispatchers.Main) {
-        applyDecorations(emptyList(), group = group)
-        applyDecorations(decorations, group = group)
-    }
-}
-
 /**
  * The narrated sentences (span id → text) to feed [resolveSelectionSentenceJs] for a "Play from here"
  * tap, scoped to the chapter being read ([currentHref]). The resolver locates a tapped sentence by
@@ -1024,6 +1013,23 @@ private fun EpubNavigatorView(
     val continuousViewRef = remember { mutableStateOf<ContinuousReaderView?>(null) }
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
+
+    val highlightRenderer: HighlightRenderer = remember(isContinuous) {
+        if (isContinuous) {
+            ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
+        } else {
+            ReadiumHighlightRenderer(
+                applyDecorationsBlock = { decorations, group ->
+                    (fragmentRef.value as? DecorableNavigator)?.let { nav ->
+                        withContext(Dispatchers.Main) { nav.applyDecorations(decorations, group) }
+                    }
+                },
+                fragmentLocator = ::fragmentLocator,
+                currentNavigatorStamp = { fragmentRef.value },
+            )
+        }
+    }
+
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Caches the most-recent text-selection bounding rect in CSS viewport px, populated by
     // RiffleSelBridge on every selectionchange — before the floating action-mode toolbar fires.
@@ -1452,11 +1458,17 @@ private fun EpubNavigatorView(
                 val view = continuousViewRef.value ?: return@collect
                 val href = locator.href.toString()
                 val progression = locator.locations.progression?.toFloat() ?: 0f
-                val highlightText = locator.text.highlight?.take(40) ?: ""
                 view.navigateTo(href, progression)
-                if (highlightText.isNotBlank()) view.highlightInChapter(href, highlightText, readaloudHighlightColor.argb.toCssRgba())
             } else {
                 goAndSnapWithCover(locator)
+            }
+            val text = locator.text.highlight?.take(40) ?: ""
+            if (text.isNotBlank()) {
+                highlightRenderer.highlightSearchMatch(
+                    href = locator.href.toString(),
+                    text = text,
+                    cssColor = readaloudHighlightColor.argb.toCssRgba(),
+                )
             }
         }
     }
@@ -1490,229 +1502,26 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Tracks whether we have live search decorations painted in the WebView.
-    // Prevents calling applyDecorations on initial composition (before WebView content loads),
-    // which crashes the WebView renderer via a premature JS evaluation. See ADR 0015.
-    val hasActiveDecorations = remember { mutableStateOf(false) }
-
-    // Readium fixes a decoration's rects at applyDecorations time and never re-positions them. When a
-    // search result is navigated to, the landing page's layout is still settling as the decoration is
-    // applied (the page snaps to the column grid and the search top bar's inset resolves AFTER the first
-    // apply), so the box is placed against the pre-settle layout and the text then shifts out from under
-    // it — verified on device as a constant ~152px vertical offset onto the wrong word (same column, same
-    // width: a placement-timing bug, not a fuzzy mis-resolution). readaloud never shows this because it
-    // re-applies its decoration on every audio tick; search applies once per navigation. We therefore
-    // re-apply across a short settle window after each (re)apply so the boxes track the final layout. The
-    // re-applies are idempotent (same id + locator). Re-keys on reflow/pageLoad as well for rotation and
-    // formatting reflows, matching the readaloud and annotations decoration effects.
     LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
-        if (isContinuous) return@LaunchedEffect  // ContinuousReaderView uses window.find via highlightInChapter
-        if (searchResults.isEmpty()) {
-            if (!hasActiveDecorations.value) return@LaunchedEffect
-            val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
-            // applyDecorations calls evaluateJavascript which requires the main thread.
-            // Compose test infrastructure (FrameDeferringContinuationInterceptor) can resume
-            // LaunchedEffect coroutines on DefaultDispatcher; withContext(Main) ensures safety.
-            withContext(Dispatchers.Main) {
-                fragment.applyDecorations(emptyList(), group = "search")
-            }
-            hasActiveDecorations.value = false
-            return@LaunchedEffect
-        }
-        val navFragment = fragmentRef.value ?: return@LaunchedEffect
-        val fragment = navFragment as? DecorableNavigator ?: return@LaunchedEffect
-        val decorations = searchResults.mapIndexed { index, locator ->
-            Decoration(
-                id = "search_$index",
-                locator = locator,
-                style = if (index == currentSearchIndex)
-                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFF5A623"))
-                else
-                    Decoration.Style.Highlight(tint = android.graphics.Color.parseColor("#FFFDE68A")),
-            )
-        }
-        // Apply immediately for the first paint; the re-resolve loop below then tracks the page as it
-        // settles (see its comment for the why). "The first result is highlighted, the next ones aren't"
-        // was this exact bug on navigated results — the landing page is still moving when the box lands.
-        withContext(Dispatchers.Main) {
-            fragment.applyDecorations(decorations, group = "search")
-        }
-        hasActiveDecorations.value = true
-        // Re-resolve the box positions across the post-navigation settle window. Two things matter here:
-        //  1) Readium re-positions a decoration only when its set CHANGES — re-applying the identical list
-        //     is a no-op diff, so the box keeps its first (pre-settle) position. We therefore CLEAR then
-        //     re-apply (back to back on the main thread, no visible gap — the same trick the readaloud
-        //     group uses), which forces Readium to re-run its locator→range resolver against the current,
-        //     settled DOM.
-        //  2) The layout keeps moving after the first apply (go() + the column-snap rAF loop ~1.2s + the
-        //     async typography reflow), so we repeat the clear+re-apply on a SPACED schedule out to ~2.6s.
-        //     Spaced (not a tight poll): a 100ms loop floods the still-navigating WebView and can blank the
-        //     page (ADR 0015); a handful of spaced re-applies is as safe as the first one.
-        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
-            delay(settleDelayMs)
-            if (fragmentRef.value !== navFragment) break // navigated away / fragment recreated — newer effect owns it
-            fragment.applyDecorationsWithClear(decorations, group = "search")
-        }
+        highlightRenderer.applySearch(searchResults, currentSearchIndex)
     }
 
     // ---- Readaloud synced highlight --------------------------------------------------------
-    // Uses the same Readium DecorableNavigator mechanism as search, on its own "readaloud" group
-    // so it doesn't clobber search highlights. The active fragment ref is "href#fragId"; we build a
-    // Locator that carries both the fragment-id cssSelector AND the sentence's text. Readium uses the
-    // cssSelector when it resolves and otherwise falls back to a text search — necessary because it
-    // strips the sentence spans from the rendered ABS EPUB. Null clears the decoration. The effect
-    // also re-keys on [sentenceQuotes] so the highlight re-applies with text once the quotes (built
-    // off the main thread after the track loads) become available.
-    val hasReadaloudDecoration = remember { mutableStateOf(false) }
+    // Superset keys cover both Readium (pageLoadGeneration, reflowGeneration re-apply on
+    // reflow/rotation) and Continuous (sentenceQuotes re-applies when quotes build asynchronously).
     LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
-        if (isContinuous) return@LaunchedEffect  // handled in the Continuous-mode effect below
-        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
-        val ref = activeFragmentRef
-        if (ref == null) {
-            if (!hasReadaloudDecoration.value) return@LaunchedEffect
-            withContext(Dispatchers.Main) {
-                fragment.applyDecorations(emptyList(), group = "readaloud")
-            }
-            hasReadaloudDecoration.value = false
-            return@LaunchedEffect
-        }
-        val sid = ref.substringAfter('#', "")
-        val quote = sentenceQuotes[sid]
-        val locator = fragmentLocator(ref, quote) ?: return@LaunchedEffect
-        val decoration = Decoration(
-            id = "readaloud_active",
-            locator = locator,
-            // Dedicated readaloud style/template: opacity follows the tint's alpha so the highlight
-            // is stronger on dark reading themes and stays legible behind the white body text.
-            style = HighlightTintStyle(
-                tint = readaloudHighlightColor.argb,
-            ),
-        )
-        // Clear the group before re-applying. After the fragment is recreated (rotation) or its page
-        // reloads, Readium's decoration controller for the new WebView loses track of the previously
-        // injected element, so applyDecorations([new]) ADDS without removing the old one and the
-        // highlights accumulate — the previous sentence stays lit while the current one plays. An
-        // empty apply runs the JS group's clear() (it removes the whole decoration container element),
-        // so the subsequent apply always leaves exactly one highlight. The two calls execute back to
-        // back on the main thread, so there is no visible gap on a normal sentence advance.
-        fragment.applyDecorationsWithClear(listOf(decoration), group = "readaloud")
-        hasReadaloudDecoration.value = true
+        highlightRenderer.applyReadaloud(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
     }
 
-    // ---- Continuous-mode readaloud highlight -----------------------------------------------
-    // ChapterWebView serves the ABS EPUB HTML directly (no Readium stripping), but the ABS EPUB
-    // does NOT have Storyteller's per-sentence spans — those exist only in the Storyteller bundle.
-    // We therefore use window.find() to locate the sentence by its full text, then inject a <mark>
-    // element. The fallback in highlightTextJs uses extractContents()+insertNode() to handle the
-    // common case where the sentence spans inline elements (em, span, strong) and surroundContents()
-    // would throw. sentenceQuotes is re-keyed here so the highlight re-applies once quotes are built.
-    val prevHighlightHref = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(activeFragmentRef, isContinuous, sentenceQuotes, readaloudHighlightColor) {
-        if (!isContinuous) return@LaunchedEffect
-        val view = continuousViewRef.value ?: return@LaunchedEffect
-        val ref = activeFragmentRef
-        if (ref == null) {
-            // Readaloud stopped — clear the last known chapter's highlight
-            prevHighlightHref.value?.let { view.clearHighlightInChapter(it) }
-            prevHighlightHref.value = null
-            return@LaunchedEffect
-        }
-        val chapterHref = ref.substringBefore('#')
-        val sid = ref.substringAfter('#', "")
-        if (sid.isBlank()) return@LaunchedEffect
-        val text = sentenceQuotes[sid]?.highlight ?: return@LaunchedEffect
-        // If the chapter changed, clear the previous chapter's mark
-        val prev = prevHighlightHref.value
-        if (prev != null && prev != chapterHref) view.clearHighlightInChapter(prev)
-        prevHighlightHref.value = chapterHref
-        val cssColor = readaloudHighlightColor.argb.toCssRgba()
-        view.highlightInChapter(chapterHref, text, cssColor)
+    // ---- Persisted highlights (annotations + note glyphs) ----------------------------------
+    // Superset keys: continuous re-keys on activeFragmentRef's base href when a new chapter
+    // enters the sliding window; Readium re-applies on reflow/pageLoad events.
+    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
+        highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
     }
 
-    // ---- Persisted highlights — continuous mode -------------------------------------------
-    // Paged mode uses Readium's DecorableNavigator (below). Continuous mode injects <mark> elements
-    // via window.find(), mirroring the readaloud highlight approach. Re-keyed on the current chapter
-    // href (derived from activeFragmentRef) so annotations re-apply when a new chapter enters the
-    // sliding window.
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, activeFragmentRef?.substringBefore('#'), isContinuous) {
-        if (!isContinuous) return@LaunchedEffect
-        val view = continuousViewRef.value ?: return@LaunchedEffect
-        val annotationsByHref = highlightRenders
-            .filter { !it.locator.text.highlight.isNullOrBlank() }
-            .groupBy { it.locator.href.toString() }
-            .mapValues { (_, renders) ->
-                renders.map { h ->
-                    AnnotationHighlight(
-                        id = h.id,
-                        text = h.locator.text.highlight!!,
-                        cssColor = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme).toCssRgba(),
-                        hasNote = h.note != null,
-                    )
-                }
-            }
-        view.applyAnnotationHighlights(annotationsByHref)
-    }
-
-    // ---- Persisted highlights (ADR 0024) ---------------------------------------------------
-    // Renders all of a book's stored highlights via the same DecorableNavigator mechanism, on its
-    // own "annotations" group. Re-applied whenever the set changes — including the re-render of
-    // every highlight when the book is reopened, and the immediate paint after a new highlight.
-    val hasHighlightDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, isContinuous) {
-        if (isContinuous) return@LaunchedEffect
-        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
-        if (highlightRenders.isEmpty()) {
-            if (!hasHighlightDecorations.value) return@LaunchedEffect
-            withContext(Dispatchers.Main) {
-                fragment.applyDecorations(emptyList(), group = "annotations")
-            }
-            hasHighlightDecorations.value = false
-            return@LaunchedEffect
-        }
-        val decorations = highlightRenders.map { h ->
-            Decoration(
-                id = h.id,
-                locator = h.locator,
-                style = HighlightTintStyle(
-                    tint = HighlightColor.fromToken(h.color).readerTint(formattingPrefs.theme),
-                ),
-            )
-        }
-        // Clear before re-applying so the Readium JS group starts from a clean slate.
-        // Without the clear, Kotlin-side diff can compute "no change" for a fragment whose
-        // JS state was reset on page load (e.g. on book re-entry), leaving decorations
-        // visually missing; a stale DOM element from a prior session can also add a ghost
-        // layer. Mirrors the search and readaloud groups' clear+reapply pattern.
-        fragment.applyDecorationsWithClear(decorations, group = "annotations")
-        hasHighlightDecorations.value = true
-    }
-
-    // ---- Note glyph decorations (annotation-notes) -----------------------------------------
-    // Renders a small margin note icon next to every highlighted range that has a note
-    // attached. Uses its own group so it can be cleared/re-applied independently of the fill.
-    // Tapping the glyph fires the dedicated "annotation-notes" tap listener below.
-    val hasNoteDecorations = remember { mutableStateOf(false) }
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, isContinuous) {
-        if (isContinuous) return@LaunchedEffect
-        val fragment = fragmentRef.value as? DecorableNavigator ?: return@LaunchedEffect
-        val noted = highlightRenders.filter { it.note != null }
-        if (noted.isEmpty()) {
-            if (!hasNoteDecorations.value) return@LaunchedEffect
-            withContext(Dispatchers.Main) {
-                fragment.applyDecorations(emptyList(), group = "annotation-notes")
-            }
-            hasNoteDecorations.value = false
-            return@LaunchedEffect
-        }
-        val noteDecorations = noted.map { h ->
-            Decoration(
-                id = h.id,
-                locator = h.locator,
-                style = NoteGlyphStyle(),
-            )
-        }
-        fragment.applyDecorationsWithClear(noteDecorations, group = "annotation-notes")
-        hasNoteDecorations.value = true
+    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+        highlightRenderer.applyNoteGlyphs(highlightRenders)
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------
