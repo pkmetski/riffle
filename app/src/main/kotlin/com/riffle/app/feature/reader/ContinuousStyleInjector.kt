@@ -477,6 +477,14 @@ internal object ContinuousStyleInjector {
      * `surroundContents()` throws when the selection range crosses an inline element boundary
      * (e.g. `<em>`, `<span class="smallcaps">`). The fallback uses `extractContents()` +
      * `insertNode()` which handles multi-node ranges correctly.
+     *
+     * The sentinel trick: before removing the old mark we insert a temporary empty `<span>`
+     * immediately after it. `outerHTML = innerHTML` removes the mark but leaves the sentinel
+     * in place. We then collapse the selection to right after the sentinel and remove it.
+     * This makes `window.find()` search forward from the end of the previous sentence rather
+     * than from the document start (the unpredictable position the DOM mutation leaves the
+     * selection at), so consecutive sentences that share a repeated word/phrase always resolve
+     * to the next occurrence in reading order instead of the first one in the document.
      */
     fun highlightTextJs(text: String, cssColor: String): String {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
@@ -484,9 +492,25 @@ internal object ContinuousStyleInjector {
         return """
             (function() {
                 var existing = document.getElementById('_riffle_hl');
-                if (existing) { existing.outerHTML = existing.innerHTML; }
+                var sentinel = null;
+                if (existing && existing.parentNode) {
+                    sentinel = document.createElement('span');
+                    existing.parentNode.insertBefore(sentinel, existing.nextSibling);
+                    existing.outerHTML = existing.innerHTML;
+                }
+                var sel = window.getSelection ? window.getSelection() : null;
+                if (sel) sel.removeAllRanges();
+                if (sentinel && sentinel.parentNode) {
+                    try {
+                        var r = document.createRange();
+                        r.setStartAfter(sentinel);
+                        r.collapse(true);
+                        if (sel) sel.addRange(r);
+                    } catch(e) {}
+                    sentinel.parentNode.removeChild(sentinel);
+                }
                 if (!window.find('$safe', false, false, false, false, false, false)) return;
-                var sel = window.getSelection();
+                sel = window.getSelection();
                 if (!sel || sel.rangeCount === 0) return;
                 var range = sel.getRangeAt(0);
                 var mark = document.createElement('mark');
