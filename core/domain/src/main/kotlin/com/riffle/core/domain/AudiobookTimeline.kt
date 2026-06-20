@@ -1,6 +1,9 @@
 package com.riffle.core.domain
 
+import kotlinx.serialization.Serializable
+
 /** An ABS chapter marker over the audiobook's single logical timeline, in seconds (ADR 0029). */
+@Serializable
 data class AudiobookChapter(
     val index: Int,
     val startSec: Double,
