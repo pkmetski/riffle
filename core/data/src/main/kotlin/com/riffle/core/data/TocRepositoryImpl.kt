@@ -12,9 +12,11 @@ class TocRepositoryImpl @Inject constructor(
     private val dao: TocCacheDao,
 ) : TocRepository {
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     override suspend fun getCachedToc(serverId: String, itemId: String): Pair<String, List<TocEntry>>? {
         val entity = dao.get(serverId, itemId) ?: return null
-        val entries = Json.decodeFromString<List<TocEntry>>(entity.entriesJson)
+        val entries = json.decodeFromString<List<TocEntry>>(entity.entriesJson)
         return entity.ebookFileIno to entries
     }
 
@@ -24,6 +26,6 @@ class TocRepositoryImpl @Inject constructor(
         ebookFileIno: String,
         entries: List<TocEntry>,
     ) {
-        dao.upsert(TocCacheEntity(serverId, itemId, ebookFileIno, Json.encodeToString(entries)))
+        dao.upsert(TocCacheEntity(serverId, itemId, ebookFileIno, json.encodeToString(entries)))
     }
 }

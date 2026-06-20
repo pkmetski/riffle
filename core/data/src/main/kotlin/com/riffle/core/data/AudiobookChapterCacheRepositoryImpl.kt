@@ -15,9 +15,11 @@ class AudiobookChapterCacheRepositoryImpl @Inject constructor(
     private val api: AbsLibraryApi,
 ) : AudiobookChapterCacheRepository {
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     override suspend fun getCachedChapters(serverId: String, itemId: String): List<AudiobookChapter>? {
         val entity = dao.get(serverId, itemId) ?: return null
-        return Json.decodeFromString<List<AudiobookChapter>>(entity.chaptersJson)
+        return json.decodeFromString<List<AudiobookChapter>>(entity.chaptersJson)
     }
 
     override suspend fun fetchAndCacheChapters(
@@ -40,7 +42,7 @@ class AudiobookChapterCacheRepositoryImpl @Inject constructor(
                 title = dto.title,
             )
         }
-        dao.upsert(AudiobookChapterCacheEntity(serverId, itemId, Json.encodeToString(chapters)))
+        dao.upsert(AudiobookChapterCacheEntity(serverId, itemId, json.encodeToString(chapters)))
         return chapters
     }
 }
