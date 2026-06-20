@@ -1,9 +1,18 @@
 package com.riffle.app.feature.reader
 
+import androidx.annotation.ColorInt
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SentenceQuote
 import org.readium.r2.shared.publication.Locator
+
+/** ARGB color used for the active (current) search result highlight — warm orange. */
+@ColorInt
+internal val SEARCH_ACTIVE_ARGB: Int = 0xFFF5A623.toInt()
+
+/** ARGB color used for inactive (non-current) search result highlights — pale yellow. */
+@ColorInt
+internal val SEARCH_INACTIVE_ARGB: Int = 0xFFFDE68A.toInt()
 
 /**
  * Abstracts the two rendering pipelines for reader highlights:
@@ -37,7 +46,8 @@ internal interface HighlightRenderer {
     /**
      * Applies or clears note glyph decorations for annotations that have a note.
      * Empty or all-without-notes [renders] clears the group.
-     * Continuous implementation is a no-op (note glyphs are Readium-only).
+     * Continuous implementation is a no-op — glyphs are emitted inside [applyAnnotations]
+     * via [ContinuousStyleInjector.applyAnnotationHighlightsJs], so no separate pass is needed.
      */
     suspend fun applyNoteGlyphs(
         renders: List<EpubReaderViewModel.HighlightRender>,

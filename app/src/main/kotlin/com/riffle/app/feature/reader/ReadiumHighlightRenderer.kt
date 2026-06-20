@@ -106,9 +106,9 @@ internal class ReadiumHighlightRenderer(
                 id = "search_$index",
                 locator = locator,
                 style = if (index == activeIndex)
-                    Decoration.Style.Highlight(tint = 0xFFF5A623.toInt())
+                    Decoration.Style.Highlight(tint = SEARCH_ACTIVE_ARGB)
                 else
-                    Decoration.Style.Highlight(tint = 0xFFFDE68A.toInt()),
+                    Decoration.Style.Highlight(tint = SEARCH_INACTIVE_ARGB),
             )
         }
         applyDecorationsBlock(decorations, "search")

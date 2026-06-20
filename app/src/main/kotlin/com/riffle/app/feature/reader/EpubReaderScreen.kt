@@ -1467,7 +1467,7 @@ private fun EpubNavigatorView(
                 highlightRenderer.highlightSearchMatch(
                     href = locator.href.toString(),
                     text = text,
-                    cssColor = readaloudHighlightColor.argb.toCssRgba(),
+                    cssColor = SEARCH_ACTIVE_ARGB.toCssRgba(),
                 )
             }
         }

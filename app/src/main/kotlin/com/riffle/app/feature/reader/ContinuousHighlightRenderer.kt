@@ -68,8 +68,8 @@ internal class ContinuousHighlightRenderer(
     }
 
     override suspend fun applyNoteGlyphs(renders: List<EpubReaderViewModel.HighlightRender>) {
-        // Continuous mode does not render note glyphs — there is no margin area analogous
-        // to Readium's decoration layer for arbitrary DOM annotations.
+        // No-op: glyphs are emitted inside applyAnnotations via applyAnnotationHighlightsJs,
+        // so no separate pass is needed.
     }
 
     override suspend fun applySearch(results: List<Locator>, activeIndex: Int) {
