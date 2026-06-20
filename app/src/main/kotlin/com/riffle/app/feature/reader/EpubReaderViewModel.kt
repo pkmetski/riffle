@@ -702,15 +702,8 @@ class EpubReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
-                // Navigate to the requested TOC entry immediately on open (e.g. tapped from the
-                // item-detail TOC sheet). The screen's LaunchedEffect waits for fragmentRef /
-                // continuousViewRef to be non-null before acting, so this fires safely regardless
-                // of whether the fragment is ready yet.
-                startTocHref?.let { href ->
-                    val link = pub.tableOfContents.findLinkByHref(href)
-                        ?: pub.readingOrder.firstOrNull { it.href.toString() == href }
-                    if (link != null) _navigationEvents.trySend(link)
-                }
+                // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
+                startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
