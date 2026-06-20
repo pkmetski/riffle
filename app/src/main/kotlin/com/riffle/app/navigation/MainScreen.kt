@@ -61,7 +61,7 @@ private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesN
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
-private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}"
+private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
@@ -381,6 +381,15 @@ fun MainScreen(
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("audiobook_player/$encodedId")
                     },
+                    onReadItemAtHref = { item, href ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        val encodedHref = URLEncoder.encode(href, "UTF-8")
+                        navController.navigate("epub_reader/$encodedId?startTocHref=$encodedHref")
+                    },
+                    onListenItemAtSec = { item, startSec ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("audiobook_player/$encodedId?startAtSec=$startSec")
+                    },
                     onNavigateToFacet = { libraryId, facet, value ->
                         val encoded = URLEncoder.encode(value, "UTF-8")
                         navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
@@ -416,6 +425,11 @@ fun MainScreen(
                         defaultValue = -1f // -1 = opened normally, not an audiobook→readaloud handoff
                     },
                     navArgument("openAtCfi") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("startTocHref") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null

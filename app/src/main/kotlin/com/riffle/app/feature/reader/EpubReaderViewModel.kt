@@ -179,6 +179,10 @@ class EpubReaderViewModel @Inject constructor(
     // reading position. Null/blank for a normal open. EPUB-only (annotations anchor on ABS-EPUB CFI).
     private val openAtCfi: String? = savedStateHandle.get<String>("openAtCfi")
 
+    // TOC entry to open immediately on launch — navigated once the publication is ready, using the same
+    // _navigationEvents channel as the TOC panel's tap handler (see navigateToEntry).
+    private val startTocHref: String? = savedStateHandle["startTocHref"]
+
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
@@ -698,6 +702,14 @@ class EpubReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
+                // Navigate to the requested TOC entry immediately on open (e.g. tapped from the
+                // item-detail TOC sheet). Uses the same _navigationEvents channel as the in-reader
+                // TOC panel's tap handler (navigateToEntry) so the screen handles it identically.
+                startTocHref?.let { href ->
+                    val link = pub.tableOfContents.findLinkByHref(href)
+                        ?: pub.readingOrder.firstOrNull { it.href.toString() == href }
+                    if (link != null) _navigationEvents.trySend(link)
+                }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
