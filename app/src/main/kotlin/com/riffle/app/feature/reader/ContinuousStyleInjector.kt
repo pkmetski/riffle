@@ -423,9 +423,9 @@ internal object ContinuousStyleInjector {
                         if (cont.nodeType !== 1) cont = cont.parentNode;
                         if (cont && cont.hasAttribute &&
                             (cont.hasAttribute('data-riffle-si') || cont.hasAttribute('data-riffle-sa'))) {
-                            var r2 = document.createRange();
-                            r2.setStartAfter(cont); r2.collapse(true);
-                            sel.removeAllRanges(); sel.addRange(r2);
+                            var skip = document.createRange();
+                            skip.setStartAfter(cont); skip.collapse(true);
+                            sel.removeAllRanges(); sel.addRange(skip);
                             continue;
                         }
                         var mark = document.createElement('mark');
@@ -433,9 +433,9 @@ internal object ContinuousStyleInjector {
                         mark.style.cssText = 'background:' + inactiveCss + ';color:inherit;';
                         try { range.surroundContents(mark); }
                         catch(e) { var frag = range.extractContents(); mark.appendChild(frag); range.insertNode(mark); }
-                        var r2 = document.createRange();
-                        r2.setStartAfter(mark); r2.collapse(true);
-                        sel.removeAllRanges(); sel.addRange(r2);
+                        var advance = document.createRange();
+                        advance.setStartAfter(mark); advance.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(advance);
                     }
                 });
                 if (activeT && activeProg >= 0) {

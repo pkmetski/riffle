@@ -74,11 +74,11 @@ internal class ContinuousHighlightRenderer(
 
     override suspend fun applySearch(results: List<Locator>, activeIndex: Int) {
         val target = targetProvider() ?: return
-        if (results.isEmpty() || activeIndex < 0) {
+        if (results.isEmpty() || activeIndex < 0 || activeIndex >= results.size) {
             target.applySearchHighlights(null)
             return
         }
-        val activeLocator = results.getOrNull(activeIndex) ?: return
+        val activeLocator = results[activeIndex]
         val activeText = activeLocator.text.highlight?.take(40) ?: return
         if (activeText.isBlank()) return
 
