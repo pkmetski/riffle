@@ -297,7 +297,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * Used for the first open, for a far TOC/link jump, and to recover after the WebView renderer
      * process is killed (see [onRenderProcessGone] wiring in [appendChapter]).
      */
-    private fun openWindowAt(initialHref: String, initialProgression: Float, anchorFragment: String = "") {
+    private fun openWindowAt(initialHref: String, initialProgression: Float, anchorFragment: String = "", alignToTop: Boolean = false) {
         val targetIndex = ContinuousPositionTracker
             .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
             .coerceAtLeast(0)
@@ -334,6 +334,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                     targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
                         val y = if (anchorOffset != null) {
                             (slot.top + anchorOffset).coerceAtLeast(0)
+                        } else if (alignToTop) {
+                            (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                         } else {
                             ContinuousPositionTracker.scrollYForProgression(
                                 slot.top, slot.height, initialProgression, height,
@@ -344,13 +346,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 } else {
                     // Restore at the viewport midpoint (inverse of locatorAt) so a resumed position
                     // doesn't drift forward half a screen on every reopen; a chapter start stays at
-                    // the top.
-                    scrollTo(
-                        0,
+                    // the top. When alignToTop is true (bookmark / external locator navigation) the
+                    // progression was measured at content top, not viewport midpoint, so skip the
+                    // half-viewport offset.
+                    val y = if (alignToTop) {
+                        (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
+                    } else {
                         ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
-                        ),
-                    )
+                        )
+                    }
+                    scrollTo(0, y)
                 }
             }
         }
@@ -408,8 +414,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         webViews.forEach { wv -> wv.reinjectAndRemeasure(styleJs) }
     }
 
-    /** Scroll to [href] at [progression]. Loads the chapter into the window if needed. */
-    fun navigateTo(href: String, progression: Float) {
+    /**
+     * Scroll to [href] at [progression]. Loads the chapter into the window if needed.
+     *
+     * [alignToTop] must be true when [progression] was measured at content top rather than the
+     * viewport midpoint — i.e. for bookmarks and external locators (which use CFI-derived
+     * progressions). Leave false for continuous-mode round-trips (resume, return-to-position) where
+     * [locatorAt] was the source and the midpoint inverse keeps the position drift-free.
+     */
+    fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false) {
         // TOC entries / chapter-map segments / internal links may carry a #fragment that the spine
         // hrefs don't have; match on the resource path so the chapter is still found.
         val target = href.substringBefore('#')
@@ -421,7 +434,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
             // Already loaded and measured: scroll straight to it.
-            post { scrollToLoadedChapter(target, progression, fragment, smooth = true) }
+            post { scrollToLoadedChapter(target, progression, fragment, smooth = true, alignToTop = alignToTop) }
         } else {
             // Far jump (typical TOC / chapter-map tap): rebuild the window around the target and land
             // via the open path, which defers the scroll until the target's REAL height is known.
@@ -433,7 +446,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             container.removeAllViews()
             recycledViews.forEach { it.destroy() }
             recycledViews.clear()
-            openWindowAt(target, progression, fragment)
+            openWindowAt(target, progression, fragment, alignToTop = alignToTop)
         }
     }
 
@@ -444,7 +457,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * previous chapter into the top half ("wrong page"); a mid-chapter position (search hit) is
      * centred so the hit is comfortably visible.
      */
-    private fun scrollToLoadedChapter(target: String, progression: Float, fragment: String, smooth: Boolean) {
+    private fun scrollToLoadedChapter(target: String, progression: Float, fragment: String, smooth: Boolean, alignToTop: Boolean = false) {
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
         fun go(y: Int) {
@@ -459,7 +472,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             }
         } else {
             // Top-align a chapter start; centre a mid-chapter target (inverse of locatorAt).
-            go(ContinuousPositionTracker.scrollYForProgression(slot.top, slot.height, progression, height))
+            // When alignToTop, skip the half-viewport offset — the progression is content-top-relative.
+            go(
+                if (alignToTop) slot.top + (progression * slot.height).toInt()
+                else ContinuousPositionTracker.scrollYForProgression(slot.top, slot.height, progression, height)
+            )
         }
     }
 

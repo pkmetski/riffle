@@ -192,6 +192,52 @@ class ContinuousPositionTrackerTest {
         assertEquals(0, ContinuousPositionTracker.pageScrollDelta(-5))
     }
 
+    // ── Bookmark vs. continuous-resume alignment ──────────────────────────────
+    //
+    // scrollYForProgression is the midpoint-inverse of locatorAt: it's correct for continuous
+    // round-trips (save position → resume) but wrong for external locators (bookmark/CFI) whose
+    // progression was measured at content top rather than viewport midpoint. For those,
+    // scrollOffsetFor gives the top-aligned scrollY.
+
+    @Test
+    fun `scrollOffsetFor gives top-aligned scrollY for a bookmark locator — content at viewport top`() {
+        // Bookmark at progression 0·5 through chapter A (height 1000, top 0): content is at offset 500.
+        // Top-aligned: scrollY = 0 + 0.5 * 1000 = 500 → bookmarked line at viewport top.
+        val offset = ContinuousPositionTracker.scrollOffsetFor("A.xhtml", 0.5f, window)
+        assertEquals(500, offset)
+    }
+
+    @Test
+    fun `scrollYForProgression for the same bookmark progression places content at viewport midpoint`() {
+        // scrollYForProgression subtracts viewportHeight/2 (midpoint-inverse of locatorAt).
+        // For a progression measured at content top (bookmark), this scrolls viewportHeight/2 too
+        // high — the bug that alignToTop = true fixes.
+        val viewport = 800
+        val midpointAligned = ContinuousPositionTracker.scrollYForProgression(
+            slotTop = 0, slotHeight = 1000, progression = 0.5f, viewportHeight = viewport,
+        )
+        val topAligned = ContinuousPositionTracker.scrollOffsetFor("A.xhtml", 0.5f, window)!!
+
+        // midpoint-aligned = 500 - 400 = 100; top-aligned = 500. Difference = viewportHeight/2.
+        assertEquals(topAligned - viewport / 2, midpointAligned)
+        assertEquals(viewport / 2, topAligned - midpointAligned)
+    }
+
+    @Test
+    fun `top-aligned bookmark at chapter start lands at chapter top, not before it`() {
+        // progression 0 on chapter B (top=1000): both alignments agree — the chapter start is at 1000.
+        val topAligned = ContinuousPositionTracker.scrollOffsetFor("B.xhtml", 0f, window)
+        assertEquals(1000, topAligned)
+    }
+
+    @Test
+    fun `top-aligned bookmark at chapter end lands at the last content, not past it`() {
+        // progression 1.0 on chapter A (height 1000, top 0): scrollY = 0 + 1000 = 1000
+        // (the very bottom of chapter A, which is also where chapter B begins).
+        val topAligned = ContinuousPositionTracker.scrollOffsetFor("A.xhtml", 1.0f, window)
+        assertEquals(1000, topAligned)
+    }
+
     // ── sentenceIdForSelection (Play from here) ───────────────────────────────
 
     private val quoteTexts = mapOf(
