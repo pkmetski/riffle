@@ -436,4 +436,90 @@ class ContinuousStyleInjectorTest {
         assertEquals(ann, AnnotationHighlight("id", "text", "#000", hasNote = true))
         assertFalse(ann == ann.copy(hasNote = false))
     }
+
+    // ── applySearchHighlightsJs ───────────────────────────────────────────────
+
+    @Test
+    fun `applySearchHighlightsJs embeds inactive text array in JS output`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("hello", "world"),
+            inactiveCssColor = "rgba(253,230,138,0.30)",
+            activeText = null,
+            activeProgression = -1f,
+            activeCssColor = "rgba(245,166,35,0.30)",
+        )
+        assertTrue("JS should contain 'hello'", js.contains("'hello'"))
+        assertTrue("JS should contain 'world'", js.contains("'world'"))
+    }
+
+    @Test
+    fun `applySearchHighlightsJs embeds colors in JS output`() {
+        val active = "rgba(245,166,35,0.30)"
+        val inactive = "rgba(253,230,138,0.30)"
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("text"),
+            inactiveCssColor = inactive,
+            activeText = "text",
+            activeProgression = 0.5f,
+            activeCssColor = active,
+        )
+        assertTrue(js.contains(active))
+        assertTrue(js.contains(inactive))
+    }
+
+    @Test
+    fun `applySearchHighlightsJs embeds active text and progression when provided`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("Dune"),
+            inactiveCssColor = "rgba(253,230,138,0.30)",
+            activeText = "Dune",
+            activeProgression = 0.42f,
+            activeCssColor = "rgba(245,166,35,0.30)",
+        )
+        assertTrue("active text in output", js.contains("'Dune'"))
+        assertTrue("progression in output", js.contains("0.42"))
+    }
+
+    @Test
+    fun `applySearchHighlightsJs passes null active text when chapter has no active result`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("word"),
+            inactiveCssColor = "rgba(253,230,138,0.30)",
+            activeText = null,
+            activeProgression = -1f,
+            activeCssColor = "rgba(245,166,35,0.30)",
+        )
+        assertTrue("null literal in output", js.contains(",null,"))
+    }
+
+    @Test
+    fun `applySearchHighlightsJs escapes single quotes in text`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("it's"),
+            inactiveCssColor = "rgba(253,230,138,0.30)",
+            activeText = "it's",
+            activeProgression = 0.5f,
+            activeCssColor = "rgba(245,166,35,0.30)",
+        )
+        assertTrue("single quote escaped", js.contains("\\'"))
+    }
+
+    @Test
+    fun `applySearchHighlightsJs uses data-riffle-si for inactive and data-riffle-sa for active`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("word"),
+            inactiveCssColor = "rgba(253,230,138,0.30)",
+            activeText = "word",
+            activeProgression = 0.5f,
+            activeCssColor = "rgba(245,166,35,0.30)",
+        )
+        assertTrue("inactive marker attribute present", js.contains("data-riffle-si"))
+        assertTrue("active marker attribute present", js.contains("data-riffle-sa"))
+    }
+
+    @Test
+    fun `CLEAR_SEARCH_HIGHLIGHTS_JS targets both data-riffle-si and data-riffle-sa`() {
+        assertTrue(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS.contains("data-riffle-si"))
+        assertTrue(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS.contains("data-riffle-sa"))
+    }
 }
