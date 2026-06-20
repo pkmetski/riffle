@@ -196,6 +196,26 @@ class ContinuousStyleInjectorTest {
         assertFalse(js.contains("line one\nline two"))
     }
 
+    @Test
+    fun `highlightTextJs uses sentinel to preserve search position after clearing old mark`() {
+        // The sentinel trick: a temporary span is inserted AFTER the existing _riffle_hl mark
+        // before the outerHTML mutation, so window.find() starts from the end of the previous
+        // sentence rather than from the document start (which would find the first occurrence
+        // and misplace the highlight when the same word/phrase recurs earlier in the chapter).
+        val js = ContinuousStyleInjector.highlightTextJs("test sentence", "rgba(56,189,248,0.30)")
+        assertTrue("inserts sentinel after existing mark", js.contains("insertBefore(sentinel, existing.nextSibling)"))
+        assertTrue("removes sentinel before searching", js.contains("removeChild(sentinel)"))
+        assertTrue("collapses selection after sentinel", js.contains("setStartAfter(sentinel)"))
+        // Sentinel must be inserted BEFORE the outerHTML mutation (not after).
+        val insertIdx = js.indexOf("insertBefore(sentinel")
+        val outerHtmlIdx = js.indexOf("outerHTML = existing.innerHTML")
+        assertTrue("sentinel inserted before outerHTML mutation", insertIdx < outerHtmlIdx)
+        // And the sentinel must be removed BEFORE window.find() is called.
+        val removeIdx = js.indexOf("removeChild(sentinel)")
+        val findIdx = js.indexOf("window.find(")
+        assertTrue("sentinel removed before window.find()", removeIdx < findIdx)
+    }
+
     // ── CLEAR_ANNOTATION_HIGHLIGHTS_JS ─────────────────────────────────────────
 
     @Test
