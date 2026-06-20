@@ -30,7 +30,7 @@ internal data class AnnotationHighlight(val id: String, val text: String, val cs
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-) : NestedScrollView(context, attrs), ContinuousHighlightTarget {
+) : NestedScrollView(context, attrs), ContinuousHighlightTarget, ContinuousNavigationView {
 
     companion object {
         /** Chapters kept loaded behind the reader (for smooth backward scrolling). */
@@ -443,7 +443,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * progressions). Leave false for continuous-mode round-trips (resume, return-to-position) where
      * [locatorAt] was the source and the midpoint inverse keeps the position drift-free.
      */
-    fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false) {
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false) {
         // TOC entries / chapter-map segments / internal links may carry a #fragment that the spine
         // hrefs don't have; match on the resource path so the chapter is still found.
         val target = href.substringBefore('#')
