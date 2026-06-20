@@ -57,6 +57,9 @@ class AnnotationStoreTest {
                 if (it.id == id) it.copy(bookmarkTitle = title, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+
+        override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> =
+            rows.map { all -> all.filter { it.serverId == serverId && !it.deleted } }
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {

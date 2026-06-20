@@ -38,6 +38,9 @@ class AnnotationStoreImpl(
     override fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>> =
         dao.observeAnnotationsByPosition(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
 
+    override fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>> =
+        dao.observeForServer(serverId).map { rows -> rows.map { it.toDomain() } }
+
     override suspend fun createHighlight(
         serverId: String,
         itemId: String,

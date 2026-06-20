@@ -30,6 +30,8 @@ class AnnotationDaoTest {
         val servers = db.serverDao()
         servers.upsert(ServerEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"))
         servers.upsert(ServerEntity("abs2", "http://abs2", isActive = false, insecureConnectionAllowed = false, username = "u"))
+        servers.upsert(ServerEntity("srv1", "http://srv1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+        servers.upsert(ServerEntity("srv2", "http://srv2", isActive = false, insecureConnectionAllowed = false, username = "u"))
     }
 
     @After
@@ -133,5 +135,17 @@ class AnnotationDaoTest {
         assertEquals("device-B", row?.lastModifiedByDeviceId)
         // The live query still returns it (recolour is not a delete).
         assertEquals(listOf("h1"), dao.observeForItem("abs1", "item1").first().map { it.id })
+    }
+
+    @Test
+    fun observeForServer_returnsAllNonDeletedAcrossItems_excludesOtherServers() = runBlocking {
+        dao.upsert(highlight("a1", serverId = "srv1", itemId = "b1"))
+        dao.upsert(highlight("a2", serverId = "srv1", itemId = "b2"))
+        dao.upsert(highlight("a3", serverId = "srv1", itemId = "b3", deleted = true))
+        dao.upsert(highlight("a4", serverId = "srv2", itemId = "b9"))
+
+        val result = dao.observeForServer("srv1").first()
+
+        assertEquals(listOf("a1", "a2"), result.map { it.id })
     }
 }

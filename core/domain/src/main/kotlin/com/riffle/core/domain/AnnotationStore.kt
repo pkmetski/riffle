@@ -13,6 +13,9 @@ interface AnnotationStore {
     /** Live, non-deleted highlights + bookmarks for an ABS Library Item, sorted by reading position. */
     fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>>
 
+    /** Live, non-deleted highlights + bookmarks across every item for a server, oldest first. */
+    fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>>
+
     suspend fun createHighlight(
         serverId: String,
         itemId: String,
