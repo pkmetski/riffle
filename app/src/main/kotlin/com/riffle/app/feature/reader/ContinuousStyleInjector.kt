@@ -356,6 +356,113 @@ internal object ContinuousStyleInjector {
         })();
     """.trimIndent()
 
+    /** Removes all search inactive ([data-riffle-si]) and active ([data-riffle-sa]) marks. */
+    val CLEAR_SEARCH_HIGHLIGHTS_JS = """
+        (function() {
+            document.querySelectorAll('[data-riffle-si],[data-riffle-sa]').forEach(function(m) {
+                m.outerHTML = m.innerHTML;
+            });
+        })();
+    """.trimIndent()
+
+    /**
+     * JS that marks all occurrences of each text in [inactiveTexts] with `data-riffle-si` and
+     * [inactiveCssColor], then promotes the occurrence of [activeText] closest to [activeProgression]
+     * (a 0–1 document fraction) to `data-riffle-sa` with [activeCssColor].
+     *
+     * Call this ONLY after clearing existing marks via [CLEAR_SEARCH_HIGHLIGHTS_JS] (via a
+     * [WebView.evaluateJavascript] callback), because Chrome won't reliably find text in a DOM
+     * that was just mutated synchronously in the same JS block.
+     *
+     * Pass [activeText] as null (and [activeProgression] < 0) when this chapter has no active result.
+     */
+    fun applySearchHighlightsJs(
+        inactiveTexts: List<String>,
+        inactiveCssColor: String,
+        activeText: String?,
+        activeProgression: Float,
+        activeCssColor: String,
+    ): String {
+        val textsJson = buildString {
+            append('[')
+            inactiveTexts.forEachIndexed { i, text ->
+                if (i > 0) append(',')
+                val safe = text
+                    .replace("\\", "\\\\")
+                    .replace("'", "\\'")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                append("'$safe'")
+            }
+            append(']')
+        }
+        val safeActive = activeText
+            ?.replace("\\", "\\\\")?.replace("'", "\\'")?.replace("\n", "\\n")?.replace("\r", "\\r")
+        val activeTextJs = if (safeActive != null) "'$safeActive'" else "null"
+        // Colors are machine-generated CSS rgba() strings — no quote escaping needed.
+        return """
+            (function(texts,inactiveCss,activeT,activeProg,activeCss) {
+                var sel = window.getSelection();
+                var seen = {};
+                texts.forEach(function(text) {
+                    if (!text || seen[text]) return;
+                    seen[text] = true;
+                    try {
+                        var r0 = document.createRange();
+                        r0.setStart(document.body || document.documentElement, 0);
+                        r0.collapse(true);
+                        if (sel) { sel.removeAllRanges(); sel.addRange(r0); }
+                    } catch(e) { return; }
+                    var limit = 500;
+                    while (limit-- > 0) {
+                        if (!window.find(text, false, false, false, false, false, false)) break;
+                        sel = window.getSelection();
+                        if (!sel || sel.rangeCount === 0) break;
+                        var range = sel.getRangeAt(0);
+                        var cont = range.commonAncestorContainer;
+                        if (cont.nodeType !== 1) cont = cont.parentNode;
+                        if (cont && cont.hasAttribute &&
+                            (cont.hasAttribute('data-riffle-si') || cont.hasAttribute('data-riffle-sa'))) {
+                            var skip = document.createRange();
+                            skip.setStartAfter(cont); skip.collapse(true);
+                            sel.removeAllRanges(); sel.addRange(skip);
+                            continue;
+                        }
+                        var mark = document.createElement('mark');
+                        mark.setAttribute('data-riffle-si', '');
+                        mark.style.cssText = 'background:' + inactiveCss + ';color:inherit;';
+                        try { range.surroundContents(mark); }
+                        catch(e) { var frag = range.extractContents(); mark.appendChild(frag); range.insertNode(mark); }
+                        var advance = document.createRange();
+                        advance.setStartAfter(mark); advance.collapse(true);
+                        sel.removeAllRanges(); sel.addRange(advance);
+                    }
+                });
+                if (activeT && activeProg >= 0) {
+                    var docH = Math.max(
+                        document.documentElement.scrollHeight,
+                        document.body ? document.body.scrollHeight : 0, 1
+                    );
+                    var targetY = activeProg * docH;
+                    var best = null, bestDist = Infinity;
+                    document.querySelectorAll('[data-riffle-si]').forEach(function(m) {
+                        if (m.textContent.toLowerCase().indexOf(activeT.toLowerCase()) < 0) return;
+                        var rect = m.getBoundingClientRect();
+                        var absY = rect.top + (window.pageYOffset || document.documentElement.scrollTop || 0);
+                        var dist = Math.abs(absY - targetY);
+                        if (dist < bestDist) { bestDist = dist; best = m; }
+                    });
+                    if (best) {
+                        best.setAttribute('data-riffle-sa', '');
+                        best.removeAttribute('data-riffle-si');
+                        best.style.background = activeCss;
+                    }
+                }
+                if (sel) sel.removeAllRanges();
+            })($textsJson,'$inactiveCssColor',$activeTextJs,${activeProgression},'$activeCssColor');
+        """.trimIndent()
+    }
+
     val CLEAR_ANNOTATION_HIGHLIGHTS_JS = """
         (function() {
             document.querySelectorAll('[data-riffle-note-glyph]').forEach(function(s) { s.remove(); });

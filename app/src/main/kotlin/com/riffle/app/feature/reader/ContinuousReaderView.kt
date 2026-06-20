@@ -534,6 +534,42 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
     }
 
+    // Search highlight state — persisted across the window so onPageFinished can re-apply marks
+    // when a chapter enters the sliding window or when a chapter reloads after a far-jump.
+    private var currentSearchHighlights: SearchHighlightsState? = null
+
+    override fun applySearchHighlights(state: SearchHighlightsState?) {
+        currentSearchHighlights = state
+        if (state == null) {
+            for (wv in webViews) {
+                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS, null)
+            }
+            return
+        }
+        for (wv in webViews) {
+            applySearchHighlightsToWebView(wv, state)
+        }
+    }
+
+    private fun applySearchHighlightsToWebView(wv: ChapterWebView, state: SearchHighlightsState) {
+        val href = wv.chapterHref
+        if (href.isEmpty()) return
+        val texts = state.resultsByHref[href] ?: return
+        val isActive = href == state.activeHref
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = texts,
+            inactiveCssColor = state.inactiveCssColor,
+            activeText = if (isActive) state.activeText else null,
+            activeProgression = if (isActive) state.activeProgression else -1f,
+            activeCssColor = state.activeCssColor,
+        )
+        // Clear first, then re-apply in callback: Chrome won't reliably find text in a DOM
+        // that was just mutated synchronously (see ContinuousStyleInjector.applyAnnotationHighlightsJs).
+        wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS) { _ ->
+            wv.evaluateJavascript(js, null)
+        }
+    }
+
     /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
     var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
 
@@ -671,6 +707,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             if (!annotations.isNullOrEmpty()) {
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
             }
+            val searchState = currentSearchHighlights
+            if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
+                applySearchHighlightsToWebView(wv, searchState)
+            }
         }
         webViews.add(wv)
         measuredHeights.add(placeholder)
@@ -711,6 +751,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             val annotations = currentAnnotationsByHref[wv.chapterHref]
             if (!annotations.isNullOrEmpty()) {
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+            }
+            val searchState = currentSearchHighlights
+            if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
+                applySearchHighlightsToWebView(wv, searchState)
             }
         }
         webViews.add(0, wv)

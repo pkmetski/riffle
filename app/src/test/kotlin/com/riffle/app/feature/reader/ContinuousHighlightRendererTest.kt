@@ -22,6 +22,8 @@ class ContinuousHighlightRendererTest {
         val highlighted = mutableListOf<Triple<String, String, String>>() // href, text, color
         val cleared = mutableListOf<String>() // href
         val appliedAnnotations = mutableListOf<Map<String, List<AnnotationHighlight>>>()
+        var searchHighlightsState: SearchHighlightsState? = null
+        var searchHighlightsCalls = 0
 
         override fun highlightInChapter(href: String, text: String, cssColor: String) {
             highlighted.add(Triple(href, text, cssColor))
@@ -29,6 +31,10 @@ class ContinuousHighlightRendererTest {
         override fun clearHighlightInChapter(href: String) { cleared.add(href) }
         override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
             appliedAnnotations.add(annotationsByHref)
+        }
+        override fun applySearchHighlights(state: SearchHighlightsState?) {
+            searchHighlightsState = state
+            searchHighlightsCalls++
         }
     }
 
@@ -40,6 +46,8 @@ class ContinuousHighlightRendererTest {
         fakeTarget.highlighted.clear()
         fakeTarget.cleared.clear()
         fakeTarget.appliedAnnotations.clear()
+        fakeTarget.searchHighlightsState = null
+        fakeTarget.searchHighlightsCalls = 0
     }
 
     // ---- Helpers -------------------------------------------------------------
@@ -86,18 +94,12 @@ class ContinuousHighlightRendererTest {
         note = note,
     )
 
-    /**
-     * Creates a minimal [Locator] stub (no meaningful fields) for tests that don't inspect
-     * the locator content (e.g. [applySearch]).
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun minimalLocator(@Suppress("UNUSED_PARAMETER") href: String): Locator {
-        val unsafe = Class.forName("sun.misc.Unsafe")
-            .getDeclaredField("theUnsafe")
-            .also { it.isAccessible = true }
-            .get(null) as sun.misc.Unsafe
-        return unsafe.allocateInstance(Locator::class.java) as Locator
-    }
+    /** Creates a [Locator] with href and text highlight, suitable for search result tests. */
+    private fun makeSearchLocator(href: String, text: String): Locator = Locator(
+        href = makeAbsoluteUrl("https://example.com/$href"),
+        mediaType = MediaType.XHTML,
+        text = Locator.Text(highlight = text),
+    )
 
     // ---- applyReadaloud -------------------------------------------------------
 
@@ -196,22 +198,87 @@ class ContinuousHighlightRendererTest {
         assertEquals(0, fakeTarget.appliedAnnotations.size)
     }
 
-    // ---- applySearch (no-op) ------------------------------------------------
+    // ---- applySearch --------------------------------------------------------
 
     @Test
-    fun `applySearch is a no-op in continuous mode`() = runTest {
-        renderer.applySearch(listOf(minimalLocator("c.xhtml")), activeIndex = 0)
-        assertEquals(0, fakeTarget.highlighted.size)
+    fun `applySearch with active result calls applySearchHighlights with correct active fields`() = runTest {
+        val locator = makeSearchLocator("ch1.xhtml", "found text")
+        renderer.applySearch(listOf(locator), activeIndex = 0)
+        val state = fakeTarget.searchHighlightsState
+        assertTrue("state should not be null", state != null)
+        assertTrue("activeHref should end with ch1.xhtml", state!!.activeHref?.endsWith("ch1.xhtml") == true)
+        assertEquals("found text", state.activeText)
+        assertEquals(1, fakeTarget.searchHighlightsCalls)
+    }
+
+    @Test
+    fun `applySearch uses SEARCH_DECORATION_ALPHA for both active and inactive colors`() = runTest {
+        val locator = makeSearchLocator("ch1.xhtml", "text")
+        renderer.applySearch(listOf(locator), activeIndex = 0)
+        val state = fakeTarget.searchHighlightsState!!
+        assertEquals(SEARCH_ACTIVE_ARGB.toCssRgbaWithAlpha(SEARCH_DECORATION_ALPHA), state.activeCssColor)
+        assertEquals(SEARCH_INACTIVE_ARGB.toCssRgbaWithAlpha(SEARCH_DECORATION_ALPHA), state.inactiveCssColor)
+    }
+
+    @Test
+    fun `applySearch truncates active text to 40 chars`() = runTest {
+        val longText = "a".repeat(60)
+        val locator = makeSearchLocator("ch1.xhtml", longText)
+        renderer.applySearch(listOf(locator), activeIndex = 0)
+        assertEquals(40, fakeTarget.searchHighlightsState!!.activeText!!.length)
+    }
+
+    @Test
+    fun `applySearch groups results by href`() = runTest {
+        val results = listOf(
+            makeSearchLocator("ch1.xhtml", "word"),
+            makeSearchLocator("ch1.xhtml", "word"),
+            makeSearchLocator("ch2.xhtml", "word"),
+        )
+        renderer.applySearch(results, activeIndex = 0)
+        val byHref = fakeTarget.searchHighlightsState!!.resultsByHref
+        assertTrue(byHref.keys.any { it.endsWith("ch1.xhtml") })
+        assertTrue(byHref.keys.any { it.endsWith("ch2.xhtml") })
+    }
+
+    @Test
+    fun `applySearch deduplicates texts within a chapter`() = runTest {
+        val results = listOf(
+            makeSearchLocator("ch1.xhtml", "word"),
+            makeSearchLocator("ch1.xhtml", "word"),
+        )
+        renderer.applySearch(results, activeIndex = 0)
+        val ch1Key = fakeTarget.searchHighlightsState!!.resultsByHref.keys.first { it.endsWith("ch1.xhtml") }
+        assertEquals(1, fakeTarget.searchHighlightsState!!.resultsByHref[ch1Key]!!.size)
+    }
+
+    @Test
+    fun `applySearch with empty results clears highlights`() = runTest {
+        renderer.applySearch(emptyList(), activeIndex = -1)
+        assertEquals(1, fakeTarget.searchHighlightsCalls)
+        assertEquals(null, fakeTarget.searchHighlightsState)
+    }
+
+    @Test
+    fun `applySearch with negative index clears highlights`() = runTest {
+        val locator = makeSearchLocator("ch1.xhtml", "text")
+        renderer.applySearch(listOf(locator), activeIndex = -1)
+        assertEquals(1, fakeTarget.searchHighlightsCalls)
+        assertEquals(null, fakeTarget.searchHighlightsState)
+    }
+
+    @Test
+    fun `applySearch skips locators with blank text`() = runTest {
+        val locator = makeSearchLocator("ch1.xhtml", "   ")
+        renderer.applySearch(listOf(locator), activeIndex = 0)
+        assertEquals(0, fakeTarget.searchHighlightsCalls)
     }
 
     // ---- highlightSearchMatch -----------------------------------------------
 
     @Test
-    fun `highlightSearchMatch delegates to target`() {
+    fun `highlightSearchMatch is a no-op in continuous mode`() {
         renderer.highlightSearchMatch("ch1.xhtml", "search term")
-        assertEquals(1, fakeTarget.highlighted.size)
-        assertEquals("ch1.xhtml", fakeTarget.highlighted[0].first)
-        assertEquals("search term", fakeTarget.highlighted[0].second)
-        assertEquals(SEARCH_ACTIVE_ARGB.toCssRgba(), fakeTarget.highlighted[0].third)
+        assertEquals(0, fakeTarget.searchHighlightsCalls)
     }
 }

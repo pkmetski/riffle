@@ -8,6 +8,7 @@ import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadaloudHighlightColor
 import org.readium.r2.navigator.Decoration
+import java.util.Locale
 import org.readium.r2.navigator.html.HtmlDecorationTemplate
 import org.readium.r2.navigator.html.toCss
 
@@ -98,5 +99,13 @@ fun @receiver:ColorInt Int.toCssRgba(): String {
     val r = this ushr 16 and 0xFF
     val g = this ushr 8 and 0xFF
     val b = this and 0xFF
-    return "rgba($r,$g,$b,${"%.2f".format(a)})"
+    return "rgba($r,$g,$b,${"%.2f".format(Locale.US, a)})"
+}
+
+/** Convert an ARGB color int to a CSS rgba() string, overriding the alpha with [alpha] (0.0–1.0). */
+fun @receiver:ColorInt Int.toCssRgbaWithAlpha(alpha: Double): String {
+    val r = this ushr 16 and 0xFF
+    val g = this ushr 8 and 0xFF
+    val b = this and 0xFF
+    return "rgba($r,$g,$b,${"%.2f".format(Locale.US, alpha)})"
 }

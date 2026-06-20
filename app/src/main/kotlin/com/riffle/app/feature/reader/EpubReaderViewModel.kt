@@ -304,7 +304,7 @@ class EpubReaderViewModel @Inject constructor(
     private val _currentSearchIndex = MutableStateFlow(-1)
     val currentSearchIndex: StateFlow<Int> = _currentSearchIndex
 
-    private val _searchNavigationChannel = Channel<Locator>(Channel.CONFLATED)
+    private val _searchNavigationChannel = Channel<Locator>(Channel.BUFFERED)
     val searchNavigationEvents: Flow<Locator> = _searchNavigationChannel.receiveAsFlow()
 
     private var searchJob: Job? = null
@@ -1610,6 +1610,9 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun performSearch(query: String) {
+        // Drain any pending navigation events buffered from the previous search so they don't
+        // fire after the new results arrive.
+        while (_searchNavigationChannel.tryReceive().isSuccess) { /* drain */ }
         val pub = publication ?: return
         val service = pub.findService(SearchService::class)
         if (service == null) {

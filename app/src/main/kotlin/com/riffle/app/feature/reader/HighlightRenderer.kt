@@ -15,6 +15,12 @@ internal val SEARCH_ACTIVE_ARGB: Int = 0xFFF5A623.toInt()
 internal val SEARCH_INACTIVE_ARGB: Int = 0xFFFDE68A.toInt()
 
 /**
+ * Alpha applied by Readium's [Decoration.Style.Highlight] for search results.
+ * The continuous renderer uses this constant so both pipelines render at the same opacity.
+ */
+internal const val SEARCH_DECORATION_ALPHA = 0.30
+
+/**
  * Abstracts the two rendering pipelines for reader highlights:
  *  - [ReadiumHighlightRenderer]: paginated and scroll modes via DecorableNavigator
  *  - [ContinuousHighlightRenderer]: continuous mode via ChapterWebView JS injection
@@ -57,9 +63,9 @@ internal interface HighlightRenderer {
      * Applies or clears search result decorations for ALL results at once.
      * Readium implementation renders [Decoration] objects for each locator and
      * runs a post-navigation settle loop to reposition boxes after layout settles.
-     * Continuous implementation is a no-op — search match highlighting is done
-     * via [highlightSearchMatch] from the navigation event handler.
-     * Empty [results] clears the group.
+     * Continuous implementation groups all results by chapter href, builds a
+     * [SearchHighlightsState], and delegates to [ContinuousHighlightTarget.applySearchHighlights].
+     * Empty [results] or negative [activeIndex] clears all search highlights.
      */
     suspend fun applySearch(
         results: List<Locator>,

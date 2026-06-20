@@ -73,11 +73,41 @@ internal class ContinuousHighlightRenderer(
     }
 
     override suspend fun applySearch(results: List<Locator>, activeIndex: Int) {
-        // Search result highlighting for continuous mode is driven by the search navigation
-        // event handler via highlightSearchMatch, not by the state-watching search effect.
+        val target = targetProvider() ?: return
+        if (results.isEmpty() || activeIndex < 0 || activeIndex >= results.size) {
+            target.applySearchHighlights(null)
+            return
+        }
+        val activeLocator = results[activeIndex]
+        val activeText = activeLocator.text.highlight?.take(40) ?: return
+        if (activeText.isBlank()) return
+
+        val activeHref = activeLocator.href.toString()
+        val activeProgression = activeLocator.locations.progression?.toFloat() ?: 0f
+
+        val resultsByHref = results
+            .groupBy { it.href.toString() }
+            .mapValues { (_, locators) ->
+                locators.mapNotNull { it.text.highlight?.take(40)?.takeIf { t -> t.isNotBlank() } }
+                    .distinct()
+            }
+            .filterValues { it.isNotEmpty() }
+
+        target.applySearchHighlights(
+            SearchHighlightsState(
+                resultsByHref = resultsByHref,
+                activeHref = activeHref,
+                activeText = activeText,
+                activeProgression = activeProgression,
+                activeCssColor = SEARCH_ACTIVE_ARGB.toCssRgbaWithAlpha(SEARCH_DECORATION_ALPHA),
+                inactiveCssColor = SEARCH_INACTIVE_ARGB.toCssRgbaWithAlpha(SEARCH_DECORATION_ALPHA),
+            )
+        )
     }
 
     override fun highlightSearchMatch(href: String, text: String) {
-        targetProvider()?.highlightInChapter(href, text, SEARCH_ACTIVE_ARGB.toCssRgba())
+        // Highlights for all results (inactive) and the active match are applied via applySearch,
+        // which fires from the LaunchedEffect on currentSearchIndex change. No separate per-match
+        // call is needed in continuous mode.
     }
 }
