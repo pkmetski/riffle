@@ -208,9 +208,10 @@ class ContinuousHighlightRendererTest {
 
     @Test
     fun `highlightSearchMatch delegates to target`() {
-        renderer.highlightSearchMatch("ch1.xhtml", "search term", "rgba(255,165,0,0.3)")
+        renderer.highlightSearchMatch("ch1.xhtml", "search term")
         assertEquals(1, fakeTarget.highlighted.size)
         assertEquals("ch1.xhtml", fakeTarget.highlighted[0].first)
         assertEquals("search term", fakeTarget.highlighted[0].second)
+        assertEquals(SEARCH_ACTIVE_ARGB.toCssRgba(), fakeTarget.highlighted[0].third)
     }
 }

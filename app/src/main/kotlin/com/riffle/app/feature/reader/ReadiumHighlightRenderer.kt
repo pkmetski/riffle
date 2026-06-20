@@ -124,7 +124,7 @@ internal class ReadiumHighlightRenderer(
         }
     }
 
-    override fun highlightSearchMatch(href: String, text: String, cssColor: String) {
+    override fun highlightSearchMatch(href: String, text: String) {
         // Readium shows all search results via DecorableNavigator; per-match highlighting is
         // not needed — the active result is distinguished by color in applySearch.
     }

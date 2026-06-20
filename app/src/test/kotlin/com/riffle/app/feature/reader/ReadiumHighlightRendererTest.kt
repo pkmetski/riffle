@@ -198,7 +198,7 @@ class ReadiumHighlightRendererTest {
 
     @Test
     fun `highlightSearchMatch is a no-op`() {
-        renderer.highlightSearchMatch("c.xhtml", "some text", "rgba(255,0,0,0.3)")
+        renderer.highlightSearchMatch("c.xhtml", "some text")
         assertEquals(0, applied.size)
     }
 }

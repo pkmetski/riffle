@@ -67,9 +67,9 @@ internal interface HighlightRenderer {
     )
 
     /**
-     * Highlights a single navigated-to search match.
-     * Readium implementation is a no-op (DecorableNavigator handles all matches).
-     * Continuous implementation calls [ContinuousHighlightTarget.highlightInChapter].
+     * Highlights a single navigated-to search match using [SEARCH_ACTIVE_ARGB].
+     * Readium implementation is a no-op (DecorableNavigator handles all matches via applySearch).
+     * Continuous implementation injects a mark into the chapter WebView.
      */
-    fun highlightSearchMatch(href: String, text: String, cssColor: String)
+    fun highlightSearchMatch(href: String, text: String)
 }

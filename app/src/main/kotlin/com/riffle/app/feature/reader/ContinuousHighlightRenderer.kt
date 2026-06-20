@@ -77,7 +77,7 @@ internal class ContinuousHighlightRenderer(
         // event handler via highlightSearchMatch, not by the state-watching search effect.
     }
 
-    override fun highlightSearchMatch(href: String, text: String, cssColor: String) {
-        targetProvider()?.highlightInChapter(href, text, cssColor)
+    override fun highlightSearchMatch(href: String, text: String) {
+        targetProvider()?.highlightInChapter(href, text, SEARCH_ACTIVE_ARGB.toCssRgba())
     }
 }
