@@ -9,6 +9,7 @@ import com.riffle.core.domain.TocRepository
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
+import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
 import javax.inject.Inject
 
@@ -39,8 +40,10 @@ class ExtractEpubTocUseCase @Inject constructor(
             is Try.Failure -> return emptyList()
         }
 
-        val entries = publication.tableOfContents.toTocEntries()
-        tocRepository.saveToc(item.serverId, item.id, inode, entries)
-        return entries
+        return publication.use {
+            val entries = it.tableOfContents.toTocEntries()
+            tocRepository.saveToc(item.serverId, item.id, inode, entries)
+            entries
+        }
     }
 }

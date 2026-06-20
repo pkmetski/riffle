@@ -59,4 +59,20 @@ class ExtractEpubTocUseCaseTest {
         assertTrue(result.isEmpty())
         coVerify(exactly = 0) { tocRepository.getCachedToc(any(), any()) }
     }
+
+    @Test
+    fun `ignores stale cache and re-extracts when inode does not match`() = runTest {
+        val staleCached = listOf(TocEntry("Old Chapter", "old.html"))
+        // Cache has inode "old-ino" but item now has "ino1"
+        coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("old-ino" to staleCached)
+        coEvery { epubRepository.openEpub(any()) } returns
+            EpubOpenResult.NetworkError(RuntimeException("network unavailable"))
+
+        val result = useCase(makeItem(ebookFileIno = "ino1"))
+
+        // Stale cache is bypassed and openEpub is called
+        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        // openEpub failed so result is empty (not the stale cached value)
+        assertTrue(result.isEmpty())
+    }
 }

@@ -626,6 +626,7 @@ internal fun LibraryItemDetailContentTablet(
             // TOC row — EPUB items only; hidden if TOC loaded as empty
             val tocReady = tocState as? TocState.Ready
             if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
+                HorizontalDivider()
                 ListItem(
                     headlineContent = { Text("Table of Contents") },
                     supportingContent = {
@@ -645,12 +646,12 @@ internal fun LibraryItemDetailContentTablet(
                         onClick = { showTocSheet = true },
                     ),
                 )
-                HorizontalDivider()
             }
 
             // Chapters row — audiobook items; hidden if chapters loaded as empty
             val chaptersReady = chaptersState as? ChaptersState.Ready
             if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
+                HorizontalDivider()
                 ListItem(
                     headlineContent = { Text("Chapters") },
                     supportingContent = {
@@ -670,7 +671,6 @@ internal fun LibraryItemDetailContentTablet(
                         onClick = { showChaptersSheet = true },
                     ),
                 )
-                HorizontalDivider()
             }
 
             item.description?.takeIf { it.isNotBlank() }?.let { desc ->

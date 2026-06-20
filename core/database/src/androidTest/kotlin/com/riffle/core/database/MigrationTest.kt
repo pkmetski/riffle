@@ -1659,6 +1659,27 @@ class MigrationTest {
             db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='audiobook_chapter_cache'").use { c ->
                 assertTrue("audiobook_chapter_cache table must exist", c.moveToFirst())
             }
+
+            // toc_cache columns accept data
+            db.execSQL("INSERT INTO toc_cache (serverId, itemId, ebookFileIno, entriesJson) VALUES ('srv', 'item1', 'ino42', '[]')")
+            db.query("SELECT serverId, itemId, ebookFileIno, entriesJson FROM toc_cache WHERE itemId = 'item1'").use { c ->
+                assertEquals(1, c.count)
+                c.moveToFirst()
+                assertEquals("srv", c.getString(0))
+                assertEquals("item1", c.getString(1))
+                assertEquals("ino42", c.getString(2))
+                assertEquals("[]", c.getString(3))
+            }
+
+            // audiobook_chapter_cache columns accept data
+            db.execSQL("INSERT INTO audiobook_chapter_cache (serverId, itemId, chaptersJson) VALUES ('srv', 'item1', '[]')")
+            db.query("SELECT serverId, itemId, chaptersJson FROM audiobook_chapter_cache WHERE itemId = 'item1'").use { c ->
+                assertEquals(1, c.count)
+                c.moveToFirst()
+                assertEquals("srv", c.getString(0))
+                assertEquals("item1", c.getString(1))
+                assertEquals("[]", c.getString(2))
+            }
         }
     }
 

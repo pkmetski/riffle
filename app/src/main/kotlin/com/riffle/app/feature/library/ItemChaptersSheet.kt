@@ -48,8 +48,8 @@ fun ItemChaptersSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            onChapterClick(chapter)
                             onDismiss()
+                            onChapterClick(chapter)
                         }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {

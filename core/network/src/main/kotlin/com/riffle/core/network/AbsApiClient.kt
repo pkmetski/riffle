@@ -588,16 +588,17 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
         try {
             val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.body?.close()
+                return@withContext AbsItemDetailResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
             val raw = response.body?.string() ?: return@withContext AbsItemDetailResult.NetworkError(
                 IOException("Empty response body")
             )
-            if (!response.isSuccessful) {
-                return@withContext AbsItemDetailResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
             val parsed = json.decodeFromString<AbsItemDetailResponse>(raw)
             AbsItemDetailResult.Success(parsed)
-        } catch (e: IOException) {
-            AbsItemDetailResult.NetworkError(e)
+        } catch (e: Exception) {
+            AbsItemDetailResult.NetworkError(e as? IOException ?: IOException(e))
         }
     }
 
