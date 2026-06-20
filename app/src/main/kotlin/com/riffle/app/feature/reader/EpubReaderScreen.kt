@@ -1475,7 +1475,13 @@ private fun EpubNavigatorView(
     LaunchedEffect(annotationNavigationEvents, isContinuous) {
         annotationNavigationEvents.collect { locator ->
             if (isContinuous) {
-                goToContinuous(locator)
+                // Bookmark locators carry CFI-derived progressions measured at content top (not the
+                // viewport midpoint that locatorAt uses), so align to top rather than midpoint.
+                continuousViewRef.value?.navigateTo(
+                    locator.href.toString(),
+                    locator.locations.progression?.toFloat() ?: 0f,
+                    alignToTop = true,
+                )
             } else {
                 goAndSnapWithCover(locator)
             }
