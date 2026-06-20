@@ -1452,7 +1452,7 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchNavigationEvents, isContinuous, readaloudHighlightColor) {
+    LaunchedEffect(searchNavigationEvents, isContinuous) {
         searchNavigationEvents.collect { locator ->
             if (isContinuous) {
                 val view = continuousViewRef.value ?: return@collect
