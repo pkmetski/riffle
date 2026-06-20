@@ -30,7 +30,7 @@ internal data class AnnotationHighlight(val id: String, val text: String, val cs
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-) : NestedScrollView(context, attrs) {
+) : NestedScrollView(context, attrs), ContinuousHighlightTarget {
 
     companion object {
         /** Chapters kept loaded behind the reader (for smooth backward scrolling). */
@@ -470,7 +470,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href] and scroll it into view. */
-    fun highlightInChapter(href: String, text: String, cssColor: String) {
+    override fun highlightInChapter(href: String, text: String, cssColor: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
             // Re-lookup by href rather than using the captured index: the window may have shifted
@@ -511,7 +511,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Clear any active readaloud highlight in the chapter at [href]. */
-    fun clearHighlightInChapter(href: String) {
+    override fun clearHighlightInChapter(href: String) {
         val i = webViewIndexFor(href) ?: return
         webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
     }
@@ -531,7 +531,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * state so that chapters entering the sliding window later (via [appendChapter] /
      * [prependChapter]) automatically receive their marks in [onPageFinished].
      */
-    fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
+    override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
         currentAnnotationsByHref = annotationsByHref
         for (wv in webViews) {
             val href = wv.chapterHref
