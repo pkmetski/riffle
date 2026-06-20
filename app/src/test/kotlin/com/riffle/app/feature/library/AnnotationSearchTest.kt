@@ -1,6 +1,7 @@
 package com.riffle.app.feature.library
 
 import com.riffle.core.domain.Annotation
+import com.riffle.core.domain.AudiobookBookmark
 import com.riffle.core.domain.LibraryItem
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -82,5 +83,54 @@ class AnnotationSearchTest {
         val r = searchAnnotations(annos, items, "conscience").single()
         assertEquals("Children of Dune", r.bookTitle)
         assertEquals("https://cover/b1.jpg", r.bookCoverUrl)
+    }
+
+    // --- audiobook bookmark search ---
+
+    private fun audiobookBookmark(id: String, itemId: String, title: String) =
+        AudiobookBookmark(id = id, serverId = "srv1", itemId = itemId, positionSec = 0.0, title = title, createdAt = 0L)
+
+    @Test
+    fun audiobookBookmarkBlankQueryReturnsNothing() {
+        val bms = listOf(audiobookBookmark("bm1", "b1", "The Battle of Winterfell"))
+        assertEquals(emptyList<AudiobookBookmarkSearchResult>(), searchAudiobookBookmarks(bms, items, "   "))
+    }
+
+    @Test
+    fun audiobookBookmarkMatchesTitleCaseInsensitively() {
+        val bms = listOf(
+            audiobookBookmark("bm1", "b1", "The BATTLE of Winterfell"),
+            audiobookBookmark("bm2", "b1", "Chapter Three"),
+        )
+        val result = searchAudiobookBookmarks(bms, items, "battle").map { it.bookmark.id }
+        assertEquals(listOf("bm1"), result)
+    }
+
+    @Test
+    fun audiobookBookmarkScopesToLibraryItems() {
+        val bms = listOf(
+            audiobookBookmark("bm1", "b1", "found"),
+            audiobookBookmark("bm2", "UNKNOWN_ITEM", "found"),
+        )
+        val result = searchAudiobookBookmarks(bms, items, "found").map { it.bookmark.id }
+        assertEquals(listOf("bm1"), result)
+    }
+
+    @Test
+    fun audiobookBookmarkCarriesBookTitleAndCover() {
+        val bms = listOf(audiobookBookmark("bm1", "b1", "My Marker"))
+        val r = searchAudiobookBookmarks(bms, items, "marker").single()
+        assertEquals("Children of Dune", r.bookTitle)
+        assertEquals("https://cover/b1.jpg", r.bookCoverUrl)
+    }
+
+    @Test
+    fun unnamedBookmarkFoundByTextSnippet() {
+        val annos = listOf(
+            annotation("bm1", "b1", type = "BOOKMARK", textSnippet = "the conscience of the king", bookmarkTitle = ""),
+            annotation("bm2", "b1", type = "BOOKMARK", textSnippet = "unrelated passage", bookmarkTitle = ""),
+        )
+        val result = searchAnnotations(annos, items, "conscience").map { it.annotation.id }
+        assertEquals(listOf("bm1"), result)
     }
 }

@@ -84,6 +84,16 @@ class LibraryItemsViewModelTest {
             override suspend fun renameBookmark(id: String, title: String) = error("unused")
         }
 
+    private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
+        object : com.riffle.core.domain.AudiobookBookmarkStore {
+            override fun observe(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+            override fun observeForServer(serverId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+            override fun observeHasUnsynced(serverId: String, itemId: String) = MutableStateFlow(false)
+            override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
+            override suspend fun rename(id: String, title: String, now: Long) = error("unused")
+            override suspend fun delete(id: String, now: Long) = error("unused")
+        }
+
     private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
@@ -199,6 +209,7 @@ class LibraryItemsViewModelTest {
             override suspend fun setScale(value: Float) {}
         },
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
+        audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
     ) = LibraryItemsViewModel(
         savedStateHandle,
         libraryRepository,
@@ -218,6 +229,7 @@ class LibraryItemsViewModelTest {
         readaloudLinkRepository,
         coverGridDensityStore,
         annotationStore,
+        audiobookBookmarkStore,
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)

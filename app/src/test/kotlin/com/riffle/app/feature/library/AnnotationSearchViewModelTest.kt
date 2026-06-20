@@ -86,6 +86,16 @@ class AnnotationSearchViewModelTest {
         override suspend fun renameBookmark(id: String, title: String) = error("unused")
     }
 
+    private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
+        object : com.riffle.core.domain.AudiobookBookmarkStore {
+            override fun observe(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+            override fun observeForServer(serverId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+            override fun observeHasUnsynced(serverId: String, itemId: String) = MutableStateFlow(false)
+            override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
+            override suspend fun rename(id: String, title: String, now: Long) = error("unused")
+            override suspend fun delete(id: String, now: Long) = error("unused")
+        }
+
     private fun fakeServerRepository(): ServerRepository = object : ServerRepository {
         override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Server? =
@@ -145,7 +155,7 @@ class AnnotationSearchViewModelTest {
             annotation(id = "a2", serverId = "srv1", itemId = "b1", textSnippet = "other"),
         )
         val savedState = SavedStateHandle(mapOf("libraryId" to "lib1", "query" to "conscience"))
-        val vm = AnnotationSearchViewModel(savedState, fakeRepo(), fakeAnnotationStore(), fakeServerRepository(), fakeTokenStorage())
+        val vm = AnnotationSearchViewModel(savedState, fakeRepo(), fakeAnnotationStore(), fakeAudiobookBookmarkStore(), fakeServerRepository(), fakeTokenStorage())
 
         val results = vm.results.first { it.isNotEmpty() }
         assertEquals(listOf("a1"), results.map { it.annotation.id })

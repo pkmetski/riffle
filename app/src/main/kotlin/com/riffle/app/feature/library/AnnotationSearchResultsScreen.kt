@@ -29,9 +29,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun AnnotationSearchResultsScreen(
     onNavigateBack: () -> Unit,
     onAnnotationSelected: (AnnotationSearchResult) -> Unit,
+    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
     viewModel: AnnotationSearchViewModel = hiltViewModel(),
 ) {
     val results by viewModel.results.collectAsState()
+    val bookmarkResults by viewModel.bookmarkResults.collectAsState()
     val token by viewModel.authToken.collectAsState()
     Scaffold(
         topBar = {
@@ -45,7 +47,7 @@ fun AnnotationSearchResultsScreen(
             )
         },
     ) { padding ->
-        if (results.isEmpty()) {
+        if (results.isEmpty() && bookmarkResults.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
@@ -62,11 +64,18 @@ fun AnnotationSearchResultsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            items(results, key = { it.annotation.id }) { result ->
+            items(results, key = { "anno_${it.annotation.id}" }) { result ->
                 AnnotationResultRow(
                     result = result,
                     token = token,
                     onClick = { onAnnotationSelected(result) },
+                )
+            }
+            items(bookmarkResults, key = { "abm_${it.bookmark.id}" }) { result ->
+                AudiobookBookmarkResultRow(
+                    result = result,
+                    token = token,
+                    onClick = { onAudiobookBookmarkSelected(result) },
                 )
             }
         }

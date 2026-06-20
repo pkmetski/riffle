@@ -26,6 +26,7 @@ import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
 import com.riffle.app.feature.library.AnnotationSearchResultsScreen
+import com.riffle.app.feature.library.AudiobookBookmarkSearchResult
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibraryItemsViewModel
 import com.riffle.app.feature.library.LibrarySectionScreen
@@ -280,6 +281,10 @@ fun MainScreen(
                         val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
                         navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
                     },
+                    onAudiobookBookmarkSelected = { result ->
+                        val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
+                        navController.navigate("audiobook_player/$encodedId?startAtSec=${result.bookmark.positionSec}")
+                    },
                     onShowAllAnnotations = { query ->
                         val encodedQuery = URLEncoder.encode(query, "UTF-8")
                         navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
@@ -439,6 +444,10 @@ fun MainScreen(
                         val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
                         val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
                         navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                    },
+                    onAudiobookBookmarkSelected = { result ->
+                        val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
+                        navController.navigate("audiobook_player/$encodedId?startAtSec=${result.bookmark.positionSec}")
                     },
                 )
             }

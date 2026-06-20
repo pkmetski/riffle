@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 interface AudiobookBookmarkStore {
     fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>>
 
+    /** Live stream of all non-deleted bookmarks for a server — for library-wide search. */
+    fun observeForServer(serverId: String): Flow<List<AudiobookBookmark>>
+
     /** Live: whether this item has unsynced (dirty) bookmarks pending a push to ABS. */
     fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean>
 

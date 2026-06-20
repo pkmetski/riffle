@@ -19,6 +19,10 @@ interface AudiobookBookmarkDao {
     )
     fun observeForItem(serverId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>>
 
+    /** Live, non-deleted bookmarks across an entire server — for library-wide search. */
+    @Query("SELECT * FROM audiobook_bookmarks WHERE serverId = :serverId AND deleted = 0 ORDER BY positionSec ASC")
+    fun observeForServer(serverId: String): Flow<List<AudiobookBookmarkEntity>>
+
     @Query("SELECT * FROM audiobook_bookmarks WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): AudiobookBookmarkEntity?
 

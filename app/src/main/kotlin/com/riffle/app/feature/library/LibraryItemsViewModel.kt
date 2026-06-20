@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
@@ -56,6 +57,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
+    private val audiobookBookmarkStore: AudiobookBookmarkStore,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -198,6 +200,21 @@ class LibraryItemsViewModel @Inject constructor(
                 } else {
                     annotationStore.observeAnnotationsForServer(serverId)
                         .map { annotations -> searchAnnotations(annotations, items, query) }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Audiobook bookmark search results, scoped to this library's items and matched on title.
+    // Shares the same Annotations section in the UI. Empty when the query is blank.
+    val filteredAudiobookBookmarks: StateFlow<List<AudiobookBookmarkSearchResult>> =
+        combine(allItems, searchQuery) { items, query -> items to query }
+            .flatMapLatest { (items, query) ->
+                val serverId = items.firstOrNull()?.serverId
+                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    audiobookBookmarkStore.observeForServer(serverId)
+                        .map { bookmarks -> searchAudiobookBookmarks(bookmarks, items, query) }
                 }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

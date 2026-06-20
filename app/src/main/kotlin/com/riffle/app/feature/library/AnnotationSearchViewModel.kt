@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -27,6 +28,7 @@ class AnnotationSearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     libraryRepository: LibraryRepository,
     annotationStore: AnnotationStore,
+    audiobookBookmarkStore: AudiobookBookmarkStore,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
@@ -38,8 +40,10 @@ class AnnotationSearchViewModel @Inject constructor(
     private val _authToken = MutableStateFlow("")
     val authToken: StateFlow<String> = _authToken.asStateFlow()
 
+    private val libraryItems = libraryRepository.observeLibraryItems(libraryId)
+
     val results: StateFlow<List<AnnotationSearchResult>> =
-        libraryRepository.observeLibraryItems(libraryId)
+        libraryItems
             .flatMapLatest { items ->
                 val serverId = items.firstOrNull()?.serverId
                 if (query.isBlank() || serverId.isNullOrEmpty()) {
@@ -47,6 +51,19 @@ class AnnotationSearchViewModel @Inject constructor(
                 } else {
                     annotationStore.observeAnnotationsForServer(serverId)
                         .map { annotations -> searchAnnotations(annotations, items, query) }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val bookmarkResults: StateFlow<List<AudiobookBookmarkSearchResult>> =
+        libraryItems
+            .flatMapLatest { items ->
+                val serverId = items.firstOrNull()?.serverId
+                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    audiobookBookmarkStore.observeForServer(serverId)
+                        .map { bookmarks -> searchAudiobookBookmarks(bookmarks, items, query) }
                 }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
