@@ -358,8 +358,11 @@ private fun SearchResultsContent(
         if (hasAnnotations) {
             item { SectionHeader("Annotations") }
             val totalCount = annotationResults.size + audiobookBookmarkResults.size
-            val annoPreview = annotationResults.take(ANNOTATION_PREVIEW_CAP)
-            val bmPreview = audiobookBookmarkResults.take((ANNOTATION_PREVIEW_CAP - annoPreview.size).coerceAtLeast(0))
+            // Split the preview cap fairly so neither type is starved when both are present.
+            // Each type gets at least ceil(cap/2) slots; unused slots from one side spill to the other.
+            val halfCap = (ANNOTATION_PREVIEW_CAP + 1) / 2
+            val annoPreview = annotationResults.take(if (audiobookBookmarkResults.isEmpty()) ANNOTATION_PREVIEW_CAP else halfCap)
+            val bmPreview = audiobookBookmarkResults.take(ANNOTATION_PREVIEW_CAP - annoPreview.size)
             items(annoPreview, key = { "anno_${it.annotation.id}" }) { result ->
                 AnnotationResultRow(
                     result = result,
@@ -387,6 +390,7 @@ private fun SearchResultsContent(
 }
 
 private const val ANNOTATION_PREVIEW_CAP = 5
+private const val ANNOTATION_TYPE_BOOKMARK = "BOOKMARK"
 
 // --- Section grids ---
 
@@ -827,7 +831,7 @@ internal fun AnnotationResultRow(
     onClick: () -> Unit,
 ) {
     val annotation = result.annotation
-    val isBookmark = annotation.type == "BOOKMARK"
+    val isBookmark = annotation.type == ANNOTATION_TYPE_BOOKMARK
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
