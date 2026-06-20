@@ -625,6 +625,41 @@ class EpubCfiTranslatorTest {
         assertTrue(!hasElementWithId(html, "shallow"))
     }
 
+    // ── extractAnchorFromCfi ─────────────────────────────────────────────────
+
+    @Test
+    fun `extractAnchorFromCfi returns innermost element id present in html`() {
+        val html = "<html><body><div id=\"outer\"><p id=\"inner\">Hello</p></div></body></html>"
+        val cfi = "epubcfi(/6/4!/4/2[outer]/2[inner]/1:5)"
+        assertEquals("inner", extractAnchorFromCfi(cfi, html))
+    }
+
+    @Test
+    fun `extractAnchorFromCfi falls back to next id when innermost is absent`() {
+        val html = "<html><body><div id=\"outer\"><p>Hello</p></div></body></html>"
+        val cfi = "epubcfi(/6/4!/4/2[outer]/2[missing]/1:5)"
+        assertEquals("outer", extractAnchorFromCfi(cfi, html))
+    }
+
+    @Test
+    fun `extractAnchorFromCfi returns null when no element ids in cfi`() {
+        val html = "<html><body><p>Hello</p></body></html>"
+        assertNull(extractAnchorFromCfi("epubcfi(/6/4!/4/2/1:5)", html))
+    }
+
+    @Test
+    fun `extractAnchorFromCfi returns null when no ids match html`() {
+        val html = "<html><body><p>Hello</p></body></html>"
+        assertNull(extractAnchorFromCfi("epubcfi(/6/4!/4/2[gone]/1:5)", html))
+    }
+
+    @Test
+    fun `extractAnchorFromCfi works with range cfi extracting id from base path`() {
+        val html = "<html><body><p id=\"p1\">Hello world</p></body></html>"
+        val cfi = "epubcfi(/6/4!/4/2[p1]/1,/1:0,/1:5)"
+        assertEquals("p1", extractAnchorFromCfi(cfi, html))
+    }
+
     // ── ID-anchored cfiDocPathToProgression ───────────────────────────────────
 
     @Test

@@ -58,6 +58,9 @@ class AnnotationStoreImplTest {
                 if (it.id == id) it.copy(bookmarkTitle = title, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
             }
         }
+
+        override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> =
+            rows.map { all -> all.filter { it.serverId == serverId && !it.deleted } }
     }
 
     private val deviceIdStore = object : DeviceIdStore {
@@ -210,5 +213,17 @@ class AnnotationStoreImplTest {
         s.delete(bm.id)
         val result = s.observeAnnotations("abs1", "item1").first()
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun observeAnnotationsForServerReturnsAllNonDeletedForServer() = runTest {
+        var idSeq = 0
+        val store = AnnotationStoreImpl(dao, deviceIdStore, clock = { 0L }, idGenerator = { "id-${idSeq++}" })
+        store.createHighlight("srv1", "b1", "epubcfi(/6/4!/4)", "snippet", "ch.html")
+        store.createBookmark("srv1", "b2", "epubcfi(/6/6!/2)", "top", "ch2.html", 1, 0.1, "mark")
+        store.createHighlight("srv2", "b9", "epubcfi(/6/4!/4)", "other server", "ch.html")
+
+        val forSrv1 = store.observeAnnotationsForServer("srv1").first()
+        assertEquals(setOf("b1", "b2"), forSrv1.map { it.itemId }.toSet())
     }
 }

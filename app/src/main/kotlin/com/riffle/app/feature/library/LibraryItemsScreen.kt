@@ -102,6 +102,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.Series
 import kotlin.math.floor
@@ -124,6 +125,9 @@ fun LibraryItemsScreen(
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
+    onAnnotationSelected: (AnnotationSearchResult) -> Unit,
+    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
+    onShowAllAnnotations: (query: String) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     // When the navigation drawer is open, its own BackHandler must take Back so it can close
     // itself. We disable our layered Back in that case (issue #60).
@@ -145,6 +149,8 @@ fun LibraryItemsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
+    val annotationResults by viewModel.filteredAnnotations.collectAsState()
+    val audiobookBookmarkResults by viewModel.filteredAudiobookBookmarks.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -229,10 +235,15 @@ fun LibraryItemsScreen(
                     filteredSeries = series,
                     filteredCollections = collections,
                     filteredItems = filteredUngroupedItems,
+                    annotationResults = annotationResults,
+                    audiobookBookmarkResults = audiobookBookmarkResults,
                     token = viewModel.authToken,
                     onSeriesSelected = onSeriesSelected,
                     onCollectionSelected = onCollectionSelected,
                     onItemSelected = onItemSelected,
+                    onAnnotationSelected = onAnnotationSelected,
+                    onAudiobookBookmarkSelected = onAudiobookBookmarkSelected,
+                    onShowAllAnnotations = onShowAllAnnotations,
                     linkedItemIds = linkedItemIds,
                 )
             } else {
@@ -296,13 +307,19 @@ private fun SearchResultsContent(
     filteredSeries: List<Series>,
     filteredCollections: List<Collection>,
     filteredItems: List<LibraryItem>,
+    annotationResults: List<AnnotationSearchResult>,
+    audiobookBookmarkResults: List<AudiobookBookmarkSearchResult>,
     token: String,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
     onItemSelected: (LibraryItem) -> Unit,
+    onAnnotationSelected: (AnnotationSearchResult) -> Unit,
+    onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
+    onShowAllAnnotations: (query: String) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
 ) {
-    val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() && filteredItems.isEmpty()
+    val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() &&
+        filteredItems.isEmpty() && annotationResults.isEmpty() && audiobookBookmarkResults.isEmpty()
     if (allEmpty) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No results for '$query'")
@@ -337,8 +354,43 @@ private fun SearchResultsContent(
                 )
             }
         }
+        val hasAnnotations = annotationResults.isNotEmpty() || audiobookBookmarkResults.isNotEmpty()
+        if (hasAnnotations) {
+            item { SectionHeader("Annotations") }
+            val totalCount = annotationResults.size + audiobookBookmarkResults.size
+            // Split the preview cap fairly so neither type is starved when both are present.
+            // Each type gets at least ceil(cap/2) slots; unused slots from one side spill to the other.
+            val halfCap = (ANNOTATION_PREVIEW_CAP + 1) / 2
+            val annoPreview = annotationResults.take(if (audiobookBookmarkResults.isEmpty()) ANNOTATION_PREVIEW_CAP else halfCap)
+            val bmPreview = audiobookBookmarkResults.take(ANNOTATION_PREVIEW_CAP - annoPreview.size)
+            items(annoPreview, key = { "anno_${it.annotation.id}" }) { result ->
+                AnnotationResultRow(
+                    result = result,
+                    token = token,
+                    onClick = { onAnnotationSelected(result) },
+                )
+            }
+            items(bmPreview, key = { "abm_${it.bookmark.id}" }) { result ->
+                AudiobookBookmarkResultRow(
+                    result = result,
+                    token = token,
+                    onClick = { onAudiobookBookmarkSelected(result) },
+                )
+            }
+            if (totalCount > ANNOTATION_PREVIEW_CAP) {
+                item(key = "anno_show_all") {
+                    ShowAllAnnotationsRow(
+                        count = totalCount,
+                        onClick = { onShowAllAnnotations(query) },
+                    )
+                }
+            }
+        }
     }
 }
+
+private const val ANNOTATION_PREVIEW_CAP = 5
+private const val ANNOTATION_TYPE_BOOKMARK = "BOOKMARK"
 
 // --- Section grids ---
 
@@ -769,6 +821,154 @@ private fun SearchCollectionRow(collection: Collection, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+internal fun AnnotationResultRow(
+    result: AnnotationSearchResult,
+    token: String,
+    onClick: () -> Unit,
+) {
+    val annotation = result.annotation
+    val isBookmark = annotation.type == ANNOTATION_TYPE_BOOKMARK
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+            // Leading: highlight colour bar, or a bookmark glyph.
+            Box(modifier = Modifier.size(width = 16.dp, height = 40.dp), contentAlignment = Alignment.Center) {
+                if (isBookmark) {
+                    Icon(
+                        Icons.Filled.Bookmark,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                } else {
+                    val color = HighlightColor.fromToken(annotation.color)
+                    Surface(
+                        shape = RoundedCornerShape(2.dp),
+                        color = Color(color.argb.toLong() and 0xFFFFFFFFL),
+                        modifier = Modifier.size(width = 4.dp, height = 40.dp),
+                    ) {}
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                val primary = if (isBookmark) annotation.bookmarkTitle.ifBlank { "Bookmark" } else annotation.textSnippet
+                Text(
+                    text = primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val note = annotation.note
+                if (!isBookmark && !note.isNullOrBlank()) {
+                    Text(
+                        text = note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(result.bookCoverUrl)
+                            .addHeader("Authorization", "Bearer $token")
+                            .crossfade(true)
+                            .build(),
+                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(width = 20.dp, height = 28.dp).clip(RoundedCornerShape(2.dp)),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = result.bookTitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AudiobookBookmarkResultRow(
+    result: AudiobookBookmarkSearchResult,
+    token: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+            Box(modifier = Modifier.size(width = 16.dp, height = 40.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Filled.Bookmark,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = result.bookmark.title.ifBlank { "Audiobook Bookmark" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(result.bookCoverUrl)
+                            .addHeader("Authorization", "Bearer $token")
+                            .crossfade(true)
+                            .build(),
+                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(width = 20.dp, height = 28.dp).clip(RoundedCornerShape(2.dp)),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = result.bookTitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShowAllAnnotationsRow(count: Int, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Text(
+            text = "Show all $count annotations",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+        )
     }
 }
 

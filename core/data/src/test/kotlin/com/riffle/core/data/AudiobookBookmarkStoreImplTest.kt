@@ -20,6 +20,8 @@ class AudiobookBookmarkStoreImplTest {
         }
         override fun observeForItem(serverId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>> =
             rows.map { list -> list.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }.sortedBy { it.positionSec } }
+        override fun observeForServer(serverId: String): Flow<List<AudiobookBookmarkEntity>> =
+            rows.map { list -> list.filter { it.serverId == serverId && !it.deleted }.sortedBy { it.positionSec } }
         override suspend fun getById(id: String) = rows.value.firstOrNull { it.id == id }
         override suspend fun allForItem(serverId: String, itemId: String) =
             rows.value.filter { it.serverId == serverId && it.itemId == itemId }

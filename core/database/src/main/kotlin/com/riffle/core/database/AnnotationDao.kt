@@ -16,6 +16,13 @@ interface AnnotationDao {
     )
     fun observeForItem(serverId: String, itemId: String): Flow<List<AnnotationEntity>>
 
+    /** Live, non-deleted annotations across every item for a server, oldest first. */
+    @Query(
+        "SELECT * FROM annotations WHERE serverId = :serverId AND deleted = 0 " +
+            "ORDER BY createdAt ASC"
+    )
+    fun observeForServer(serverId: String): Flow<List<AnnotationEntity>>
+
     /** One-shot read of non-deleted annotations for an ABS Library Item, oldest first. */
     @Query(
         "SELECT * FROM annotations WHERE serverId = :serverId AND itemId = :itemId AND deleted = 0 " +

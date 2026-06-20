@@ -1369,10 +1369,9 @@ private fun EpubNavigatorView(
     }
 
     val goToContinuous: suspend (Locator) -> Unit = { locator ->
-        continuousViewRef.value?.navigateTo(
-            locator.href.toString(),
-            locator.locations.progression?.toFloat() ?: 0f,
-        )
+        val anchor = locator.locations.fragments.firstOrNull()
+        val href = if (anchor != null) "${locator.href}#$anchor" else locator.href.toString()
+        continuousViewRef.value?.navigateTo(href, locator.locations.progression?.toFloat() ?: 0f)
     }
 
     LaunchedEffect(onNavigationEvents, isContinuous) {
@@ -2084,9 +2083,11 @@ private fun EpubNavigatorView(
             LaunchedEffect(continuousView) {
                 val view = continuousView ?: return@LaunchedEffect
                 val initialLocator = latestLocator() ?: state.initialLocator
-                val initialHref = initialLocator?.href?.toString()
+                val anchor = initialLocator?.locations?.fragments?.firstOrNull()
+                val rawHref = initialLocator?.href?.toString()
                     ?: chapters.firstOrNull()?.link?.href?.toString()
                     ?: return@LaunchedEffect
+                val initialHref = if (anchor != null) "$rawHref#$anchor" else rawHref
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,

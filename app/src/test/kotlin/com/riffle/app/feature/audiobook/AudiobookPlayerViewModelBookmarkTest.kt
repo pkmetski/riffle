@@ -218,7 +218,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         val vm = buildViewModel(controller, store)
         runCurrent()
 
-        val bookmark = AudiobookBookmark(id = "bm-1", positionSec = 42.0, title = "Saved", createdAt = fixedNow)
+        val bookmark = AudiobookBookmark(id = "bm-1", serverId = "srv-1", itemId = "item-1", positionSec = 42.0, title = "Saved", createdAt = fixedNow)
         store.flow.value = listOf(bookmark)
         runCurrent()
 
@@ -233,7 +233,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         // Seed the store BEFORE the ViewModel is built, so the live collector observes it during init's
         // suspend points — before the success-path writes the resolved metadata. A success path that
         // builds a fresh state (rather than copy()) would wipe this; copy() carries it forward.
-        val bookmark = AudiobookBookmark(id = "bm-1", positionSec = 42.0, title = "Saved", createdAt = fixedNow)
+        val bookmark = AudiobookBookmark(id = "bm-1", serverId = "srv-1", itemId = "item-1", positionSec = 42.0, title = "Saved", createdAt = fixedNow)
         store.flow.value = listOf(bookmark)
 
         val vm = buildViewModel(controller, store)
@@ -456,6 +456,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         var lastId: String = ""
         private var seq = 0
         override fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>> = flow
+        override fun observeForServer(serverId: String): Flow<List<AudiobookBookmark>> = flow
         override fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean> = hasUnsynced
         override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long): String {
             added.add(AddCall(serverId, itemId, positionSec, title, now))

@@ -14,9 +14,13 @@ class AudiobookBookmarkStoreImpl @Inject constructor(
 ) : AudiobookBookmarkStore {
 
     override fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>> =
-        dao.observeForItem(serverId, itemId).map { rows ->
-            rows.map { AudiobookBookmark(it.id, it.positionSec, it.title, it.createdAt) }
-        }
+        dao.observeForItem(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeForServer(serverId: String): Flow<List<AudiobookBookmark>> =
+        dao.observeForServer(serverId).map { rows -> rows.map { it.toDomain() } }
+
+    private fun AudiobookBookmarkEntity.toDomain() =
+        AudiobookBookmark(id, serverId, itemId, positionSec, title, createdAt)
 
     override fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean> =
         dao.observeDirtyCountForItem(serverId, itemId).map { it > 0 }

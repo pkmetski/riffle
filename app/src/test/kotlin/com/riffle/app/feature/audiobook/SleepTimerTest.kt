@@ -348,6 +348,7 @@ class SleepTimerTest {
         val flow = MutableStateFlow<List<AudiobookBookmark>>(emptyList())
         val hasUnsynced = MutableStateFlow(false)
         override fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>> = flow
+        override fun observeForServer(serverId: String): Flow<List<AudiobookBookmark>> = flow
         override fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean> = hasUnsynced
         override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long): String = "bm-0"
         override suspend fun rename(id: String, title: String, now: Long) {}

@@ -174,6 +174,10 @@ class EpubReaderViewModel @Inject constructor(
     private val startReadaloudAtSec: Double =
         (savedStateHandle.get<Float>("startReadaloudAtSec") ?: -1f).toDouble()
 
+    // When opened from a library annotation search result, jump to this CFI instead of the saved
+    // reading position. Null/blank for a normal open. EPUB-only (annotations anchor on ABS-EPUB CFI).
+    private val openAtCfi: String? = savedStateHandle.get<String>("openAtCfi")
+
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
@@ -681,10 +685,13 @@ class EpubReaderViewModel @Inject constructor(
                 // translation fix (< 2.6.x) may still hold a raw ABS `epubcfi(...)` — convert
                 // those on open so legacy progress isn't lost (one-time healing; new rows are
                 // always canonical Locator JSON). A genuinely unusable value falls back to null.
-                val locator = result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
-                    runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
-                        ?: cfiStringToLocator(stored)
-                }
+                // A search-result open overrides the saved position; cfiStringToLocator needs `publication`,
+                // which is set by this point (same call used just below for legacy CFI healing).
+                val locator = openAtCfi?.takeIf { it.isNotBlank() }?.let { cfiStringToLocator(it) }
+                    ?: result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
+                        runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
+                            ?: cfiStringToLocator(stored)
+                    }
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
@@ -1058,12 +1065,19 @@ class EpubReaderViewModel @Inject constructor(
             else -> null
         }
         if (link == null || chapterProgression == null) return null
+        // For continuous-mode navigation: if the CFI references a named DOM element, store its
+        // ID in locations.fragments so goToContinuous can anchor precisely on it rather than
+        // relying on character-count progression (which doesn't account for pixel height variation).
+        val anchorId = if (html != null && docPath != null) extractAnchorFromCfi(cfi, html) else null
         return try {
             Locator.fromJSON(
                 JSONObject()
                     .put("href", link.href.toString())
                     .put("type", "application/xhtml+xml")
-                    .put("locations", JSONObject().put("progression", chapterProgression))
+                    .put("locations", JSONObject()
+                        .put("progression", chapterProgression)
+                        .apply { if (anchorId != null) put("fragments", org.json.JSONArray().put(anchorId)) }
+                    )
             )
         } catch (_: Exception) { null }
     }
