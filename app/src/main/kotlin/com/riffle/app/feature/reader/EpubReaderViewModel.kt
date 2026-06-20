@@ -697,19 +697,30 @@ class EpubReaderViewModel @Inject constructor(
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                             ?: cfiStringToLocator(stored)
                     }
+                // When opened from the item-detail TOC sheet, derive initialLocator directly from
+                // the requested chapter link so the reader opens there without a separate navigation
+                // event. Using _navigationEvents.trySend() here would race with fragment
+                // initialization: fragmentRef is null on first compose, so the event is silently
+                // dropped and the reader opens at the saved/null position instead.
+                val tocLocator = startTocHref?.let { href ->
+                    val link = pub.tableOfContents.findLinkByHref(href)
+                        ?: pub.readingOrder.firstOrNull { it.href.toString() == href }
+                    link?.let {
+                        runCatching {
+                            Locator.fromJSON(
+                                JSONObject()
+                                    .put("href", it.href.toString())
+                                    .put("type", "application/xhtml+xml")
+                                    .put("locations", JSONObject().put("progression", 0.0))
+                            )
+                        }.getOrNull()
+                    }
+                }
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
-                    initialLocator = locator,
+                    initialLocator = tocLocator ?: locator,
                 )
-                // Navigate to the requested TOC entry immediately on open (e.g. tapped from the
-                // item-detail TOC sheet). Uses the same _navigationEvents channel as the in-reader
-                // TOC panel's tap handler (navigateToEntry) so the screen handles it identically.
-                startTocHref?.let { href ->
-                    val link = pub.tableOfContents.findLinkByHref(href)
-                        ?: pub.readingOrder.firstOrNull { it.href.toString() == href }
-                    if (link != null) _navigationEvents.trySend(link)
-                }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()

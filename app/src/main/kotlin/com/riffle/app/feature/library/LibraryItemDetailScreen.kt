@@ -389,6 +389,17 @@ private fun LibraryItemDetailContent(
             onRemoveAudiobook = onRemoveAudiobook,
         )
 
+        TitleWithReadaloudIndicator(
+            title = item.title,
+            hasReadaloud = readaloudDownloadState != null,
+            onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
+        )
+        AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
+
+        item.seriesName?.let { series ->
+            SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+        }
+
         // TOC row — EPUB items only; hidden if TOC loaded as empty
         val tocReady = tocState as? TocState.Ready
         if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
@@ -437,17 +448,6 @@ private fun LibraryItemDetailContent(
                     onClick = { showChaptersSheet = true },
                 ),
             )
-        }
-
-        TitleWithReadaloudIndicator(
-            title = item.title,
-            hasReadaloud = readaloudDownloadState != null,
-            onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
-        )
-        AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
-
-        item.seriesName?.let { series ->
-            SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
         }
 
         if (item.isListenable && item.audioDurationSec > 0) {
