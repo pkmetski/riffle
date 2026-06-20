@@ -161,6 +161,20 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `injectInto embeds typography override CSS after ReadiumCSS-after to beat its text-align inherit rule`() {
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())
+        val afterIdx = out.indexOf("ReadiumCSS-after.css")
+        val overrideIdx = out.indexOf("riffle-typography-override")
+        val headCloseIdx = out.indexOf("</head>")
+        assertTrue("override style block present", overrideIdx >= 0)
+        assertTrue("override after ReadiumCSS-after", overrideIdx > afterIdx)
+        assertTrue("override before </head>", overrideIdx < headCloseIdx)
+        // Verify the justify gate uses 3 attribute-selector repetitions (specificity 0,3,2) to
+        // beat ReadiumCSS-after.css's text-align: inherit !important rule (specificity 0,2,4).
+        assertTrue("3x gate attr reps present", out.contains("[style*=\"--USER__textAlign\"][style*=\"--USER__textAlign\"][style*=\"--USER__textAlign\"]"))
+    }
+
+    @Test
     fun `injectInto adds default-css only when chapter has no author styles`() {
         val withStyles = "<html><head><style>p{}</style></head><body></body></html>"
         val without = "<html><head><title>t</title></head><body></body></html>"
