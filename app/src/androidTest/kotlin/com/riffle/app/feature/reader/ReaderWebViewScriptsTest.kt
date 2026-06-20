@@ -297,6 +297,37 @@ class ReaderWebViewScriptsTest {
         }
     }
 
+    // ---- Continuous mode (tall document) ----
+    //
+    // In ContinuousReaderView each ChapterWebView is auto-sized to its content height, so
+    // window.innerHeight equals the chapter's full rendered height — potentially much larger than
+    // the visible viewport. Every sentence therefore passes the on-screen filter
+    // (r.top < window.innerHeight) and all are candidates. The resolver must still pick the sentence
+    // at the SELECTION POSITION, not the first occurrence in reading order.
+    //
+    // These tests verify that heightPx >> content height (the continuous mode shape) does not
+    // break position-based disambiguation. Reuses strippedFixture (its recurring "cat" word) with a
+    // 3000 device-px WebView — far taller than the few-line content, just as a chapter WebView is
+    // far taller than a typical screen in continuous mode.
+
+    @Test
+    fun resolveSelectionPicksCorrectSentenceInContinuousModeWhereAllSentencesPassTheOnScreenFilter() {
+        withSizedWebViewFixture(strippedFixture, widthPx = 1080, heightPx = 3000) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(SELECTION_SPAN_TRACKER_JS)
+            // "cat" occurs in s0, s1, s2. Text matching would always return s0 (first occurrence).
+            // With a 3000-device-px-tall WebView (all sentences well within window.innerHeight),
+            // geometry must still resolve to the sentence at the actual selection position.
+            webView.selectNthOccurrence("cat", 3)
+            assertTrue("tracker must stash a rect in a tall continuous-mode WebView", webView.awaitSelRect())
+            assertEquals(
+                "geometry resolves to the selected sentence when window.innerHeight exceeds content height",
+                "c1-s2",
+                webView.evalSync(resolveSelectionSentenceJs(strippedSentences)).trim('"'),
+            )
+        }
+    }
+
     // ---- helpers ----
 
     // Selects the [n]-th occurrence (1-based, document order) of [word], driving a real selection so the

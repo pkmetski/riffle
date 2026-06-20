@@ -219,4 +219,21 @@ class ContinuousPositionTrackerTest {
         assertNull(ContinuousPositionTracker.sentenceIdForSelection("   ", quoteTexts))
         assertNull(ContinuousPositionTracker.sentenceIdForSelection("nothing like this exists here", quoteTexts))
     }
+
+    @Test
+    fun `sentenceIdForSelection returns the first matching sentence even when the word also appears later`() {
+        // Text matching always returns the FIRST sentence in the map whose text contains the
+        // selected word, regardless of which occurrence the user actually selected. This is the
+        // known limitation of the text-match path — why geometry-based resolution (via
+        // resolveSelectionSentenceJs) is the preferred primary path in continuous mode.
+        val duplicateWordQuotes = mapOf(
+            "c1-s1" to "The cat sat on the mat.",
+            "c1-s2" to "The cat ran away quickly.",
+        )
+        assertEquals(
+            "text-match picks the first sentence containing the word, not the selected position",
+            "c1-s1",
+            ContinuousPositionTracker.sentenceIdForSelection("cat", duplicateWordQuotes),
+        )
+    }
 }
