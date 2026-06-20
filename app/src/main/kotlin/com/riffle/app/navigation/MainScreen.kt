@@ -25,6 +25,7 @@ import com.riffle.app.feature.library.FacetType
 import com.riffle.app.feature.library.FilteredBooksScreen
 import com.riffle.app.feature.audiobook.AudiobookPlayerScreen
 import com.riffle.app.feature.library.LibraryItemDetailScreen
+import com.riffle.app.feature.library.AnnotationSearchResultsScreen
 import com.riffle.app.feature.library.LibraryItemsScreen
 import com.riffle.app.feature.library.LibraryItemsViewModel
 import com.riffle.app.feature.library.LibrarySectionScreen
@@ -59,8 +60,9 @@ private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesN
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
-private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}"
+private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}"
 private const val PDF_READER = "pdf_reader/{itemId}"
+private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
 
 @Composable
@@ -273,9 +275,15 @@ fun MainScreen(
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
                     },
-                    // TODO(Task 6): wire real navigation for annotation results
-                    onAnnotationSelected = {},
-                    onShowAllAnnotations = {},
+                    onAnnotationSelected = { result ->
+                        val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
+                        val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
+                        navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                    },
+                    onShowAllAnnotations = { query ->
+                        val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                        navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
+                    },
                     onSectionSeeMore = { sectionType ->
                         val encodedName = URLEncoder.encode(libraryName, "UTF-8")
                         navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
@@ -402,11 +410,36 @@ fun MainScreen(
                         type = NavType.FloatType
                         defaultValue = -1f // -1 = opened normally, not an audiobook→readaloud handoff
                     },
+                    navArgument("openAtCfi") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 )
             ) {
                 EpubReaderScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = ANNOTATION_SEARCH,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("query") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) {
+                AnnotationSearchResultsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onAnnotationSelected = { result ->
+                        val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
+                        val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
+                        navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                    },
                 )
             }
             composable(
