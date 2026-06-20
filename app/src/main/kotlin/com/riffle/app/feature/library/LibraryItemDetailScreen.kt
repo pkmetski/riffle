@@ -389,10 +389,10 @@ private fun LibraryItemDetailContent(
             onRemoveAudiobook = onRemoveAudiobook,
         )
 
-        // TOC row — EPUB items only
-        if (item.ebookFormat == EbookFormat.Epub) {
+        // TOC row — EPUB items only; hidden if TOC loaded as empty
+        val tocReady = tocState as? TocState.Ready
+        if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
             HorizontalDivider()
-            val tocReady = tocState as? TocState.Ready
             ListItem(
                 headlineContent = { Text("Table of Contents") },
                 supportingContent = {
@@ -623,9 +623,9 @@ internal fun LibraryItemDetailContentTablet(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // TOC row — EPUB items only
-            if (item.ebookFormat == EbookFormat.Epub) {
-                val tocReady = tocState as? TocState.Ready
+            // TOC row — EPUB items only; hidden if TOC loaded as empty
+            val tocReady = tocState as? TocState.Ready
+            if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
                 ListItem(
                     headlineContent = { Text("Table of Contents") },
                     supportingContent = {
@@ -809,10 +809,10 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 onRemoveAudiobook = onRemoveAudiobook,
             )
 
-            // TOC row — EPUB items only
-            if (item.ebookFormat == EbookFormat.Epub) {
+            // TOC row — EPUB items only; hidden if TOC loaded as empty
+            val tocReady = tocState as? TocState.Ready
+            if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
                 HorizontalDivider()
-                val tocReady = tocState as? TocState.Ready
                 ListItem(
                     headlineContent = { Text("Table of Contents") },
                     supportingContent = {

@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +47,7 @@ fun ItemTocSheet(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 32.dp),
         ) {
-            items(flat, key = { "${it.depth}_${it.entry.href}" }) { (entry, depth) ->
+            itemsIndexed(flat, key = { index, item -> "${index}_${item.depth}_${item.entry.href}" }) { _, (entry, depth) ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
