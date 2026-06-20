@@ -6,6 +6,67 @@ An Android ebook reader and audiobook player for [Audiobookshelf](https://www.au
 
 Riffle lets you browse your library, read EPUB and PDF files, listen to audiobooks, and keep reading and listening progress in sync across devices — all from a clean, privacy-respecting Android app.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/library-home.png" alt="Home library cover grid" width="240"><br>
+      <sub><b>Library</b> — cover grid with book details</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/book-detail.png" alt="Book detail screen" width="240"><br>
+      <sub><b>Book detail</b> — read, listen, series &amp; progress</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/reader.png" alt="EPUB reader" width="240"><br>
+      <sub><b>Reader</b> — clean, immersive reading</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/reader-dark.png" alt="Reader in dark theme" width="240"><br>
+      <sub><b>Themes</b> — light, dark, dim &amp; sepia</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/formatting.png" alt="Formatting controls" width="240"><br>
+      <sub><b>Formatting</b> — fonts, sizing &amp; spacing</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/table-of-contents.png" alt="Table of contents" width="240"><br>
+      <sub><b>Navigation</b> — table of contents</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/search.png" alt="In-book search" width="240"><br>
+      <sub><b>Search</b> — full-text in-book search</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/highlights.png" alt="Highlight with color picker and note" width="240"><br>
+      <sub><b>Highlights</b> — colors &amp; attached notes</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/audiobook-player.png" alt="Audiobook player" width="240"><br>
+      <sub><b>Listening</b> — full audiobook player</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/settings.png" alt="Settings screen" width="240"><br>
+      <sub><b>Server &amp; sync</b> — multi-server settings</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/downloads.png" alt="Downloads manager" width="240"><br>
+      <sub><b>Offline</b> — downloads &amp; cache manager</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/screenshots/readaloud.png" alt="Storyteller Readaloud in the reader" width="240"><br>
+      <sub><b>Readaloud</b> — synced highlight &amp; narration</sub>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 ### Reading
@@ -43,7 +104,7 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 ### Library
 - Multi-server support with library visibility controls
 - Browse by Home, To Read, Series, Collections, and All Books
-- Plex-style cover grid with book details
+- Cover grid with book details
 - Read/unread and "To Read" toggles
 - Full-text library search
 
