@@ -7,6 +7,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import android.widget.OverScroller
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
 import org.readium.r2.shared.publication.Link
@@ -133,6 +134,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** All chapters in reading order. Set once via [initialize]. */
     private var allChapters: List<ChapterEntry> = emptyList()
+
+    /** True once [initialize] has been called. Observed by the navigation LaunchedEffect in
+     *  EpubReaderScreen to avoid calling [navigateTo] before [allChapters] is populated. */
+    val isInitialized = mutableStateOf(false)
 
     /** Current formatting preferences for CSS injection. */
     private var formattingPrefs: FormattingPreferences = FormattingPreferences()
@@ -322,6 +327,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         this.publication = publication
         val anchorFragment = initialHref.substringAfter('#', "")
         openWindowAt(initialHref.substringBefore('#'), initialProgression, anchorFragment)
+        isInitialized.value = true
     }
 
     /**

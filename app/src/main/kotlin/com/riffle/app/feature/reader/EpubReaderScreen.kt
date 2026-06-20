@@ -98,6 +98,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -1379,9 +1380,13 @@ private fun EpubNavigatorView(
             // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
             // instead of the fragment.
             if (isContinuous) {
-                // Wait for the view to be ready — it may be null when the reader first opens from
-                // the item-detail TOC sheet and _navigationEvents fires before composition finishes.
+                // Wait for the view to be ready and initialized. continuousViewRef is set in the
+                // AndroidView factory (immediately on view creation) but allChapters is only
+                // populated in a separate LaunchedEffect(continuousView) that calls initialize().
+                // navigateTo() silently returns early when allChapters is empty, so we must wait
+                // for isInitialized before calling it — same path as every in-reader TOC tap.
                 val view = snapshotFlow { continuousViewRef.value }.filterNotNull().first()
+                snapshotFlow { view.isInitialized.value }.filter { it }.first()
                 // TOC entries / chapter-map segments are Links (no progression) — land at the start
                 // of the target chapter.
                 view.navigateTo(link.href.toString(), 0f)
