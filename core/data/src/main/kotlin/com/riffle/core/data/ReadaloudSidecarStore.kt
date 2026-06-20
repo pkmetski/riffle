@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import android.content.Context
+import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -46,7 +47,7 @@ class ReadaloudSidecarStore @Inject constructor(
     private val fetcher: StorytellerSidecarFetcher,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
-) : ReadaloudSidecarPrefetcher {
+) : ReadaloudSidecarPrefetcher, ReadaloudSidecarCache {
     enum class State { Preparing, Ready, Failed }
 
     // App-scoped: a prepare started on the details screen must survive into the reader (and vice versa),
@@ -65,7 +66,7 @@ class ReadaloudSidecarStore @Inject constructor(
     private fun fileFor(serverId: String, bookId: String) = File(dir(), "${key(serverId, bookId)}.epub")
 
     /** The cached sidecar if it's already on disk — never triggers a fetch. */
-    fun cachedFile(storytellerServerId: String, storytellerBookId: String): File? =
+    override fun cachedFile(storytellerServerId: String, storytellerBookId: String): File? =
         fileFor(storytellerServerId, storytellerBookId).takeIf { it.exists() && it.length() > 0 }
 
     /** State for the bar/UX: Ready when cached, else the in-flight/last prepare outcome. */

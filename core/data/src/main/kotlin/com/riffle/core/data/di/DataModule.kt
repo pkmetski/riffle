@@ -511,6 +511,11 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideReadaloudSidecarCache(store: com.riffle.core.data.ReadaloudSidecarStore): com.riffle.core.domain.ReadaloudSidecarCache =
+            store
+
+        @Provides
+        @Singleton
         fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
             AudiobookBundleApiImpl(okHttpClient)
 
