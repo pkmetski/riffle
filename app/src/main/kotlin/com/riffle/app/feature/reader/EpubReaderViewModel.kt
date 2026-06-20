@@ -50,6 +50,7 @@ import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TimeRemaining
+import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
