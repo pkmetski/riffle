@@ -334,6 +334,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                     targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
                         val y = if (anchorOffset != null) {
                             (slot.top + anchorOffset).coerceAtLeast(0)
+                        } else if (alignToTop) {
+                            (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                         } else {
                             ContinuousPositionTracker.scrollYForProgression(
                                 slot.top, slot.height, initialProgression, height,
