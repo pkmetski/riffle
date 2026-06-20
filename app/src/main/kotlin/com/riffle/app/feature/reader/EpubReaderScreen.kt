@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -97,6 +98,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -1376,13 +1379,16 @@ private fun EpubNavigatorView(
             // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
             // instead of the fragment.
             if (isContinuous) {
-                val view = continuousViewRef.value ?: return@collect
+                // Wait for the view to be ready — it may be null when the reader first opens from
+                // the item-detail TOC sheet and _navigationEvents fires before composition finishes.
+                val view = snapshotFlow { continuousViewRef.value }.filterNotNull().first()
                 // TOC entries / chapter-map segments are Links (no progression) — land at the start
                 // of the target chapter.
                 view.navigateTo(link.href.toString(), 0f)
                 return@collect
             }
-            val fragment = fragmentRef.value ?: return@collect
+            // Wait for the fragment to be ready — same timing concern as the continuous case above.
+            val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
             // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
             // is instant and needs no mask.
             val cover = link.href.toString().substringBefore('#') !=
