@@ -1646,6 +1646,23 @@ class MigrationTest {
     }
 
     @Test
+    fun migration40To41_addsTocCacheAndAudiobookChapterCache() {
+        helper.createDatabase(TEST_DB, 40).use { db ->
+            db.execSQL("INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) VALUES ('srv', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF')")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib1', 'Books', 'book', 'srv', 0)")
+            db.execSQL("INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, hasAudio, audioDurationSec, genres) VALUES ('srv', 'item1', 'lib1', 'Book', 'Author', NULL, 0.0, 'EPUB', 0, 0.0, '')")
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 41, true, RiffleDatabase.MIGRATION_40_41).use { db ->
+            db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='toc_cache'").use { c ->
+                assertTrue("toc_cache table must exist", c.moveToFirst())
+            }
+            db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='audiobook_chapter_cache'").use { c ->
+                assertTrue("audiobook_chapter_cache table must exist", c.moveToFirst())
+            }
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1654,7 +1671,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 39, true,
+            TEST_DB, 41, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1694,6 +1711,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_37_38,
             RiffleDatabase.MIGRATION_38_39,
             RiffleDatabase.MIGRATION_39_40,
+            RiffleDatabase.MIGRATION_40_41,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->

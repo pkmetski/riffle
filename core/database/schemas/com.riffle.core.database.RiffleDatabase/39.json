@@ -596,7 +596,11 @@
       },
       {
         "tableName": "readaloud_links",
+<<<<<<< HEAD
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`absServerId` TEXT NOT NULL, `absLibraryItemId` TEXT NOT NULL, `storytellerServerId` TEXT NOT NULL, `storytellerBookId` TEXT NOT NULL, `state` TEXT NOT NULL, `userConfirmed` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `identityResult` TEXT NOT NULL, PRIMARY KEY(`absServerId`, `absLibraryItemId`), FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+=======
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`absServerId` TEXT NOT NULL, `absLibraryItemId` TEXT NOT NULL, `storytellerServerId` TEXT NOT NULL, `storytellerBookId` TEXT NOT NULL, `state` TEXT NOT NULL, `userConfirmed` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`absServerId`, `absLibraryItemId`), FOREIGN KEY(`storytellerServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`absServerId`) REFERENCES `servers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+>>>>>>> f4abee3b (feat(database): add toc_cache and audiobook_chapter_cache tables (v38→v39))
         "fields": [
           {
             "fieldPath": "absServerId",
@@ -645,12 +649,15 @@
             "columnName": "updatedAt",
             "affinity": "INTEGER",
             "notNull": true
+<<<<<<< HEAD
           },
           {
             "fieldPath": "identityResult",
             "columnName": "identityResult",
             "affinity": "TEXT",
             "notNull": true
+=======
+>>>>>>> f4abee3b (feat(database): add toc_cache and audiobook_chapter_cache tables (v38→v39))
           }
         ],
         "primaryKey": {
@@ -1322,11 +1329,86 @@
             ]
           }
         ]
+<<<<<<< HEAD
+=======
+      },
+      {
+        "tableName": "toc_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `ebookFileIno` TEXT NOT NULL, `entriesJson` TEXT NOT NULL, PRIMARY KEY(`serverId`, `itemId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ebookFileIno",
+            "columnName": "ebookFileIno",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entriesJson",
+            "columnName": "entriesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "itemId"
+          ]
+        }
+      },
+      {
+        "tableName": "audiobook_chapter_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serverId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `chaptersJson` TEXT NOT NULL, PRIMARY KEY(`serverId`, `itemId`))",
+        "fields": [
+          {
+            "fieldPath": "serverId",
+            "columnName": "serverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chaptersJson",
+            "columnName": "chaptersJson",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serverId",
+            "itemId"
+          ]
+        }
+>>>>>>> f4abee3b (feat(database): add toc_cache and audiobook_chapter_cache tables (v38→v39))
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+<<<<<<< HEAD
       "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd6a6caf72c5cad0e241abc0c53e76317')"
+=======
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9ef82210e7b8b739141e6c79d6c14d96')"
+>>>>>>> f4abee3b (feat(database): add toc_cache and audiobook_chapter_cache tables (v38→v39))
     ]
   }
 }
