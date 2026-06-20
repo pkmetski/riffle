@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
@@ -54,6 +55,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
+    private val annotationStore: AnnotationStore,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -183,6 +185,22 @@ class LibraryItemsViewModel @Inject constructor(
             else all.filter { it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true) }
         if (offline) base.filter { offlineAvailability.isAvailableOffline(it) } else base
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Annotation search results, scoped to this library's items and matched on note text,
+    // highlighted snippet, or bookmark title. Independent of the Books section (a book is never
+    // promoted here because its annotations matched). Empty when the query is blank.
+    val filteredAnnotations: StateFlow<List<AnnotationSearchResult>> =
+        combine(allItems, searchQuery) { items, query -> items to query }
+            .flatMapLatest { (items, query) ->
+                val serverId = items.firstOrNull()?.serverId
+                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    annotationStore.observeAnnotationsForServer(serverId)
+                        .map { annotations -> searchAnnotations(annotations, items, query) }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredInProgress: StateFlow<List<LibraryItem>> = combine(inProgress, isOffline) { items, offline ->
         if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items

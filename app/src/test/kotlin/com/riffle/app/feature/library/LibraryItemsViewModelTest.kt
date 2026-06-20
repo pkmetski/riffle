@@ -30,6 +30,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -65,6 +67,22 @@ class LibraryItemsViewModelTest {
     private val collectionItemsByCollectionId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
+    private val annotationsFlow = MutableStateFlow<List<com.riffle.core.domain.Annotation>>(emptyList())
+
+    private fun fakeAnnotationStore(): com.riffle.core.domain.AnnotationStore =
+        object : com.riffle.core.domain.AnnotationStore {
+            override fun observeHighlights(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+            override fun observeBookmarks(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+            override fun observeAnnotations(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+            override fun observeAnnotationsForServer(serverId: String) =
+                annotationsFlow.map { all -> all.filter { it.serverId == serverId } }
+            override suspend fun createHighlight(serverId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double) = error("unused")
+            override suspend fun createBookmark(serverId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String) = error("unused")
+            override suspend fun delete(id: String) = error("unused")
+            override suspend fun recolor(id: String, color: String) = error("unused")
+            override suspend fun updateNote(id: String, note: String?) = error("unused")
+            override suspend fun renameBookmark(id: String, title: String) = error("unused")
+        }
 
     private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
@@ -180,6 +198,7 @@ class LibraryItemsViewModelTest {
             override val scale = kotlinx.coroutines.flow.flowOf(1f)
             override suspend fun setScale(value: Float) {}
         },
+        annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
     ) = LibraryItemsViewModel(
         savedStateHandle,
         libraryRepository,
@@ -198,6 +217,7 @@ class LibraryItemsViewModelTest {
         toReadRepository,
         readaloudLinkRepository,
         coverGridDensityStore,
+        annotationStore,
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
@@ -1020,5 +1040,76 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf(availableItem), vm.continueSeriesItems.value)
+    }
+
+    // --- filteredAnnotations ---
+
+    private fun annotation(
+        id: String,
+        serverId: String,
+        itemId: String,
+        textSnippet: String = "",
+        note: String? = null,
+        bookmarkTitle: String = "",
+    ) = com.riffle.core.domain.Annotation(
+        id = id,
+        serverId = serverId,
+        itemId = itemId,
+        type = "highlight",
+        cfi = "",
+        color = "yellow",
+        note = note,
+        textSnippet = textSnippet,
+        textBefore = "",
+        textAfter = "",
+        chapterHref = "",
+        spineIndex = 0,
+        progression = 0.0,
+        bookmarkTitle = bookmarkTitle,
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
+
+    private fun itemWithServerId(id: String, title: String, serverId: String) = LibraryItem(
+        id = id,
+        libraryId = "lib1",
+        title = title,
+        author = "Author",
+        coverUrl = null,
+        readingProgress = 0f,
+        isCached = false,
+        isDownloaded = false,
+        ebookFormat = EbookFormat.Epub,
+        serverId = serverId,
+    )
+
+    @Test
+    fun `filteredAnnotations matches query scoped to library items`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredAnnotations.collect {} }
+        allItemsFlow.value = listOf(itemWithServerId("b1", "Children of Dune", "srv1"))
+        annotationsFlow.value = listOf(
+            annotation(id = "a1", serverId = "srv1", itemId = "b1", textSnippet = "conscience is flexible"),
+            annotation(id = "a2", serverId = "srv1", itemId = "b1", textSnippet = "unrelated"),
+            annotation(id = "aX", serverId = "srv1", itemId = "NOT_IN_LIB", textSnippet = "conscience"),
+        )
+        vm.onSearchQueryChange("conscience")
+
+        val results = vm.filteredAnnotations.first { it.isNotEmpty() }
+        assertEquals(listOf("a1"), results.map { it.annotation.id })
+        assertEquals("Children of Dune", results.single().bookTitle)
+    }
+
+    @Test
+    fun `filteredAnnotations returns empty list when query is blank`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.filteredAnnotations.collect {} }
+        allItemsFlow.value = listOf(itemWithServerId("b1", "Dune", "srv1"))
+        annotationsFlow.value = listOf(
+            annotation(id = "a1", serverId = "srv1", itemId = "b1", textSnippet = "spice"),
+        )
+        // No query set — blank by default
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(emptyList<AnnotationSearchResult>(), vm.filteredAnnotations.value)
     }
 }
