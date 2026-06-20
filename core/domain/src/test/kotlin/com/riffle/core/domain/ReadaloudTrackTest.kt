@@ -155,6 +155,25 @@ class ReadaloudTrackTest {
         assertEquals(null, splitTrack.resolveStartClip("text/part0099_split_000.html", null))
     }
 
+    // Streaming-path regression: the sentence-quote map may not be built yet when the page-top probe
+    // fires, so fragmentId is null. ABS (the rendered EPUB) and Storyteller (the SMIL source) can
+    // carry the same chapter under different href prefixes — e.g. "Text/ch01.xhtml" vs
+    // "OEBPS/Text/ch01.xhtml". The lexicographic ">= target" fallback silently picks the wrong clip
+    // or returns null when the Storyteller hrefs are lex-less than the ABS href. sameChapter()
+    // tolerance was added before the fallback to handle this case.
+    private val oebpsClips = listOf(
+        MediaOverlayClip("OEBPS/Text/ch01.xhtml#s1", "c1.mp3", 0.0, 2.0),
+        MediaOverlayClip("OEBPS/Text/ch01.xhtml#s2", "c1.mp3", 2.0, 5.0),
+        MediaOverlayClip("OEBPS/Text/ch02.xhtml#s1", "c2.mp3", 0.0, 4.0),
+    )
+    private val oebpsTrack = ReadaloudTrack(oebpsClips)
+
+    @Test
+    fun `resolveStartClip with null fragment tolerates OEBPS prefix difference between ABS and Storyteller hrefs`() {
+        assertEquals(oebpsClips[0], oebpsTrack.resolveStartClip("Text/ch01.xhtml", null))
+        assertEquals(oebpsClips[2], oebpsTrack.resolveStartClip("Text/ch02.xhtml", null))
+    }
+
     // ── skip + chapter math (rewind/forward, prev/next chapter) ──
 
     // Two chapters across two files. Global timeline: c1 -> [0,9), c2 -> [9,13).
