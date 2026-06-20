@@ -1065,12 +1065,19 @@ class EpubReaderViewModel @Inject constructor(
             else -> null
         }
         if (link == null || chapterProgression == null) return null
+        // For continuous-mode navigation: if the CFI references a named DOM element, store its
+        // ID in locations.fragments so goToContinuous can anchor precisely on it rather than
+        // relying on character-count progression (which doesn't account for pixel height variation).
+        val anchorId = if (html != null && docPath != null) extractAnchorFromCfi(cfi, html) else null
         return try {
             Locator.fromJSON(
                 JSONObject()
                     .put("href", link.href.toString())
                     .put("type", "application/xhtml+xml")
-                    .put("locations", JSONObject().put("progression", chapterProgression))
+                    .put("locations", JSONObject()
+                        .put("progression", chapterProgression)
+                        .apply { if (anchorId != null) put("fragments", org.json.JSONArray().put(anchorId)) }
+                    )
             )
         } catch (_: Exception) { null }
     }

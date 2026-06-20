@@ -288,7 +288,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         allChapters = chapters
         formattingPrefs = prefs
         this.publication = publication
-        openWindowAt(initialHref, initialProgression)
+        val anchorFragment = initialHref.substringAfter('#', "")
+        openWindowAt(initialHref.substringBefore('#'), initialProgression, anchorFragment)
     }
 
     /**

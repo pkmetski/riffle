@@ -71,6 +71,17 @@ internal fun extractCfiElementIds(docPath: String): List<String> {
 internal fun hasElementWithId(html: String, id: String): Boolean =
     Jsoup.parse(html).getElementById(id) != null
 
+/**
+ * Returns the innermost element ID from the doc-path portion of [fullCfi] that actually
+ * exists in [html], or null when the CFI has no ID assertions or none match the DOM.
+ * Used by continuous-mode navigation to anchor on the exact element rather than a
+ * character-count progression approximation.
+ */
+internal fun extractAnchorFromCfi(fullCfi: String, html: String): String? {
+    val docPath = extractCfiDocPath(fullCfi) ?: return null
+    return extractCfiElementIds(docPath).firstOrNull { hasElementWithId(html, it) }
+}
+
 // ── CFI string parsing ────────────────────────────────────────────────────────
 
 internal data class ParsedCfiDocPath(val steps: List<Int>, val charOffset: Int)
