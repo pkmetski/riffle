@@ -15,13 +15,13 @@ import org.readium.r2.shared.util.mediatype.MediaType
 @OptIn(ExperimentalCoroutinesApi::class)
 class NavigationTargetTest {
 
-    data class NavCall(val href: String, val progression: Float)
+    data class NavCall(val href: String, val progression: Float, val alignToTop: Boolean)
 
     private val calls = mutableListOf<NavCall>()
 
     private val fakeView = object : ContinuousNavigationView {
-        override fun navigateTo(href: String, progression: Float) {
-            calls.add(NavCall(href, progression))
+        override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
+            calls.add(NavCall(href, progression, alignToTop))
         }
     }
 
@@ -53,10 +53,11 @@ class NavigationTargetTest {
     private fun makeLocator(
         urlString: String,
         progression: Double? = null,
+        fragments: List<String> = emptyList(),
     ) = Locator(
         href = makeAbsoluteUrl(urlString),
         mediaType = MediaType.XHTML,
-        locations = Locator.Locations(progression = progression),
+        locations = Locator.Locations(progression = progression, fragments = fragments),
     )
 
     /** Returns a Locator with all fields null/zero (sufficient for pass-through tests). */
@@ -81,6 +82,7 @@ class NavigationTargetTest {
         assertEquals(1, calls.size)
         assertEquals("https://example.com/ch1.xhtml", calls[0].href)
         assertEquals(0.75f, calls[0].progression, 0.001f)
+        assertEquals(false, calls[0].alignToTop)
     }
 
     @Test
@@ -92,6 +94,45 @@ class NavigationTargetTest {
 
         assertEquals(1, calls.size)
         assertEquals(0f, calls[0].progression, 0.001f)
+    }
+
+    @Test
+    fun `ContinuousNavigationTarget appends fragment anchor to href`() = runTest {
+        val target = ContinuousNavigationTarget { fakeView }
+        val locator = makeLocator(
+            "https://example.com/ch3.xhtml",
+            progression = 0.4,
+            fragments = listOf("section-2"),
+        )
+
+        target.navigateTo(locator)
+
+        assertEquals(1, calls.size)
+        assertEquals("https://example.com/ch3.xhtml#section-2", calls[0].href)
+    }
+
+    @Test
+    fun `ContinuousNavigationTarget uses first fragment only`() = runTest {
+        val target = ContinuousNavigationTarget { fakeView }
+        val locator = makeLocator(
+            "https://example.com/ch4.xhtml",
+            fragments = listOf("first", "second"),
+        )
+
+        target.navigateTo(locator)
+
+        assertEquals("https://example.com/ch4.xhtml#first", calls[0].href)
+    }
+
+    @Test
+    fun `ContinuousNavigationTarget forwards alignToTop to view`() = runTest {
+        val target = ContinuousNavigationTarget { fakeView }
+        val locator = makeLocator("https://example.com/ch5.xhtml", progression = 0.1)
+
+        target.navigateTo(locator, alignToTop = true)
+
+        assertEquals(1, calls.size)
+        assertEquals(true, calls[0].alignToTop)
     }
 
     @Test
@@ -140,5 +181,17 @@ class NavigationTargetTest {
         target.navigateTo(nullLocator())
 
         assertTrue(completed)
+    }
+
+    @Test
+    fun `ReadiumNavigationTarget ignores alignToTop`() = runTest {
+        val received = mutableListOf<Locator>()
+        val target = ReadiumNavigationTarget { locator -> received.add(locator) }
+        val locator = nullLocator()
+
+        target.navigateTo(locator, alignToTop = true)
+
+        assertEquals(1, received.size)
+        assertSame(locator, received[0])
     }
 }

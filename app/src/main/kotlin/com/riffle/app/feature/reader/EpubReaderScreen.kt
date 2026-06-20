@@ -1368,12 +1368,6 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
-    val goToContinuous: suspend (Locator) -> Unit = { locator ->
-        val anchor = locator.locations.fragments.firstOrNull()
-        val href = if (anchor != null) "${locator.href}#$anchor" else locator.href.toString()
-        continuousViewRef.value?.navigateTo(href, locator.locations.progression?.toFloat() ?: 0f)
-    }
-
     LaunchedEffect(onNavigationEvents, isContinuous) {
         onNavigationEvents.collect { link ->
             // In Continuous mode the Readium fragment is a server-keeper only (invisible,
@@ -1405,22 +1399,19 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(serverLocatorEvents, isContinuous) {
-        serverLocatorEvents.collect { locator ->
-            // Background position sync (peer/resume/audiobook handoff): in Continuous mode the
-            // fragment is the invisible server-keeper, so route the jump to the continuous view.
-            if (isContinuous) {
-                goToContinuous(locator)
-                return@collect
-            }
-            // Paginated/scroll: navigate and snap onto the target's column, tracked through the new
-            // chapter's reflow, but never cover — a cover here would flash mid-reading.
-            val fragment = fragmentRef.value ?: return@collect
-            // A background sync (audiobook/peer) carries a within-chapter progression but no DOM
-            // fragment; preserve where go() landed (round to the column grid) instead of snapping to
-            // the chapter top, so the reader lands on the actual synced page.
-            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+    // Background position sync (peer/resume/audiobook handoff). Never covers — a flash
+    // mid-reading would be jarring. The background sync carries a within-chapter progression but
+    // no DOM fragment, so landAtStartWhenNoTarget=false preserves where go() landed instead of
+    // snapping to the chapter top.
+    val serverLocatorTarget: NavigationTarget = remember(isContinuous) {
+        if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
+        else ReadiumNavigationTarget { locator ->
+            fragmentRef.value?.let { ColumnSnap.goAndSnap(it, locator, landAtStartWhenNoTarget = false) }
         }
+    }
+
+    LaunchedEffect(serverLocatorEvents, isContinuous) {
+        serverLocatorEvents.collect { serverLocatorTarget.navigateTo(it) }
     }
 
     // Navigate to a within-chapter [locator] and snap the page to the grid where go() landed
@@ -1441,26 +1432,18 @@ private fun EpubNavigatorView(
         }
     }
 
+    val navigationTarget: NavigationTarget = remember(isContinuous) {
+        if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
+        else ReadiumNavigationTarget(goAndSnapWithCover)
+    }
+
     LaunchedEffect(returnNavEvents, isContinuous) {
-        returnNavEvents.collect { locator ->
-            if (isContinuous) {
-                goToContinuous(locator)
-            } else {
-                goAndSnapWithCover(locator)
-            }
-        }
+        returnNavEvents.collect { navigationTarget.navigateTo(it) }
     }
 
     LaunchedEffect(searchNavigationEvents, isContinuous) {
         searchNavigationEvents.collect { locator ->
-            if (isContinuous) {
-                val view = continuousViewRef.value ?: return@collect
-                val href = locator.href.toString()
-                val progression = locator.locations.progression?.toFloat() ?: 0f
-                view.navigateTo(href, progression)
-            } else {
-                goAndSnapWithCover(locator)
-            }
+            navigationTarget.navigateTo(locator)
             val text = locator.text.highlight?.take(40) ?: ""
             if (text.isNotBlank()) {
                 highlightRenderer.highlightSearchMatch(
@@ -1472,19 +1455,10 @@ private fun EpubNavigatorView(
     }
 
     LaunchedEffect(annotationNavigationEvents, isContinuous) {
-        annotationNavigationEvents.collect { locator ->
-            if (isContinuous) {
-                // Bookmark locators carry CFI-derived progressions measured at content top (not the
-                // viewport midpoint that locatorAt uses), so align to top rather than midpoint.
-                continuousViewRef.value?.navigateTo(
-                    locator.href.toString(),
-                    locator.locations.progression?.toFloat() ?: 0f,
-                    alignToTop = true,
-                )
-            } else {
-                goAndSnapWithCover(locator)
-            }
-        }
+        // Bookmark locators carry CFI-derived progressions measured at content top (not the
+        // viewport midpoint that locatorAt uses), so pass alignToTop=true for continuous mode.
+        // ReadiumNavigationTarget ignores this flag — Readium handles alignment internally.
+        annotationNavigationEvents.collect { navigationTarget.navigateTo(it, alignToTop = true) }
     }
 
     // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
