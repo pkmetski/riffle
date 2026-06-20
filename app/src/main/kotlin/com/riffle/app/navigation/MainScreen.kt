@@ -273,6 +273,9 @@ fun MainScreen(
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
                     },
+                    // TODO(Task 6): wire real navigation for annotation results
+                    onAnnotationSelected = {},
+                    onShowAllAnnotations = {},
                     onSectionSeeMore = { sectionType ->
                         val encodedName = URLEncoder.encode(libraryName, "UTF-8")
                         navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
