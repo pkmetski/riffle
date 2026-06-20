@@ -769,6 +769,95 @@ class ReadingProgressLabelSourceTest {
 }
 
 /**
+ * Regression for "remaining time barely refreshes, if ever, in continuous mode."
+ *
+ * In continuous mode, buildContinuousLocator may produce a Locator without totalProgression when
+ * railSegments have not yet loaded (the positions API call is still in-flight). Two fixes:
+ *
+ *  1. onPositionChanged now falls back to computeTotalProgression when the locator's field is
+ *     absent but segments are already available.
+ *  2. A second init block (placed after the railSegments declaration to avoid a Kotlin class-init
+ *     NPE) back-fills _currentLocatorTotalProgression the moment segments arrive if no real value
+ *     was ever set from a locator.
+ *
+ * EpubReaderViewModel cannot be constructed in a JVM test (Readium needs android.net.Uri), so the
+ * fake below mirrors the exact production control flow from onPositionChanged and the backfill init
+ * block; a regression here maps directly to the ViewModel.
+ */
+class TotalProgressionFallbackTest {
+
+    private fun seg(href: String, weight: Float) = RailSegment(title = href, href = href, weight = weight)
+
+    private class Source {
+        var segments: List<RailSegment> = emptyList()
+        private var lastHref: String? = null
+        private var lastCp: Float? = null
+        val totalProgression = MutableStateFlow<Float?>(null)
+
+        fun onPositionChanged(href: String, progression: Float?, total: Float?) {
+            lastHref = href
+            lastCp = progression
+            val tp = total ?: progression?.let { computeTotalProgression(href, it, segments) }
+            tp?.let { totalProgression.value = it }
+        }
+
+        fun onSegmentsChanged(newSegments: List<RailSegment>) {
+            segments = newSegments
+            if (newSegments.isEmpty() || totalProgression.value != null) return
+            val href = lastHref ?: return
+            val cp = lastCp ?: return
+            computeTotalProgression(href, cp, newSegments)?.let { totalProgression.value = it }
+        }
+    }
+
+    @Test
+    fun `when locator has totalProgression it is used directly`() {
+        val s = Source()
+        s.segments = listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f))
+        s.onPositionChanged("ch1.xhtml", progression = 0.5f, total = 0.25f)
+        assertEquals(0.25f, s.totalProgression.value!!, 0.001f)
+    }
+
+    @Test
+    fun `when locator has no totalProgression and segments available, falls back to computeTotalProgression`() {
+        val s = Source()
+        s.segments = listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f))
+        // Continuous-mode locator: totalProgression absent, segments already loaded.
+        s.onPositionChanged("ch2.xhtml", progression = 0f, total = null)
+        // ch2 at 0% through the chapter = 50% through the book.
+        assertEquals(0.5f, s.totalProgression.value!!, 0.001f)
+    }
+
+    @Test
+    fun `when locator has no totalProgression and segments are empty, value stays null`() {
+        val s = Source()
+        s.onPositionChanged("ch1.xhtml", progression = 0.5f, total = null)
+        assertNull(s.totalProgression.value)
+    }
+
+    @Test
+    fun `when segments arrive after first scroll, totalProgression is back-filled`() {
+        val s = Source()
+        s.onPositionChanged("ch2.xhtml", progression = 0f, total = null)
+        assertNull("no segments yet — should stay null", s.totalProgression.value)
+
+        s.onSegmentsChanged(listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f)))
+        assertEquals(0.5f, s.totalProgression.value!!, 0.001f)
+    }
+
+    @Test
+    fun `backfill does not overwrite a totalProgression already set from a locator`() {
+        val s = Source()
+        s.segments = listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f))
+        s.onPositionChanged("ch2.xhtml", progression = 0f, total = 0.6f)
+
+        // Segments reload / re-emit — backfill guard must skip because value is already non-null.
+        s.onSegmentsChanged(s.segments)
+        assertEquals(0.6f, s.totalProgression.value!!, 0.001f)
+    }
+}
+
+/**
  * Unit tests for the the canonical reconciliation cycle invariants that live in EpubReaderViewModel's
  * onPositionChanged / push / readaloud-start control flow. The ViewModel itself can't be constructed
  * in a JVM test (Readium needs android.net.Uri — see the file header), so each fake mirrors the exact

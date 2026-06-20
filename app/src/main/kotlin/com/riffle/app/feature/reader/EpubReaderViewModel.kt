@@ -932,8 +932,15 @@ class EpubReaderViewModel @Inject constructor(
     fun onPositionChanged(locator: Locator) {
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
-        _currentLocatorProgression.value = locator.locations.progression?.toFloat()
-        locator.locations.totalProgression?.toFloat()?.let { _currentLocatorTotalProgression.value = it }
+        val cp = locator.locations.progression?.toFloat()
+        _currentLocatorProgression.value = cp
+        // Prefer totalProgression from the locator (Readium sets it in paginated/vertical modes).
+        // In continuous mode the locator is built by buildContinuousLocator which computes it from
+        // railSegments; if segments are empty at scroll time the field is absent. Fall back to an
+        // inline computation so the value is always populated when segments are already available.
+        val tp = locator.locations.totalProgression?.toFloat()
+            ?: cp?.let { computeTotalProgression(locator.href.toString(), it, railSegments.value) }
+        tp?.let { _currentLocatorTotalProgression.value = it }
         // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
         // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
         if (parkedFragmentRef != null) {
@@ -1397,6 +1404,23 @@ class EpubReaderViewModel @Inject constructor(
             weighted
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Back-fill totalProgression when railSegments arrives after the first position event.
+    // In continuous mode the initial scroll may fire before segments load, leaving
+    // _currentLocatorTotalProgression null. When segments become non-empty, recompute from the
+    // last known href + chapter progression so time-remaining and rail cursor update immediately.
+    // Placed after railSegments declaration so the Dispatchers.Main.immediate coroutine start
+    // does not access the field while it is still null during class initialization.
+    init {
+        viewModelScope.launch {
+            railSegments.collect { segs ->
+                if (segs.isEmpty() || _currentLocatorTotalProgression.value != null) return@collect
+                val href = _currentLocatorHref.value ?: return@collect
+                val cp = _currentLocatorProgression.value ?: return@collect
+                computeTotalProgression(href, cp, segs)?.let { _currentLocatorTotalProgression.value = it }
+            }
+        }
+    }
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
