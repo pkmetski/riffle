@@ -450,18 +450,6 @@ class EpubReaderViewModel @Inject constructor(
                 serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
             }
         }
-        // Back-fill totalProgression when railSegments arrives after the first position event.
-        // In continuous mode the initial scroll may fire before segments load, leaving
-        // _currentLocatorTotalProgression null. When segments become non-empty, recompute from the
-        // last known href + chapter progression so time-remaining and rail cursor update immediately.
-        viewModelScope.launch {
-            railSegments.collect { segs ->
-                if (segs.isEmpty() || _currentLocatorTotalProgression.value != null) return@collect
-                val href = _currentLocatorHref.value ?: return@collect
-                val cp = _currentLocatorProgression.value ?: return@collect
-                computeTotalProgression(href, cp, segs)?.let { _currentLocatorTotalProgression.value = it }
-            }
-        }
         viewModelScope.launch {
             _formattingPreferences
                 .map { it.themeSchedule to (it.theme == ReaderTheme.Auto) }
@@ -1416,6 +1404,23 @@ class EpubReaderViewModel @Inject constructor(
             weighted
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Back-fill totalProgression when railSegments arrives after the first position event.
+    // In continuous mode the initial scroll may fire before segments load, leaving
+    // _currentLocatorTotalProgression null. When segments become non-empty, recompute from the
+    // last known href + chapter progression so time-remaining and rail cursor update immediately.
+    // Placed after railSegments declaration so the Dispatchers.Main.immediate coroutine start
+    // does not access the field while it is still null during class initialization.
+    init {
+        viewModelScope.launch {
+            railSegments.collect { segs ->
+                if (segs.isEmpty() || _currentLocatorTotalProgression.value != null) return@collect
+                val href = _currentLocatorHref.value ?: return@collect
+                val cp = _currentLocatorProgression.value ?: return@collect
+                computeTotalProgression(href, cp, segs)?.let { _currentLocatorTotalProgression.value = it }
+            }
+        }
+    }
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
