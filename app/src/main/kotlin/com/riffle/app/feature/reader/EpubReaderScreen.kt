@@ -100,6 +100,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.readium.r2.navigator.DecorableNavigator
@@ -1024,6 +1025,11 @@ private fun EpubNavigatorView(
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
+    // Caches the most-recent text-selection bounding rect in CSS viewport px, populated by
+    // RiffleSelBridge on every selectionchange — before the floating action-mode toolbar fires.
+    // Written on the JS background thread; read on the main thread in onGetContentRect.
+    val pagedSelectionRectCss = remember { AtomicReference<android.graphics.RectF?>(null) }
+    val pagedSelectionRectBridge = remember { RiffleSelectionRectBridge(pagedSelectionRectCss) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -1958,8 +1964,53 @@ private fun EpubNavigatorView(
                     // insets here prevents Readium's WebViews from applying status-bar padding,
                     // which on physical devices remains non-zero even after controller.hide().
                     ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ -> WindowInsetsCompat.CONSUMED }
+                    // FrameLayout wrapper that intercepts the action-mode callback Readium passes
+                    // up via startActionModeForChild. Readium's Callback2Wrapper delegates
+                    // onGetContentRect to the native WebView callback, which returns wrong
+                    // coordinates for selections at the top of the page, placing the floating
+                    // toolbar at the bottom of the screen. By wrapping the callback here (above
+                    // FragmentContainerView, which is final) we substitute the JS-captured rect
+                    // from RiffleSelBridge (written by selectionchange before startActionMode fires)
+                    // and the toolbar anchors to the actual selection.
+                    val actionModeInterceptor = object : FrameLayout(ctx) {
+                        override fun startActionModeForChild(
+                            originalView: android.view.View,
+                            callback: android.view.ActionMode.Callback?,
+                            type: Int,
+                        ): android.view.ActionMode? {
+                            val inner = callback ?: return super.startActionModeForChild(originalView, null, type)
+                            val wrapped = object : android.view.ActionMode.Callback2() {
+                                override fun onGetContentRect(
+                                    mode: android.view.ActionMode,
+                                    view: android.view.View,
+                                    outRect: android.graphics.Rect,
+                                ) {
+                                    val cssRect = pagedSelectionRectCss.get()
+                                    if (cssRect != null && !cssRect.isEmpty) {
+                                        val dpr = view.resources.displayMetrics.density
+                                        outRect.set(
+                                            (cssRect.left * dpr).toInt(),
+                                            (cssRect.top * dpr).toInt(),
+                                            (cssRect.right * dpr).toInt(),
+                                            (cssRect.bottom * dpr).toInt(),
+                                        )
+                                    } else if (inner is android.view.ActionMode.Callback2) {
+                                        inner.onGetContentRect(mode, view, outRect)
+                                    } else {
+                                        super.onGetContentRect(mode, view, outRect)
+                                    }
+                                }
+                                override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onCreateActionMode(mode, menu)
+                                override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onPrepareActionMode(mode, menu)
+                                override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem) = inner.onActionItemClicked(mode, item)
+                                override fun onDestroyActionMode(mode: android.view.ActionMode) = inner.onDestroyActionMode(mode)
+                            }
+                            return super.startActionModeForChild(originalView, wrapped, type)
+                        }
+                    }
                     val fragmentContainer = FragmentContainerView(ctx).apply { id = containerId }
-                    addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                    actionModeInterceptor.addView(fragmentContainer, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                    addView(actionModeInterceptor, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                 }.also { containerRef.value = it }
             },
             update = { container ->
@@ -1984,7 +2035,8 @@ private fun EpubNavigatorView(
                 container.onPullEnded = { pullActive = false }
                 container.onPullProgress = { p -> pullProgress = p }
 
-                val fragmentContainer = container.getChildAt(0) as? FragmentContainerView
+                val fragmentContainer = (container.getChildAt(0) as? android.view.ViewGroup)
+                    ?.getChildAt(0) as? FragmentContainerView
                     ?: return@AndroidView
 
                 val isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
@@ -2037,6 +2089,9 @@ private fun EpubNavigatorView(
                             registerBundledFonts()
                             registerJavascriptInterface(FootnoteAnchorBridge.JS_NAME) { _ ->
                                 FootnoteAnchorBridge.bridge
+                            }
+                            registerJavascriptInterface("RiffleSelBridge") { _ ->
+                                pagedSelectionRectBridge
                             }
                             // Adds the "Play from here" item to the text-selection action bar.
                             selectionActionModeCallback = playFromHereActionMode
@@ -2385,5 +2440,16 @@ private fun AudiobookPlayerOverlay(
                 onSwitchToReadaloud = { _, atSec -> onSwitchToReadaloud(atSec) },
             )
         }
+    }
+}
+
+// Named class (not anonymous) so Android's addJavascriptInterface reflection can discover the
+// @JavascriptInterface-annotated method reliably across all API levels and R8 configurations.
+private class RiffleSelectionRectBridge(
+    private val store: java.util.concurrent.atomic.AtomicReference<android.graphics.RectF?>,
+) {
+    @android.webkit.JavascriptInterface
+    fun onRect(left: Double, top: Double, right: Double, bottom: Double) {
+        store.set(android.graphics.RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()))
     }
 }

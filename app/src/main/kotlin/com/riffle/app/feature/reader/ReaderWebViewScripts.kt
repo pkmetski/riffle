@@ -78,6 +78,12 @@ internal val SELECTION_SPAN_TRACKER_JS = """
           var rr = (rects && rects.length) ? rects[0] : rng.getBoundingClientRect();
           window.__riffleSelRect = { top: rr.top, left: rr.left, bottom: rr.bottom };
         } catch (e) { window.__riffleSelRect = null; }
+        try {
+          var br = rng.getBoundingClientRect();
+          if (window.RiffleSelBridge) {
+            window.RiffleSelBridge.onRect(br.left, br.top, br.right, br.bottom);
+          }
+        } catch (e) {}
       });
     })();
 """.trimIndent()
