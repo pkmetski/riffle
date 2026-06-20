@@ -54,10 +54,29 @@ class ExtractEpubTocUseCaseTest {
     }
 
     @Test
-    fun `returns empty when item has no ebookFileIno`() = runTest {
+    fun `falls through with unknown sentinel when ebookFileIno is null`() = runTest {
+        // Cache has no entry — extraction is attempted using "unknown" as the inode.
+        coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
+        coEvery { epubRepository.openEpub(any()) } returns
+            EpubOpenResult.NetworkError(RuntimeException("offline"))
+
         val result = useCase(makeItem(ebookFileIno = null))
+
+        // Cache was consulted (not skipped) and openEpub was called.
+        coVerify(exactly = 1) { tocRepository.getCachedToc("srv1", "item1") }
+        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
         assertTrue(result.isEmpty())
-        coVerify(exactly = 0) { tocRepository.getCachedToc(any(), any()) }
+    }
+
+    @Test
+    fun `returns cached entries when ebookFileIno is null and cache key is unknown`() = runTest {
+        val cached = listOf(TocEntry("Chapter 1", "ch1.html"))
+        coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("unknown" to cached)
+
+        val result = useCase(makeItem(ebookFileIno = null))
+
+        assertEquals(cached, result)
+        coVerify(exactly = 0) { epubRepository.openEpub(any()) }
     }
 
     @Test

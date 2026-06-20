@@ -20,7 +20,11 @@ class ExtractEpubTocUseCase @Inject constructor(
     private val tocRepository: TocRepository,
 ) {
     suspend operator fun invoke(item: LibraryItem): List<TocEntry> {
-        val inode = item.ebookFileIno ?: return emptyList()
+        // Use "unknown" when the server doesn't provide an inode (ABS < v2.36 omits
+        // ebookFile.ino from the library-items list). The cache key still works; it
+        // just won't auto-invalidate when the file is replaced on disk, which is an
+        // acceptable trade-off for older servers.
+        val inode = item.ebookFileIno ?: "unknown"
 
         val cached = tocRepository.getCachedToc(item.serverId, item.id)
         if (cached != null && cached.first == inode) return cached.second
