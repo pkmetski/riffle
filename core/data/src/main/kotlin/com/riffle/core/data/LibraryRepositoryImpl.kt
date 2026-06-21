@@ -27,6 +27,8 @@ import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
 import com.riffle.core.network.NetworkUserProgressResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -50,6 +52,10 @@ class LibraryRepositoryImpl @Inject constructor(
     private val readaloudMatchingService: ReadaloudMatchingService,
     private val storytellerReadaloudSyncer: StorytellerReadaloudSyncer,
 ) : LibraryRepository {
+
+    // Used to fire syncStale/reconcileLinks without blocking refreshLibraryItems.
+    // coroutineScope { launch {} } waits for all children, so background work needs its own scope.
+    private val backgroundScope = CoroutineScope(SupervisorJob())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeLibraries(): Flow<List<Library>> =
@@ -235,9 +241,11 @@ class LibraryRepositoryImpl @Inject constructor(
                     libraryItemDao.replaceAllForLibrary(libraryId, entities)
                     val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                     libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
-                    // syncStale and reconcileLinks are not on the critical path — run them in the
-                    // background so the refresh result is available immediately to the caller.
-                    launch {
+                    // syncStale and reconcileLinks are not on the critical path — fire them on a
+                    // detached background scope so refreshLibraryItems returns immediately after
+                    // the Room write. (launch {} inside coroutineScope {} would be a child and
+                    // would block the scope from returning.)
+                    backgroundScope.launch {
                         storytellerReadaloudSyncer.syncStale()
                         readaloudMatchingService.reconcileLinks()
                     }
