@@ -24,4 +24,5 @@ interface EpubRepository {
     fun isDownloaded(serverId: String, itemId: String): Boolean
     fun isCached(serverId: String, itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, cfi: String)
+    suspend fun loadLastPositionHref(serverId: String, itemId: String): String? = null
 }

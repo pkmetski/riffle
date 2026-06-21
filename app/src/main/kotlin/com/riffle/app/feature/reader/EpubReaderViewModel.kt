@@ -697,15 +697,28 @@ class EpubReaderViewModel @Inject constructor(
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                             ?: cfiStringToLocator(stored)
                     }
+                // When a specific TOC chapter was requested, open at its start instead of the
+                // last-read position. Build a bare chapter-start Locator so ContinuousReaderView
+                // initialises at the right chapter directly — no separate navigation event needed.
+                // This matches the paged navigator too: it uses this locator as its starting point,
+                // avoiding the async-restore race that the previous navigateToEntry approach had.
+                val initialLocator = if (startTocHref != null) {
+                    runCatching {
+                        Locator.fromJSON(
+                            JSONObject()
+                                .put("href", startTocHref)
+                                .put("type", "application/xhtml+xml")
+                                .put("locations", JSONObject().put("progression", 0.0))
+                        )
+                    }.getOrNull() ?: locator
+                } else {
+                    locator
+                }
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
-                    // When navigating to a specific TOC entry, suppress the last-position restore so
-                    // Readium's async restore doesn't race with and overwrite our navigateToEntry call.
-                    initialLocator = if (startTocHref == null) locator else null,
+                    initialLocator = initialLocator,
                 )
-                // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
-                startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()

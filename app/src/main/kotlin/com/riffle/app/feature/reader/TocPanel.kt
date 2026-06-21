@@ -59,7 +59,7 @@ private fun TocEntryRow(
         }
         return
     }
-    val isActive = entry.href == activeHref
+    val isActive = activeHref != null && entry.href.trimStart('/') == activeHref.trimStart('/')
     Column {
         Text(
             text = entry.title,

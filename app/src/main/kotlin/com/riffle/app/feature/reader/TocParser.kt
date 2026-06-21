@@ -13,7 +13,7 @@ fun List<Link>.toTocEntries(): List<TocEntry> = map { link ->
 
 fun findActiveEntry(entries: List<TocEntry>, currentHref: String): TocEntry? {
     for (entry in entries) {
-        if (entry.href == currentHref) return entry
+        if (entry.href.trimStart('/') == currentHref.trimStart('/')) return entry
         val child = findActiveEntry(entry.children, currentHref)
         if (child != null) return child
     }

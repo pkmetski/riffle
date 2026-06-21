@@ -345,6 +345,7 @@ fun EpubReaderScreen(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         railSegments = railSegments,
+                        formattingPrefsProvider = { viewModel.effectiveFormattingPreferences.value },
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
@@ -973,6 +974,7 @@ private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
     railSegments: List<RailSegment>,
+    formattingPrefsProvider: () -> FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
@@ -1372,14 +1374,19 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
-    LaunchedEffect(onNavigationEvents, isContinuous) {
+    LaunchedEffect(onNavigationEvents) {
         onNavigationEvents.collect { link ->
             // In Continuous mode the Readium fragment is a server-keeper only (invisible,
             // height=0): fragment.go() would suspend forever on the invisible WebView, leaving
             // navigating=true and covering the reader with a permanent blank overlay. So TOC entries,
             // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
             // instead of the fragment.
-            if (isContinuous) {
+            //
+            // Read mode directly from the ViewModel StateFlow rather than the Compose-collected
+            // formattingPrefs. On a startup navigation from item-details, loadFormattingPreferences()
+            // has already set the StateFlow to the correct value before the event is sent, but the
+            // Compose state may not have caught up yet (collectAsState may not have re-rendered).
+            if (formattingPrefsProvider().orientation == ReaderOrientation.Continuous) {
                 // Wait for the view to be ready and initialized. continuousViewRef is set in the
                 // AndroidView factory (immediately on view creation) but allChapters is only
                 // populated in a separate LaunchedEffect(continuousView) that calls initialize().

@@ -130,6 +130,18 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val _chaptersState = MutableStateFlow<ChaptersState>(ChaptersState.Loading)
     val chaptersState: StateFlow<ChaptersState> = _chaptersState.asStateFlow()
 
+    private val _currentPositionHref = MutableStateFlow<String?>(null)
+    val currentPositionHref: StateFlow<String?> = _currentPositionHref.asStateFlow()
+
+    fun reloadCurrentPositionHref() {
+        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val item = ready.item
+        if (item.ebookFormat != EbookFormat.Epub) return
+        viewModelScope.launch {
+            _currentPositionHref.value = epubRepository.loadLastPositionHref(item.serverId, item.id)
+        }
+    }
+
     var authToken: String by mutableStateOf("")
         private set
 
@@ -192,14 +204,13 @@ class LibraryItemDetailViewModel @Inject constructor(
                 val item = initialReady.item
                 if (item.ebookFormat == EbookFormat.Epub) {
                     launch {
-                        val entries = extractEpubTocUseCase(item)
-                        _tocState.value = TocState.Ready(entries)
+                        _currentPositionHref.value = epubRepository.loadLastPositionHref(item.serverId, item.id)
+                        _tocState.value = TocState.Ready(extractEpubTocUseCase(item))
                     }
                 }
                 if (item.isListenable) {
                     launch {
-                        val chapters = fetchAudiobookChaptersUseCase(item)
-                        _chaptersState.value = ChaptersState.Ready(chapters)
+                        _chaptersState.value = ChaptersState.Ready(fetchAudiobookChaptersUseCase(item))
                     }
                 }
             }

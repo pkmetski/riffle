@@ -60,6 +60,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -76,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.app.feature.reader.TocPanel
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.domain.EbookFormat
@@ -104,12 +108,20 @@ fun LibraryItemDetailScreen(
     val audiobookDownloadState by viewModel.audiobookDownloadState.collectAsState()
     val tocState by viewModel.tocState.collectAsState()
     val chaptersState by viewModel.chaptersState.collectAsState()
+    val currentPositionHref by viewModel.currentPositionHref.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(viewModel) {
         viewModel.snackbarEvents.collect { message ->
             snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, viewModel) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.reloadCurrentPositionHref()
         }
     }
 
@@ -195,6 +207,7 @@ fun LibraryItemDetailScreen(
                         audiobookDownloadState = audiobookDownloadState,
                         tocState = tocState,
                         chaptersState = chaptersState,
+                        currentPositionHref = currentPositionHref,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -225,6 +238,7 @@ fun LibraryItemDetailScreen(
                         audiobookDownloadState = audiobookDownloadState,
                         tocState = tocState,
                         chaptersState = chaptersState,
+                        currentPositionHref = currentPositionHref,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -255,6 +269,7 @@ fun LibraryItemDetailScreen(
                         audiobookDownloadState = audiobookDownloadState,
                         tocState = tocState,
                         chaptersState = chaptersState,
+                        currentPositionHref = currentPositionHref,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -316,6 +331,7 @@ private fun LibraryItemDetailContent(
     audiobookDownloadState: DownloadState? = null,
     tocState: TocState = TocState.Loading,
     chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -467,9 +483,13 @@ private fun LibraryItemDetailContent(
 
     if (showTocSheet) {
         val entries = (tocState as? TocState.Ready)?.entries ?: emptyList()
-        ItemTocSheet(
+        TocPanel(
             entries = entries,
-            onEntryClick = { entry -> onReadItemAtHref(item, entry.href) },
+            activeHref = currentPositionHref,
+            onEntryClick = { entry ->
+                onReadItemAtHref(item, entry.href)
+                showTocSheet = false
+            },
             onDismiss = { showTocSheet = false },
         )
     }
@@ -527,6 +547,7 @@ internal fun LibraryItemDetailContentTablet(
     audiobookDownloadState: DownloadState? = null,
     tocState: TocState = TocState.Loading,
     chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -685,9 +706,13 @@ internal fun LibraryItemDetailContentTablet(
 
     if (showTocSheet) {
         val entries = (tocState as? TocState.Ready)?.entries ?: emptyList()
-        ItemTocSheet(
+        TocPanel(
             entries = entries,
-            onEntryClick = { entry -> onReadItemAtHref(item, entry.href) },
+            activeHref = currentPositionHref,
+            onEntryClick = { entry ->
+                onReadItemAtHref(item, entry.href)
+                showTocSheet = false
+            },
             onDismiss = { showTocSheet = false },
         )
     }
@@ -723,6 +748,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     audiobookDownloadState: DownloadState? = null,
     tocState: TocState = TocState.Loading,
     chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -868,9 +894,13 @@ internal fun LibraryItemDetailContentPhoneLandscape(
 
     if (showTocSheet) {
         val entries = (tocState as? TocState.Ready)?.entries ?: emptyList()
-        ItemTocSheet(
+        TocPanel(
             entries = entries,
-            onEntryClick = { entry -> onReadItemAtHref(item, entry.href) },
+            activeHref = currentPositionHref,
+            onEntryClick = { entry ->
+                onReadItemAtHref(item, entry.href)
+                showTocSheet = false
+            },
             onDismiss = { showTocSheet = false },
         )
     }
