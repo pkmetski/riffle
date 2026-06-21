@@ -700,7 +700,9 @@ class EpubReaderViewModel @Inject constructor(
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
-                    initialLocator = locator,
+                    // When navigating to a specific TOC entry, suppress the last-position restore so
+                    // Readium's async restore doesn't race with and overwrite our navigateToEntry call.
+                    initialLocator = if (startTocHref == null) locator else null,
                 )
                 // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
                 startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
