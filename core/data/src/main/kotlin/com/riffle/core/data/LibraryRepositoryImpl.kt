@@ -27,6 +27,9 @@ import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
 import com.riffle.core.network.NetworkUserProgressResult
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -176,61 +179,72 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        val serverProgressMap = when (val r = api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed)) {
-            is NetworkUserProgressResult.Success -> r.byItemId
-            is NetworkUserProgressResult.NetworkError -> emptyMap()
-        }
-        return when (val result = api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
-            is NetworkLibraryItemsResult.Success -> {
-                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
-                val entities = result.items
-                    .sortedByDescending { it.isSupported }
-                    .distinctBy { it.title.trim().lowercase() }
-                    .map { item ->
-                        val serverProgress = serverProgressMap[item.id]
-                        LibraryItemEntity(
-                            serverId = server.id,
-                            id = item.id,
-                            libraryId = item.libraryId,
-                            title = item.title,
-                            author = item.author,
-                            coverUrl = absCoverUrl(server.url.value, item.id, item.updatedAt),
-                            // For an audiobook-only item the ABS user-progress fallback already maps
-                            // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
-                            // progress), so this single field is the unified "how far through this
-                            // item" value that surfaces audiobooks in In Progress too (ADR 0029).
-                            // Note: for existing items the DAO's updateMetadata ignores this field and
-                            // preserves the locally-tracked value. It is only used when inserting a
-                            // new item for the first time.
-                            readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
-                            ebookFileIno = item.ebookFileIno,
-                            ebookFormat = item.ebookFormat.toStorageString(),
-                            hasAudio = item.hasAudio,
-                            audioDurationSec = item.audioDurationSec,
-                            description = item.description,
-                            seriesName = item.seriesName,
-                            publishedYear = item.publishedYear,
-                            genres = item.genres.joinToString(","),
-                            publisher = item.publisher,
-                            language = item.language,
-                            // Surface the most recent read activity across devices: pick whichever
-                            // of (local stamp, server's mediaProgress.lastUpdate) is later. Either
-                            // can lead — the local stamp wins between syncs on this device, the
-                            // server stamp wins once another device has read more recently.
-                            lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
-                            addedAt = item.addedAt,
-                            isbn = item.isbn,
-                            asin = item.asin,
-                        )
-                    }
-                libraryItemDao.replaceAllForLibrary(libraryId, entities)
-                val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
-                libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
-                storytellerReadaloudSyncer.syncStale()
-                readaloudMatchingService.reconcileLinks()
-                LibraryRefreshResult.Success
+        return coroutineScope {
+            // Fire both calls simultaneously: user-progress and library items are independent
+            // requests. Total latency = max(getUserProgress, getLibraryItems) instead of their sum.
+            val progressDeferred = async { api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed) }
+            val itemsDeferred = async { api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed) }
+
+            val serverProgressMap = when (val r = progressDeferred.await()) {
+                is NetworkUserProgressResult.Success -> r.byItemId
+                is NetworkUserProgressResult.NetworkError -> emptyMap()
             }
-            is NetworkLibraryItemsResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
+            when (val result = itemsDeferred.await()) {
+                is NetworkLibraryItemsResult.Success -> {
+                    val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
+                    val entities = result.items
+                        .sortedByDescending { it.isSupported }
+                        .distinctBy { it.title.trim().lowercase() }
+                        .map { item ->
+                            val serverProgress = serverProgressMap[item.id]
+                            LibraryItemEntity(
+                                serverId = server.id,
+                                id = item.id,
+                                libraryId = item.libraryId,
+                                title = item.title,
+                                author = item.author,
+                                coverUrl = absCoverUrl(server.url.value, item.id, item.updatedAt),
+                                // For an audiobook-only item the ABS user-progress fallback already maps
+                                // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
+                                // progress), so this single field is the unified "how far through this
+                                // item" value that surfaces audiobooks in In Progress too (ADR 0029).
+                                // Note: for existing items the DAO's updateMetadata ignores this field and
+                                // preserves the locally-tracked value. It is only used when inserting a
+                                // new item for the first time.
+                                readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
+                                ebookFileIno = item.ebookFileIno,
+                                ebookFormat = item.ebookFormat.toStorageString(),
+                                hasAudio = item.hasAudio,
+                                audioDurationSec = item.audioDurationSec,
+                                description = item.description,
+                                seriesName = item.seriesName,
+                                publishedYear = item.publishedYear,
+                                genres = item.genres.joinToString(","),
+                                publisher = item.publisher,
+                                language = item.language,
+                                // Surface the most recent read activity across devices: pick whichever
+                                // of (local stamp, server's mediaProgress.lastUpdate) is later. Either
+                                // can lead — the local stamp wins between syncs on this device, the
+                                // server stamp wins once another device has read more recently.
+                                lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
+                                addedAt = item.addedAt,
+                                isbn = item.isbn,
+                                asin = item.asin,
+                            )
+                        }
+                    libraryItemDao.replaceAllForLibrary(libraryId, entities)
+                    val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
+                    libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
+                    // syncStale and reconcileLinks are not on the critical path — run them in the
+                    // background so the refresh result is available immediately to the caller.
+                    launch {
+                        storytellerReadaloudSyncer.syncStale()
+                        readaloudMatchingService.reconcileLinks()
+                    }
+                    LibraryRefreshResult.Success
+                }
+                is NetworkLibraryItemsResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
+            }
         }
     }
 
