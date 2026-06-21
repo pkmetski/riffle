@@ -697,28 +697,20 @@ class EpubReaderViewModel @Inject constructor(
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                             ?: cfiStringToLocator(stored)
                     }
-                // When a specific TOC chapter was requested, open at its start instead of the
-                // last-read position. Build a bare chapter-start Locator so ContinuousReaderView
-                // initialises at the right chapter directly — no separate navigation event needed.
-                // This matches the paged navigator too: it uses this locator as its starting point,
-                // avoiding the async-restore race that the previous navigateToEntry approach had.
-                val initialLocator = if (startTocHref != null) {
-                    runCatching {
-                        Locator.fromJSON(
-                            JSONObject()
-                                .put("href", startTocHref)
-                                .put("type", "application/xhtml+xml")
-                                .put("locations", JSONObject().put("progression", 0.0))
-                        )
-                    }.getOrNull() ?: locator
-                } else {
-                    locator
-                }
+                // When a TOC chapter is requested, pass null as initialLocator so Readium's
+                // async restore doesn't race with the navigateToEntry nav event. Navigation
+                // ownership is handed entirely to navigateToEntry, which waits for
+                // ContinuousReaderView.isInitialized before calling navigateTo. The paged
+                // navigator similarly receives null and lets fragment.go() handle it.
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
-                    initialLocator = initialLocator,
+                    initialLocator = if (startTocHref == null) locator else null,
                 )
+                // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
+                // formattingPrefsProvider in the nav event handler ensures the correct continuous vs
+                // paged path is taken even when Compose state hasn't caught up yet.
+                startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
