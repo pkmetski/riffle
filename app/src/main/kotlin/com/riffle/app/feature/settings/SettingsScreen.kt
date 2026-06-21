@@ -61,6 +61,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.reader.behaviorSummary
@@ -139,9 +140,12 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
             ) {
+                HorizontalDivider()
+
                 Text(
                     text = "Servers",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
@@ -224,6 +228,7 @@ fun SettingsScreen(
                 Text(
                     text = "Appearance",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
@@ -236,6 +241,7 @@ fun SettingsScreen(
                 Text(
                     text = "Reading",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
@@ -263,9 +269,12 @@ fun SettingsScreen(
                         TextButton(onClick = { showBehaviorPanel = true }) { Text("Edit") }
                     },
                 )
+                HorizontalDivider()
+
                 Text(
                     text = "Listening",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
@@ -282,6 +291,7 @@ fun SettingsScreen(
                 Text(
                     text = "Readaloud",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
@@ -334,6 +344,7 @@ fun SettingsScreen(
                 Text(
                     text = "Crash reports",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
@@ -380,6 +391,7 @@ fun SettingsScreen(
                 Text(
                     text = "App version",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
