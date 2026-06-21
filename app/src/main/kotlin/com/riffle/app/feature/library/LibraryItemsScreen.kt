@@ -181,7 +181,7 @@ fun LibraryItemsScreen(
                 // Re-check the server on every resume (e.g. wake from sleep) so a stale offline
                 // banner left by an earlier failed refresh clears immediately, rather than only
                 // when the periodic retry next fires.
-                viewModel.refresh()
+                viewModel.onScreenResumed()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

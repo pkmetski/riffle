@@ -318,6 +318,17 @@ class LibraryItemsViewModel @Inject constructor(
         savedStateHandle[KEY_SEARCH_QUERY] = query
     }
 
+    private var lastRefreshCompletedAt = 0L
+
+    /** Called from ON_RESUME. Skips if a refresh completed within the last 30s to avoid a
+     * redundant network round-trip when the library screen first enters RESUMED state immediately
+     * after init (which already launched its own refresh). */
+    fun onScreenResumed() {
+        if (System.currentTimeMillis() - lastRefreshCompletedAt > RESUME_REFRESH_DEBOUNCE_MS) {
+            refresh()
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch { runRefresh() }
     }
@@ -331,6 +342,7 @@ class LibraryItemsViewModel @Inject constructor(
         val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
         toReadDeferred.await()
         _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
+        lastRefreshCompletedAt = System.currentTimeMillis()
     }
 
     private fun filterCollectionsOffline(collections: List<Collection>, offline: Boolean): Flow<List<Collection>> {
@@ -354,5 +366,6 @@ class LibraryItemsViewModel @Inject constructor(
     private companion object {
         const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
         const val KEY_SEARCH_QUERY = "searchQuery"
+        const val RESUME_REFRESH_DEBOUNCE_MS = 30_000L
     }
 }
