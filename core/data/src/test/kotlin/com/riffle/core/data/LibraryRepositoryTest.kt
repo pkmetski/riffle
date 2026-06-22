@@ -530,6 +530,31 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `refreshLibraryItems persists finishedAt from server progress`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibrariesResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkLibraryItemsResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 1f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean) =
+                com.riffle.core.network.NetworkUserProgressResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 1f, lastUpdate = 1_000L, finishedAt = 1_700_000_000_000L))
+                )
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkSeriesResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
+                NetworkCollectionResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(1_700_000_000_000L, dao.itemsFor("lib-1").first().finishedAt)
+    }
+
+    @Test
     fun `refreshLibraryItems persists addedAt from network`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"

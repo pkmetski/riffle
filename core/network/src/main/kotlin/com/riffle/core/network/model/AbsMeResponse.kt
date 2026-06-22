@@ -12,5 +12,6 @@ internal data class AbsMeResponse(
         val ebookProgress: Float? = null,
         val progress: Float = 0f,
         val lastUpdate: Long? = null,
+        val finishedAt: Long? = null,
     )
 }

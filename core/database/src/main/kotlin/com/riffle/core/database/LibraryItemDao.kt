@@ -89,7 +89,7 @@ interface LibraryItemDao {
     """)
     fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY title ASC")
+    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
     fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
@@ -103,6 +103,9 @@ interface LibraryItemDao {
 
     @Query("UPDATE library_items SET readingProgress = :progress WHERE serverId = :serverId AND id = :itemId")
     suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float)
+
+    @Query("UPDATE library_items SET finishedAt = :finishedAt WHERE serverId = :serverId AND id = :itemId")
+    suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?)
 
     @Query("SELECT id, lastOpenedAt FROM library_items WHERE libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
     suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow>
@@ -153,6 +156,7 @@ data class LibraryItemMetadata(
     val addedAt: Long?,
     val isbn: String?,
     val asin: String?,
+    val finishedAt: Long?,
 ) {
     companion object {
         fun from(entity: LibraryItemEntity) = LibraryItemMetadata(
@@ -176,6 +180,7 @@ data class LibraryItemMetadata(
             addedAt = entity.addedAt,
             isbn = entity.isbn,
             asin = entity.asin,
+            finishedAt = entity.finishedAt,
         )
     }
 }

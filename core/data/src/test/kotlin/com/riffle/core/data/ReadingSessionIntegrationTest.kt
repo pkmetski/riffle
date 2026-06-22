@@ -77,6 +77,7 @@ class ReadingSessionIntegrationTest {
             override suspend fun load(serverId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
             override suspend fun clear(serverId: String, itemId: String) = Unit
         },
+        libraryItemDao = FakeLibraryItemDao(),
     )
 
     @Test

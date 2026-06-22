@@ -121,5 +121,7 @@ internal class FakeLibraryItemDao : LibraryItemDao {
 
     override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
 
+    override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) {}
+
     override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> = emptyList()
 }
