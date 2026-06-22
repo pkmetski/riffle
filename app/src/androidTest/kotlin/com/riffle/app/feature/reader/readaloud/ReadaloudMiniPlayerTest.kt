@@ -87,9 +87,9 @@ class ReadaloudMiniPlayerTest {
     @Test
     fun tappingTheValue_opensTheSpeedSheet() {
         setPlayer(speed = 1.4f)
-        rule.onNodeWithTag("readaloud_speed_slider_card").assertDoesNotExist()
+        rule.onNodeWithTag("readaloud_speed_display").assertDoesNotExist()
         rule.onNodeWithTag("readaloud_speed").performClick()
-        rule.onNodeWithTag("readaloud_speed_slider").assertIsDisplayed()
+        rule.onNodeWithTag("readaloud_speed_display").assertIsDisplayed()
     }
 
     @Test
