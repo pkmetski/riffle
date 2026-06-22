@@ -30,6 +30,10 @@ class AnnotationStoreTest {
         override suspend fun upsert(entity: AnnotationEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }
+        override suspend fun upsertAll(annotations: List<AnnotationEntity>) {
+            val idsToRemove = annotations.map { it.id }.toSet()
+            rows.value = rows.value.filterNot { it.id in idsToRemove } + annotations
+        }
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
                 if (it.id == id) it.copy(deleted = true, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
