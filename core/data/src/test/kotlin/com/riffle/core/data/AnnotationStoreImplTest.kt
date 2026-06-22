@@ -29,6 +29,11 @@ class AnnotationStoreImplTest {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }
 
+        override suspend fun upsertAll(annotations: List<AnnotationEntity>) {
+            val idsToReplace = annotations.map { it.id }.toSet()
+            rows.value = rows.value.filterNot { it.id in idsToReplace } + annotations
+        }
+
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
                 if (it.id == id) it.copy(deleted = true, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it

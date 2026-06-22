@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -35,6 +36,9 @@ interface AnnotationDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: AnnotationEntity)
+
+    @Upsert
+    suspend fun upsertAll(annotations: List<AnnotationEntity>)
 
     /** Tombstone an annotation so the delete can later propagate to other devices. */
     @Query("UPDATE annotations SET deleted = 1, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
