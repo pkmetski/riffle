@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookPositionEntity::class,
         AudiobookBookmarkEntity::class,
     ],
-    version = 39,
+    version = 40,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -760,6 +760,14 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `readaloud_links` ADD COLUMN `identityResult` TEXT NOT NULL DEFAULT 'UNKNOWN'"
                 )
+            }
+        }
+
+        // Store the ABS-reported finish timestamp so the Completed section can sort by
+        // most-recently-finished (matching ABS's own ordering) instead of alphabetically.
+        val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `finishedAt` INTEGER")
             }
         }
     }

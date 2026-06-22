@@ -41,4 +41,5 @@ data class LibraryItemEntity(
     val addedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
+    val finishedAt: Long? = null,
 )

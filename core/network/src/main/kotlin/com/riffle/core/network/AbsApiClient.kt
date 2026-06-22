@@ -143,6 +143,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                         // `ebookProgress` no longer shadows a real audiobook position (ADR 0029).
                         ebookProgress = it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress,
                         lastUpdate = it.lastUpdate,
+                        finishedAt = it.finishedAt,
                     )
                 }
             NetworkUserProgressResult.Success(byItemId)

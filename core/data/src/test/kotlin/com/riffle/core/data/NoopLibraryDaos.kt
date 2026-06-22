@@ -29,6 +29,7 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
     override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) = Unit
     override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) = Unit
+    override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) = Unit
     override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
     override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
     override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> = emptyList()

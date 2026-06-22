@@ -1693,6 +1693,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_36_37,
             RiffleDatabase.MIGRATION_37_38,
             RiffleDatabase.MIGRATION_38_39,
+            RiffleDatabase.MIGRATION_39_40,
         )
 
         db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
@@ -1701,6 +1702,41 @@ class MigrationTest {
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("", cursor.getString(1))
             assertEquals("AUDIOBOOKSHELF", cursor.getString(2))
+        }
+    }
+
+    @Test
+    fun migration39To40_addsFinishedAtToLibraryItems() {
+        helper.createDatabase(TEST_DB, 39).use { db ->
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('abs', 'http://abs', 1, 0, 'test', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) " +
+                    "VALUES ('lib1', 'Books', 'book', 'abs', 0)"
+            )
+            db.execSQL(
+                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, " +
+                    "ebookFormat, genres, hasAudio, audioDurationSec) " +
+                    "VALUES ('abs', 'item1', 'lib1', 'Dune', 'Herbert', NULL, 1.0, 'epub', '', 0, 0.0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 40, true, RiffleDatabase.MIGRATION_39_40)
+
+        // Pre-existing rows get NULL finishedAt — column exists and is nullable.
+        db.query("SELECT finishedAt FROM library_items WHERE id = 'item1' AND serverId = 'abs'").use { cursor ->
+            assertEquals(1, cursor.count)
+            cursor.moveToFirst()
+            assertNull(cursor.getLong(0).takeIf { !cursor.isNull(0) })
+        }
+
+        // Column is writable.
+        db.execSQL("UPDATE library_items SET finishedAt = 1700000000000 WHERE id = 'item1'")
+        db.query("SELECT finishedAt FROM library_items WHERE id = 'item1' AND serverId = 'abs'").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1700000000000L, cursor.getLong(0))
         }
     }
 }

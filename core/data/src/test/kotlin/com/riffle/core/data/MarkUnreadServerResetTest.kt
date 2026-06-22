@@ -123,6 +123,7 @@ class MarkUnreadServerResetTest {
             override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
             override suspend fun clear(serverId: String, itemId: String) = Unit
         },
+        libraryItemDao = FakeLibraryItemDao(),
     )
 
     // The crux of the phantom: an audiobook item read to the middle. After mark-unread the server's

@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadaloudResumeStore
@@ -24,6 +25,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     private val positionStore: ReadingPositionStore,
     private val audiobookPositionStore: AudiobookPositionStore,
     private val readaloudResumeStore: ReadaloudResumeStore,
+    private val libraryItemDao: LibraryItemDao,
 ) : ReadingSessionRepository {
 
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult {
@@ -114,6 +116,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         // Bump before token check: marks the record dirty so the sync cycle pushes it
         // even if the token is missing right now.
         positionStore.updateLocalTimestamp(server.id, itemId, now)
+        libraryItemDao.updateFinishedAt(server.id, itemId, if (finished) now else null)
         val token = tokenStorage.getToken(server.id) ?: return
         api.syncEbookProgress(
             server.url.value, itemId,

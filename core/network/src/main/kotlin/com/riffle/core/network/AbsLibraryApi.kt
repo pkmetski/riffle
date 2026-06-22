@@ -3,6 +3,7 @@ package com.riffle.core.network
 data class NetworkUserMediaProgress(
     val ebookProgress: Float?,
     val lastUpdate: Long?,
+    val finishedAt: Long? = null,
 )
 
 sealed class NetworkUserProgressResult {

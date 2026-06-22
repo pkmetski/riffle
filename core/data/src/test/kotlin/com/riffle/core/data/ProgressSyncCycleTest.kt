@@ -123,6 +123,7 @@ class ProgressSyncCycleTest {
             positionStore = positionStore,
             audiobookPositionStore = audiobookPositionStore,
             readaloudResumeStore = readaloudResumeStore,
+            libraryItemDao = FakeLibraryItemDao(),
         )
 
     private val payload = SessionPayload("epubcfi(/6/4!/4/1:0)", 0.25f)
