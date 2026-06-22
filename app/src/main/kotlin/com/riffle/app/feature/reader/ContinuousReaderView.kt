@@ -152,6 +152,26 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private var shiftPending = false
 
+    /**
+     * Set after a forward shift so the very next [maybeShift] cycle suppresses the backward-shift
+     * check. Without this guard, a short first chapter (shorter than the viewport) triggers an
+     * immediate backward shift in the next cycle after every forward shift:
+     *
+     *   - Forward shift fires (midpoint crosses into ch[N+1]).
+     *   - [removeTop] compensates: scrollY -= ch[N-1].height → new scrollY ≈ ch[N].height − viewport/2.
+     *   - When ch[N] is shorter than the viewport (e.g. a "CHILDREN OF DUNE" divider page of ~1050 px
+     *     on a 2048 px screen), new scrollY ≈ 26 px, which is < ch[N].height/2 = 525 px.
+     *   - The next maybeShift sees sY < firstChapterHeight/2 → backward shift fires.
+     *   - Backward shift: prepend ch[N-1], scrollBy(+placeholder) → scrollY rebounds to ~827 px.
+     *   - That change triggers another maybeShift → forward shift fires again → oscillation.
+     *
+     * Suppressing the backward check for ONE cycle absorbs the reactive scrollBy from [removeTop]
+     * without affecting deliberate backward scrolling: any subsequent maybeShift is triggered by
+     * real user input (the fling continued or the user started a new gesture), at which point scrollY
+     * has moved past the threshold or the user genuinely wants to go back.
+     */
+    private var justShiftedForward = false
+
     /** True while rebuilding the window after a WebView renderer-process death (debounces the
      * per-WebView onRenderProcessGone events that all fire at once). */
     private var rendererRecovering = false
@@ -844,7 +864,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // of the reader (see ContinuousPositionTracker.forwardShiftNeeded).
         val firstChapterHeight = window.firstOrNull()?.height ?: 0
         val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
-        val shouldShiftBackward = sY < firstChapterHeight / 2 && topIndex > 0
+        // Consume the justShiftedForward guard before evaluating either direction so it clears
+        // regardless of which branch (or neither) fires this cycle.
+        val skipBackward = justShiftedForward
+        justShiftedForward = false
+        val shouldShiftBackward = !skipBackward && sY < firstChapterHeight / 2 && topIndex > 0
         val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(
             viewportChapterIndex = viewportMidIndex,
             topIndex = topIndex,
@@ -868,6 +892,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 val nextIndex = topIndex + webViews.size
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
                 shiftInProgress = false
+                // Guard the very next maybeShift cycle against an immediate backward-shift
+                // reaction. See [justShiftedForward] for the full explanation.
+                justShiftedForward = true
             }
         }
     }

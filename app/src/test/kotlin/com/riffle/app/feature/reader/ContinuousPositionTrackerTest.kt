@@ -136,6 +136,88 @@ class ContinuousPositionTrackerTest {
         ))
     }
 
+    // ── forward→backward oscillation — the "Children of Dune / Introduction" bug ──────────
+    //
+    // A short chapter (height < viewport) as the new first slot after a forward shift causes the
+    // post-shift scrollY to satisfy the backward-shift condition (sY < firstChapterHeight/2),
+    // creating an infinite loop. ContinuousReaderView.maybeShift() guards against this with the
+    // justShiftedForward flag that suppresses the backward check for exactly one cycle.
+    // These tests pin the mathematical invariant that makes that guard necessary.
+
+    @Test
+    fun `short new-first chapter — post-forward-shift scrollY always satisfies backward-shift condition`() {
+        // Scenario: user scrolls forward through a short "CHILDREN OF DUNE" divider page (ch_N,
+        // height H1 = 1050 device-px on a 2048-px screen) into the following "Introduction" chapter.
+        // The forward shift removes ch_N-1 (H0) and adjusts scrollY = old_scrollY - H0.
+        // The minimum old_scrollY that triggers the forward shift is H0 + H1 - viewport/2,
+        // so the post-shift scrollY_min = H1 - viewport/2.
+        //
+        // Backward-shift condition: scrollY < firstChapterHeight/2.
+        // For H1 < viewport: H1 - viewport/2 < H1/2, so the condition is always satisfied —
+        // i.e. a backward shift fires in the very next cycle without the justShiftedForward guard.
+        val viewport = 2048
+        val H0 = 30_000   // large chapter removed by the forward shift
+        val H1 = 1_050    // short divider page — height < viewport
+
+        // Post-shift scrollY: after removeTop subtracts H0 from the minimum trigger scrollY.
+        val postShiftScrollY = (H0 + H1 - viewport / 2) - H0
+        assertEquals("post-shift scrollY = H1 - viewport/2", H1 - viewport / 2, postShiftScrollY)
+
+        // Backward-shift threshold for the new first chapter (H1):
+        val backwardThreshold = H1 / 2
+        assertTrue(
+            "Without justShiftedForward, a backward shift fires: scrollY=$postShiftScrollY < threshold=$backwardThreshold",
+            postShiftScrollY < backwardThreshold,
+        )
+    }
+
+    @Test
+    fun `tall new-first chapter — post-forward-shift scrollY does NOT satisfy backward-shift condition`() {
+        // A tall chapter (height >> viewport) as the new first slot is the normal case: the
+        // post-shift scrollY lands deep inside it, well above firstChapterHeight/2, so no
+        // spurious backward shift fires and no guard is needed for this path.
+        val viewport = 2048
+        val H0 = 30_000   // large chapter removed by the forward shift
+        val H1 = 50_000   // tall new first chapter (normal body chapter)
+
+        val postShiftScrollY = (H0 + H1 - viewport / 2) - H0
+        val backwardThreshold = H1 / 2
+        assertFalse(
+            "Tall chapter: scrollY=$postShiftScrollY must NOT be < threshold=$backwardThreshold",
+            postShiftScrollY < backwardThreshold,
+        )
+    }
+
+    @Test
+    fun `oscillation threshold — any chapter shorter than viewport triggers the bug`() {
+        // The backward shift fires when: postShiftScrollY = H1 - viewport/2 < H1/2
+        // This simplifies to: H1 < viewport. Verify for a range of short-chapter heights.
+        val viewport = 2048
+        for (H1 in listOf(200, 400, 800, 1000, 1050, 1500, 1999)) {
+            val postShiftScrollY = H1 - viewport / 2
+            val backwardThreshold = H1 / 2
+            assertTrue(
+                "Chapter of $H1 px (< viewport $viewport) must trigger oscillation without guard: " +
+                    "postShiftScrollY=$postShiftScrollY, threshold=$backwardThreshold",
+                postShiftScrollY < backwardThreshold,
+            )
+        }
+    }
+
+    @Test
+    fun `oscillation threshold — chapters at least as tall as viewport do not trigger the bug`() {
+        val viewport = 2048
+        for (H1 in listOf(2048, 3000, 5000, 10_000, 50_000)) {
+            val postShiftScrollY = H1 - viewport / 2
+            val backwardThreshold = H1 / 2
+            assertFalse(
+                "Chapter of $H1 px (>= viewport $viewport) must NOT trigger oscillation: " +
+                    "postShiftScrollY=$postShiftScrollY, threshold=$backwardThreshold",
+                postShiftScrollY < backwardThreshold,
+            )
+        }
+    }
+
     // ── internalLinkHref ──────────────────────────────────────────────────────
 
     @Test
