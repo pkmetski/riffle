@@ -71,8 +71,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     data class ChapterEntry(val link: Link, val url: String)
 
-    /** Called on main thread when position changes; supplies `href` and `progression`. */
-    var onPositionChanged: ((href: String, progression: Float) -> Unit)? = null
+    /** Called on main thread when scroll position changes; emits raw `(href, progression)` — NOT a full Locator. */
+    var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
 
     /**
      * Called on main thread when the user taps a chapter without scrolling.
@@ -169,25 +169,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private var shiftPending = false
 
-    /**
-     * Set after a forward shift so the very next [maybeShift] cycle suppresses the backward-shift
-     * check. Without this guard, a short first chapter (shorter than the viewport) triggers an
-     * immediate backward shift in the next cycle after every forward shift:
-     *
-     *   - Forward shift fires (midpoint crosses into ch[N+1]).
-     *   - [removeTop] compensates: scrollY -= ch[N-1].height → new scrollY ≈ ch[N].height − viewport/2.
-     *   - When ch[N] is shorter than the viewport (e.g. a "CHILDREN OF DUNE" divider page of ~1050 px
-     *     on a 2048 px screen), new scrollY ≈ 26 px, which is < ch[N].height/2 = 525 px.
-     *   - The next maybeShift sees sY < firstChapterHeight/2 → backward shift fires.
-     *   - Backward shift: prepend ch[N-1], scrollBy(+placeholder) → scrollY rebounds to ~827 px.
-     *   - That change triggers another maybeShift → forward shift fires again → oscillation.
-     *
-     * Suppressing the backward check for ONE cycle absorbs the reactive scrollBy from [removeTop]
-     * without affecting deliberate backward scrolling: any subsequent maybeShift is triggered by
-     * real user input (the fling continued or the user started a new gesture), at which point scrollY
-     * has moved past the threshold or the user genuinely wants to go back.
-     */
-    private var justShiftedForward = false
+    /** Owns the shift-direction algorithm and the justShiftedForward oscillation guard. */
+    private val windowManager = ChapterWindowManager(CHAPTERS_BEHIND)
 
     /** True while rebuilding the window after a WebView renderer-process death (debounces the
      * per-WebView onRenderProcessGone events that all fire at once). */
@@ -346,6 +329,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // fire against this window's pendingInitialScroll.
         pendingFallbackRunnable?.let { removeCallbacks(it) }
         pendingFallbackRunnable = null
+        // Clear the oscillation guard so a stale forward-shift flag from the previous position
+        // doesn't suppress the first backward check after the window is rebuilt here.
+        windowManager.reset()
 
         val targetIndex = ContinuousPositionTracker
             .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
@@ -367,7 +353,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         topIndex = targetIndex - behind
         val targetWindowIndex = behind
         val totalChapters = minOf(behind + 1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
-
         // Land only once every chapter up to and including the target has reported its real height,
         // so the target's slot.top (the sum of the heights before it) is exact.
         pendingInitialMeasureIndices.clear()
@@ -842,7 +827,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val window = buildWindow()
         if (window.isEmpty()) return
         val (href, progression) = ContinuousPositionTracker.locatorAt(scrollY, height, window)
-        onPositionChanged?.invoke(href, progression)
+        onRawPosition?.invoke(href, progression)
 
         // Defer window shifts off the scroll callback. A shift's compensating scrollBy() would
         // otherwise run re-entrantly inside NestedScrollView.computeScroll() (this callback fires
@@ -872,61 +857,30 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * compensation correct; the look-ahead buffer (CHAPTERS_AHEAD) absorbs the lead a fling needs.
      */
     private fun maybeShift() {
-        if (shiftInProgress) return
-        // Don't shift the window until the initial scroll has landed. The initial-scroll latch keys
-        // on window indices; a shift here (from an early scroll/re-measure during the open) would
-        // renumber the slots out from under it, so it could fire against the wrong chapter or never
-        // empty. Once the target is positioned, normal shifting resumes.
-        if (pendingInitialScroll != null) return
+        if (shiftInProgress || pendingInitialScroll != null) return
         val window = buildWindow()
         if (window.isEmpty()) return
         val sY = scrollY
         val (href, _) = ContinuousPositionTracker.locatorAt(sY, height, window)
-
-        // BACKWARD: fire when scrollY is in the first half of the first chapter. This gives a
-        // hysteresis gap that prevents the oscillation that a chapter-index check causes —
-        // after every FORWARD shift, the scrollBy adjustment lands the viewport inside the new
-        // first chapter (midIdx == topIdx), which would immediately re-trigger BACKWARD.
-        // A scrollY threshold is immune to that because the post-shift scrollY is deep inside
-        // the first chapter (far past the midpoint), not near the top.
-        //
-        // FORWARD: look-ahead based — fire when the viewport-midpoint chapter has advanced more
-        // than CHAPTERS_BEHIND slots past the window top, so several chapters stay loaded ahead
-        // of the reader (see ContinuousPositionTracker.forwardShiftNeeded).
-        val firstChapterHeight = window.firstOrNull()?.height ?: 0
         val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
-        // Consume the justShiftedForward guard before evaluating either direction so it clears
-        // regardless of which branch (or neither) fires this cycle.
-        val skipBackward = justShiftedForward
-        justShiftedForward = false
-        val shouldShiftBackward = !skipBackward && sY < firstChapterHeight / 2 && topIndex > 0
-        val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(
-            viewportChapterIndex = viewportMidIndex,
-            topIndex = topIndex,
-            loadedChapterCount = webViews.size,
-            readingOrderSize = allChapters.size,
-            chaptersBehind = CHAPTERS_BEHIND,
-        )
-        when {
-            shouldShiftBackward -> {
+
+        val decision = windowManager.decide(sY, viewportMidIndex, window, topIndex, allChapters.size)
+        when (decision) {
+            ChapterWindowManager.Decision.ShiftBackward -> {
                 shiftInProgress = true
                 removeBottom()
                 topIndex--
                 prependChapter(topIndex)
                 shiftInProgress = false
             }
-            shouldShiftForward -> {
+            ChapterWindowManager.Decision.ShiftForward -> {
                 shiftInProgress = true
                 removeTop() // topIndex already incremented inside removeTop()
-                // After removeTop the window covers [topIndex .. topIndex + size - 1]; the next
-                // chapter to append is the one immediately past the current last slot.
                 val nextIndex = topIndex + webViews.size
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
                 shiftInProgress = false
-                // Guard the very next maybeShift cycle against an immediate backward-shift
-                // reaction. See [justShiftedForward] for the full explanation.
-                justShiftedForward = true
             }
+            ChapterWindowManager.Decision.Hold -> {}
         }
     }
 

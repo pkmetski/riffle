@@ -20,7 +20,7 @@ import org.readium.r2.shared.util.Url
  * - Injects CSS variables and the TypographyOverride stylesheet on page load.
  *
  * Set [onHeightMeasured] before calling [loadChapter]. Height arrives asynchronously on
- * the main thread after [ContinuousStyleInjector.HEIGHT_MEASUREMENT_JS] fires.
+ * the main thread after [ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS] fires.
  */
 @SuppressLint("SetJavaScriptEnabled")
 internal class ChapterWebView(context: Context) : WebView(context) {
@@ -300,9 +300,9 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         // report (including late ResizeObserver / timeout fires) carries it and the bridge can
         // reject reports from a recycled WebView's previous page.
         evaluateJavascript("window.__riffleToken=$loadToken;", null)
-        evaluateJavascript(ContinuousStyleInjector.HEIGHT_MEASUREMENT_JS, null)
-        evaluateJavascript(ContinuousStyleInjector.TAP_LISTENER_JS, null)
-        evaluateJavascript(ContinuousStyleInjector.FOOTNOTE_LISTENER_JS, null)
+        evaluateJavascript(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS, null)
+        evaluateJavascript(ContinuousScriptInjector.TAP_LISTENER_JS, null)
+        evaluateJavascript(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS, null)
     }
 
     /** Re-inject user styles and re-measure after a preference change. */

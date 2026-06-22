@@ -1089,6 +1089,34 @@ private fun EpubNavigatorView(
     // onPositionChanged lambda always reads the latest list.
     val currentRailSegments by rememberUpdatedState(railSegments)
 
+    // Coordinator created once; lambdas close over rememberUpdatedState delegates so each
+    // invocation always reads the latest value, not the value at remember time.
+    val coordinator = remember(state.publication) {
+        ContinuousReaderCoordinator(
+            publication = state.publication,
+            railSegmentsProvider = { currentRailSegments },
+            onLocator = onPositionChanged,
+            onTap = { currentOnTap() },
+            latestLocator = { currentLatestLocator() },
+            onFollowInternalLink = { link, origin -> currentOnFollowInternalLink(link, origin) },
+            onExternalLink = { url ->
+                runCatching {
+                    fragmentActivity.startActivity(
+                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+            onFootnote = { content -> currentOnFootnoteTapped(content) },
+            onAnnotationTap = { id, rect -> currentOnOpenHighlightActions(id, rect) },
+            onAnnotationNoteTap = { id, rect -> currentOnOpenNoteReader(id, rect) },
+            onHighlight = { locator, rect -> currentOnHighlight(locator, rect) },
+            sentenceQuotesProvider = { currentSentenceQuotes },
+            sentenceChaptersProvider = { currentSentenceChapters },
+            onPlayFromHere = { ref -> currentOnPlayFromHere(ref) },
+        )
+    }
+
     // The text-selection action bar is fully owned by this callback (Readium 3.0.0's
     // selectionActionModeCallback is the only supported hook, and it replaces the WebView's default
     // menu). So besides our "Play from here" item we must re-add the standard Copy / Search / Share
@@ -1397,16 +1425,7 @@ private fun EpubNavigatorView(
             // (set synchronously by loadFormattingPreferences() before openBook() fires the event),
             // so it always carries the correct orientation at this point.
             if (formattingPrefsProvider().orientation == ReaderOrientation.Continuous) {
-                // Wait for the view to be ready and initialized. continuousViewRef is set in the
-                // AndroidView factory (immediately on view creation) but allChapters is only
-                // populated in a separate LaunchedEffect(continuousView) that calls initialize().
-                // navigateTo() silently returns early when allChapters is empty, so we must wait
-                // for isInitialized before calling it — same path as every in-reader TOC tap.
-                val view = snapshotFlow { continuousViewRef.value }.filterNotNull().first()
-                snapshotFlow { view.isInitialized.value }.filter { it }.first()
-                // TOC entries / chapter-map segments are Links (no progression) — land at the start
-                // of the target chapter.
-                view.navigateTo(link.href.toString(), 0f)
+                coordinator.onTocNavigation(link)
                 return@collect
             }
             // Wait for the fragment to be ready — same timing concern as the continuous case above.
@@ -1641,7 +1660,7 @@ private fun EpubNavigatorView(
     LaunchedEffect(volumeNavEvents, isContinuous) {
         volumeNavEvents.collect { event ->
             if (isContinuous) {
-                continuousViewRef.value?.scrollByPage(forward = event == VolumeNavEvent.Forward)
+                coordinator.onVolumeKey(event == VolumeNavEvent.Forward)
                 return@collect
             }
             val fragment = fragmentRef.value ?: return@collect
@@ -1678,7 +1697,7 @@ private fun EpubNavigatorView(
     // after rotation (isLandscape changes while fragmentRef is null, so the call would be lost).
     LaunchedEffect(formattingPrefs, isLandscape, fragmentRef.value) {
         fragmentRef.value?.submitPreferences(formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout))
-        continuousViewRef.value?.updatePreferences(formattingPrefs)
+        coordinator.onPreferencesChanged(formattingPrefs)
     }
 
     // If the user switches TO Continuous mode while a navigating cover was active (the
@@ -1993,84 +2012,12 @@ private fun EpubNavigatorView(
                 factory = { ctx ->
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
-                        view.onPositionChanged = { href, progression ->
-                            val locator = buildContinuousLocator(href, progression, currentRailSegments)
-                            if (locator != null) onPositionChanged(locator)
-                        }
-                        view.onTap = currentOnTap
-                        view.onInternalLinkTapped = onInternalLinkTapped@{ href ->
-                            // Reuse the return-aware internal-link path: capture the origin (for the
-                            // "Back" card) and navigate. Look up the spine Link so the existing
-                            // followInternalLink wiring (capture + navigation event) handles it; fall
-                            // back to a direct jump for a target outside the reading order.
-                            val origin = currentLatestLocator()
-                            val path = href.substringBefore('#')
-                            val link = state.publication.readingOrder
-                                .firstOrNull { it.href.toString() == path }
-                            if (link != null && origin != null) {
-                                currentOnFollowInternalLink(link, origin)
-                            } else {
-                                view.navigateTo(href, 0f)
-                            }
-                        }
-                        view.onExternalLinkTapped = { url ->
-                            runCatching {
-                                ctx.startActivity(
-                                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        }
-                        view.onFootnoteContent = { content -> currentOnFootnoteTapped(content) }
+                        coordinator.attach(view)
                         view.annotationsAvailable = currentAnnotationsAvailable
-                        view.onAnnotationTap = { _, id, androidRect ->
-                            val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
-                            currentOnOpenHighlightActions(id, rect)
-                        }
-                        view.onAnnotationNoteTap = { _, id, androidRect ->
-                            val rect = androidx.compose.ui.unit.IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom)
-                            currentOnOpenNoteReader(id, rect)
-                        }
-                        view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect ->
-                            val locator = org.readium.r2.shared.publication.Locator.fromJSON(
-                                org.json.JSONObject()
-                                    .put("href", chapterHref)
-                                    .put("type", "application/xhtml+xml")
-                                    .put("locations", org.json.JSONObject().put("progression", progression))
-                                    .put("text", org.json.JSONObject().put("highlight", selectedText))
-                            )
-                            if (locator != null) {
-                                val rect = androidx.compose.ui.unit.IntRect(selectionScreenRect.left, selectionScreenRect.top, selectionScreenRect.right, selectionScreenRect.bottom)
-                                currentOnHighlight(locator, rect)
-                            }
-                        }
                         view.readaloudAvailable = currentReadaloudAvailable
-                        view.onPlayFromHereSelection = { chapterHref, selectedText, evalJs ->
-                            // Scope candidates to the tapped chapter first — same reason as the paged
-                            // path (cross-chapter text recurrence → wrong sentence).
-                            val scoped = scopeSentencesToChapter(
-                                currentSentenceQuotes, currentSentenceChapters, chapterHref,
-                            )
-                            // Preferred: geometry-based resolution (same as paged mode). Reads
-                            // window.__riffleSelRect stashed by SELECTION_SPAN_TRACKER_JS on
-                            // selectionchange, then walks text nodes to find the sentence whose start
-                            // is latest-in-reading-order at-or-before the selection position. Immune
-                            // to duplicate words; returns "" when nothing resolves.
-                            //
-                            // Fallback: text-substring match — reliable only when the selected text
-                            // is unique within the chapter (the original approach), kept as safety net.
-                            evalJs(resolveSelectionSentenceJs(scoped)) { raw ->
-                                val geomId = raw?.trim('"')?.takeIf { it.isNotEmpty() }
-                                val sid = geomId
-                                    ?: ContinuousPositionTracker.sentenceIdForSelection(
-                                        selectedText, scoped.toMap(),
-                                    )
-                                if (sid != null) currentOnPlayFromHere("$chapterHref#$sid")
-                            }
-                        }
                     }
                 },
-                // Availability flags can flip mid-session, so keep the selection menu gates in sync.
+                // Availability flags can flip mid-session; keep the selection menu gates in sync.
                 update = {
                     it.annotationsAvailable = annotationsAvailable
                     it.readaloudAvailable = readaloudAvailable
