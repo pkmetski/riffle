@@ -443,7 +443,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * progressions). Leave false for continuous-mode round-trips (resume, return-to-position) where
      * [locatorAt] was the source and the midpoint inverse keeps the position drift-free.
      */
-    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false) {
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
         // TOC entries / chapter-map segments / internal links may carry a #fragment that the spine
         // hrefs don't have; match on the resource path so the chapter is still found.
         val target = href.substringBefore('#')
