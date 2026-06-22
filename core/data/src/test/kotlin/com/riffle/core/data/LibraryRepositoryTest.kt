@@ -32,6 +32,7 @@ import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkSeriesItem
 import com.riffle.core.network.NetworkSeriesResult
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -1063,11 +1064,14 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val itemDao = FakeLibraryItemDao()
-        var synced = false
+        // syncStale() is called on a detached backgroundScope (Dispatchers.Default), so it races
+        // with the test assertion. Use CompletableDeferred to suspend until the call arrives
+        // rather than reading a boolean that may not yet be set.
+        val syncedDeferred = CompletableDeferred<Unit>()
         val spySyncer = object : StorytellerReadaloudSyncer(
             fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), itemDao, { 0L },
         ) {
-            override suspend fun syncStale() { synced = true }
+            override suspend fun syncStale() { syncedDeferred.complete(Unit) }
         }
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean) =
@@ -1084,6 +1088,6 @@ class LibraryRepositoryTest {
         val result = makeRepo(libraryItemDao = itemDao, api = api, storytellerReadaloudSyncer = spySyncer)
             .refreshLibraryItems("lib-1")
         assertTrue(result is LibraryRefreshResult.Success)
-        assertTrue("syncStale() should have been called during ABS library refresh", synced)
+        syncedDeferred.await() // suspends until the background scope calls syncStale()
     }
 }
