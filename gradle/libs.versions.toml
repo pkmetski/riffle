@@ -21,7 +21,7 @@ acra = "5.11.3"
 # readaloud book (highlight renders + single column) before raising the pin. See ReadiumVersionPinTest.
 readium = "3.3.0"
 junit = "4.13.2"
-mockk = "1.14.2"
+mockk = "1.14.11"
 junitExt = "1.3.0"
 espressoCore = "3.7.0"
 androidxTest = "1.6.2"
