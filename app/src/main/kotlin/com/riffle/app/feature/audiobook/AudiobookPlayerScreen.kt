@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -60,6 +59,7 @@ import com.riffle.core.domain.AudiobookBookmark
 // Minimum downward drag (px) on the player to trigger the switch to the readaloud reader — a
 // deliberate swipe, not an accidental nudge.
 private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
+private const val BOOKMARK_WINDOW_SEC = 3.0
 
 /** Which list the shared [PlayerListSheet] is showing (no tabs — one kind at a time). */
 private enum class SheetKind { Chapters, Bookmarks }
@@ -258,7 +258,7 @@ fun AudiobookPlayerScreen(
             // Corner bookmark ribbon — same shape/placement as the ebook reader. Filled when the
             // playhead is within ±3 s of an existing bookmark, or while the add-bookmark dialog is open.
             val nearBookmark = state.bookmarks.any { bm ->
-                kotlin.math.abs(bm.positionSec - state.positionSec) <= 3.0
+                kotlin.math.abs(bm.positionSec - state.positionSec) <= BOOKMARK_WINDOW_SEC
             }
             CornerBookmarkIndicator(
                 isBookmarked = createDraft != null || nearBookmark,
@@ -266,8 +266,8 @@ fun AudiobookPlayerScreen(
                 onToggle = {
                     val positionSec = viewModel.currentPositionSec()
                     val nearby = state.bookmarks
+                        .filter { kotlin.math.abs(it.positionSec - positionSec) <= BOOKMARK_WINDOW_SEC }
                         .minByOrNull { kotlin.math.abs(it.positionSec - positionSec) }
-                        ?.takeIf { kotlin.math.abs(it.positionSec - positionSec) <= 3.0 }
                     if (nearby != null) {
                         viewModel.deleteBookmark(nearby.id)
                     } else {
@@ -281,7 +281,7 @@ fun AudiobookPlayerScreen(
                 contentDescription = if (nearBookmark && createDraft == null) "Remove bookmark" else "Add bookmark",
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .statusBarsPadding()
+                    .safeDrawingPadding()
                     .padding(end = 12.dp),
             )
         }

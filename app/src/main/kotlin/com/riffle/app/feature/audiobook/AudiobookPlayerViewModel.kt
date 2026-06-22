@@ -129,9 +129,6 @@ data class AudiobookPlayerUiState(
     val readaloudEbookItemId: String? = null,
     // User bookmarks for this audiobook, observed live from the store (ordered by position, earliest first).
     val bookmarks: List<AudiobookBookmark> = emptyList(),
-    // The id of the most recently added bookmark, so the UI can offer an Undo on the add. Null until
-    // an add succeeds this session.
-    val lastCreatedBookmarkId: String? = null,
     // True only when this item has unsynced (dirty) bookmarks AND the device is offline, so the
     // Bookmarks sheet can show a quiet "Offline — bookmarks will sync" note. Sync is otherwise silent.
     val bookmarksOffline: Boolean = false,
@@ -377,7 +374,6 @@ class AudiobookPlayerViewModel(
                 canPreviousChapter = timeline.canPreviousChapter,
                 canNextChapter = timeline.canNextChapter,
                 bookmarks = m.bookmarks,
-                lastCreatedBookmarkId = m.lastCreatedBookmarkId,
                 bookmarksOffline = m.bookmarksOffline,
                 sleepTimer = timer,
             )
@@ -809,16 +805,12 @@ class AudiobookPlayerViewModel(
 
     /**
      * Create a bookmark at [positionSec] (the position pinned when the dialog opened — NOT the live
-     * playhead, which may have drifted while the user typed). On success the new id is surfaced in
-     * [AudiobookPlayerUiState.lastCreatedBookmarkId] so the UI can offer an Undo; the new row arrives
-     * in [AudiobookPlayerUiState.bookmarks] via the store observation.
+     * playhead, which may have drifted while the user typed). The new row arrives in
+     * [AudiobookPlayerUiState.bookmarks] via the store observation.
      */
     fun addBookmark(title: String, positionSec: Double) {
         if (serverId.isEmpty()) return
-        viewModelScope.launch {
-            val id = bookmarkStore.add(serverId, itemId, positionSec, title, now())
-            meta.value = meta.value.copy(lastCreatedBookmarkId = id)
-        }
+        viewModelScope.launch { bookmarkStore.add(serverId, itemId, positionSec, title, now()) }
     }
 
     fun renameBookmark(id: String, title: String) {
