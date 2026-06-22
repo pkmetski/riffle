@@ -50,6 +50,7 @@ import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TimeRemaining
+import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -177,6 +178,10 @@ class EpubReaderViewModel @Inject constructor(
     // When opened from a library annotation search result, jump to this CFI instead of the saved
     // reading position. Null/blank for a normal open. EPUB-only (annotations anchor on ABS-EPUB CFI).
     private val openAtCfi: String? = savedStateHandle.get<String>("openAtCfi")
+
+    // TOC entry to open immediately on launch — navigated once the publication is ready, using the same
+    // _navigationEvents channel as the TOC panel's tap handler (see navigateToEntry).
+    private val startTocHref: String? = savedStateHandle["startTocHref"]
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
@@ -692,11 +697,20 @@ class EpubReaderViewModel @Inject constructor(
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                             ?: cfiStringToLocator(stored)
                     }
+                // When a TOC chapter is requested, pass null as initialLocator so Readium's
+                // async restore doesn't race with the navigateToEntry nav event. Navigation
+                // ownership is handed entirely to navigateToEntry, which waits for
+                // ContinuousReaderView.isInitialized before calling navigateTo. The paged
+                // navigator similarly receives null and lets fragment.go() handle it.
                 _state.value = ReaderState.Ready(
                     publication = pub,
                     title = item.title,
-                    initialLocator = locator,
+                    initialLocator = if (startTocHref == null) locator else null,
                 )
+                // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
+                // formattingPrefsProvider in the nav event handler ensures the correct continuous vs
+                // paged path is taken even when Compose state hasn't caught up yet.
+                startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
@@ -1330,6 +1344,8 @@ class EpubReaderViewModel @Inject constructor(
         }
         epubZip?.close()
         epubZip = null
+        publication?.close()
+        publication = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.

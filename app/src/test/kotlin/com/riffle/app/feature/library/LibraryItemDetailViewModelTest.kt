@@ -255,6 +255,12 @@ class LibraryItemDetailViewModelTest {
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,
         crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
+        extractEpubTocUseCase: ExtractEpubTocUseCase = io.mockk.mockk<ExtractEpubTocUseCase>().also { uc ->
+            io.mockk.coEvery { uc(any<com.riffle.core.domain.LibraryItem>()) } returns emptyList<com.riffle.core.domain.TocEntry>()
+        },
+        fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = io.mockk.mockk<FetchAudiobookChaptersUseCase>().also { uc ->
+            io.mockk.coEvery { uc(any<com.riffle.core.domain.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
+        },
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         repository = repo,
@@ -275,6 +281,8 @@ class LibraryItemDetailViewModelTest {
         downloadManager = downloadManager,
         crossEpubIndexBuildTrigger = crossEpubIndexBuildTrigger,
         sidecarPrefetcher = { _, _ -> },
+        extractEpubTocUseCase = extractEpubTocUseCase,
+        fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
     )
 
     /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0031). */

@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
@@ -17,6 +18,7 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -56,6 +59,16 @@ sealed interface DownloadState {
     data object Downloaded : DownloadState
 }
 
+sealed interface TocState {
+    data object Loading : TocState
+    data class Ready(val entries: List<TocEntry>) : TocState
+}
+
+sealed interface ChaptersState {
+    data object Loading : ChaptersState
+    data class Ready(val chapters: List<AudiobookChapter>) : ChaptersState
+}
+
 internal fun readaloudDownloadStateFor(bundlePresent: Boolean): DownloadState =
     if (bundlePresent) DownloadState.Downloaded else DownloadState.NotDownloaded
 
@@ -85,6 +98,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val downloadManager: DownloadManager,
     private val crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger,
     private val sidecarPrefetcher: com.riffle.core.data.ReadaloudSidecarPrefetcher,
+    private val extractEpubTocUseCase: ExtractEpubTocUseCase,
+    private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -108,6 +123,24 @@ class LibraryItemDetailViewModel @Inject constructor(
     // Null for a non-listenable item; otherwise the offline-download state for the ABS audiobook (ADR 0029).
     private val _audiobookDownloadState = MutableStateFlow<DownloadState?>(null)
     val audiobookDownloadState: StateFlow<DownloadState?> = _audiobookDownloadState
+
+    private val _tocState = MutableStateFlow<TocState>(TocState.Loading)
+    val tocState: StateFlow<TocState> = _tocState.asStateFlow()
+
+    private val _chaptersState = MutableStateFlow<ChaptersState>(ChaptersState.Loading)
+    val chaptersState: StateFlow<ChaptersState> = _chaptersState.asStateFlow()
+
+    private val _currentPositionHref = MutableStateFlow<String?>(null)
+    val currentPositionHref: StateFlow<String?> = _currentPositionHref.asStateFlow()
+
+    fun reloadCurrentPositionHref() {
+        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val item = ready.item
+        if (item.ebookFormat != EbookFormat.Epub) return
+        viewModelScope.launch {
+            _currentPositionHref.value = epubRepository.loadLastPositionHref(item.serverId, item.id)
+        }
+    }
 
     var authToken: String by mutableStateOf("")
         private set
@@ -161,6 +194,25 @@ class LibraryItemDetailViewModel @Inject constructor(
                 }
             } catch (_: Exception) {
                 LibraryItemDetailUiState.Error
+            }
+
+            // Fire one-time TOC/chapters extraction now that the item is known. Placed here (not in
+            // observeItem) so it runs exactly once per screen open — observeItem fires on every DB
+            // update which would re-extract unnecessarily.
+            val initialReady = _uiState.value
+            if (initialReady is LibraryItemDetailUiState.Ready) {
+                val item = initialReady.item
+                if (item.ebookFormat == EbookFormat.Epub) {
+                    launch {
+                        _currentPositionHref.value = epubRepository.loadLastPositionHref(item.serverId, item.id)
+                        _tocState.value = TocState.Ready(extractEpubTocUseCase(item))
+                    }
+                }
+                if (item.isListenable) {
+                    launch {
+                        _chaptersState.value = ChaptersState.Ready(fetchAudiobookChaptersUseCase(item))
+                    }
+                }
             }
 
             // Refresh To Read from the server without blocking the initial render; patch the

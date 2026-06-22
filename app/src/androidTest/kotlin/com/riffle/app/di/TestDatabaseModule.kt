@@ -6,6 +6,7 @@ import com.riffle.core.data.di.DatabaseModule
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
+import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
@@ -20,6 +21,7 @@ import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ServerDao
+import com.riffle.core.database.TocCacheDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -112,4 +114,12 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideAnnotationDao(db: RiffleDatabase): AnnotationDao = db.annotationDao()
+
+    @Provides
+    @Singleton
+    fun provideTocCacheDao(db: RiffleDatabase): TocCacheDao = db.tocCacheDao()
+
+    @Provides
+    @Singleton
+    fun provideAudiobookChapterCacheDao(db: RiffleDatabase): AudiobookChapterCacheDao = db.audiobookChapterCacheDao()
 }

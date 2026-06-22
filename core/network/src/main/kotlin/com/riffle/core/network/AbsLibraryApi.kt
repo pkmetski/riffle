@@ -1,5 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.network.model.AbsItemDetailResponse
+
 data class NetworkUserMediaProgress(
     val ebookProgress: Float?,
     val lastUpdate: Long?,
@@ -9,6 +11,11 @@ data class NetworkUserMediaProgress(
 sealed class NetworkUserProgressResult {
     data class Success(val byItemId: Map<String, NetworkUserMediaProgress>) : NetworkUserProgressResult()
     data class NetworkError(val cause: Throwable) : NetworkUserProgressResult()
+}
+
+sealed class AbsItemDetailResult {
+    data class Success(val detail: AbsItemDetailResponse) : AbsItemDetailResult()
+    data class NetworkError(val cause: Throwable) : AbsItemDetailResult()
 }
 
 interface AbsLibraryApi {
@@ -121,6 +128,13 @@ interface AbsLibraryApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkEpubDownloadResult = throw UnsupportedOperationException("downloadEpub not implemented")
+
+    suspend fun getItemDetail(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): AbsItemDetailResult = throw UnsupportedOperationException("getItemDetail not implemented")
 
     /** The ABS audiobook's identity fingerprint for the streaming check (ADR 0028). */
     suspend fun getAudiobookFingerprint(

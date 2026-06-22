@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AudioPlaybackPreferencesDao
+import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
@@ -18,6 +19,7 @@ import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.ServerDao
+import com.riffle.core.database.TocCacheDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -73,6 +75,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_37_38,
                 RiffleDatabase.MIGRATION_38_39,
                 RiffleDatabase.MIGRATION_39_40,
+                RiffleDatabase.MIGRATION_40_41,
             )
             .build()
 
@@ -140,4 +143,13 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideAnnotationDao(db: RiffleDatabase): AnnotationDao = db.annotationDao()
+
+    @Provides
+    @Singleton
+    fun provideTocCacheDao(db: RiffleDatabase): TocCacheDao = db.tocCacheDao()
+
+    @Provides
+    @Singleton
+    fun provideAudiobookChapterCacheDao(db: RiffleDatabase): AudiobookChapterCacheDao =
+        db.audiobookChapterCacheDao()
 }

@@ -82,11 +82,15 @@ import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.AudiobookChapterCacheRepository
+import com.riffle.core.domain.TocRepository
 import com.riffle.core.data.AudiobookBundleDownloader
+import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
 import com.riffle.core.data.StorytellerBundleAudiobookSource
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerReadaloudSyncer
+import com.riffle.core.data.TocRepositoryImpl
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.network.AudiobookBundleApiImpl
@@ -372,6 +376,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.AbsProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
+
+    @Binds
+    @Singleton
+    abstract fun bindTocRepository(impl: TocRepositoryImpl): TocRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookChapterCacheRepository(impl: AudiobookChapterCacheRepositoryImpl): AudiobookChapterCacheRepository
 
     companion object {
         // Durable offline progress reconcile (ADR 0030): resolve a serverId to its server+token

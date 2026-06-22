@@ -4,6 +4,7 @@ import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
+import com.riffle.core.network.model.AbsItemDetailResponse
 import com.riffle.core.network.model.AbsCreateCollectionRequest
 import com.riffle.core.network.model.AbsCreatePlaylistRequest
 import com.riffle.core.network.model.AbsAudiobookProgressRequest
@@ -570,6 +571,34 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             }
         } catch (e: IOException) {
             NetworkEpubDownloadResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getItemDetail(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): AbsItemDetailResult = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/items/$itemId")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.body?.close()
+                return@withContext AbsItemDetailResult.NetworkError(IOException("HTTP ${response.code}"))
+            }
+            val raw = response.body?.string() ?: return@withContext AbsItemDetailResult.NetworkError(
+                IOException("Empty response body")
+            )
+            val parsed = json.decodeFromString<AbsItemDetailResponse>(raw)
+            AbsItemDetailResult.Success(parsed)
+        } catch (e: Exception) {
+            AbsItemDetailResult.NetworkError(e as? IOException ?: IOException(e))
         }
     }
 

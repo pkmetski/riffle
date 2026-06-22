@@ -25,8 +25,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudioPlaybackPreferencesEntity::class,
         AudiobookPositionEntity::class,
         AudiobookBookmarkEntity::class,
+        TocCacheEntity::class,
+        AudiobookChapterCacheEntity::class,
     ],
-    version = 40,
+    version = 41,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -46,6 +48,8 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun audioPlaybackPreferencesDao(): AudioPlaybackPreferencesDao
     abstract fun audiobookPositionDao(): AudiobookPositionDao
     abstract fun audiobookBookmarkDao(): AudiobookBookmarkDao
+    abstract fun tocCacheDao(): TocCacheDao
+    abstract fun audiobookChapterCacheDao(): AudiobookChapterCacheDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -768,6 +772,29 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_39_40 = object : Migration(39, 40) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `finishedAt` INTEGER")
+            }
+        }
+
+        // TOC and audiobook-chapter caches keyed by (serverId, itemId). No foreign-key cascade —
+        // cache rows are invalidated by a content-change check (ebookFileIno mismatch), not by
+        // Server lifecycle events. Both tables store their list data as JSON blobs.
+        val MIGRATION_40_41 = object : Migration(40, 41) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `toc_cache` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`ebookFileIno` TEXT NOT NULL, " +
+                        "`entriesJson` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`serverId`, `itemId`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `audiobook_chapter_cache` (" +
+                        "`serverId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`chaptersJson` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`serverId`, `itemId`))"
+                )
             }
         }
     }

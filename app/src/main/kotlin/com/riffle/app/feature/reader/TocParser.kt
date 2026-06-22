@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.TocEntry
 import org.readium.r2.shared.publication.Link
 
 fun List<Link>.toTocEntries(): List<TocEntry> = map { link ->
@@ -12,7 +13,7 @@ fun List<Link>.toTocEntries(): List<TocEntry> = map { link ->
 
 fun findActiveEntry(entries: List<TocEntry>, currentHref: String): TocEntry? {
     for (entry in entries) {
-        if (entry.href == currentHref) return entry
+        if (entry.href.trimStart('/') == currentHref.trimStart('/')) return entry
         val child = findActiveEntry(entry.children, currentHref)
         if (child != null) return child
     }

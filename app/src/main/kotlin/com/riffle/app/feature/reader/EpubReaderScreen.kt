@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -97,6 +98,9 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -341,6 +345,16 @@ fun EpubReaderScreen(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         railSegments = railSegments,
+                        // Use formattingPreferences (= _formattingPreferences, set synchronously by
+                        // loadFormattingPreferences()) rather than effectiveFormattingPreferences.
+                        // effectiveFormattingPreferences propagates through a combine→stateIn chain
+                        // that updates asynchronously, so its .value may still be the default
+                        // FormattingPreferences() (Horizontal) when the startup nav event fires on a
+                        // fast (cached) epub open — causing the handler to take the paged path and
+                        // consume the event without calling view.navigateTo(). formattingPreferences
+                        // carries the user's actual orientation as soon as loadFormattingPreferences()
+                        // returns, with no async hop.
+                        formattingPrefsProvider = { viewModel.formattingPreferences.value },
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
@@ -969,6 +983,7 @@ private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
     railSegments: List<RailSegment>,
+    formattingPrefsProvider: () -> FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
@@ -1368,21 +1383,34 @@ private fun EpubNavigatorView(
         onDispose { FootnoteAnchorBridge.setHandler(null) }
     }
 
-    LaunchedEffect(onNavigationEvents, isContinuous) {
+    LaunchedEffect(onNavigationEvents) {
         onNavigationEvents.collect { link ->
             // In Continuous mode the Readium fragment is a server-keeper only (invisible,
             // height=0): fragment.go() would suspend forever on the invisible WebView, leaving
             // navigating=true and covering the reader with a permanent blank overlay. So TOC entries,
             // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
             // instead of the fragment.
-            if (isContinuous) {
-                val view = continuousViewRef.value ?: return@collect
+            //
+            // Read orientation from formattingPrefsProvider() rather than the Compose-collected
+            // formattingPrefs: on a startup navigation from item-details, Compose state may not
+            // have re-rendered yet. formattingPrefsProvider reads _formattingPreferences directly
+            // (set synchronously by loadFormattingPreferences() before openBook() fires the event),
+            // so it always carries the correct orientation at this point.
+            if (formattingPrefsProvider().orientation == ReaderOrientation.Continuous) {
+                // Wait for the view to be ready and initialized. continuousViewRef is set in the
+                // AndroidView factory (immediately on view creation) but allChapters is only
+                // populated in a separate LaunchedEffect(continuousView) that calls initialize().
+                // navigateTo() silently returns early when allChapters is empty, so we must wait
+                // for isInitialized before calling it — same path as every in-reader TOC tap.
+                val view = snapshotFlow { continuousViewRef.value }.filterNotNull().first()
+                snapshotFlow { view.isInitialized.value }.filter { it }.first()
                 // TOC entries / chapter-map segments are Links (no progression) — land at the start
                 // of the target chapter.
                 view.navigateTo(link.href.toString(), 0f)
                 return@collect
             }
-            val fragment = fragmentRef.value ?: return@collect
+            // Wait for the fragment to be ready — same timing concern as the continuous case above.
+            val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
             // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
             // is instant and needs no mask.
             val cover = link.href.toString().substringBefore('#') !=

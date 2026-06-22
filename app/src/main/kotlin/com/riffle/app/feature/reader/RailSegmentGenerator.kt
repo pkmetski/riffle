@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.TocEntry
+
 fun buildRailSegments(tocEntries: List<TocEntry>, bookTitle: String = ""): List<RailSegment> {
     val bookTitleNorm = bookTitle.normalize()
     val expanded = tocEntries.flatMap { expandIfRedundant(it, bookTitleNorm) }

@@ -169,6 +169,7 @@ dependencies {
     testImplementation(libs.jsoup)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
     androidTestImplementation(libs.androidx.junit)

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.TocEntry
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,7 +59,7 @@ private fun TocEntryRow(
         }
         return
     }
-    val isActive = entry.href == activeHref
+    val isActive = activeHref != null && entry.href.trimStart('/') == activeHref.trimStart('/')
     Column {
         Text(
             text = entry.title,

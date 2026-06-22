@@ -23,14 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +60,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -71,8 +79,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.app.feature.reader.TocPanel
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
 import kotlinx.coroutines.launch
 
@@ -86,6 +96,8 @@ fun LibraryItemDetailScreen(
     onNavigateBack: () -> Unit,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
+    onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onNavigateToFacet: (libraryId: String, facet: FacetType, value: String) -> Unit = { _, _, _ -> },
     onNavigateToSeries: (libraryId: String, seriesId: String, seriesName: String) -> Unit = { _, _, _ -> },
     viewModel: LibraryItemDetailViewModel = hiltViewModel(),
@@ -94,12 +106,22 @@ fun LibraryItemDetailScreen(
     val downloadState by viewModel.downloadState.collectAsState()
     val readaloudDownloadState by viewModel.readaloudDownloadState.collectAsState()
     val audiobookDownloadState by viewModel.audiobookDownloadState.collectAsState()
+    val tocState by viewModel.tocState.collectAsState()
+    val chaptersState by viewModel.chaptersState.collectAsState()
+    val currentPositionHref by viewModel.currentPositionHref.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(viewModel) {
         viewModel.snackbarEvents.collect { message ->
             snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, viewModel) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.reloadCurrentPositionHref()
         }
     }
 
@@ -183,8 +205,13 @@ fun LibraryItemDetailScreen(
                         isOffline = state.isOffline,
                         readaloudDownloadState = readaloudDownloadState,
                         audiobookDownloadState = audiobookDownloadState,
+                        tocState = tocState,
+                        chaptersState = chaptersState,
+                        currentPositionHref = currentPositionHref,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
+                        onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
+                        onListenItemAtSec = { item, sec -> viewModel.markOpened(); onListenItemAtSec(item, sec) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
@@ -209,8 +236,13 @@ fun LibraryItemDetailScreen(
                         isOffline = state.isOffline,
                         readaloudDownloadState = readaloudDownloadState,
                         audiobookDownloadState = audiobookDownloadState,
+                        tocState = tocState,
+                        chaptersState = chaptersState,
+                        currentPositionHref = currentPositionHref,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
+                        onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
+                        onListenItemAtSec = { item, sec -> viewModel.markOpened(); onListenItemAtSec(item, sec) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
@@ -235,8 +267,13 @@ fun LibraryItemDetailScreen(
                         isOffline = state.isOffline,
                         readaloudDownloadState = readaloudDownloadState,
                         audiobookDownloadState = audiobookDownloadState,
+                        tocState = tocState,
+                        chaptersState = chaptersState,
+                        currentPositionHref = currentPositionHref,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
+                        onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
+                        onListenItemAtSec = { item, sec -> viewModel.markOpened(); onListenItemAtSec(item, sec) },
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
@@ -292,8 +329,13 @@ private fun LibraryItemDetailContent(
     isOffline: Boolean,
     readaloudDownloadState: DownloadState?,
     audiobookDownloadState: DownloadState? = null,
+    tocState: TocState = TocState.Loading,
+    chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
+    onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -305,6 +347,9 @@ private fun LibraryItemDetailContent(
     onRemoveAudiobook: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showTocSheet by remember { mutableStateOf(false) }
+    var showChaptersSheet by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -371,6 +416,56 @@ private fun LibraryItemDetailContent(
             SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
         }
 
+        // TOC row — EPUB items only; hidden if TOC loaded as empty
+        val tocReady = tocState as? TocState.Ready
+        if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text("Table of Contents") },
+                supportingContent = {
+                    when (val s = tocState) {
+                        is TocState.Loading -> Text("Loading…")
+                        is TocState.Ready -> Text("${s.entries.size} sections")
+                    }
+                },
+                leadingContent = {
+                    Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, contentDescription = null)
+                },
+                trailingContent = {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                },
+                modifier = Modifier.clickable(
+                    enabled = tocReady != null && tocReady.entries.isNotEmpty(),
+                    onClick = { showTocSheet = true },
+                ),
+            )
+        }
+
+        // Chapters row — audiobook items; hidden if chapters loaded as empty
+        val chaptersReady = chaptersState as? ChaptersState.Ready
+        if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
+            HorizontalDivider()
+            ListItem(
+                headlineContent = { Text("Chapters") },
+                supportingContent = {
+                    when (val s = chaptersState) {
+                        is ChaptersState.Loading -> Text("Loading…")
+                        is ChaptersState.Ready -> Text("${s.chapters.size} chapters")
+                    }
+                },
+                leadingContent = {
+                    Icon(Icons.Outlined.Headphones, contentDescription = null)
+                },
+                trailingContent = {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                },
+                modifier = Modifier.clickable(
+                    enabled = chaptersReady != null && chaptersReady.chapters.isNotEmpty(),
+                    onClick = { showChaptersSheet = true },
+                ),
+            )
+        }
+
         if (item.isListenable && item.audioDurationSec > 0) {
             AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
@@ -384,6 +479,27 @@ private fun LibraryItemDetailContent(
         }
 
         MetadataLines(item = item, onFacet = onFacet)
+    }
+
+    if (showTocSheet) {
+        val entries = (tocState as? TocState.Ready)?.entries ?: emptyList()
+        TocPanel(
+            entries = entries,
+            activeHref = currentPositionHref,
+            onEntryClick = { entry ->
+                onReadItemAtHref(item, entry.href)
+                showTocSheet = false
+            },
+            onDismiss = { showTocSheet = false },
+        )
+    }
+    if (showChaptersSheet) {
+        val chapters = (chaptersState as? ChaptersState.Ready)?.chapters ?: emptyList()
+        ItemChaptersSheet(
+            chapters = chapters,
+            onChapterClick = { chapter -> onListenItemAtSec(item, chapter.startSec) },
+            onDismiss = { showChaptersSheet = false },
+        )
     }
 }
 
@@ -429,8 +545,13 @@ internal fun LibraryItemDetailContentTablet(
     isOffline: Boolean,
     readaloudDownloadState: DownloadState?,
     audiobookDownloadState: DownloadState? = null,
+    tocState: TocState = TocState.Loading,
+    chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
+    onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -442,6 +563,9 @@ internal fun LibraryItemDetailContentTablet(
     onRemoveAudiobook: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showTocSheet by remember { mutableStateOf(false) }
+    var showChaptersSheet by remember { mutableStateOf(false) }
+
     Row(
         modifier = modifier.fillMaxSize(),
     ) {
@@ -520,6 +644,56 @@ internal fun LibraryItemDetailContentTablet(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // TOC row — EPUB items only; hidden if TOC loaded as empty
+            val tocReady = tocState as? TocState.Ready
+            if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Table of Contents") },
+                    supportingContent = {
+                        when (val s = tocState) {
+                            is TocState.Loading -> Text("Loading…")
+                            is TocState.Ready -> Text("${s.entries.size} sections")
+                        }
+                    },
+                    leadingContent = {
+                        Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, contentDescription = null)
+                    },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable(
+                        enabled = tocReady != null && tocReady.entries.isNotEmpty(),
+                        onClick = { showTocSheet = true },
+                    ),
+                )
+            }
+
+            // Chapters row — audiobook items; hidden if chapters loaded as empty
+            val chaptersReady = chaptersState as? ChaptersState.Ready
+            if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Chapters") },
+                    supportingContent = {
+                        when (val s = chaptersState) {
+                            is ChaptersState.Loading -> Text("Loading…")
+                            is ChaptersState.Ready -> Text("${s.chapters.size} chapters")
+                        }
+                    },
+                    leadingContent = {
+                        Icon(Icons.Outlined.Headphones, contentDescription = null)
+                    },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable(
+                        enabled = chaptersReady != null && chaptersReady.chapters.isNotEmpty(),
+                        onClick = { showChaptersSheet = true },
+                    ),
+                )
+            }
+
             item.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 CollapsibleDescription(desc)
             }
@@ -528,6 +702,27 @@ internal fun LibraryItemDetailContentTablet(
             }
             MetadataLines(item = item, onFacet = onFacet)
         }
+    }
+
+    if (showTocSheet) {
+        val entries = (tocState as? TocState.Ready)?.entries ?: emptyList()
+        TocPanel(
+            entries = entries,
+            activeHref = currentPositionHref,
+            onEntryClick = { entry ->
+                onReadItemAtHref(item, entry.href)
+                showTocSheet = false
+            },
+            onDismiss = { showTocSheet = false },
+        )
+    }
+    if (showChaptersSheet) {
+        val chapters = (chaptersState as? ChaptersState.Ready)?.chapters ?: emptyList()
+        ItemChaptersSheet(
+            chapters = chapters,
+            onChapterClick = { chapter -> onListenItemAtSec(item, chapter.startSec) },
+            onDismiss = { showChaptersSheet = false },
+        )
     }
 }
 
@@ -551,8 +746,13 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     isOffline: Boolean,
     readaloudDownloadState: DownloadState?,
     audiobookDownloadState: DownloadState? = null,
+    tocState: TocState = TocState.Loading,
+    chaptersState: ChaptersState = ChaptersState.Loading,
+    currentPositionHref: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
+    onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
+    onListenItemAtSec: (LibraryItem, Double) -> Unit = { _, _ -> },
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
@@ -564,6 +764,9 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     onRemoveAudiobook: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showTocSheet by remember { mutableStateOf(false) }
+    var showChaptersSheet by remember { mutableStateOf(false) }
+
     Row(modifier = modifier.fillMaxSize()) {
         item.coverUrl?.let { url ->
             Box(
@@ -631,11 +834,83 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 onDownloadAudiobook = onDownloadAudiobook,
                 onRemoveAudiobook = onRemoveAudiobook,
             )
+
+            // TOC row — EPUB items only; hidden if TOC loaded as empty
+            val tocReady = tocState as? TocState.Ready
+            if (item.ebookFormat == EbookFormat.Epub && (tocState is TocState.Loading || tocReady?.entries?.isNotEmpty() == true)) {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Table of Contents") },
+                    supportingContent = {
+                        when (val s = tocState) {
+                            is TocState.Loading -> Text("Loading…")
+                            is TocState.Ready -> Text("${s.entries.size} sections")
+                        }
+                    },
+                    leadingContent = {
+                        Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, contentDescription = null)
+                    },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable(
+                        enabled = tocReady != null && tocReady.entries.isNotEmpty(),
+                        onClick = { showTocSheet = true },
+                    ),
+                )
+            }
+
+            // Chapters row — audiobook items; hidden if chapters loaded as empty
+            val chaptersReady = chaptersState as? ChaptersState.Ready
+            if (item.isListenable && (chaptersState is ChaptersState.Loading || chaptersReady?.chapters?.isNotEmpty() == true)) {
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text("Chapters") },
+                    supportingContent = {
+                        when (val s = chaptersState) {
+                            is ChaptersState.Loading -> Text("Loading…")
+                            is ChaptersState.Ready -> Text("${s.chapters.size} chapters")
+                        }
+                    },
+                    leadingContent = {
+                        Icon(Icons.Outlined.Headphones, contentDescription = null)
+                    },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable(
+                        enabled = chaptersReady != null && chaptersReady.chapters.isNotEmpty(),
+                        onClick = { showChaptersSheet = true },
+                    ),
+                )
+            }
+
             item.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 CollapsibleDescription(desc)
             }
             MetadataLines(item = item, onFacet = onFacet)
         }
+    }
+
+    if (showTocSheet) {
+        val entries = (tocState as? TocState.Ready)?.entries ?: emptyList()
+        TocPanel(
+            entries = entries,
+            activeHref = currentPositionHref,
+            onEntryClick = { entry ->
+                onReadItemAtHref(item, entry.href)
+                showTocSheet = false
+            },
+            onDismiss = { showTocSheet = false },
+        )
+    }
+    if (showChaptersSheet) {
+        val chapters = (chaptersState as? ChaptersState.Ready)?.chapters ?: emptyList()
+        ItemChaptersSheet(
+            chapters = chapters,
+            onChapterClick = { chapter -> onListenItemAtSec(item, chapter.startSec) },
+            onDismiss = { showChaptersSheet = false },
+        )
     }
 }
 
