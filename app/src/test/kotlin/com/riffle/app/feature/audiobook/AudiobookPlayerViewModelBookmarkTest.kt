@@ -206,8 +206,6 @@ class AudiobookPlayerViewModelBookmarkTest {
             AddCall(serverId, itemId, 321.0, "My title", fixedNow),
             store.added.single(),
         )
-        // The new id is surfaced for an Undo.
-        assertEquals(store.lastId, vm.uiState.value.lastCreatedBookmarkId)
         vm.clearForTest()
     }
 

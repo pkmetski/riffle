@@ -24,10 +24,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
@@ -36,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,7 +48,6 @@ import com.riffle.app.feature.audio.PlayerSurfaceState
 import com.riffle.app.feature.audio.formatHms
 import com.riffle.app.feature.reader.CornerBookmarkIndicator
 import com.riffle.core.domain.AudiobookBookmark
-import kotlinx.coroutines.launch
 
 /**
  * Full-screen [Audiobook Player] (ADR 0029): square cover, title/author, current-chapter label, a
@@ -65,6 +59,7 @@ import kotlinx.coroutines.launch
 // Minimum downward drag (px) on the player to trigger the switch to the readaloud reader — a
 // deliberate swipe, not an accidental nudge.
 private const val SWITCH_TO_READALOUD_THRESHOLD_PX = 160f
+private const val BOOKMARK_WINDOW_SEC = 3.0
 
 /** Which list the shared [PlayerListSheet] is showing (no tabs — one kind at a time). */
 private enum class SheetKind { Chapters, Bookmarks }
@@ -149,9 +144,6 @@ fun AudiobookPlayerScreen(
     // they don't drift with the still-running playhead while the user edits (see [BookmarkDraft]).
     var createDraft by remember { mutableStateOf<BookmarkDraft?>(null) }
     var renaming by remember { mutableStateOf<AudiobookBookmark?>(null) }
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     val gradient = Brush.verticalGradient(
         listOf(
@@ -266,26 +258,32 @@ fun AudiobookPlayerScreen(
             // Corner bookmark ribbon — same shape/placement as the ebook reader. Filled when the
             // playhead is within ±3 s of an existing bookmark, or while the add-bookmark dialog is open.
             val nearBookmark = state.bookmarks.any { bm ->
-                kotlin.math.abs(bm.positionSec - state.positionSec) <= 3.0
+                kotlin.math.abs(bm.positionSec - state.positionSec) <= BOOKMARK_WINDOW_SEC
             }
             CornerBookmarkIndicator(
                 isBookmarked = createDraft != null || nearBookmark,
                 isVisible = true,
                 onToggle = {
                     val positionSec = viewModel.currentPositionSec()
-                    createDraft = BookmarkDraft(
-                        positionSec = positionSec,
-                        defaultTitle = viewModel.defaultBookmarkTitle(positionSec),
-                        chapterTitle = state.currentChapterTitle?.trim().orEmpty(),
-                    )
+                    val nearby = state.bookmarks
+                        .filter { kotlin.math.abs(it.positionSec - positionSec) <= BOOKMARK_WINDOW_SEC }
+                        .minByOrNull { kotlin.math.abs(it.positionSec - positionSec) }
+                    if (nearby != null) {
+                        viewModel.deleteBookmark(nearby.id)
+                    } else {
+                        createDraft = BookmarkDraft(
+                            positionSec = positionSec,
+                            defaultTitle = viewModel.defaultBookmarkTitle(positionSec),
+                            chapterTitle = state.currentChapterTitle?.trim().orEmpty(),
+                        )
+                    }
                 },
-                contentDescription = if (nearBookmark && createDraft == null) "Bookmark nearby" else "Add bookmark",
+                contentDescription = if (nearBookmark && createDraft == null) "Remove bookmark" else "Add bookmark",
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .safeDrawingPadding()
                     .padding(end = 12.dp),
             )
-            SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         }
     }
 
@@ -301,18 +299,6 @@ fun AudiobookPlayerScreen(
             onConfirm = { title ->
                 viewModel.addBookmark(title, draft.positionSec)
                 createDraft = null
-                scope.launch {
-                    val result = snackbarHostState.showSnackbar(
-                        message = "Bookmark saved",
-                        actionLabel = "Undo",
-                        duration = SnackbarDuration.Long,
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        // The add is asynchronous; by the time Undo is tapped the id has been published
-                        // to uiState. Read it fresh from the ViewModel at click time.
-                        viewModel.uiState.value.lastCreatedBookmarkId?.let(viewModel::deleteBookmark)
-                    }
-                }
             },
             onDismiss = { createDraft = null },
         )
