@@ -345,7 +345,16 @@ fun EpubReaderScreen(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         railSegments = railSegments,
-                        formattingPrefsProvider = { viewModel.effectiveFormattingPreferences.value },
+                        // Use formattingPreferences (= _formattingPreferences, set synchronously by
+                        // loadFormattingPreferences()) rather than effectiveFormattingPreferences.
+                        // effectiveFormattingPreferences propagates through a combine→stateIn chain
+                        // that updates asynchronously, so its .value may still be the default
+                        // FormattingPreferences() (Horizontal) when the startup nav event fires on a
+                        // fast (cached) epub open — causing the handler to take the paged path and
+                        // consume the event without calling view.navigateTo(). formattingPreferences
+                        // carries the user's actual orientation as soon as loadFormattingPreferences()
+                        // returns, with no async hop.
+                        formattingPrefsProvider = { viewModel.formattingPreferences.value },
                         onPositionChanged = { locator ->
                             if (!isSearchActive) immersiveState.dismissOverlay()
                             viewModel.onPositionChanged(locator)
@@ -1382,10 +1391,11 @@ private fun EpubNavigatorView(
             // chapter-map segments and internal links are routed to ContinuousReaderView.navigateTo
             // instead of the fragment.
             //
-            // Read mode directly from the ViewModel StateFlow rather than the Compose-collected
-            // formattingPrefs. On a startup navigation from item-details, loadFormattingPreferences()
-            // has already set the StateFlow to the correct value before the event is sent, but the
-            // Compose state may not have caught up yet (collectAsState may not have re-rendered).
+            // Read orientation from formattingPrefsProvider() rather than the Compose-collected
+            // formattingPrefs: on a startup navigation from item-details, Compose state may not
+            // have re-rendered yet. formattingPrefsProvider reads _formattingPreferences directly
+            // (set synchronously by loadFormattingPreferences() before openBook() fires the event),
+            // so it always carries the correct orientation at this point.
             if (formattingPrefsProvider().orientation == ReaderOrientation.Continuous) {
                 // Wait for the view to be ready and initialized. continuousViewRef is set in the
                 // AndroidView factory (immediately on view creation) but allChapters is only
