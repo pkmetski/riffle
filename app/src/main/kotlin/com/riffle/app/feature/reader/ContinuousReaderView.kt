@@ -210,6 +210,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private var pendingInitialScroll: (() -> Unit)? = null
 
+    /** The active safety-net fallback [Runnable] posted by [openWindowAt], or null. Tracked so a
+     *  subsequent [openWindowAt] call (e.g. from [navigateTo]) can cancel the stale timer before
+     *  it fires against the new window's [pendingInitialScroll]. */
+    private var pendingFallbackRunnable: Runnable? = null
+
     /**
      * Placeholder height used before real measurement arrives. One screen height keeps the
      * forward-shift trigger working (the last chapter needs enough height to scroll into) while
@@ -337,6 +342,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * process is killed (see [onRenderProcessGone] wiring in [appendChapter]).
      */
     private fun openWindowAt(initialHref: String, initialProgression: Float, anchorFragment: String = "", alignToTop: Boolean = false) {
+        // Cancel any safety-net timer left over from a previous openWindowAt call so it doesn't
+        // fire against this window's pendingInitialScroll.
+        pendingFallbackRunnable?.let { removeCallbacks(it) }
+        pendingFallbackRunnable = null
+
+
         val targetIndex = ContinuousPositionTracker
             .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
             .coerceAtLeast(0)
@@ -408,14 +419,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // after a short grace period with whatever heights are known. Lands the target at the behind
         // buffer's placeholder height; the index-0 height compensation then corrects it to the exact
         // top once the behind buffer's real height arrives. A no-op if the normal path already fired.
-        postDelayed({
+        val fallback = Runnable {
+            pendingFallbackRunnable = null
             if (pendingInitialScroll != null) {
                 val scroll = pendingInitialScroll
                 pendingInitialScroll = null
                 pendingInitialMeasureIndices.clear()
                 scroll?.invoke()
             }
-        }, INITIAL_SCROLL_FALLBACK_MS)
+        }
+        pendingFallbackRunnable = fallback
+        postDelayed(fallback, INITIAL_SCROLL_FALLBACK_MS)
     }
 
     /**

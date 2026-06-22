@@ -1344,6 +1344,8 @@ class EpubReaderViewModel @Inject constructor(
         }
         epubZip?.close()
         epubZip = null
+        publication?.close()
+        publication = null
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
