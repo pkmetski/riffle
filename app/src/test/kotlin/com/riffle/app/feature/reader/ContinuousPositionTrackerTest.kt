@@ -218,6 +218,99 @@ class ContinuousPositionTrackerTest {
         }
     }
 
+    // ── backward→forward oscillation — the "В Дамаск / В Ерусалим" bug ─────────
+    //
+    // Short chapters cause an immediate forward shift after every backward shift.
+    // Mechanism:
+    //  1. topIndex points to ch-X (short, height H0 < viewport/2).
+    //  2. User is at sY=0 → backward-shift fires (0 < H0/2).
+    //  3. prependChapter(ch-X-1) adds placeholder P=viewport and fires scrollBy(+P). topIndex→X-1.
+    //  4. New sY=P. Viewport midpoint = P + viewport/2.
+    //  5. forwardShiftNeeded computes gap = viewportMidIndex − newTopIndex (X-1).
+    //     If gap > CHAPTERS_BEHIND the forward shift fires, undoing the backward shift → loop.
+    //
+    // Gap = (number of consecutive short chapters above the viewport midpoint) + 1:
+    //   • ch-X short, ch-X+1 tall: midpoint in ch-X+1 → viewportMidIndex=X+1, gap=(X+1)−(X-1)=2
+    //   • ch-X and ch-X+1 both short (<viewport/2 combined), ch-X+2 tall:
+    //       midpoint overshoots both → viewportMidIndex=X+2, gap=(X+2)−(X-1)=3
+    //
+    // In this book ch-63 "В Дамаск" (400 px) + ch-64 (tall) → gap=2 → need CHAPTERS_BEHIND ≥ 2.
+    // ch-62 "В Ерусалим" (200 px) + ch-63 "В Дамаск" (400 px) + ch-64 (tall) → gap=3 → need ≥ 3.
+
+    @Test
+    fun `backward→forward oscillation — one short chapter then tall — gap is 2 — chaptersBehind 2 prevents it`() {
+        // ch-X short (e.g. "В Дамаск", 400 px), ch-X+1 tall. Viewport midpoint lands in ch-X+1.
+        // After backward shift: topIndex=X-1, viewportMidIndex=X+1, gap=2.
+        val viewport = 2048
+        val placeholder = viewport
+        val H0 = 400                        // ch-X short chapter
+        val H1 = 50_000                     // ch-X+1 tall chapter
+
+        val sYAfterPrepend = 0 + placeholder
+        val chXPlusOneStart = placeholder + H0
+        val viewportMidpoint = sYAfterPrepend + viewport / 2
+
+        // Midpoint does NOT overshoot the tall ch-X+1 (stays inside it).
+        assertFalse(
+            "Midpoint=$viewportMidpoint must NOT overshoot tall ch-X+1 end=${chXPlusOneStart + H1}",
+            viewportMidpoint > chXPlusOneStart + H1,
+        )
+        // Midpoint IS past the short ch-X (viewport midpoint can never be inside a chapter
+        // shorter than viewport/2 when sY is at the chapter's top).
+        assertTrue(
+            "Midpoint=$viewportMidpoint must be past short ch-X end=$chXPlusOneStart",
+            viewportMidpoint > chXPlusOneStart,
+        )
+
+        // gap = (X+1) − (X-1) = 2
+        val gapAfterBackwardShift = 2
+        assertTrue(
+            "chaptersBehind=1: gap $gapAfterBackwardShift > 1 → forward shift fires → oscillation",
+            gapAfterBackwardShift > 1,
+        )
+        assertFalse(
+            "chaptersBehind=2: gap $gapAfterBackwardShift > 2 is FALSE → backward shift sticks",
+            gapAfterBackwardShift > 2,
+        )
+    }
+
+    @Test
+    fun `backward→forward oscillation — two consecutive short chapters then tall — gap is 3 — chaptersBehind 3 prevents it`() {
+        // ch-X and ch-X+1 both short (combined < viewport/2), ch-X+2 tall.
+        // "В Ерусалим" (200 px) + "В Дамаск" (400 px) in the 1001-Nights book.
+        // After backward shift: topIndex=X-1, viewportMidIndex=X+2 (midpoint overshoots both
+        // short chapters), gap=3.
+        val viewport = 2048
+        val placeholder = viewport
+        val H0 = 200                        // ch-X short chapter (e.g. "В Ерусалим")
+        val H1 = 400                        // ch-X+1 also short (e.g. "В Дамаск")
+
+        val sYAfterPrepend = 0 + placeholder
+        val chXPlusOneEnd = placeholder + H0 + H1
+        val viewportMidpoint = sYAfterPrepend + viewport / 2
+
+        // Combined height of both short chapters fits before the viewport midpoint.
+        assertTrue(
+            "H0+H1=${H0 + H1} must be < viewport/2=${viewport / 2} for midpoint to overshoot both",
+            H0 + H1 < viewport / 2,
+        )
+        assertTrue(
+            "Midpoint=$viewportMidpoint must overshoot ch-X+1 end=$chXPlusOneEnd",
+            viewportMidpoint > chXPlusOneEnd,
+        )
+
+        // gap = (X+2) − (X-1) = 3
+        val gapAfterBackwardShift = 3
+        assertTrue(
+            "chaptersBehind=2: gap $gapAfterBackwardShift > 2 → forward shift still fires",
+            gapAfterBackwardShift > 2,
+        )
+        assertFalse(
+            "chaptersBehind=3: gap $gapAfterBackwardShift > 3 is FALSE → backward shift sticks",
+            gapAfterBackwardShift > 3,
+        )
+    }
+
     // ── internalLinkHref ──────────────────────────────────────────────────────
 
     @Test

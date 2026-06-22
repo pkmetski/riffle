@@ -14,8 +14,8 @@ import org.readium.r2.shared.publication.Publication
 import kotlin.math.abs
 
 /**
- * Renders the entire book as a single vertical scroll by stacking a sliding window of 3
- * [ChapterWebView]s (previous, current, next) inside a [LinearLayout].
+ * Renders the entire book as a single vertical scroll by stacking a sliding window of
+ * [WINDOW_SIZE] [ChapterWebView]s inside a [LinearLayout].
  *
  * Scrolling is owned entirely by this [NestedScrollView]; each [ChapterWebView] has its
  * internal scrolling disabled and its height fixed to its measured content height.
@@ -33,8 +33,20 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 ) : NestedScrollView(context, attrs), ContinuousHighlightTarget {
 
     companion object {
-        /** Chapters kept loaded behind the reader (for smooth backward scrolling). */
-        private const val CHAPTERS_BEHIND = 1
+        /**
+         * Chapters kept loaded behind the reader (for smooth backward scrolling).
+         *
+         * Must be ≥ (N+1) where N is the maximum run of consecutive chapters whose combined
+         * height fits below viewport/2. After a backward shift, scrollBy(placeholder) moves the
+         * viewport past all those short chapters; the forward-shift condition (gap > CHAPTERS_BEHIND)
+         * then fires and immediately undoes the shift — the user is stuck in a loop.
+         *
+         * Gap after a backward shift = (number of short chapters above the viewport midpoint) + 1,
+         * because topIndex decrements by 1 while viewportMidIndex stays in whichever chapter held
+         * it before. In this book ch-62 "В Ерусалим" (200 px) + ch-63 "В Дамаск" (400 px) are both
+         * shorter than viewport/2, giving gap = 3 → CHAPTERS_BEHIND must be ≥ 3.
+         */
+        private const val CHAPTERS_BEHIND = 3
 
         /**
          * Chapters kept loaded ahead of the reader. Must be ≥2 so that a short "CHAPTER N"
