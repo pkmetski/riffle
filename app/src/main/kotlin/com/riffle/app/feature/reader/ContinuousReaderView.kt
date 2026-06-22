@@ -316,12 +316,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         initialHref: String,
         initialProgression: Float,
         publication: Publication,
+        alignToTop: Boolean = true,
     ) {
         allChapters = chapters
         formattingPrefs = prefs
         this.publication = publication
         val anchorFragment = initialHref.substringAfter('#', "")
-        openWindowAt(initialHref.substringBefore('#'), initialProgression, anchorFragment)
+        openWindowAt(initialHref.substringBefore('#'), initialProgression, anchorFragment, alignToTop = alignToTop)
         isInitialized.value = true
     }
 
