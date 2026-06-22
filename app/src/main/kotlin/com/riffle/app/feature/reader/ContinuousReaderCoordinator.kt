@@ -4,8 +4,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.IntRect
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.SentenceQuote
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 import org.readium.r2.shared.publication.Link
@@ -42,10 +43,14 @@ internal class ContinuousReaderCoordinator(
 ) {
     private var view: ContinuousReaderView? = null
 
-    // Fulfilled when attach() is called. onTocNavigation awaits this to survive the race between
-    // the AndroidView factory (layout phase) and the navigation LaunchedEffect (composition phase),
-    // which have no guaranteed ordering on first composition.
-    private val viewReady = CompletableDeferred<ContinuousReaderView>()
+    // Updated in attach() every time a new ContinuousReaderView is created (including after
+    // Activity rotation, when Compose recreates the AndroidView and calls attach() again).
+    // onTocNavigation awaits the first non-null emission to survive the race between the
+    // AndroidView factory (layout phase) and the navigation LaunchedEffect (composition phase),
+    // which have no guaranteed ordering on first composition. Using MutableStateFlow rather than
+    // CompletableDeferred means the reference is refreshed on rotation — a CompletableDeferred
+    // can only be completed once and would return the old destroyed view on subsequent attach().
+    private val viewFlow = MutableStateFlow<ContinuousReaderView?>(null)
 
     /**
      * Wire all [ContinuousReaderView] callbacks. Call from the [AndroidView] factory immediately
@@ -53,7 +58,7 @@ internal class ContinuousReaderCoordinator(
      */
     fun attach(view: ContinuousReaderView) {
         this.view = view
-        viewReady.complete(view)
+        viewFlow.value = view
 
         view.onRawPosition = { href, progression ->
             val locator = buildContinuousLocator(href, progression, railSegmentsProvider())
@@ -120,7 +125,7 @@ internal class ContinuousReaderCoordinator(
      * Call from the TOC/chapter-map navigation LaunchedEffect when in continuous mode.
      */
     suspend fun onTocNavigation(link: Link) {
-        val v = viewReady.await()
+        val v = viewFlow.filterNotNull().first()
         snapshotFlow { v.isInitialized.value }.filter { it }.first()
         v.navigateTo(link.href.toString(), 0f)
     }
