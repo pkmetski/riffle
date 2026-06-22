@@ -106,6 +106,8 @@ open class AudiobookController @Inject constructor(
         val t0 = System.currentTimeMillis()
         this.spans = spans
         this.durationSec = durationSec
+        SharedAudiobookContext.spans = spans
+        SharedAudiobookContext.totalDurationMs = (durationSec * 1000.0).toLong()
         // Bundle-backed audio: the track mediaIds are zip-entry paths the service reads from this file
         // via SharedBundle (the same channel Readaloud uses). Null for HTTP/file sessions, where the
         // service never consults SharedBundle (so we don't touch it and don't claim ownership).
@@ -253,6 +255,8 @@ open class AudiobookController @Inject constructor(
         // restores a zip URI after this.
         if (ownsSharedBundle) SharedBundle.current = null
         ownsSharedBundle = false
+        SharedAudiobookContext.spans = emptyList()
+        SharedAudiobookContext.totalDurationMs = 0L
         _state.value = PlaybackState()
     }
 
@@ -281,6 +285,8 @@ open class AudiobookController @Inject constructor(
         prepared = false
         wantsToPlay = false
         ownsSharedBundle = false
+        SharedAudiobookContext.spans = emptyList()
+        SharedAudiobookContext.totalDurationMs = 0L
         _state.value = PlaybackState()
     }
 

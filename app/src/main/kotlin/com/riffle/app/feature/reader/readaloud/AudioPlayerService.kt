@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.riffle.app.R
+import com.riffle.app.feature.audiobook.AbsolutePositionPlayer
 
 /**
  * Foreground [MediaSessionService] that plays Readaloud audio. Media3 supplies the media
@@ -52,7 +53,7 @@ class AudioPlayerService : MediaSessionService() {
                 .build()
                 .apply { setSmallIcon(R.drawable.ic_notification) },
         )
-        val player = ExoPlayer.Builder(this)
+        val exoPlayer = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -66,6 +67,9 @@ class AudioPlayerService : MediaSessionService() {
             // so their behaviour is unchanged.
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingDataSourceFactory()))
             .build()
+        // Wraps ExoPlayer so the OS media controls (notification, lock screen, Bluetooth) see
+        // book-absolute position / total duration rather than per-track (per-chapter) values.
+        val player = AbsolutePositionPlayer(exoPlayer)
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(MediaItemUriRestoringCallback)
             .setSessionActivity(openRiffleIntent())
