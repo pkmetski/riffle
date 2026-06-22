@@ -158,11 +158,15 @@ class LibraryItemDetailViewModelTocTest {
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,
         audiobookDownloadRepository = NoopAudiobookDownloadRepository,
+        readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
+            override suspend fun download(storytellerServerId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
+        },
         connectivityObserver = FakeConnectivityObserver(),
         downloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
         crossEpubIndexBuildTrigger = object : com.riffle.core.data.CrossEpubIndexBuildTrigger {
             override fun enqueueBuild(link: com.riffle.core.domain.ReadaloudLink) {}
         },
+        sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
     )

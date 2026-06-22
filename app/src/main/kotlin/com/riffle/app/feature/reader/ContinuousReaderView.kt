@@ -347,7 +347,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         pendingFallbackRunnable?.let { removeCallbacks(it) }
         pendingFallbackRunnable = null
 
-
         val targetIndex = ContinuousPositionTracker
             .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
             .coerceAtLeast(0)
