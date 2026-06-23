@@ -114,6 +114,10 @@ sealed class ReaderState {
         val publication: Publication,
         val title: String,
         val initialLocator: Locator?,
+        /** The annotation id when this open was triggered by an annotation tap (openAtCfi flow).
+         *  Continuous mode uses it to anchor the initial scroll against the DOM mark for the
+         *  annotation — the precise post-reflow Y instead of char-fraction × measured-height. */
+        val initialFocusAnnotationId: String? = null,
     ) : ReaderState()
     data class Error(val message: String) : ReaderState()
 }
@@ -735,6 +739,16 @@ class EpubReaderViewModel @Inject constructor(
                 // first server-locator that follows; subsequent syncs (peer / live progress) still
                 // apply normally.
                 if (openAtLocator != null) suppressNextServerLocator = true
+                // Bind openAtCfi to its source annotation (if any) so continuous mode can scroll to
+                // the DOM mark for that annotation — a precise post-reflow Y — instead of guessing
+                // from char-fraction × measured-WebView-height (which lands short of the highlight
+                // when the chapter's text-density differs from char-density).
+                val activeServerForAnno = serverRepository.getActive()?.id
+                val openAtCfiNonBlank = openAtCfi?.takeIf { it.isNotBlank() }
+                val initialFocusAnnotationId = if (openAtLocator != null && activeServerForAnno != null && openAtCfiNonBlank != null) {
+                    runCatching { annotationStore.findByItemAndCfi(activeServerForAnno, itemId, openAtCfiNonBlank) }
+                        .getOrNull()?.id
+                } else null
                 val locator = openAtLocator
                     ?: result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
@@ -749,6 +763,7 @@ class EpubReaderViewModel @Inject constructor(
                     publication = pub,
                     title = item.title,
                     initialLocator = if (startTocHref == null) locator else null,
+                    initialFocusAnnotationId = if (startTocHref == null) initialFocusAnnotationId else null,
                 )
                 // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
                 // formattingPrefsProvider in the nav event handler ensures the correct continuous vs

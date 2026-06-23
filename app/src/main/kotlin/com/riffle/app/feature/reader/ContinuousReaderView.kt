@@ -337,12 +337,24 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         initialProgression: Float,
         publication: Publication,
         alignToTop: Boolean = true,
+        /** When this open was triggered by an annotation tap (openAtCfi flow), the annotation's id.
+         *  Lets [openWindowAt] anchor the initial landing against the `<mark data-riffle-ann="<id>">`
+         *  decoration's actual on-screen Y once it's been applied — a post-reflow precise landing
+         *  instead of char-fraction × measured-WebView-height (which overshoots into trailing
+         *  whitespace or undershoots when text-density ≠ char-density). */
+        focusAnnotationId: String? = null,
     ) {
         allChapters = chapters
         formattingPrefs = prefs
         this.publication = publication
         val anchorFragment = initialHref.substringAfter('#', "")
-        openWindowAt(initialHref.substringBefore('#'), initialProgression, anchorFragment, alignToTop = alignToTop)
+        openWindowAt(
+            initialHref = initialHref.substringBefore('#'),
+            initialProgression = initialProgression,
+            anchorFragment = anchorFragment,
+            alignToTop = alignToTop,
+            focusAnnotationId = focusAnnotationId,
+        )
         isInitialized.value = true
     }
 
@@ -352,7 +364,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * Used for the first open, for a far TOC/link jump, and to recover after the WebView renderer
      * process is killed (see [onRenderProcessGone] wiring in [appendChapter]).
      */
-    private fun openWindowAt(initialHref: String, initialProgression: Float, anchorFragment: String = "", alignToTop: Boolean = false) {
+    private fun openWindowAt(
+        initialHref: String,
+        initialProgression: Float,
+        anchorFragment: String = "",
+        alignToTop: Boolean = false,
+        focusAnnotationId: String? = null,
+    ) {
         // Cancel any safety-net timer left over from a previous openWindowAt call so it doesn't
         // fire against this window's pendingInitialScroll.
         pendingFallbackRunnable?.let { removeCallbacks(it) }
@@ -392,36 +410,50 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             val slot = buildWindow().getOrNull(targetWindowIndex)
             val targetWv = webViews.getOrNull(targetWindowIndex)
             if (slot != null) {
-                // With an anchor fragment (TOC/cross-ref target) land on that element inside the
-                // resource; otherwise land at the resource top (progression 0) or the saved
-                // progression offset (resume).
-                if (anchorFragment.isNotEmpty() && targetWv != null) {
-                    targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                        val y = if (anchorOffset != null) {
-                            (slot.top + anchorOffset).coerceAtLeast(0)
-                        } else if (alignToTop) {
-                            (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
-                        } else {
-                            ContinuousPositionTracker.scrollYForProgression(
-                                slot.top, slot.height, initialProgression, height,
-                            )
-                        }
-                        scrollTo(0, y)
-                    }
-                } else {
-                    // Restore at the viewport midpoint (inverse of locatorAt) so a resumed position
-                    // doesn't drift forward half a screen on every reopen; a chapter start stays at
-                    // the top. When alignToTop is true (bookmark / external locator navigation) the
-                    // progression was measured at content top, not viewport midpoint, so skip the
-                    // half-viewport offset.
-                    val y = if (alignToTop) {
+                // Three landing strategies in priority order:
+                //  1) annotation-decoration anchor: the `<mark data-riffle-ann="<id>">` exists only
+                //     after applyAnnotationHighlightsJs has run inside onPageFinished (post-style-
+                //     injection / post-reflow), so its rect reflects the FINAL layout. Exact landing.
+                //  2) element-id anchor (#fragment): for TOC/cross-ref targets that point at a real
+                //     DOM element. Same recipe but the element is created by the chapter itself.
+                //  3) progression × slot.height: char-fraction × measured-WebView-height — works
+                //     for the resource-top / resume case but lands inexactly when the highlight sits
+                //     in dense text (heading-vs-paragraph density mismatch).
+                //
+                // The reflow-tracking re-land (see [appendChapter]'s onHeightMeasured) re-fires this
+                // closure on every target remeasure, so a cold start where (1) returns null on the
+                // first fire (mark not yet decorated) falls back to (2)/(3), and the NEXT remeasure
+                // — which is virtually always after applyAnnotationHighlightsJs has run — re-fires
+                // and snaps onto the precise mark Y.
+                fun landViaProgression(): Int {
+                    return if (alignToTop) {
                         (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                     } else {
                         ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
                         )
                     }
-                    scrollTo(0, y)
+                }
+                fun landViaAnchor(onMiss: () -> Unit) {
+                    if (anchorFragment.isNotEmpty() && targetWv != null) {
+                        targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
+                            if (anchorOffset != null) scrollTo(0, (slot.top + anchorOffset).coerceAtLeast(0))
+                            else onMiss()
+                        }
+                    } else {
+                        onMiss()
+                    }
+                }
+                if (focusAnnotationId != null && targetWv != null) {
+                    targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+                        if (annOffset != null) {
+                            scrollTo(0, (slot.top + annOffset).coerceAtLeast(0))
+                        } else {
+                            landViaAnchor { scrollTo(0, landViaProgression()) }
+                        }
+                    }
+                } else {
+                    landViaAnchor { scrollTo(0, landViaProgression()) }
                 }
             }
         }
@@ -667,7 +699,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             if (annotations.isNullOrEmpty()) {
                 wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
             } else {
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+                // Same re-land-on-completion hook as in appendChapter.onPageFinished: when the
+                // bulk-apply runs against the pending-target chapter, the mark only exists AFTER
+                // this JS finishes; re-fire the armed landing closure so its mark probe succeeds.
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
+                    val reapply = reapplyLandingAfterFallback
+                    if (reapply != null && webViews.indexOf(wv) == pendingTargetWindowIndex) {
+                        reapply.invoke()
+                    }
+                }
             }
         }
     }
@@ -794,7 +834,21 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
             val annotations = currentAnnotationsByHref[wv.chapterHref]
             if (!annotations.isNullOrEmpty()) {
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+                // Re-fire the armed landing closure on completion: applyAnnotationHighlightsJs
+                // inserts the `<mark data-riffle-ann="<id>">` whose rect is what
+                // [annotationOffsetTopDevicePx] looks for. The first pendingInitialScroll fire
+                // usually happens BEFORE this JS completes (height-measurement reflow triggers it
+                // earlier), so the annotation-mark query in that first fire returns null and falls
+                // back to anchor/progression. Re-firing the closure here — once the mark is in the
+                // DOM — lets the mark query succeed and re-land precisely. No-op when not the
+                // pending-target chapter or when the user has touched the screen (touch clears
+                // [reapplyLandingAfterFallback] in onInterceptTouchEvent).
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
+                    val reapply = reapplyLandingAfterFallback
+                    if (reapply != null && webViews.indexOf(wv) == pendingTargetWindowIndex) {
+                        reapply.invoke()
+                    }
+                }
             }
             val searchState = currentSearchHighlights
             if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
@@ -839,7 +893,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
             val annotations = currentAnnotationsByHref[wv.chapterHref]
             if (!annotations.isNullOrEmpty()) {
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations), null)
+                // Same re-land-on-completion hook as in appendChapter.onPageFinished.
+                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
+                    val reapply = reapplyLandingAfterFallback
+                    if (reapply != null && webViews.indexOf(wv) == pendingTargetWindowIndex) {
+                        reapply.invoke()
+                    }
+                }
             }
             val searchState = currentSearchHighlights
             if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {

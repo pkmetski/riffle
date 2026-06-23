@@ -130,6 +130,9 @@ class AnnotationStoreImpl(
     override suspend fun renameBookmark(id: String, title: String) {
         dao.renameBookmark(id, title = title, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
+
+    override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation? =
+        dao.getByItemAndCfi(serverId, itemId, cfi)?.toDomain()
 }
 
 private fun AnnotationEntity.toDomain() = Annotation(

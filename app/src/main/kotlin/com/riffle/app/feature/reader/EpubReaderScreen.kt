@@ -2069,6 +2069,13 @@ private fun EpubNavigatorView(
             // is no guaranteed order between the two on first composition. Keying on the ref means
             // this coroutine only fires (or re-fires) once the factory has actually populated it.
             val continuousView = continuousViewRef.value
+            // True only on the very first composition of this screen instance. Saved across
+            // recompositions and rotation so the annotation-mark anchor is consumed exactly once —
+            // it must NOT replay on rotation (where the user has been reading and `latestLocator()`
+            // points elsewhere). Reading `latestLocator()` here doesn't work: `runReaderSyncCycle`
+            // inside `openBook` writes `lastLocator` BEFORE this LaunchedEffect fires, so it's
+            // already non-null at first composition and a takeIf guard against it strips the id.
+            var focusIsFresh by rememberSaveable { mutableStateOf(true) }
             LaunchedEffect(continuousView) {
                 val view = continuousView ?: return@LaunchedEffect
                 val initialLocator = latestLocator() ?: state.initialLocator
@@ -2077,12 +2084,15 @@ private fun EpubNavigatorView(
                     ?: chapters.firstOrNull()?.link?.href?.toString()
                     ?: return@LaunchedEffect
                 val initialHref = if (anchor != null) "$rawHref#$anchor" else rawHref
+                val focusId = state.initialFocusAnnotationId?.takeIf { focusIsFresh }
+                focusIsFresh = false
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,
                     initialHref = initialHref,
                     initialProgression = initialLocator?.locations?.progression?.toFloat() ?: 0f,
                     publication = state.publication,
+                    focusAnnotationId = focusId,
                 )
             }
         }

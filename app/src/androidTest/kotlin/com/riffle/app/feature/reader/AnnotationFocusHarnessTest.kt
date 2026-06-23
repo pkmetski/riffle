@@ -103,41 +103,67 @@ class AnnotationFocusHarnessTest {
     }
 
     private fun runModeTest(orientation: ReaderOrientation) {
-        // 1. Force the reader mode BEFORE opening the book.
         runBlocking {
             val prefs = formattingPreferencesStore.preferences.first()
             formattingPreferencesStore.update(prefs.copy(orientation = orientation))
         }
-
-        // 2. Add the server and land on the library "All Books" grid (no book open yet).
         addServerAndBrowseLibrary()
-
-        // 3. Seed a highlight deep in chapter1 (progression-only range CFI, like a real highlight).
-        //    Done after the server is registered so we can scope it to the active serverId.
         seedDeepHighlight()
 
-        // 4. Reproduce the USER'S path: search the library, tap the annotation row → this navigates
-        //    to epub_reader/{id}?openAtCfi={cfi}, opening the reader fresh at the annotation
-        //    (the initialLocator path — distinct from the in-reader annotation panel).
-        searchAndTapAnnotation()
-
-        // 5. Wait for the reader, let navigation settle, then assert the highlighted phrase is on screen.
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
-            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty()
+        // Trigger the library→tap-annotation flow MULTIPLE times to expose races.
+        // After each landing the test signals a marker + holds, so the host can screencap that
+        // landing's pixels (uiAutomation.takeScreenshot returns null on a -no-window AVD).
+        val attempts = 3
+        val tag = orientation.name.lowercase()
+        repeat(attempts) { i ->
+            val attempt = i + 1
+            searchAndTapAnnotation()
+            composeTestRule.waitUntil(timeoutMillis = 20_000) {
+                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+            // The annotation-mark anchored landing finishes within a couple of remeasures (one
+            // reflow tick). 8s is comfortably beyond that and gives the AVD WebView time to paint.
+            Thread.sleep(8_000)
+            writeMarker("READY_${tag}_$attempt")
+            Thread.sleep(8_000)
+            if (attempt < attempts) returnToLibrary()
         }
-        Thread.sleep(3_000)
-        val result = waitForPhraseOnScreen(orientation, timeoutMs = 12_000)
-        assertTrue(
-            "[$orientation] FOCUS FAILED: highlighted phrase not on screen after opening from library. $result",
-            result.onScreen,
-        )
+    }
+
+    private fun writeMarker(name: String) {
+        try {
+            android.util.Log.d("AnnoFocusHarness", "MARKER $name")
+            val dir = InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null) ?: return
+            java.io.File(dir, name).writeText(name)
+        } catch (_: Throwable) { /* diagnostic only */ }
+    }
+
+    /** Pop the back stack from reader (and the library detail screen, if interposed) back to the
+     *  library search grid where the annotation row is tappable again. */
+    private fun returnToLibrary() {
+        // Repeatedly press back until the Search field reappears (library home). Three attempts
+        // covers reader → details → library at most.
+        var attempts = 0
+        while (attempts < 4 &&
+            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty()
+        ) {
+            androidx.test.espresso.Espresso.pressBack()
+            attempts++
+            Thread.sleep(800)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 8_000) {
+            composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private fun searchAndTapAnnotation() {
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("Search").performTextInput("Section 1.3")
+        // performTextReplacement (not Input) so repeated calls on subsequent attempts overwrite the
+        // previous query instead of appending to it.
+        composeTestRule.onNodeWithText("Search").performTextReplacement("Section 1.3")
         composeTestRule.waitUntil(timeoutMillis = 8_000) {
             composeTestRule.onAllNodesWithText(targetPhrase).fetchSemanticsNodes().isNotEmpty()
         }

@@ -25,6 +25,9 @@ class AnnotationStoreImplTest {
 
         override suspend fun getById(id: String): AnnotationEntity? = rows.value.firstOrNull { it.id == id }
 
+        override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? =
+            rows.value.firstOrNull { it.serverId == serverId && it.itemId == itemId && it.cfi == cfi && !it.deleted }
+
         override suspend fun upsert(entity: AnnotationEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }
