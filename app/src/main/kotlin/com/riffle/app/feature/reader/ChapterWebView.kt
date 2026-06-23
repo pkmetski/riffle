@@ -91,11 +91,11 @@ internal class ChapterWebView(context: Context) : WebView(context) {
 
     /**
      * Called on the main thread with the selected text, its within-chapter progression (0..1),
-     * and its bounding rect in device pixels relative to this WebView's top-left corner.
-     * The progression lets [createHighlight] build a correctly-anchored CFI range; the rect
-     * lets the host position the highlight-actions popup next to the selected text.
+     * its bounding rect in device pixels relative to this WebView's top-left corner, and the
+     * `before` / `after` document-text context windows used to disambiguate which occurrence
+     * the user picked when the selected text repeats in the chapter.
      */
-    var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect) -> Unit)? = null
+    var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps an injected annotation mark (`<mark
@@ -380,7 +380,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
                 when (item.itemId) {
                     MENU_COPY -> withSelectionText { copyToClipboard(it) }
-                    MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog, rect -> onHighlight?.invoke(text, prog, rect) }
+                    MENU_HIGHLIGHT -> withSelectionTextAndProgression { text, prog, rect, before, after -> onHighlight?.invoke(text, prog, rect, before, after) }
                     MENU_SEARCH -> withSelectionText { webSearch(it) }
                     MENU_SHARE -> withSelectionText { shareText(it) }
                     MENU_PLAY -> withSelectionText { text ->
@@ -407,21 +407,30 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     }
 
     /**
-     * Read the current selection's plain text, its within-document progression (0..1), and the
-     * selection's bounding rect in device pixels relative to this WebView, then run [block].
+     * Read the current selection's plain text, its within-document progression (0..1), the
+     * selection's bounding rect in device pixels relative to this WebView, and ~60 chars of
+     * document-text on each side of the selection, then run [block].
      *
      * progression = selectionTop / documentHeight — correct in Continuous mode because the WebView
      * never scrolls (pageYOffset=0), so getBoundingClientRect().top equals the absolute document
      * position. The rect is CSS px × devicePixelRatio so it composes with [getLocationOnScreen].
+     *
+     * The before/after context strings come from Range.toString() bracketing the selection — same
+     * representation as TreeWalker.nodeValue concatenation, so render-time disambiguation can
+     * exact-match without whitespace normalization. See [ContinuousStyleInjector.applyAnnotationHighlightsJs].
      */
-    private fun withSelectionTextAndProgression(block: (text: String, progression: Double, rect: android.graphics.Rect) -> Unit) {
+    private fun withSelectionTextAndProgression(
+        block: (text: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit,
+    ) {
         val js = """(function() {
             var sel = window.getSelection ? window.getSelection() : null;
             var text = sel ? sel.toString() : '';
             var prog = 0.0;
             var l = 0, t = 0, r = 0, b = 0;
+            var bef = '', aft = '';
             if (sel && sel.rangeCount > 0) {
-                var rect = sel.getRangeAt(0).getBoundingClientRect();
+                var range = sel.getRangeAt(0);
+                var rect = range.getBoundingClientRect();
                 var docH = Math.max(
                     document.documentElement ? document.documentElement.offsetHeight : 0,
                     document.body ? document.body.offsetHeight : 0,
@@ -429,18 +438,37 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 );
                 prog = Math.max(0, Math.min(1, rect.top / docH));
                 l = rect.left; t = rect.top; r = rect.right; b = rect.bottom;
+                var body = document.body;
+                if (body) {
+                    try {
+                        var beforeR = document.createRange();
+                        beforeR.selectNodeContents(body);
+                        beforeR.setEnd(range.startContainer, range.startOffset);
+                        bef = beforeR.toString().slice(-60);
+                    } catch (e) { bef = ''; }
+                    try {
+                        var afterR = document.createRange();
+                        afterR.selectNodeContents(body);
+                        afterR.setStart(range.endContainer, range.endOffset);
+                        aft = afterR.toString().slice(0, 60);
+                    } catch (e) { aft = ''; }
+                }
             }
-            return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b});
+            return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b, bef: bef, aft: aft});
         })()"""
         evaluateJavascript(js) { raw ->
             val jsonStr = decodeJsString(raw)
             val text: String
             val prog: Double
             val rect: android.graphics.Rect
+            val before: String
+            val after: String
             try {
                 val obj = org.json.JSONObject(jsonStr)
                 text = obj.optString("text", "")
                 prog = obj.optDouble("p", 0.0)
+                before = obj.optString("bef", "")
+                after = obj.optString("aft", "")
                 val dpr = resources.displayMetrics.density
                 rect = android.graphics.Rect(
                     (obj.optDouble("l", 0.0) * dpr).toInt(),
@@ -451,7 +479,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             } catch (_: Exception) {
                 return@evaluateJavascript
             }
-            if (text.isNotBlank()) block(text, prog, rect)
+            if (text.isNotBlank()) block(text, prog, rect, before, after)
             evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
         }
     }

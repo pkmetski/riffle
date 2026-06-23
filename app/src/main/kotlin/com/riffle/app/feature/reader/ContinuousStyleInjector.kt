@@ -341,10 +341,15 @@ internal object ContinuousStyleInjector {
      *
      * Smart DOM diffing avoids the clear-and-reapply pattern: existing marks are updated in-place
      * (colour only, no DOM structure change), marks for deleted annotations are removed, and only
-     * newly-added annotations go through `window.find()`. This prevents the race where clearing
-     * existing marks via `outerHTML = innerHTML` modifies the DOM just before `window.find()` is
-     * called — Chrome won't reliably find text in a DOM it just mutated synchronously — so a new
+     * newly-added annotations go through occurrence-locating. This prevents the race where clearing
+     * existing marks via `outerHTML = innerHTML` modifies the DOM just before locating runs — a new
      * highlight appears immediately without requiring a page reload.
+     *
+     * Occurrence resolution: when the highlighted text repeats in the chapter, `window.find()`
+     * would always pick the FIRST occurrence. Instead we walk text nodes, build a flat document
+     * string + node/offset index, and pick the occurrence of `ann.t` whose surrounding context
+     * matches the stored `ann.b` (before) / `ann.a` (after). Legacy annotations created before
+     * context capture have empty b/a and fall back to first-match (existing behaviour preserved).
      *
      * For annotations with notes a small ◆ glyph span is injected after the mark. Tapping it calls
      * `window.RiffleChapter.onAnnotationNoteTap` so the host can open the note reader.
@@ -356,8 +361,10 @@ internal object ContinuousStyleInjector {
                 if (i > 0) append(',')
                 val safeId = ann.id.replace("\\", "\\\\").replace("'", "\\'")
                 val safeText = ann.text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                val safeBefore = ann.before.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                val safeAfter = ann.after.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
                 // cssColor is machine-generated (e.g. "rgba(56,189,248,0.50)") — no quote escaping needed.
-                append("{id:'$safeId',t:'$safeText',c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}}")
+                append("{id:'$safeId',t:'$safeText',b:'$safeBefore',a:'$safeAfter',c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}}")
             }
             append(']')
         }
@@ -401,6 +408,64 @@ internal object ContinuousStyleInjector {
                     });
                     blockEl.appendChild(s);
                 };
+                // Build a flat text index of the document (text nodes outside existing marks),
+                // used to resolve the right occurrence when an annotation's text repeats. Built
+                // lazily (only when we actually need to locate a new annotation).
+                var flatIdx = null;
+                var buildFlat = function() {
+                    var fullText = '';
+                    var nodes = [];
+                    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                    var n;
+                    while (n = w.nextNode()) {
+                        // Skip text inside existing annotation marks so the b/a context (which was
+                        // captured against the unmarked DOM at selection time) keeps matching.
+                        if (n.parentNode && n.parentNode.closest && n.parentNode.closest('[data-riffle-ann]')) continue;
+                        nodes.push({ node: n, start: fullText.length, len: n.nodeValue.length });
+                        fullText += n.nodeValue;
+                    }
+                    return { fullText: fullText, nodes: nodes };
+                };
+                var locateRange = function(ann) {
+                    if (!flatIdx) flatIdx = buildFlat();
+                    var text = flatIdx.fullText;
+                    var snippet = ann.t;
+                    if (!snippet) return null;
+                    var bestIdx = -1, bestScore = -1;
+                    var idx = -1;
+                    while ((idx = text.indexOf(snippet, idx + 1)) !== -1) {
+                        // No context stored (legacy annotation) → first match, like the old behaviour.
+                        if (!ann.b && !ann.a) { bestIdx = idx; break; }
+                        var score = 0;
+                        if (ann.b) {
+                            var beforeWin = text.substring(Math.max(0, idx - ann.b.length), idx);
+                            if (beforeWin === ann.b) score += 100;
+                            else if (beforeWin.length && ann.b.length >= 10 && beforeWin.slice(-10) === ann.b.slice(-10)) score += 40;
+                        }
+                        if (ann.a) {
+                            var afterWin = text.substring(idx + snippet.length, idx + snippet.length + ann.a.length);
+                            if (afterWin === ann.a) score += 100;
+                            else if (afterWin.length && ann.a.length >= 10 && afterWin.slice(0, 10) === ann.a.slice(0, 10)) score += 40;
+                        }
+                        if (score > bestScore) { bestScore = score; bestIdx = idx; }
+                    }
+                    if (bestIdx < 0) return null;
+                    var startIdx = bestIdx, endIdx = bestIdx + snippet.length;
+                    var n0 = null, off0 = 0, n1 = null, off1 = 0;
+                    for (var k = 0; k < flatIdx.nodes.length; k++) {
+                        var nd = flatIdx.nodes[k];
+                        if (n0 === null && startIdx < nd.start + nd.len) { n0 = nd.node; off0 = startIdx - nd.start; }
+                        if (n1 === null && endIdx <= nd.start + nd.len) { n1 = nd.node; off1 = endIdx - nd.start; }
+                        if (n0 && n1) break;
+                    }
+                    if (!n0 || !n1) return null;
+                    var range = document.createRange();
+                    try {
+                        range.setStart(n0, off0);
+                        range.setEnd(n1, off1);
+                    } catch (e) { return null; }
+                    return range;
+                };
                 // Remove marks/glyphs for annotations no longer in the list.
                 var validIds = {};
                 anns.forEach(function(a) { validIds[a.id] = true; });
@@ -415,7 +480,7 @@ internal object ContinuousStyleInjector {
                 anns.forEach(function(ann) {
                     var existing = document.querySelector('[data-riffle-ann="' + ann.id + '"]');
                     if (existing) {
-                        // Update colour in-place — no window.find() needed, no DOM structure change.
+                        // Update colour in-place — no relocation needed, no DOM structure change.
                         existing.style.background = ann.c;
                         var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
                         if (ann.n && !eg) {
@@ -425,12 +490,10 @@ internal object ContinuousStyleInjector {
                         }
                         return;
                     }
-                    // New annotation — locate via window.find() on the unmodified DOM.
+                    // New annotation — locate the correct occurrence using before/after context.
+                    var range = locateRange(ann);
+                    if (!range) return;
                     if (sel) sel.removeAllRanges();
-                    if (!window.find(ann.t, false, false, false, false, false, false)) return;
-                    sel = window.getSelection();
-                    if (!sel || sel.rangeCount === 0) return;
-                    var range = sel.getRangeAt(0);
                     var mark = document.createElement('mark');
                     mark.setAttribute('data-riffle-ann', ann.id);
                     mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
@@ -441,6 +504,9 @@ internal object ContinuousStyleInjector {
                         mark.appendChild(frag);
                         range.insertNode(mark);
                     }
+                    // The mark just split a text node — invalidate the flat index so the next
+                    // locateRange() rebuilds it against the updated DOM.
+                    flatIdx = null;
                     (function(markEl, annId) {
                         markEl.addEventListener('click', function(e) {
                             e.stopPropagation();

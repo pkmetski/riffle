@@ -26,7 +26,14 @@ import kotlin.math.abs
  * Adding a chapter at the TOP adjusts [scrollY] by the new chapter's height to keep the
  * visible content stable.
  */
-internal data class AnnotationHighlight(val id: String, val text: String, val cssColor: String, val hasNote: Boolean = false)
+internal data class AnnotationHighlight(
+    val id: String,
+    val text: String,
+    val cssColor: String,
+    val hasNote: Boolean = false,
+    val before: String = "",
+    val after: String = "",
+)
 
 internal class ContinuousReaderView @JvmOverloads constructor(
     context: Context,
@@ -106,7 +113,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * The progression lets the host build a correctly-anchored CFI range; the rect positions
      * the highlight-actions popup next to the selected text.
      */
-    var onHighlightSelection: ((href: String, selectedText: String, progression: Double, screenRect: android.graphics.Rect) -> Unit)? = null
+    var onHighlightSelection: ((href: String, selectedText: String, progression: Double, screenRect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
 
     /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -643,11 +650,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * Extracted to avoid duplication between [appendChapter] and [prependChapter].
      */
     private fun wireAnnotationCallbacks(wv: ChapterWebView) {
-        wv.onHighlight = { text, prog, rect ->
+        wv.onHighlight = { text, prog, rect, before, after ->
             val loc = IntArray(2)
             wv.getLocationOnScreen(loc)
             val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect)
+            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect, before, after)
         }
         wv.onAnnotationTap = { id, rect ->
             val loc = IntArray(2)
