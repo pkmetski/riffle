@@ -235,7 +235,16 @@ internal object ContinuousStyleInjector {
             function blockOf(n) {
                 while (n && n.nodeType === 1) {
                     var d = window.getComputedStyle(n).display;
-                    if (d === 'block' || d === 'list-item' || d === 'table-cell' || d === 'flex' || d === 'grid') return n;
+                    // Treat every block-like display value as a "block" for cross-block detection.
+                    // Missing any one of these would let a range that spans e.g. two table rows
+                    // (table-row / table-row-group) pass the check, after which extractContents
+                    // would reparent the rows as inline children of <mark>. inline-block /
+                    // inline-flex are intentionally excluded — they flow inline so wrapping one
+                    // inside <mark> is safe.
+                    if (d === 'block' || d === 'list-item' || d === 'flex' || d === 'grid' || d === 'flow-root' ||
+                        d === 'table' || d === 'table-row' || d === 'table-row-group' ||
+                        d === 'table-header-group' || d === 'table-footer-group' || d === 'table-cell' ||
+                        d === 'table-caption') return n;
                     n = n.parentNode;
                 }
                 return n;
@@ -313,11 +322,19 @@ internal object ContinuousStyleInjector {
                         if (sel) { sel.removeAllRanges(); sel.addRange(r0); }
                     } catch(e) { return; }
                     var limit = 500;
+                    // Track the previous match's flat-text position. window.find resumes from the
+                    // current selection, but if the skip-advance somehow leaves the selection on the
+                    // same hit (an extremely defensive guard for browser quirks), break out of the
+                    // loop rather than burning the iteration budget on the same match.
+                    var prevKey = null;
                     while (limit-- > 0) {
                         if (!window.find(text, false, false, false, false, false, false)) break;
                         sel = window.getSelection();
                         if (!sel || sel.rangeCount === 0) break;
                         var range = sel.getRangeAt(0);
+                        var matchKey = (range.startContainer === document ? '' : range.startContainer.textContent && range.startContainer.textContent.length) + ':' + range.startOffset;
+                        if (matchKey === prevKey) break;
+                        prevKey = matchKey;
                         var cont = range.commonAncestorContainer;
                         if (cont.nodeType !== 1) cont = cont.parentNode;
                         if (cont && cont.hasAttribute &&
@@ -331,7 +348,10 @@ internal object ContinuousStyleInjector {
                         mark.setAttribute('data-riffle-si', '');
                         mark.style.cssText = 'background:' + inactiveCss + ';color:inherit;';
                         if (!window.__riffleSafeWrap(range, mark)) {
-                            // Cross-block match — skip this occurrence and advance past it.
+                            // Cross-block match — skip past the END of this hit (a collapsed
+                            // selection at range.end* makes window.find resume strictly after the
+                            // current hit). Combined with the matchKey guard above, this guarantees
+                            // forward progress even if window.find's resume semantics misbehave.
                             var skipR = document.createRange();
                             skipR.setStart(range.endContainer, range.endOffset); skipR.collapse(true);
                             sel.removeAllRanges(); sel.addRange(skipR);
@@ -560,8 +580,11 @@ internal object ContinuousStyleInjector {
                         mark.setAttribute('data-riffle-ann', ann.id);
                         mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
                         if (!window.__riffleSafeWrap(range, mark)) return;
-                        // The mark just split a text node — invalidate the flat index so the next
-                        // locateRanges() rebuilds it against the updated DOM.
+                        // The mark just split a text node — invalidate the flat index so the NEXT
+                        // annotation's locateRanges() rebuilds against the updated DOM. The other
+                        // ranges in THIS annotation already hold their own text-node refs (captured
+                        // pre-wrap by idxToRange), and they live in different blocks, so the wrap
+                        // here doesn't disturb their boundaries.
                         flatIdx = null;
                         (function(markEl, annId) {
                             markEl.addEventListener('click', function(e) {
