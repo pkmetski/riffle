@@ -754,15 +754,23 @@ class EpubReaderViewModel @Inject constructor(
                 // formattingPrefsProvider in the nav event handler ensures the correct continuous vs
                 // paged path is taken even when Compose state hasn't caught up yet.
                 startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
-                // Open-from-annotation (openAtCfi) also fires through the annotation-nav channel so
-                // the post-go() column-snap runs in paged mode (the architectural invariant: the
-                // page never rests off-grid). Without this, initialLocator opens the right chapter
-                // but Readium's progression-based landing isn't snapped — onPageLoaded deliberately
-                // skips snapping in the general case because the post-go snap is supposed to do it.
-                // Before suppressNextServerLocator existed, a fast-arriving server-locator event
-                // accidentally provided that snap; suppressing it correctly broke the side effect.
-                // This restores it explicitly so the snap is independent of any server sync.
-                openAtLocator?.let { _annotationNavigationChannel.trySend(it) }
+                // Paged-mode only: after initialLocator opens the right chapter, fire the locator
+                // through the annotation-nav channel so the post-go() column-snap runs (the
+                // architectural invariant: the paged reader never rests off-grid). Without this,
+                // Readium's progression-based landing isn't snapped — onPageLoaded deliberately
+                // defers snapping to the post-go path. Before suppressNextServerLocator existed,
+                // a fast-arriving server-locator event accidentally provided that snap; suppressing
+                // it correctly broke the side effect. This restores it explicitly.
+                //
+                // Continuous mode is INTENTIONALLY excluded: its initialize()/openWindowAt path has
+                // its own reflow-tracking re-land logic that lands at the exact target as the
+                // chapter measures. A redundant nav event here would race scrollToLoadedChapter
+                // (which doesn't reflow-track) against that careful machinery and break the landing.
+                // Vertical mode is also excluded — initialLocator already lands correctly without a
+                // snap, and a redundant fragment.go() would only add a same-place re-positioning.
+                if (openAtLocator != null && _formattingPreferences.value.orientation == ReaderOrientation.Horizontal) {
+                    _annotationNavigationChannel.trySend(openAtLocator)
+                }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
