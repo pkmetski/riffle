@@ -220,6 +220,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      *  (the chapter grows as typography reflow settles) until it stabilises. -1 = none applied yet. */
     private var reapplyTargetLastHeight: Int = -1
 
+    /** Annotation id to focus on initial open. Set by [openWindowAt], consumed by the post-
+     *  applyAnnotationHighlightsJs callback in [appendChapter] / [applyAnnotationHighlights] to
+     *  scroll to the freshly-created `<mark data-riffle-ann="<id>">` even when the regular reapply
+     *  chain has been disarmed (touch event during boot, mark created after height stabilised, etc).
+     *  Cleared on first manual touch and on rebuilds. */
+    private var pendingFocusAnnotationId: String? = null
+
     /**
      * Placeholder height used before real measurement arrives. One screen height keeps the
      * forward-shift trigger working (the last chapter needs enough height to scroll into) while
@@ -301,6 +308,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 // The user took over: stop auto-re-landing on reflow so we never yank the page
                 // out from under a manual scroll.
                 reapplyLandingAfterFallback = null
+                pendingFocusAnnotationId = null
             }
             MotionEvent.ACTION_MOVE ->
                 if (abs(ev.y - interceptDownY) > touchSlop / 2f) return true
@@ -401,6 +409,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         pendingTargetWindowIndex = targetWindowIndex
         reapplyLandingAfterFallback = null
         reapplyTargetLastHeight = -1
+        pendingFocusAnnotationId = focusAnnotationId
         val totalChapters = minOf(behind + 1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
         // Land only once every chapter up to and including the target has reported its real height,
         // so the target's slot.top (the sum of the heights before it) is exact.
@@ -437,23 +446,28 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 fun landViaAnchor(onMiss: () -> Unit) {
                     if (anchorFragment.isNotEmpty() && targetWv != null) {
                         targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                            if (anchorOffset != null) scrollTo(0, (slot.top + anchorOffset).coerceAtLeast(0))
+                            if (anchorOffset != null) post { scrollTo(0, (slot.top + anchorOffset).coerceAtLeast(0)) }
                             else onMiss()
                         }
                     } else {
                         onMiss()
                     }
                 }
+                // post the scrollTo so the pending requestLayout from onHeightMeasured's
+                // layoutParams update has a chance to run BEFORE NestedScrollView clamps the target
+                // against the child's measured height. Without this, on first measurement the WV's
+                // layout is still at the pre-reflow size (~2274px) and scrollTo(0, 8544) clamps to
+                // (childMeasured - viewHeight), stranding the reader well short of the annotation.
                 if (focusAnnotationId != null && targetWv != null) {
                     targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
                         if (annOffset != null) {
-                            scrollTo(0, (slot.top + annOffset).coerceAtLeast(0))
+                            post { scrollTo(0, (slot.top + annOffset).coerceAtLeast(0)) }
                         } else {
-                            landViaAnchor { scrollTo(0, landViaProgression()) }
+                            landViaAnchor { post { scrollTo(0, landViaProgression()) } }
                         }
                     }
                 } else {
-                    landViaAnchor { scrollTo(0, landViaProgression()) }
+                    landViaAnchor { post { scrollTo(0, landViaProgression()) } }
                 }
             }
         }
@@ -701,14 +715,30 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             } else {
                 // Same re-land-on-completion hook as in appendChapter.onPageFinished: when the
                 // bulk-apply runs against the pending-target chapter, the mark only exists AFTER
-                // this JS finishes; re-fire the armed landing closure so its mark probe succeeds.
+                // this JS finishes; re-fire the armed landing closure AND/OR a direct mark scroll
+                // (the latter even when the reapply chain has been disarmed) so the focus lands
+                // precisely on the freshly-decorated mark.
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    val reapply = reapplyLandingAfterFallback
-                    if (reapply != null && webViews.indexOf(wv) == pendingTargetWindowIndex) {
-                        reapply.invoke()
-                    }
+                    if (webViews.indexOf(wv) != pendingTargetWindowIndex) return@evaluateJavascript
+                    reapplyLandingAfterFallback?.invoke()
+                    scrollToPendingFocusAnnotation(wv)
                 }
             }
+        }
+    }
+
+    /** Once the target chapter's `<mark data-riffle-ann="<id>">` exists in the DOM, scroll to it.
+     *  Independent of [reapplyLandingAfterFallback] so it still fires when the reapply chain has
+     *  been disarmed (touch event, height stabilised before the mark was created). Clears
+     *  [pendingFocusAnnotationId] once landed so it doesn't replay on later annotation refreshes. */
+    private fun scrollToPendingFocusAnnotation(wv: ChapterWebView) {
+        val id = pendingFocusAnnotationId ?: return
+        wv.annotationOffsetTopDevicePx(id) { annOffset ->
+            if (annOffset == null) return@annotationOffsetTopDevicePx
+            val slot = buildWindow().getOrNull(pendingTargetWindowIndex) ?: return@annotationOffsetTopDevicePx
+            val y = (slot.top + annOffset).coerceAtLeast(0)
+            post { scrollTo(0, y) }
+            pendingFocusAnnotationId = null
         }
     }
 
@@ -840,14 +870,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 // usually happens BEFORE this JS completes (height-measurement reflow triggers it
                 // earlier), so the annotation-mark query in that first fire returns null and falls
                 // back to anchor/progression. Re-firing the closure here — once the mark is in the
-                // DOM — lets the mark query succeed and re-land precisely. No-op when not the
-                // pending-target chapter or when the user has touched the screen (touch clears
-                // [reapplyLandingAfterFallback] in onInterceptTouchEvent).
+                // DOM — lets the mark query succeed and re-land precisely; and the explicit
+                // [scrollToPendingFocusAnnotation] covers the case where reapply has been disarmed
+                // (touch event during boot, height stabilised before the mark was created, etc).
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    val reapply = reapplyLandingAfterFallback
-                    if (reapply != null && webViews.indexOf(wv) == pendingTargetWindowIndex) {
-                        reapply.invoke()
-                    }
+                    if (webViews.indexOf(wv) != pendingTargetWindowIndex) return@evaluateJavascript
+                    reapplyLandingAfterFallback?.invoke()
+                    scrollToPendingFocusAnnotation(wv)
                 }
             }
             val searchState = currentSearchHighlights
@@ -895,10 +924,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             if (!annotations.isNullOrEmpty()) {
                 // Same re-land-on-completion hook as in appendChapter.onPageFinished.
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    val reapply = reapplyLandingAfterFallback
-                    if (reapply != null && webViews.indexOf(wv) == pendingTargetWindowIndex) {
-                        reapply.invoke()
-                    }
+                    if (webViews.indexOf(wv) != pendingTargetWindowIndex) return@evaluateJavascript
+                    reapplyLandingAfterFallback?.invoke()
+                    scrollToPendingFocusAnnotation(wv)
                 }
             }
             val searchState = currentSearchHighlights
