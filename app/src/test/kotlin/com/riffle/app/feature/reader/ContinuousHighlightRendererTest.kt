@@ -83,12 +83,14 @@ class ContinuousHighlightRendererTest {
         text: String,
         color: String = "yellow",
         note: String? = null,
+        before: String? = null,
+        after: String? = null,
     ) = EpubReaderViewModel.HighlightRender(
         id = id,
         locator = Locator(
             href = makeAbsoluteUrl("https://example.com/$href"),
             mediaType = MediaType.XHTML,
-            text = Locator.Text(highlight = text),
+            text = Locator.Text(highlight = text, before = before, after = after),
         ),
         color = color,
         note = note,
@@ -186,6 +188,35 @@ class ContinuousHighlightRendererTest {
         renderer.applyAnnotations(emptyList(), ReaderTheme.Light)
         assertEquals(1, fakeTarget.appliedAnnotations.size)
         assertTrue(fakeTarget.appliedAnnotations[0].isEmpty())
+    }
+
+    @Test
+    fun `applyAnnotations threads locator before-and-after context into AnnotationHighlight`() = runTest {
+        // Verifies the renderer doesn't drop the disambiguation context: when the highlighted text
+        // repeats in a chapter, locator.text.before / locator.text.after carry the surrounding
+        // document text that lets the WebView JS pick the correct occurrence at render time.
+        val renders = listOf(
+            makeRender(
+                id = "h1", href = "ch1.xhtml", text = "Куджиа",
+                before = "Али ", after = " решил да замине",
+            ),
+        )
+        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals("Али ", ann.before)
+        assertEquals(" решил да замине", ann.after)
+    }
+
+    @Test
+    fun `applyAnnotations defaults missing locator before-and-after to empty strings`() = runTest {
+        // Legacy annotations stored before context capture have null before/after on the Locator.
+        // The renderer must turn null into "" so the JS receives a stable string type and the
+        // first-match short-circuit (when both are empty) preserves the old behaviour.
+        val renders = listOf(makeRender("legacy", "ch1.xhtml", "Куджиа"))
+        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals("", ann.before)
+        assertEquals("", ann.after)
     }
 
     // ---- applyNoteGlyphs (no-op) --------------------------------------------

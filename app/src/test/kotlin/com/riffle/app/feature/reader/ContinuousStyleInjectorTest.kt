@@ -281,6 +281,57 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `each annotation is emitted with before and after context fields`() {
+        val js = applyJs(
+            AnnotationHighlight(
+                id = "myId", text = "Куджиа", cssColor = "#abc",
+                before = "Али ", after = " решил",
+            )
+        )
+        assertTrue("before field", js.contains("b:'Али '"))
+        assertTrue("after field", js.contains("a:' решил'"))
+    }
+
+    @Test
+    fun `empty before and after produce empty-string b and a fields`() {
+        // Legacy annotations (created before context capture) have empty before/after — the
+        // emitted JS still carries the fields so the renderer's locateRange can short-circuit
+        // to first-match without an undefined-vs-empty-string distinction in JS.
+        val js = applyJs(AnnotationHighlight("legacy", "text", "#abc"))
+        assertTrue("empty before", js.contains("b:''"))
+        assertTrue("empty after", js.contains("a:''"))
+    }
+
+    @Test
+    fun `single quotes in before and after are escaped`() {
+        val js = applyJs(
+            AnnotationHighlight(
+                "id", "text", "#000",
+                before = "don't ", after = " 'quoted'",
+            )
+        )
+        assertTrue("escaped before", js.contains("b:'don\\'t '"))
+        assertTrue("escaped after", js.contains("a:' \\'quoted\\''"))
+        assertFalse("raw single quote must not appear in before", js.contains("b:'don't "))
+    }
+
+    @Test
+    fun `newlines in before and after are escaped`() {
+        val js = applyJs(
+            AnnotationHighlight(
+                "id", "text", "#000",
+                before = "line1\nline2", after = "tail\rmore",
+            )
+        )
+        // The b field carries the escaped sequence; literal newlines/CRs would break the JS string.
+        assertFalse("literal newline must not appear", js.contains("line1\nline2"))
+        assertFalse("literal CR must not appear", js.contains("tail\rmore"))
+        // Spot-check both escapes survived to the output.
+        assertTrue("backslash-n present", js.contains("\\n"))
+        assertTrue("backslash-r present", js.contains("\\r"))
+    }
+
+    @Test
     fun `multiple annotations are comma-separated in JSON`() {
         val js = applyJs(
             AnnotationHighlight("a1", "first", "#111", hasNote = false),
@@ -342,12 +393,56 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `existing mark is updated in-place via style-background — no window-find`() {
+    fun `existing mark is updated in-place via style-background`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
         // The in-place update path sets style.background on the existing mark.
         assertTrue(js.contains("existing.style.background"))
-        // And it calls window.find() only for NEW annotations (after the in-place branch returns).
-        assertTrue(js.contains("window.find("))
+    }
+
+    @Test
+    fun `new annotations are located via context-aware locateRange not window-find`() {
+        // window.find() matches the FIRST occurrence document-wide — wrong when the highlighted
+        // text repeats. The new algorithm builds a flat text index and picks the occurrence whose
+        // surrounding context matches the stored b/a.
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        assertFalse(
+            "window.find() must not be used for annotation location (it picks first match)",
+            js.contains("window.find("),
+        )
+        assertTrue("locateRange function defined", js.contains("locateRange"))
+        assertTrue("flat text index built via TreeWalker", js.contains("createTreeWalker"))
+        // Context scoring: the occurrence whose surrounding text matches ann.b / ann.a wins.
+        assertTrue("scores against ann.b context", js.contains("ann.b"))
+        assertTrue("scores against ann.a context", js.contains("ann.a"))
+    }
+
+    @Test
+    fun `locateRange short-circuits to first match when before and after are both empty`() {
+        // Back-compat path for legacy annotations stored before context capture: empty b/a
+        // must reproduce the old window.find() first-match behaviour.
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        // The first-match branch: `if (!ann.b && !ann.a) { bestIdx = idx; break; }`
+        assertTrue("first-match branch present", js.contains("!ann.b && !ann.a"))
+    }
+
+    @Test
+    fun `text nodes inside existing annotation marks are skipped when building the flat index`() {
+        // The b/a context was captured against the unmarked DOM, so the text inside a previously
+        // placed [data-riffle-ann] mark must not appear in the flat index — otherwise a new
+        // annotation whose context happens to surround an earlier mark could fail to match.
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        assertTrue("skip text inside existing marks", js.contains("[data-riffle-ann]"))
+    }
+
+    @Test
+    fun `flat index is invalidated after each mark insertion to track DOM mutation`() {
+        // surroundContents() splits the start/end text nodes — the cached flat index becomes
+        // stale, so subsequent annotations in the same call must rebuild it.
+        val js = applyJs(
+            AnnotationHighlight("ann1", "first", "#abc"),
+            AnnotationHighlight("ann2", "second", "#abc"),
+        )
+        assertTrue("flatIdx invalidated post-insert", js.contains("flatIdx = null"))
     }
 
     @Test
@@ -431,10 +526,19 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `AnnotationHighlight before and after default to empty strings`() {
+        val ann = AnnotationHighlight("id", "text", "#000")
+        assertEquals("", ann.before)
+        assertEquals("", ann.after)
+    }
+
+    @Test
     fun `AnnotationHighlight equality and copy`() {
-        val ann = AnnotationHighlight("id", "text", "#000", hasNote = true)
-        assertEquals(ann, AnnotationHighlight("id", "text", "#000", hasNote = true))
-        assertFalse(ann == ann.copy(hasNote = false))
+        val ann = AnnotationHighlight("id", "text", "#000", hasNote = true, before = "b", after = "a")
+        assertEquals(ann, AnnotationHighlight("id", "text", "#000", hasNote = true, before = "b", after = "a"))
+        assertFalse("hasNote participates in equality", ann == ann.copy(hasNote = false))
+        assertFalse("before participates in equality", ann == ann.copy(before = "x"))
+        assertFalse("after participates in equality", ann == ann.copy(after = "x"))
     }
 
     // ── applySearchHighlightsJs ───────────────────────────────────────────────
