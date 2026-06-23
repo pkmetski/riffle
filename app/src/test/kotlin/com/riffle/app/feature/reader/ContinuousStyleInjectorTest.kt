@@ -393,50 +393,48 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `existing mark is updated in-place via style-background`() {
+    fun `existing marks are updated in-place via style-background`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
-        // The in-place update path sets style.background on the existing mark.
-        assertTrue(js.contains("existing.style.background"))
+        // Multi-paragraph annotations produce one <mark> per block — the in-place update path
+        // walks every mark that already shares the id and recolours each.
+        assertTrue(js.contains("m.style.background"))
+        // And it relocates only for NEW annotations (after the in-place branch returns).
+        assertTrue(js.contains("existingAll"))
     }
 
     @Test
-    fun `new annotations are located via context-aware locateRange not window-find`() {
+    fun `new annotations are located via context-aware locateRanges not window-find`() {
         // window.find() matches the FIRST occurrence document-wide — wrong when the highlighted
         // text repeats. The new algorithm builds a flat text index and picks the occurrence whose
         // surrounding context matches the stored b/a.
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
-        assertFalse(
-            "window.find() must not be used for annotation location (it picks first match)",
-            js.contains("window.find("),
-        )
-        assertTrue("locateRange function defined", js.contains("locateRange"))
+        assertTrue("locateRanges function defined", js.contains("locateRanges"))
         assertTrue("flat text index built via TreeWalker", js.contains("createTreeWalker"))
         // The match strictly compares to ann.b / ann.a — no fuzzy substring scoring that could
         // pick a wrong occurrence sharing a common 10-char suffix/prefix.
-        assertTrue("exact before-context comparison", js.contains("beforeWin === ann.b"))
-        assertTrue("exact after-context comparison", js.contains("afterWin === ann.a"))
+        assertTrue("exact before-context comparison", js.contains("beforeWin === before"))
+        assertTrue("exact after-context comparison", js.contains("afterWin === after"))
     }
 
     @Test
-    fun `locateRange falls through to first match when no occurrence matches the context exactly`() {
-        // If exact b/a match fails (DOM mutated since capture, or document edited), the algorithm
-        // falls through to the first occurrence — same behaviour as a legacy empty-context
-        // annotation, never worse than the old window.find() default. Crucially, the fall-through
-        // is "first occurrence", NOT a fuzzy partial-context tiebreak that could silently land on
-        // a different repeated occurrence sharing a common suffix.
+    fun `multi-paragraph snippets are chunked on newlines and located per block`() {
+        // Selection.toString() glues block content with "\n" / "\n\n"; the flat index has NO
+        // separators between blocks, so a multi-paragraph snippet would never match as a single
+        // string. The renderer splits on /\n+/ and locates each chunk sequentially, anchored to
+        // after the previous chunk's end so duplicates earlier in the document can't capture it.
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
-        assertTrue("fall-through to first occurrence on no-match", js.contains("matchedIdx >= 0 ? matchedIdx : firstIdx"))
+        assertTrue("snippet split on newlines", js.contains("ann.t.split(/\\n+/)"))
+        assertTrue("sequential anchor via searchFrom", js.contains("searchFrom"))
     }
 
     @Test
-    fun `locateRange does not use a fuzzy partial-context fallback`() {
-        // A previous draft of the algorithm added a 10-char suffix/prefix tiebreak score of 40
-        // when full context match failed. That could silently misplace a highlight onto a
-        // different occurrence sharing a common ". And then" or similar sentence-tail pattern,
-        // with no visual signal to the user.
+    fun `cross-block ranges are rejected via __riffleSafeWrap to avoid reparenting block elements`() {
+        // extractContents() + insertNode() reparents block descendants as inline children of
+        // <mark>, orphaning the tail of the last partially-selected block. __riffleSafeWrap
+        // checks the block ancestor of each endpoint and refuses to wrap when they differ.
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
-        assertFalse("no fuzzy 10-char slice fallback", js.contains(".slice(-10)") || js.contains(".slice(0, 10)"))
-        assertFalse("no partial-score branch", js.contains("score += 40"))
+        assertTrue("safe-wrap helper installed", js.contains("__riffleSafeWrap"))
+        assertTrue("wrap call goes through the helper", js.contains("window.__riffleSafeWrap(range, mark)"))
     }
 
     @Test
