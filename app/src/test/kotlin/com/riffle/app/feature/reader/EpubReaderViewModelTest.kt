@@ -7,11 +7,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -234,6 +242,71 @@ class EpubReaderViewModelTest {
         }
         advanceTimeBy(24 * 3600 * 1000L)
         assertEquals(0, tickCount)
+    }
+
+    // Regression: EpubReaderViewModel.effectiveFormattingPreferences is a
+    //     combine(_formattingPreferences, scheduleTicks).distinctUntilChanged()
+    //         .stateIn(viewModelScope, SharingStarted.Eagerly, FormattingPreferences())
+    // The stateIn default (FormattingPreferences()) seeds .value at construction. When the
+    // screen subscribes immediately after _formattingPreferences is set inside the same
+    // launch (loadFormattingPreferences() → openBook() → _state.value = Ready), the
+    // combine emission may not have propagated yet — collectAsState reads the stateIn
+    // default and the EpubNavigatorFragment is constructed with empty preferences,
+    // producing an unstyled first paint that survives until the user reopens the book.
+    //
+    // This pair replays that timing with the real combine/stateIn shape: the un-gated
+    // observer sees the default; the ready-gated observer doesn't.
+    @Test
+    fun `effective prefs StateFlow can expose stateIn default after upstream is updated`() = runTest {
+        val source = MutableStateFlow("default")
+        val ticks = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1)
+            .apply { tryEmit(Unit) }
+
+        val effective: StateFlow<String> = combine(source, ticks) { v, _ -> v }
+            .distinctUntilChanged()
+            .stateIn(backgroundScope, SharingStarted.Eagerly, "default")
+
+        var snapshotAtReady: String? = null
+        backgroundScope.launch {
+            source.value = "stored"           // loadFormattingPreferences() — synchronous .value write
+            snapshotAtReady = effective.value // screen reads effectiveFormattingPreferences.value
+        }
+
+        // Do NOT advance virtual time past the writer's launch: the screen reads on the same
+        // dispatcher pulse as the writer, before the stateIn collector has been scheduled.
+        runCurrent()
+
+        // The race: the derived StateFlow still reports the stateIn default.
+        assertEquals("default", snapshotAtReady)
+    }
+
+    @Test
+    fun `ready gate blocks read of derived StateFlow until upstream has propagated`() = runTest {
+        val source = MutableStateFlow("default")
+        val ticks = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1)
+            .apply { tryEmit(Unit) }
+        val ready = MutableStateFlow(false)
+
+        val effective: StateFlow<String> = combine(source, ticks) { v, _ -> v }
+            .distinctUntilChanged()
+            .stateIn(backgroundScope, SharingStarted.Eagerly, "default")
+
+        var snapshotAtReady: String? = null
+        backgroundScope.launch {
+            source.value = "stored"
+            // Wait for the derived StateFlow to actually reflect the upstream before flipping
+            // ready. This is the contract loadFormattingPreferences() must uphold.
+            effective.first { it == "stored" }
+            ready.value = true
+        }
+        backgroundScope.launch {
+            // The screen reads .value only after the gate opens.
+            ready.first { it }
+            snapshotAtReady = effective.value
+        }
+
+        runCurrent()
+        assertEquals("stored", snapshotAtReady)
     }
 }
 

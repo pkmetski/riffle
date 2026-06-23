@@ -178,6 +178,9 @@ fun EpubReaderScreen(
     // Resolved prefs — `theme` is always concrete. Feeds Readium, the chapter rail
     // backdrop, and any palette consumer.
     val formattingPrefs by viewModel.effectiveFormattingPreferences.collectAsState()
+    // False until the loaded prefs have propagated to effectiveFormattingPreferences. Gates
+    // navigator construction so first paint never uses the StateFlow's default.
+    val formattingPreferencesReady by viewModel.formattingPreferencesReady.collectAsState()
     val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
@@ -334,7 +337,19 @@ fun EpubReaderScreen(
                             .testTag("reader_loading"),
                     )
                 }
-                is ReaderState.Ready -> {
+                // Prefs haven't propagated to effectiveFormattingPreferences yet — keep
+                // the spinner up rather than constructing the Readium navigator with the
+                // StateFlow's FormattingPreferences() default. Without this gate, fast/cached
+                // opens occasionally rendered the first chapter with no typography overrides
+                // applied (tiny unstyled text at the top-left of the page), surviving until
+                // the user closed and reopened the book.
+                is ReaderState.Ready -> if (!formattingPreferencesReady) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .testTag("reader_loading"),
+                    )
+                } else {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
                     LaunchedEffect(tocVisible, showFormattingPanel) {
