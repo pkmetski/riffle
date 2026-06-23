@@ -754,6 +754,15 @@ class EpubReaderViewModel @Inject constructor(
                 // formattingPrefsProvider in the nav event handler ensures the correct continuous vs
                 // paged path is taken even when Compose state hasn't caught up yet.
                 startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
+                // Open-from-annotation (openAtCfi) also fires through the annotation-nav channel so
+                // the post-go() column-snap runs in paged mode (the architectural invariant: the
+                // page never rests off-grid). Without this, initialLocator opens the right chapter
+                // but Readium's progression-based landing isn't snapped — onPageLoaded deliberately
+                // skips snapping in the general case because the post-go snap is supposed to do it.
+                // Before suppressNextServerLocator existed, a fast-arriving server-locator event
+                // accidentally provided that snap; suppressing it correctly broke the side effect.
+                // This restores it explicitly so the snap is independent of any server sync.
+                openAtLocator?.let { _annotationNavigationChannel.trySend(it) }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()

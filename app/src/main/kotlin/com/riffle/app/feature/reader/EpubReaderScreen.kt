@@ -1483,7 +1483,12 @@ private fun EpubNavigatorView(
     // the grid rather than column 0 (the default), which would lose the hit / the saved position.
     // Used ONLY for Horizontal (paged) mode; vertical mode uses go() directly without column snapping.
     val goAndSnapWithCover: suspend (Locator) -> Unit = goAndSnapWithCover@{ locator ->
-        val fragment = fragmentRef.value ?: return@goAndSnapWithCover
+        // Wait for the EpubNavigatorFragment to be created — same race the TOC handler dodges
+        // (see [onNavigationEvents] LaunchedEffect's snapshotFlow wait). A `?: return` here would
+        // silently drop the snap when this fires before the fragment is created — which is the
+        // openAtCfi-from-library path: openBook emits the annotation-nav event before the AndroidView
+        // factory has built the fragment, so the column-snap never ran and the page rested off-grid.
+        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
         val cover = locator.href.toString().substringBefore('#') !=
             currentHrefHolder[0]?.substringBefore('#')
         navigating = cover
@@ -1498,7 +1503,8 @@ private fun EpubNavigatorView(
     // Navigate in vertical (scroll) mode: use Readium's go() without column snapping.
     // Vertical mode uses native scroll, not column pagination, so ColumnSnap.goAndSnap doesn't apply.
     val goInScrollMode: suspend (Locator) -> Unit = goInScrollMode@{ locator ->
-        val fragment = fragmentRef.value ?: return@goInScrollMode
+        // Same wait-for-fragment as [goAndSnapWithCover] above.
+        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
         val cover = locator.href.toString().substringBefore('#') !=
             currentHrefHolder[0]?.substringBefore('#')
         navigating = cover
