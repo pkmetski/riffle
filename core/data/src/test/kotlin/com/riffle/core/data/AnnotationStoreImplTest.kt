@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -92,6 +93,41 @@ class AnnotationStoreImplTest {
         )
         assertEquals("green", created.color)
         assertEquals("green", dao.getById(created.id)?.color)
+    }
+
+    @Test
+    fun `findByItemAndCfi returns the matching live annotation`() = runTest {
+        val s = store()
+        val cfi = "epubcfi(/6/4!/4/26[s3],/1:0,/1:24)"
+        val created = s.createHighlight("abs1", "item1", cfi, "Section 1.3", "c.xhtml")
+        val found = s.findByItemAndCfi("abs1", "item1", cfi)
+        assertEquals(created.id, found?.id)
+    }
+
+    @Test
+    fun `findByItemAndCfi returns null on CFI mismatch`() = runTest {
+        val s = store()
+        s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/26[s3],/1:0,/1:24)", "t", "c.xhtml")
+        assertNull(s.findByItemAndCfi("abs1", "item1", "epubcfi(/6/4!/4/22,/1:0,/1:5)"))
+    }
+
+    @Test
+    fun `findByItemAndCfi scopes by serverId and itemId`() = runTest {
+        val s = store()
+        val cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)"
+        s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml")
+        // Same CFI but different server / item — must NOT match.
+        assertNull(s.findByItemAndCfi("abs2", "item1", cfi))
+        assertNull(s.findByItemAndCfi("abs1", "item2", cfi))
+    }
+
+    @Test
+    fun `findByItemAndCfi skips tombstoned annotations`() = runTest {
+        val s = store()
+        val cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)"
+        val created = s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml")
+        s.delete(created.id) // tombstones the row
+        assertNull(s.findByItemAndCfi("abs1", "item1", cfi))
     }
 
     @Test
