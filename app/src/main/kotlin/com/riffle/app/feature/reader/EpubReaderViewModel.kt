@@ -218,6 +218,16 @@ class EpubReaderViewModel @Inject constructor(
     private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
     val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
 
+    /**
+     * True when this reader was opened with an explicit [openAtCfi] (e.g. a library annotation tap or
+     * a search-result jump). The first server-locator event from [progressSyncController] would
+     * otherwise stomp that explicit intent — racing with the initial landing and yielding
+     * non-deterministic positions across repeated opens (sometimes the annotation focuses, sometimes
+     * the reader jumps to the server's last-read position). Set in [openBook] before the sync starts,
+     * consumed (and cleared) by the [_serverLocatorChannel] collector below.
+     */
+    @Volatile private var suppressNextServerLocator: Boolean = false
+
     private var lastLocator: Locator? = null
     val latestLocator: Locator? get() = lastLocator
     private var publication: Publication? = null
@@ -465,7 +475,15 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
-                serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
+                val locator = serverProgressToLocator(serverProgress) ?: return@collect
+                // An explicit openAtCfi (annotation tap / search hit) takes precedence over server
+                // sync on first open — otherwise ABS's last-read position races in and yanks the
+                // reader away from the annotation to wherever the user was reading last.
+                if (suppressNextServerLocator) {
+                    suppressNextServerLocator = false
+                    return@collect
+                }
+                _serverLocatorChannel.trySend(locator)
             }
         }
         viewModelScope.launch {
@@ -711,7 +729,13 @@ class EpubReaderViewModel @Inject constructor(
                 // always canonical Locator JSON). A genuinely unusable value falls back to null.
                 // A search-result open overrides the saved position; cfiStringToLocator needs `publication`,
                 // which is set by this point (same call used just below for legacy CFI healing).
-                val locator = openAtCfi?.takeIf { it.isNotBlank() }?.let { cfiStringToLocator(it) }
+                val openAtLocator = openAtCfi?.takeIf { it.isNotBlank() }?.let { cfiStringToLocator(it) }
+                // When openAtCfi resolved, an ABS server-progress event arriving right after open
+                // must not stomp the explicit nav intent (annotation tap / search hit). Drop the
+                // first server-locator that follows; subsequent syncs (peer / live progress) still
+                // apply normally.
+                if (openAtLocator != null) suppressNextServerLocator = true
+                val locator = openAtLocator
                     ?: result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                             ?: cfiStringToLocator(stored)
