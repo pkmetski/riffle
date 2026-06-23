@@ -1481,6 +1481,7 @@ private fun EpubNavigatorView(
     // trip with the load mask. Shared by the search-hit and return-card routes: both carry an
     // occurrence/position-specific progression with no #fragment, so the snap must round THAT page to
     // the grid rather than column 0 (the default), which would lose the hit / the saved position.
+    // Used ONLY for Horizontal (paged) mode; vertical mode uses go() directly without column snapping.
     val goAndSnapWithCover: suspend (Locator) -> Unit = goAndSnapWithCover@{ locator ->
         val fragment = fragmentRef.value ?: return@goAndSnapWithCover
         val cover = locator.href.toString().substringBefore('#') !=
@@ -1494,9 +1495,27 @@ private fun EpubNavigatorView(
         }
     }
 
-    val navigationTarget: NavigationTarget = remember(isContinuous) {
-        if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
-        else ReadiumNavigationTarget(goAndSnapWithCover)
+    // Navigate in vertical (scroll) mode: use Readium's go() without column snapping.
+    // Vertical mode uses native scroll, not column pagination, so ColumnSnap.goAndSnap doesn't apply.
+    val goInScrollMode: suspend (Locator) -> Unit = goInScrollMode@{ locator ->
+        val fragment = fragmentRef.value ?: return@goInScrollMode
+        val cover = locator.href.toString().substringBefore('#') !=
+            currentHrefHolder[0]?.substringBefore('#')
+        navigating = cover
+        try {
+            fragment.go(locator, animated = true)
+            if (cover) delay(NAV_COVER_SETTLE_MS)
+        } finally {
+            navigating = false
+        }
+    }
+
+    val navigationTarget: NavigationTarget = remember(isContinuous, formattingPrefs.orientation) {
+        when {
+            isContinuous -> ContinuousNavigationTarget { continuousViewRef.value }
+            formattingPrefs.orientation == ReaderOrientation.Horizontal -> ReadiumNavigationTarget(goAndSnapWithCover)
+            else -> ReadiumNavigationTarget(goInScrollMode)  // Vertical mode
+        }
     }
 
     LaunchedEffect(returnNavEvents, isContinuous) {
