@@ -431,24 +431,25 @@ internal object ContinuousStyleInjector {
                     var text = flatIdx.fullText;
                     var snippet = ann.t;
                     if (!snippet) return null;
-                    var bestIdx = -1, bestScore = -1;
+                    // Pick the occurrence whose surrounding text matches both ann.b and ann.a
+                    // exactly (capture used Range.toString(), render uses the same TreeWalker
+                    // representation, so the strings match byte-for-byte in normal flow). If no
+                    // occurrence matches exactly (e.g. earlier-batch mark removed text the b/a
+                    // referenced, or document edited between capture and render), fall through
+                    // to the first occurrence — same behaviour as a legacy empty-context
+                    // annotation, and never worse than the historical first-match default.
+                    var matchedIdx = -1, firstIdx = -1;
                     var idx = -1;
                     while ((idx = text.indexOf(snippet, idx + 1)) !== -1) {
-                        // No context stored (legacy annotation) → first match, like the old behaviour.
-                        if (!ann.b && !ann.a) { bestIdx = idx; break; }
-                        var score = 0;
-                        if (ann.b) {
-                            var beforeWin = text.substring(Math.max(0, idx - ann.b.length), idx);
-                            if (beforeWin === ann.b) score += 100;
-                            else if (beforeWin.length && ann.b.length >= 10 && beforeWin.slice(-10) === ann.b.slice(-10)) score += 40;
-                        }
-                        if (ann.a) {
-                            var afterWin = text.substring(idx + snippet.length, idx + snippet.length + ann.a.length);
-                            if (afterWin === ann.a) score += 100;
-                            else if (afterWin.length && ann.a.length >= 10 && afterWin.slice(0, 10) === ann.a.slice(0, 10)) score += 40;
-                        }
-                        if (score > bestScore) { bestScore = score; bestIdx = idx; }
+                        if (firstIdx < 0) firstIdx = idx;
+                        if (!ann.b && !ann.a) break;
+                        var beforeWin = ann.b ? text.substring(Math.max(0, idx - ann.b.length), idx) : '';
+                        var afterWin = ann.a ? text.substring(idx + snippet.length, idx + snippet.length + ann.a.length) : '';
+                        var beforeOk = !ann.b || beforeWin === ann.b;
+                        var afterOk = !ann.a || afterWin === ann.a;
+                        if (beforeOk && afterOk) { matchedIdx = idx; break; }
                     }
+                    var bestIdx = matchedIdx >= 0 ? matchedIdx : firstIdx;
                     if (bestIdx < 0) return null;
                     var startIdx = bestIdx, endIdx = bestIdx + snippet.length;
                     var n0 = null, off0 = 0, n1 = null, off1 = 0;

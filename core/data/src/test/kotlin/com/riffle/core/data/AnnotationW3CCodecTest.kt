@@ -552,4 +552,39 @@ class AnnotationW3CCodecTest {
         assertTrue("Source should be formatted as epub://item-*", w3cJson.contains("\"source\":\"epub://item-item-abc123\""))
         assertEquals("Chapter href should be extracted from source", "item-abc123", w3cAnnotation.chapterHref)
     }
+
+    // Test 17: TextQuoteSelector prefix/suffix round-trip through parse so the disambiguation
+    // context survives a remote → local sync. The codec already SERIALIZES textBefore/textAfter
+    // (see test 15), but until W3CAnnotation carried these fields the parsed values were dropped
+    // on the way back; without this any annotation synced from another device anchored to the
+    // FIRST occurrence of its snippet in the chapter (bug fixed alongside the continuous-mode
+    // wrong-occurrence highlight fix).
+    @Test
+    fun `textQuoteSelectorPrefixAndSuffixRoundTripThroughParse`() {
+        val entity = AnnotationEntity(
+            id = "uuid-roundtrip",
+            serverId = "abs1",
+            itemId = "item-1",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
+            color = "yellow",
+            note = null,
+            textSnippet = "Куджиа",
+            textBefore = "Али ",
+            textAfter = " решил да замине",
+            chapterHref = "item-1",
+            createdAt = 1640877600000L,
+            updatedAt = 1640877600000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            deleted = false,
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+
+        assertEquals("Али ", parsed.textBefore)
+        assertEquals(" решил да замине", parsed.textAfter)
+        assertEquals("Куджиа", parsed.textSnippet)
+    }
 }

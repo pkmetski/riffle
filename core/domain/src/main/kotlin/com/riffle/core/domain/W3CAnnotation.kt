@@ -13,6 +13,12 @@ data class W3CAnnotation(
     val cfi: String,
     /** Human-readable snippet of the annotated text; fallback for re-anchoring. */
     val textSnippet: String,
+    /** Document text immediately before the snippet (W3C TextQuoteSelector `prefix`); used to
+     *  disambiguate which occurrence of the snippet a highlight anchors to when the text repeats. */
+    val textBefore: String = "",
+    /** Document text immediately after the snippet (W3C TextQuoteSelector `suffix`); same role
+     *  as [textBefore] for disambiguation. */
+    val textAfter: String = "",
     /** EPUB chapter href for context during merge/navigation. */
     val chapterHref: String,
     /** Type: "HIGHLIGHT" or "BOOKMARK". */

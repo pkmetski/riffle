@@ -411,18 +411,32 @@ class ContinuousStyleInjectorTest {
         )
         assertTrue("locateRange function defined", js.contains("locateRange"))
         assertTrue("flat text index built via TreeWalker", js.contains("createTreeWalker"))
-        // Context scoring: the occurrence whose surrounding text matches ann.b / ann.a wins.
-        assertTrue("scores against ann.b context", js.contains("ann.b"))
-        assertTrue("scores against ann.a context", js.contains("ann.a"))
+        // The match strictly compares to ann.b / ann.a — no fuzzy substring scoring that could
+        // pick a wrong occurrence sharing a common 10-char suffix/prefix.
+        assertTrue("exact before-context comparison", js.contains("beforeWin === ann.b"))
+        assertTrue("exact after-context comparison", js.contains("afterWin === ann.a"))
     }
 
     @Test
-    fun `locateRange short-circuits to first match when before and after are both empty`() {
-        // Back-compat path for legacy annotations stored before context capture: empty b/a
-        // must reproduce the old window.find() first-match behaviour.
+    fun `locateRange falls through to first match when no occurrence matches the context exactly`() {
+        // If exact b/a match fails (DOM mutated since capture, or document edited), the algorithm
+        // falls through to the first occurrence — same behaviour as a legacy empty-context
+        // annotation, never worse than the old window.find() default. Crucially, the fall-through
+        // is "first occurrence", NOT a fuzzy partial-context tiebreak that could silently land on
+        // a different repeated occurrence sharing a common suffix.
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
-        // The first-match branch: `if (!ann.b && !ann.a) { bestIdx = idx; break; }`
-        assertTrue("first-match branch present", js.contains("!ann.b && !ann.a"))
+        assertTrue("fall-through to first occurrence on no-match", js.contains("matchedIdx >= 0 ? matchedIdx : firstIdx"))
+    }
+
+    @Test
+    fun `locateRange does not use a fuzzy partial-context fallback`() {
+        // A previous draft of the algorithm added a 10-char suffix/prefix tiebreak score of 40
+        // when full context match failed. That could silently misplace a highlight onto a
+        // different occurrence sharing a common ". And then" or similar sentence-tail pattern,
+        // with no visual signal to the user.
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        assertFalse("no fuzzy 10-char slice fallback", js.contains(".slice(-10)") || js.contains(".slice(0, 10)"))
+        assertFalse("no partial-score branch", js.contains("score += 40"))
     }
 
     @Test
