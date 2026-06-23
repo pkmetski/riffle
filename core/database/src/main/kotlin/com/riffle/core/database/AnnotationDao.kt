@@ -34,6 +34,15 @@ interface AnnotationDao {
     @Query("SELECT * FROM annotations WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): AnnotationEntity?
 
+    /** One-shot lookup of the live (non-deleted) annotation matching this exact CFI in this item.
+     *  Used at open-from-library to bind openAtCfi back to its source annotation so continuous mode
+     *  can scroll to the `<mark data-riffle-ann="<id>">` decoration once it's been applied. */
+    @Query(
+        "SELECT * FROM annotations WHERE serverId = :serverId AND itemId = :itemId AND cfi = :cfi " +
+            "AND deleted = 0 LIMIT 1"
+    )
+    suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: AnnotationEntity)
 

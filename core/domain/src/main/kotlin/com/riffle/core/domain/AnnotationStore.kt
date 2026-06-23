@@ -47,6 +47,11 @@ interface AnnotationStore {
     /** Update the user-editable title of a bookmark, bumping its updatedAt. */
     suspend fun renameBookmark(id: String, title: String)
 
+    /** One-shot lookup of the annotation that exactly matches [cfi] for this item, or null. Used
+     *  at open-from-library so the continuous reader can scroll to the annotation's DOM decoration
+     *  (a precise post-reflow Y) instead of guessing from char-fraction × measured-WebView-height. */
+    suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation?
+
     companion object {
         const val DEFAULT_COLOR = "yellow"
     }

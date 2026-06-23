@@ -330,6 +330,36 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         }
     }
 
+    /**
+     * Resolve the on-screen Y of the `<mark data-riffle-ann="<id>">` decoration that wraps the
+     * highlight for annotation [id], in device pixels relative to this WebView's content top — so
+     * it composes with [ContinuousReaderView]'s `slot.top` to form an absolute parent scrollY.
+     *
+     * The mark is injected by [ContinuousStyleInjector.applyAnnotationHighlightsJs], which runs
+     * from [onPageFinished] AFTER the typography reflow that [injectStylesAndMeasure] triggers, so
+     * when found its rect already reflects the final post-reflow layout — the exact thing a
+     * slot+progression landing keeps missing.
+     *
+     * Returns null when the mark is not yet in the DOM (cold-start, before the annotation has
+     * been observed and applied). Callers fall back to the existing anchor/progression landing;
+     * the reflow-tracking re-land re-fires this query on every target remeasure so once the mark
+     * appears, the landing snaps onto it.
+     */
+    fun annotationOffsetTopDevicePx(id: String, callback: (Int?) -> Unit) {
+        val esc = id.replace("\\", "\\\\").replace("'", "\\'")
+        val js = """(function(){
+            var e = document.querySelector("[data-riffle-ann='$esc']");
+            if (!e) return -1;
+            var r = e.getBoundingClientRect();
+            var y = r.top + (window.pageYOffset || document.documentElement.scrollTop || 0);
+            return Math.max(0, Math.round(y * (window.devicePixelRatio || 1)));
+        })()"""
+        evaluateJavascript(js) { raw ->
+            val v = raw?.trim('"')?.toIntOrNull()
+            callback(if (v == null || v < 0) null else v)
+        }
+    }
+
     // ── Text-selection menu ──────────────────────────────────────────────────────
     // The Readium fragment provides Riffle's custom selection menu in paged/scroll mode; in
     // Continuous mode selection happens in these WebViews, so we wrap their action mode to offer the

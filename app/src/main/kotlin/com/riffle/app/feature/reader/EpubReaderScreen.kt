@@ -1481,8 +1481,14 @@ private fun EpubNavigatorView(
     // trip with the load mask. Shared by the search-hit and return-card routes: both carry an
     // occurrence/position-specific progression with no #fragment, so the snap must round THAT page to
     // the grid rather than column 0 (the default), which would lose the hit / the saved position.
+    // Used ONLY for Horizontal (paged) mode; vertical mode uses go() directly without column snapping.
     val goAndSnapWithCover: suspend (Locator) -> Unit = goAndSnapWithCover@{ locator ->
-        val fragment = fragmentRef.value ?: return@goAndSnapWithCover
+        // Wait for the EpubNavigatorFragment to be created — same race the TOC handler dodges
+        // (see [onNavigationEvents] LaunchedEffect's snapshotFlow wait). A `?: return` here would
+        // silently drop the snap when this fires before the fragment is created — which is the
+        // openAtCfi-from-library path: openBook emits the annotation-nav event before the AndroidView
+        // factory has built the fragment, so the column-snap never ran and the page rested off-grid.
+        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
         val cover = locator.href.toString().substringBefore('#') !=
             currentHrefHolder[0]?.substringBefore('#')
         navigating = cover
@@ -1494,9 +1500,28 @@ private fun EpubNavigatorView(
         }
     }
 
-    val navigationTarget: NavigationTarget = remember(isContinuous) {
-        if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
-        else ReadiumNavigationTarget(goAndSnapWithCover)
+    // Navigate in vertical (scroll) mode: use Readium's go() without column snapping.
+    // Vertical mode uses native scroll, not column pagination, so ColumnSnap.goAndSnap doesn't apply.
+    val goInScrollMode: suspend (Locator) -> Unit = goInScrollMode@{ locator ->
+        // Same wait-for-fragment as [goAndSnapWithCover] above.
+        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+        val cover = locator.href.toString().substringBefore('#') !=
+            currentHrefHolder[0]?.substringBefore('#')
+        navigating = cover
+        try {
+            fragment.go(locator, animated = true)
+            if (cover) delay(NAV_COVER_SETTLE_MS)
+        } finally {
+            navigating = false
+        }
+    }
+
+    val navigationTarget: NavigationTarget = remember(isContinuous, formattingPrefs.orientation) {
+        when {
+            isContinuous -> ContinuousNavigationTarget { continuousViewRef.value }
+            formattingPrefs.orientation == ReaderOrientation.Horizontal -> ReadiumNavigationTarget(goAndSnapWithCover)
+            else -> ReadiumNavigationTarget(goInScrollMode)  // Vertical mode
+        }
     }
 
     LaunchedEffect(returnNavEvents, isContinuous) {
@@ -2044,6 +2069,13 @@ private fun EpubNavigatorView(
             // is no guaranteed order between the two on first composition. Keying on the ref means
             // this coroutine only fires (or re-fires) once the factory has actually populated it.
             val continuousView = continuousViewRef.value
+            // True only on the very first composition of this screen instance. Saved across
+            // recompositions and rotation so the annotation-mark anchor is consumed exactly once —
+            // it must NOT replay on rotation (where the user has been reading and `latestLocator()`
+            // points elsewhere). Reading `latestLocator()` here doesn't work: `runReaderSyncCycle`
+            // inside `openBook` writes `lastLocator` BEFORE this LaunchedEffect fires, so it's
+            // already non-null at first composition and a takeIf guard against it strips the id.
+            var focusIsFresh by rememberSaveable { mutableStateOf(true) }
             LaunchedEffect(continuousView) {
                 val view = continuousView ?: return@LaunchedEffect
                 val initialLocator = latestLocator() ?: state.initialLocator
@@ -2052,12 +2084,15 @@ private fun EpubNavigatorView(
                     ?: chapters.firstOrNull()?.link?.href?.toString()
                     ?: return@LaunchedEffect
                 val initialHref = if (anchor != null) "$rawHref#$anchor" else rawHref
+                val focusId = state.initialFocusAnnotationId?.takeIf { focusIsFresh }
+                focusIsFresh = false
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,
                     initialHref = initialHref,
                     initialProgression = initialLocator?.locations?.progression?.toFloat() ?: 0f,
                     publication = state.publication,
+                    focusAnnotationId = focusId,
                 )
             }
         }

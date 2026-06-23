@@ -114,6 +114,10 @@ sealed class ReaderState {
         val publication: Publication,
         val title: String,
         val initialLocator: Locator?,
+        /** The annotation id when this open was triggered by an annotation tap (openAtCfi flow).
+         *  Continuous mode uses it to anchor the initial scroll against the DOM mark for the
+         *  annotation — the precise post-reflow Y instead of char-fraction × measured-height. */
+        val initialFocusAnnotationId: String? = null,
     ) : ReaderState()
     data class Error(val message: String) : ReaderState()
 }
@@ -217,6 +221,16 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
     val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
+
+    /**
+     * True when this reader was opened with an explicit [openAtCfi] (e.g. a library annotation tap or
+     * a search-result jump). The first server-locator event from [progressSyncController] would
+     * otherwise stomp that explicit intent — racing with the initial landing and yielding
+     * non-deterministic positions across repeated opens (sometimes the annotation focuses, sometimes
+     * the reader jumps to the server's last-read position). Set in [openBook] before the sync starts,
+     * consumed (and cleared) by the [_serverLocatorChannel] collector below.
+     */
+    @Volatile private var suppressNextServerLocator: Boolean = false
 
     private var lastLocator: Locator? = null
     val latestLocator: Locator? get() = lastLocator
@@ -465,7 +479,15 @@ class EpubReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
-                serverProgressToLocator(serverProgress)?.let { _serverLocatorChannel.trySend(it) }
+                val locator = serverProgressToLocator(serverProgress) ?: return@collect
+                // An explicit openAtCfi (annotation tap / search hit) takes precedence over server
+                // sync on first open — otherwise ABS's last-read position races in and yanks the
+                // reader away from the annotation to wherever the user was reading last.
+                if (suppressNextServerLocator) {
+                    suppressNextServerLocator = false
+                    return@collect
+                }
+                _serverLocatorChannel.trySend(locator)
             }
         }
         viewModelScope.launch {
@@ -711,7 +733,23 @@ class EpubReaderViewModel @Inject constructor(
                 // always canonical Locator JSON). A genuinely unusable value falls back to null.
                 // A search-result open overrides the saved position; cfiStringToLocator needs `publication`,
                 // which is set by this point (same call used just below for legacy CFI healing).
-                val locator = openAtCfi?.takeIf { it.isNotBlank() }?.let { cfiStringToLocator(it) }
+                val openAtLocator = openAtCfi?.takeIf { it.isNotBlank() }?.let { cfiStringToLocator(it) }
+                // When openAtCfi resolved, an ABS server-progress event arriving right after open
+                // must not stomp the explicit nav intent (annotation tap / search hit). Drop the
+                // first server-locator that follows; subsequent syncs (peer / live progress) still
+                // apply normally.
+                if (openAtLocator != null) suppressNextServerLocator = true
+                // Bind openAtCfi to its source annotation (if any) so continuous mode can scroll to
+                // the DOM mark for that annotation — a precise post-reflow Y — instead of guessing
+                // from char-fraction × measured-WebView-height (which lands short of the highlight
+                // when the chapter's text-density differs from char-density).
+                val activeServerForAnno = serverRepository.getActive()?.id
+                val openAtCfiNonBlank = openAtCfi?.takeIf { it.isNotBlank() }
+                val initialFocusAnnotationId = if (openAtLocator != null && activeServerForAnno != null && openAtCfiNonBlank != null) {
+                    runCatching { annotationStore.findByItemAndCfi(activeServerForAnno, itemId, openAtCfiNonBlank) }
+                        .getOrNull()?.id
+                } else null
+                val locator = openAtLocator
                     ?: result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
                         runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
                             ?: cfiStringToLocator(stored)
@@ -725,11 +763,29 @@ class EpubReaderViewModel @Inject constructor(
                     publication = pub,
                     title = item.title,
                     initialLocator = if (startTocHref == null) locator else null,
+                    initialFocusAnnotationId = if (startTocHref == null) initialFocusAnnotationId else null,
                 )
                 // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
                 // formattingPrefsProvider in the nav event handler ensures the correct continuous vs
                 // paged path is taken even when Compose state hasn't caught up yet.
                 startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
+                // Paged-mode only: after initialLocator opens the right chapter, fire the locator
+                // through the annotation-nav channel so the post-go() column-snap runs (the
+                // architectural invariant: the paged reader never rests off-grid). Without this,
+                // Readium's progression-based landing isn't snapped — onPageLoaded deliberately
+                // defers snapping to the post-go path. Before suppressNextServerLocator existed,
+                // a fast-arriving server-locator event accidentally provided that snap; suppressing
+                // it correctly broke the side effect. This restores it explicitly.
+                //
+                // Continuous mode is INTENTIONALLY excluded: its initialize()/openWindowAt path has
+                // its own reflow-tracking re-land logic that lands at the exact target as the
+                // chapter measures. A redundant nav event here would race scrollToLoadedChapter
+                // (which doesn't reflow-track) against that careful machinery and break the landing.
+                // Vertical mode is also excluded — initialLocator already lands correctly without a
+                // snap, and a redundant fragment.go() would only add a same-place re-positioning.
+                if (openAtLocator != null && _formattingPreferences.value.orientation == ReaderOrientation.Horizontal) {
+                    _annotationNavigationChannel.trySend(openAtLocator)
+                }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
