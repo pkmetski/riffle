@@ -221,6 +221,39 @@ internal object ContinuousStyleInjector {
         })();
     """.trimIndent()
 
+    /**
+     * Inline JS that wraps [range] in [mark] iff the range stays within a single block element.
+     * Defines `window.__riffleSafeWrap` (idempotent). Use as a `try { surroundContents } catch` /
+     * `extractContents()+insertNode()` replacement so cross-block ranges can never reparent block
+     * elements as inline children of `<mark>` (which historically destroyed paragraphs whenever
+     * `surroundContents()` threw on a multi-paragraph annotation selection). Returns true when the
+     * mark was inserted, false when the range was rejected as cross-block.
+     */
+    private const val SAFE_WRAP_HELPER_JS = """
+        if (!window.__riffleSafeWrap) window.__riffleSafeWrap = function(range, mark) {
+            var sc = range.startContainer, ec = range.endContainer;
+            function blockOf(n) {
+                while (n && n.nodeType === 1) {
+                    var d = window.getComputedStyle(n).display;
+                    if (d === 'block' || d === 'list-item' || d === 'table-cell' || d === 'flex' || d === 'grid') return n;
+                    n = n.parentNode;
+                }
+                return n;
+            }
+            var sb = blockOf(sc.nodeType === 3 ? sc.parentNode : sc);
+            var eb = blockOf(ec.nodeType === 3 ? ec.parentNode : ec);
+            if (!sb || sb !== eb) return false;
+            try {
+                range.surroundContents(mark);
+            } catch (e) {
+                var frag = range.extractContents();
+                mark.appendChild(frag);
+                range.insertNode(mark);
+            }
+            return true;
+        };
+    """
+
     /** Removes all search inactive ([data-riffle-si]) and active ([data-riffle-sa]) marks. */
     val CLEAR_SEARCH_HIGHLIGHTS_JS = """
         (function() {
@@ -266,6 +299,7 @@ internal object ContinuousStyleInjector {
         val activeTextJs = if (safeActive != null) "'$safeActive'" else "null"
         // Colors are machine-generated CSS rgba() strings — no quote escaping needed.
         return """
+            $SAFE_WRAP_HELPER_JS
             (function(texts,inactiveCss,activeT,activeProg,activeCss) {
                 var sel = window.getSelection();
                 var seen = {};
@@ -296,8 +330,13 @@ internal object ContinuousStyleInjector {
                         var mark = document.createElement('mark');
                         mark.setAttribute('data-riffle-si', '');
                         mark.style.cssText = 'background:' + inactiveCss + ';color:inherit;';
-                        try { range.surroundContents(mark); }
-                        catch(e) { var frag = range.extractContents(); mark.appendChild(frag); range.insertNode(mark); }
+                        if (!window.__riffleSafeWrap(range, mark)) {
+                            // Cross-block match — skip this occurrence and advance past it.
+                            var skipR = document.createRange();
+                            skipR.setStart(range.endContainer, range.endOffset); skipR.collapse(true);
+                            sel.removeAllRanges(); sel.addRange(skipR);
+                            continue;
+                        }
                         var advance = document.createRange();
                         advance.setStartAfter(mark); advance.collapse(true);
                         sel.removeAllRanges(); sel.addRange(advance);
@@ -371,6 +410,7 @@ internal object ContinuousStyleInjector {
         // Single quotes inside the SVG percent-encoded URI must be escaped for JS string embedding.
         val safeSvgUri = NOTE_GLYPH_SVG_DATA_URI.replace("'", "\\'")
         return """
+            $SAFE_WRAP_HELPER_JS
             (function(anns) {
                 var SVG_URI = '$safeSvgUri';
                 // makeGlyph: positions the NoteAlt icon 28px to the left of anchorEl's first line,
@@ -426,32 +466,24 @@ internal object ContinuousStyleInjector {
                     }
                     return { fullText: fullText, nodes: nodes };
                 };
-                var locateRange = function(ann) {
-                    if (!flatIdx) flatIdx = buildFlat();
+                // Find `snippet` in flatIdx.fullText at or after `searchFrom`. If `before`/`after`
+                // are non-empty, prefer the occurrence whose neighbouring text matches them; fall
+                // through to the first occurrence at/after searchFrom otherwise.
+                var findIdx = function(snippet, before, after, searchFrom) {
                     var text = flatIdx.fullText;
-                    var snippet = ann.t;
-                    if (!snippet) return null;
-                    // Pick the occurrence whose surrounding text matches both ann.b and ann.a
-                    // exactly (capture used Range.toString(), render uses the same TreeWalker
-                    // representation, so the strings match byte-for-byte in normal flow). If no
-                    // occurrence matches exactly (e.g. earlier-batch mark removed text the b/a
-                    // referenced, or document edited between capture and render), fall through
-                    // to the first occurrence — same behaviour as a legacy empty-context
-                    // annotation, and never worse than the historical first-match default.
-                    var matchedIdx = -1, firstIdx = -1;
-                    var idx = -1;
+                    var firstIdx = -1, idx = searchFrom - 1;
                     while ((idx = text.indexOf(snippet, idx + 1)) !== -1) {
                         if (firstIdx < 0) firstIdx = idx;
-                        if (!ann.b && !ann.a) break;
-                        var beforeWin = ann.b ? text.substring(Math.max(0, idx - ann.b.length), idx) : '';
-                        var afterWin = ann.a ? text.substring(idx + snippet.length, idx + snippet.length + ann.a.length) : '';
-                        var beforeOk = !ann.b || beforeWin === ann.b;
-                        var afterOk = !ann.a || afterWin === ann.a;
-                        if (beforeOk && afterOk) { matchedIdx = idx; break; }
+                        if (!before && !after) return idx;
+                        var beforeWin = before ? text.substring(Math.max(0, idx - before.length), idx) : '';
+                        var afterWin = after ? text.substring(idx + snippet.length, idx + snippet.length + after.length) : '';
+                        if ((!before || beforeWin === before) && (!after || afterWin === after)) return idx;
                     }
-                    var bestIdx = matchedIdx >= 0 ? matchedIdx : firstIdx;
-                    if (bestIdx < 0) return null;
-                    var startIdx = bestIdx, endIdx = bestIdx + snippet.length;
+                    return firstIdx;
+                };
+                // Build a Range from a flat-text offset/length using flatIdx.nodes.
+                var idxToRange = function(startIdx, length) {
+                    var endIdx = startIdx + length;
                     var n0 = null, off0 = 0, n1 = null, off1 = 0;
                     for (var k = 0; k < flatIdx.nodes.length; k++) {
                         var nd = flatIdx.nodes[k];
@@ -461,11 +493,34 @@ internal object ContinuousStyleInjector {
                     }
                     if (!n0 || !n1) return null;
                     var range = document.createRange();
-                    try {
-                        range.setStart(n0, off0);
-                        range.setEnd(n1, off1);
-                    } catch (e) { return null; }
+                    try { range.setStart(n0, off0); range.setEnd(n1, off1); }
+                    catch (e) { return null; }
                     return range;
+                };
+                // Resolve one annotation to a list of ranges — one range per block the snippet
+                // crosses. A `Selection.toString()` snippet glues block content with "\n" / "\n\n";
+                // the flat-text index has NO separators between blocks, so a multi-paragraph
+                // snippet would never match as a single string. Split on `\n+` and locate each
+                // chunk sequentially (anchored to after the previous chunk so we don't capture an
+                // earlier duplicate). The first chunk uses ann.b for disambiguation, the last uses
+                // ann.a; middle chunks rely on the sequential anchor.
+                var locateRanges = function(ann) {
+                    if (!flatIdx) flatIdx = buildFlat();
+                    if (!ann.t) return [];
+                    var chunks = ann.t.split(/\n+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                    if (chunks.length === 0) return [];
+                    var ranges = [];
+                    var searchFrom = 0;
+                    for (var i = 0; i < chunks.length; i++) {
+                        var before = (i === 0) ? ann.b : '';
+                        var after = (i === chunks.length - 1) ? ann.a : '';
+                        var hit = findIdx(chunks[i], before, after, searchFrom);
+                        if (hit < 0) continue;
+                        var r = idxToRange(hit, chunks[i].length);
+                        if (r) ranges.push(r);
+                        searchFrom = hit + chunks[i].length;
+                    }
+                    return ranges;
                 };
                 // Remove marks/glyphs for annotations no longer in the list.
                 var validIds = {};
@@ -479,43 +534,45 @@ internal object ContinuousStyleInjector {
                 });
                 var sel = window.getSelection();
                 anns.forEach(function(ann) {
-                    var existing = document.querySelector('[data-riffle-ann="' + ann.id + '"]');
-                    if (existing) {
-                        // Update colour in-place — no relocation needed, no DOM structure change.
-                        existing.style.background = ann.c;
+                    // Multi-paragraph annotations can have several marks sharing the same id — one
+                    // per block. Update colour in-place across all of them and skip relocation.
+                    var existingAll = document.querySelectorAll('[data-riffle-ann="' + ann.id + '"]');
+                    if (existingAll.length > 0) {
+                        existingAll.forEach(function(m) { m.style.background = ann.c; });
                         var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
                         if (ann.n && !eg) {
-                            makeGlyph(ann.id, existing);
+                            makeGlyph(ann.id, existingAll[0]);
                         } else if (!ann.n && eg) {
                             eg.remove();
                         }
                         return;
                     }
-                    // New annotation — locate the correct occurrence using before/after context.
-                    var range = locateRange(ann);
-                    if (!range) return;
+                    // New annotation — locate the correct occurrence(s). One range per block the
+                    // snippet crosses. __riffleSafeWrap rejects any cross-block range (the data
+                    // model produces single-block ranges by construction, but the guard prevents
+                    // the historical extractContents+insertNode catastrophe if anything slips).
+                    var ranges = locateRanges(ann);
+                    if (ranges.length === 0) return;
                     if (sel) sel.removeAllRanges();
-                    var mark = document.createElement('mark');
-                    mark.setAttribute('data-riffle-ann', ann.id);
-                    mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
-                    try {
-                        range.surroundContents(mark);
-                    } catch(e) {
-                        var frag = range.extractContents();
-                        mark.appendChild(frag);
-                        range.insertNode(mark);
-                    }
-                    // The mark just split a text node — invalidate the flat index so the next
-                    // locateRange() rebuilds it against the updated DOM.
-                    flatIdx = null;
-                    (function(markEl, annId) {
-                        markEl.addEventListener('click', function(e) {
-                            e.stopPropagation();
-                            var r = markEl.getBoundingClientRect();
-                            window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
-                        });
-                    })(mark, ann.id);
-                    if (ann.n) makeGlyph(ann.id, mark);
+                    var firstMark = null;
+                    ranges.forEach(function(range) {
+                        var mark = document.createElement('mark');
+                        mark.setAttribute('data-riffle-ann', ann.id);
+                        mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
+                        if (!window.__riffleSafeWrap(range, mark)) return;
+                        // The mark just split a text node — invalidate the flat index so the next
+                        // locateRanges() rebuilds it against the updated DOM.
+                        flatIdx = null;
+                        (function(markEl, annId) {
+                            markEl.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                var r = markEl.getBoundingClientRect();
+                                window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
+                            });
+                        })(mark, ann.id);
+                        if (!firstMark) firstMark = mark;
+                    });
+                    if (firstMark && ann.n) makeGlyph(ann.id, firstMark);
                 });
                 if (sel) sel.removeAllRanges();
             })($json);
@@ -543,6 +600,7 @@ internal object ContinuousStyleInjector {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
         val safe = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
         return """
+            $SAFE_WRAP_HELPER_JS
             (function() {
                 var existing = document.getElementById('_riffle_hl');
                 var sentinel = null;
@@ -569,14 +627,9 @@ internal object ContinuousStyleInjector {
                 var mark = document.createElement('mark');
                 mark.id = '_riffle_hl';
                 mark.style.cssText = 'background:$cssColor;color:inherit;';
-                try {
-                    range.surroundContents(mark);
-                } catch(e) {
-                    // Range crosses an inline element boundary — extract contents into mark instead.
-                    var frag = range.extractContents();
-                    mark.appendChild(frag);
-                    range.insertNode(mark);
-                }
+                // Skip cross-block matches — extractContents would reparent block elements as
+                // inline children of <mark>, breaking the surrounding paragraphs.
+                if (!window.__riffleSafeWrap(range, mark)) { sel.removeAllRanges(); return; }
                 sel.removeAllRanges();
             })();
         """.trimIndent()
