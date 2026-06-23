@@ -61,6 +61,8 @@ internal class ContinuousHighlightRenderer(
                         text = h.locator.text.highlight!!,
                         cssColor = HighlightColor.fromToken(h.color).readerTint(theme).toCssRgba(),
                         hasNote = h.note != null,
+                        before = h.locator.text.before.orEmpty(),
+                        after = h.locator.text.after.orEmpty(),
                     )
                 }
             }

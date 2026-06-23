@@ -90,13 +90,16 @@ internal class ContinuousReaderCoordinator(
             onAnnotationNoteTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
         }
 
-        view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect ->
+        view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect, before, after ->
             val locator = Locator.fromJSON(
                 JSONObject()
                     .put("href", chapterHref)
                     .put("type", "application/xhtml+xml")
                     .put("locations", JSONObject().put("progression", progression))
-                    .put("text", JSONObject().put("highlight", selectedText)),
+                    .put("text", JSONObject()
+                        .put("before", before)
+                        .put("highlight", selectedText)
+                        .put("after", after)),
             )
             if (locator != null) {
                 onHighlight(

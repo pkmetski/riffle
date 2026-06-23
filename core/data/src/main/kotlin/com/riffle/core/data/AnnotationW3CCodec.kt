@@ -242,6 +242,8 @@ object AnnotationW3CCodec {
                 id = id,
                 cfi = cfi,
                 textSnippet = textSnippet,
+                textBefore = textBefore,
+                textAfter = textAfter,
                 chapterHref = chapterHref,
                 type = type,
                 color = color,
