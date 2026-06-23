@@ -719,12 +719,26 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 // (the latter even when the reapply chain has been disarmed) so the focus lands
                 // precisely on the freshly-decorated mark.
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    if (webViews.indexOf(wv) != pendingTargetWindowIndex) return@evaluateJavascript
-                    reapplyLandingAfterFallback?.invoke()
-                    scrollToPendingFocusAnnotation(wv)
+                    onAnnotationHighlightsApplied(wv)
                 }
             }
         }
+    }
+
+    /**
+     * Hook fired by [appendChapter] / [prependChapter] / [applyAnnotationHighlights] once a
+     * chapter's `applyAnnotationHighlightsJs` JS finishes — i.e. once `<mark data-riffle-ann="<id>">`
+     * is in the DOM. Re-fires the armed initial-landing closure AND scrolls to the freshly-rendered
+     * annotation mark if one was queued for focus.
+     *
+     * Both operations are gated on the WebView still being the pending-target chapter (the window
+     * could have shifted while the JS was in flight) so they're together in one guarded helper —
+     * call sites just invoke this and don't need to repeat the index check.
+     */
+    private fun onAnnotationHighlightsApplied(wv: ChapterWebView) {
+        if (webViews.indexOf(wv) != pendingTargetWindowIndex) return
+        reapplyLandingAfterFallback?.invoke()
+        scrollToPendingFocusAnnotation(wv)
     }
 
     /** Once the target chapter's `<mark data-riffle-ann="<id>">` exists in the DOM, scroll to it.
@@ -874,9 +888,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 // [scrollToPendingFocusAnnotation] covers the case where reapply has been disarmed
                 // (touch event during boot, height stabilised before the mark was created, etc).
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    if (webViews.indexOf(wv) != pendingTargetWindowIndex) return@evaluateJavascript
-                    reapplyLandingAfterFallback?.invoke()
-                    scrollToPendingFocusAnnotation(wv)
+                    onAnnotationHighlightsApplied(wv)
                 }
             }
             val searchState = currentSearchHighlights
@@ -924,9 +936,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             if (!annotations.isNullOrEmpty()) {
                 // Same re-land-on-completion hook as in appendChapter.onPageFinished.
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    if (webViews.indexOf(wv) != pendingTargetWindowIndex) return@evaluateJavascript
-                    reapplyLandingAfterFallback?.invoke()
-                    scrollToPendingFocusAnnotation(wv)
+                    onAnnotationHighlightsApplied(wv)
                 }
             }
             val searchState = currentSearchHighlights

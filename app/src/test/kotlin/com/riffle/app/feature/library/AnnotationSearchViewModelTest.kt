@@ -84,6 +84,7 @@ class AnnotationSearchViewModelTest {
         override suspend fun recolor(id: String, color: String) = error("unused")
         override suspend fun updateNote(id: String, note: String?) = error("unused")
         override suspend fun renameBookmark(id: String, title: String) = error("unused")
+        override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation? = null
     }
 
     private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
