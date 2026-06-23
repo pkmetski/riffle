@@ -230,9 +230,14 @@ open class AudiobookController @Inject constructor(
     fun rewind() = skipBy(-REWIND_SEC)
     fun forward() = skipBy(FORWARD_SEC)
 
+    // The service wraps ExoPlayer in [AbsolutePositionPlayer], whose `getCurrentPosition` override
+    // already projects ExoPlayer's per-track ms into book-absolute ms via [SharedAudiobookContext].
+    // That value is what the MediaController reports back here, so this side must NOT add the
+    // current track's startOffset again — doing so double-counts every time playback advances past
+    // track 0 and inflates the displayed position past durationSec (e.g. 19:56 books reading 27:50+).
     open fun currentAbsoluteSec(): Double {
         val c = controller ?: return 0.0
-        return AudiobookTracks.absoluteSec(c.currentMediaItemIndex, c.currentPosition / 1000.0, spans)
+        return c.currentPosition / 1000.0
     }
 
     fun stop() {

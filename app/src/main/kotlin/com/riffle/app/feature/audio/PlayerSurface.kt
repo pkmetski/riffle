@@ -431,6 +431,12 @@ private fun ChapterSeekBar(
     // Bookmark ticks read over both the filled and unfilled track; onSurfaceVariant contrasts with
     // the accent fill and the muted base track alike.
     val bookmarkTickColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // While the user is actively dragging, render the bar from the finger position instead of the
+    // polled `positionSec`. Seeks round-trip through the MediaController binder on a ~250 ms poll, so
+    // mid-drag the polled value lags multiple seeks behind the finger and the bar visibly snaps back
+    // to stale positions. Seeks still fire on every drag delta so audio scrubs along; we just stop
+    // letting their echoes drive the visual until the user lifts.
+    var dragSec by remember { mutableStateOf<Double?>(null) }
     Box(
         modifier = modifier
             .height(24.dp)
@@ -438,8 +444,22 @@ private fun ChapterSeekBar(
                 detectTapGestures { offset -> if (durationSec > 0) onSeek(durationSec * (offset.x / size.width).coerceIn(0f, 1f)) }
             }
             .pointerInput(durationSec) {
-                detectHorizontalDragGestures { change, _ ->
-                    if (durationSec > 0) onSeek(durationSec * (change.position.x / size.width).coerceIn(0f, 1f))
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        if (durationSec > 0) {
+                            val target = durationSec * (offset.x / size.width).coerceIn(0f, 1f)
+                            dragSec = target
+                            onSeek(target)
+                        }
+                    },
+                    onDragEnd = { dragSec = null },
+                    onDragCancel = { dragSec = null },
+                ) { change, _ ->
+                    if (durationSec > 0) {
+                        val target = durationSec * (change.position.x / size.width).coerceIn(0f, 1f)
+                        dragSec = target
+                        onSeek(target)
+                    }
                 }
             },
         contentAlignment = Alignment.Center,
@@ -447,7 +467,8 @@ private fun ChapterSeekBar(
         Canvas(modifier = Modifier.fillMaxWidth().height(9.dp)) {
             val w = size.width
             val h = size.height
-            val frac = if (durationSec > 0) (positionSec / durationSec).coerceIn(0.0, 1.0).toFloat() else 0f
+            val displayedSec = dragSec ?: positionSec
+            val frac = if (durationSec > 0) (displayedSec / durationSec).coerceIn(0.0, 1.0).toFloat() else 0f
             // base track
             drawRoundRect(color = track, size = size, cornerRadius = CornerRadius(h / 2, h / 2))
             // filled portion
