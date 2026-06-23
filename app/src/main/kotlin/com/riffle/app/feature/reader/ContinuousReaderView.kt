@@ -205,6 +205,21 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      *  it fires against the new window's [pendingInitialScroll]. */
     private var pendingFallbackRunnable: Runnable? = null
 
+    /** Window index of the chapter the initial scroll lands on (set in [openWindowAt]). */
+    private var pendingTargetWindowIndex: Int = -1
+
+    /**
+     * The initial-scroll closure, retained when the safety-net fallback fires it BEFORE the target
+     * chapter measured (so it may have landed short against a placeholder height). Re-invoked once
+     * the target chapter reports its real height so an annotation/resume landing corrects itself
+     * instead of resting near the chapter top. Null when the normal (measured) path fired the scroll.
+     */
+    private var reapplyLandingAfterFallback: (() -> Unit)? = null
+
+    /** Target chapter height used by the last re-applied landing; re-apply again when it changes
+     *  (the chapter grows as typography reflow settles) until it stabilises. -1 = none applied yet. */
+    private var reapplyTargetLastHeight: Int = -1
+
     /**
      * Placeholder height used before real measurement arrives. One screen height keeps the
      * forward-shift trigger working (the last chapter needs enough height to scroll into) while
@@ -281,7 +296,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private var interceptDownY = 0f
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> interceptDownY = ev.y
+            MotionEvent.ACTION_DOWN -> {
+                interceptDownY = ev.y
+                // The user took over: stop auto-re-landing on reflow so we never yank the page
+                // out from under a manual scroll.
+                reapplyLandingAfterFallback = null
+            }
             MotionEvent.ACTION_MOVE ->
                 if (abs(ev.y - interceptDownY) > touchSlop / 2f) return true
         }
@@ -360,6 +380,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val behind = minOf(CHAPTERS_BEHIND, targetIndex)
         topIndex = targetIndex - behind
         val targetWindowIndex = behind
+        pendingTargetWindowIndex = targetWindowIndex
+        reapplyLandingAfterFallback = null
+        reapplyTargetLastHeight = -1
         val totalChapters = minOf(behind + 1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
         // Land only once every chapter up to and including the target has reported its real height,
         // so the target's slot.top (the sum of the heights before it) is exact.
@@ -411,12 +434,18 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // after a short grace period with whatever heights are known. Lands the target at the behind
         // buffer's placeholder height; the index-0 height compensation then corrects it to the exact
         // top once the behind buffer's real height arrives. A no-op if the normal path already fired.
+        //
+        // A mid-chapter landing (annotation / resume at progression > 0) fired against a placeholder
+        // target height comes to rest SHORT (e.g. near the chapter top) — the index-0 compensation
+        // only fixes top-alignment, not the progression offset. So retain the closure and re-apply it
+        // once the target chapter reports its real height (see [appendChapter]'s onHeightMeasured).
         val fallback = Runnable {
             pendingFallbackRunnable = null
             if (pendingInitialScroll != null) {
                 val scroll = pendingInitialScroll
                 pendingInitialScroll = null
                 pendingInitialMeasureIndices.clear()
+                reapplyLandingAfterFallback = scroll
                 scroll?.invoke()
             }
         }
@@ -740,6 +769,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                     val scroll = pendingInitialScroll
                     pendingInitialScroll = null
                     scroll?.invoke()
+                    // The first real height is often PRE-reflow: typography injection then grows the
+                    // chapter, which would leave a mid-chapter (annotation/resume) landing short. Arm
+                    // a re-land that tracks the target chapter's height until it stabilises so the
+                    // landing follows the reflow. Disarmed on the first manual touch.
+                    reapplyLandingAfterFallback = scroll
+                    reapplyTargetLastHeight = measuredHeights.getOrElse(pendingTargetWindowIndex) { measuredPx }
+                } else if (i == pendingTargetWindowIndex && reapplyLandingAfterFallback != null &&
+                    measuredPx != reapplyTargetLastHeight
+                ) {
+                    // Re-land on EACH target remeasure — the chapter keeps growing as typography
+                    // reflow settles after style injection (and the safety-net fallback may have fired
+                    // the first landing against a placeholder height) — so a mid-chapter annotation/
+                    // resume position tracks the final height instead of resting near the chapter top.
+                    // Settles once the height stops changing; disarmed on the first manual touch.
+                    reapplyTargetLastHeight = measuredPx
+                    reapplyLandingAfterFallback?.invoke()
                 }
             }
         }
