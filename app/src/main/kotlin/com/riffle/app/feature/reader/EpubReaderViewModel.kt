@@ -297,6 +297,15 @@ class EpubReaderViewModel @Inject constructor(
     private val _hasBookOverrides = MutableStateFlow(false)
     val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
 
+    // False until loadFormattingPreferences() has both written the loaded value into
+    // _formattingPreferences AND that value has propagated through the combine→stateIn chain
+    // backing effectiveFormattingPreferences. The screen gates EpubNavigatorFragment /
+    // ContinuousReaderView construction on this so the first paint never uses the StateFlow's
+    // FormattingPreferences() default — which would otherwise produce an occasional unstyled
+    // render (no typography overrides applied) that survives until the user reopens the book.
+    private val _formattingPreferencesReady = MutableStateFlow(false)
+    val formattingPreferencesReady: StateFlow<Boolean> = _formattingPreferencesReady
+
     private val _isSearchActive = MutableStateFlow(false)
     val isSearchActive: StateFlow<Boolean> = _isSearchActive
 
@@ -667,8 +676,18 @@ class EpubReaderViewModel @Inject constructor(
         val overrides = bookFormattingPreferencesStore.load(itemId)
         val global = formattingPreferencesStore.preferences.first()
         _bookOverrides.value = overrides
-        _formattingPreferences.value = overrides.applyTo(global)
+        val effective = overrides.applyTo(global)
+        _formattingPreferences.value = effective
         _hasBookOverrides.value = !overrides.isEmpty
+        // Wait until the derived effectiveFormattingPreferences StateFlow actually reflects
+        // the loaded value before flipping the gate. The combine→stateIn chain has its own
+        // dispatch latency: writing _formattingPreferences.value does not synchronously
+        // update effectiveFormattingPreferences.value, and the screen reads the latter when
+        // constructing the Readium navigator. Without this wait, ReaderState.Ready can
+        // arrive while effectiveFormattingPreferences.value still holds FormattingPreferences().
+        val targetEffective = effective.withResolvedTheme(timeProvider.nowLocalTime())
+        effectiveFormattingPreferences.first { it == targetEffective }
+        _formattingPreferencesReady.value = true
     }
 
     private suspend fun openBook() {
