@@ -266,6 +266,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onAnnotationNoteTap = null
         wv.onPlayFromHere = null
         wv.onFootnoteContent = null
+        wv.onSelectionActiveChanged = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
     }
 
@@ -286,13 +287,152 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         recycledViews.clear()
     }
 
+    /**
+     * Number of child [ChapterWebView]s currently showing a text-selection action mode. The reader
+     * suppresses both its early intercept and its disallow-intercept override while this is > 0,
+     * so dragging a selection handle vertically extends the selection instead of being stolen as a
+     * scroll — which previously fling-scrolled the page mid-selection and broke the highlight flow.
+     * Counter (not a flag) so two simultaneous selections — possible during a window-shift recycle
+     * race where an old menu's destroy fires after a new one's create — can't underflow the state.
+     */
+    private var selectionActiveCount = 0
+
+    private fun onChildSelectionActiveChanged(active: Boolean) {
+        if (active) selectionActiveCount++
+        else if (selectionActiveCount > 0) selectionActiveCount--
+    }
+
+    /** Test seam: drives the same counter the production [ChapterWebView] callback does, without
+     *  needing to spin up a real WebView selection. */
+    @androidx.annotation.VisibleForTesting
+    internal fun onSelectionActiveForTest(active: Boolean) = onChildSelectionActiveChanged(active)
+
+    /**
+     * Decline to be a nested-scrolling parent for child [ChapterWebView]s.
+     *
+     * Chromium's [android.webkit.WebView] implements [androidx.core.view.NestedScrollingChild3] and,
+     * when it wants to scroll itself (most relevantly: to keep the active text selection or its drag
+     * handle visible during a handle drag), calls [dispatchNestedPreScroll] / [dispatchNestedScroll]
+     * on its scrolling parent. The inherited [NestedScrollView] default consumes those and scrolls
+     * its own viewport — same end result as the rectangle-on-screen path: in continuous mode the
+     * page jumps to a far-off chapter in the middle of the user's selection because the WebView's
+     * scroll request is expressed in its huge child-content coordinates. Refusing to participate in
+     * nested scrolling at the start makes `dispatchNested…` return false in the child, so the
+     * WebView falls back to its own (disabled) internal scroll and the page stays put. Our own
+     * scroll positioning (window shifts, navigate-to) doesn't go through nested scrolling — it
+     * calls [scrollTo]/[scrollBy] directly — so this override doesn't affect normal reading.
+     */
+    override fun onStartNestedScroll(child: android.view.View, target: android.view.View, axes: Int): Boolean = false
+
+    /**
+     * Type-aware nested-scroll override. NestedScrollView's basic 3-arg [onStartNestedScroll]
+     * delegates to this 4-arg version with `type = TYPE_TOUCH`; the 4-arg version is also what
+     * gets called directly for `TYPE_NON_TOUCH` dispatches (programmatic / fling). Chromium's
+     * modern WebView routes its scroll-to-center-selection through nested scrolling with the
+     * non-touch type, so blocking only the 3-arg version still lets the page jump on long-press
+     * near an edge. Refuse both.
+     */
+    override fun onStartNestedScroll(child: android.view.View, target: android.view.View, axes: Int, type: Int): Boolean = false
+
+    /**
+     * Suppress NestedScrollView's "scroll the focused child into view" inside super.requestChildFocus.
+     *
+     * The actual mechanism behind the "long-press near the top sometimes makes the page jump to
+     * reposition the word closer to the middle" bug, identified via logcat stack traces during a
+     * live AVD repro on API 33 / Chromium WebView:
+     *
+     *   WebView.requestFocus (on long-press completing a selection)
+     *     → ContinuousReaderView.requestChildFocus
+     *       → super (NestedScrollView).requestChildFocus
+     *         → NestedScrollView.scrollToChild      ← synchronous
+     *           → scrollBy(0, scrollDelta)          ← the page jump (~233px observed)
+     *
+     * `scrollToChild` doesn't go through the scroller or smoothScroll — it calls `scrollBy`
+     * synchronously, INSIDE the super call. So [abortFling] AFTER super is too late, and blocking
+     * [onStartNestedScroll] / [requestChildRectangleOnScreen] doesn't help — this path uses neither.
+     *
+     * We can't override `scrollToChild` (package-private in androidx.core). Instead we set a flag
+     * for the duration of the super.requestChildFocus call and short-circuit [scrollBy] while it's
+     * set. Continuous mode's own scrolls call [scrollBy] from elsewhere (window-shift compensation,
+     * etc.) and never recurse through requestChildFocus, so they're unaffected.
+     */
+    private var inRequestChildFocus = false
+
+
+    /**
+     * Cancel the implicit "scroll focused child into view" that [NestedScrollView] queues here.
+     *
+     * `NestedScrollView.requestChildFocus(child, focused)` calls `scrollToChild(focused)`, which
+     * computes a scroll delta to bring the focused descendant into view and starts an internal
+     * [android.widget.OverScroller] animation. Then `super.requestChildFocus` propagates focus
+     * upward. The animation plays out across the next few frames via [computeScroll].
+     *
+     * Modern Chromium WebView calls [requestFocus] on itself when a long-press completes a
+     * selection. If the selection rect is close to a viewport edge (top/bottom), the queued
+     * scroll fires and shifts the page so the just-selected word ends up near the middle —
+     * which from the user's perspective is "long-press near the top sometimes makes the page
+     * jump to reposition the word." This was the residual mode left after blocking
+     * [requestChildRectangleOnScreen] and [onStartNestedScroll], because focus-induced scroll
+     * uses the scroller directly rather than either of those APIs.
+     *
+     * Fix: let super run (preserves focus bookkeeping AND any legitimate intra-frame state),
+     * then immediately [abortFling] to clear the scroller's pending animation. The next
+     * [computeScroll] reads `mScroller.isFinished() == true` and does not move. Continuous mode's
+     * own scrolls go through [scrollTo] / [scrollBy] / [smoothScrollBy] elsewhere (window
+     * shifting, initial-scroll, navigateTo) and are NOT queued via [scrollToChild], so this
+     * doesn't affect them.
+     */
+    override fun requestChildFocus(child: android.view.View?, focused: android.view.View?) {
+        inRequestChildFocus = true
+        try {
+            super.requestChildFocus(child, focused)
+        } finally {
+            inRequestChildFocus = false
+        }
+    }
+
+    override fun scrollBy(x: Int, y: Int) {
+        // Block the synchronous scrollBy that NestedScrollView.scrollToChild calls during
+        // super.requestChildFocus — the "scroll-to-center-selection" page jump on long-press.
+        if (inRequestChildFocus) return
+        super.scrollBy(x, y)
+    }
+
+    /**
+     * Block all scroll-into-view requests bubbling up from a child [ChapterWebView].
+     *
+     * Android's [android.webkit.WebView] aggressively keeps the active text selection (and its drag
+     * handle) visible by calling [requestRectangleOnScreen] with the current selection rect. That
+     * bubbles to the scrolling parent's [requestChildRectangleOnScreen], which here is the inherited
+     * [NestedScrollView] implementation that smooth-scrolls the rect into view. In continuous mode
+     * each child WebView is sized to its whole chapter — tens of thousands of px tall — so when the
+     * user long-presses a word or drags a selection handle, the WebView passes a rect whose top is
+     * far inside the chapter and the parent fling-scrolls there. From the user's perspective the
+     * page jumps to an unrelated location at the moment they select, and any in-progress drag is
+     * lost — the original "page jumps around while highlighting" bug.
+     *
+     * The scroll request runs BEFORE the action-mode callback fires (the WebView centres the
+     * selection in view, then opens the menu), so gating the override on "is a selection mode
+     * active" is too late to be useful; the page has already jumped by the time selectionActiveCount
+     * bumps. Continuous mode owns scroll positioning entirely — every legitimate scroll comes from
+     * the reader's own navigation/restore code, never from a WebView internal — so it's correct to
+     * unconditionally decline child rectangle-on-screen requests here.
+     */
+    override fun requestChildRectangleOnScreen(
+        child: android.view.View,
+        rectangle: android.graphics.Rect,
+        immediate: Boolean,
+    ): Boolean = false
+
     // ChapterWebViews detect vertical motion and call requestDisallowInterceptTouchEvent(true),
     // which would prevent NestedScrollView from intercepting and owning the scroll — exactly the
     // same bug ScrollBoundaryNavigationContainer solves for Readium WebViews. We are the scroll
-    // owner, so we never yield the right to intercept.
+    // owner during normal reading, so we never yield the right to intercept — EXCEPT while a child
+    // WebView is in text-selection action mode, when the WebView's own selection-handle drag logic
+    // must keep ownership of vertical movement (extending the selection, not scrolling the page).
     override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
-        if (disallowIntercept) return
-        super.requestDisallowInterceptTouchEvent(false)
+        if (disallowIntercept && selectionActiveCount == 0) return
+        super.requestDisallowInterceptTouchEvent(disallowIntercept)
     }
 
     // Intercept vertical movement as soon as it exceeds a minimal threshold (half the system
@@ -300,8 +440,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     // intercepting, which leaves the WebView handling touch for long enough that the user
     // perceives scroll resistance ("fighting"). Intercepting earlier gives us scroll ownership
     // from the very first detectable movement, matching native smooth-scroll feel.
+    //
+    // Suppressed entirely while a text-selection action mode is active: any vertical movement
+    // is the user dragging a selection handle, and intercepting it scrolls the page mid-selection
+    // (the original "page jumps around while highlighting" bug). We return false directly instead
+    // of falling through to super, because super (NestedScrollView) also intercepts vertical
+    // drags past its own touch slop — calling super would still steal the handle drag.
     private var interceptDownY = 0f
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (selectionActiveCount > 0) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 interceptDownY = ev.y
@@ -793,6 +940,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
+        wv.onSelectionActiveChanged = ::onChildSelectionActiveChanged
         wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
@@ -911,6 +1059,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
         wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
         wv.annotationsAvailable = annotationsAvailable
+        wv.onSelectionActiveChanged = ::onChildSelectionActiveChanged
         wireAnnotationCallbacks(wv)
         wv.readaloudAvailable = readaloudAvailable
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
