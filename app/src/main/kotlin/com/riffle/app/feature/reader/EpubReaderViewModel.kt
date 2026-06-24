@@ -267,17 +267,20 @@ class EpubReaderViewModel @Inject constructor(
     // [lastLocator] that the popup's overlay layout has already nudged off the user's page.
     private var footnotePopupOriginLocator: Locator? = null
 
-    // Set when the user taps an external URL inside a FootnotePopup. The activity is about to background
-    // for the browser, and on resume the paginated WebView is consistently pinned at the chapter top
-    // (the popup overlay swallowed the WebView's column-snap mid-flight; see the popup's onLinkTap).
-    // [onReaderResumed] restores this locator after re-entry so the user lands back where they were.
-    private var pendingFootnoteReturnLocator: Locator? = null
+    // The locator to restore on [onReaderResumed]. Readium's WebView (all three modes) consistently
+    // resets to the chapter top across the backgrounding round-trip (originally observed via a
+    // FootnotePopup URL tap launching an external browser, but the same applies to any
+    // home-button / app-switcher backgrounding). Armed in [onReaderClosed] from [lastLocator]; the
+    // footnote-popup URL-tap path pre-arms it earlier via [captureFootnotePopupLinkOrigin] so the
+    // pre-popup origin (not the popup-nudged lastLocator) is what restores. [onReaderResumed]
+    // re-emits this through the same channel server-driven jumps use.
+    private var pendingReturnLocator: Locator? = null
     // How many remaining onPositionChanged → chapter-top emissions to suppress while restoring after a
-    // FootnotePopup-link return. Readium's post-resume column-snap can re-emit progression=0 several
-    // times after our restore navigateTo; each spurious emission is re-overridden by re-emitting the
+    // background return. Readium's post-resume column-snap can re-emit progression=0 several times
+    // after our restore navigateTo; each spurious emission is re-overridden by re-emitting the
     // captured origin. Cleared on the first emission that lands at (or past) the captured origin, or by
     // any user-driven navigation.
-    private var footnoteReturnRestoreAttempts = 0
+    private var returnRestoreAttempts = 0
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -1023,7 +1026,7 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Snapshot the popup's origin position before the URL tap launches the external browser. */
     fun captureFootnotePopupLinkOrigin() {
-        pendingFootnoteReturnLocator = footnotePopupOriginLocator ?: lastLocator
+        pendingReturnLocator = footnotePopupOriginLocator ?: lastLocator
     }
 
     // Return-to-position: when tapping an internal link (an in-document cross-reference like "Figure
@@ -1059,28 +1062,36 @@ class EpubReaderViewModel @Inject constructor(
 
     fun onPositionChanged(locator: Locator) {
         // Defensive re-restore: Readium's post-resume column-snap can emit a chapter-top position
-        // AFTER our [onReaderResumed] navigateTo, undoing the restore. Re-emit until we either see a
-        // position that's at-or-past the captured origin (the restore took) or we exhaust the attempts.
-        // User-driven navigation lands here with off-zero progression too and clears the attempts.
-        footnoteReturnRestoreAttempts.let { remaining ->
+        // AFTER our [onReaderResumed] navigateTo, sometimes more than once — including a delayed
+        // clobber that arrives AFTER a first emission has already landed at the captured origin.
+        // Stay armed (within the attempt budget) as long as we're parked at-or-near the origin;
+        // only disarm when the user clearly navigates AWAY (different href, or progression past
+        // origin). An emission AT origin means this round took, not that future emissions can't
+        // re-clobber us, so don't clear pending on equality.
+        returnRestoreAttempts.let { remaining ->
             if (remaining > 0) {
-                val pending = pendingFootnoteReturnLocator
+                val pending = pendingReturnLocator
                 if (pending != null) {
                     val originHref = pending.href.toString()
                     val originProg = pending.locations.progression ?: 0.0
                     val incomingHref = locator.href.toString()
                     val incomingProg = locator.locations.progression ?: 0.0
-                    if (incomingHref == originHref && incomingProg < originProg - 0.01) {
-                        // Spurious chapter-top emission while we're still restoring — re-fire.
-                        footnoteReturnRestoreAttempts = remaining - 1
-                        _serverLocatorChannel.trySend(pending)
-                    } else {
-                        // Restore took, or user navigated away — stop watching.
-                        footnoteReturnRestoreAttempts = 0
-                        pendingFootnoteReturnLocator = null
+                    when {
+                        incomingHref == originHref && incomingProg < originProg - 0.01 -> {
+                            // Spurious chapter-top emission while we're still restoring — re-fire.
+                            returnRestoreAttempts = remaining - 1
+                            _serverLocatorChannel.trySend(pending)
+                        }
+                        incomingHref != originHref || incomingProg > originProg + 0.01 -> {
+                            // User navigated away — stop watching.
+                            returnRestoreAttempts = 0
+                            pendingReturnLocator = null
+                        }
+                        // else: incoming ≈ origin — restore took this round; stay armed in case
+                        // a delayed column-snap re-clobbers before the budget is exhausted.
                     }
                 } else {
-                    footnoteReturnRestoreAttempts = 0
+                    returnRestoreAttempts = 0
                 }
             }
         }
@@ -1133,14 +1144,16 @@ class EpubReaderViewModel @Inject constructor(
             syncCurrentPosition()
             startPeriodicSync()
         }
-        // Restore the reading position after returning from an external app launched by a
-        // FootnotePopup link tap (see captureFootnotePopupLinkOrigin). The paginated Readium WebView
-        // consistently resets to the chapter top across that backgrounding round-trip, so we re-emit
-        // the captured locator through the same channel server-driven jumps use. Leave the pending
-        // field populated and arm the [footnoteReturnRestoreAttempts] watcher so [onPositionChanged]
-        // can re-fire if Readium's column-snap clobbers our first attempt with a chapter-top emission.
-        pendingFootnoteReturnLocator?.let { origin ->
-            footnoteReturnRestoreAttempts = 5
+        // Restore the reading position after returning from background. Readium's WebView (all three
+        // modes) consistently resets to the chapter top across the backgrounding round-trip —
+        // originally observed via a FootnotePopup URL tap that backgrounded the activity for the
+        // external browser, but the same applies to any home-button / app-switcher backgrounding.
+        // [onReaderClosed] captures [lastLocator] into [pendingReturnLocator] on every ON_STOP so this
+        // re-emit can fire for both paths. Leave the pending field populated and arm the
+        // [returnRestoreAttempts] watcher so [onPositionChanged] can re-fire if Readium's column-snap
+        // clobbers our first attempt with a chapter-top emission.
+        pendingReturnLocator?.let { origin ->
+            returnRestoreAttempts = 5
             _serverLocatorChannel.trySend(origin)
         }
     }
@@ -1152,6 +1165,10 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isAudioPlaying = false
         syncJob?.cancel()
         storytellerSyncJob?.cancel()
+        // Arm the resume-restore for the next ON_START. The footnote-popup URL-tap path may have
+        // pre-armed this with the pre-popup origin (see captureFootnotePopupLinkOrigin); don't
+        // overwrite that with the popup-nudged lastLocator. See [pendingReturnLocator].
+        if (pendingReturnLocator == null) pendingReturnLocator = lastLocator
         if (closeSyncDone) return
         closeSyncDone = true
         // Leaving the book without first pressing X: persist the sentence narrating now so re-entry
