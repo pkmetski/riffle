@@ -63,11 +63,6 @@ android {
         // published (release) builds carry no SHA; the debug build type fills in the real value.
         buildConfigField("String", "GIT_SHA", "\"\"")
     }
-
-    testOptions {
-        unitTests.isReturnDefaultValues = true
-    }
-
     val keystorePath = System.getenv("KEYSTORE_PATH")
     signingConfigs {
         if (keystorePath != null) {

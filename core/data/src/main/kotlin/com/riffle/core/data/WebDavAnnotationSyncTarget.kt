@@ -1,6 +1,5 @@
 package com.riffle.core.data
 
-import android.util.Log
 import com.riffle.core.domain.AnnotationSyncTarget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,10 +45,6 @@ class WebDavAnnotationSyncTarget(
 
     private val basePath: HttpUrl = ensureTrailingSlash(baseUrl)
     private val authHeader: String = Credentials.basic(username, password)
-
-    init {
-        Log.d(TAG, "WebDavAnnotationSyncTarget initialised — basePath=$basePath user=$username")
-    }
 
     override suspend fun list(serverId: String, itemId: String): List<String> =
         withContext(Dispatchers.IO) {
@@ -162,9 +157,7 @@ class WebDavAnnotationSyncTarget(
 
     private fun put(url: HttpUrl, body: RequestBody): Response {
         val request = baseRequest(url).put(body).build()
-        val response = client.newCall(request).execute()
-        Log.d(TAG, "PUT $url -> ${response.code}")
-        return response
+        return client.newCall(request).execute()
     }
 
     /**
@@ -234,7 +227,6 @@ class WebDavAnnotationSyncTarget(
     }
 
     companion object {
-        private const val TAG = "RIFFLE_ANNO_SYNC"
         private const val NAMESPACE_SEPARATOR = "__"
         // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
         // servers, so MKCOL/PUT requests aren't put through unfamiliar-UA gating.

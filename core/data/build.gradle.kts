@@ -21,7 +21,6 @@ android {
     }
 
     testOptions {
-        unitTests.isReturnDefaultValues = true
         unitTests.all { testTask ->
             testTask.filter {
                 if (project.hasProperty("integrationTests")) {

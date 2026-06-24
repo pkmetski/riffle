@@ -1,6 +1,5 @@
 package com.riffle.core.data
 
-import android.util.Log
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
@@ -11,8 +10,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val TAG = "RIFFLE_ANNO_SYNC"
-
 /**
  * Orchestrator for annotation sync lifecycle.
  *
@@ -21,7 +18,7 @@ private const val TAG = "RIFFLE_ANNO_SYNC"
  * - [scheduleDebounce]: Per-book debounce timer on any annotation mutation.
  * - [syncOnClose]: Cancel debounce and push pending changes when a book is closed.
  *
- * Gracefully degrades to a no-op if [target] is null (sync disabled).
+ * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled).
  */
 class AnnotationSyncController(
     private val targetProvider: () -> AnnotationSyncTarget?,
@@ -46,20 +43,13 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     suspend fun syncOnOpen(serverId: String, itemId: String) {
-        val target = targetProvider()
-        if (target == null) {
-            Log.d(TAG, "syncOnOpen($serverId/$itemId) skipped — no sync target configured")
-            return
-        }
+        val target = targetProvider() ?: return
 
         try {
-            Log.d(TAG, "syncOnOpen($serverId/$itemId) — listing device files")
-            // Step 1: List all annotation files
             val filenames = target.list(serverId, itemId)
-            Log.d(TAG, "syncOnOpen — found ${filenames.size} device file(s): $filenames")
 
-            // Step 2: Read and parse each file. Each device file is a JSON array of W3C
-            // annotations (one per annotation the device created), so flat-map the parsed lists.
+            // Each device file is a JSON array of W3C annotations (one per annotation the device
+            // created), so flat-map the parsed lists.
             val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
             for (filename in filenames) {
                 try {
@@ -70,10 +60,8 @@ class AnnotationSyncController(
                 }
             }
 
-            // Step 3: Merge parsed annotations
             val merged = mergeService.merge(parsedAnnotations)
 
-            // Step 4: Convert to AnnotationEntity and upsert
             val entities = merged.map { w3cAnnotation ->
                 AnnotationEntity(
                     id = w3cAnnotation.id,
@@ -98,13 +86,11 @@ class AnnotationSyncController(
                 )
             }
 
-            // Upsert all merged entities
             for (entity in entities) {
                 annotationDao.upsert(entity)
             }
-            Log.d(TAG, "syncOnOpen — merged ${entities.size} annotation(s) into Room")
-        } catch (e: Exception) {
-            Log.w(TAG, "syncOnOpen($serverId/$itemId) failed", e)
+        } catch (_: Exception) {
+            // Graceful error handling: continue silently on any error
         }
     }
 
@@ -113,23 +99,12 @@ class AnnotationSyncController(
      *
      * Called after any annotation mutation. Per-book debounce timer; restarts on each call.
      * Cancels any existing pending push for the same book and schedules a new one.
-     *
-     * @param serverId The ABS server ID.
-     * @param itemId The ABS library item ID.
      */
     fun scheduleDebounce(serverId: String, itemId: String) {
-        if (targetProvider() == null) {
-            Log.d(TAG, "scheduleDebounce($serverId/$itemId) skipped — no sync target configured")
-            return
-        }
+        if (targetProvider() == null) return
 
         val key = serverId to itemId
-
-        // Cancel existing debounce job for this book
         debouncingJobs[key]?.cancel()
-
-        Log.d(TAG, "scheduleDebounce($serverId/$itemId) — push in ${DEBOUNCE_DURATION_MS}ms")
-        // Schedule a new debounce job
         debouncingJobs[key] = scope.launch {
             delay(DEBOUNCE_DURATION_MS)
             pushPending(serverId, itemId)
@@ -140,21 +115,13 @@ class AnnotationSyncController(
      * Sync on book close.
      *
      * Cancels any pending debounce timer and pushes pending annotations to the sync target.
-     * Called on DisposableEffect.onDispose().
-     *
-     * @param serverId The ABS server ID.
-     * @param itemId The ABS library item ID.
      */
     suspend fun syncOnClose(serverId: String, itemId: String) {
         if (targetProvider() == null) return
 
         val key = serverId to itemId
-
-        // Cancel any pending debounce
         debouncingJobs[key]?.cancel()
         debouncingJobs.remove(key)
-
-        // Push pending changes immediately
         pushPending(serverId, itemId)
     }
 
@@ -163,16 +130,9 @@ class AnnotationSyncController(
      *
      * Reads all local non-deleted annotations for a book, serializes them to W3C format,
      * and writes them to a device-specific file.
-     *
-     * @param serverId The ABS server ID.
-     * @param itemId The ABS library item ID.
      */
     private suspend fun pushPending(serverId: String, itemId: String) {
-        val target = targetProvider()
-        if (target == null) {
-            Log.d(TAG, "pushPending($serverId/$itemId) skipped — no sync target configured")
-            return
-        }
+        val target = targetProvider() ?: return
 
         try {
             val deviceId = deviceIdStore.getOrCreate()
@@ -186,14 +146,9 @@ class AnnotationSyncController(
                 "[\n" + jsonStrings.joinToString(",\n") + "\n]"
             }
             val filename = "annotations-$deviceId.jsonld"
-            Log.d(
-                TAG,
-                "pushPending($serverId/$itemId) — PUT $filename (${localEntities.size} annotation(s), ${jsonArray.length} bytes)",
-            )
             target.write(serverId, itemId, filename, jsonArray)
-            Log.d(TAG, "pushPending($serverId/$itemId) — write succeeded")
-        } catch (e: Exception) {
-            Log.w(TAG, "pushPending($serverId/$itemId) failed", e)
+        } catch (_: Exception) {
+            // Graceful error handling: continue silently on any error
         }
     }
 }
