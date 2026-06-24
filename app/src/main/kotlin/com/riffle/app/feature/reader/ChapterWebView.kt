@@ -86,6 +86,15 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     @Volatile
     private var footnoteDoc: org.jsoup.nodes.Document? = null
 
+    /**
+     * Called on the main thread when a text-selection action mode opens (true) or closes (false).
+     * The parent [ContinuousReaderView] uses this to suppress its early scroll intercept while a
+     * selection handle is being dragged — otherwise its half-touch-slop intercept (see
+     * `onInterceptTouchEvent`) steals the gesture the moment the user drags vertically, scrolling
+     * the page mid-selection and breaking the highlight.
+     */
+    var onSelectionActiveChanged: ((active: Boolean) -> Unit)? = null
+
     /** When true, the text-selection menu offers "Highlight" (books with annotations UI). */
     var annotationsAvailable: Boolean = false
 
@@ -387,9 +396,36 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 } else {
                     super.onGetContentRect(mode, view, outRect)
                 }
+                // Clamp the rect to the WebView's WINDOW-visible portion (in view-local coords).
+                // Each ChapterWebView is laid out as tall as its entire chapter and on edge-to-edge
+                // displays its bottom can extend BELOW the app window's visible area into the
+                // gesture-bar / status-bar inset strips — pixels that are visually painted but lie
+                // outside `windowVisibleDisplayFrame`. If Chromium returns a selection rect inside
+                // that strip, the framework's FloatingToolbar maps it to a screen y that's below the
+                // viewport bottom; `availableHeightBelowContent` goes negative and the toolbar ends
+                // up just off-screen below. (Using `getGlobalVisibleRect` here doesn't help because
+                // it returns the WebView's bounds intersected with parent clipping but NOT clipped
+                // to the window's visible display frame — so the selection is "globally visible"
+                // even when it's painted under the gesture bar. Use windowVisibleDisplayFrame
+                // explicitly.) Clamping keeps the rect inside the actually-visible app-window band.
+                val wvdf = android.graphics.Rect()
+                getWindowVisibleDisplayFrame(wvdf)
+                val locWin = IntArray(2)
+                getLocationInWindow(locWin)
+                val clamped = clampSelectionYBandToWindow(
+                    rectTop = outRect.top,
+                    rectBottom = outRect.bottom,
+                    viewportTop = wvdf.top,
+                    viewportBottom = wvdf.bottom,
+                    viewLocationInWindowY = locWin[1],
+                    viewHeight = height,
+                )
+                outRect.top = clamped.first
+                outRect.bottom = clamped.second
             }
 
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                onSelectionActiveChanged?.invoke(true)
                 menu.clear()
                 menu.add(0, MENU_COPY, 0, android.R.string.copy)
                 if (annotationsAvailable) {
@@ -423,6 +459,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             }
 
             override fun onDestroyActionMode(mode: android.view.ActionMode) {
+                onSelectionActiveChanged?.invoke(false)
                 inner.onDestroyActionMode(mode)
             }
         }
@@ -601,6 +638,29 @@ internal class ChapterWebView(context: Context) : WebView(context) {
             return true
         }
     }
+}
+
+/**
+ * Computes the clamped (top, bottom) for a selection content rect so that, when forwarded to the
+ * floating ActionMode framework, it sits inside the host view's WINDOW-visible portion. The four
+ * y-axis inputs are in window coordinates; output is in view-local (matches what onGetContentRect
+ * is supposed to populate). When the WebView is fully outside the window viewport (or the rect was
+ * already inside the visible band), the original top/bottom pass through unchanged. See the
+ * call-site in [ChapterWebView.wrapSelectionCallback] for why this clamping is necessary on
+ * edge-to-edge displays.
+ */
+internal fun clampSelectionYBandToWindow(
+    rectTop: Int,
+    rectBottom: Int,
+    viewportTop: Int,
+    viewportBottom: Int,
+    viewLocationInWindowY: Int,
+    viewHeight: Int,
+): Pair<Int, Int> {
+    val topLocal = (viewportTop - viewLocationInWindowY).coerceAtLeast(0)
+    val bottomLocal = (viewportBottom - viewLocationInWindowY).coerceAtMost(viewHeight)
+    if (bottomLocal <= topLocal) return rectTop to rectBottom
+    return rectTop.coerceIn(topLocal, bottomLocal) to rectBottom.coerceIn(topLocal, bottomLocal)
 }
 
 private fun mimeTypeForPath(path: String): String = when {
