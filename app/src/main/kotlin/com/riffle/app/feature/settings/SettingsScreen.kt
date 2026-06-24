@@ -349,11 +349,12 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
+                val annotationSyncSummary by viewModel.annotationSyncSummary.collectAsState()
                 ListItem(
                     modifier = Modifier.clickable { onNavigateToAnnotationSync() },
                     headlineContent = { Text("Annotation sync (WebDAV)") },
                     supportingContent = {
-                        Text("Sync highlights, notes, and bookmarks across devices via a WebDAV server")
+                        Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
                     },
                 )
                 HorizontalDivider()

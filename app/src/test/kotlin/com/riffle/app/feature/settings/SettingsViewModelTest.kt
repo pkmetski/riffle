@@ -233,6 +233,11 @@ class SettingsViewModelTest {
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
         readaloudPreferencesStore = fakeReadaloudStore,
+        annotationSyncConfigStore = object : com.riffle.core.domain.AnnotationSyncConfigStore {
+            override fun observe() = kotlinx.coroutines.flow.flowOf<com.riffle.core.domain.AnnotationSyncConfig?>(null)
+            override suspend fun save(config: com.riffle.core.domain.AnnotationSyncConfig) = Unit
+            override suspend fun clear() = Unit
+        },
     )
 
     // --- existing crash report tests (unchanged) ---

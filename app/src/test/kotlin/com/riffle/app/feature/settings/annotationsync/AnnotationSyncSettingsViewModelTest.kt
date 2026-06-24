@@ -130,6 +130,23 @@ class AnnotationSyncSettingsViewModelTest {
     }
 
     @Test
+    fun `save emits a closeRequests event so the screen can pop back`() = runBlocking {
+        val vm = newViewModel()
+        vm.onBaseUrlChanged("https://x")
+        vm.onUsernameChanged("u")
+        vm.onPasswordChanged("p")
+
+        vm.onSave()
+
+        withTimeout(1_000L) { vm.closeRequests.first() }
+        // and the config was persisted
+        assertEquals(
+            AnnotationSyncConfig("https://x", "u", "p"),
+            configStore.observe().first(),
+        )
+    }
+
+    @Test
     fun `clear wipes both the form and the store`() = runBlocking {
         configStore.save(AnnotationSyncConfig("https://x", "u", "p"))
         val vm = newViewModel()

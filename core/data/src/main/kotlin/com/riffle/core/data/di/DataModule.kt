@@ -746,6 +746,43 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        fun provideAnnotationMergeService(): com.riffle.core.domain.AnnotationMergeService =
+            com.riffle.core.domain.AnnotationMergeService()
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSyncTargetHolder(
+            configStore: com.riffle.core.domain.AnnotationSyncConfigStore,
+            factory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
+        ): com.riffle.core.data.AnnotationSyncTargetHolder =
+            com.riffle.core.data.AnnotationSyncTargetHolder(
+                configStore = configStore,
+                factory = factory,
+                scope = kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                ),
+            )
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSyncController(
+            holder: com.riffle.core.data.AnnotationSyncTargetHolder,
+            mergeService: com.riffle.core.domain.AnnotationMergeService,
+            annotationDao: com.riffle.core.database.AnnotationDao,
+            deviceIdStore: com.riffle.core.domain.DeviceIdStore,
+        ): com.riffle.core.data.AnnotationSyncController =
+            com.riffle.core.data.AnnotationSyncController(
+                targetProvider = { holder.current() },
+                mergeService = mergeService,
+                annotationDao = annotationDao,
+                deviceIdStore = deviceIdStore,
+                scope = kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                ),
+            )
+
+        @Provides
+        @Singleton
         fun provideStorytellerReadaloudSyncer(
             serverRepository: ServerRepository,
             tokenStorage: TokenStorage,

@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  * Gracefully degrades to a no-op if [target] is null (sync disabled).
  */
 class AnnotationSyncController(
-    private val target: AnnotationSyncTarget?,
+    private val targetProvider: () -> AnnotationSyncTarget?,
     private val mergeService: AnnotationMergeService,
     private val annotationDao: AnnotationDao,
     private val deviceIdStore: DeviceIdStore,
@@ -43,7 +43,7 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     suspend fun syncOnOpen(serverId: String, itemId: String) {
-        if (target == null) return
+        val target = targetProvider() ?: return
 
         try {
             // Step 1: List all annotation files
@@ -111,7 +111,7 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     fun scheduleDebounce(serverId: String, itemId: String) {
-        if (target == null) return
+        if (targetProvider() == null) return
 
         val key = serverId to itemId
 
@@ -135,7 +135,7 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     suspend fun syncOnClose(serverId: String, itemId: String) {
-        if (target == null) return
+        if (targetProvider() == null) return
 
         val key = serverId to itemId
 
@@ -157,7 +157,7 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     private suspend fun pushPending(serverId: String, itemId: String) {
-        if (target == null) return
+        val target = targetProvider() ?: return
 
         try {
             // Step 1: Get device ID

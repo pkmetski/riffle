@@ -7,10 +7,13 @@ import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -43,6 +46,10 @@ class AnnotationSyncSettingsViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(AnnotationSyncSettingsUiState())
     val state: StateFlow<AnnotationSyncSettingsUiState> = _state.asStateFlow()
+
+    private val _closeRequests = Channel<Unit>(Channel.BUFFERED)
+    /** Emits each time the screen should pop back (after a successful Save). */
+    val closeRequests: Flow<Unit> = _closeRequests.receiveAsFlow()
 
     init {
         viewModelScope.launch {
@@ -102,6 +109,7 @@ class AnnotationSyncSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             configStore.save(AnnotationSyncConfig(s.baseUrl, s.username, s.password))
             _state.value = _state.value.copy(saving = false)
+            _closeRequests.trySend(Unit)
         }
     }
 
