@@ -1306,13 +1306,10 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    private suspend fun annotationToBookmarkPosition(a: Annotation): BookmarkPosition? {
-        val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return null
-        val html = readChapterHtml(spineIndex) ?: return null
-        val docPath = extractCfiDocPath(a.cfi) ?: return null
-        val progression = cfiDocPathToProgression(docPath, html) ?: return null
-        return BookmarkPosition(a.id, a.chapterHref, progression)
-    }
+    private fun annotationToBookmarkPosition(a: Annotation): BookmarkPosition =
+        // chapterHref is normalized so cross-session URL prefix changes (Readium's per-session
+        // localhost port; file:// vs http://localhost) don't make the indicator miss its own page.
+        BookmarkPosition(a.id, normalizeEpubHref(a.chapterHref), a.progression)
 
     // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
@@ -1373,9 +1370,10 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val locator = lastLocator ?: return@launch
             val href = locator.href.toString()
+            val hrefNorm = normalizeEpubHref(href)
             val prog = locator.locations.progression ?: 0.0
             val existing = _bookmarkPositions.value.firstOrNull { bm ->
-                bm.chapterHref == href && kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS
+                bm.chapterHref == hrefNorm && kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS
             }
             if (existing != null) {
                 annotationStore.delete(existing.id)
@@ -1556,9 +1554,12 @@ class EpubReaderViewModel @Inject constructor(
         _currentLocatorProgression,
     ) { positions, href, prog ->
         if (href == null) false
-        else positions.any { bm ->
-            bm.chapterHref == href &&
-                (prog == null || kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS)
+        else {
+            val hrefNorm = normalizeEpubHref(href)
+            positions.any { bm ->
+                bm.chapterHref == hrefNorm &&
+                    (prog == null || kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS)
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
