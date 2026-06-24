@@ -56,7 +56,7 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals("{\"some\":\"json\"}", content)
         val req = server.takeRequest()
         assertEquals("GET", req.method)
-        assertEquals("/annotations/srv1/book1/annotations-dev.jsonld", req.path)
+        assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
         assertEquals(basicAuth(USER, PASS), req.getHeader("Authorization"))
     }
 
@@ -89,7 +89,7 @@ class WebDavAnnotationSyncTargetTest {
 
         val req = server.takeRequest()
         assertEquals("PUT", req.method)
-        assertEquals("/annotations/srv1/book1/annotations-dev.jsonld", req.path)
+        assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
         assertEquals(basicAuth(USER, PASS), req.getHeader("Authorization"))
         assertEquals("{\"a\":1}", req.body.readUtf8())
         val ct = req.getHeader("Content-Type") ?: ""
@@ -97,18 +97,17 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `write creates missing parent directories then retries PUT`() = runTest {
-        // First PUT 409 Conflict (missing parent) -> MKCOL annotations, MKCOL srv1, MKCOL book1, retry PUT
-        server.enqueue(MockResponse().setResponseCode(409))
-        server.enqueue(MockResponse().setResponseCode(405)) // annotations already exists
-        server.enqueue(MockResponse().setResponseCode(201)) // srv1 created
-        server.enqueue(MockResponse().setResponseCode(201)) // book1 created
-        server.enqueue(MockResponse().setResponseCode(201)) // retry PUT succeeds
+    fun `write issues a single PUT — flat layout avoids MKCOL entirely`() = runTest {
+        // Flat-layout writes never need to create per-book subdirectories, so even a "fresh"
+        // server only sees the one PUT (the user pre-creates basePath via Test Connection).
+        server.enqueue(MockResponse().setResponseCode(201))
 
         newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
 
-        val methods = (1..5).map { server.takeRequest().method }
-        assertEquals(listOf("PUT", "MKCOL", "MKCOL", "MKCOL", "PUT"), methods)
+        val req = server.takeRequest()
+        assertEquals("PUT", req.method)
+        assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
+        assertEquals(1, server.requestCount)
     }
 
     @Test
@@ -124,11 +123,11 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `list issues PROPFIND with depth 1 and returns jsonld filenames`() = runTest {
+    fun `list issues PROPFIND with depth 1 against basePath and returns matching files`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(207)
-                .setBody(PROPFIND_BODY_TWO_FILES),
+                .setBody(PROPFIND_FLAT_BODY),
         )
 
         val files = newTarget().list("srv1", "book1")
@@ -139,7 +138,7 @@ class WebDavAnnotationSyncTargetTest {
         )
         val req = server.takeRequest()
         assertEquals("PROPFIND", req.method)
-        assertEquals("/annotations/srv1/book1/", req.path)
+        assertEquals("/annotations/", req.path)
         assertEquals("1", req.getHeader("Depth"))
     }
 
@@ -162,18 +161,17 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `write treats first-PUT 405 the same as 409 (Synology — MKCOL parents, then retry)`() = runTest {
-        // PUT 405 -> MKCOL chain (root MKCOL is 405=already exists, srv & book are 201) -> retry PUT 201
-        server.enqueue(MockResponse().setResponseCode(405)) // first PUT
-        server.enqueue(MockResponse().setResponseCode(405)) // MKCOL root — already exists
-        server.enqueue(MockResponse().setResponseCode(201)) // MKCOL srv1
-        server.enqueue(MockResponse().setResponseCode(201)) // MKCOL book1
-        server.enqueue(MockResponse().setResponseCode(201)) // retry PUT
+    fun `list filters by serverId itemId prefix and strips it from returned names`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_FLAT_BODY))
 
-        newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
+        val files = newTarget().list("srv1", "book1")
 
-        val methods = (1..5).map { server.takeRequest().method }
-        assertEquals(listOf("PUT", "MKCOL", "MKCOL", "MKCOL", "PUT"), methods)
+        // The fixture lists three files: two for srv1/book1 (returned) plus one for srv1/book2
+        // (a different book — must be filtered out).
+        assertEquals(
+            setOf("annotations-dev-a.jsonld", "annotations-dev-b.jsonld"),
+            files.toSet(),
+        )
     }
 
     @Test
@@ -251,22 +249,28 @@ class WebDavAnnotationSyncTargetTest {
         private const val USER = "alice"
         private const val PASS = "s3cret"
 
-        // A minimal PROPFIND multistatus body listing the parent collection and two files.
-        private val PROPFIND_BODY_TWO_FILES = """
+        // A PROPFIND multistatus body covering the flat layout: two files for srv1/book1
+        // (matching prefix), one file for srv1/book2 (different book, must be filtered out).
+        private val PROPFIND_FLAT_BODY = """
             <?xml version="1.0" encoding="utf-8"?>
             <d:multistatus xmlns:d="DAV:">
               <d:response>
-                <d:href>/annotations/srv1/book1/</d:href>
+                <d:href>/annotations/</d:href>
                 <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>
               <d:response>
-                <d:href>/annotations/srv1/book1/annotations-dev-a.jsonld</d:href>
+                <d:href>/annotations/srv1__book1__annotations-dev-a.jsonld</d:href>
                 <d:propstat><d:prop><d:resourcetype/></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>
               <d:response>
-                <d:href>/annotations/srv1/book1/annotations-dev-b.jsonld</d:href>
+                <d:href>/annotations/srv1__book1__annotations-dev-b.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book2__annotations-dev-c.jsonld</d:href>
                 <d:propstat><d:prop><d:resourcetype/></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>
