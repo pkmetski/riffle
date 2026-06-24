@@ -41,6 +41,7 @@ import com.riffle.app.feature.server.AddServerScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
+import com.riffle.app.feature.settings.annotationsync.AnnotationSyncSettingsScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
@@ -53,6 +54,7 @@ private const val SERVER_SETUP_GRAPH = "server_setup"
 private const val ADD_SERVER = "add_server"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
+private const val ANNOTATION_SYNC_SETTINGS = "settings/annotation_sync"
 private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
@@ -218,6 +220,12 @@ fun MainScreen(
                         val encoded = URLEncoder.encode(serverId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")
                     },
+                    onNavigateToAnnotationSync = { navController.navigate(ANNOTATION_SYNC_SETTINGS) },
+                )
+            }
+            composable(ANNOTATION_SYNC_SETTINGS) {
+                AnnotationSyncSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(

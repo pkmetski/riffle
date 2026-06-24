@@ -18,6 +18,9 @@ import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
+import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.EncryptedKeyValueStore
+import com.riffle.core.data.KeystoreEncryptedKeyValueStore
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
 import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
@@ -46,6 +49,7 @@ import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.data.ReadaloudPreferencesStoreImpl
 import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -356,6 +360,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAnnotationStore(impl: AnnotationStoreImpl): AnnotationStore
+
+    @Binds
+    @Singleton
+    abstract fun bindEncryptedKeyValueStore(impl: KeystoreEncryptedKeyValueStore): EncryptedKeyValueStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAnnotationSyncConfigStore(impl: AnnotationSyncConfigStoreImpl): AnnotationSyncConfigStore
 
     @Binds
     @Singleton

@@ -83,6 +83,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToAddServer: () -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
+    onNavigateToAnnotationSync: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val report = viewModel.lastCrashReport
@@ -337,6 +338,22 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    },
+                )
+                HorizontalDivider()
+
+                Text(
+                    text = "Sync",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                ListItem(
+                    modifier = Modifier.clickable { onNavigateToAnnotationSync() },
+                    headlineContent = { Text("Annotation sync (WebDAV)") },
+                    supportingContent = {
+                        Text("Sync highlights, notes, and bookmarks across devices via a WebDAV server")
                     },
                 )
                 HorizontalDivider()
