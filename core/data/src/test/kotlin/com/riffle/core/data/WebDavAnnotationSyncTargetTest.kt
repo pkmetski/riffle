@@ -183,6 +183,66 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
+    fun `list returns separate filenames for each device that wrote to this book`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MULTI_DEVICE_BODY))
+
+        val files = newTarget().list("srv1", "book1")
+
+        // Three different devices wrote files for srv1/book1; one unrelated file for srv1/book2.
+        assertEquals(
+            setOf(
+                "annotations-device-A.jsonld",
+                "annotations-device-B.jsonld",
+                "annotations-device-C.jsonld",
+            ),
+            files.toSet(),
+        )
+    }
+
+    @Test
+    fun `read returns the file's body verbatim (UTF-8, preserves non-ASCII)`() = runTest {
+        val body = """[{"id":"urn:uuid:ä-ø-中"}]"""
+        server.enqueue(MockResponse().setResponseCode(200).setBody(body))
+
+        val content = newTarget().read("srv1", "book1", "annotations-dev.jsonld")
+
+        assertEquals(body, content)
+    }
+
+    @Test
+    fun `read throws AuthFailed on 403`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(403))
+
+        try {
+            newTarget().read("srv1", "book1", "annotations-dev.jsonld")
+            fail("expected AuthFailed")
+        } catch (_: AnnotationSyncException.AuthFailed) { /* expected */ }
+    }
+
+    @Test
+    fun `write throws HttpFailure on a server-side 5xx`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(503))
+
+        try {
+            newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
+            fail("expected HttpFailure")
+        } catch (e: AnnotationSyncException.HttpFailure) {
+            assertEquals(503, e.code)
+        }
+    }
+
+    @Test
+    fun `composite filenames cannot collide across books with the same prefix substring`() = runTest {
+        // "book" and "book-2" both start with "book"; the `__` separator guarantees that the
+        // book-1 list call doesn't accidentally include book-2's file.
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_PREFIX_COLLISION_BODY))
+
+        val files = newTarget().list("srv1", "book")
+
+        assertEquals(setOf("annotations-dev.jsonld"), files.toSet())
+    }
+
+    @Test
     fun `list throws AuthFailed on 401`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
 
@@ -291,6 +351,60 @@ class WebDavAnnotationSyncTargetTest {
               <d:response>
                 <d:href>/annotations/</d:href>
                 <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        // Three devices have written to srv1/book1; one unrelated file belongs to srv1/book2.
+        private val PROPFIND_MULTI_DEVICE_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book1__annotations-device-A.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book1__annotations-device-B.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book1__annotations-device-C.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book2__annotations-device-A.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        // "book" and "book-2" share the same string prefix; the `__` separator must keep them apart.
+        private val PROPFIND_PREFIX_COLLISION_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book-2__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>
             </d:multistatus>

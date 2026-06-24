@@ -558,6 +558,75 @@ class AnnotationW3CCodecTest {
     // (see test 15), but until W3CAnnotation carried these fields the parsed values were dropped
     // on the way back; without this any annotation synced from another device anchored to the
     // FIRST occurrence of its snippet in the chapter (bug fixed alongside the continuous-mode
+    // --- w3cFileToAnnotations: parses per-device files (JSON array layout) ---
+
+    @Test
+    fun `w3cFileToAnnotations parses a two-element array`() {
+        val a = codec.annotationEntityToW3C(highlight("uuid-a"))
+        val b = codec.annotationEntityToW3C(highlight("uuid-b"))
+        val file = "[\n$a,\n$b\n]"
+
+        val parsed = codec.w3cFileToAnnotations(file)
+
+        assertEquals(listOf("uuid-a", "uuid-b"), parsed.map { it.id })
+    }
+
+    @Test
+    fun `w3cFileToAnnotations parses an empty array`() {
+        assertEquals(emptyList<Any>(), codec.w3cFileToAnnotations("[]"))
+    }
+
+    @Test
+    fun `w3cFileToAnnotations accepts a bare JSON object for backward-compat`() {
+        val single = codec.annotationEntityToW3C(highlight("uuid-x"))
+
+        val parsed = codec.w3cFileToAnnotations(single)
+
+        assertEquals(listOf("uuid-x"), parsed.map { it.id })
+    }
+
+    @Test
+    fun `w3cFileToAnnotations drops entries whose id is empty after parse`() {
+        // Object missing the `id` field — w3cObjectToAnnotation will return id="" and we filter it.
+        val malformed = """[{"type":"Annotation"}, ${codec.annotationEntityToW3C(highlight("uuid-keep"))}]"""
+
+        val parsed = codec.w3cFileToAnnotations(malformed)
+
+        assertEquals(listOf("uuid-keep"), parsed.map { it.id })
+    }
+
+    @Test
+    fun `w3cFileToAnnotations returns empty on malformed JSON instead of throwing`() {
+        assertEquals(emptyList<Any>(), codec.w3cFileToAnnotations("this is { not json"))
+    }
+
+    @Test
+    fun `w3cFileToAnnotations preserves both highlight and bookmark motivations within one file`() {
+        val h = codec.annotationEntityToW3C(highlight("uuid-h"))
+        val b = codec.annotationEntityToW3C(bookmark("uuid-b"))
+        val file = "[\n$h,\n$b\n]"
+
+        val parsed = codec.w3cFileToAnnotations(file)
+
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, parsed.first { it.id == "uuid-h" }.type)
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, parsed.first { it.id == "uuid-b" }.type)
+    }
+
+    private fun highlight(id: String) = AnnotationEntity(
+        id = id, serverId = "abs1", itemId = "item-1", type = AnnotationEntity.TYPE_HIGHLIGHT,
+        cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = "yellow", note = null,
+        textSnippet = "x", textBefore = "", textAfter = "", chapterHref = "c1",
+        createdAt = 1000L, updatedAt = 1000L, originDeviceId = "dev", lastModifiedByDeviceId = "dev",
+    )
+
+    private fun bookmark(id: String) = AnnotationEntity(
+        id = id, serverId = "abs1", itemId = "item-1", type = AnnotationEntity.TYPE_BOOKMARK,
+        cfi = "epubcfi(/6/4!/4/2,/1:0,/1:0)", color = "", note = null,
+        textSnippet = "", textBefore = "", textAfter = "", chapterHref = "c1",
+        bookmarkTitle = "ch1 · 12%",
+        createdAt = 1000L, updatedAt = 1000L, originDeviceId = "dev", lastModifiedByDeviceId = "dev",
+    )
+
     // wrong-occurrence highlight fix).
     @Test
     fun `textQuoteSelectorPrefixAndSuffixRoundTripThroughParse`() {
