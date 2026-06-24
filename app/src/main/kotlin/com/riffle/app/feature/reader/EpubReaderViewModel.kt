@@ -1062,9 +1062,12 @@ class EpubReaderViewModel @Inject constructor(
 
     fun onPositionChanged(locator: Locator) {
         // Defensive re-restore: Readium's post-resume column-snap can emit a chapter-top position
-        // AFTER our [onReaderResumed] navigateTo, undoing the restore. Re-emit until we either see a
-        // position that's at-or-past the captured origin (the restore took) or we exhaust the attempts.
-        // User-driven navigation lands here with off-zero progression too and clears the attempts.
+        // AFTER our [onReaderResumed] navigateTo, sometimes more than once — including a delayed
+        // clobber that arrives AFTER a first emission has already landed at the captured origin.
+        // Stay armed (within the attempt budget) as long as we're parked at-or-near the origin;
+        // only disarm when the user clearly navigates AWAY (different href, or progression past
+        // origin). An emission AT origin means this round took, not that future emissions can't
+        // re-clobber us, so don't clear pending on equality.
         returnRestoreAttempts.let { remaining ->
             if (remaining > 0) {
                 val pending = pendingReturnLocator
@@ -1073,14 +1076,19 @@ class EpubReaderViewModel @Inject constructor(
                     val originProg = pending.locations.progression ?: 0.0
                     val incomingHref = locator.href.toString()
                     val incomingProg = locator.locations.progression ?: 0.0
-                    if (incomingHref == originHref && incomingProg < originProg - 0.01) {
-                        // Spurious chapter-top emission while we're still restoring — re-fire.
-                        returnRestoreAttempts = remaining - 1
-                        _serverLocatorChannel.trySend(pending)
-                    } else {
-                        // Restore took, or user navigated away — stop watching.
-                        returnRestoreAttempts = 0
-                        pendingReturnLocator = null
+                    when {
+                        incomingHref == originHref && incomingProg < originProg - 0.01 -> {
+                            // Spurious chapter-top emission while we're still restoring — re-fire.
+                            returnRestoreAttempts = remaining - 1
+                            _serverLocatorChannel.trySend(pending)
+                        }
+                        incomingHref != originHref || incomingProg > originProg + 0.01 -> {
+                            // User navigated away — stop watching.
+                            returnRestoreAttempts = 0
+                            pendingReturnLocator = null
+                        }
+                        // else: incoming ≈ origin — restore took this round; stay armed in case
+                        // a delayed column-snap re-clobbers before the budget is exhausted.
                     }
                 } else {
                     returnRestoreAttempts = 0
