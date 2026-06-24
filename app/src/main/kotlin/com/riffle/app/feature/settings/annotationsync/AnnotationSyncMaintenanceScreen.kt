@@ -113,10 +113,9 @@ fun AnnotationSyncMaintenanceScreen(
 
             if (state.devices is MaintenanceScreenUiState.Loaded) {
                 Text(
-                    "About the per-device sidecar: alongside each device's annotation files, Riffle " +
-                        "publishes a tiny <namespace>__device-<id>.json carrying that device's display " +
-                        "name, model, and last-seen time. It's the only way peer devices learn each " +
-                        "other's friendly names. Forgetting a device deletes its sidecar too.",
+                    "Device labels are embedded in each annotation file's header — no extra files " +
+                        "on the server. Renaming this device rewrites the header in every annotation " +
+                        "file it owns so peers see the new name immediately.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -399,7 +398,7 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
             val parts = mutableListOf<String>()
             parts += "Forgot \"${snack.label}\""
             parts += "${snack.files} file(s) removed"
-            if (snack.sidecarDeleted) parts += "sidecar removed"
+            if (snack.legacySidecarDeleted) parts += "legacy sidecar removed"
             if (snack.failures > 0) parts += "${snack.failures} failure(s)"
             parts.joinToString(" · ") to (snack.failures > 0)
         }

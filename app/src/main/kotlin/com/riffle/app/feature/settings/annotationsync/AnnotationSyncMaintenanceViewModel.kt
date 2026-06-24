@@ -39,7 +39,7 @@ sealed class MaintenanceScreenUiState {
 /** Banner shown after Forget/Compact completes. */
 sealed class MaintenanceSnack {
     object None : MaintenanceSnack()
-    data class Forgot(val label: String, val files: Int, val sidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
+    data class Forgot(val label: String, val files: Int, val legacySidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
     data class Compacted(val rewritten: Int, val removed: Int, val failures: Int) : MaintenanceSnack()
     data class ForgotNamespace(val namespace: String, val files: Int) : MaintenanceSnack()
 }
@@ -112,7 +112,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 snack = MaintenanceSnack.Forgot(
                     label = row.label,
                     files = result.deletedAnnotationFiles,
-                    sidecarDeleted = result.deletedSidecar,
+                    legacySidecarDeleted = result.deletedLegacySidecar,
                     failures = result.failures,
                 ),
             )
@@ -191,10 +191,11 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 deviceLabel = updated,
                 showRenameDialog = false,
             )
-            // Push a fresh sidecar so peers see the new name immediately, instead of waiting for
-            // the next annotation push. Best-effort — pushDeviceSidecar swallows failures.
+            // Rewrite this device's metadata header in every annotation file so peers see the
+            // new name immediately, instead of waiting for the next annotation push. Best-effort
+            // — per-file failures are swallowed inside publishDeviceMetadata.
             resolveNamespace()?.let { namespace ->
-                maintenance.publishDeviceSidecar(
+                maintenance.publishDeviceMetadata(
                     namespace = namespace,
                     deviceId = deviceIdStore.getOrCreate(),
                     label = updated,
@@ -228,19 +229,18 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             val isMe = row.deviceId == myDeviceId
             val label = when {
                 // For THIS device, always show the locally-resolved label so a fresh rename takes
-                // effect immediately — don't lag behind the last-pushed sidecar.
+                // effect immediately — don't lag behind the last-pushed annotation-file header.
                 isMe -> myLocalLabel
-                else -> row.sidecar?.label?.takeIf { it.isNotBlank() }
+                else -> row.metadata?.label?.takeIf { it.isNotBlank() }
                     ?: "device-${row.deviceId.take(8)}"
             }
             val parts = mutableListOf<String>()
             parts += "${row.annotationFileCount} annotation file" + if (row.annotationFileCount == 1) "" else "s"
-            if (row.sidecar != null) parts += "1 sidecar"
-            row.sidecar?.lastSeenAt
+            row.metadata?.lastSeenAt
                 ?.takeIf { it.isNotBlank() }
                 ?.let { humanizeLastSeen(it) }
                 ?.let { parts += "Last seen $it" }
-            val displayedModel = if (isMe) myLocalModel else row.sidecar?.model
+            val displayedModel = if (isMe) myLocalModel else row.metadata?.model
             displayedModel?.takeIf { it.isNotBlank() }?.let { parts += it }
             MaintenanceDeviceRowUiState(
                 deviceId = row.deviceId,

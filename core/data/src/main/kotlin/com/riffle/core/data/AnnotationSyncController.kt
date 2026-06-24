@@ -6,7 +6,7 @@ import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.domain.DeviceSidecar
+import com.riffle.core.domain.DeviceMetadata
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -174,23 +174,17 @@ class AnnotationSyncController(
             val jsonStrings = localEntities.map { entity ->
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
-            val jsonArray = "[\n" + jsonStrings.joinToString(",\n") + "\n]"
+            // Embed device metadata as a header object at position 0 of the array. Old readers
+            // already drop entries with no `id`, so the header is invisible to merge.
+            val metadata = DeviceMetadata(
+                deviceId = deviceId,
+                label = deviceLabelResolver.resolveLabel(deviceId),
+                model = deviceLabelResolver.deviceModel(),
+                lastSeenAt = nowIso(),
+            )
+            val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)
             val filename = "annotations-$deviceId.jsonld"
             target.write(namespace, itemId, filename, jsonArray)
-
-            // Best-effort sidecar publish — surfaces this device's label/model/lastSeenAt to peers
-            // for the Maintenance UI. Failures must not block the annotation push above.
-            try {
-                val sidecar = DeviceSidecar(
-                    deviceId = deviceId,
-                    label = deviceLabelResolver.resolveLabel(deviceId),
-                    model = deviceLabelResolver.deviceModel(),
-                    lastSeenAt = nowIso(),
-                )
-                target.writeDeviceSidecar(namespace, deviceId, DeviceSidecarCodec.encode(sidecar))
-            } catch (_: Exception) {
-                // Sidecar is metadata only; absence triggers the resolver's short-id fallback.
-            }
         } catch (_: Exception) {
             // Graceful error handling: continue silently on any error
         }

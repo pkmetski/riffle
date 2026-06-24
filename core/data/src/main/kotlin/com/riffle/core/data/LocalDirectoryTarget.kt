@@ -70,29 +70,6 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
         }
     }
 
-    override suspend fun readDeviceSidecar(namespace: String, deviceId: String): String? {
-        return try {
-            val file = sidecarFile(namespace, deviceId)
-            if (!file.exists()) null else file.readText()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read sidecar $deviceId for $namespace", e)
-            null
-        }
-    }
-
-    override suspend fun writeDeviceSidecar(namespace: String, deviceId: String, content: String) {
-        try {
-            val dir = namespaceDir(namespace)
-            if (!dir.exists() && !dir.mkdirs()) {
-                throw Exception("Failed to create directory: ${dir.absolutePath}")
-            }
-            sidecarFile(namespace, deviceId).writeText(content)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to write sidecar $deviceId for $namespace", e)
-            throw Exception("Failed to write sidecar: ${e.message}", e)
-        }
-    }
-
     override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {
         try {
             val file = sidecarFile(namespace, deviceId)
@@ -132,12 +109,11 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 }
             }
 
-            val allIds = (annotationFiles.keys + sidecarDeviceIds).toSortedSet()
-            val rows = allIds.map { deviceId ->
+            val rows = annotationFiles.keys.toSortedSet().map { deviceId ->
                 DeviceFileSummary(
                     deviceId = deviceId,
                     annotationFiles = annotationFiles[deviceId]?.toList().orEmpty(),
-                    hasSidecar = deviceId in sidecarDeviceIds,
+                    hasLegacySidecar = deviceId in sidecarDeviceIds,
                 )
             }
             NamespaceDeviceListing(devices = rows)

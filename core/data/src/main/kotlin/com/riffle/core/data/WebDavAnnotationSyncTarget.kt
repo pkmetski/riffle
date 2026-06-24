@@ -89,19 +89,6 @@ class WebDavAnnotationSyncTarget(
         deleteFile(annotationFileUrl(namespace, itemId, filename), "delete $filename")
     }
 
-    override suspend fun readDeviceSidecar(namespace: String, deviceId: String): String? =
-        readFile(sidecarFileUrl(namespace, deviceId))
-
-    override suspend fun writeDeviceSidecar(
-        namespace: String,
-        deviceId: String,
-        content: String,
-    ) {
-        withContext(Dispatchers.IO) {
-            putFile(sidecarFileUrl(namespace, deviceId), content, JSON_MEDIA, "write sidecar $deviceId")
-        }
-    }
-
     override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {
         deleteFile(sidecarFileUrl(namespace, deviceId), "delete sidecar $deviceId")
     }
@@ -141,12 +128,14 @@ class WebDavAnnotationSyncTarget(
                     .add(AnnotationFileRef(itemId = itemId, filename = filename))
             }
 
-            val allDeviceIds = (annotationFiles.keys + sidecarDeviceIds).toSortedSet()
-            val rows = allDeviceIds.map { deviceId ->
+            // Devices appear iff they own at least one annotation file. Legacy sidecars without
+            // matching annotation files are intentionally ignored — they're handled by the
+            // namespace-level cleanup (NamespaceSummary.sidecarCount + forgetNamespace).
+            val rows = annotationFiles.keys.toSortedSet().map { deviceId ->
                 DeviceFileSummary(
                     deviceId = deviceId,
                     annotationFiles = annotationFiles[deviceId]?.toList().orEmpty(),
-                    hasSidecar = deviceId in sidecarDeviceIds,
+                    hasLegacySidecar = deviceId in sidecarDeviceIds,
                 )
             }
             NamespaceDeviceListing(devices = rows)
@@ -385,7 +374,6 @@ class WebDavAnnotationSyncTarget(
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
         private val XML_MEDIA = "application/xml; charset=utf-8".toMediaType()
         private val JSON_LD_MEDIA = "application/ld+json; charset=utf-8".toMediaType()
-        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
         // Minimal PROPFIND asking for resourcetype on each child resource.
         private const val PROPFIND_BODY =

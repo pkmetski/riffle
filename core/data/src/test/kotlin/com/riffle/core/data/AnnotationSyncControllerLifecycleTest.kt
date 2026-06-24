@@ -394,8 +394,6 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     override suspend fun delete(namespace: String, itemId: String, filename: String) {
         files.remove(filename)
     }
-    override suspend fun readDeviceSidecar(namespace: String, deviceId: String): String? = null
-    override suspend fun writeDeviceSidecar(namespace: String, deviceId: String, content: String) {}
     override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
     override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()

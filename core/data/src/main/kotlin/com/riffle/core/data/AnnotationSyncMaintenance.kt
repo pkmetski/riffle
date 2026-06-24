@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
-import com.riffle.core.domain.DeviceSidecar
+import com.riffle.core.domain.DeviceMetadata
 import com.riffle.core.domain.NamespaceSummary
 import java.time.Instant
 
@@ -10,7 +10,8 @@ import java.time.Instant
  * Manual housekeeping for the per-device-file annotation-sync model (issue #78).
  *
  * Two user-initiated actions:
- * - [forgetDevice] — DELETE every file owned by a single `deviceId` under one namespace.
+ * - [forgetDevice] — DELETE every annotation file owned by a single `deviceId` under one
+ *   namespace, plus any legacy `device-<deviceId>.json` sidecar left over from earlier builds.
  *   Safe under the all-mirrors-everything push model because each peer's file already carries
  *   the same records; the only risk is data loss from devices that went offline before any
  *   other device synced their last edits.
@@ -25,35 +26,43 @@ class AnnotationSyncMaintenance(
     private val nowIso: () -> String = { Instant.now().toString() },
 ) {
     /**
-     * PUT a fresh sidecar for [deviceId] under [namespace]. Used after a device rename so peer
-     * devices see the new name without waiting for the next annotation push. Swallows failures —
-     * the sidecar is metadata, missing/stale sidecars degrade gracefully to the short-id fallback.
+     * Refresh this device's [DeviceMetadata] header across every annotation file it owns under
+     * [namespace]. Used after a rename so peer devices see the new label without waiting for
+     * the next annotation push. Best-effort: per-file failures are swallowed.
      */
-    suspend fun publishDeviceSidecar(
+    suspend fun publishDeviceMetadata(
         namespace: String,
         deviceId: String,
         label: String,
         model: String,
     ) {
         val target = targetProvider() ?: return
-        try {
-            val sidecar = DeviceSidecar(
-                deviceId = deviceId,
-                label = label,
-                model = model,
-                lastSeenAt = nowIso(),
-            )
-            target.writeDeviceSidecar(namespace, deviceId, DeviceSidecarCodec.encode(sidecar))
-        } catch (_: Exception) {
-            // Sidecar is metadata-only; absence triggers the resolver's short-id fallback on peers.
+        val listing = try { target.enumerateDevices(namespace) } catch (_: Exception) { return }
+        val row = listing.devices.firstOrNull { it.deviceId == deviceId } ?: return
+        val metadata = DeviceMetadata(
+            deviceId = deviceId,
+            label = label,
+            model = model,
+            lastSeenAt = nowIso(),
+        )
+        for (file in row.annotationFiles) {
+            try {
+                val body = target.read(namespace, file.itemId, file.filename) ?: continue
+                val rewritten = DeviceMetadataCodec.replaceHeader(body, metadata)
+                if (rewritten != body) {
+                    target.write(namespace, file.itemId, file.filename, rewritten)
+                }
+            } catch (_: Exception) {
+                // per-file failure — continue with the rest
+            }
         }
     }
 
-    /** A row in the Maintenance device-list, post sidecar-hydration. */
+    /** A row in the Maintenance device-list, post header-hydration. */
     data class DeviceRow(
         val deviceId: String,
         val annotationFileCount: Int,
-        val sidecar: DeviceSidecar?,
+        val metadata: DeviceMetadata?,
     )
 
     /** All namespaces discovered on the target, regardless of which is currently active. */
@@ -84,36 +93,46 @@ class AnnotationSyncMaintenance(
         namespace: String,
         summary: DeviceFileSummary,
     ): DeviceRow {
-        val sidecar = if (!summary.hasSidecar) null else try {
-            target.readDeviceSidecar(namespace, summary.deviceId)?.let(DeviceSidecarCodec::decode)
-        } catch (_: Exception) {
-            null
+        // Read the header from the first available annotation file. Stop at the first parse — every
+        // file owned by this device carries the same metadata (refreshed atomically with each push).
+        val metadata = summary.annotationFiles.firstNotNullOfOrNull { ref ->
+            try {
+                target.read(namespace, ref.itemId, ref.filename)
+                    ?.let { DeviceMetadataCodec.extractHeader(it) }
+            } catch (_: Exception) {
+                null
+            }
         }
         return DeviceRow(
             deviceId = summary.deviceId,
             annotationFileCount = summary.annotationFiles.size,
-            sidecar = sidecar,
+            metadata = metadata,
         )
     }
 
     /** Result of [forgetDevice]. Surfaces partial-success info to the UI. */
     data class ForgetResult(
         val deletedAnnotationFiles: Int,
-        val deletedSidecar: Boolean,
+        val deletedLegacySidecar: Boolean,
         val failures: Int,
     )
 
-    /** Deletes every annotation file and the sidecar belonging to [deviceId] under [namespace]. */
+    /**
+     * Deletes every annotation file belonging to [deviceId] under [namespace], plus any legacy
+     * `device-<deviceId>.json` sidecar file from earlier builds. The legacy delete is
+     * opportunistic — current builds don't write sidecars, but older clients in the household
+     * may still publish them.
+     */
     suspend fun forgetDevice(namespace: String, deviceId: String): ForgetResult {
         val target = targetProvider()
-            ?: return ForgetResult(0, deletedSidecar = false, failures = 0)
+            ?: return ForgetResult(0, deletedLegacySidecar = false, failures = 0)
         val listing = try {
             target.enumerateDevices(namespace)
         } catch (_: Exception) {
-            return ForgetResult(0, deletedSidecar = false, failures = 1)
+            return ForgetResult(0, deletedLegacySidecar = false, failures = 1)
         }
         val row = listing.devices.firstOrNull { it.deviceId == deviceId }
-            ?: return ForgetResult(0, deletedSidecar = false, failures = 0)
+            ?: return ForgetResult(0, deletedLegacySidecar = false, failures = 0)
 
         var deleted = 0
         var failures = 0
@@ -125,16 +144,16 @@ class AnnotationSyncMaintenance(
                 failures++
             }
         }
-        var sidecarDeleted = false
-        if (row.hasSidecar) {
+        var legacySidecarDeleted = false
+        if (row.hasLegacySidecar) {
             try {
                 target.deleteDeviceSidecar(namespace, deviceId)
-                sidecarDeleted = true
+                legacySidecarDeleted = true
             } catch (_: Exception) {
                 failures++
             }
         }
-        return ForgetResult(deleted, sidecarDeleted, failures)
+        return ForgetResult(deleted, legacySidecarDeleted, failures)
     }
 
     /** Result of [compactTombstones]. */
