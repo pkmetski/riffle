@@ -107,6 +107,10 @@ fun AnnotationSyncMaintenanceScreen(
 
             MaintenanceSnackBanner(state.snack, viewModel::onSnackDismissed)
 
+            if (state.otherNamespaces.isNotEmpty()) {
+                OtherNamespacesSection(state.otherNamespaces, viewModel)
+            }
+
             if (state.devices is MaintenanceScreenUiState.Loaded) {
                 Text(
                     "About the per-device sidecar: alongside each device's annotation files, Riffle " +
@@ -125,6 +129,13 @@ fun AnnotationSyncMaintenanceScreen(
             row = row,
             onCancel = viewModel::onForgetCancelled,
             onConfirm = viewModel::onForgetConfirmed,
+        )
+    }
+    state.pendingForgetNamespace?.let { row ->
+        ForgetNamespaceDialog(
+            row = row,
+            onCancel = viewModel::onForgetNamespaceCancelled,
+            onConfirm = viewModel::onForgetNamespaceConfirmed,
         )
     }
     if (state.showCompactDialog) {
@@ -295,6 +306,92 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
 }
 
 @Composable
+private fun OtherNamespacesSection(
+    rows: List<OtherNamespaceRowUiState>,
+    vm: AnnotationSyncMaintenanceViewModel,
+) {
+    Text(
+        "Other namespaces on the server",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+        "Files belonging to a different account or to an older naming scheme. They aren't read by " +
+            "any device using this account — forget them to free server space.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column {
+            rows.forEachIndexed { index, row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "ns ${row.namespace.take(8)}…",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            "${row.annotationFileCount} annotation file" +
+                                (if (row.annotationFileCount == 1) "" else "s") +
+                                " · ${row.sidecarCount} sidecar" +
+                                (if (row.sidecarCount == 1) "" else "s"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(onClick = { vm.onForgetNamespaceRequested(row) }) { Text("Forget") }
+                }
+                if (index != rows.lastIndex) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForgetNamespaceDialog(
+    row: OtherNamespaceRowUiState,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Forget namespace?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Removes every file under ${row.namespace} from the WebDAV server — " +
+                        "${row.annotationFileCount} annotation file" +
+                        (if (row.annotationFileCount == 1) "" else "s") +
+                        " and ${row.sidecarCount} sidecar" +
+                        (if (row.sidecarCount == 1) "" else "s") + ".",
+                )
+                Text(
+                    "Only do this if you're sure no device is still using this namespace — usually it's " +
+                        "either an old account you no longer sync from or a namespace orphaned by an " +
+                        "earlier naming scheme.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Forget all") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+    )
+}
+
+@Composable
 private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Unit) {
     val (text, isError) = when (snack) {
         MaintenanceSnack.None -> return
@@ -314,6 +411,8 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
             if (snack.failures > 0) parts += "${snack.failures} failure(s)"
             parts.joinToString(" · ") to (snack.failures > 0)
         }
+        is MaintenanceSnack.ForgotNamespace ->
+            "Forgot namespace ${snack.namespace.take(8)}… · ${snack.files} file(s) removed" to false
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),

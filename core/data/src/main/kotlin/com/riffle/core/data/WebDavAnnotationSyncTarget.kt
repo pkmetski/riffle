@@ -4,6 +4,7 @@ import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -150,6 +151,52 @@ class WebDavAnnotationSyncTarget(
             }
             NamespaceDeviceListing(devices = rows)
         }
+
+    override suspend fun enumerateNamespaces(): List<NamespaceSummary> =
+        withContext(Dispatchers.IO) {
+            val all = propfindBaseFilenames()
+            val annotationByNs = mutableMapOf<String, Int>()
+            val sidecarByNs = mutableMapOf<String, Int>()
+            for (physical in all) {
+                val sepIdx = physical.indexOf(NAMESPACE_SEPARATOR)
+                if (sepIdx <= 0) continue
+                val ns = physical.substring(0, sepIdx)
+                val tail = physical.substring(sepIdx + NAMESPACE_SEPARATOR.length)
+                when {
+                    tail.startsWith(SIDECAR_NAME_PREFIX) && tail.endsWith(JSON_SUFFIX) ->
+                        sidecarByNs[ns] = (sidecarByNs[ns] ?: 0) + 1
+                    tail.endsWith(JSONLD_SUFFIX) ->
+                        annotationByNs[ns] = (annotationByNs[ns] ?: 0) + 1
+                    // else: unknown file under base — skip silently.
+                }
+            }
+            (annotationByNs.keys + sidecarByNs.keys).toSortedSet().map { ns ->
+                NamespaceSummary(
+                    namespace = ns,
+                    annotationFileCount = annotationByNs[ns] ?: 0,
+                    sidecarCount = sidecarByNs[ns] ?: 0,
+                )
+            }
+        }
+
+    override suspend fun forgetNamespace(namespace: String): Int = withContext(Dispatchers.IO) {
+        val all = propfindBaseFilenames()
+        val prefix = "$namespace$NAMESPACE_SEPARATOR"
+        var deleted = 0
+        for (physical in all) {
+            if (!physical.startsWith(prefix)) continue
+            // Use the physical filename as the URL segment directly. annotationFileUrl/sidecarFileUrl
+            // would re-prefix and double-encode the namespace; just hit the literal name we saw.
+            val url = basePath.newBuilder().addPathSegment(physical).build()
+            try {
+                deleteFile(url, "delete $physical")
+                deleted++
+            } catch (_: Exception) {
+                // best-effort bulk delete; continue on per-file failure
+            }
+        }
+        deleted
+    }
 
     suspend fun testConnection(): TestConnectionResult = withContext(Dispatchers.IO) {
         val request = baseRequest(basePath)

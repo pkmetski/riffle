@@ -6,6 +6,7 @@ import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import java.io.File
 
 /**
@@ -143,6 +144,54 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to enumerate devices for $namespace", e)
             NamespaceDeviceListing(emptyList())
+        }
+    }
+
+    override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
+        return try {
+            val root = File(context.filesDir, ROOT)
+            if (!root.exists()) return emptyList()
+            root.listFiles { f -> f.isDirectory }?.map { nsDir ->
+                var annotations = 0
+                var sidecars = 0
+                nsDir.listFiles { f ->
+                    f.isFile && f.name.startsWith(SIDECAR_NAME_PREFIX) && f.name.endsWith(JSON_SUFFIX)
+                }?.let { sidecars = it.size }
+                nsDir.listFiles { f -> f.isDirectory }?.forEach { itemDir ->
+                    itemDir.listFiles { f ->
+                        f.isFile && f.name.startsWith(ANNOTATION_NAME_PREFIX) && f.name.endsWith(JSONLD_SUFFIX)
+                    }?.let { annotations += it.size }
+                }
+                NamespaceSummary(
+                    namespace = nsDir.name,
+                    annotationFileCount = annotations,
+                    sidecarCount = sidecars,
+                )
+            }.orEmpty().sortedBy { it.namespace }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enumerate namespaces", e)
+            emptyList()
+        }
+    }
+
+    override suspend fun forgetNamespace(namespace: String): Int {
+        return try {
+            val dir = namespaceDir(namespace)
+            if (!dir.exists()) return 0
+            var deleted = 0
+            dir.walkBottomUp().forEach { f ->
+                if (f == dir) return@forEach
+                if (f.isFile) {
+                    if (f.delete()) deleted++
+                } else {
+                    f.delete()
+                }
+            }
+            dir.delete()
+            deleted
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to forget namespace $namespace", e)
+            0
         }
     }
 

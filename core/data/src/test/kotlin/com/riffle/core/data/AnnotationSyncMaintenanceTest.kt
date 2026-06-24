@@ -4,6 +4,7 @@ import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -128,6 +129,33 @@ private class InMemoryMaintenanceTarget(
             )
         }
         return NamespaceDeviceListing(rows)
+    }
+
+    override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
+        val annotations = files.keys.groupBy { it.namespace }.mapValues { it.value.size }
+        val sidecars = sidecars.keys.associateWith { 1 }
+        // For the fake: sidecars are indexed by deviceId, not namespace. Count them under a single
+        // synthetic namespace "ns" since the test fixture uses that.
+        val nsSet = annotations.keys + (if (sidecars.isEmpty()) emptySet() else setOf("ns"))
+        return nsSet.toSortedSet().map { ns ->
+            NamespaceSummary(
+                namespace = ns,
+                annotationFileCount = annotations[ns] ?: 0,
+                sidecarCount = if (ns == "ns") sidecars.size else 0,
+            )
+        }
+    }
+
+    override suspend fun forgetNamespace(namespace: String): Int {
+        val keys = files.keys.filter { it.namespace == namespace }
+        keys.forEach { files.remove(it) }
+        // Sidecars in the fake aren't namespace-scoped; nuke them all when the synthetic ns matches.
+        var deleted = keys.size
+        if (namespace == "ns") {
+            deleted += sidecars.size
+            sidecars.clear()
+        }
+        return deleted
     }
 }
 

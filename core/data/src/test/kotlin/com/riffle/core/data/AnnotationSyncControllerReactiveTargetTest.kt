@@ -7,6 +7,7 @@ import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +61,8 @@ private class RecordingTarget : AnnotationSyncTarget {
     override suspend fun writeDeviceSidecar(namespace: String, deviceId: String, content: String) {}
     override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
     override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
+    override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
+    override suspend fun forgetNamespace(namespace: String): Int = 0
 }
 
 private object StubLabelResolver : DeviceLabelResolver {

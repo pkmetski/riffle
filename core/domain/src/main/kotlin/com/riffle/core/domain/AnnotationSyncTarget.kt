@@ -79,6 +79,20 @@ interface AnnotationSyncTarget {
      * forget-device (delete its files) and compact-tombstones (rewrite every annotation file).
      */
     suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing
+
+    /**
+     * Enumerate every distinct namespace prefix found under the target's base. Used by the
+     * Maintenance UI to surface namespaces other than the currently-active one — typically
+     * orphans left behind by a previous namespacing scheme (see commit history around the
+     * absUserId migration). Returns counts of annotation files and sidecars per namespace.
+     */
+    suspend fun enumerateNamespaces(): List<NamespaceSummary>
+
+    /**
+     * Delete every file (annotation + sidecar) under [namespace]. Used by the Maintenance
+     * "Forget orphan namespace" bulk action. Returns the number of files actually deleted.
+     */
+    suspend fun forgetNamespace(namespace: String): Int
 }
 
 /** Listing returned by [AnnotationSyncTarget.enumerateDevices]. */
@@ -104,4 +118,11 @@ data class DeviceFileSummary(
 data class AnnotationFileRef(
     val itemId: String,
     val filename: String,
+)
+
+/** Top-level summary of one namespace discovered on the target. */
+data class NamespaceSummary(
+    val namespace: String,
+    val annotationFileCount: Int,
+    val sidecarCount: Int,
 )

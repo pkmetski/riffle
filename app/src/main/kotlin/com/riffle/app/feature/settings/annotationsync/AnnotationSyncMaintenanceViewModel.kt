@@ -41,14 +41,24 @@ sealed class MaintenanceSnack {
     object None : MaintenanceSnack()
     data class Forgot(val label: String, val files: Int, val sidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
     data class Compacted(val rewritten: Int, val removed: Int, val failures: Int) : MaintenanceSnack()
+    data class ForgotNamespace(val namespace: String, val files: Int) : MaintenanceSnack()
 }
+
+/** A namespace on the target that isn't the currently-active one — typically an orphan. */
+data class OtherNamespaceRowUiState(
+    val namespace: String,
+    val annotationFileCount: Int,
+    val sidecarCount: Int,
+)
 
 /** Form state for the Maintenance screen. */
 data class AnnotationSyncMaintenanceUiState(
     val devices: MaintenanceScreenUiState = MaintenanceScreenUiState.Loading,
+    val otherNamespaces: List<OtherNamespaceRowUiState> = emptyList(),
     val deviceLabel: String = "",
     val showRenameDialog: Boolean = false,
     val pendingForget: MaintenanceDeviceRowUiState? = null,
+    val pendingForgetNamespace: OtherNamespaceRowUiState? = null,
     val showCompactDialog: Boolean = false,
     val busy: Boolean = false,
     val snack: MaintenanceSnack = MaintenanceSnack.None,
@@ -105,6 +115,27 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                     sidecarDeleted = result.deletedSidecar,
                     failures = result.failures,
                 ),
+            )
+            refresh()
+        }
+    }
+
+    fun onForgetNamespaceRequested(row: OtherNamespaceRowUiState) {
+        _state.value = _state.value.copy(pendingForgetNamespace = row)
+    }
+
+    fun onForgetNamespaceCancelled() {
+        _state.value = _state.value.copy(pendingForgetNamespace = null)
+    }
+
+    fun onForgetNamespaceConfirmed() {
+        val row = _state.value.pendingForgetNamespace ?: return
+        _state.value = _state.value.copy(pendingForgetNamespace = null, busy = true)
+        viewModelScope.launch {
+            val deleted = maintenance.forgetNamespace(row.namespace)
+            _state.value = _state.value.copy(
+                busy = false,
+                snack = MaintenanceSnack.ForgotNamespace(namespace = row.namespace, files = deleted),
             )
             refresh()
         }
@@ -218,7 +249,25 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 isThisDevice = isMe,
             )
         }
-        _state.value = _state.value.copy(devices = MaintenanceScreenUiState.Loaded(ui))
+        // Surface every OTHER namespace present on the share so orphans aren't invisible.
+        val otherNamespaces = try {
+            maintenance.listNamespaces()
+                .filter { it.namespace != namespace }
+                .map {
+                    OtherNamespaceRowUiState(
+                        namespace = it.namespace,
+                        annotationFileCount = it.annotationFileCount,
+                        sidecarCount = it.sidecarCount,
+                    )
+                }
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        _state.value = _state.value.copy(
+            devices = MaintenanceScreenUiState.Loaded(ui),
+            otherNamespaces = otherNamespaces,
+        )
     }
 
     /** Best-effort ISO-8601 → "yyyy-MM-dd HH:mm" formatter; returns the raw input on failure. */
