@@ -5,6 +5,9 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.DeviceSidecar
+import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,7 +39,9 @@ class AnnotationSyncController(
     private val mergeService: AnnotationMergeService,
     private val annotationDao: AnnotationDao,
     private val deviceIdStore: DeviceIdStore,
+    private val deviceLabelResolver: DeviceLabelResolver,
     private val scope: CoroutineScope,
+    private val nowIso: () -> String = { Instant.now().toString() },
 ) {
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
@@ -172,6 +177,20 @@ class AnnotationSyncController(
             val jsonArray = "[\n" + jsonStrings.joinToString(",\n") + "\n]"
             val filename = "annotations-$deviceId.jsonld"
             target.write(namespace, itemId, filename, jsonArray)
+
+            // Best-effort sidecar publish — surfaces this device's label/model/lastSeenAt to peers
+            // for the Maintenance UI. Failures must not block the annotation push above.
+            try {
+                val sidecar = DeviceSidecar(
+                    deviceId = deviceId,
+                    label = deviceLabelResolver.resolveLabel(deviceId),
+                    model = deviceLabelResolver.deviceModel(),
+                    lastSeenAt = nowIso(),
+                )
+                target.writeDeviceSidecar(namespace, deviceId, DeviceSidecarCodec.encode(sidecar))
+            } catch (_: Exception) {
+                // Sidecar is metadata only; absence triggers the resolver's short-id fallback.
+            }
         } catch (_: Exception) {
             // Graceful error handling: continue silently on any error
         }

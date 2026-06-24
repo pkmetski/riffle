@@ -5,6 +5,8 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.NamespaceDeviceListing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +29,9 @@ class AnnotationSyncControllerReactiveTargetTest {
             mergeService = AnnotationMergeService(),
             annotationDao = dao,
             deviceIdStore = deviceIdStore,
+            deviceLabelResolver = StubLabelResolver,
             scope = CoroutineScope(Dispatchers.Unconfined),
+            nowIso = { "2026-01-01T00:00:00Z" },
         )
 
         // No target yet — syncOnOpen is a no-op (must not throw).
@@ -51,6 +55,16 @@ private class RecordingTarget : AnnotationSyncTarget {
     }
     override suspend fun read(namespace: String, itemId: String, filename: String): String? = null
     override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {}
+    override suspend fun delete(namespace: String, itemId: String, filename: String) {}
+    override suspend fun readDeviceSidecar(namespace: String, deviceId: String): String? = null
+    override suspend fun writeDeviceSidecar(namespace: String, deviceId: String, content: String) {}
+    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
+    override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
+}
+
+private object StubLabelResolver : DeviceLabelResolver {
+    override suspend fun resolveLabel(deviceId: String) = "test-device"
+    override fun deviceModel() = "test-model"
 }
 
 private class NoOpAnnotationDao : AnnotationDao {

@@ -1,8 +1,16 @@
 package com.riffle.app.feature.settings.annotationsync
 
+import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.DeviceLabelStore
+import com.riffle.core.domain.Server
+import com.riffle.core.domain.ServerRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +51,20 @@ class AnnotationSyncSettingsViewModelTest {
         server.shutdown()
     }
 
-    private fun newViewModel() = AnnotationSyncSettingsViewModel(configStore, factory)
+    private fun newViewModel() = AnnotationSyncSettingsViewModel(
+        configStore = configStore,
+        targetFactory = factory,
+        maintenance = AnnotationSyncMaintenance(targetProvider = { null }),
+        deviceIdStore = object : DeviceIdStore {
+            override suspend fun getOrCreate() = "test-device"
+        },
+        deviceLabelStore = StubDeviceLabelStore,
+        deviceLabelResolver = object : DeviceLabelResolver {
+            override suspend fun resolveLabel(deviceId: String) = "Test Device"
+            override fun deviceModel() = "Test Model"
+        },
+        serverRepository = StubServerRepository,
+    )
 
     /** Awaits the next state that is NOT in the Testing phase, with a real-time bound. */
     private fun awaitSettled(vm: AnnotationSyncSettingsViewModel) = runBlocking {
@@ -163,4 +184,31 @@ private class FakeAnnotationSyncConfigStore : AnnotationSyncConfigStore {
     override fun observe() = state
     override suspend fun save(config: AnnotationSyncConfig) { state.value = config }
     override suspend fun clear() { state.value = null }
+}
+
+private object StubDeviceLabelStore : DeviceLabelStore {
+    override fun observe(): Flow<String?> = flowOf(null)
+    override suspend fun get(): String? = null
+    override suspend fun set(label: String?) {}
+}
+
+private object StubServerRepository : ServerRepository {
+    override fun observeAll(): Flow<List<Server>> = flowOf(emptyList())
+    override suspend fun getActive(): Server? = null
+    override suspend fun authenticate(
+        url: com.riffle.core.domain.ServerUrl,
+        username: String,
+        password: String,
+        insecureAllowed: Boolean,
+        serverType: com.riffle.core.domain.ServerType,
+    ): com.riffle.core.domain.AuthenticateResult =
+        com.riffle.core.domain.AuthenticateResult.WrongCredentials()
+    override suspend fun commit(
+        pending: com.riffle.core.domain.PendingServer,
+        hiddenLibraryIds: Set<String>,
+    ): com.riffle.core.domain.CommitServerResult =
+        throw UnsupportedOperationException("not used")
+    override suspend fun setActive(serverId: String) {}
+    override suspend fun remove(serverId: String) {}
+    override suspend fun getServerVersion(serverId: String): String? = null
 }
