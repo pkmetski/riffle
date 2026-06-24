@@ -175,6 +175,54 @@ class EpubReaderViewModelFootnoteTest {
         assertEquals(0, attempts)
     }
 
+    // Mirrors the production behaviour added for plain home-button / app-switcher backgrounding:
+    // onReaderClosed arms pendingReturnLocator from lastLocator (unless it was pre-armed by the
+    // footnote-popup URL-tap path), and onReaderResumed re-emits it through the server-locator
+    // channel so Readium's chapter-top reset on resume is overridden. Without onReaderClosed
+    // capturing, ordinary backgrounding leaves pending=null and the reader lands at the chapter top.
+    @Test
+    fun `ordinary background then resume re-emits last position`() = runTest(UnconfinedTestDispatcher()) {
+        var lastLocator: Position? = null
+        var pending: Position? = null
+        var attempts = 0
+        val channel = kotlinx.coroutines.channels.Channel<Position>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val emitted = mutableListOf<Position>()
+        backgroundScope.launch { for (value in channel) emitted.add(value) }
+
+        // User reads to the middle of chapter 3
+        lastLocator = Position("ch03.html", 0.5)
+
+        // ON_STOP: app goes to background — onReaderClosed captures lastLocator into pending
+        if (pending == null) pending = lastLocator
+
+        // ON_START: app returns — onReaderResumed re-emits pending and arms the retry watcher
+        pending?.let {
+            attempts = 5
+            channel.trySend(it)
+        }
+
+        assertEquals(listOf(Position("ch03.html", 0.5)), emitted)
+        assertEquals(Position("ch03.html", 0.5), pending)
+        assertEquals(5, attempts)
+    }
+
+    // Pre-arming from the footnote-popup URL-tap path must take precedence: onReaderClosed
+    // must NOT overwrite a pendingReturnLocator that was already captured (the popup overlay had
+    // already nudged lastLocator off the user's page, so lastLocator at ON_STOP is stale).
+    @Test
+    fun `onReaderClosed does not overwrite pre-armed pendingReturnLocator`() = runTest(UnconfinedTestDispatcher()) {
+        // captureFootnotePopupLinkOrigin pre-arms with the popup-time origin (0.5)
+        var pending: Position? = Position("ch03.html", 0.5)
+        // The popup overlay then nudges lastLocator to a different progression (the popup's layout)
+        val lastLocator: Position = Position("ch03.html", 0.95)
+
+        // ON_STOP: onReaderClosed runs the new capture-only-if-null line
+        if (pending == null) pending = lastLocator
+
+        // Pre-armed origin survives — restore on resume lands the user at 0.5, not 0.95
+        assertEquals(Position("ch03.html", 0.5), pending)
+    }
+
     @Test
     fun `user navigation past origin disarms retry watcher`() = runTest(UnconfinedTestDispatcher()) {
         var pending: Position? = Position("ch03.html", 0.5)
