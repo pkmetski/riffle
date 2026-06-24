@@ -153,6 +153,30 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
+    fun `list treats 405 the same as 404 (Synology returns 405 for non-existent dirs)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(405))
+
+        val files = newTarget().list("srv1", "book1")
+
+        assertEquals(emptyList<String>(), files)
+    }
+
+    @Test
+    fun `write treats first-PUT 405 the same as 409 (Synology — MKCOL parents, then retry)`() = runTest {
+        // PUT 405 -> MKCOL chain (root MKCOL is 405=already exists, srv & book are 201) -> retry PUT 201
+        server.enqueue(MockResponse().setResponseCode(405)) // first PUT
+        server.enqueue(MockResponse().setResponseCode(405)) // MKCOL root — already exists
+        server.enqueue(MockResponse().setResponseCode(201)) // MKCOL srv1
+        server.enqueue(MockResponse().setResponseCode(201)) // MKCOL book1
+        server.enqueue(MockResponse().setResponseCode(201)) // retry PUT
+
+        newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
+
+        val methods = (1..5).map { server.takeRequest().method }
+        assertEquals(listOf("PUT", "MKCOL", "MKCOL", "MKCOL", "PUT"), methods)
+    }
+
+    @Test
     fun `list throws AuthFailed on 401`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
 

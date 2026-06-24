@@ -343,7 +343,7 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Sync",
+                    text = "Annotations Sync",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

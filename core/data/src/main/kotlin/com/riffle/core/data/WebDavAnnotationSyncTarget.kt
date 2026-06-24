@@ -50,7 +50,10 @@ class WebDavAnnotationSyncTarget(
                 .build()
             client.newCall(request).execute().use { response ->
                 when {
-                    response.code == 404 -> emptyList()
+                    // Most servers answer "PROPFIND on a non-existent collection" with 404; Synology
+                    // (and a few others) answer 405 instead. Treat both as "nothing there yet" so the
+                    // sync can proceed to create the directory on first push.
+                    response.code == 404 || response.code == 405 -> emptyList()
                     response.code == 401 || response.code == 403 ->
                         throw AnnotationSyncException.AuthFailed(response.code)
                     !response.isSuccessful && response.code != 207 ->
@@ -102,7 +105,10 @@ class WebDavAnnotationSyncTarget(
             first.close()
             when (code) {
                 401, 403 -> throw AnnotationSyncException.AuthFailed(code)
-                409, 404 -> {
+                // Most servers signal "parent collection missing" with 409 or 404. Synology answers
+                // 405 (Method Not Allowed) instead — same intent, just a different code. Treat all
+                // three as "ensure the parents first, then retry the PUT."
+                409, 404, 405 -> {
                     ensureParentCollections(serverId, itemId)
                     val retry = put(url, body)
                     val retryCode = retry.code
