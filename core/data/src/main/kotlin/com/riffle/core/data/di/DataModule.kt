@@ -163,6 +163,10 @@ annotation class DeviceIdDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class DeviceLabelDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class ReadaloudPreferencesDataStore
 
 @Qualifier
@@ -356,6 +360,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindDeviceIdStore(impl: DeviceIdStoreImpl): DeviceIdStore
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceLabelStore(impl: com.riffle.core.data.DeviceLabelStoreImpl): com.riffle.core.domain.DeviceLabelStore
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceLabelResolver(impl: com.riffle.core.data.AndroidDeviceLabelResolver): com.riffle.core.domain.DeviceLabelResolver
 
     @Binds
     @Singleton
@@ -732,6 +744,13 @@ abstract class DataModule {
 
         @Provides
         @Singleton
+        @DeviceLabelDataStore
+        fun provideDeviceLabelDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.deviceLabelDataStore
+
+        @Provides
+        @Singleton
         @ReadaloudPreferencesDataStore
         fun provideReadaloudPreferencesDataStore(
             @ApplicationContext context: Context
@@ -770,16 +789,25 @@ abstract class DataModule {
             mergeService: com.riffle.core.domain.AnnotationMergeService,
             annotationDao: com.riffle.core.database.AnnotationDao,
             deviceIdStore: com.riffle.core.domain.DeviceIdStore,
+            deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
         ): com.riffle.core.data.AnnotationSyncController =
             com.riffle.core.data.AnnotationSyncController(
                 targetProvider = { holder.current() },
                 mergeService = mergeService,
                 annotationDao = annotationDao,
                 deviceIdStore = deviceIdStore,
+                deviceLabelResolver = deviceLabelResolver,
                 scope = kotlinx.coroutines.CoroutineScope(
                     kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
                 ),
             )
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSyncMaintenance(
+            holder: com.riffle.core.data.AnnotationSyncTargetHolder,
+        ): com.riffle.core.data.AnnotationSyncMaintenance =
+            com.riffle.core.data.AnnotationSyncMaintenance(targetProvider = { holder.current() })
 
         @Provides
         @Singleton

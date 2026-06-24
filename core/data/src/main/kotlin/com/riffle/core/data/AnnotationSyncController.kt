@@ -5,6 +5,9 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.DeviceMetadata
+import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,7 +39,9 @@ class AnnotationSyncController(
     private val mergeService: AnnotationMergeService,
     private val annotationDao: AnnotationDao,
     private val deviceIdStore: DeviceIdStore,
+    private val deviceLabelResolver: DeviceLabelResolver,
     private val scope: CoroutineScope,
+    private val nowIso: () -> String = { Instant.now().toString() },
 ) {
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
@@ -169,7 +174,14 @@ class AnnotationSyncController(
             val jsonStrings = localEntities.map { entity ->
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
-            val jsonArray = "[\n" + jsonStrings.joinToString(",\n") + "\n]"
+            // Embed device metadata as a header object at position 0 of the array. Old readers
+            // already drop entries with no `id`, so the header is invisible to merge.
+            val metadata = DeviceMetadata(
+                deviceId = deviceId,
+                label = deviceLabelResolver.resolveLabel(deviceId),
+                lastSeenAt = nowIso(),
+            )
+            val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)
             val filename = "annotations-$deviceId.jsonld"
             target.write(namespace, itemId, filename, jsonArray)
         } catch (_: Exception) {

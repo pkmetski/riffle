@@ -29,7 +29,7 @@ sealed class TestConnectionUiState {
     data class ServerError(val code: Int) : TestConnectionUiState()
 }
 
-/** Form state for the WebDAV annotation-sync settings screen. */
+/** Form state for the WebDAV annotation-sync settings screen (Connection only). */
 data class AnnotationSyncSettingsUiState(
     val baseUrl: String = "",
     val username: String = "",

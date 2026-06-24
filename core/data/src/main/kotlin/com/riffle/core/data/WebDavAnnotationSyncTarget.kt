@@ -1,6 +1,10 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
+import com.riffle.core.domain.DeviceFileSummary
+import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -21,13 +25,16 @@ import javax.xml.parsers.SAXParserFactory
  *
  * **Layout — flat per-device files keyed by composite filename.** Every file lives directly
  * under `basePath` and carries the per-account+book scope in its name:
- * ```
- * <basePath>/<namespace>__<itemId>__<filename>
- * ```
+ *
+ * - Annotation file: `<basePath>/<namespace>__<itemId>__annotations-<deviceId>.jsonld`
+ * - Device sidecar: `<basePath>/<namespace>__device-<deviceId>.json` (no `itemId` segment —
+ *   sidecars are global to a device, not per-book).
+ *
  * `namespace` is the cross-device-stable ABS user id (`/api/me` → `user.id`, persisted on
  * [com.riffle.core.domain.Server.absUserId]). Using the local `servers.id` here would break
  * cross-device sync — see [com.riffle.core.domain.AnnotationSyncTarget] kdoc for the full
  * rationale.
+ *
  * We *don't* nest the `<serverId>` / `<itemId>` segments as subdirectories: Synology DSM's
  * WebDAV server refuses MKCOL on shared-folder subpaths in ways we couldn't get around even
  * with the Finder UA (PROPFIND and MKCOL both return 400 for bare-UUID directory names that
@@ -55,44 +62,14 @@ class WebDavAnnotationSyncTarget(
             // PROPFIND basePath, then filter to entries whose physical name carries the matching
             // `<namespace>__<itemId>__` prefix; return the logical (post-prefix) filename so the
             // controller sees the unprefixed name unchanged.
-            val request = baseRequest(basePath)
-                .header("Depth", "1")
-                .header("Content-Type", "application/xml; charset=utf-8")
-                .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
-                .build()
-            client.newCall(request).execute().use { response ->
-                when {
-                    response.code in setOf(400, 404, 405) -> emptyList()
-                    response.code == 401 || response.code == 403 ->
-                        throw AnnotationSyncException.AuthFailed(response.code)
-                    !response.isSuccessful && response.code != 207 ->
-                        throw AnnotationSyncException.HttpFailure(response.code, "list")
-                    else -> {
-                        val body = response.body.string()
-                        val prefix = physicalPrefix(namespace, itemId)
-                        parsePropfindFilenames(body)
-                            .filter { it.startsWith(prefix) }
-                            .map { it.removePrefix(prefix) }
-                    }
-                }
-            }
+            val prefix = annotationPrefix(namespace, itemId)
+            propfindBaseFilenames()
+                .filter { it.startsWith(prefix) && it.endsWith(JSONLD_SUFFIX) }
+                .map { it.removePrefix(prefix) }
         }
 
     override suspend fun read(namespace: String, itemId: String, filename: String): String? =
-        withContext(Dispatchers.IO) {
-            val url = fileUrl(namespace, itemId, filename)
-            val request = baseRequest(url).get().build()
-            client.newCall(request).execute().use { response ->
-                when {
-                    response.code == 404 -> null
-                    response.code == 401 || response.code == 403 ->
-                        throw AnnotationSyncException.AuthFailed(response.code)
-                    !response.isSuccessful ->
-                        throw AnnotationSyncException.HttpFailure(response.code, "read $filename")
-                    else -> response.body.string()
-                }
-            }
-        }
+        readFile(annotationFileUrl(namespace, itemId, filename))
 
     override suspend fun write(
         namespace: String,
@@ -104,19 +81,110 @@ class WebDavAnnotationSyncTarget(
             // Flat path under basePath. No per-book subdirectories means MKCOL never has to fire on
             // a real push — the only collection that must exist is basePath itself, which the user
             // has already vouched for via Test Connection (and which we MKCOL-create on demand).
-            val url = fileUrl(namespace, itemId, filename)
-            val body = content.toRequestBody(JSON_LD_MEDIA)
-            val response = put(url, body)
-            val code = response.code
-            val ok = response.isSuccessful
-            response.close()
-            if (!ok) {
-                when (code) {
-                    401, 403 -> throw AnnotationSyncException.AuthFailed(code)
-                    else -> throw AnnotationSyncException.HttpFailure(code, "write $filename")
+            putFile(annotationFileUrl(namespace, itemId, filename), content, JSON_LD_MEDIA, "write $filename")
+        }
+    }
+
+    override suspend fun delete(namespace: String, itemId: String, filename: String) {
+        deleteFile(annotationFileUrl(namespace, itemId, filename), "delete $filename")
+    }
+
+    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {
+        deleteFile(sidecarFileUrl(namespace, deviceId), "delete sidecar $deviceId")
+    }
+
+    override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing =
+        withContext(Dispatchers.IO) {
+            val all = propfindBaseFilenames()
+            val annotationPrefix = "$namespace$NAMESPACE_SEPARATOR"
+            val sidecarPrefix = "$namespace$NAMESPACE_SEPARATOR$SIDECAR_NAME_PREFIX"
+
+            val annotationFiles = mutableMapOf<String, MutableList<AnnotationFileRef>>()
+            val sidecarDeviceIds = mutableSetOf<String>()
+
+            for (physicalName in all) {
+                if (!physicalName.startsWith(annotationPrefix)) continue
+                if (physicalName.startsWith(sidecarPrefix) && physicalName.endsWith(JSON_SUFFIX)) {
+                    val deviceId = physicalName
+                        .removePrefix(sidecarPrefix)
+                        .removeSuffix(JSON_SUFFIX)
+                    if (deviceId.isNotEmpty()) sidecarDeviceIds += deviceId
+                    continue
+                }
+                if (!physicalName.endsWith(JSONLD_SUFFIX)) continue
+                // <namespace>__<itemId>__annotations-<deviceId>.jsonld
+                val afterNamespace = physicalName.removePrefix(annotationPrefix)
+                val sepIndex = afterNamespace.indexOf(NAMESPACE_SEPARATOR)
+                if (sepIndex <= 0) continue
+                val itemId = afterNamespace.substring(0, sepIndex)
+                val filename = afterNamespace.substring(sepIndex + NAMESPACE_SEPARATOR.length)
+                if (!filename.startsWith(ANNOTATION_NAME_PREFIX) || !filename.endsWith(JSONLD_SUFFIX)) continue
+                val deviceId = filename
+                    .removePrefix(ANNOTATION_NAME_PREFIX)
+                    .removeSuffix(JSONLD_SUFFIX)
+                if (deviceId.isEmpty()) continue
+                annotationFiles
+                    .getOrPut(deviceId) { mutableListOf() }
+                    .add(AnnotationFileRef(itemId = itemId, filename = filename))
+            }
+
+            // Devices appear iff they own at least one annotation file. Legacy sidecars without
+            // matching annotation files are intentionally ignored — they're handled by the
+            // namespace-level cleanup (NamespaceSummary.sidecarCount + forgetNamespace).
+            val rows = annotationFiles.keys.toSortedSet().map { deviceId ->
+                DeviceFileSummary(
+                    deviceId = deviceId,
+                    annotationFiles = annotationFiles[deviceId]?.toList().orEmpty(),
+                    hasLegacySidecar = deviceId in sidecarDeviceIds,
+                )
+            }
+            NamespaceDeviceListing(devices = rows)
+        }
+
+    override suspend fun enumerateNamespaces(): List<NamespaceSummary> =
+        withContext(Dispatchers.IO) {
+            val all = propfindBaseFilenames()
+            val annotationByNs = mutableMapOf<String, Int>()
+            val sidecarByNs = mutableMapOf<String, Int>()
+            for (physical in all) {
+                val sepIdx = physical.indexOf(NAMESPACE_SEPARATOR)
+                if (sepIdx <= 0) continue
+                val ns = physical.substring(0, sepIdx)
+                val tail = physical.substring(sepIdx + NAMESPACE_SEPARATOR.length)
+                when {
+                    tail.startsWith(SIDECAR_NAME_PREFIX) && tail.endsWith(JSON_SUFFIX) ->
+                        sidecarByNs[ns] = (sidecarByNs[ns] ?: 0) + 1
+                    tail.endsWith(JSONLD_SUFFIX) ->
+                        annotationByNs[ns] = (annotationByNs[ns] ?: 0) + 1
+                    // else: unknown file under base — skip silently.
                 }
             }
+            (annotationByNs.keys + sidecarByNs.keys).toSortedSet().map { ns ->
+                NamespaceSummary(
+                    namespace = ns,
+                    annotationFileCount = annotationByNs[ns] ?: 0,
+                    sidecarCount = sidecarByNs[ns] ?: 0,
+                )
+            }
         }
+
+    override suspend fun forgetNamespace(namespace: String): Int = withContext(Dispatchers.IO) {
+        val all = propfindBaseFilenames()
+        val prefix = "$namespace$NAMESPACE_SEPARATOR"
+        var deleted = 0
+        for (physical in all) {
+            if (!physical.startsWith(prefix)) continue
+            // Use the physical filename as the URL segment directly. annotationFileUrl/sidecarFileUrl
+            // would re-prefix and double-encode the namespace; just hit the literal name we saw.
+            val url = basePath.newBuilder().addPathSegment(physical).build()
+            try {
+                deleteFile(url, "delete $physical")
+                deleted++
+            } catch (_: Exception) {
+                // best-effort bulk delete; continue on per-file failure
+            }
+        }
+        deleted
     }
 
     suspend fun testConnection(): TestConnectionResult = withContext(Dispatchers.IO) {
@@ -159,6 +227,66 @@ class WebDavAnnotationSyncTarget(
         TestConnectionResult.NetworkError(e.message ?: "Network error")
     }
 
+    private suspend fun readFile(url: HttpUrl): String? = withContext(Dispatchers.IO) {
+        val request = baseRequest(url).get().build()
+        client.newCall(request).execute().use { response ->
+            when {
+                response.code == 404 -> null
+                response.code == 401 || response.code == 403 ->
+                    throw AnnotationSyncException.AuthFailed(response.code)
+                !response.isSuccessful ->
+                    throw AnnotationSyncException.HttpFailure(response.code, "read ${url.encodedPath}")
+                else -> response.body.string()
+            }
+        }
+    }
+
+    private fun putFile(url: HttpUrl, content: String, media: okhttp3.MediaType, op: String) {
+        val body = content.toRequestBody(media)
+        val response = put(url, body)
+        val code = response.code
+        val ok = response.isSuccessful
+        response.close()
+        if (!ok) {
+            when (code) {
+                401, 403 -> throw AnnotationSyncException.AuthFailed(code)
+                else -> throw AnnotationSyncException.HttpFailure(code, op)
+            }
+        }
+    }
+
+    private suspend fun deleteFile(url: HttpUrl, op: String) = withContext(Dispatchers.IO) {
+        val request = baseRequest(url).delete().build()
+        client.newCall(request).execute().use { response ->
+            // 404 / 410 / 405 are treated as a no-op success — the file is already gone or the
+            // server rejects DELETE on a missing resource, which is what we want either way.
+            when {
+                response.isSuccessful || response.code in setOf(204, 404, 405, 410) -> Unit
+                response.code == 401 || response.code == 403 ->
+                    throw AnnotationSyncException.AuthFailed(response.code)
+                else -> throw AnnotationSyncException.HttpFailure(response.code, op)
+            }
+        }
+    }
+
+    private suspend fun propfindBaseFilenames(): List<String> = withContext(Dispatchers.IO) {
+        val request = baseRequest(basePath)
+            .header("Depth", "1")
+            .header("Content-Type", "application/xml; charset=utf-8")
+            .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
+            .build()
+        client.newCall(request).execute().use { response ->
+            when {
+                response.code in setOf(400, 404, 405) -> emptyList()
+                response.code == 401 || response.code == 403 ->
+                    throw AnnotationSyncException.AuthFailed(response.code)
+                !response.isSuccessful && response.code != 207 ->
+                    throw AnnotationSyncException.HttpFailure(response.code, "enumerate")
+                else -> parsePropfindFilenames(response.body.string())
+            }
+        }
+    }
+
     private fun put(url: HttpUrl, body: RequestBody): Response {
         val request = baseRequest(url).put(body).build()
         return client.newCall(request).execute()
@@ -175,13 +303,18 @@ class WebDavAnnotationSyncTarget(
         .header("Authorization", authHeader)
         .header("User-Agent", FINDER_USER_AGENT)
 
-    private fun fileUrl(namespace: String, itemId: String, filename: String): HttpUrl =
+    private fun annotationFileUrl(namespace: String, itemId: String, filename: String): HttpUrl =
         basePath.newBuilder()
-            .addPathSegment(physicalPrefix(namespace, itemId) + filename)
+            .addPathSegment(annotationPrefix(namespace, itemId) + filename)
+            .build()
+
+    private fun sidecarFileUrl(namespace: String, deviceId: String): HttpUrl =
+        basePath.newBuilder()
+            .addPathSegment("$namespace$NAMESPACE_SEPARATOR$SIDECAR_NAME_PREFIX$deviceId$JSON_SUFFIX")
             .build()
 
     /** Composite filename prefix that emulates the per-book directory: `<namespace>__<itemId>__`. */
-    private fun physicalPrefix(namespace: String, itemId: String): String =
+    private fun annotationPrefix(namespace: String, itemId: String): String =
         "$namespace$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
 
     private fun ensureTrailingSlash(url: HttpUrl): HttpUrl {
@@ -203,7 +336,11 @@ class WebDavAnnotationSyncTarget(
         }
         return handler.hrefs
             .map { it.substringAfterLast('/') }
-            .filter { it.isNotEmpty() && it.endsWith(".jsonld") }
+            .filter { it.isNotEmpty() }
+            // Synology DSM (and other AFP-aware shares) emits a `._<filename>` AppleDouble
+            // shadow alongside every real file. They aren't ours and showing them as
+            // separate namespaces in Maintenance is just noise.
+            .filter { !it.startsWith("._") }
     }
 
     private class HrefCollector : DefaultHandler() {
@@ -232,6 +369,10 @@ class WebDavAnnotationSyncTarget(
 
     companion object {
         private const val NAMESPACE_SEPARATOR = "__"
+        private const val ANNOTATION_NAME_PREFIX = "annotations-"
+        private const val SIDECAR_NAME_PREFIX = "device-"
+        private const val JSONLD_SUFFIX = ".jsonld"
+        private const val JSON_SUFFIX = ".json"
         // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
         // servers, so MKCOL/PUT requests aren't put through unfamiliar-UA gating.
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"

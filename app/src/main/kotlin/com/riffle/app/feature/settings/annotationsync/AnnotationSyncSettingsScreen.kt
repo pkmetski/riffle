@@ -49,7 +49,7 @@ fun AnnotationSyncSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Annotation Sync") },
+                title = { Text("Annotation Sync · WebDAV") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

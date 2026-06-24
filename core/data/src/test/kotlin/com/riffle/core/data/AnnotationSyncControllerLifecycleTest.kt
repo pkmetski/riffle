@@ -5,6 +5,9 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -44,7 +47,9 @@ class AnnotationSyncControllerLifecycleTest {
         mergeService = AnnotationMergeService(),
         annotationDao = dao,
         deviceIdStore = deviceIdStore,
+        deviceLabelResolver = LifecycleStubLabelResolver,
         scope = this,
+        nowIso = { "2026-01-01T00:00:00Z" },
     )
 
     // ===== syncOnOpen =====
@@ -385,6 +390,19 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
         files[filename] = content
         writes += Write(namespace, itemId, filename, content)
     }
+
+    override suspend fun delete(namespace: String, itemId: String, filename: String) {
+        files.remove(filename)
+    }
+    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
+    override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
+    override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
+    override suspend fun forgetNamespace(namespace: String): Int = 0
+}
+
+private object LifecycleStubLabelResolver : DeviceLabelResolver {
+    override suspend fun resolveLabel(deviceId: String) = "test-label"
+    override fun deviceModel() = "test-model"
 }
 
 /**

@@ -164,3 +164,4 @@ private class FakeAnnotationSyncConfigStore : AnnotationSyncConfigStore {
     override suspend fun save(config: AnnotationSyncConfig) { state.value = config }
     override suspend fun clear() { state.value = null }
 }
+

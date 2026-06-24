@@ -6,6 +6,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -72,7 +73,9 @@ class AnnotationSyncControllerIntegrationTest {
             mergeService = mergeService,
             annotationDao = annotationDao,
             deviceIdStore = deviceIdStore,
+            deviceLabelResolver = IntegrationStubLabelResolver,
             scope = scope,
+            nowIso = { "2026-01-01T00:00:00Z" },
         )
     }
 
@@ -318,7 +321,9 @@ class AnnotationSyncControllerIntegrationTest {
             mergeService = mergeService,
             annotationDao = annotationDao,
             deviceIdStore = deviceIdStore,
+            deviceLabelResolver = IntegrationStubLabelResolver,
             scope = scope,
+            nowIso = { "2026-01-01T00:00:00Z" },
         )
 
         val serverId = "server5"
@@ -462,4 +467,9 @@ class AnnotationSyncControllerIntegrationTest {
         Thread.sleep(700)
         assertTrue("File B should exist after debounce completes", fileB.exists())
     }
+}
+
+private object IntegrationStubLabelResolver : DeviceLabelResolver {
+    override suspend fun resolveLabel(deviceId: String) = "integration-device"
+    override fun deviceModel() = "integration-model"
 }

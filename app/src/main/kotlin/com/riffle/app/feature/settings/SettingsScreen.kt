@@ -84,6 +84,7 @@ fun SettingsScreen(
     onNavigateToAddServer: () -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSync: () -> Unit = {},
+    onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val report = viewModel.lastCrashReport
@@ -352,9 +353,32 @@ fun SettingsScreen(
                 val annotationSyncSummary by viewModel.annotationSyncSummary.collectAsState()
                 ListItem(
                     modifier = Modifier.clickable { onNavigateToAnnotationSync() },
-                    headlineContent = { Text("WebDAV") },
+                    headlineContent = { Text("Configure WebDAV") },
                     supportingContent = {
                         Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
+                    },
+                )
+                val maintenanceEnabled = annotationSyncSummary != null
+                ListItem(
+                    modifier = if (maintenanceEnabled) {
+                        Modifier.clickable { onNavigateToAnnotationSyncMaintenance() }
+                    } else {
+                        Modifier
+                    },
+                    headlineContent = { Text("Maintenance") },
+                    supportingContent = {
+                        Text(
+                            if (maintenanceEnabled) "Forget devices, rename this device"
+                            else "Set up WebDAV first to manage devices",
+                        )
+                    },
+                    colors = if (maintenanceEnabled) {
+                        ListItemDefaults.colors()
+                    } else {
+                        ListItemDefaults.colors(
+                            headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            supportingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                        )
                     },
                 )
                 HorizontalDivider()

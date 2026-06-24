@@ -41,6 +41,7 @@ import com.riffle.app.feature.server.AddServerScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
+import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncSettingsScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.playback.NowPlaying
@@ -55,6 +56,7 @@ private const val ADD_SERVER = "add_server"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val ANNOTATION_SYNC_SETTINGS = "settings/annotation_sync"
+private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
@@ -221,10 +223,16 @@ fun MainScreen(
                         navController.navigate("readaloud_matches/$encoded")
                     },
                     onNavigateToAnnotationSync = { navController.navigate(ANNOTATION_SYNC_SETTINGS) },
+                    onNavigateToAnnotationSyncMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
                 )
             }
             composable(ANNOTATION_SYNC_SETTINGS) {
                 AnnotationSyncSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(ANNOTATION_SYNC_MAINTENANCE) {
+                AnnotationSyncMaintenanceScreen(
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
