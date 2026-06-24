@@ -185,8 +185,12 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             val label = row.sidecar?.label?.takeIf { it.isNotBlank() }
                 ?: "device-${row.deviceId.take(8)}"
             val parts = mutableListOf<String>()
-            parts += "${row.annotationFileCount} files"
-            row.sidecar?.lastSeenAt?.takeIf { it.isNotBlank() }?.let { parts += "Last seen $it" }
+            parts += "${row.annotationFileCount} annotation file" + if (row.annotationFileCount == 1) "" else "s"
+            if (row.sidecar != null) parts += "1 sidecar"
+            row.sidecar?.lastSeenAt
+                ?.takeIf { it.isNotBlank() }
+                ?.let { humanizeLastSeen(it) }
+                ?.let { parts += "Last seen $it" }
             row.sidecar?.model?.takeIf { it.isNotBlank() }?.let { parts += it }
             MaintenanceDeviceRowUiState(
                 deviceId = row.deviceId,
@@ -196,6 +200,17 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             )
         }
         _state.value = _state.value.copy(devices = MaintenanceScreenUiState.Loaded(ui))
+    }
+
+    /** Best-effort ISO-8601 → "yyyy-MM-dd HH:mm" formatter; returns the raw input on failure. */
+    private fun humanizeLastSeen(iso: String): String = try {
+        val instant = java.time.Instant.parse(iso)
+        java.time.format.DateTimeFormatter
+            .ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(java.time.ZoneId.systemDefault())
+            .format(instant)
+    } catch (_: Exception) {
+        iso
     }
 
     private suspend fun resolveNamespace(): String? {

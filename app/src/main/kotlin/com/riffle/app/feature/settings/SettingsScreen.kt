@@ -358,13 +358,26 @@ fun SettingsScreen(
                         Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
                     },
                 )
+                val maintenanceEnabled = annotationSyncSummary != null
                 ListItem(
-                    modifier = Modifier.clickable { onNavigateToAnnotationSyncMaintenance() },
+                    modifier = if (maintenanceEnabled) {
+                        Modifier.clickable { onNavigateToAnnotationSyncMaintenance() }
+                    } else {
+                        Modifier
+                    },
                     headlineContent = { Text("Maintenance") },
                     supportingContent = {
                         Text(
-                            if (annotationSyncSummary == null) "Set up WebDAV first to manage devices"
-                            else "Forget devices, compact tombstones, rename this device",
+                            if (maintenanceEnabled) "Forget devices, compact tombstones, rename this device"
+                            else "Set up WebDAV first to manage devices",
+                        )
+                    },
+                    colors = if (maintenanceEnabled) {
+                        ListItemDefaults.colors()
+                    } else {
+                        ListItemDefaults.colors(
+                            headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            supportingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                         )
                     },
                 )

@@ -106,6 +106,17 @@ fun AnnotationSyncMaintenanceScreen(
             }
 
             MaintenanceSnackBanner(state.snack, viewModel::onSnackDismissed)
+
+            if (state.devices is MaintenanceScreenUiState.Loaded) {
+                Text(
+                    "About the per-device sidecar: alongside each device's annotation files, Riffle " +
+                        "publishes a tiny <namespace>__device-<id>.json carrying that device's display " +
+                        "name, model, and last-seen time. It's the only way peer devices learn each " +
+                        "other's friendly names. Forgetting a device deletes its sidecar too.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 
