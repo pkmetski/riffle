@@ -1289,7 +1289,7 @@ class EpubReaderViewModel @Inject constructor(
             ) { annotations, st -> annotations to (st is ReaderState.Ready) }
                 .collect { (annotations, ready) ->
                     _bookmarkPositions.value =
-                        if (!ready) emptyList() else annotations.mapNotNull { annotationToBookmarkPosition(it) }
+                        if (!ready) emptyList() else annotations.map { annotationToBookmarkPosition(it) }
                 }
         }
     }
