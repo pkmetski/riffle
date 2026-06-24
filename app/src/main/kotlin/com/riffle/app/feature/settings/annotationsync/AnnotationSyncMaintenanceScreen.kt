@@ -110,16 +110,6 @@ fun AnnotationSyncMaintenanceScreen(
             if (state.otherNamespaces.isNotEmpty()) {
                 OtherNamespacesSection(state.otherNamespaces, viewModel)
             }
-
-            if (state.devices is MaintenanceScreenUiState.Loaded) {
-                Text(
-                    "Device labels are embedded in each annotation file's header — no extra files " +
-                        "on the server. Renaming this device rewrites the header in every annotation " +
-                        "file it owns so peers see the new name immediately.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 

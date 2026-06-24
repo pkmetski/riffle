@@ -199,7 +199,6 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                     namespace = namespace,
                     deviceId = deviceIdStore.getOrCreate(),
                     label = updated,
-                    model = deviceLabelResolver.deviceModel(),
                 )
             }
             refresh()
@@ -224,7 +223,6 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         val rows = maintenance.listDevices(namespace)
         val myDeviceId = deviceIdStore.getOrCreate()
         val myLocalLabel = currentDeviceLabel()
-        val myLocalModel = deviceLabelResolver.deviceModel()
         val ui = rows.map { row ->
             val isMe = row.deviceId == myDeviceId
             val label = when {
@@ -240,8 +238,6 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 ?.takeIf { it.isNotBlank() }
                 ?.let { humanizeLastSeen(it) }
                 ?.let { parts += "Last seen $it" }
-            val displayedModel = if (isMe) myLocalModel else row.metadata?.model
-            displayedModel?.takeIf { it.isNotBlank() }?.let { parts += it }
             MaintenanceDeviceRowUiState(
                 deviceId = row.deviceId,
                 label = label,

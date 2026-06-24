@@ -34,7 +34,6 @@ class AnnotationSyncMaintenance(
         namespace: String,
         deviceId: String,
         label: String,
-        model: String,
     ) {
         val target = targetProvider() ?: return
         val listing = try { target.enumerateDevices(namespace) } catch (_: Exception) { return }
@@ -42,7 +41,6 @@ class AnnotationSyncMaintenance(
         val metadata = DeviceMetadata(
             deviceId = deviceId,
             label = label,
-            model = model,
             lastSeenAt = nowIso(),
         )
         for (file in row.annotationFiles) {

@@ -11,7 +11,6 @@ class DeviceMetadataCodecTest {
     private val meta = DeviceMetadata(
         deviceId = "dev-1",
         label = "Phone A",
-        model = "Pixel 9 Pro",
         lastSeenAt = "2026-01-01T00:00:00Z",
     )
 

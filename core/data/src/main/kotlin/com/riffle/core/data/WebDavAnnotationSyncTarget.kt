@@ -337,6 +337,10 @@ class WebDavAnnotationSyncTarget(
         return handler.hrefs
             .map { it.substringAfterLast('/') }
             .filter { it.isNotEmpty() }
+            // Synology DSM (and other AFP-aware shares) emits a `._<filename>` AppleDouble
+            // shadow alongside every real file. They aren't ours and showing them as
+            // separate namespaces in Maintenance is just noise.
+            .filter { !it.startsWith("._") }
     }
 
     private class HrefCollector : DefaultHandler() {

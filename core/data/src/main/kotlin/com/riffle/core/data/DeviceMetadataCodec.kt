@@ -37,7 +37,6 @@ object DeviceMetadataCodec {
         put("type", HEADER_TYPE)
         put("deviceId", metadata.deviceId)
         put("label", metadata.label)
-        put("model", metadata.model)
         put("lastSeenAt", metadata.lastSeenAt)
     }.toString()
 
@@ -95,8 +94,7 @@ object DeviceMetadataCodec {
     private fun headerObjectToMetadata(obj: JsonObject): DeviceMetadata? {
         val deviceId = obj["deviceId"]?.jsonPrimitive?.content ?: return null
         val label = obj["label"]?.jsonPrimitive?.content ?: return null
-        val model = obj["model"]?.jsonPrimitive?.content ?: return null
         val lastSeenAt = obj["lastSeenAt"]?.jsonPrimitive?.content ?: return null
-        return DeviceMetadata(deviceId, label, model, lastSeenAt)
+        return DeviceMetadata(deviceId, label, lastSeenAt)
     }
 }

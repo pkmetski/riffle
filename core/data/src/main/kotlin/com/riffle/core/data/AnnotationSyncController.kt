@@ -179,7 +179,6 @@ class AnnotationSyncController(
             val metadata = DeviceMetadata(
                 deviceId = deviceId,
                 label = deviceLabelResolver.resolveLabel(deviceId),
-                model = deviceLabelResolver.deviceModel(),
                 lastSeenAt = nowIso(),
             )
             val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)

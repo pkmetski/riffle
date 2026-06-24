@@ -79,7 +79,7 @@ class AnnotationSyncMaintenanceTest {
     @Test
     fun `listDevices extracts the embedded metadata header from annotation files`() = runTest {
         val headerA = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Phone A", "Pixel 9 Pro", "2026-01-01T00:00:00Z"),
+            DeviceMetadata("A", "Phone A", "2026-01-01T00:00:00Z"),
             annotationJsonStrings = emptyList(),
         )
         val target = InMemoryMaintenanceTarget(
@@ -105,11 +105,11 @@ class AnnotationSyncMaintenanceTest {
     @Test
     fun `publishDeviceMetadata rewrites the header in every annotation file the device owns`() = runTest {
         val originalA = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Old Name", "Pixel", "2026-01-01T00:00:00Z"),
+            DeviceMetadata("A", "Old Name", "2026-01-01T00:00:00Z"),
             annotationJsonStrings = listOf("""{"id":"x"}"""),
         )
         val originalA2 = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Old Name", "Pixel", "2026-01-01T00:00:00Z"),
+            DeviceMetadata("A", "Old Name", "2026-01-01T00:00:00Z"),
             annotationJsonStrings = listOf("""{"id":"y"}"""),
         )
         val target = InMemoryMaintenanceTarget(
@@ -120,12 +120,11 @@ class AnnotationSyncMaintenanceTest {
             legacySidecars = mutableSetOf(),
         )
         val m = maintenanceFor(target)
-        m.publishDeviceMetadata("ns", "A", "New Name", "Pixel 9 Pro")
+        m.publishDeviceMetadata("ns", "A", "New Name")
 
         target.files.values.forEach { body ->
             val header = DeviceMetadataCodec.extractHeader(body)!!
             assertEquals("New Name", header.label)
-            assertEquals("Pixel 9 Pro", header.model)
             assertEquals("2026-02-02T02:02:02Z", header.lastSeenAt)
         }
         // Annotation records are preserved.
