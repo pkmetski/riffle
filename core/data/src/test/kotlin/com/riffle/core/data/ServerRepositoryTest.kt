@@ -39,6 +39,18 @@ class ServerRepositoryTest {
 
     private val fakeServerInfoApi = object : AbsServerInfoApi {
         override suspend fun getServerInfo(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
+        override suspend fun getCurrentUserId(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
+    }
+
+    /** ServerInfo API stub that returns a fixed user id (or null) so backfill tests can drive both
+     *  the success and failure paths of [ServerRepositoryImpl.ensureAbsUserId]. */
+    private class RecordingServerInfoApi(private val userId: String?) : AbsServerInfoApi {
+        var getCurrentUserIdCalls = 0
+        override suspend fun getServerInfo(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
+        override suspend fun getCurrentUserId(baseUrl: String, token: String, insecureAllowed: Boolean): String? {
+            getCurrentUserIdCalls++
+            return userId
+        }
     }
 
     private fun fakeTokenStorage() = object : TokenStorage {
@@ -66,6 +78,9 @@ class ServerRepositoryTest {
             return toInsert
         }
         override suspend fun deleteById(id: String) { store.removeAll { it.id == id } }
+        override suspend fun setAbsUserId(id: String, absUserId: String) {
+            store.replaceAll { if (it.id == id) it.copy(absUserId = absUserId) else it }
+        }
         fun allCount(): Int = store.size
     }
 
@@ -547,5 +562,142 @@ class ServerRepositoryTest {
         // ADR 0026: a Storyteller Server is a Settings-only readaloud backend and can never be the
         // active browsable Server — the previously active ABS server stays active.
         assertEquals("abs", dao.getActive()?.id)
+    }
+
+    // ===== absUserId (annotation-sync cross-device namespace) =====
+
+    @Test
+    fun `commit ABS server persists pending userId as absUserId so annotation sync can namespace files`() = runTest {
+        // The original WebDAV annotation-sync bug: device A and device B both add the same ABS
+        // server, get different randomly-minted local servers.id values, and their WebDAV paths
+        // (keyed on servers.id) never overlap — neither sees the other's files. Fix: persist the
+        // ABS-side stable user.id at commit time and use it as the WebDAV path namespace.
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+
+        val result = repo.commit(
+            PendingServer(
+                url = ServerUrl.parse("https://abs.example.com")!!,
+                username = "admin", userId = "abs-user-uuid-shared", token = "tok",
+                insecureConnectionAllowed = false,
+                libraries = emptyList(),
+            ),
+            hiddenLibraryIds = emptySet(),
+        )
+
+        assertTrue(result is CommitServerResult.Success)
+        val server = (result as CommitServerResult.Success).server
+        assertEquals("abs-user-uuid-shared", server.absUserId)
+        // And it round-trips through the DAO so subsequent reads pick it up without a fetch.
+        assertEquals("abs-user-uuid-shared", dao.getById(server.id)?.absUserId)
+    }
+
+    @Test
+    fun `commit Storyteller server leaves absUserId null — annotations live on ABS, not Storyteller`() = runTest {
+        // Storyteller's auth response carries no user id (auth is username + token). Annotations
+        // are ABS-side only (ADR 0024), so a Storyteller server has nothing to namespace.
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+
+        val result = repo.commit(
+            PendingServer(
+                url = ServerUrl.parse("http://media-server:8001")!!,
+                username = "plamen", userId = "", token = "tok-st",
+                insecureConnectionAllowed = false,
+                libraries = emptyList(),
+                serverType = ServerType.STORYTELLER,
+            ),
+            hiddenLibraryIds = emptySet(),
+        )
+
+        assertTrue(result is CommitServerResult.Success)
+        assertEquals(null, (result as CommitServerResult.Success).server.absUserId)
+    }
+
+    @Test
+    fun `ensureAbsUserId returns the persisted value without hitting the network`() = runTest {
+        val entity = ServerEntity("abs-1", "https://abs.example.com", true, false, username = "u", absUserId = "persisted-user-id")
+        val infoApi = RecordingServerInfoApi(userId = "should-not-be-called")
+        val repo = ServerRepositoryImpl(
+            fakeDao(entity), fakeTokenStorage(), AbsApi { _, _, _, _ -> error("not called") },
+            storytellerApiNotCalled, infoApi, libsApiNotCalled,
+            fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
+        )
+
+        val result = repo.ensureAbsUserId("abs-1")
+
+        assertEquals("persisted-user-id", result)
+        assertEquals("must not /api/me when value is already cached", 0, infoApi.getCurrentUserIdCalls)
+    }
+
+    @Test
+    fun `ensureAbsUserId backfills a null column from api me and persists it`() = runTest {
+        // Legacy row added before the absUserId column existed. The first sync attempt fetches
+        // /api/me, persists the result, and subsequent calls are cache hits.
+        val entity = ServerEntity("abs-legacy", "https://abs.example.com", true, false, username = "u", absUserId = null)
+        val dao = fakeDao(entity)
+        val tokens = fakeTokenStorage().also { it.tokens["abs-legacy"] = "tok-cached" }
+        val infoApi = RecordingServerInfoApi(userId = "fetched-user-id")
+        val repo = ServerRepositoryImpl(
+            dao, tokens, AbsApi { _, _, _, _ -> error("not called") },
+            storytellerApiNotCalled, infoApi, libsApiNotCalled,
+            fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
+        )
+
+        val first = repo.ensureAbsUserId("abs-legacy")
+        val second = repo.ensureAbsUserId("abs-legacy")
+
+        assertEquals("fetched-user-id", first)
+        assertEquals("fetched-user-id", second)
+        // Persisted, so the second call is a DAO read — not a second network round-trip.
+        assertEquals(1, infoApi.getCurrentUserIdCalls)
+        assertEquals("fetched-user-id", dao.getById("abs-legacy")?.absUserId)
+    }
+
+    @Test
+    fun `ensureAbsUserId returns null when api me fails so callers skip sync instead of breaking`() = runTest {
+        val entity = ServerEntity("abs-1", "https://abs.example.com", true, false, username = "u", absUserId = null)
+        val tokens = fakeTokenStorage().also { it.tokens["abs-1"] = "tok" }
+        val infoApi = RecordingServerInfoApi(userId = null) // simulates offline / 5xx / parse error
+        val repo = ServerRepositoryImpl(
+            fakeDao(entity), tokens, AbsApi { _, _, _, _ -> error("not called") },
+            storytellerApiNotCalled, infoApi, libsApiNotCalled,
+            fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
+        )
+
+        val result = repo.ensureAbsUserId("abs-1")
+
+        assertNull("sync must skip silently — local DB stays the source of truth", result)
+    }
+
+    @Test
+    fun `ensureAbsUserId returns null for a Storyteller server without fetching api me`() = runTest {
+        val entity = ServerEntity("st-1", "http://media-server:8001", false, false, username = "u", serverType = ServerType.STORYTELLER.name)
+        val infoApi = RecordingServerInfoApi(userId = "should-not-be-called")
+        val repo = ServerRepositoryImpl(
+            fakeDao(entity), fakeTokenStorage(), AbsApi { _, _, _, _ -> error("not called") },
+            storytellerApiNotCalled, infoApi, libsApiNotCalled,
+            fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
+        )
+
+        val result = repo.ensureAbsUserId("st-1")
+
+        assertNull(result)
+        assertEquals("ABS endpoint must not be called for a Storyteller server", 0, infoApi.getCurrentUserIdCalls)
+    }
+
+    @Test
+    fun `ensureAbsUserId returns null for an unknown server id`() = runTest {
+        val repo = ServerRepositoryImpl(
+            fakeDao(), fakeTokenStorage(), AbsApi { _, _, _, _ -> error("not called") },
+            storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled,
+            fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
+        )
+
+        assertNull(repo.ensureAbsUserId("does-not-exist"))
     }
 }

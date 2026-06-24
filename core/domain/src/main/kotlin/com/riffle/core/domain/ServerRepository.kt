@@ -34,4 +34,13 @@ interface ServerRepository {
     suspend fun setActive(serverId: String)
     suspend fun remove(serverId: String)
     suspend fun getServerVersion(serverId: String): String?
+
+    /**
+     * Return the ABS-side stable user identity for this server, fetching it from `/api/me` if
+     * it hasn't been persisted yet (legacy rows created before the column existed). Returns
+     * null for Storyteller servers, for unknown server ids, and when the fetch fails (offline,
+     * server down, invalid token). A successful fetch is persisted so subsequent calls are
+     * a single DB lookup.
+     */
+    suspend fun ensureAbsUserId(serverId: String): String? = null
 }

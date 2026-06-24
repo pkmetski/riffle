@@ -18,6 +18,17 @@ import kotlinx.coroutines.launch
  * - [scheduleDebounce]: Per-book debounce timer on any annotation mutation.
  * - [syncOnClose]: Cancel debounce and push pending changes when a book is closed.
  *
+ * **Two identities at play.** Every call takes both:
+ * - `serverId` — the per-device local Riffle id, used to scope the Room DAO query. The local
+ *   DB is always per-device, so this is correct here.
+ * - `namespace` — the cross-device-stable ABS account id ([com.riffle.core.domain.Server.absUserId]),
+ *   used for the sync target's path/key so two devices configured against the same ABS server
+ *   discover each other's files. See [AnnotationSyncTarget] kdoc for the rationale.
+ *
+ * Callers that don't yet know `namespace` (legacy rows pre-`servers.absUserId`) should resolve
+ * it via [com.riffle.core.domain.ServerRepository.ensureAbsUserId]; if that returns null,
+ * skip sync entirely — the local DB remains the source of truth.
+ *
  * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled).
  */
 class AnnotationSyncController(
@@ -39,21 +50,22 @@ class AnnotationSyncController(
      * Reads all device annotation files for a book, parses them, merges with last-write-wins,
      * and upserts the merged result to Room. Called once when EpubReaderScreen composes.
      *
-     * @param serverId The ABS server ID.
+     * @param serverId Local per-device Riffle server id (DAO scope).
+     * @param namespace Cross-device-stable account id (sync-target scope). See class kdoc.
      * @param itemId The ABS library item ID.
      */
-    suspend fun syncOnOpen(serverId: String, itemId: String) {
+    suspend fun syncOnOpen(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
 
         try {
-            val filenames = target.list(serverId, itemId)
+            val filenames = target.list(namespace, itemId)
 
             // Each device file is a JSON array of W3C annotations (one per annotation the device
             // created), so flat-map the parsed lists.
             val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
             for (filename in filenames) {
                 try {
-                    val jsonString = target.read(serverId, itemId, filename) ?: continue
+                    val jsonString = target.read(namespace, itemId, filename) ?: continue
                     parsedAnnotations += AnnotationW3CCodec.w3cFileToAnnotations(jsonString)
                 } catch (_: Exception) {
                     // Skip corrupt files silently
@@ -107,14 +119,14 @@ class AnnotationSyncController(
      * Called after any annotation mutation. Per-book debounce timer; restarts on each call.
      * Cancels any existing pending push for the same book and schedules a new one.
      */
-    fun scheduleDebounce(serverId: String, itemId: String) {
+    fun scheduleDebounce(serverId: String, namespace: String, itemId: String) {
         if (targetProvider() == null) return
 
         val key = serverId to itemId
         debouncingJobs[key]?.cancel()
         debouncingJobs[key] = scope.launch {
             delay(DEBOUNCE_DURATION_MS)
-            pushPending(serverId, itemId)
+            pushPending(serverId, namespace, itemId)
         }
     }
 
@@ -123,13 +135,13 @@ class AnnotationSyncController(
      *
      * Cancels any pending debounce timer and pushes pending annotations to the sync target.
      */
-    suspend fun syncOnClose(serverId: String, itemId: String) {
+    suspend fun syncOnClose(serverId: String, namespace: String, itemId: String) {
         if (targetProvider() == null) return
 
         val key = serverId to itemId
         debouncingJobs[key]?.cancel()
         debouncingJobs.remove(key)
-        pushPending(serverId, itemId)
+        pushPending(serverId, namespace, itemId)
     }
 
     /**
@@ -138,7 +150,7 @@ class AnnotationSyncController(
      * Reads all local non-deleted annotations for a book, serializes them to W3C format,
      * and writes them to a device-specific file.
      */
-    private suspend fun pushPending(serverId: String, itemId: String) {
+    private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
 
         try {
@@ -159,7 +171,7 @@ class AnnotationSyncController(
             }
             val jsonArray = "[\n" + jsonStrings.joinToString(",\n") + "\n]"
             val filename = "annotations-$deviceId.jsonld"
-            target.write(serverId, itemId, filename, jsonArray)
+            target.write(namespace, itemId, filename, jsonArray)
         } catch (_: Exception) {
             // Graceful error handling: continue silently on any error
         }

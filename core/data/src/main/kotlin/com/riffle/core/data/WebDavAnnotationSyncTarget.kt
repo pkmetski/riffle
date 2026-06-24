@@ -20,10 +20,14 @@ import javax.xml.parsers.SAXParserFactory
  * WebDAV-backed [AnnotationSyncTarget].
  *
  * **Layout — flat per-device files keyed by composite filename.** Every file lives directly
- * under `basePath` and carries the per-book scope in its name:
+ * under `basePath` and carries the per-account+book scope in its name:
  * ```
- * <basePath>/<serverId>__<itemId>__<filename>
+ * <basePath>/<namespace>__<itemId>__<filename>
  * ```
+ * `namespace` is the cross-device-stable ABS user id (`/api/me` → `user.id`, persisted on
+ * [com.riffle.core.domain.Server.absUserId]). Using the local `servers.id` here would break
+ * cross-device sync — see [com.riffle.core.domain.AnnotationSyncTarget] kdoc for the full
+ * rationale.
  * We *don't* nest the `<serverId>` / `<itemId>` segments as subdirectories: Synology DSM's
  * WebDAV server refuses MKCOL on shared-folder subpaths in ways we couldn't get around even
  * with the Finder UA (PROPFIND and MKCOL both return 400 for bare-UUID directory names that
@@ -46,10 +50,10 @@ class WebDavAnnotationSyncTarget(
     private val basePath: HttpUrl = ensureTrailingSlash(baseUrl)
     private val authHeader: String = Credentials.basic(username, password)
 
-    override suspend fun list(serverId: String, itemId: String): List<String> =
+    override suspend fun list(namespace: String, itemId: String): List<String> =
         withContext(Dispatchers.IO) {
             // PROPFIND basePath, then filter to entries whose physical name carries the matching
-            // `<serverId>__<itemId>__` prefix; return the logical (post-prefix) filename so the
+            // `<namespace>__<itemId>__` prefix; return the logical (post-prefix) filename so the
             // controller sees the unprefixed name unchanged.
             val request = baseRequest(basePath)
                 .header("Depth", "1")
@@ -65,7 +69,7 @@ class WebDavAnnotationSyncTarget(
                         throw AnnotationSyncException.HttpFailure(response.code, "list")
                     else -> {
                         val body = response.body.string()
-                        val prefix = physicalPrefix(serverId, itemId)
+                        val prefix = physicalPrefix(namespace, itemId)
                         parsePropfindFilenames(body)
                             .filter { it.startsWith(prefix) }
                             .map { it.removePrefix(prefix) }
@@ -74,9 +78,9 @@ class WebDavAnnotationSyncTarget(
             }
         }
 
-    override suspend fun read(serverId: String, itemId: String, filename: String): String? =
+    override suspend fun read(namespace: String, itemId: String, filename: String): String? =
         withContext(Dispatchers.IO) {
-            val url = fileUrl(serverId, itemId, filename)
+            val url = fileUrl(namespace, itemId, filename)
             val request = baseRequest(url).get().build()
             client.newCall(request).execute().use { response ->
                 when {
@@ -91,7 +95,7 @@ class WebDavAnnotationSyncTarget(
         }
 
     override suspend fun write(
-        serverId: String,
+        namespace: String,
         itemId: String,
         filename: String,
         content: String,
@@ -100,7 +104,7 @@ class WebDavAnnotationSyncTarget(
             // Flat path under basePath. No per-book subdirectories means MKCOL never has to fire on
             // a real push — the only collection that must exist is basePath itself, which the user
             // has already vouched for via Test Connection (and which we MKCOL-create on demand).
-            val url = fileUrl(serverId, itemId, filename)
+            val url = fileUrl(namespace, itemId, filename)
             val body = content.toRequestBody(JSON_LD_MEDIA)
             val response = put(url, body)
             val code = response.code
@@ -171,14 +175,14 @@ class WebDavAnnotationSyncTarget(
         .header("Authorization", authHeader)
         .header("User-Agent", FINDER_USER_AGENT)
 
-    private fun fileUrl(serverId: String, itemId: String, filename: String): HttpUrl =
+    private fun fileUrl(namespace: String, itemId: String, filename: String): HttpUrl =
         basePath.newBuilder()
-            .addPathSegment(physicalPrefix(serverId, itemId) + filename)
+            .addPathSegment(physicalPrefix(namespace, itemId) + filename)
             .build()
 
-    /** Composite filename prefix that emulates the per-book directory: `<serverId>__<itemId>__`. */
-    private fun physicalPrefix(serverId: String, itemId: String): String =
-        "$serverId$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
+    /** Composite filename prefix that emulates the per-book directory: `<namespace>__<itemId>__`. */
+    private fun physicalPrefix(namespace: String, itemId: String): String =
+        "$namespace$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
 
     private fun ensureTrailingSlash(url: HttpUrl): HttpUrl {
         val segs = url.pathSegments

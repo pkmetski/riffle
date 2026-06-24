@@ -24,9 +24,9 @@ Time has moved on and the trade-off no longer favours Google Drive:
 **WebDAV is the first concrete `AnnotationSyncTarget`** — exactly what ADR 0025 originally planned. ADR 0033 is withdrawn; Google Drive may resurface later as one option among several, but not as *the* first cloud target.
 
 - **Transport:** `PROPFIND` / `GET` / `PUT` / `MKCOL` / `DELETE` via OkHttp against a user-supplied WebDAV URL.
-- **Path layout:** `<base>/<serverId>/<itemId>/annotations-<deviceId>.jsonld` — unchanged from ADR 0025.
+- **Path layout:** `<base>/<absUserId>/<itemId>/annotations-<deviceId>.jsonld` — `<absUserId>` is the ABS `/api/me` `user.id`, persisted on `Server.absUserId`. The local Riffle `servers.id` is **not** the path key: it's a per-device random UUID, which would silently break cross-device sync (each device would write under a different prefix and never see each other's files). See [ADR 0025](0025-annotation-sync-pluggable-target-w3c-format.md) for the full rationale. The flat-file physical encoding `<base>/<absUserId>__<itemId>__<filename>` works around Synology DSM's MKCOL gating without changing the logical layout.
 - **Auth:** HTTP basic, with digest as a follow-up if a real-world server demands it. Credentials stored Android-Keystore-encrypted, never plaintext.
-- **One global config**, not per-Server — per-ABS-server scoping is preserved by the path namespacing.
+- **One global config**, not per-Server — per-account scoping is preserved by the path namespacing.
 - **Test Connection:** `PROPFIND` on the base directory, `MKCOL` if it 404s, surface bad-URL / 401 / TLS / network as distinct errors.
 - **Same `AnnotationSyncTarget` abstraction** as the local-directory scaffold from ADR 0034 — swapping targets does not touch the format, codec, or merge.
 

@@ -1684,6 +1684,51 @@ class MigrationTest {
     }
 
     @Test
+    fun migration41To42_addsAbsUserIdToServers() {
+        helper.createDatabase(TEST_DB, 41).use { db ->
+            // Two ABS rows pre-migration — neither carries the new column. We'll verify both that
+            // existing data is preserved and that the new column defaults to NULL (the legacy
+            // "needs backfill" state that AnnotationSyncController + ServerRepository handle).
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('srv-A', 'https://abs.example.com', 1, 0, 'alice', 'AUDIOBOOKSHELF')"
+            )
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
+                    "VALUES ('srv-B', 'https://abs.example.com', 0, 0, 'alice', 'AUDIOBOOKSHELF')"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 42, true, RiffleDatabase.MIGRATION_41_42).use { db ->
+            // Pre-existing rows survive verbatim with absUserId defaulted to NULL.
+            db.query("SELECT id, url, username, serverType, absUserId FROM servers ORDER BY id").use { c ->
+                assertEquals(2, c.count)
+                c.moveToFirst()
+                assertEquals("srv-A", c.getString(0))
+                assertEquals("https://abs.example.com", c.getString(1))
+                assertEquals("alice", c.getString(2))
+                assertEquals("AUDIOBOOKSHELF", c.getString(3))
+                assertTrue("legacy row must default absUserId to NULL", c.isNull(4))
+                c.moveToNext()
+                assertEquals("srv-B", c.getString(0))
+                assertTrue("legacy row must default absUserId to NULL", c.isNull(4))
+            }
+            // The new column is writable for backfill.
+            db.execSQL("UPDATE servers SET absUserId = 'abs-user-uuid' WHERE id = 'srv-A'")
+            db.query("SELECT absUserId FROM servers WHERE id = 'srv-A'").use { c ->
+                c.moveToFirst()
+                assertEquals("abs-user-uuid", c.getString(0))
+            }
+            // Two devices configured against the same ABS server can share absUserId — this is
+            // exactly what makes annotation sync cross-device discovery work.
+            db.execSQL("UPDATE servers SET absUserId = 'abs-user-uuid' WHERE id = 'srv-B'")
+            db.query("SELECT COUNT(*) FROM servers WHERE absUserId = 'abs-user-uuid'").use { c ->
+                c.moveToFirst()
+                assertEquals(2, c.getInt(0))
+            }
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1692,7 +1737,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 41, true,
+            TEST_DB, 42, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1733,14 +1778,16 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_38_39,
             RiffleDatabase.MIGRATION_39_40,
             RiffleDatabase.MIGRATION_40_41,
+            RiffleDatabase.MIGRATION_41_42,
         )
 
-        db.query("SELECT url, username, serverType FROM servers WHERE id = 's1'").use { cursor ->
+        db.query("SELECT url, username, serverType, absUserId FROM servers WHERE id = 's1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("", cursor.getString(1))
             assertEquals("AUDIOBOOKSHELF", cursor.getString(2))
+            assertTrue("legacy rows reach v42 with absUserId still NULL", cursor.isNull(3))
         }
     }
 
