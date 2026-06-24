@@ -40,7 +40,6 @@ sealed class MaintenanceScreenUiState {
 sealed class MaintenanceSnack {
     object None : MaintenanceSnack()
     data class Forgot(val label: String, val files: Int, val legacySidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
-    data class Compacted(val rewritten: Int, val removed: Int, val failures: Int) : MaintenanceSnack()
     data class ForgotNamespace(val namespace: String, val files: Int) : MaintenanceSnack()
 }
 
@@ -59,7 +58,6 @@ data class AnnotationSyncMaintenanceUiState(
     val showRenameDialog: Boolean = false,
     val pendingForget: MaintenanceDeviceRowUiState? = null,
     val pendingForgetNamespace: OtherNamespaceRowUiState? = null,
-    val showCompactDialog: Boolean = false,
     val busy: Boolean = false,
     val snack: MaintenanceSnack = MaintenanceSnack.None,
 )
@@ -136,35 +134,6 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             _state.value = _state.value.copy(
                 busy = false,
                 snack = MaintenanceSnack.ForgotNamespace(namespace = row.namespace, files = deleted),
-            )
-            refresh()
-        }
-    }
-
-    fun onCompactRequested() {
-        _state.value = _state.value.copy(showCompactDialog = true)
-    }
-
-    fun onCompactCancelled() {
-        _state.value = _state.value.copy(showCompactDialog = false)
-    }
-
-    fun onCompactConfirmed() {
-        _state.value = _state.value.copy(showCompactDialog = false, busy = true)
-        viewModelScope.launch {
-            val namespace = resolveNamespace()
-            if (namespace == null) {
-                _state.value = _state.value.copy(busy = false)
-                return@launch
-            }
-            val result = maintenance.compactTombstones(namespace)
-            _state.value = _state.value.copy(
-                busy = false,
-                snack = MaintenanceSnack.Compacted(
-                    rewritten = result.filesRewritten,
-                    removed = result.tombstonesRemoved,
-                    failures = result.failures,
-                ),
             )
             refresh()
         }

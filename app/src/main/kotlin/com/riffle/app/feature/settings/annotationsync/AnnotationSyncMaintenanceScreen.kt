@@ -72,8 +72,7 @@ fun AnnotationSyncMaintenanceScreen(
         ) {
             Text(
                 "Each device using this account writes its own annotation file per book to WebDAV. " +
-                    "The list below shows every device whose files are currently on the server. " +
-                    "Both actions are manual and run only when you tap them.",
+                    "The list below shows every device whose files are currently on the server.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -100,11 +99,6 @@ fun AnnotationSyncMaintenanceScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = viewModel::onRefresh, enabled = !state.busy) { Text("Refresh") }
-                Spacer(Modifier.weight(1f))
-                OutlinedButton(
-                    onClick = viewModel::onCompactRequested,
-                    enabled = state.devices is MaintenanceScreenUiState.Loaded && !state.busy,
-                ) { Text("Compact tombstones…") }
             }
 
             MaintenanceSnackBanner(state.snack, viewModel::onSnackDismissed)
@@ -127,12 +121,6 @@ fun AnnotationSyncMaintenanceScreen(
             row = row,
             onCancel = viewModel::onForgetNamespaceCancelled,
             onConfirm = viewModel::onForgetNamespaceConfirmed,
-        )
-    }
-    if (state.showCompactDialog) {
-        CompactDialog(
-            onCancel = viewModel::onCompactCancelled,
-            onConfirm = viewModel::onCompactConfirmed,
         )
     }
     if (state.showRenameDialog) {
@@ -237,34 +225,6 @@ private fun ForgetDialog(row: MaintenanceDeviceRowUiState, onCancel: () -> Unit,
             }
         },
         confirmButton = { TextButton(onClick = onConfirm) { Text("Forget device") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
-    )
-}
-
-@Composable
-private fun CompactDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text("Compact tombstones?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Permanently removes deletion records from every device's files on the server, across " +
-                        "every book.",
-                )
-                Text(
-                    "Only safe when every device is online and fully synced.",
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    "If a device is offline holding a pre-deletion copy of an annotation, it will re-create " +
-                        "that annotation on every device once it comes back online.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Compact") } },
         dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
     )
 }
@@ -391,14 +351,6 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
             parts += "Forgot \"${snack.label}\""
             parts += "${snack.files} file(s) removed"
             if (snack.legacySidecarDeleted) parts += "legacy sidecar removed"
-            if (snack.failures > 0) parts += "${snack.failures} failure(s)"
-            parts.joinToString(" · ") to (snack.failures > 0)
-        }
-        is MaintenanceSnack.Compacted -> {
-            val parts = mutableListOf<String>()
-            parts += "Compacted"
-            parts += "${snack.rewritten} file(s) rewritten"
-            parts += "${snack.removed} tombstone(s) removed"
             if (snack.failures > 0) parts += "${snack.failures} failure(s)"
             parts.joinToString(" · ") to (snack.failures > 0)
         }

@@ -55,28 +55,6 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
-    fun `compactTombstones rewrites only files that contained tombstones`() = runTest {
-        val target = InMemoryMaintenanceTarget(
-            files = mutableMapOf(
-                FileKey("ns", "i1", "annotations-A.jsonld") to """[{"id":"a"},{"id":"b","riffle:deleted":"true"}]""",
-                FileKey("ns", "i2", "annotations-A.jsonld") to """[{"id":"c"}]""",
-            ),
-            legacySidecars = mutableSetOf(),
-        )
-        val m = maintenanceFor(target)
-        val result = m.compactTombstones("ns")
-
-        assertEquals(2, result.filesScanned)
-        assertEquals(1, result.filesRewritten)
-        assertEquals(1, result.tombstonesRemoved)
-        assertEquals(0, result.failures)
-        val rewritten = target.files[FileKey("ns", "i1", "annotations-A.jsonld")]!!
-        assertFalse(rewritten.contains("\"id\":\"b\""))
-        assertTrue(rewritten.contains("\"id\":\"a\""))
-        assertEquals("""[{"id":"c"}]""", target.files[FileKey("ns", "i2", "annotations-A.jsonld")])
-    }
-
-    @Test
     fun `listDevices extracts the embedded metadata header from annotation files`() = runTest {
         val headerA = DeviceMetadataCodec.buildFileBody(
             DeviceMetadata("A", "Phone A", "2026-01-01T00:00:00Z"),

@@ -368,7 +368,7 @@ fun SettingsScreen(
                     headlineContent = { Text("Maintenance") },
                     supportingContent = {
                         Text(
-                            if (maintenanceEnabled) "Forget devices, compact tombstones, rename this device"
+                            if (maintenanceEnabled) "Forget devices, rename this device"
                             else "Set up WebDAV first to manage devices",
                         )
                     },

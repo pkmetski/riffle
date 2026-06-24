@@ -9,16 +9,13 @@ import java.time.Instant
 /**
  * Manual housekeeping for the per-device-file annotation-sync model (issue #78).
  *
- * Two user-initiated actions:
- * - [forgetDevice] — DELETE every annotation file owned by a single `deviceId` under one
- *   namespace, plus any legacy `device-<deviceId>.json` sidecar left over from earlier builds.
- *   Safe under the all-mirrors-everything push model because each peer's file already carries
- *   the same records; the only risk is data loss from devices that went offline before any
- *   other device synced their last edits.
- * - [compactTombstones] — for every annotation file in the namespace, strip `riffle:deleted=true`
- *   records and PUT the result back. Only safe when every device is online and fully synced —
- *   the UI must show that warning before invoking this.
+ * Single user-initiated action: [forgetDevice] — DELETE every annotation file owned by a single
+ * `deviceId` under one namespace, plus any legacy `device-<deviceId>.json` sidecar left over
+ * from earlier builds. Safe under the all-mirrors-everything push model because each peer's
+ * file already carries the same records; the only risk is data loss from devices that went
+ * offline before any other device synced their last edits.
  *
+ * A tombstone-compaction action was prototyped and removed — see ADR 0025 for the rationale.
  * Operates against the controller's active target (gracefully no-ops when sync is disabled).
  */
 class AnnotationSyncMaintenance(
@@ -154,47 +151,4 @@ class AnnotationSyncMaintenance(
         return ForgetResult(deleted, legacySidecarDeleted, failures)
     }
 
-    /** Result of [compactTombstones]. */
-    data class CompactResult(
-        val filesScanned: Int,
-        val filesRewritten: Int,
-        val tombstonesRemoved: Int,
-        val failures: Int,
-    )
-
-    /**
-     * For every annotation file under [namespace], reads the body, strips tombstones, and PUTs
-     * the rewritten body back. Files with zero tombstones are skipped (no PUT — preserves
-     * mtimes). The action is target-wide and rewrites peer files, by design — see issue #78
-     * design notes.
-     */
-    suspend fun compactTombstones(namespace: String): CompactResult {
-        val target = targetProvider()
-            ?: return CompactResult(0, 0, 0, 0)
-        val listing = try {
-            target.enumerateDevices(namespace)
-        } catch (_: Exception) {
-            return CompactResult(0, 0, 0, 1)
-        }
-        var scanned = 0
-        var rewritten = 0
-        var removed = 0
-        var failures = 0
-        for (device in listing.devices) {
-            for (file in device.annotationFiles) {
-                scanned++
-                try {
-                    val body = target.read(namespace, file.itemId, file.filename) ?: continue
-                    val result = TombstoneCompactor.compact(body)
-                    if (result.removed == 0) continue
-                    target.write(namespace, file.itemId, file.filename, result.newContent)
-                    rewritten++
-                    removed += result.removed
-                } catch (_: Exception) {
-                    failures++
-                }
-            }
-        }
-        return CompactResult(scanned, rewritten, removed, failures)
-    }
 }
