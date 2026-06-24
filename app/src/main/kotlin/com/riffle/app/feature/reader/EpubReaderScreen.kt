@@ -635,9 +635,19 @@ fun EpubReaderScreen(
             )
         }
         footnotePopup?.let { popupState ->
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
             FootnotePopup(
                 state = popupState,
                 onDismiss = viewModel::dismissFootnotePopup,
+                onLinkTap = { url ->
+                    // Capture the reading position BEFORE the external app launches: in paginated mode,
+                    // the popup overlay + the external launch leave Readium pinned at the chapter top on
+                    // resume (the popup's tap cancels the WebView's column-snap mid-flight). We restore
+                    // the captured position in EpubReaderViewModel.onReaderResumed.
+                    viewModel.captureFootnotePopupLinkOrigin()
+                    viewModel.dismissFootnotePopup()
+                    uriHandler.openUri(url)
+                },
             )
         }
         val returnTarget by viewModel.returnTarget.collectAsState()
