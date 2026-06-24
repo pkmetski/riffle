@@ -58,16 +58,13 @@ class AnnotationSyncController(
             val filenames = target.list(serverId, itemId)
             Log.d(TAG, "syncOnOpen — found ${filenames.size} device file(s): $filenames")
 
-            // Step 2: Read and parse each file
+            // Step 2: Read and parse each file. Each device file is a JSON array of W3C
+            // annotations (one per annotation the device created), so flat-map the parsed lists.
             val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
             for (filename in filenames) {
                 try {
                     val jsonString = target.read(serverId, itemId, filename) ?: continue
-                    val parsed = AnnotationW3CCodec.w3cToAnnotationEntity(jsonString)
-                    // Skip corrupt files (empty id is a sign of parsing failure)
-                    if (parsed.id.isNotEmpty()) {
-                        parsedAnnotations.add(parsed)
-                    }
+                    parsedAnnotations += AnnotationW3CCodec.w3cFileToAnnotations(jsonString)
                 } catch (_: Exception) {
                     // Skip corrupt files silently
                 }
