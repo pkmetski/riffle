@@ -84,6 +84,7 @@ fun SettingsScreen(
     onNavigateToAddServer: () -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSync: () -> Unit = {},
+    onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val report = viewModel.lastCrashReport
@@ -355,6 +356,16 @@ fun SettingsScreen(
                     headlineContent = { Text("WebDAV") },
                     supportingContent = {
                         Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { onNavigateToAnnotationSyncMaintenance() },
+                    headlineContent = { Text("Maintenance") },
+                    supportingContent = {
+                        Text(
+                            if (annotationSyncSummary == null) "Set up WebDAV first to manage devices"
+                            else "Forget devices, compact tombstones, rename this device",
+                        )
                     },
                 )
                 HorizontalDivider()

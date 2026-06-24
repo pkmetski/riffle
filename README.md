@@ -89,7 +89,8 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 - Highlight passages in any color while reading
 - Attach notes to highlights for personal commentary
 - Bookmark pages for quick return
-- All annotations are **local only** — Audiobookshelf does not currently expose an API for syncing highlights, notes, or bookmarks, so they are stored on-device and will not transfer across devices or survive a reinstall
+- Search across all highlights, notes, and bookmarks in your library
+- Optional WebDAV keeps highlights, notes, and bookmarks in sync across devices — Audiobookshelf has no native annotation API, so Riffle uses a user-supplied WebDAV target instead.
 
 ### Listening
 - Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server — including audiobook-only items with no paired ebook
