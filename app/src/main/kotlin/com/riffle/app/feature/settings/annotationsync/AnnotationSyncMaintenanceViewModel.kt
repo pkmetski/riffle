@@ -155,10 +155,21 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         viewModelScope.launch {
             val trimmed = newLabel.trim().take(MAX_LABEL_CHARS)
             deviceLabelStore.set(trimmed.ifEmpty { null })
+            val updated = currentDeviceLabel()
             _state.value = _state.value.copy(
-                deviceLabel = currentDeviceLabel(),
+                deviceLabel = updated,
                 showRenameDialog = false,
             )
+            // Push a fresh sidecar so peers see the new name immediately, instead of waiting for
+            // the next annotation push. Best-effort — pushDeviceSidecar swallows failures.
+            resolveNamespace()?.let { namespace ->
+                maintenance.publishDeviceSidecar(
+                    namespace = namespace,
+                    deviceId = deviceIdStore.getOrCreate(),
+                    label = updated,
+                    model = deviceLabelResolver.deviceModel(),
+                )
+            }
             refresh()
         }
     }
@@ -180,10 +191,17 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         _state.value = _state.value.copy(devices = MaintenanceScreenUiState.Loading)
         val rows = maintenance.listDevices(namespace)
         val myDeviceId = deviceIdStore.getOrCreate()
+        val myLocalLabel = currentDeviceLabel()
+        val myLocalModel = deviceLabelResolver.deviceModel()
         val ui = rows.map { row ->
             val isMe = row.deviceId == myDeviceId
-            val label = row.sidecar?.label?.takeIf { it.isNotBlank() }
-                ?: "device-${row.deviceId.take(8)}"
+            val label = when {
+                // For THIS device, always show the locally-resolved label so a fresh rename takes
+                // effect immediately — don't lag behind the last-pushed sidecar.
+                isMe -> myLocalLabel
+                else -> row.sidecar?.label?.takeIf { it.isNotBlank() }
+                    ?: "device-${row.deviceId.take(8)}"
+            }
             val parts = mutableListOf<String>()
             parts += "${row.annotationFileCount} annotation file" + if (row.annotationFileCount == 1) "" else "s"
             if (row.sidecar != null) parts += "1 sidecar"
@@ -191,7 +209,8 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 ?.takeIf { it.isNotBlank() }
                 ?.let { humanizeLastSeen(it) }
                 ?.let { parts += "Last seen $it" }
-            row.sidecar?.model?.takeIf { it.isNotBlank() }?.let { parts += it }
+            val displayedModel = if (isMe) myLocalModel else row.sidecar?.model
+            displayedModel?.takeIf { it.isNotBlank() }?.let { parts += it }
             MaintenanceDeviceRowUiState(
                 deviceId = row.deviceId,
                 label = label,

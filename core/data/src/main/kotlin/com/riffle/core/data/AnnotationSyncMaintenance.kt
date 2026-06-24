@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.DeviceSidecar
+import java.time.Instant
 
 /**
  * Manual housekeeping for the per-device-file annotation-sync model (issue #78).
@@ -20,7 +21,33 @@ import com.riffle.core.domain.DeviceSidecar
  */
 class AnnotationSyncMaintenance(
     private val targetProvider: () -> AnnotationSyncTarget?,
+    private val nowIso: () -> String = { Instant.now().toString() },
 ) {
+    /**
+     * PUT a fresh sidecar for [deviceId] under [namespace]. Used after a device rename so peer
+     * devices see the new name without waiting for the next annotation push. Swallows failures —
+     * the sidecar is metadata, missing/stale sidecars degrade gracefully to the short-id fallback.
+     */
+    suspend fun publishDeviceSidecar(
+        namespace: String,
+        deviceId: String,
+        label: String,
+        model: String,
+    ) {
+        val target = targetProvider() ?: return
+        try {
+            val sidecar = DeviceSidecar(
+                deviceId = deviceId,
+                label = label,
+                model = model,
+                lastSeenAt = nowIso(),
+            )
+            target.writeDeviceSidecar(namespace, deviceId, DeviceSidecarCodec.encode(sidecar))
+        } catch (_: Exception) {
+            // Sidecar is metadata-only; absence triggers the resolver's short-id fallback on peers.
+        }
+    }
+
     /** A row in the Maintenance device-list, post sidecar-hydration. */
     data class DeviceRow(
         val deviceId: String,
