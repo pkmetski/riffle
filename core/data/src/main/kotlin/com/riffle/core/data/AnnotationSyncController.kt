@@ -60,7 +60,14 @@ class AnnotationSyncController(
                 }
             }
 
-            val merged = mergeService.merge(parsedAnnotations)
+            // Seed merge with the local set (including tombstones) so LWW spans both sides — a
+            // newer local edit isn't clobbered by an older remote copy, and a local tombstone wins
+            // over a remote pre-delete entry.
+            val localExisting = annotationDao
+                .getAllForItemIncludingDeleted(serverId, itemId)
+                .map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
+
+            val merged = mergeService.merge(parsed = parsedAnnotations, existing = localExisting)
 
             val entities = merged.map { w3cAnnotation ->
                 AnnotationEntity(
@@ -135,16 +142,22 @@ class AnnotationSyncController(
         val target = targetProvider() ?: return
 
         try {
+            // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
+            // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
+            // the newer tombstone over any older live copy of the same id.
+            val localEntities = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+            // Don't overwrite this device's existing remote file with an empty list when local has
+            // nothing — that erases the cloud copy of annotations on transient local-empty states
+            // (cleared data, mid-migration). We only push when there's at least one row (live or
+            // tombstoned) to record. Genuine "user deleted everything" still propagates because
+            // each delete leaves a tombstone in this list.
+            if (localEntities.isEmpty()) return
+
             val deviceId = deviceIdStore.getOrCreate()
-            val localEntities = annotationDao.getForItem(serverId, itemId)
             val jsonStrings = localEntities.map { entity ->
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
-            val jsonArray = if (jsonStrings.isEmpty()) {
-                "[]"
-            } else {
-                "[\n" + jsonStrings.joinToString(",\n") + "\n]"
-            }
+            val jsonArray = "[\n" + jsonStrings.joinToString(",\n") + "\n]"
             val filename = "annotations-$deviceId.jsonld"
             target.write(serverId, itemId, filename, jsonArray)
         } catch (_: Exception) {

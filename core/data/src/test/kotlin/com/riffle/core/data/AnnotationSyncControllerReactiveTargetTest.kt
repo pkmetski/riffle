@@ -57,6 +57,7 @@ private class NoOpAnnotationDao : AnnotationDao {
     override fun observeForItem(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> = emptyList()
+    override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> = emptyList()
     override suspend fun getById(id: String): AnnotationEntity? = null
     override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
     override suspend fun upsert(entity: AnnotationEntity) = Unit

@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -16,7 +16,7 @@ class AnnotationSyncConfigStoreImpl @Inject constructor(
     private val state = MutableStateFlow(readFromStore())
     private val mutex = Mutex()
 
-    override fun observe(): Flow<AnnotationSyncConfig?> = state.asStateFlow()
+    override fun observe(): StateFlow<AnnotationSyncConfig?> = state.asStateFlow()
 
     override suspend fun save(config: AnnotationSyncConfig) {
         mutex.withLock {

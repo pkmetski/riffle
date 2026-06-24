@@ -1,6 +1,6 @@
 package com.riffle.core.domain
 
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The single global configuration for cloud annotation sync.
@@ -23,7 +23,7 @@ data class AnnotationSyncConfig(
  * the config changes so the DI graph and Settings UI can react to (un)configuration.
  */
 interface AnnotationSyncConfigStore {
-    fun observe(): Flow<AnnotationSyncConfig?>
+    fun observe(): StateFlow<AnnotationSyncConfig?>
     suspend fun save(config: AnnotationSyncConfig)
     suspend fun clear()
 }

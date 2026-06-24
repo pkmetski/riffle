@@ -31,6 +31,14 @@ interface AnnotationDao {
     )
     suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity>
 
+    /** One-shot read of every row for an item, **including tombstones** (deleted = 1). Used by
+     *  AnnotationSyncController.pushPending so tombstones can propagate to other devices. */
+    @Query(
+        "SELECT * FROM annotations WHERE serverId = :serverId AND itemId = :itemId " +
+            "ORDER BY createdAt ASC"
+    )
+    suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity>
+
     @Query("SELECT * FROM annotations WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): AnnotationEntity?
 

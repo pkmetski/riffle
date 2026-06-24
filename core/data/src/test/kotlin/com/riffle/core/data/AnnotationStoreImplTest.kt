@@ -24,6 +24,9 @@ class AnnotationStoreImplTest {
         override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> =
             rows.value.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
 
+        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> =
+            rows.value.filter { it.serverId == serverId && it.itemId == itemId }
+
         override suspend fun getById(id: String): AnnotationEntity? = rows.value.firstOrNull { it.id == id }
 
         override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? =

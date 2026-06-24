@@ -162,6 +162,29 @@ object AnnotationW3CCodec {
      * @see w3cToAnnotationEntity (Task 5): Implement deserialization logic.
      */
     /**
+     * In-memory projection of an [AnnotationEntity] to a [W3CAnnotation] without going through
+     * the JSON intermediate. Used by `AnnotationSyncController.syncOnOpen` to feed local rows
+     * (including tombstones) into the merge service so LWW spans local-and-remote, not just remote.
+     */
+    fun entityToW3CAnnotation(entity: AnnotationEntity): W3CAnnotation = W3CAnnotation(
+        id = entity.id,
+        cfi = entity.cfi,
+        textSnippet = entity.textSnippet,
+        textBefore = entity.textBefore,
+        textAfter = entity.textAfter,
+        chapterHref = entity.chapterHref,
+        type = entity.type,
+        color = entity.color.takeIf { it.isNotEmpty() },
+        note = entity.note,
+        bookmarkTitle = entity.bookmarkTitle.takeIf { it.isNotEmpty() },
+        originDeviceId = entity.originDeviceId,
+        lastModifiedByDeviceId = entity.lastModifiedByDeviceId,
+        updatedAt = entity.updatedAt,
+        createdAt = entity.createdAt,
+        deleted = entity.deleted,
+    )
+
+    /**
      * Parse a per-device W3C JSON-LD file (a JSON array of annotations as written by
      * [pushPending][AnnotationSyncController]) into individual [W3CAnnotation]s. Tolerates a
      * single-object root for backward-compat with anything that wrote a bare object.

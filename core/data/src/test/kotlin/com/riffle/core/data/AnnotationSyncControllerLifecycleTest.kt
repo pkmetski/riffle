@@ -204,6 +204,69 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals(setOf("uuid-a", "uuid-b"), parsed.map { it.id }.toSet())
     }
 
+    // ===== Code review fixes =====
+
+    @Test
+    fun `pushPending includes tombstones so deletes propagate to other devices`() = runTest {
+        // A live row plus a tombstoned one — both must reach the file so receivers can LWW-delete.
+        dao.localAnnotations += highlightEntity("uuid-live", updatedAt = 100L)
+        dao.localAnnotations += highlightEntity("uuid-dead", updatedAt = 200L, deleted = true)
+
+        newController().syncOnClose(SRV, ITEM)
+        advanceUntilIdle()
+
+        val payload = target.writes.single().content
+        val parsed = AnnotationW3CCodec.w3cFileToAnnotations(payload)
+        val byId = parsed.associateBy { it.id }
+        assertEquals(2, byId.size)
+        assertEquals(false, byId["uuid-live"]?.deleted)
+        assertEquals(true, byId["uuid-dead"]?.deleted)
+    }
+
+    @Test
+    fun `pushPending skips the write entirely when the local set is empty`() = runTest {
+        // No local rows at all. Pre-condition: don't overwrite this device's existing remote file
+        // with `[]` — a transient local empty (clear-data, mid-migration) would otherwise erase
+        // the cloud copy of this device's annotations.
+        newController().syncOnClose(SRV, ITEM)
+        advanceUntilIdle()
+
+        assertTrue("expected no write when local is empty, got ${target.writes}", target.writes.isEmpty())
+    }
+
+    @Test
+    fun `syncOnOpen does not clobber a newer local edit with an older remote copy`() = runTest {
+        // Local has the user's latest edit at t=200; the remote file (from the previous push) is
+        // still at t=100. The merge must keep the local copy.
+        dao.localAnnotations += highlightEntity(
+            id = "uuid-shared", updatedAt = 200L, lastModifiedByDeviceId = "this-device", color = "green",
+        )
+        target.files["annotations-this-device.jsonld"] = jsonArrayOf(
+            w3c("uuid-shared", updatedAt = 100L, deviceId = "this-device", color = "yellow"),
+        )
+
+        newController().syncOnOpen(SRV, ITEM)
+
+        val merged = dao.upserts.single { it.id == "uuid-shared" }
+        assertEquals(200L, merged.updatedAt)
+        assertEquals("green", merged.color)
+    }
+
+    @Test
+    fun `syncOnOpen lets a remote tombstone override a live local row`() = runTest {
+        // Device A wrote a delete (tombstone at t=200) and pushed it. This device still has the
+        // live row at t=100. After syncOnOpen, the merge should keep the tombstone.
+        dao.localAnnotations += highlightEntity("uuid-x", updatedAt = 100L)
+        target.files["annotations-device-A.jsonld"] = jsonArrayOf(
+            w3cTombstone("uuid-x", updatedAt = 200L, deviceId = "device-A"),
+        )
+
+        newController().syncOnOpen(SRV, ITEM)
+
+        val merged = dao.upserts.single { it.id == "uuid-x" }
+        assertTrue("expected the tombstone to win the merge", merged.deleted)
+    }
+
     // ===== helpers =====
 
     private fun jsonArrayOf(vararg jsonObjects: String): String =
@@ -238,13 +301,29 @@ class AnnotationSyncControllerLifecycleTest {
         id: String,
         updatedAt: Long,
         itemId: String = ITEM,
+        deleted: Boolean = false,
+        lastModifiedByDeviceId: String = DEVICE_ID,
+        color: String = "yellow",
     ) = AnnotationEntity(
         id = id, serverId = SRV, itemId = itemId, type = AnnotationEntity.TYPE_HIGHLIGHT,
-        cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = "yellow", note = null,
+        cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = color, note = null,
         textSnippet = "x", textBefore = "", textAfter = "", chapterHref = "c1",
         createdAt = updatedAt, updatedAt = updatedAt,
-        originDeviceId = DEVICE_ID, lastModifiedByDeviceId = DEVICE_ID,
+        originDeviceId = DEVICE_ID, lastModifiedByDeviceId = lastModifiedByDeviceId,
+        deleted = deleted,
     )
+
+    private fun w3cTombstone(id: String, updatedAt: Long, deviceId: String): String =
+        AnnotationW3CCodec.annotationEntityToW3C(
+            AnnotationEntity(
+                id = id, serverId = SRV, itemId = ITEM, type = AnnotationEntity.TYPE_HIGHLIGHT,
+                cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = "yellow", note = null,
+                textSnippet = "", textBefore = "", textAfter = "", chapterHref = "c1",
+                createdAt = updatedAt, updatedAt = updatedAt,
+                originDeviceId = deviceId, lastModifiedByDeviceId = deviceId,
+                deleted = true,
+            ),
+        )
 
     private companion object {
         const val SRV = "srv-1"
@@ -288,6 +367,9 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
 
     override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> =
         localAnnotations.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+
+    override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> =
+        localAnnotations.filter { it.serverId == serverId && it.itemId == itemId }
 
     override suspend fun upsert(entity: AnnotationEntity) { upserts += entity }
     override suspend fun upsertAll(annotations: List<AnnotationEntity>) { upserts += annotations }
