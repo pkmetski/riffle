@@ -7,6 +7,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -313,6 +314,94 @@ class WebDavAnnotationSyncTargetTest {
     private fun basicAuth(user: String, pass: String): String =
         "Basic " + Base64.getEncoder().encodeToString("$user:$pass".toByteArray(Charsets.UTF_8))
 
+    @Test
+    fun `delete issues a DELETE on the composite path with auth`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        newTarget().delete("srv1", "book1", "annotations-dev.jsonld")
+
+        val req = server.takeRequest()
+        assertEquals("DELETE", req.method)
+        assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
+        assertEquals(basicAuth(USER, PASS), req.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `delete is a no-op on 404 (file already gone)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+        // Should not throw.
+        newTarget().delete("srv1", "book1", "annotations-dev.jsonld")
+    }
+
+    @Test
+    fun `deleteDeviceSidecar targets the namespace-scoped sidecar path (no itemId)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        newTarget().deleteDeviceSidecar("srv1", "dev-A")
+
+        val req = server.takeRequest()
+        assertEquals("DELETE", req.method)
+        assertEquals("/annotations/srv1__device-dev-A.json", req.path)
+    }
+
+    @Test
+    fun `enumerateNamespaces groups files by namespace prefix and counts annotations vs sidecars`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
+
+        val result = newTarget().enumerateNamespaces()
+
+        assertEquals(2, result.size)
+        val ns1 = result.first { it.namespace == "ns-1" }
+        val ns2 = result.first { it.namespace == "ns-2" }
+        assertEquals(2, ns1.annotationFileCount)
+        assertEquals(1, ns1.sidecarCount)
+        assertEquals(1, ns2.annotationFileCount)
+        assertEquals(0, ns2.sidecarCount)
+    }
+
+    @Test
+    fun `enumerateNamespaces skips Synology AppleDouble shadow files`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_APPLEDOUBLE_BODY))
+
+        val result = newTarget().enumerateNamespaces()
+
+        // Only the real namespace must be reported — the `._` shadow file must not spawn a phantom one.
+        assertEquals(1, result.size)
+        assertEquals("ns-1", result.first().namespace)
+    }
+
+    @Test
+    fun `forgetNamespace DELETEs every file matching the prefix, including the sidecar`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
+        // 3 files match ns-1 (2 jsonld + 1 sidecar); the 1 ns-2 file must NOT be DELETEd.
+        repeat(3) { server.enqueue(MockResponse().setResponseCode(204)) }
+
+        val deleted = newTarget().forgetNamespace("ns-1")
+
+        assertEquals(3, deleted)
+        // First request was the PROPFIND, then 3 DELETEs in some order.
+        assertEquals("PROPFIND", server.takeRequest().method)
+        val deletePaths = mutableListOf<String>()
+        repeat(3) {
+            val req = server.takeRequest()
+            assertEquals("DELETE", req.method)
+            deletePaths += req.path!!
+        }
+        assertTrue(deletePaths.all { it.startsWith("/annotations/ns-1__") })
+        assertFalse(deletePaths.any { it.contains("ns-2") })
+    }
+
+    @Test
+    fun `list skips Synology AppleDouble shadow files`() = runTest {
+        // The list path is the same propfind parser, so make sure it doesn't surface the `._` shadow.
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_APPLEDOUBLE_BODY))
+
+        val result = newTarget().list("ns-1", "book1")
+
+        // Only the real annotation file matters; the `._` shadow must be filtered out.
+        assertEquals(listOf("annotations-dev.jsonld"), result)
+    }
+
     companion object {
         private const val USER = "alice"
         private const val PASS = "s3cret"
@@ -382,6 +471,62 @@ class WebDavAnnotationSyncTargetTest {
               </d:response>
               <d:response>
                 <d:href>/annotations/srv1__book2__annotations-device-A.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        // Two namespaces side-by-side: ns-1 has two annotation files + one sidecar; ns-2 has one
+        // annotation file only.
+        private val PROPFIND_MIXED_NAMESPACES_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/ns-1__book1__annotations-dev-a.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/ns-1__book2__annotations-dev-a.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/ns-1__device-dev-a.json</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/ns-2__book1__annotations-dev-x.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        // Real annotation file + Synology AppleDouble shadow + a `._<ns>__…` shadow that previously
+        // showed up as a phantom namespace in the Maintenance UI.
+        private val PROPFIND_APPLEDOUBLE_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/ns-1__book1__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/._ns-1__book1__annotations-dev.jsonld</d:href>
                 <d:propstat><d:prop><d:resourcetype/></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>
