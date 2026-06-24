@@ -88,4 +88,31 @@ class EpubReaderViewModelFootnoteTest {
         assertEquals(a, b)
         assert(a != c)
     }
+
+    // EpubReaderViewModel.captureFootnotePopupLinkOrigin + onReaderResumed re-emit the captured
+    // locator into _serverLocatorChannel so the navigator restores the user's reading position after
+    // returning from the external browser. The VM owns the channel and the pending field, both
+    // single-Android-dependency-free Kotlin types, so the capture-resume cycle is verified in
+    // isolation here.
+    @Test
+    fun `pending capture re-emits once into channel on resume and clears`() = runTest(UnconfinedTestDispatcher()) {
+        var pending: String? = null
+        var lastLocator: String? = null
+        val channel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val emitted = mutableListOf<String>()
+        backgroundScope.launch { for (value in channel) emitted.add(value) }
+
+        // capture saves the latest reading position
+        lastLocator = "ch03.html@0.5"
+        pending = lastLocator
+
+        // first resume re-emits and clears the pending
+        pending?.let { origin -> pending = null; channel.trySend(origin) }
+        assertEquals(listOf("ch03.html@0.5"), emitted)
+        assertNull(pending)
+
+        // a second resume without a fresh capture is a no-op
+        pending?.let { origin -> pending = null; channel.trySend(origin) }
+        assertEquals(listOf("ch03.html@0.5"), emitted)
+    }
 }

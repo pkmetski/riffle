@@ -41,6 +41,7 @@ private val POPUP_MAX_HEIGHT = 240.dp
 fun FootnotePopup(
     state: FootnotePopupState,
     onDismiss: () -> Unit,
+    onLinkTap: ((String) -> Unit)? = null,
 ) {
     Box(
         modifier = Modifier
@@ -71,23 +72,22 @@ fun FootnotePopup(
         ) {
             Box {
                 val linkColor = MaterialTheme.colorScheme.primary
-                val annotated = remember(state.content, linkColor) {
+                val annotated = remember(state.content, linkColor, onLinkTap) {
                     buildAnnotatedString {
                         append(state.content.text)
                         state.content.links.forEach { link ->
-                            addLink(
-                                LinkAnnotation.Url(
-                                    link.url,
-                                    TextLinkStyles(
-                                        SpanStyle(
-                                            color = linkColor,
-                                            textDecoration = TextDecoration.Underline,
-                                        ),
-                                    ),
+                            val styles = TextLinkStyles(
+                                SpanStyle(
+                                    color = linkColor,
+                                    textDecoration = TextDecoration.Underline,
                                 ),
-                                link.start,
-                                link.end,
                             )
+                            val annotation = if (onLinkTap == null) {
+                                LinkAnnotation.Url(link.url, styles)
+                            } else {
+                                LinkAnnotation.Url(link.url, styles) { onLinkTap(link.url) }
+                            }
+                            addLink(annotation, link.start, link.end)
                         }
                     }
                 }

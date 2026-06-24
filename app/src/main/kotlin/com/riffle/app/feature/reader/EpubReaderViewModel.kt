@@ -260,6 +260,24 @@ class EpubReaderViewModel @Inject constructor(
     // change, bouncing the reader and pushing the audiobook back over a newer server position.
     private var pendingServerJumpStamp: Long? = null
 
+    // Snapshot of the reading position taken when a FootnotePopup is shown; the popup's link-tap path
+    // (see EpubReaderScreen + captureFootnotePopupLinkOrigin) promotes this into the pending field
+    // before the external browser launches. Capturing here — not at link-tap — avoids reading a
+    // [lastLocator] that the popup's overlay layout has already nudged off the user's page.
+    private var footnotePopupOriginLocator: Locator? = null
+
+    // Set when the user taps an external URL inside a FootnotePopup. The activity is about to background
+    // for the browser, and on resume the paginated WebView is consistently pinned at the chapter top
+    // (the popup overlay swallowed the WebView's column-snap mid-flight; see the popup's onLinkTap).
+    // [onReaderResumed] restores this locator after re-entry so the user lands back where they were.
+    private var pendingFootnoteReturnLocator: Locator? = null
+    // How many remaining onPositionChanged → chapter-top emissions to suppress while restoring after a
+    // FootnotePopup-link return. Readium's post-resume column-snap can re-emit progression=0 several
+    // times after our restore navigateTo; each spurious emission is re-overridden by re-emitting the
+    // captured origin. Cleared on the first emission that lands at (or past) the captured origin, or by
+    // any user-driven navigation.
+    private var footnoteReturnRestoreAttempts = 0
+
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
@@ -987,11 +1005,22 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun showFootnotePopup(content: FootnoteContent) {
+        // Snapshot the user's reading position before the popup is mounted: this is the value we want
+        // to restore them to after they tap an external URL inside the popup and return.
+        footnotePopupOriginLocator = lastLocator
         _footnotePopup.value = FootnotePopupState(content)
     }
 
     fun dismissFootnotePopup() {
         _footnotePopup.value = null
+        // The origin is only meaningful while the popup is visible — drop it on every dismiss so a
+        // later, unrelated backgrounding doesn't trigger the restore path.
+        footnotePopupOriginLocator = null
+    }
+
+    /** Snapshot the popup's origin position before the URL tap launches the external browser. */
+    fun captureFootnotePopupLinkOrigin() {
+        pendingFootnoteReturnLocator = footnotePopupOriginLocator ?: lastLocator
     }
 
     // Return-to-position: when tapping an internal link (an in-document cross-reference like "Figure
@@ -1026,6 +1055,32 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onPositionChanged(locator: Locator) {
+        // Defensive re-restore: Readium's post-resume column-snap can emit a chapter-top position
+        // AFTER our [onReaderResumed] navigateTo, undoing the restore. Re-emit until we either see a
+        // position that's at-or-past the captured origin (the restore took) or we exhaust the attempts.
+        // User-driven navigation lands here with off-zero progression too and clears the attempts.
+        footnoteReturnRestoreAttempts.let { remaining ->
+            if (remaining > 0) {
+                val pending = pendingFootnoteReturnLocator
+                if (pending != null) {
+                    val originHref = pending.href.toString()
+                    val originProg = pending.locations.progression ?: 0.0
+                    val incomingHref = locator.href.toString()
+                    val incomingProg = locator.locations.progression ?: 0.0
+                    if (incomingHref == originHref && incomingProg < originProg - 0.01) {
+                        // Spurious chapter-top emission while we're still restoring — re-fire.
+                        footnoteReturnRestoreAttempts = remaining - 1
+                        _serverLocatorChannel.trySend(pending)
+                    } else {
+                        // Restore took, or user navigated away — stop watching.
+                        footnoteReturnRestoreAttempts = 0
+                        pendingFootnoteReturnLocator = null
+                    }
+                } else {
+                    footnoteReturnRestoreAttempts = 0
+                }
+            }
+        }
         lastLocator = locator
         _currentLocatorHref.value = locator.href.toString()
         val cp = locator.locations.progression?.toFloat()
@@ -1074,6 +1129,16 @@ class EpubReaderViewModel @Inject constructor(
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             startPeriodicSync()
+        }
+        // Restore the reading position after returning from an external app launched by a
+        // FootnotePopup link tap (see captureFootnotePopupLinkOrigin). The paginated Readium WebView
+        // consistently resets to the chapter top across that backgrounding round-trip, so we re-emit
+        // the captured locator through the same channel server-driven jumps use. Leave the pending
+        // field populated and arm the [footnoteReturnRestoreAttempts] watcher so [onPositionChanged]
+        // can re-fire if Readium's column-snap clobbers our first attempt with a chapter-top emission.
+        pendingFootnoteReturnLocator?.let { origin ->
+            footnoteReturnRestoreAttempts = 5
+            _serverLocatorChannel.trySend(origin)
         }
     }
 
