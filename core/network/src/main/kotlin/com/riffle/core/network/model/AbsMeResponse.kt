@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 internal data class AbsMeResponse(
+    val id: String = "",
     val mediaProgress: List<AbsMediaProgressDto> = emptyList(),
 ) {
     @Serializable

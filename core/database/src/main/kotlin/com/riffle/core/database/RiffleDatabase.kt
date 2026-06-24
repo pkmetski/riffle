@@ -28,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TocCacheEntity::class,
         AudiobookChapterCacheEntity::class,
     ],
-    version = 41,
+    version = 42,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -772,6 +772,16 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_39_40 = object : Migration(39, 40) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `finishedAt` INTEGER")
+            }
+        }
+
+        // Annotation sync namespace = ABS `/api/me` user.id. The local servers.id (per-device
+        // UUID) cannot serve as the WebDAV path key because two devices pointing at the same
+        // ABS server mint different ids, hiding each other's annotation files. Nullable so
+        // existing rows survive the migration; backfilled on the next successful /api/me call.
+        val MIGRATION_41_42 = object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `servers` ADD COLUMN `absUserId` TEXT")
             }
         }
 

@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -20,6 +21,12 @@ import org.junit.Test
  * Pure-JVM lifecycle tests for [AnnotationSyncController]. Exercises the full
  * read-merge-upsert flow (syncOnOpen), debounced pushes (scheduleDebounce), and the
  * close-flush handshake (syncOnClose) against an in-memory dao and a recording target.
+ *
+ * Note: the controller takes a separate `serverId` (DAO key, local per-device) and
+ * `namespace` (target key, cross-device-stable). Most lifecycle tests use the constant
+ * [NS] and care only that the controller threads the same value through; the dedicated
+ * cross-device test below verifies that namespace, not serverId, is what scopes the
+ * target so two devices with different serverIds can still find each other's files.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnnotationSyncControllerLifecycleTest {
@@ -46,7 +53,7 @@ class AnnotationSyncControllerLifecycleTest {
     fun `syncOnOpen with no target is a no-op (no list, no upsert)`() = runTest {
         currentTarget = null
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         assertEquals(0, target.listCalls)
         assertTrue(dao.upserts.isEmpty())
@@ -62,7 +69,7 @@ class AnnotationSyncControllerLifecycleTest {
             w3c("uuid-3", updatedAt = 50L, deviceId = "device-B"),
         )
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         assertEquals(setOf("uuid-1", "uuid-2", "uuid-3"), dao.upserts.map { it.id }.toSet())
         assertTrue(dao.upserts.all { it.serverId == SRV && it.itemId == ITEM })
@@ -78,7 +85,7 @@ class AnnotationSyncControllerLifecycleTest {
             w3c("uuid-shared", updatedAt = 200L, deviceId = "device-B", color = "green"),
         )
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         val winner = dao.upserts.single { it.id == "uuid-shared" }
         assertEquals("device-B", winner.lastModifiedByDeviceId)
@@ -92,7 +99,7 @@ class AnnotationSyncControllerLifecycleTest {
         )
         target.files["annotations-bad.jsonld"] = "this is { not json"
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         assertEquals(setOf("uuid-ok"), dao.upserts.map { it.id }.toSet())
     }
@@ -101,9 +108,28 @@ class AnnotationSyncControllerLifecycleTest {
     fun `syncOnOpen swallows a target list failure and leaves the dao untouched`() = runTest {
         target.failNextList = true
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         assertTrue(dao.upserts.isEmpty())
+    }
+
+    @Test
+    fun `syncOnOpen calls target with the namespace and dao with the local serverId`() = runTest {
+        // Repro of the cross-device bug: device A pushed annotations under its own per-device
+        // serverId-A but the WebDAV namespace is the shared ABS user.id NS. Device B has
+        // serverId-B but the SAME NS. When device B opens, the target lookup must use NS (so
+        // it sees device A's file), while the DAO scope must use serverId-B (the local row).
+        target.files["annotations-device-A.jsonld"] = jsonArrayOf(
+            w3c("uuid-from-A", updatedAt = 100L, deviceId = "device-A"),
+        )
+
+        newController().syncOnOpen(serverId = "serverId-B", namespace = NS, itemId = ITEM)
+
+        // Target was queried with NS (not serverId-B) — that's how cross-device discovery works.
+        assertEquals(listOf(NS), target.listNamespaceArgs)
+        assertNotEquals("serverId-B", NS)
+        // DAO upsert carries the local serverId-B, not the namespace.
+        assertEquals("serverId-B", dao.upserts.single().serverId)
     }
 
     // ===== scheduleDebounce =====
@@ -113,7 +139,7 @@ class AnnotationSyncControllerLifecycleTest {
         currentTarget = null
         dao.localAnnotations += highlightEntity("uuid-local", updatedAt = 100L)
 
-        newController().scheduleDebounce(SRV, ITEM)
+        newController().scheduleDebounce(SRV, NS, ITEM)
         advanceUntilIdle()
 
         assertTrue("write should not have been called", target.writes.isEmpty())
@@ -124,7 +150,7 @@ class AnnotationSyncControllerLifecycleTest {
         dao.localAnnotations += highlightEntity("uuid-local", updatedAt = 100L)
         val controller = newController()
 
-        controller.scheduleDebounce(SRV, ITEM)
+        controller.scheduleDebounce(SRV, NS, ITEM)
         // Before the delay elapses, nothing has been written.
         advanceTimeBy(500L)
         assertTrue(target.writes.isEmpty())
@@ -134,6 +160,7 @@ class AnnotationSyncControllerLifecycleTest {
         advanceUntilIdle()
         assertEquals(1, target.writes.size)
         assertEquals("annotations-$DEVICE_ID.jsonld", target.writes.first().filename)
+        assertEquals(NS, target.writes.first().namespace)
     }
 
     @Test
@@ -142,11 +169,11 @@ class AnnotationSyncControllerLifecycleTest {
         val controller = newController()
 
         // Fire three edits in quick succession — each one cancels the previous timer.
-        controller.scheduleDebounce(SRV, ITEM)
+        controller.scheduleDebounce(SRV, NS, ITEM)
         advanceTimeBy(300L)
-        controller.scheduleDebounce(SRV, ITEM)
+        controller.scheduleDebounce(SRV, NS, ITEM)
         advanceTimeBy(300L)
-        controller.scheduleDebounce(SRV, ITEM)
+        controller.scheduleDebounce(SRV, NS, ITEM)
         advanceUntilIdle()
 
         assertEquals(1, target.writes.size)
@@ -158,8 +185,8 @@ class AnnotationSyncControllerLifecycleTest {
         dao.localAnnotations += highlightEntity("uuid-b", updatedAt = 100L, itemId = "book-B")
         val controller = newController()
 
-        controller.scheduleDebounce(SRV, "book-A")
-        controller.scheduleDebounce(SRV, "book-B")
+        controller.scheduleDebounce(SRV, NS, "book-A")
+        controller.scheduleDebounce(SRV, NS, "book-B")
         advanceUntilIdle()
 
         val items = target.writes.map { it.itemId }.toSet()
@@ -173,9 +200,9 @@ class AnnotationSyncControllerLifecycleTest {
         dao.localAnnotations += highlightEntity("uuid-1", updatedAt = 100L)
         val controller = newController()
 
-        controller.scheduleDebounce(SRV, ITEM)
+        controller.scheduleDebounce(SRV, NS, ITEM)
         // Don't wait for the debounce — close should pre-empt and write right away.
-        controller.syncOnClose(SRV, ITEM)
+        controller.syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
         assertEquals(1, target.writes.size)
@@ -185,7 +212,7 @@ class AnnotationSyncControllerLifecycleTest {
     fun `syncOnClose with no target is a no-op`() = runTest {
         currentTarget = null
 
-        newController().syncOnClose(SRV, ITEM)
+        newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
         assertTrue(target.writes.isEmpty())
@@ -196,7 +223,7 @@ class AnnotationSyncControllerLifecycleTest {
         dao.localAnnotations += highlightEntity("uuid-a", updatedAt = 100L)
         dao.localAnnotations += highlightEntity("uuid-b", updatedAt = 200L)
 
-        newController().syncOnClose(SRV, ITEM)
+        newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
         val payload = target.writes.single().content
@@ -212,7 +239,7 @@ class AnnotationSyncControllerLifecycleTest {
         dao.localAnnotations += highlightEntity("uuid-live", updatedAt = 100L)
         dao.localAnnotations += highlightEntity("uuid-dead", updatedAt = 200L, deleted = true)
 
-        newController().syncOnClose(SRV, ITEM)
+        newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
         val payload = target.writes.single().content
@@ -228,7 +255,7 @@ class AnnotationSyncControllerLifecycleTest {
         // No local rows at all. Pre-condition: don't overwrite this device's existing remote file
         // with `[]` — a transient local empty (clear-data, mid-migration) would otherwise erase
         // the cloud copy of this device's annotations.
-        newController().syncOnClose(SRV, ITEM)
+        newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
         assertTrue("expected no write when local is empty, got ${target.writes}", target.writes.isEmpty())
@@ -245,7 +272,7 @@ class AnnotationSyncControllerLifecycleTest {
             w3c("uuid-shared", updatedAt = 100L, deviceId = "this-device", color = "yellow"),
         )
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         val merged = dao.upserts.single { it.id == "uuid-shared" }
         assertEquals(200L, merged.updatedAt)
@@ -261,7 +288,7 @@ class AnnotationSyncControllerLifecycleTest {
             w3cTombstone("uuid-x", updatedAt = 200L, deviceId = "device-A"),
         )
 
-        newController().syncOnOpen(SRV, ITEM)
+        newController().syncOnOpen(SRV, NS, ITEM)
 
         val merged = dao.upserts.single { it.id == "uuid-x" }
         assertTrue("expected the tombstone to win the merge", merged.deleted)
@@ -327,6 +354,7 @@ class AnnotationSyncControllerLifecycleTest {
 
     private companion object {
         const val SRV = "srv-1"
+        const val NS = "abs-user-uuid-shared-across-devices"
         const val ITEM = "item-1"
         const val DEVICE_ID = "dev-test"
     }
@@ -335,13 +363,15 @@ class AnnotationSyncControllerLifecycleTest {
 private class LifecycleRecordingTarget : AnnotationSyncTarget {
     val files: MutableMap<String, String> = mutableMapOf()
     val writes: MutableList<Write> = mutableListOf()
+    val listNamespaceArgs: MutableList<String> = mutableListOf()
     var listCalls = 0
     var failNextList: Boolean = false
 
-    data class Write(val serverId: String, val itemId: String, val filename: String, val content: String)
+    data class Write(val namespace: String, val itemId: String, val filename: String, val content: String)
 
-    override suspend fun list(serverId: String, itemId: String): List<String> {
+    override suspend fun list(namespace: String, itemId: String): List<String> {
         listCalls++
+        listNamespaceArgs += namespace
         if (failNextList) {
             failNextList = false
             throw RuntimeException("simulated PROPFIND failure")
@@ -349,11 +379,11 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
         return files.keys.toList()
     }
 
-    override suspend fun read(serverId: String, itemId: String, filename: String): String? = files[filename]
+    override suspend fun read(namespace: String, itemId: String, filename: String): String? = files[filename]
 
-    override suspend fun write(serverId: String, itemId: String, filename: String, content: String) {
+    override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {
         files[filename] = content
-        writes += Write(serverId, itemId, filename, content)
+        writes += Write(namespace, itemId, filename, content)
     }
 }
 

@@ -80,7 +80,7 @@ class AnnotationSyncControllerIntegrationTest {
      * Test 1: syncOnOpen merges device files.
      *
      * Setup: Write two mock device files to LocalDirectoryTarget.
-     * Call controller.syncOnOpen(serverId, itemId).
+     * Call controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId).
      * Verify: Controller merged annotations and attempted to upsert to AnnotationDao.
      */
     @Test
@@ -127,7 +127,7 @@ class AnnotationSyncControllerIntegrationTest {
         target.write(serverId, itemId, "annotations-device-b.jsonld", device2Json)
 
         // Call syncOnOpen
-        controller.syncOnOpen(serverId, itemId)
+        controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
 
         // Verify that AnnotationDao.upsert was called (at least once for each annotation)
         // We expect 2 calls: one for ann-001, one for ann-002
@@ -165,7 +165,7 @@ class AnnotationSyncControllerIntegrationTest {
         )
 
         // Schedule debounce
-        controller.scheduleDebounce(serverId, itemId)
+        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
 
         // Wait < 1s (debounce should not have fired yet)
         Thread.sleep(500)
@@ -224,12 +224,12 @@ class AnnotationSyncControllerIntegrationTest {
         )
 
         // First schedule
-        controller.scheduleDebounce(serverId, itemId)
+        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
         Thread.sleep(500)
         assertFalse("File should not exist after 500ms", deviceFile.exists())
 
         // Second schedule (restarts the timer)
-        controller.scheduleDebounce(serverId, itemId)
+        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
         Thread.sleep(500)
         assertFalse(
             "File should not exist 500ms after restart (total 1000ms from first schedule)",
@@ -282,11 +282,11 @@ class AnnotationSyncControllerIntegrationTest {
         )
 
         // Schedule debounce (would fire after 1s)
-        controller.scheduleDebounce(serverId, itemId)
+        controller.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
         Thread.sleep(200)
 
         // Call syncOnClose
-        controller.syncOnClose(serverId, itemId)
+        controller.syncOnClose(serverId, namespace = serverId, itemId = itemId)
 
         // File should now exist (from syncOnClose's pushPending)
         assertTrue(
@@ -325,9 +325,9 @@ class AnnotationSyncControllerIntegrationTest {
         val itemId = "item5"
 
         // These should not throw or perform any I/O
-        nullTargetController.syncOnOpen(serverId, itemId)
-        nullTargetController.scheduleDebounce(serverId, itemId)
-        nullTargetController.syncOnClose(serverId, itemId)
+        nullTargetController.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
+        nullTargetController.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
+        nullTargetController.syncOnClose(serverId, namespace = serverId, itemId = itemId)
 
         // Verify AnnotationDao was never called
         coVerify(exactly = 0) { annotationDao.upsert(any()) }
@@ -377,7 +377,7 @@ class AnnotationSyncControllerIntegrationTest {
         target.write(serverId, itemId, "annotations-device-b.jsonld", corruptJson)
 
         // Call syncOnOpen
-        controller.syncOnOpen(serverId, itemId)
+        controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
 
         // Verify only one annotation was upserted (from device-a, skipping device-b)
         coVerify(exactly = 1) { annotationDao.upsert(any()) }
@@ -442,15 +442,15 @@ class AnnotationSyncControllerIntegrationTest {
         val fileB = File(filesDir, "annotation-sync/$serverB/$itemB/annotations-device-test.jsonld")
 
         // Schedule debounce for book A
-        controller.scheduleDebounce(serverA, itemA)
+        controller.scheduleDebounce(serverA, namespace = serverA, itemId = itemA)
         Thread.sleep(200)
 
         // Schedule debounce for book B
-        controller.scheduleDebounce(serverB, itemB)
+        controller.scheduleDebounce(serverB, namespace = serverB, itemId = itemB)
         Thread.sleep(200)
 
         // Cancel debounce for book A via syncOnClose
-        controller.syncOnClose(serverA, itemA)
+        controller.syncOnClose(serverA, namespace = serverA, itemId = itemA)
 
         // File A should exist now
         assertTrue("File A should exist after syncOnClose", fileA.exists())

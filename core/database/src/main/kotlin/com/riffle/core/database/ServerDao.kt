@@ -44,4 +44,7 @@ interface ServerDao {
 
     @Query("DELETE FROM servers WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("UPDATE servers SET absUserId = :absUserId WHERE id = :id")
+    suspend fun setAbsUserId(id: String, absUserId: String)
 }

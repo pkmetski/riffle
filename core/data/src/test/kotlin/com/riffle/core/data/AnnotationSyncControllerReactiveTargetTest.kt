@@ -31,13 +31,13 @@ class AnnotationSyncControllerReactiveTargetTest {
         )
 
         // No target yet — syncOnOpen is a no-op (must not throw).
-        controller.syncOnOpen("srv", "book")
+        controller.syncOnOpen("srv", "ns", "book")
 
         // Now a target appears (user configured WebDAV mid-session).
         val recording = RecordingTarget()
         currentTarget = recording
 
-        controller.syncOnOpen("srv", "book")
+        controller.syncOnOpen("srv", "ns", "book")
 
         assertEquals(1, recording.listCalls)
     }
@@ -45,12 +45,12 @@ class AnnotationSyncControllerReactiveTargetTest {
 
 private class RecordingTarget : AnnotationSyncTarget {
     var listCalls = 0
-    override suspend fun list(serverId: String, itemId: String): List<String> {
+    override suspend fun list(namespace: String, itemId: String): List<String> {
         listCalls++
         return emptyList()
     }
-    override suspend fun read(serverId: String, itemId: String, filename: String): String? = null
-    override suspend fun write(serverId: String, itemId: String, filename: String, content: String) {}
+    override suspend fun read(namespace: String, itemId: String, filename: String): String? = null
+    override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {}
 }
 
 private class NoOpAnnotationDao : AnnotationDao {

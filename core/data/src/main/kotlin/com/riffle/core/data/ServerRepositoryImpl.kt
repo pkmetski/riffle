@@ -135,6 +135,10 @@ class ServerRepositoryImpl @Inject constructor(
             insecureConnectionAllowed = pending.insecureConnectionAllowed,
             username = pending.username,
             serverType = pending.serverType.name,
+            // ABS exposes `user.id` on the login response — persist it now so annotation sync has
+            // a cross-device-stable namespace from first open. Storyteller's login response
+            // carries no equivalent identity (auth is username + token), so leave it null.
+            absUserId = pending.userId.takeIf { it.isNotBlank() && pending.serverType == ServerType.AUDIOBOOKSHELF },
         )
         // A Storyteller Server is a Settings-only readaloud backend (ADR 0026) — it must never
         // become the active browsable Server, not even as the first server added. ABS servers keep
@@ -210,6 +214,21 @@ class ServerRepositoryImpl @Inject constructor(
         fun readaloudLibraryId(serverId: String): String = "readaloud:$serverId"
     }
 
+    override suspend fun ensureAbsUserId(serverId: String): String? {
+        val row = dao.getById(serverId) ?: return null
+        if (row.serverType == ServerType.STORYTELLER.name) return null
+        row.absUserId?.takeIf { it.isNotBlank() }?.let { return it }
+        // Legacy row (added before the column existed) — backfill from /api/me.
+        val token = tokenStorage.getToken(serverId) ?: return null
+        val fetched = serverInfoApi.getCurrentUserId(
+            baseUrl = row.url,
+            token = token,
+            insecureAllowed = row.insecureConnectionAllowed,
+        ) ?: return null
+        dao.setAbsUserId(serverId, fetched)
+        return fetched
+    }
+
     private fun ServerEntity.toDomain(): Server {
         val parsedUrl = ServerUrl.parse(url)
             ?: ServerUrl.parse("https://invalid.example.com")!!
@@ -220,6 +239,7 @@ class ServerRepositoryImpl @Inject constructor(
             insecureConnectionAllowed = insecureConnectionAllowed,
             username = username,
             serverType = ServerType.fromStorageString(serverType),
+            absUserId = absUserId,
         )
     }
 }

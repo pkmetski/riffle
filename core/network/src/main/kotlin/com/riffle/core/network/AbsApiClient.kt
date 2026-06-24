@@ -778,6 +778,30 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         }
     }
 
+    override suspend fun getCurrentUserId(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): String? = withContext(Dispatchers.IO) {
+        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        val request = Request.Builder()
+            .url("$baseUrl/api/me")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.body?.close()
+                return@withContext null
+            }
+            val raw = response.body?.string() ?: return@withContext null
+            json.decodeFromString<AbsMeResponse>(raw).id.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override suspend fun createBookmark(
         baseUrl: String,
         itemId: String,

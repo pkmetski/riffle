@@ -19,9 +19,9 @@ import java.io.File
  */
 class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget {
 
-    override suspend fun list(serverId: String, itemId: String): List<String> {
+    override suspend fun list(namespace: String, itemId: String): List<String> {
         return try {
-            val directory = getBookDirectory(serverId, itemId)
+            val directory = getBookDirectory(namespace, itemId)
             if (!directory.exists()) {
                 return emptyList()
             }
@@ -29,46 +29,46 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 file.isFile && file.name.endsWith(".jsonld")
             }?.map { it.name } ?: emptyList()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to list annotations for $serverId/$itemId", e)
+            Log.e(TAG, "Failed to list annotations for $namespace/$itemId", e)
             emptyList()
         }
     }
 
-    override suspend fun read(serverId: String, itemId: String, filename: String): String? {
+    override suspend fun read(namespace: String, itemId: String, filename: String): String? {
         return try {
-            val file = getFile(serverId, itemId, filename)
+            val file = getFile(namespace, itemId, filename)
             if (!file.exists()) {
                 return null
             }
             file.readText()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read file $filename for $serverId/$itemId", e)
+            Log.e(TAG, "Failed to read file $filename for $namespace/$itemId", e)
             throw Exception("Failed to read $filename: ${e.message}", e)
         }
     }
 
-    override suspend fun write(serverId: String, itemId: String, filename: String, content: String) {
+    override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {
         try {
-            val directory = getBookDirectory(serverId, itemId)
+            val directory = getBookDirectory(namespace, itemId)
             if (!directory.exists()) {
                 if (!directory.mkdirs()) {
                     throw Exception("Failed to create directory: ${directory.absolutePath}")
                 }
             }
-            val file = getFile(serverId, itemId, filename)
+            val file = getFile(namespace, itemId, filename)
             file.writeText(content)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write file $filename for $serverId/$itemId", e)
+            Log.e(TAG, "Failed to write file $filename for $namespace/$itemId", e)
             throw Exception("Failed to write $filename: ${e.message}", e)
         }
     }
 
-    private fun getBookDirectory(serverId: String, itemId: String): File {
-        return File(context.filesDir, "annotation-sync/$serverId/$itemId")
+    private fun getBookDirectory(namespace: String, itemId: String): File {
+        return File(context.filesDir, "annotation-sync/$namespace/$itemId")
     }
 
-    private fun getFile(serverId: String, itemId: String, filename: String): File {
-        return File(getBookDirectory(serverId, itemId), filename)
+    private fun getFile(namespace: String, itemId: String, filename: String): File {
+        return File(getBookDirectory(namespace, itemId), filename)
     }
 
     companion object {

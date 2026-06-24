@@ -372,6 +372,13 @@ class EpubReaderViewModel @Inject constructor(
     // are absent.
     private var annotationServerId: String? = null
 
+    // ABS-side stable account identity for [annotationServerId], used by AnnotationSyncController
+    // as the cross-device sync namespace (the local servers.id is a per-device UUID and would
+    // hide other devices' files). Resolved alongside [annotationServerId] on book open;
+    // remains null if the active server isn't ABS, the row hasn't been backfilled, or the
+    // backfill /api/me call fails offline — in which case sync is skipped, not broken.
+    private var annotationNamespace: String? = null
+
     // Highlights exist only while reading the ABS side. False on a Storyteller-only book — the
     // "Highlight" affordance must not appear there (ADR 0024).
     private val _annotationsAvailable = MutableStateFlow(false)
@@ -672,8 +679,16 @@ class EpubReaderViewModel @Inject constructor(
                 observeHighlights(activeServer.id)
                 observeBookmarks(activeServer.id)
                 observeAnnotationsForPanel(activeServer.id)
-                // Pull other devices' annotations from WebDAV (no-op if sync isn't configured).
-                annotationSyncController.syncOnOpen(activeServer.id, itemId)
+                // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
+                // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
+                // means we can't sync this session (offline or non-ABS or backfill failed) — the
+                // local DB stays as the source of truth and sync resumes on the next open.
+                val namespace = serverRepository.ensureAbsUserId(activeServer.id)
+                annotationNamespace = namespace
+                if (namespace != null) {
+                    // Pull other devices' annotations from WebDAV (no-op if sync isn't configured).
+                    annotationSyncController.syncOnOpen(activeServer.id, namespace, itemId)
+                }
             }
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
@@ -1430,10 +1445,12 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when
-     *  sync is not configured or the active server id isn't known yet. */
+     *  sync is not configured, the active server id isn't known yet, or the ABS namespace hasn't
+     *  been resolved (Storyteller-only, offline backfill failure). */
     private fun scheduleAnnotationSync() {
         val sid = annotationServerId ?: readerSyncServerId ?: return
-        annotationSyncController.scheduleDebounce(sid, itemId)
+        val ns = annotationNamespace ?: return
+        annotationSyncController.scheduleDebounce(sid, ns, itemId)
     }
 
     /** Navigate the reader to the annotation with [id], then close the annotations panel. */
@@ -1519,9 +1536,12 @@ class EpubReaderViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         // Push any pending annotation edits to the WebDAV sync target (#76). Use progressFlushScope
-        // so the PATCH survives viewModelScope cancellation at teardown.
-        readerSyncServerId?.let { sid ->
-            progressFlushScope.flush { annotationSyncController.syncOnClose(sid, itemId) }
+        // so the PATCH survives viewModelScope cancellation at teardown. Skip when the namespace
+        // wasn't resolved this session — there's nowhere to push to.
+        val sidForSync = readerSyncServerId
+        val nsForSync = annotationNamespace
+        if (sidForSync != null && nsForSync != null) {
+            progressFlushScope.flush { annotationSyncController.syncOnClose(sidForSync, nsForSync, itemId) }
         }
         // Release this book to the durable sweep again (ADR 0030).
         readerServerId?.let { sid ->
