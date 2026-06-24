@@ -238,7 +238,7 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Shown on every device in the household. Saved on the WebDAV server in a small per-device file.",
+                    "Shown on every device in the household.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -291,11 +291,17 @@ private fun OtherNamespacesSection(
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                         )
+                        val parts = mutableListOf<String>()
+                        parts += "${row.annotationFileCount} annotation file" +
+                            if (row.annotationFileCount == 1) "" else "s"
+                        // Only mention legacy sidecars when they're actually present — current
+                        // builds never write them, so '0 sidecars' is just noise.
+                        if (row.sidecarCount > 0) {
+                            parts += "${row.sidecarCount} legacy sidecar" +
+                                if (row.sidecarCount == 1) "" else "s"
+                        }
                         Text(
-                            "${row.annotationFileCount} annotation file" +
-                                (if (row.annotationFileCount == 1) "" else "s") +
-                                " · ${row.sidecarCount} sidecar" +
-                                (if (row.sidecarCount == 1) "" else "s"),
+                            parts.joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -322,11 +328,16 @@ private fun ForgetNamespaceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Removes every file under ${row.namespace} from the WebDAV server — " +
-                        "${row.annotationFileCount} annotation file" +
-                        (if (row.annotationFileCount == 1) "" else "s") +
-                        " and ${row.sidecarCount} sidecar" +
-                        (if (row.sidecarCount == 1) "" else "s") + ".",
+                    buildString {
+                        append("Removes every file under ${row.namespace} from the WebDAV server — ")
+                        append("${row.annotationFileCount} annotation file")
+                        if (row.annotationFileCount != 1) append("s")
+                        if (row.sidecarCount > 0) {
+                            append(" and ${row.sidecarCount} legacy sidecar")
+                            if (row.sidecarCount != 1) append("s")
+                        }
+                        append(".")
+                    },
                 )
                 Text(
                     "Only do this if you're sure no device is still using this namespace — usually it's " +
@@ -351,6 +362,13 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
             parts += "Forgot \"${snack.label}\""
             parts += "${snack.files} file(s) removed"
             if (snack.legacySidecarDeleted) parts += "legacy sidecar removed"
+            if (snack.failures > 0) parts += "${snack.failures} failure(s)"
+            parts.joinToString(" · ") to (snack.failures > 0)
+        }
+        is MaintenanceSnack.Renamed -> {
+            val parts = mutableListOf<String>()
+            parts += "Device renamed"
+            parts += "${snack.rewritten} file(s) updated"
             if (snack.failures > 0) parts += "${snack.failures} failure(s)"
             parts.joinToString(" · ") to (snack.failures > 0)
         }

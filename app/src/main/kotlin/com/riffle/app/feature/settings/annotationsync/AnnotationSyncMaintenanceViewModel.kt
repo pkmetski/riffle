@@ -41,6 +41,7 @@ sealed class MaintenanceSnack {
     object None : MaintenanceSnack()
     data class Forgot(val label: String, val files: Int, val legacySidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
     data class ForgotNamespace(val namespace: String, val files: Int) : MaintenanceSnack()
+    data class Renamed(val rewritten: Int, val failures: Int) : MaintenanceSnack()
 }
 
 /** A namespace on the target that isn't the currently-active one — typically an orphan. */
@@ -161,13 +162,21 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 showRenameDialog = false,
             )
             // Rewrite this device's metadata header in every annotation file so peers see the
-            // new name immediately, instead of waiting for the next annotation push. Best-effort
-            // — per-file failures are swallowed inside publishDeviceMetadata.
-            resolveNamespace()?.let { namespace ->
+            // new name immediately, instead of waiting for the next annotation push. Per-file
+            // failures are surfaced via the snack so the user knows when peers will see a mix.
+            val publishResult = resolveNamespace()?.let { namespace ->
                 maintenance.publishDeviceMetadata(
                     namespace = namespace,
                     deviceId = deviceIdStore.getOrCreate(),
                     label = updated,
+                )
+            }
+            if (publishResult != null) {
+                _state.value = _state.value.copy(
+                    snack = MaintenanceSnack.Renamed(
+                        rewritten = publishResult.rewrittenFiles,
+                        failures = publishResult.failures,
+                    ),
                 )
             }
             refresh()
@@ -189,9 +198,21 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             return
         }
         _state.value = _state.value.copy(devices = MaintenanceScreenUiState.Loading)
-        val rows = maintenance.listDevices(namespace)
+        val serverRows = maintenance.listDevices(namespace)
         val myDeviceId = deviceIdStore.getOrCreate()
         val myLocalLabel = currentDeviceLabel()
+        // Surface a "This device" row even when this install hasn't pushed any annotation file
+        // yet — otherwise the Rename pencil only appears after the first annotation, and a fresh
+        // install can't set its label from Maintenance.
+        val rows = if (serverRows.any { it.deviceId == myDeviceId }) {
+            serverRows
+        } else {
+            serverRows + AnnotationSyncMaintenance.DeviceRow(
+                deviceId = myDeviceId,
+                annotationFileCount = 0,
+                metadata = null,
+            )
+        }
         val ui = rows.map { row ->
             val isMe = row.deviceId == myDeviceId
             val label = when {

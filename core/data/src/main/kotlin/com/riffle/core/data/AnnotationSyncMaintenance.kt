@@ -22,35 +22,57 @@ class AnnotationSyncMaintenance(
     private val targetProvider: () -> AnnotationSyncTarget?,
     private val nowIso: () -> String = { Instant.now().toString() },
 ) {
+    /** Outcome of [publishDeviceMetadata] — lets the UI report partial failure to the user. */
+    data class PublishMetadataResult(
+        val rewrittenFiles: Int,
+        val failures: Int,
+    )
+
     /**
      * Refresh this device's [DeviceMetadata] header across every annotation file it owns under
      * [namespace]. Used after a rename so peer devices see the new label without waiting for
-     * the next annotation push. Best-effort: per-file failures are swallowed.
+     * the next annotation push. Preserves each file's existing `lastSeenAt` so a rename does not
+     * masquerade as a fresh push — the hint stays a real signal of when this device last
+     * actually pushed. Returns counts so the caller can surface partial failure.
      */
     suspend fun publishDeviceMetadata(
         namespace: String,
         deviceId: String,
         label: String,
-    ) {
-        val target = targetProvider() ?: return
-        val listing = try { target.enumerateDevices(namespace) } catch (_: Exception) { return }
-        val row = listing.devices.firstOrNull { it.deviceId == deviceId } ?: return
-        val metadata = DeviceMetadata(
-            deviceId = deviceId,
-            label = label,
-            lastSeenAt = nowIso(),
-        )
+    ): PublishMetadataResult {
+        val target = targetProvider() ?: return PublishMetadataResult(0, 0)
+        val listing = try {
+            target.enumerateDevices(namespace)
+        } catch (_: Exception) {
+            return PublishMetadataResult(0, 1)
+        }
+        val row = listing.devices.firstOrNull { it.deviceId == deviceId }
+            ?: return PublishMetadataResult(0, 0)
+
+        // Mint a single fallback timestamp for files that don't yet have a header. This only fires
+        // on legacy files written before the embed-header refactor; current files always have one.
+        val fallbackLastSeenAt = nowIso()
+        var rewritten = 0
+        var failures = 0
         for (file in row.annotationFiles) {
             try {
                 val body = target.read(namespace, file.itemId, file.filename) ?: continue
-                val rewritten = DeviceMetadataCodec.replaceHeader(body, metadata)
-                if (rewritten != body) {
-                    target.write(namespace, file.itemId, file.filename, rewritten)
+                val existing = DeviceMetadataCodec.extractHeader(body)
+                val metadata = DeviceMetadata(
+                    deviceId = deviceId,
+                    label = label,
+                    lastSeenAt = existing?.lastSeenAt ?: fallbackLastSeenAt,
+                )
+                val newBody = DeviceMetadataCodec.replaceHeader(body, metadata)
+                if (newBody != body) {
+                    target.write(namespace, file.itemId, file.filename, newBody)
+                    rewritten++
                 }
             } catch (_: Exception) {
-                // per-file failure — continue with the rest
+                failures++
             }
         }
+        return PublishMetadataResult(rewritten, failures)
     }
 
     /** A row in the Maintenance device-list, post header-hydration. */

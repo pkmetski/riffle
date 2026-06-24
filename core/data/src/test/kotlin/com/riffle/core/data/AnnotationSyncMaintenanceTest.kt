@@ -81,13 +81,13 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
-    fun `publishDeviceMetadata rewrites the header in every annotation file the device owns`() = runTest {
+    fun `publishDeviceMetadata rewrites every annotation file's header and preserves lastSeenAt`() = runTest {
         val originalA = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Old Name", "2026-01-01T00:00:00Z"),
+            DeviceMetadata("A", "Old Name", "2025-09-15T10:00:00Z"),
             annotationJsonStrings = listOf("""{"id":"x"}"""),
         )
         val originalA2 = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Old Name", "2026-01-01T00:00:00Z"),
+            DeviceMetadata("A", "Old Name", "2025-09-15T10:00:00Z"),
             annotationJsonStrings = listOf("""{"id":"y"}"""),
         )
         val target = InMemoryMaintenanceTarget(
@@ -98,16 +98,34 @@ class AnnotationSyncMaintenanceTest {
             legacySidecars = mutableSetOf(),
         )
         val m = maintenanceFor(target)
-        m.publishDeviceMetadata("ns", "A", "New Name")
+        val result = m.publishDeviceMetadata("ns", "A", "New Name")
 
+        assertEquals(2, result.rewrittenFiles)
+        assertEquals(0, result.failures)
         target.files.values.forEach { body ->
             val header = DeviceMetadataCodec.extractHeader(body)!!
             assertEquals("New Name", header.label)
-            assertEquals("2026-02-02T02:02:02Z", header.lastSeenAt)
+            // The original lastSeenAt is preserved — a rename must not masquerade as a fresh push.
+            assertEquals("2025-09-15T10:00:00Z", header.lastSeenAt)
         }
-        // Annotation records are preserved.
         assertTrue(target.files.values.any { it.contains("\"id\":\"x\"") })
         assertTrue(target.files.values.any { it.contains("\"id\":\"y\"") })
+    }
+
+    @Test
+    fun `publishDeviceMetadata mints a fallback lastSeenAt for legacy header-less files`() = runTest {
+        // Legacy file from a build prior to the embed-header refactor: pure annotations, no header.
+        val legacy = """[{"id":"x"}]"""
+        val target = InMemoryMaintenanceTarget(
+            files = mutableMapOf(FileKey("ns", "i1", "annotations-A.jsonld") to legacy),
+            legacySidecars = mutableSetOf(),
+        )
+        val m = maintenanceFor(target)
+        m.publishDeviceMetadata("ns", "A", "New Name")
+
+        val header = DeviceMetadataCodec.extractHeader(target.files.values.first())!!
+        assertEquals("New Name", header.label)
+        assertEquals("2026-02-02T02:02:02Z", header.lastSeenAt)
     }
 }
 
