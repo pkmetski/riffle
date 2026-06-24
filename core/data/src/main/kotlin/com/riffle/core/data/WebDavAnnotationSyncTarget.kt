@@ -40,11 +40,9 @@ class WebDavAnnotationSyncTarget(
 
     override suspend fun list(serverId: String, itemId: String): List<String> =
         withContext(Dispatchers.IO) {
-            // Flat-layout per-device files live directly under basePath: PROPFIND the base
-            // directory, then filter to entries whose physical name carries the matching
-            // <serverId>__<itemId>__ prefix and return the logical (post-prefix) filename.
+            val url = bookUrl(serverId, itemId)
             val request = Request.Builder()
-                .url(basePath)
+                .url(url)
                 .header("Authorization", authHeader)
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
@@ -62,10 +60,7 @@ class WebDavAnnotationSyncTarget(
                         throw AnnotationSyncException.HttpFailure(response.code, "list")
                     else -> {
                         val body = response.body.string()
-                        val prefix = physicalPrefix(serverId, itemId)
                         parsePropfindFilenames(body)
-                            .filter { it.startsWith(prefix) }
-                            .map { it.removePrefix(prefix) }
                     }
                 }
             }
@@ -98,22 +93,32 @@ class WebDavAnnotationSyncTarget(
         content: String,
     ) {
         withContext(Dispatchers.IO) {
-            // Flat path under basePath. No per-book subdirectories means the only collection
-            // that needs to exist is basePath itself, which the user has already vouched for via
-            // Test Connection (Synology's WebDAV refuses MKCOL on share-subfolders, so a flat
-            // layout sidesteps that without losing per-device-file semantics — the
-            // `<serverId>__<itemId>__` filename prefix keeps the namespacing intact).
             val url = fileUrl(serverId, itemId, filename)
             val body = content.toRequestBody(JSON_LD_MEDIA)
-            val response = put(url, body)
-            val code = response.code
-            val ok = response.isSuccessful
-            response.close()
-            if (!ok) {
-                when (code) {
-                    401, 403 -> throw AnnotationSyncException.AuthFailed(code)
-                    else -> throw AnnotationSyncException.HttpFailure(code, "write $filename")
+
+            val first = put(url, body)
+            if (first.isSuccessful) {
+                first.close()
+                return@withContext
+            }
+            val code = first.code
+            first.close()
+            when (code) {
+                401, 403 -> throw AnnotationSyncException.AuthFailed(code)
+                // Most servers signal "parent collection missing" with 409 or 404. Synology answers
+                // 405 (Method Not Allowed) instead — same intent, just a different code. Treat all
+                // three as "ensure the parents first, then retry the PUT."
+                409, 404, 405 -> {
+                    ensureParentCollections(serverId, itemId)
+                    val retry = put(url, body)
+                    val retryCode = retry.code
+                    val retryOk = retry.isSuccessful
+                    retry.close()
+                    if (!retryOk) {
+                        throw AnnotationSyncException.HttpFailure(retryCode, "write $filename")
+                    }
                 }
+                else -> throw AnnotationSyncException.HttpFailure(code, "write $filename")
             }
         }
     }
@@ -162,6 +167,30 @@ class WebDavAnnotationSyncTarget(
         TestConnectionResult.NetworkError(e.message ?: "Network error")
     }
 
+    private fun ensureParentCollections(serverId: String, itemId: String) {
+        // Walk down from base, MKCOLing each segment we own. 405 = already exists, fine.
+        val parents = listOf(basePath, basePath.newBuilder().addPathSegment(serverId).build())
+        val terminal = parents.last().newBuilder().addPathSegment(itemId).build()
+        val toCreate = listOf(basePath, parents[1], terminal)
+        for (dir in toCreate) {
+            val url = ensureTrailingSlash(dir)
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", authHeader)
+                .method("MKCOL", null)
+                .build()
+            client.newCall(request).execute().use { resp ->
+                Log.d(TAG, "MKCOL $url -> ${resp.code}")
+                if (!resp.isSuccessful && resp.code != 405) {
+                    when (resp.code) {
+                        401, 403 -> throw AnnotationSyncException.AuthFailed(resp.code)
+                        else -> throw AnnotationSyncException.HttpFailure(resp.code, "mkcol")
+                    }
+                }
+            }
+        }
+    }
+
     private fun put(url: HttpUrl, body: RequestBody): Response {
         val request = Request.Builder()
             .url(url)
@@ -173,14 +202,20 @@ class WebDavAnnotationSyncTarget(
         return response
     }
 
+    private fun bookUrl(serverId: String, itemId: String): HttpUrl =
+        ensureTrailingSlash(
+            basePath.newBuilder()
+                .addPathSegment(serverId)
+                .addPathSegment(itemId)
+                .build(),
+        )
+
     private fun fileUrl(serverId: String, itemId: String, filename: String): HttpUrl =
         basePath.newBuilder()
-            .addPathSegment(physicalPrefix(serverId, itemId) + filename)
+            .addPathSegment(serverId)
+            .addPathSegment(itemId)
+            .addPathSegment(filename)
             .build()
-
-    /** Composite filename prefix that emulates the per-book directory: `<serverId>__<itemId>__`. */
-    private fun physicalPrefix(serverId: String, itemId: String): String =
-        "$serverId$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
 
     private fun ensureTrailingSlash(url: HttpUrl): HttpUrl {
         val segs = url.pathSegments
@@ -230,7 +265,6 @@ class WebDavAnnotationSyncTarget(
 
     companion object {
         private const val TAG = "RIFFLE_ANNO_SYNC"
-        private const val NAMESPACE_SEPARATOR = "__"
         private val XML_MEDIA = "application/xml; charset=utf-8".toMediaType()
         private val JSON_LD_MEDIA = "application/ld+json; charset=utf-8".toMediaType()
 
