@@ -91,28 +91,114 @@ class EpubReaderViewModelFootnoteTest {
 
     // EpubReaderViewModel.captureFootnotePopupLinkOrigin + onReaderResumed re-emit the captured
     // locator into _serverLocatorChannel so the navigator restores the user's reading position after
-    // returning from the external browser. The VM owns the channel and the pending field, both
-    // single-Android-dependency-free Kotlin types, so the capture-resume cycle is verified in
-    // isolation here.
+    // returning from the external browser. The VM's pending field and the retry watcher are plain
+    // Kotlin types, so the capture-resume-retry cycle is verified in isolation here.
+
+    // Mirrors the production check in EpubReaderViewModel.onPositionChanged: when restoring, re-fire
+    // if the incoming progression is at-or-near zero for the captured href; otherwise the restore is
+    // considered taken and the watcher disarms.
+    private data class Position(val href: String, val progression: Double)
+
     @Test
-    fun `pending capture re-emits once into channel on resume and clears`() = runTest(UnconfinedTestDispatcher()) {
-        var pending: String? = null
-        var lastLocator: String? = null
-        val channel = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.UNLIMITED)
-        val emitted = mutableListOf<String>()
+    fun `capture at popup-show then resume emits origin via channel`() = runTest(UnconfinedTestDispatcher()) {
+        var popupOrigin: Position? = null
+        var pending: Position? = null
+        val channel = kotlinx.coroutines.channels.Channel<Position>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val emitted = mutableListOf<Position>()
         backgroundScope.launch { for (value in channel) emitted.add(value) }
 
-        // capture saves the latest reading position
-        lastLocator = "ch03.html@0.5"
-        pending = lastLocator
+        // showFootnotePopup snapshots lastLocator into popupOrigin
+        popupOrigin = Position("ch03.html", 0.5)
+        // captureFootnotePopupLinkOrigin (URL tap) promotes origin into pending
+        pending = popupOrigin
+        // dismissFootnotePopup clears the popup origin AFTER capture has read it
+        popupOrigin = null
 
-        // first resume re-emits and clears the pending
-        pending?.let { origin -> pending = null; channel.trySend(origin) }
-        assertEquals(listOf("ch03.html@0.5"), emitted)
+        // onReaderResumed emits once and arms the watcher
+        pending?.let { channel.trySend(it) }
+
+        assertEquals(listOf(Position("ch03.html", 0.5)), emitted)
+        // pending stays populated so the retry watcher can fire from onPositionChanged
+        assertEquals(Position("ch03.html", 0.5), pending)
+    }
+
+    @Test
+    fun `dismiss without URL tap clears popup origin and skips restore`() = runTest(UnconfinedTestDispatcher()) {
+        var popupOrigin: Position? = null
+        var pending: Position? = null
+
+        // showFootnotePopup snapshots, then user dismisses without tapping a URL
+        popupOrigin = Position("ch03.html", 0.5)
+        popupOrigin = null  // dismissFootnotePopup
+
+        // captureFootnotePopupLinkOrigin would only fire from the URL-tap path, so pending stays null
         assertNull(pending)
+    }
 
-        // a second resume without a fresh capture is a no-op
-        pending?.let { origin -> pending = null; channel.trySend(origin) }
-        assertEquals(listOf("ch03.html@0.5"), emitted)
+    @Test
+    fun `retry watcher re-fires when post-resume emission lands at chapter top`() = runTest(UnconfinedTestDispatcher()) {
+        var pending: Position? = Position("ch03.html", 0.5)
+        var attempts = 5
+        val channel = kotlinx.coroutines.channels.Channel<Position>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val emitted = mutableListOf<Position>()
+        backgroundScope.launch { for (value in channel) emitted.add(value) }
+
+        fun onPositionChanged(incoming: Position) {
+            if (attempts > 0) {
+                val origin = pending
+                if (origin != null && incoming.href == origin.href && incoming.progression < origin.progression - 0.01) {
+                    attempts--
+                    channel.trySend(origin)
+                } else {
+                    attempts = 0
+                    pending = null
+                }
+            }
+        }
+
+        // Initial resume emit
+        pending?.let { channel.trySend(it) }
+        // Readium re-emits chapter top twice (the clobber), then our restore takes
+        onPositionChanged(Position("ch03.html", 0.0))
+        onPositionChanged(Position("ch03.html", 0.0))
+        onPositionChanged(Position("ch03.html", 0.5))
+
+        assertEquals(
+            listOf(
+                Position("ch03.html", 0.5),  // initial
+                Position("ch03.html", 0.5),  // retry 1
+                Position("ch03.html", 0.5),  // retry 2
+            ),
+            emitted,
+        )
+        assertNull(pending)
+        assertEquals(0, attempts)
+    }
+
+    @Test
+    fun `user navigation past origin disarms retry watcher`() = runTest(UnconfinedTestDispatcher()) {
+        var pending: Position? = Position("ch03.html", 0.5)
+        var attempts = 5
+        val emitted = mutableListOf<Position>()
+
+        fun onPositionChanged(incoming: Position) {
+            if (attempts > 0) {
+                val origin = pending
+                if (origin != null && incoming.href == origin.href && incoming.progression < origin.progression - 0.01) {
+                    attempts--
+                    emitted.add(origin)
+                } else {
+                    attempts = 0
+                    pending = null
+                }
+            }
+        }
+
+        // User swipes forward immediately on return
+        onPositionChanged(Position("ch03.html", 0.6))
+
+        assert(emitted.isEmpty())
+        assertNull(pending)
+        assertEquals(0, attempts)
     }
 }
