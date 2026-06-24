@@ -71,7 +71,9 @@ fun AnnotationSyncMaintenanceScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Manage device files on the sync server. Both actions are manual and run only when you tap them.",
+                "Each device using this account writes its own annotation file per book to WebDAV. " +
+                    "The list below shows every device whose files are currently on the server. " +
+                    "Both actions are manual and run only when you tap them.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
