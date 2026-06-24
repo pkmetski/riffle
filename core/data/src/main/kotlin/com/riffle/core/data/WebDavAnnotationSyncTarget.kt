@@ -20,9 +20,22 @@ import javax.xml.parsers.SAXParserFactory
 /**
  * WebDAV-backed [AnnotationSyncTarget].
  *
- * Layout: `<baseUrl>/<serverId>/<itemId>/<filename>`. The class speaks `PROPFIND`,
- * `GET`, `PUT` and `MKCOL` against a user-supplied WebDAV server (Nextcloud,
- * ownCloud, Apache `mod_dav`, Synology, etc.), authenticating with HTTP Basic.
+ * **Layout — flat per-device files keyed by composite filename.** Every file lives directly
+ * under `basePath` and carries the per-book scope in its name:
+ * ```
+ * <basePath>/<serverId>__<itemId>__<filename>
+ * ```
+ * We *don't* nest the `<serverId>` / `<itemId>` segments as subdirectories: Synology DSM's
+ * WebDAV server refuses MKCOL on shared-folder subpaths in ways we couldn't get around even
+ * with the Finder UA (PROPFIND and MKCOL both return 400 for bare-UUID directory names that
+ * the server has already seen and discarded). Keeping the layout flat means the only
+ * collection that has to exist is `basePath` itself, which the user vouches for via Test
+ * Connection. Every other standard WebDAV server (Nextcloud, ownCloud, Apache `mod_dav`,
+ * etc.) accepts flat names too, so this layout doesn't regress anything.
+ *
+ * Auth: HTTP basic. Every request is also tagged with the macOS Finder WebDAVFS
+ * User-Agent — Synology in particular gates write methods on a UA allow-list and rejects
+ * the OkHttp default with 424.
  */
 class WebDavAnnotationSyncTarget(
     baseUrl: HttpUrl,
@@ -40,25 +53,27 @@ class WebDavAnnotationSyncTarget(
 
     override suspend fun list(serverId: String, itemId: String): List<String> =
         withContext(Dispatchers.IO) {
-            val url = bookUrl(serverId, itemId)
-            val request = baseRequest(url)
+            // PROPFIND basePath, then filter to entries whose physical name carries the matching
+            // `<serverId>__<itemId>__` prefix; return the logical (post-prefix) filename so the
+            // controller sees the unprefixed name unchanged.
+            val request = baseRequest(basePath)
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
                 .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
                 .build()
             client.newCall(request).execute().use { response ->
                 when {
-                    // Most servers answer "PROPFIND on a non-existent collection" with 404; Synology
-                    // (and a few others) answer 405 instead. Treat both as "nothing there yet" so the
-                    // sync can proceed to create the directory on first push.
-                    response.code == 404 || response.code == 405 -> emptyList()
+                    response.code in setOf(400, 404, 405) -> emptyList()
                     response.code == 401 || response.code == 403 ->
                         throw AnnotationSyncException.AuthFailed(response.code)
                     !response.isSuccessful && response.code != 207 ->
                         throw AnnotationSyncException.HttpFailure(response.code, "list")
                     else -> {
                         val body = response.body.string()
+                        val prefix = physicalPrefix(serverId, itemId)
                         parsePropfindFilenames(body)
+                            .filter { it.startsWith(prefix) }
+                            .map { it.removePrefix(prefix) }
                     }
                 }
             }
@@ -87,32 +102,20 @@ class WebDavAnnotationSyncTarget(
         content: String,
     ) {
         withContext(Dispatchers.IO) {
+            // Flat path under basePath. No per-book subdirectories means MKCOL never has to fire on
+            // a real push — the only collection that must exist is basePath itself, which the user
+            // has already vouched for via Test Connection (and which we MKCOL-create on demand).
             val url = fileUrl(serverId, itemId, filename)
             val body = content.toRequestBody(JSON_LD_MEDIA)
-
-            val first = put(url, body)
-            if (first.isSuccessful) {
-                first.close()
-                return@withContext
-            }
-            val code = first.code
-            first.close()
-            when (code) {
-                401, 403 -> throw AnnotationSyncException.AuthFailed(code)
-                // Most servers signal "parent collection missing" with 409 or 404. Synology answers
-                // 405 (Method Not Allowed) instead — same intent, just a different code. Treat all
-                // three as "ensure the parents first, then retry the PUT."
-                409, 404, 405 -> {
-                    ensureParentCollections(serverId, itemId)
-                    val retry = put(url, body)
-                    val retryCode = retry.code
-                    val retryOk = retry.isSuccessful
-                    retry.close()
-                    if (!retryOk) {
-                        throw AnnotationSyncException.HttpFailure(retryCode, "write $filename")
-                    }
+            val response = put(url, body)
+            val code = response.code
+            val ok = response.isSuccessful
+            response.close()
+            if (!ok) {
+                when (code) {
+                    401, 403 -> throw AnnotationSyncException.AuthFailed(code)
+                    else -> throw AnnotationSyncException.HttpFailure(code, "write $filename")
                 }
-                else -> throw AnnotationSyncException.HttpFailure(code, "write $filename")
             }
         }
     }
@@ -157,28 +160,6 @@ class WebDavAnnotationSyncTarget(
         TestConnectionResult.NetworkError(e.message ?: "Network error")
     }
 
-    private fun ensureParentCollections(serverId: String, itemId: String) {
-        // Walk down from base, MKCOLing each segment we own. 405 = already exists, fine.
-        val parents = listOf(basePath, basePath.newBuilder().addPathSegment(serverId).build())
-        val terminal = parents.last().newBuilder().addPathSegment(itemId).build()
-        val toCreate = listOf(basePath, parents[1], terminal)
-        for (dir in toCreate) {
-            val url = ensureTrailingSlash(dir)
-            val request = baseRequest(url)
-                .method("MKCOL", null)
-                .build()
-            client.newCall(request).execute().use { resp ->
-                Log.d(TAG, "MKCOL $url -> ${resp.code}")
-                if (!resp.isSuccessful && resp.code != 405) {
-                    when (resp.code) {
-                        401, 403 -> throw AnnotationSyncException.AuthFailed(resp.code)
-                        else -> throw AnnotationSyncException.HttpFailure(resp.code, "mkcol")
-                    }
-                }
-            }
-        }
-    }
-
     private fun put(url: HttpUrl, body: RequestBody): Response {
         val request = baseRequest(url).put(body).build()
         val response = client.newCall(request).execute()
@@ -197,20 +178,14 @@ class WebDavAnnotationSyncTarget(
         .header("Authorization", authHeader)
         .header("User-Agent", FINDER_USER_AGENT)
 
-    private fun bookUrl(serverId: String, itemId: String): HttpUrl =
-        ensureTrailingSlash(
-            basePath.newBuilder()
-                .addPathSegment(serverId)
-                .addPathSegment(itemId)
-                .build(),
-        )
-
     private fun fileUrl(serverId: String, itemId: String, filename: String): HttpUrl =
         basePath.newBuilder()
-            .addPathSegment(serverId)
-            .addPathSegment(itemId)
-            .addPathSegment(filename)
+            .addPathSegment(physicalPrefix(serverId, itemId) + filename)
             .build()
+
+    /** Composite filename prefix that emulates the per-book directory: `<serverId>__<itemId>__`. */
+    private fun physicalPrefix(serverId: String, itemId: String): String =
+        "$serverId$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
 
     private fun ensureTrailingSlash(url: HttpUrl): HttpUrl {
         val segs = url.pathSegments
@@ -260,6 +235,7 @@ class WebDavAnnotationSyncTarget(
 
     companion object {
         private const val TAG = "RIFFLE_ANNO_SYNC"
+        private const val NAMESPACE_SEPARATOR = "__"
         // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
         // servers, so MKCOL/PUT requests aren't put through unfamiliar-UA gating.
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
