@@ -1445,10 +1445,11 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when
-     *  sync is not configured, the active server id isn't known yet, or the ABS namespace hasn't
-     *  been resolved (Storyteller-only, offline backfill failure). */
+     *  sync is not configured or the ABS namespace hasn't been resolved (Storyteller-only, offline
+     *  backfill failure). [annotationServerId] and [annotationNamespace] are set together on book
+     *  open, so checking the namespace also guarantees the serverId is present. */
     private fun scheduleAnnotationSync() {
-        val sid = annotationServerId ?: readerSyncServerId ?: return
+        val sid = annotationServerId ?: return
         val ns = annotationNamespace ?: return
         annotationSyncController.scheduleDebounce(sid, ns, itemId)
     }
@@ -1537,8 +1538,11 @@ class EpubReaderViewModel @Inject constructor(
         super.onCleared()
         // Push any pending annotation edits to the WebDAV sync target (#76). Use progressFlushScope
         // so the PATCH survives viewModelScope cancellation at teardown. Skip when the namespace
-        // wasn't resolved this session — there's nowhere to push to.
-        val sidForSync = readerSyncServerId
+        // wasn't resolved this session — there's nowhere to push to. Use [annotationServerId] for
+        // symmetry with the syncOnOpen call at book-open: same identity on both ends of the
+        // bracket means the controller's debounce key (serverId, itemId) matches and any pending
+        // scheduled push is cancelled rather than racing the explicit close-flush.
+        val sidForSync = annotationServerId
         val nsForSync = annotationNamespace
         if (sidForSync != null && nsForSync != null) {
             progressFlushScope.flush { annotationSyncController.syncOnClose(sidForSync, nsForSync, itemId) }
