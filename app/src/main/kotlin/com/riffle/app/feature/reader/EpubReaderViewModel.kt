@@ -669,6 +669,8 @@ class EpubReaderViewModel @Inject constructor(
                 observeHighlights(activeServer.id)
                 observeBookmarks(activeServer.id)
                 observeAnnotationsForPanel(activeServer.id)
+                // Pull other devices' annotations from WebDAV (no-op if sync isn't configured).
+                annotationSyncController.syncOnOpen(activeServer.id, itemId)
             }
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
@@ -809,9 +811,6 @@ class EpubReaderViewModel @Inject constructor(
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
                 readerSyncServerId = serverRepository.getActive()?.id
-                readerSyncServerId?.let { sid ->
-                    annotationSyncController.syncOnOpen(sid, itemId)
-                }
                 // When the full coordinator can't be built (no cross-EPUB index yet), fall back to the
                 // bundle-SMIL-only audiobook follow so readaloud still syncs to the audiobook (ADR 0031).
                 audiobookFollow = if (readerSync == null) {

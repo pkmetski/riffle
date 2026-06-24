@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import android.util.Log
 import com.riffle.core.domain.AnnotationSyncTarget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,6 +33,10 @@ class WebDavAnnotationSyncTarget(
 
     private val basePath: HttpUrl = ensureTrailingSlash(baseUrl)
     private val authHeader: String = Credentials.basic(username, password)
+
+    init {
+        Log.d(TAG, "WebDavAnnotationSyncTarget initialised — basePath=$basePath user=$username")
+    }
 
     override suspend fun list(serverId: String, itemId: String): List<String> =
         withContext(Dispatchers.IO) {
@@ -162,12 +167,14 @@ class WebDavAnnotationSyncTarget(
         val terminal = parents.last().newBuilder().addPathSegment(itemId).build()
         val toCreate = listOf(basePath, parents[1], terminal)
         for (dir in toCreate) {
+            val url = ensureTrailingSlash(dir)
             val request = Request.Builder()
-                .url(ensureTrailingSlash(dir))
+                .url(url)
                 .header("Authorization", authHeader)
                 .method("MKCOL", null)
                 .build()
             client.newCall(request).execute().use { resp ->
+                Log.d(TAG, "MKCOL $url -> ${resp.code}")
                 if (!resp.isSuccessful && resp.code != 405) {
                     when (resp.code) {
                         401, 403 -> throw AnnotationSyncException.AuthFailed(resp.code)
@@ -184,7 +191,9 @@ class WebDavAnnotationSyncTarget(
             .header("Authorization", authHeader)
             .put(body)
             .build()
-        return client.newCall(request).execute()
+        val response = client.newCall(request).execute()
+        Log.d(TAG, "PUT $url -> ${response.code}")
+        return response
     }
 
     private fun bookUrl(serverId: String, itemId: String): HttpUrl =
@@ -249,6 +258,7 @@ class WebDavAnnotationSyncTarget(
     }
 
     companion object {
+        private const val TAG = "RIFFLE_ANNO_SYNC"
         private val XML_MEDIA = "application/xml; charset=utf-8".toMediaType()
         private val JSON_LD_MEDIA = "application/ld+json; charset=utf-8".toMediaType()
 

@@ -64,6 +64,10 @@ android {
         buildConfigField("String", "GIT_SHA", "\"\"")
     }
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     val keystorePath = System.getenv("KEYSTORE_PATH")
     signingConfigs {
         if (keystorePath != null) {

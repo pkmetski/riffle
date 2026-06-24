@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import android.util.Log
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
@@ -9,6 +10,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val TAG = "RIFFLE_ANNO_SYNC"
 
 /**
  * Orchestrator for annotation sync lifecycle.
@@ -43,11 +46,17 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     suspend fun syncOnOpen(serverId: String, itemId: String) {
-        val target = targetProvider() ?: return
+        val target = targetProvider()
+        if (target == null) {
+            Log.d(TAG, "syncOnOpen($serverId/$itemId) skipped — no sync target configured")
+            return
+        }
 
         try {
+            Log.d(TAG, "syncOnOpen($serverId/$itemId) — listing device files")
             // Step 1: List all annotation files
             val filenames = target.list(serverId, itemId)
+            Log.d(TAG, "syncOnOpen — found ${filenames.size} device file(s): $filenames")
 
             // Step 2: Read and parse each file
             val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
@@ -96,8 +105,9 @@ class AnnotationSyncController(
             for (entity in entities) {
                 annotationDao.upsert(entity)
             }
-        } catch (_: Exception) {
-            // Graceful error handling: continue silently on any error
+            Log.d(TAG, "syncOnOpen — merged ${entities.size} annotation(s) into Room")
+        } catch (e: Exception) {
+            Log.w(TAG, "syncOnOpen($serverId/$itemId) failed", e)
         }
     }
 
@@ -111,13 +121,17 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     fun scheduleDebounce(serverId: String, itemId: String) {
-        if (targetProvider() == null) return
+        if (targetProvider() == null) {
+            Log.d(TAG, "scheduleDebounce($serverId/$itemId) skipped — no sync target configured")
+            return
+        }
 
         val key = serverId to itemId
 
         // Cancel existing debounce job for this book
         debouncingJobs[key]?.cancel()
 
+        Log.d(TAG, "scheduleDebounce($serverId/$itemId) — push in ${DEBOUNCE_DURATION_MS}ms")
         // Schedule a new debounce job
         debouncingJobs[key] = scope.launch {
             delay(DEBOUNCE_DURATION_MS)
@@ -157,32 +171,32 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     private suspend fun pushPending(serverId: String, itemId: String) {
-        val target = targetProvider() ?: return
+        val target = targetProvider()
+        if (target == null) {
+            Log.d(TAG, "pushPending($serverId/$itemId) skipped — no sync target configured")
+            return
+        }
 
         try {
-            // Step 1: Get device ID
             val deviceId = deviceIdStore.getOrCreate()
-
-            // Step 2: Get local non-deleted annotations for this item
             val localEntities = annotationDao.getForItem(serverId, itemId)
-
-            // Step 3: Serialize each to W3C format
             val jsonStrings = localEntities.map { entity ->
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
-
-            // Step 4: Combine into JSON array
             val jsonArray = if (jsonStrings.isEmpty()) {
                 "[]"
             } else {
                 "[\n" + jsonStrings.joinToString(",\n") + "\n]"
             }
-
-            // Step 5: Write to device-specific file
             val filename = "annotations-$deviceId.jsonld"
+            Log.d(
+                TAG,
+                "pushPending($serverId/$itemId) — PUT $filename (${localEntities.size} annotation(s), ${jsonArray.length} bytes)",
+            )
             target.write(serverId, itemId, filename, jsonArray)
-        } catch (_: Exception) {
-            // Graceful error handling: continue silently on any error
+            Log.d(TAG, "pushPending($serverId/$itemId) — write succeeded")
+        } catch (e: Exception) {
+            Log.w(TAG, "pushPending($serverId/$itemId) failed", e)
         }
     }
 }
