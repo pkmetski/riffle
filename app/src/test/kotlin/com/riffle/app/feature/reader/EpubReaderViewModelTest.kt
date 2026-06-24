@@ -1192,8 +1192,9 @@ class BookmarkIndicatorTest {
         progression: Float?,
     ): Boolean {
         if (href == null) return false
+        val hrefNorm = normalizeEpubHref(href)
         return positions.any { bm ->
-            bm.chapterHref == href &&
+            bm.chapterHref == hrefNorm &&
                 (progression == null || kotlin.math.abs(bm.progression - progression) < 0.05)
         }
     }
@@ -1241,5 +1242,23 @@ class BookmarkIndicatorTest {
         )
         // Near 0.10, not 0.50
         assertTrue(isCurrentPageBookmarked(bms, "ch1.xhtml", 0.11f))
+    }
+
+    @Test
+    fun `matches across sessions when Readium's localhost port differs`() {
+        // Stored chapterHref came from a prior session's Readium server (port 41234).
+        // Current session serves the same chapter from a different port (port 58901).
+        // The indicator must still light up on the bookmarked page.
+        val bm = BookmarkPosition("id", "OEBPS/chapter1.xhtml", 0.30)
+        val currentSessionHref = "http://localhost:58901/OEBPS/chapter1.xhtml"
+        assertTrue(isCurrentPageBookmarked(listOf(bm), currentSessionHref, 0.31f))
+    }
+
+    @Test
+    fun `matches across sessions when stored href has file scheme and current is localhost`() {
+        // Legacy stored chapterHref from file:// path; current session serves via http://localhost.
+        val bm = BookmarkPosition("id", "OEBPS/ch1.xhtml", 0.30)
+        val currentSessionHref = "http://localhost:58901/OEBPS/ch1.xhtml"
+        assertTrue(isCurrentPageBookmarked(listOf(bm), currentSessionHref, 0.31f))
     }
 }
