@@ -3,8 +3,8 @@ package com.riffle.core.domain
 /**
  * Abstraction for storing and retrieving annotation files across different backends.
  *
- * This is a test scaffold for issue #75 (local-directory backend) and will be replaced
- * by a Google Drive implementation in issue #77.
+ * Issue #75 shipped a local-directory backend as a test scaffold; issue #76 adds the
+ * first network backend, a WebDAV implementation, behind the same interface.
  *
  * Files are organized per-device at the logical path:
  * ```

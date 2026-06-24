@@ -68,7 +68,7 @@ class AnnotationSyncControllerIntegrationTest {
 
         // Create the controller
         controller = AnnotationSyncController(
-            target = target,
+            targetProvider = { target },
             mergeService = mergeService,
             annotationDao = annotationDao,
             deviceIdStore = deviceIdStore,
@@ -314,7 +314,7 @@ class AnnotationSyncControllerIntegrationTest {
     @Test
     fun nullTarget_gracefullyNoop() = runTest {
         val nullTargetController = AnnotationSyncController(
-            target = null,
+            targetProvider = { null },
             mergeService = mergeService,
             annotationDao = annotationDao,
             deviceIdStore = deviceIdStore,

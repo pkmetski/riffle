@@ -18,6 +18,9 @@ import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.AnnotationStoreImpl
+import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.EncryptedKeyValueStore
+import com.riffle.core.data.KeystoreEncryptedKeyValueStore
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
 import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
@@ -46,6 +49,7 @@ import com.riffle.core.data.WakeLockPreferencesStoreImpl
 import com.riffle.core.data.ReadaloudPreferencesStoreImpl
 import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -356,6 +360,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAnnotationStore(impl: AnnotationStoreImpl): AnnotationStore
+
+    @Binds
+    @Singleton
+    abstract fun bindEncryptedKeyValueStore(impl: KeystoreEncryptedKeyValueStore): EncryptedKeyValueStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAnnotationSyncConfigStore(impl: AnnotationSyncConfigStoreImpl): AnnotationSyncConfigStore
 
     @Binds
     @Singleton
@@ -731,6 +743,43 @@ abstract class DataModule {
         fun provideReadingSpeedDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.readingSpeedDataStore
+
+        @Provides
+        @Singleton
+        fun provideAnnotationMergeService(): com.riffle.core.domain.AnnotationMergeService =
+            com.riffle.core.domain.AnnotationMergeService()
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSyncTargetHolder(
+            configStore: com.riffle.core.domain.AnnotationSyncConfigStore,
+            factory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
+        ): com.riffle.core.data.AnnotationSyncTargetHolder =
+            com.riffle.core.data.AnnotationSyncTargetHolder(
+                configStore = configStore,
+                factory = factory,
+                scope = kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                ),
+            )
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSyncController(
+            holder: com.riffle.core.data.AnnotationSyncTargetHolder,
+            mergeService: com.riffle.core.domain.AnnotationMergeService,
+            annotationDao: com.riffle.core.database.AnnotationDao,
+            deviceIdStore: com.riffle.core.domain.DeviceIdStore,
+        ): com.riffle.core.data.AnnotationSyncController =
+            com.riffle.core.data.AnnotationSyncController(
+                targetProvider = { holder.current() },
+                mergeService = mergeService,
+                annotationDao = annotationDao,
+                deviceIdStore = deviceIdStore,
+                scope = kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                ),
+            )
 
         @Provides
         @Singleton

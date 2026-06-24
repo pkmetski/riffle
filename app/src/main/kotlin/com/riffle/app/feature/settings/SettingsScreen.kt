@@ -83,6 +83,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToAddServer: () -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
+    onNavigateToAnnotationSync: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val report = viewModel.lastCrashReport
@@ -337,6 +338,23 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    },
+                )
+                HorizontalDivider()
+
+                Text(
+                    text = "Annotations Sync",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                val annotationSyncSummary by viewModel.annotationSyncSummary.collectAsState()
+                ListItem(
+                    modifier = Modifier.clickable { onNavigateToAnnotationSync() },
+                    headlineContent = { Text("Annotation sync (WebDAV)") },
+                    supportingContent = {
+                        Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
                     },
                 )
                 HorizontalDivider()

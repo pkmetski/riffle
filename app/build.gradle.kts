@@ -63,7 +63,6 @@ android {
         // published (release) builds carry no SHA; the debug build type fills in the real value.
         buildConfigField("String", "GIT_SHA", "\"\"")
     }
-
     val keystorePath = System.getenv("KEYSTORE_PATH")
     signingConfigs {
         if (keystorePath != null) {
@@ -172,6 +171,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(composeBom)

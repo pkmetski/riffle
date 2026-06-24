@@ -18,10 +18,10 @@ import kotlinx.coroutines.launch
  * - [scheduleDebounce]: Per-book debounce timer on any annotation mutation.
  * - [syncOnClose]: Cancel debounce and push pending changes when a book is closed.
  *
- * Gracefully degrades to a no-op if [target] is null (sync disabled).
+ * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled).
  */
 class AnnotationSyncController(
-    private val target: AnnotationSyncTarget?,
+    private val targetProvider: () -> AnnotationSyncTarget?,
     private val mergeService: AnnotationMergeService,
     private val annotationDao: AnnotationDao,
     private val deviceIdStore: DeviceIdStore,
@@ -43,31 +43,32 @@ class AnnotationSyncController(
      * @param itemId The ABS library item ID.
      */
     suspend fun syncOnOpen(serverId: String, itemId: String) {
-        if (target == null) return
+        val target = targetProvider() ?: return
 
         try {
-            // Step 1: List all annotation files
             val filenames = target.list(serverId, itemId)
 
-            // Step 2: Read and parse each file
+            // Each device file is a JSON array of W3C annotations (one per annotation the device
+            // created), so flat-map the parsed lists.
             val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
             for (filename in filenames) {
                 try {
                     val jsonString = target.read(serverId, itemId, filename) ?: continue
-                    val parsed = AnnotationW3CCodec.w3cToAnnotationEntity(jsonString)
-                    // Skip corrupt files (empty id is a sign of parsing failure)
-                    if (parsed.id.isNotEmpty()) {
-                        parsedAnnotations.add(parsed)
-                    }
+                    parsedAnnotations += AnnotationW3CCodec.w3cFileToAnnotations(jsonString)
                 } catch (_: Exception) {
                     // Skip corrupt files silently
                 }
             }
 
-            // Step 3: Merge parsed annotations
-            val merged = mergeService.merge(parsedAnnotations)
+            // Seed merge with the local set (including tombstones) so LWW spans both sides — a
+            // newer local edit isn't clobbered by an older remote copy, and a local tombstone wins
+            // over a remote pre-delete entry.
+            val localExisting = annotationDao
+                .getAllForItemIncludingDeleted(serverId, itemId)
+                .map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
-            // Step 4: Convert to AnnotationEntity and upsert
+            val merged = mergeService.merge(parsed = parsedAnnotations, existing = localExisting)
+
             val entities = merged.map { w3cAnnotation ->
                 AnnotationEntity(
                     id = w3cAnnotation.id,
@@ -92,7 +93,6 @@ class AnnotationSyncController(
                 )
             }
 
-            // Upsert all merged entities
             for (entity in entities) {
                 annotationDao.upsert(entity)
             }
@@ -106,19 +106,12 @@ class AnnotationSyncController(
      *
      * Called after any annotation mutation. Per-book debounce timer; restarts on each call.
      * Cancels any existing pending push for the same book and schedules a new one.
-     *
-     * @param serverId The ABS server ID.
-     * @param itemId The ABS library item ID.
      */
     fun scheduleDebounce(serverId: String, itemId: String) {
-        if (target == null) return
+        if (targetProvider() == null) return
 
         val key = serverId to itemId
-
-        // Cancel existing debounce job for this book
         debouncingJobs[key]?.cancel()
-
-        // Schedule a new debounce job
         debouncingJobs[key] = scope.launch {
             delay(DEBOUNCE_DURATION_MS)
             pushPending(serverId, itemId)
@@ -129,21 +122,13 @@ class AnnotationSyncController(
      * Sync on book close.
      *
      * Cancels any pending debounce timer and pushes pending annotations to the sync target.
-     * Called on DisposableEffect.onDispose().
-     *
-     * @param serverId The ABS server ID.
-     * @param itemId The ABS library item ID.
      */
     suspend fun syncOnClose(serverId: String, itemId: String) {
-        if (target == null) return
+        if (targetProvider() == null) return
 
         val key = serverId to itemId
-
-        // Cancel any pending debounce
         debouncingJobs[key]?.cancel()
         debouncingJobs.remove(key)
-
-        // Push pending changes immediately
         pushPending(serverId, itemId)
     }
 
@@ -152,33 +137,27 @@ class AnnotationSyncController(
      *
      * Reads all local non-deleted annotations for a book, serializes them to W3C format,
      * and writes them to a device-specific file.
-     *
-     * @param serverId The ABS server ID.
-     * @param itemId The ABS library item ID.
      */
     private suspend fun pushPending(serverId: String, itemId: String) {
-        if (target == null) return
+        val target = targetProvider() ?: return
 
         try {
-            // Step 1: Get device ID
+            // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
+            // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
+            // the newer tombstone over any older live copy of the same id.
+            val localEntities = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+            // Don't overwrite this device's existing remote file with an empty list when local has
+            // nothing — that erases the cloud copy of annotations on transient local-empty states
+            // (cleared data, mid-migration). We only push when there's at least one row (live or
+            // tombstoned) to record. Genuine "user deleted everything" still propagates because
+            // each delete leaves a tombstone in this list.
+            if (localEntities.isEmpty()) return
+
             val deviceId = deviceIdStore.getOrCreate()
-
-            // Step 2: Get local non-deleted annotations for this item
-            val localEntities = annotationDao.getForItem(serverId, itemId)
-
-            // Step 3: Serialize each to W3C format
             val jsonStrings = localEntities.map { entity ->
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
-
-            // Step 4: Combine into JSON array
-            val jsonArray = if (jsonStrings.isEmpty()) {
-                "[]"
-            } else {
-                "[\n" + jsonStrings.joinToString(",\n") + "\n]"
-            }
-
-            // Step 5: Write to device-specific file
+            val jsonArray = "[\n" + jsonStrings.joinToString(",\n") + "\n]"
             val filename = "annotations-$deviceId.jsonld"
             target.write(serverId, itemId, filename, jsonArray)
         } catch (_: Exception) {

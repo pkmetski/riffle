@@ -6,6 +6,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -159,10 +161,62 @@ object AnnotationW3CCodec {
      *
      * @see w3cToAnnotationEntity (Task 5): Implement deserialization logic.
      */
-    fun w3cToAnnotationEntity(jsonString: String): W3CAnnotation {
-        try {
-            val root = json.parseToJsonElement(jsonString).jsonObject
+    /**
+     * In-memory projection of an [AnnotationEntity] to a [W3CAnnotation] without going through
+     * the JSON intermediate. Used by `AnnotationSyncController.syncOnOpen` to feed local rows
+     * (including tombstones) into the merge service so LWW spans local-and-remote, not just remote.
+     */
+    fun entityToW3CAnnotation(entity: AnnotationEntity): W3CAnnotation = W3CAnnotation(
+        id = entity.id,
+        cfi = entity.cfi,
+        textSnippet = entity.textSnippet,
+        textBefore = entity.textBefore,
+        textAfter = entity.textAfter,
+        chapterHref = entity.chapterHref,
+        type = entity.type,
+        color = entity.color.takeIf { it.isNotEmpty() },
+        note = entity.note,
+        bookmarkTitle = entity.bookmarkTitle.takeIf { it.isNotEmpty() },
+        originDeviceId = entity.originDeviceId,
+        lastModifiedByDeviceId = entity.lastModifiedByDeviceId,
+        updatedAt = entity.updatedAt,
+        createdAt = entity.createdAt,
+        deleted = entity.deleted,
+    )
 
+    /**
+     * Parse a per-device W3C JSON-LD file (a JSON array of annotations as written by
+     * [pushPending][AnnotationSyncController]) into individual [W3CAnnotation]s. Tolerates a
+     * single-object root for backward-compat with anything that wrote a bare object.
+     */
+    fun w3cFileToAnnotations(jsonString: String): List<W3CAnnotation> {
+        val root = try {
+            json.parseToJsonElement(jsonString)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val objects: List<JsonObject> = when (root) {
+            is JsonArray -> root.mapNotNull { it as? JsonObject }
+            is JsonObject -> listOf(root)
+            else -> return emptyList()
+        }
+        return objects.mapNotNull { obj ->
+            val parsed = w3cObjectToAnnotation(obj)
+            parsed.takeIf { it.id.isNotEmpty() }
+        }
+    }
+
+    fun w3cToAnnotationEntity(jsonString: String): W3CAnnotation {
+        return try {
+            val root = json.parseToJsonElement(jsonString).jsonObject
+            w3cObjectToAnnotation(root)
+        } catch (_: Exception) {
+            emptyAnnotation()
+        }
+    }
+
+    private fun w3cObjectToAnnotation(root: JsonObject): W3CAnnotation {
+        try {
             // Extract id and remove "urn:uuid:" prefix
             val idRaw = root["id"]?.jsonPrimitive?.content ?: ""
             val id = idRaw.removePrefix("urn:uuid:")
@@ -255,19 +309,20 @@ object AnnotationW3CCodec {
                 createdAt = createdAt,
                 deleted = deleted,
             )
-        } catch (e: Exception) {
-            // Graceful degradation: return a minimal annotation if parsing fails
-            return W3CAnnotation(
-                id = "",
-                cfi = "",
-                textSnippet = "",
-                chapterHref = "",
-                type = AnnotationEntity.TYPE_HIGHLIGHT,
-                originDeviceId = "",
-                lastModifiedByDeviceId = "",
-                updatedAt = 0L,
-                createdAt = 0L,
-            )
+        } catch (_: Exception) {
+            return emptyAnnotation()
         }
     }
+
+    private fun emptyAnnotation(): W3CAnnotation = W3CAnnotation(
+        id = "",
+        cfi = "",
+        textSnippet = "",
+        chapterHref = "",
+        type = AnnotationEntity.TYPE_HIGHLIGHT,
+        originDeviceId = "",
+        lastModifiedByDeviceId = "",
+        updatedAt = 0L,
+        createdAt = 0L,
+    )
 }

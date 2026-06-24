@@ -13,8 +13,9 @@ import java.io.File
  * <filesDir>/annotation-sync/<serverId>/<itemId>/annotations-<deviceId>.jsonld
  * ```
  *
- * This is a test scaffold for issue #75 and will be replaced by a Google Drive
- * implementation in issue #77.
+ * This is a test scaffold for issue #75. Issue #76 adds the first network backend
+ * (WebDAV) behind the same interface; the local-directory target remains useful for
+ * tests and offline-only configurations.
  */
 class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget {
 

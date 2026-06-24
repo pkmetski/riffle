@@ -1,13 +1,13 @@
 # ADR 0034 — Annotation sync: local-directory scaffold + merge service architecture (issue #75)
 
 **Status:** Accepted  
-**Extends:** [ADR 0025](0025-annotation-sync-pluggable-target-w3c-format.md), [ADR 0033](0033-annotation-sync-gdrive-first-target.md)
+**Extends:** [ADR 0025](0025-annotation-sync-pluggable-target-w3c-format.md)
 
 ## Context
 
-ADR 0025 designed annotation sync with a pluggable `AnnotationSyncTarget` abstraction and W3C Web Annotation format, deferring the cloud target (WebDAV, later Google Drive per ADR 0033). ADR 0033 chose Google Drive as the first cloud target.
+ADR 0025 designed annotation sync with a pluggable `AnnotationSyncTarget` abstraction and W3C Web Annotation format, deferring the cloud target (WebDAV against a self-hosted server).
 
-For issue #75 (the tracer bullet), we need to validate the entire sync pipeline — merge logic, codec, controller lifecycle — end-to-end before integrating the network transport (Google Drive, issue #77). Simply building against mocked targets leaves too much untested. We need a real, minimal implementation of `AnnotationSyncTarget` that exercises the full path: reading per-device files, parsing W3C JSON-LD, merging by last-write-wins, writing Room, syncing on reader lifecycle.
+For issue #75 (the tracer bullet), we need to validate the entire sync pipeline — merge logic, codec, controller lifecycle — end-to-end before integrating the network transport (WebDAV, issue #76). Simply building against mocked targets leaves too much untested. We need a real, minimal implementation of `AnnotationSyncTarget` that exercises the full path: reading per-device files, parsing W3C JSON-LD, merging by last-write-wins, writing Room, syncing on reader lifecycle.
 
 ## Decision
 
@@ -16,7 +16,7 @@ For issue #75 (the tracer bullet), we need to validate the entire sync pipeline 
 Implement `AnnotationSyncTarget` with a simple local-directory backend for this slice:
 - Reads/writes per-device JSON-LD files to `context.filesDir/annotation-sync/<serverId>/<itemId>/annotations-<deviceId>.jsonld`
 - No network, no async, synchronous file I/O only
-- Exists solely to exercise the merge and controller logic; will be superseded by Google Drive in issue #77
+- Exists solely to exercise the merge and controller logic; will be superseded by WebDAV in issue #76
 
 **Why a real implementation vs. mocks:**
 - **Mocks don't catch serialization bugs.** Tests can pass against mocks but fail against real files.
@@ -40,7 +40,7 @@ class AnnotationMergeService {
 
 **Why a separate service:**
 - **Pure, testable logic.** No I/O, no Room dependency; unit-testable in isolation.
-- **Reusable across targets.** Google Drive, WebDAV, ABS all use the same merge; swapping targets doesn't touch the algorithm.
+- **Reusable across targets.** WebDAV, ABS native (future) all use the same merge; swapping targets doesn't touch the algorithm.
 - **Deterministic.** Merge(A) + Merge(B) with same inputs always produces identical Room state, enabling idempotence tests.
 - **Easier to debug.** Merge bugs are isolated from controller/I/O issues.
 
@@ -161,7 +161,7 @@ Extract merge into standalone `AnnotationMergeService`, reusable across targets.
 
 **Pros:**
 - Pure, fully testable logic
-- Reusable (Google Drive, WebDAV, ABS all use same merge)
+- Reusable (WebDAV, ABS native all use the same merge)
 - Idempotence provable
 - Easier to debug
 
@@ -224,7 +224,7 @@ One global debounce timer for all books on the device.
 
 ## Consequences
 
-- **Local-directory is temporary.** Google Drive replaces it in issue #77 without touching merge or controller; per-device files stay the same.
+- **Local-directory is temporary.** WebDAV replaces it in issue #76 without touching merge or controller; per-device files stay the same.
 - **Merge is frozen logic.** All targets use the same algorithm; format and merge are durable even as transports change.
 - **Room always reflects sync state.** Clients query Room for annotations; no separate "sync cache" layer.
 - **Idempotence is testable.** Merge(A) = Merge(Merge(A)); re-opening a book doesn't lose or duplicate annotations.
@@ -246,16 +246,15 @@ One global debounce timer for all books on the device.
 
 ## Migration Path
 
-1. **Issue #75 (this):** Local-directory scaffold, core merge/controller/codec
-2. **Issue #77:** Google Drive `AnnotationSyncTarget` implementation
-3. **Issue #78:** Sync UI (enable/disable, status)
-4. **Future:** ABS native target, WebDAV/Synology, per-library sweep, encryption, conflict UI
+1. **Issue #75:** Local-directory scaffold, core merge/controller/codec
+2. **Issue #76:** WebDAV `AnnotationSyncTarget` + global sync config (URL/user/pass) + Test Connection
+3. **Issue #78:** Sync UI (status, offline-resilience indicator)
+4. **Future:** ABS native target, per-library sweep, payload encryption, conflict UI
 
 Each step plugs into the `AnnotationSyncTarget` interface without breaking prior layers.
 
 ## References
 
 - [ADR 0025 — Annotation sync: pluggable target, W3C format, per-device-file merge](0025-annotation-sync-pluggable-target-w3c-format.md)
-- [ADR 0033 — Google Drive appDataFolder as first cloud target](0033-annotation-sync-gdrive-first-target.md)
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)
 - [Issue #75 — feat(annotation-sync): per-device-file merge engine + sync lifecycle](https://github.com/plamen-kmetski/riffle/issues/75)

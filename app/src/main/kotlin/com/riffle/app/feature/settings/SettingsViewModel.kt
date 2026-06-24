@@ -59,7 +59,13 @@ class SettingsViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val appUpdateRepository: AppUpdateRepository,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
+    annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
 ) : ViewModel() {
+
+    /** Live summary for the "Annotation sync (WebDAV)" row — null when sync is unconfigured. */
+    val annotationSyncSummary: StateFlow<String?> = annotationSyncConfigStore.observe()
+        .map { config -> config?.let { "Configured · ${it.username}@${shortHost(it.baseUrl)}" } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
 
@@ -302,6 +308,9 @@ class SettingsViewModel @Inject constructor(
     fun setLibraryOrder(serverId: String, orderedLibraryIds: List<String>) {
         viewModelScope.launch { orderStore.setLibraryOrder(serverId, orderedLibraryIds) }
     }
+
+    private fun shortHost(rawUrl: String): String =
+        runCatching { java.net.URI(rawUrl).host ?: rawUrl }.getOrDefault(rawUrl)
 }
 
 /** Counts shown in a Storyteller server's expanded "Readaloud matches" summary (gradient order). */

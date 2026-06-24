@@ -161,6 +161,7 @@ class EpubReaderViewModel @Inject constructor(
     private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
+    private val annotationSyncController: com.riffle.core.data.AnnotationSyncController,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
@@ -668,6 +669,8 @@ class EpubReaderViewModel @Inject constructor(
                 observeHighlights(activeServer.id)
                 observeBookmarks(activeServer.id)
                 observeAnnotationsForPanel(activeServer.id)
+                // Pull other devices' annotations from WebDAV (no-op if sync isn't configured).
+                annotationSyncController.syncOnOpen(activeServer.id, itemId)
             }
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
@@ -1338,6 +1341,7 @@ class EpubReaderViewModel @Inject constructor(
                 progression = progression,
             )
             openHighlightActions(created.id, anchorRect)
+            scheduleAnnotationSync()
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
         }
     }
@@ -1358,6 +1362,7 @@ class EpubReaderViewModel @Inject constructor(
             }
             if (existing != null) {
                 annotationStore.delete(existing.id)
+                scheduleAnnotationSync()
             } else {
                 val pub = publication ?: return@launch
                 val spineIdx = pub.readingOrder.indexOfFirst { normalizeEpubHref(it.url().toString()) == normalizeEpubHref(href) }.coerceAtLeast(0)
@@ -1385,21 +1390,33 @@ class EpubReaderViewModel @Inject constructor(
                     progression = prog,
                     bookmarkTitle = title,
                 )
+                scheduleAnnotationSync()
             }
         }
     }
 
     /** Recolour an existing highlight; observeHighlights re-emits → decoration re-applies. */
     fun recolorHighlight(id: String, color: HighlightColor) {
-        viewModelScope.launch { annotationStore.recolor(id, color.token) }
+        viewModelScope.launch {
+            annotationStore.recolor(id, color.token)
+            scheduleAnnotationSync()
+        }
     }
 
     /** Soft-delete a highlight; observeHighlights re-emits without it → decoration is removed. */
     fun deleteHighlight(id: String) {
         viewModelScope.launch {
             annotationStore.delete(id)
+            scheduleAnnotationSync()
             if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
         }
+    }
+
+    /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when
+     *  sync is not configured or the active server id isn't known yet. */
+    private fun scheduleAnnotationSync() {
+        val sid = annotationServerId ?: readerSyncServerId ?: return
+        annotationSyncController.scheduleDebounce(sid, itemId)
     }
 
     /** Navigate the reader to the annotation with [id], then close the annotations panel. */
@@ -1414,20 +1431,27 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Rename a bookmark; observeAnnotationsForPanel re-emits with the new title. */
     fun renameBookmark(id: String, title: String) {
-        viewModelScope.launch { annotationStore.renameBookmark(id, title) }
+        viewModelScope.launch {
+            annotationStore.renameBookmark(id, title)
+            scheduleAnnotationSync()
+        }
     }
 
     /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
     fun deleteAnnotation(id: String) {
         viewModelScope.launch {
             annotationStore.delete(id)
+            scheduleAnnotationSync()
             if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
         }
     }
 
     /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
     fun updateHighlightNote(id: String, note: String?) {
-        viewModelScope.launch { annotationStore.updateNote(id, note?.takeIf { it.isNotBlank() }) }
+        viewModelScope.launch {
+            annotationStore.updateNote(id, note?.takeIf { it.isNotBlank() })
+            scheduleAnnotationSync()
+        }
     }
 
     // Reconstruct a persisted highlight into a renderable Readium locator. The CFI start re-anchors
@@ -1477,6 +1501,11 @@ class EpubReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Push any pending annotation edits to the WebDAV sync target (#76). Use progressFlushScope
+        // so the PATCH survives viewModelScope cancellation at teardown.
+        readerSyncServerId?.let { sid ->
+            progressFlushScope.flush { annotationSyncController.syncOnClose(sid, itemId) }
+        }
         // Release this book to the durable sweep again (ADR 0030).
         readerServerId?.let { sid ->
             openReconcileTargets.markClosed(sid, itemId)
