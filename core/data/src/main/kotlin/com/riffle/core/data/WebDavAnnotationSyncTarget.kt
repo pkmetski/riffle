@@ -41,9 +41,7 @@ class WebDavAnnotationSyncTarget(
     override suspend fun list(serverId: String, itemId: String): List<String> =
         withContext(Dispatchers.IO) {
             val url = bookUrl(serverId, itemId)
-            val request = Request.Builder()
-                .url(url)
-                .header("Authorization", authHeader)
+            val request = baseRequest(url)
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
                 .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
@@ -69,11 +67,7 @@ class WebDavAnnotationSyncTarget(
     override suspend fun read(serverId: String, itemId: String, filename: String): String? =
         withContext(Dispatchers.IO) {
             val url = fileUrl(serverId, itemId, filename)
-            val request = Request.Builder()
-                .url(url)
-                .header("Authorization", authHeader)
-                .get()
-                .build()
+            val request = baseRequest(url).get().build()
             client.newCall(request).execute().use { response ->
                 when {
                     response.code == 404 -> null
@@ -124,9 +118,7 @@ class WebDavAnnotationSyncTarget(
     }
 
     suspend fun testConnection(): TestConnectionResult = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url(basePath)
-            .header("Authorization", authHeader)
+        val request = baseRequest(basePath)
             .header("Depth", "0")
             .header("Content-Type", "application/xml; charset=utf-8")
             .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
@@ -149,9 +141,7 @@ class WebDavAnnotationSyncTarget(
     }
 
     private fun tryCreateBase(): TestConnectionResult = try {
-        val mkcol = Request.Builder()
-            .url(basePath)
-            .header("Authorization", authHeader)
+        val mkcol = baseRequest(basePath)
             .method("MKCOL", null)
             .build()
         client.newCall(mkcol).execute().use { resp ->
@@ -174,9 +164,7 @@ class WebDavAnnotationSyncTarget(
         val toCreate = listOf(basePath, parents[1], terminal)
         for (dir in toCreate) {
             val url = ensureTrailingSlash(dir)
-            val request = Request.Builder()
-                .url(url)
-                .header("Authorization", authHeader)
+            val request = baseRequest(url)
                 .method("MKCOL", null)
                 .build()
             client.newCall(request).execute().use { resp ->
@@ -192,15 +180,22 @@ class WebDavAnnotationSyncTarget(
     }
 
     private fun put(url: HttpUrl, body: RequestBody): Response {
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", authHeader)
-            .put(body)
-            .build()
+        val request = baseRequest(url).put(body).build()
         val response = client.newCall(request).execute()
         Log.d(TAG, "PUT $url -> ${response.code}")
         return response
     }
+
+    /**
+     * Every WebDAV request built here is auth'd and tagged with a Finder User-Agent. Some servers —
+     * Synology DSM's WebDAV Server in particular — return 424 for MKCOL when the UA looks
+     * unfamiliar, even when the user holds Read/Write on the share. Spoofing macOS Finder's
+     * WebDAVFS UA takes us out of that lane (verified against pkmetski.synology.me).
+     */
+    private fun baseRequest(url: HttpUrl): Request.Builder = Request.Builder()
+        .url(url)
+        .header("Authorization", authHeader)
+        .header("User-Agent", FINDER_USER_AGENT)
 
     private fun bookUrl(serverId: String, itemId: String): HttpUrl =
         ensureTrailingSlash(
@@ -265,6 +260,9 @@ class WebDavAnnotationSyncTarget(
 
     companion object {
         private const val TAG = "RIFFLE_ANNO_SYNC"
+        // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
+        // servers, so MKCOL/PUT requests aren't put through unfamiliar-UA gating.
+        private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
         private val XML_MEDIA = "application/xml; charset=utf-8".toMediaType()
         private val JSON_LD_MEDIA = "application/ld+json; charset=utf-8".toMediaType()
 

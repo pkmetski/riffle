@@ -61,6 +61,24 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
+    fun `every request carries a Finder UA — Synology gates MKCOL on User-Agent`() = runTest {
+        // PUT to MKCOL retry chain exercises every verb; assert each carries the Finder UA.
+        server.enqueue(MockResponse().setResponseCode(409))           // first PUT
+        server.enqueue(MockResponse().setResponseCode(405))           // MKCOL annotations
+        server.enqueue(MockResponse().setResponseCode(201))           // MKCOL srv1
+        server.enqueue(MockResponse().setResponseCode(201))           // MKCOL book1
+        server.enqueue(MockResponse().setResponseCode(201))           // retry PUT
+
+        newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
+
+        repeat(5) {
+            val req = server.takeRequest()
+            val ua = req.getHeader("User-Agent") ?: ""
+            assertTrue("expected Finder UA on ${req.method} ${req.path}, was \"$ua\"", ua.startsWith("WebDAVFS/"))
+        }
+    }
+
+    @Test
     fun `read returns null on 404`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
 
