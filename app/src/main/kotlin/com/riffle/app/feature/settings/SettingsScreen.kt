@@ -353,7 +353,7 @@ fun SettingsScreen(
                 val annotationSyncSummary by viewModel.annotationSyncSummary.collectAsState()
                 ListItem(
                     modifier = Modifier.clickable { onNavigateToAnnotationSync() },
-                    headlineContent = { Text("WebDAV") },
+                    headlineContent = { Text("Configure WebDAV") },
                     supportingContent = {
                         Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
                     },
