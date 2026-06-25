@@ -203,10 +203,12 @@ jobs:
       - name: Run phone harness tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 25
           target: google_apis
-          arch: x86_64
+          arch: x86
           profile: pixel
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout
       - name: Upload harness phone reports
         if: always()
@@ -248,10 +250,12 @@ jobs:
       - name: Run tablet harness tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 25
           target: google_apis
-          arch: x86_64
-          profile: pixel_c
+          arch: x86
+          profile: Nexus 10
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
       - name: Upload harness tablet reports
         if: always()

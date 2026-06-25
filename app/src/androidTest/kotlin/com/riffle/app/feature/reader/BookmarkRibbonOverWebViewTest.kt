@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.graphics.Color as AndroidColor
+import android.os.Build
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -40,6 +42,11 @@ class BookmarkRibbonOverWebViewTest {
 
     @get:Rule val composeTestRule = createComposeRule()
 
+    // Suppressed on API 25: `captureToImage()` ultimately calls `PixelCopy.request(Window, …)`,
+    // an overload added in API 26 (Android 8.0). On Android 7.1.1 the method does not exist
+    // and the test throws NoSuchMethodError before it can assert anything. The compositing
+    // fix it guards is platform-independent, so running on API ≥ 26 is sufficient coverage.
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.O)
     @Test
     fun bookmarkRibbon_rendersAboveWebView() {
         composeTestRule.setContent {
