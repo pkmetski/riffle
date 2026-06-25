@@ -120,7 +120,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps even step navigates to element child`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         // Step 4 from html → body (2nd element child of html: head=2, body=4)
         val node = walkCfiSteps(htmlEl, listOf(4))
         assertEquals("body", (node as? org.jsoup.nodes.Element)?.tagName())
@@ -129,7 +129,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps navigates to first paragraph`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         // /4 → body, /2 → first <p>
         val node = walkCfiSteps(htmlEl, listOf(4, 2))
         assertEquals("p", (node as? org.jsoup.nodes.Element)?.tagName())
@@ -139,7 +139,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps odd step navigates to text node`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         // /4/2/1 → text node of first <p>
         val node = walkCfiSteps(htmlEl, listOf(4, 2, 1))
         assertTrue(node is org.jsoup.nodes.TextNode)
@@ -149,7 +149,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps navigates to second paragraph text node`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val node = walkCfiSteps(htmlEl, listOf(4, 4, 1))
         assertTrue(node is org.jsoup.nodes.TextNode)
         assertEquals("Second paragraph", (node as org.jsoup.nodes.TextNode).text())
@@ -158,7 +158,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps returns null for step beyond available children`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         // Body only has 2 element children; step /6 would be the 3rd → null
         assertNull(walkCfiSteps(htmlEl, listOf(4, 6)))
     }
@@ -166,7 +166,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps returns null for odd step pointing to non-existent text node`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         // First <p> has only one text node; step /3 would be the 2nd text node → null
         assertNull(walkCfiSteps(htmlEl, listOf(4, 2, 3)))
     }
@@ -174,7 +174,7 @@ class EpubCfiTranslatorTest {
     @Test
     fun `walkCfiSteps returns null when even step applied to non-element`() {
         val doc = Jsoup.parse(simpleHtml)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         // Navigate to text node first, then try even step from it → null
         assertNull(walkCfiSteps(htmlEl, listOf(4, 2, 1, 2)))
     }
@@ -186,7 +186,7 @@ class EpubCfiTranslatorTest {
         val doc = Jsoup.parse(simpleHtml)
         // Whitespace-only text nodes (indentation between tags) are excluded.
         // Only "Hello world" (11) + "Second paragraph" (16) = 27 are counted.
-        val total = countBodyChars(doc.body()!!)
+        val total = countBodyChars(doc.body())
         assertEquals(27L, total)
     }
 
@@ -194,7 +194,7 @@ class EpubCfiTranslatorTest {
     fun `countBodyChars returns zero for body with no text`() {
         val html = "<html><body><div></div></body></html>"
         val doc = Jsoup.parse(html)
-        assertEquals(0L, countBodyChars(doc.body()!!))
+        assertEquals(0L, countBodyChars(doc.body()))
     }
 
     @Test
@@ -202,7 +202,7 @@ class EpubCfiTranslatorTest {
         val html = "<html><body><p>Hello <em>world</em>!</p></body></html>"
         val doc = Jsoup.parse(html)
         // "Hello " (6) + "world" (5) + "!" (1) = 12
-        assertEquals(12L, countBodyChars(doc.body()!!))
+        assertEquals(12L, countBodyChars(doc.body()))
     }
 
     // ── countCharsBefore ──────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ class EpubCfiTranslatorTest {
     fun `countCharsBefore returns offset when target is first text node`() {
         val html = "<html><body><p>Hello world</p><p>Second</p></body></html>"
         val doc = Jsoup.parse(html)
-        val body = doc.body()!!
+        val body = doc.body()
         // Find "Hello world" text node
         val target = doc.select("p").first()!!.textNodes().first()
         // 0 chars before it + offset 5
@@ -222,7 +222,7 @@ class EpubCfiTranslatorTest {
     fun `countCharsBefore counts preceding text nodes`() {
         val html = "<html><body><p>Hello world</p><p>Second</p></body></html>"
         val doc = Jsoup.parse(html)
-        val body = doc.body()!!
+        val body = doc.body()
         val target = doc.select("p")[1].textNodes().first()
         // "Hello world" (11) before "Second", plus offset 3
         assertEquals(14L, countCharsBefore(body, target, 3))
@@ -235,14 +235,14 @@ class EpubCfiTranslatorTest {
         val doc1 = Jsoup.parse(html1)
         val doc2 = Jsoup.parse(html2)
         val foreignNode = doc2.select("p").first()!!.textNodes().first()
-        assertEquals(-1L, countCharsBefore(doc1.body()!!, foreignNode, 0))
+        assertEquals(-1L, countCharsBefore(doc1.body(), foreignNode, 0))
     }
 
     @Test
     fun `countCharsBefore with zero offset returns chars before target`() {
         val html = "<html><body><p>Abc</p><p>Def</p></body></html>"
         val doc = Jsoup.parse(html)
-        val body = doc.body()!!
+        val body = doc.body()
         val target = doc.select("p")[1].textNodes().first()
         assertEquals(3L, countCharsBefore(body, target, 0)) // "Abc" = 3 chars before
     }
@@ -253,7 +253,7 @@ class EpubCfiTranslatorTest {
     fun `findNodeAtChar zero returns start of first text node`() {
         val html = "<html><body><p>Hello</p></body></html>"
         val doc = Jsoup.parse(html)
-        val (node, offset) = findNodeAtChar(doc.body()!!, 0L)!!
+        val (node, offset) = findNodeAtChar(doc.body(), 0L)!!
         assertEquals("Hello", node.wholeText)
         assertEquals(0, offset)
     }
@@ -263,7 +263,7 @@ class EpubCfiTranslatorTest {
         val html = "<html><body><p>Hello</p><p>World</p></body></html>"
         val doc = Jsoup.parse(html)
         // char 7 = 2nd char of "World" (0-4 = Hello, 5-9 = World → 7 = 'o')
-        val (node, offset) = findNodeAtChar(doc.body()!!, 7L)!!
+        val (node, offset) = findNodeAtChar(doc.body(), 7L)!!
         assertEquals("World", node.wholeText)
         assertEquals(2, offset)
     }
@@ -273,7 +273,7 @@ class EpubCfiTranslatorTest {
         val html = "<html><body><p>ABC</p><p>DEF</p></body></html>"
         val doc = Jsoup.parse(html)
         // char 2 = last char of "ABC"
-        val (node, offset) = findNodeAtChar(doc.body()!!, 2L)!!
+        val (node, offset) = findNodeAtChar(doc.body(), 2L)!!
         assertEquals("ABC", node.wholeText)
         assertEquals(2, offset)
     }
@@ -283,7 +283,7 @@ class EpubCfiTranslatorTest {
         val html = "<html><body><p>ABC</p><p>DEF</p></body></html>"
         val doc = Jsoup.parse(html)
         // char 3 = first char of "DEF"
-        val (node, offset) = findNodeAtChar(doc.body()!!, 3L)!!
+        val (node, offset) = findNodeAtChar(doc.body(), 3L)!!
         assertEquals("DEF", node.wholeText)
         assertEquals(0, offset)
     }
@@ -292,7 +292,7 @@ class EpubCfiTranslatorTest {
     fun `findNodeAtChar returns null beyond total length`() {
         val html = "<html><body><p>Hi</p></body></html>"
         val doc = Jsoup.parse(html)
-        assertNull(findNodeAtChar(doc.body()!!, 100L))
+        assertNull(findNodeAtChar(doc.body(), 100L))
     }
 
     // ── buildCfiDocPath ───────────────────────────────────────────────────────
@@ -301,7 +301,7 @@ class EpubCfiTranslatorTest {
     fun `buildCfiDocPath builds correct path for first paragraph text node`() {
         val html = "<html><body><p>Hello world</p><p>Second</p></body></html>"
         val doc = Jsoup.parse(html)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val textNode = doc.select("p").first()!!.textNodes().first()
         val path = buildCfiDocPath(htmlEl, textNode, 5)
         // html→body=4, body→p=2, p→text=1 → /4/2/1:5
@@ -312,7 +312,7 @@ class EpubCfiTranslatorTest {
     fun `buildCfiDocPath builds correct path for second paragraph text node`() {
         val html = "<html><body><p>Hello world</p><p>Second</p></body></html>"
         val doc = Jsoup.parse(html)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val textNode = doc.select("p")[1].textNodes().first()
         val path = buildCfiDocPath(htmlEl, textNode, 0)
         // html→body=4, body→p[1]=4, p→text=1 → /4/4/1:0
@@ -323,7 +323,7 @@ class EpubCfiTranslatorTest {
     fun `buildCfiDocPath builds correct path for nested element`() {
         val html = "<html><body><div><p>Nested text</p></div></body></html>"
         val doc = Jsoup.parse(html)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val textNode = doc.select("p").first()!!.textNodes().first()
         val path = buildCfiDocPath(htmlEl, textNode, 3)
         // html→body=4, body→div=2, div→p=2, p→text=1 → /4/2/2/1:3
@@ -337,7 +337,7 @@ class EpubCfiTranslatorTest {
         val doc1 = Jsoup.parse(html1)
         val doc2 = Jsoup.parse(html2)
         val foreignNode = doc2.select("p").first()!!.textNodes().first()
-        assertNull(buildCfiDocPath(doc1.child(0)!!, foreignNode, 0))
+        assertNull(buildCfiDocPath(doc1.child(0), foreignNode, 0))
     }
 
     // ── cfiDocPathToProgression ───────────────────────────────────────────────
@@ -731,7 +731,7 @@ class EpubCfiTranslatorTest {
     fun `buildCfiDocPath includes id assertion for element with id`() {
         val html = "<html><body><p id=\"para1\">Hello world</p></body></html>"
         val doc = Jsoup.parse(html)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val textNode = doc.select("p").first()!!.textNodes().first()
         val path = buildCfiDocPath(htmlEl, textNode, 3)
         assertEquals("/4/2[para1]/1:3", path)
@@ -741,7 +741,7 @@ class EpubCfiTranslatorTest {
     fun `buildCfiDocPath omits id assertion for element without id`() {
         val html = "<html><body><p>Hello world</p></body></html>"
         val doc = Jsoup.parse(html)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val textNode = doc.select("p").first()!!.textNodes().first()
         val path = buildCfiDocPath(htmlEl, textNode, 0)
         assertEquals("/4/2/1:0", path)
@@ -752,7 +752,7 @@ class EpubCfiTranslatorTest {
         // <body> has no id, <p id="p1"> has id — only p1 gets assertion
         val html = "<html><body><p id=\"p1\">Text</p></body></html>"
         val doc = Jsoup.parse(html)
-        val htmlEl = doc.child(0)!!
+        val htmlEl = doc.child(0)
         val textNode = doc.select("p").first()!!.textNodes().first()
         val path = buildCfiDocPath(htmlEl, textNode, 0)
         assertEquals("/4/2[p1]/1:0", path)

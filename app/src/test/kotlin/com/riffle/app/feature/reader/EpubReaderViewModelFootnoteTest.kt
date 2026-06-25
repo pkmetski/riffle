@@ -115,7 +115,7 @@ class EpubReaderViewModelFootnoteTest {
         popupOrigin = null
 
         // onReaderResumed emits once and arms the watcher
-        pending?.let { channel.trySend(it) }
+        pending.let { channel.trySend(it) }
 
         assertEquals(listOf(Position("ch03.html", 0.5)), emitted)
         // pending stays populated so the retry watcher can fire from onPositionChanged
@@ -241,7 +241,7 @@ class EpubReaderViewModelFootnoteTest {
         if (pending == null) pending = lastLocator
 
         // ON_START: app returns — onReaderResumed re-emits pending and arms the retry watcher
-        pending?.let {
+        pending.let {
             attempts = 5
             channel.trySend(it)
         }

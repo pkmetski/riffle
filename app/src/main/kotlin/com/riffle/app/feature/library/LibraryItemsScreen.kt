@@ -417,7 +417,7 @@ fun BookSectionGrid(
             spacing = spacing,
         ) { index ->
             if (showSeeMore && index == preview.size) {
-                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
+                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
             } else {
                 val item = preview[index]
                 BookCoverTile(
@@ -453,7 +453,7 @@ fun SeriesSectionGrid(
             spacing = spacing,
         ) { index ->
             if (showSeeMore && index == preview.size) {
-                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
+                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
             } else {
                 val s = preview[index]
                 SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
@@ -484,7 +484,7 @@ fun CollectionsSectionGrid(
             spacing = spacing,
         ) { index ->
             if (showSeeMore && index == preview.size) {
-                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore!!)
+                SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
             } else {
                 val col = preview[index]
                 CollectionCoverTile(

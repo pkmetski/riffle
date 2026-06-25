@@ -16,8 +16,8 @@ import org.jsoup.Jsoup
  */
 internal fun buildHighlightCfiRange(spineStep: Int, html: String, startChar: Long, endChar: Long): String? {
     val doc = Jsoup.parse(html)
-    val htmlEl = doc.child(0) ?: return null
-    val body = doc.body() ?: return null
+    val htmlEl = doc.child(0)
+    val body = doc.body()
 
     val (startNode, startOffset) = findNodeAtChar(body, startChar) ?: return null
     val (endNode, endOffset) = findNodeAtChar(body, endChar) ?: return null
@@ -55,7 +55,7 @@ internal fun buildHighlightCfiRangeForSelection(
 ): String? {
     if (selectedText.isBlank()) return null
     val doc = Jsoup.parse(html)
-    val body = doc.body() ?: return null
+    val body = doc.body()
     val totalChars = countBodyChars(body)
     if (totalChars == 0L) return null
 
