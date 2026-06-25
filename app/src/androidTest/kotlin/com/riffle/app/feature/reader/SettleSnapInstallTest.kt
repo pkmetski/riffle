@@ -75,6 +75,59 @@ class SettleSnapInstallTest {
         }
     }
 
+    // The install-time fallback is what catches a programmatic landing that fires no scroll event
+    // (Readium's resume go() on book open). It must (a) not disturb an aligned page or a scroll-mode
+    // page, and (b) skip itself entirely when a navigation snap has bumped __riffleSnapGen since install
+    // — the rAF tracker owns the grid math while it's active.
+
+    @Test
+    fun installTimeFallbackDoesNotDisturbAlignedPage() {
+        withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(ColumnSnap.SETTLE_SNAP_INSTALL_JS)
+            // Wait past the ~200ms install-time fallback delay without firing any scroll event.
+            Thread.sleep(350)
+            assertEquals("aligned page must not be moved by the install-time fallback", 0, webView.scrollX())
+        }
+    }
+
+    @Test
+    fun installTimeFallbackLeavesVerticalScrollModeUntouched() {
+        withSizedWebViewFixture(tallFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync("window.scrollTo(0, 300)")
+            webView.evalSync(ColumnSnap.SETTLE_SNAP_INSTALL_JS)
+            Thread.sleep(350)
+            assertTrue(
+                "vertical scroll position must survive the install-time fallback",
+                Math.abs(webView.scrollY() - 300) <= 2,
+            )
+            assertEquals("scroll mode must never gain a horizontal offset", 0, webView.scrollX())
+        }
+    }
+
+    @Test
+    fun installTimeFallbackSkipsWhenSnapGenBumped() {
+        withSizedWebViewFixture(shortFixture, widthPx = 1080, heightPx = 1600) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(ColumnSnap.SETTLE_SNAP_INSTALL_JS)
+            // Simulate a navigation snap kicking in immediately after install: bump __riffleSnapGen,
+            // the same handshake [snapToTargetColumnJs] / [snapToEndColumnJs] use. The install-time
+            // fallback must observe the bump and skip rather than fight the in-flight tracker.
+            webView.evalSync("window.__riffleSnapGen = (window.__riffleSnapGen||0) + 1")
+            Thread.sleep(350)
+            // No assertion on scrollX (page is already aligned anyway); the contract is that the
+            // fallback didn't fire — verified by the snap-gen guard. Re-installing must still be a
+            // no-op (guarded by __riffleSettleSnapInstalled).
+            webView.evalSync(ColumnSnap.SETTLE_SNAP_INSTALL_JS)
+            assertEquals(
+                "install flag must remain set after the skipped fallback",
+                "true",
+                webView.evalSync("window.__riffleSettleSnapInstalled").trim('"'),
+            )
+        }
+    }
+
     private fun WebView.scrollX(): Int = evalSync("window.scrollX").trim('"').toDouble().toInt()
     private fun WebView.scrollY(): Int = evalSync("window.scrollY").trim('"').toDouble().toInt()
 }

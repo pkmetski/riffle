@@ -394,6 +394,12 @@ internal object ColumnSnap {
     // settles, re-arming this debounce, so it never fires mid-track; once a tracker finishes it has left the
     // page on the grid, so the debounce then rounds a no-op. Vertical (scroll) mode is skipped. Re-setting
     // scrollLeft re-fires 'scroll', but the next settle finds the page on-grid → one harmless no-op, no loop.
+    //
+    // ALSO schedules a one-shot install-time fallback: a programmatic landing (Readium's resume `go()` on
+    // book open) doesn't fire a scroll event, so if the listener were the only line of defence the page
+    // could rest off-grid for the entire session — the "page slightly turned to next" book-open bug. The
+    // fallback fires once ~200ms after install and only if `__riffleSnapGen` is unchanged (i.e. no
+    // navigation snap took over) — so it can't clobber an in-flight [snapToTargetColumnJs] tracker.
     internal val SETTLE_SNAP_INSTALL_JS: String =
         """
         (function(){
@@ -411,6 +417,14 @@ internal object ColumnSnap {
             if(t) clearTimeout(t);
             t=setTimeout(settle, 120);
           }, true);
+          // Install-time fallback for programmatic landings that fire no scroll event (Readium's resume
+          // go() on book open). Skip if a navigation snap has run/started since install — its rAF tracker
+          // owns the grid math while it's active, and will leave the page flush on exit.
+          var installGen=(window.__riffleSnapGen||0);
+          setTimeout(function(){
+            if((window.__riffleSnapGen||0) !== installGen) return;
+            settle();
+          }, 200);
         })()
         """.trimIndent()
 
