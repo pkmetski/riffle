@@ -208,13 +208,14 @@ class AddServerViewModel @Inject constructor(
         val serverType = backend.toServerType() ?: return
         viewModelScope.launch {
             isLoading = true
-            // When editing a server, remove the old row first so commit() doesn't trip on a
-            // duplicate URL/type constraint.
-            editingServerId?.let { repository.remove(it) }
             when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
                 is AuthenticateResult.Success -> {
                     val pending = result.pending
                     if (pending.libraries.size <= 1) {
+                        // Only now that auth has succeeded is it safe to remove the existing
+                        // row — otherwise a failed edit attempt (wrong password, network blip)
+                        // would destroy the user's server without replacement.
+                        editingServerId?.let { repository.remove(it) }
                         when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
                             is CommitServerResult.Success -> {
                                 if (serverType == ServerType.STORYTELLER) {

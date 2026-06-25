@@ -387,6 +387,32 @@ class AddServerViewModelTest {
     }
 
     @Test
+    fun `edit mode with wrong credentials does NOT remove the existing server`() = runTest {
+        val storyteller = Server(
+            id = "st-1",
+            url = ServerUrl.parse("https://story.example.com")!!,
+            isActive = false,
+            insecureConnectionAllowed = false,
+            username = "plamen",
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+        )
+        val repo = RecordingRepository(
+            authResult = AuthenticateResult.WrongCredentials("Bad creds"),
+            storedById = mapOf("st-1" to storyteller),
+        )
+        val savedState = SavedStateHandle(mapOf("type" to "storyteller", "editId" to "st-1"))
+        val vm = makeVm(repo, savedState = savedState)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.password = "wrong-password"
+        vm.onConnect()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Bad creds", vm.error)
+        assertTrue("existing server must survive a failed edit attempt", repo.removedIds.isEmpty())
+    }
+
+    @Test
     fun `onRemove for Storyteller calls repository remove with the editing id and navigates home`() = runTest {
         val storyteller = Server(
             id = "st-1",
