@@ -205,6 +205,7 @@ fun AudiobookPlayerScreen(
                         state = PlayerSurfaceState(
                             title = state.title,
                             author = state.author,
+                            publishedYear = state.publishedYear,
                             coverUrl = state.coverUrl,
                             authToken = state.authToken,
                             isPlaying = state.isPlaying,

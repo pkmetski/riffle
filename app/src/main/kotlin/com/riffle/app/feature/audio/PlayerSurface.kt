@@ -81,6 +81,7 @@ internal const val SKIP_NUMBER_DOWN_FRACTION = 0.09f
 data class PlayerSurfaceState(
     val title: String = "",
     val author: String = "",
+    val publishedYear: String? = null,
     val coverUrl: String? = null,
     val authToken: String = "",
     val isPlaying: Boolean = false,
@@ -223,6 +224,9 @@ private fun PlayerTitleBlock(
     Column(horizontalAlignment = horizontalAlignment) {
         Text(state.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         Text(state.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        state.publishedYear?.takeIf { it.isNotBlank() }?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (state.currentChapterTitle != null) {
             Spacer(Modifier.height(10.dp))
             Text(state.currentChapterTitle, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
