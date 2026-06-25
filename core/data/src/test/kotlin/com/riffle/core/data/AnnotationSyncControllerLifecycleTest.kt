@@ -10,6 +10,7 @@ import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
@@ -334,7 +335,7 @@ class AnnotationSyncControllerLifecycleTest {
         advanceUntilIdle()
         assertEquals(3, target.listCalls)
 
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     @Test
@@ -346,7 +347,7 @@ class AnnotationSyncControllerLifecycleTest {
         advanceUntilIdle()
         assertEquals(1, target.listCalls)
 
-        job.cancel()
+        job.cancelAndJoin()
         advanceTimeBy(120_000L)
         advanceUntilIdle()
 
@@ -375,7 +376,7 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals(2, target.listCalls)
         assertEquals(setOf("uuid-1"), dao.upserts.map { it.id }.toSet())
 
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     @Test
@@ -399,7 +400,7 @@ class AnnotationSyncControllerLifecycleTest {
             status.lastCycleOutcome.value is CycleOutcome.Success,
         )
 
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     @Test
@@ -414,7 +415,7 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals(1, target.listCalls)
         assertTrue(dao.upserts.isEmpty())
 
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     @Test
@@ -439,7 +440,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         assertEquals(setOf("uuid-mine", "uuid-from-B"), dao.upserts.map { it.id }.toSet())
 
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     @Test
@@ -464,7 +465,7 @@ class AnnotationSyncControllerLifecycleTest {
             status.lastCycleOutcome.value is CycleOutcome.Success,
         )
 
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     @Test
@@ -477,7 +478,7 @@ class AnnotationSyncControllerLifecycleTest {
         advanceUntilIdle()
 
         assertEquals(0, target.listCalls)
-        job.cancel()
+        job.cancelAndJoin()
     }
 
     // ===== helpers =====
