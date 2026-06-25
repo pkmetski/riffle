@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -320,19 +321,23 @@ class AnnotationSyncControllerLifecycleTest {
         val job = controller.startLiveSync(SRV, NS, ITEM)
 
         // Nothing happens before the first interval elapses — the caller is expected to
-        // have already done the open-time syncOnOpen separately.
+        // have already done the open-time syncOnOpen separately. NB: across all the
+        // live-sync tests, we deliberately do NOT call advanceUntilIdle: the loop schedules
+        // a fresh delay() after every tick, so draining "to idle" never terminates and the
+        // test body would hit runTest's wall-clock budget. advanceTimeBy runs all tasks
+        // scheduled within the advanced window, which is exactly what we want.
         assertEquals(0, target.listCalls)
 
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(1, target.listCalls)
 
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(2, target.listCalls)
 
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(3, target.listCalls)
 
         job.cancelAndJoin()
@@ -344,12 +349,12 @@ class AnnotationSyncControllerLifecycleTest {
 
         val job = controller.startLiveSync(SRV, NS, ITEM)
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(1, target.listCalls)
 
         job.cancelAndJoin()
         advanceTimeBy(120_000L)
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals("no further cycles should run after cancel", 1, target.listCalls)
     }
@@ -362,7 +367,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         val job = controller.startLiveSync(SRV, NS, ITEM)
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(1, target.listCalls)
         // Failure was swallowed inside syncOnOpen — dao untouched.
         assertTrue(dao.upserts.isEmpty())
@@ -372,7 +377,7 @@ class AnnotationSyncControllerLifecycleTest {
             w3c("uuid-1", updatedAt = 100L, deviceId = "device-A"),
         )
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(2, target.listCalls)
         assertEquals(setOf("uuid-1"), dao.upserts.map { it.id }.toSet())
 
@@ -391,7 +396,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         val job = controller.startLiveSync(SRV, NS, ITEM)
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals("PROPFIND should have run", 1, target.listCalls)
         assertTrue("no upserts — solo-device tick is a no-op merge", dao.upserts.isEmpty())
@@ -410,7 +415,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         val job = controller.startLiveSync(SRV, NS, ITEM)
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(1, target.listCalls)
         assertTrue(dao.upserts.isEmpty())
@@ -428,7 +433,7 @@ class AnnotationSyncControllerLifecycleTest {
         val job = controller.startLiveSync(SRV, NS, ITEM)
 
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertTrue("tick 1 skipped the merge", dao.upserts.isEmpty())
 
         // Tick 2: a peer device just pushed its file. Now the merge must fire.
@@ -436,7 +441,7 @@ class AnnotationSyncControllerLifecycleTest {
             w3c("uuid-from-B", updatedAt = 200L, deviceId = "device-B"),
         )
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(setOf("uuid-mine", "uuid-from-B"), dao.upserts.map { it.id }.toSet())
 
@@ -452,14 +457,14 @@ class AnnotationSyncControllerLifecycleTest {
         val job = controller.startLiveSync(SRV, NS, ITEM)
 
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertTrue(status.lastCycleOutcome.value is CycleOutcome.Failed)
 
         // Tick 2: namespace is still empty, but the PROPFIND now succeeds. The skip path must
         // report Success so the badge can clear — otherwise solo readers would stay stuck on
         // a transient failure forever.
         advanceTimeBy(30_000L)
-        advanceUntilIdle()
+        runCurrent()
         assertTrue(
             "skip-tick must report Success after a recovered PROPFIND",
             status.lastCycleOutcome.value is CycleOutcome.Success,
@@ -475,7 +480,7 @@ class AnnotationSyncControllerLifecycleTest {
 
         val job = controller.startLiveSync(SRV, NS, ITEM)
         advanceTimeBy(120_000L)
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(0, target.listCalls)
         job.cancelAndJoin()
