@@ -450,13 +450,18 @@ fun EpubReaderScreen(
                     // all touches before Compose's outer-box elements ever see them.
                     // `isVisible = annotationsAvailable` omits the `state is ReaderState.Ready`
                     // guard deliberately — we're already inside that branch, so it's implicit.
+                    // `graphicsLayer { }` forces the ribbon into its own GPU layer so it composites
+                    // above Readium's hardware-accelerated WebView surface — Compose Box child
+                    // order alone doesn't beat the WebView, which paints from its own RenderNode
+                    // and otherwise hides the ribbon once the page settles.
                     CornerBookmarkIndicator(
                         isBookmarked = isCurrentPageBookmarked,
                         isVisible = annotationsAvailable,
                         onToggle = viewModel::toggleBookmark,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(end = 12.dp),
+                            .padding(end = 12.dp)
+                            .graphicsLayer { },
                     )
                 }
                 is ReaderState.Error -> {
