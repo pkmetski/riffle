@@ -14,7 +14,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -25,12 +31,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,7 +51,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.ServerType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +68,16 @@ fun AddServerScreen(
         viewModel.navigateHome.collect { onAutoCompleted() }
     }
 
+    val backend = viewModel.backend
+    val isEditing = viewModel.isEditing
+    val title = screenTitle(backend, isEditing)
+    val urlLabel = if (backend == AddServerBackend.WEBDAV) "WebDAV URL" else "Server URL"
+    val urlPlaceholder = when (backend) {
+        AddServerBackend.WEBDAV -> "server.example.com/dav/annotations"
+        else -> "abs.example.com"
+    }
+    val submitLabel = if (isEditing) "Save" else "Connect"
+
     viewModel.insecureWarning?.let { type ->
         InsecureConnectionDialog(
             type = type,
@@ -76,7 +89,7 @@ fun AddServerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Server") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -95,15 +108,15 @@ fun AddServerScreen(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                ServerTypePicker(
-                    selected = viewModel.serverType,
-                    onSelected = viewModel::updateServerType,
-                )
-                Text(
-                    text = serverTypeHelpText(viewModel.serverType),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                val helpText = backendHelpText(backend)
+                if (helpText.isNotEmpty()) {
+                    Text(
+                        text = helpText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                viewModel.webdavBanner?.let { WebdavStatusCard(it) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     var schemeExpanded by remember { mutableStateOf(false) }
                     Box {
@@ -130,8 +143,8 @@ fun AddServerScreen(
                     OutlinedTextField(
                         value = viewModel.host,
                         onValueChange = { viewModel.updateHost(it) },
-                        label = { Text("Server URL") },
-                        placeholder = { Text("abs.example.com") },
+                        label = { Text(urlLabel) },
+                        placeholder = { Text(urlPlaceholder) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         singleLine = true,
@@ -164,7 +177,18 @@ fun AddServerScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = viewModel.host.isNotBlank() && viewModel.username.isNotBlank() && viewModel.password.isNotBlank(),
                     ) {
-                        Text("Connect")
+                        Text(submitLabel)
+                    }
+                    if (isEditing) {
+                        OutlinedButton(
+                            onClick = viewModel::onRemove,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error,
+                            ),
+                        ) {
+                            Text(removeButtonLabel(backend))
+                        }
                     }
                 }
             }
@@ -172,32 +196,81 @@ fun AddServerScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun screenTitle(backend: AddServerBackend, isEditing: Boolean): String = when (backend) {
+    AddServerBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf server" else "Add Audiobookshelf server"
+    AddServerBackend.STORYTELLER -> if (isEditing) "Edit Storyteller" else "Add Storyteller"
+    AddServerBackend.WEBDAV -> if (isEditing) "Edit WebDAV" else "Add WebDAV"
+}
+
+private fun removeButtonLabel(backend: AddServerBackend): String = when (backend) {
+    AddServerBackend.AUDIOBOOKSHELF -> "Remove server"
+    AddServerBackend.STORYTELLER -> "Remove Storyteller"
+    AddServerBackend.WEBDAV -> "Disable sync"
+}
+
+private fun backendHelpText(backend: AddServerBackend): String = when (backend) {
+    AddServerBackend.AUDIOBOOKSHELF ->
+        "Audiobookshelf hosts your ebooks and audiobooks. Riffle reads ebooks from ABS; audio playback is handled by the official Audiobookshelf app."
+    AddServerBackend.STORYTELLER ->
+        "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each completed readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
+    AddServerBackend.WEBDAV ->
+        "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
+}
+
 @Composable
-private fun ServerTypePicker(
-    selected: ServerType,
-    onSelected: (ServerType) -> Unit,
-) {
-    val options = listOf(ServerType.AUDIOBOOKSHELF to "Audiobookshelf", ServerType.STORYTELLER to "Storyteller")
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, (type, label) ->
-            SegmentedButton(
-                selected = type == selected,
-                onClick = { onSelected(type) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+private fun WebdavStatusCard(banner: WebdavBanner) {
+    val (container, content, header, glyph) = when (banner.kind) {
+        WebdavBannerKind.Synced -> Quadruple(
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            "Synced via WebDAV",
+            Icons.Default.CheckCircle,
+        )
+        WebdavBannerKind.Pending -> Quadruple(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            MaterialTheme.colorScheme.onTertiaryContainer,
+            "Pending — will retry automatically",
+            Icons.Default.Schedule,
+        )
+        WebdavBannerKind.Error -> Quadruple(
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer,
+            "Sync error",
+            Icons.Default.Warning,
+        )
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = container)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(label)
+                Icon(glyph, contentDescription = null, tint = content)
+                Text(header, style = MaterialTheme.typography.titleMedium, color = content)
+            }
+            Text(
+                "${banner.username}@${banner.host} · ${banner.baseUrl}",
+                style = MaterialTheme.typography.bodySmall,
+                color = content,
+                fontFamily = FontFamily.Monospace,
+            )
+            Text(
+                "Last sync: ${banner.lastSyncRelative}",
+                style = MaterialTheme.typography.bodySmall,
+                color = content,
+            )
+            banner.prescription?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = content)
             }
         }
     }
 }
 
-private fun serverTypeHelpText(type: ServerType): String = when (type) {
-    ServerType.AUDIOBOOKSHELF ->
-        "Audiobookshelf hosts your ebooks and audiobooks. Riffle reads ebooks from ABS; audio playback is handled by the official Audiobookshelf app."
-    ServerType.STORYTELLER ->
-        "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle surfaces every completed readaloud from this server as a Readaloud Library."
-}
+/** Local quadruple to keep the when expression readable. */
+private data class Quadruple<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 @Composable
 private fun InsecureConnectionDialog(

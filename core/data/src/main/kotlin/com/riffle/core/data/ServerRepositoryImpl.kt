@@ -80,6 +80,7 @@ class ServerRepositoryImpl @Inject constructor(
                             username = loginResult.username,
                             userId = loginResult.userId,
                             token = loginResult.token,
+                            password = password,
                             insecureConnectionAllowed = insecureAllowed,
                             libraries = libs.libraries
                                 .filter { it.mediaType == "book" }
@@ -113,6 +114,7 @@ class ServerRepositoryImpl @Inject constructor(
                 username = username,
                 userId = "", // Storyteller's auth response doesn't expose a user id; identity is the username + token.
                 token = result.token,
+                password = password,
                 insecureConnectionAllowed = insecureAllowed,
                 // Storyteller contributes no browsable Library (ADR 0026) — it is a Settings-only
                 // readaloud backend. The local namespace row that hosts its books as matcher input
@@ -150,6 +152,7 @@ class ServerRepositoryImpl @Inject constructor(
             dao.upsertAsFirstIfNoActive(entity)
         }
         tokenStorage.saveToken(id, pending.token)
+        tokenStorage.savePassword(id, pending.password)
         val libraryRows = pending.libraries.map {
             LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = id)
         }.toMutableList()
@@ -190,6 +193,7 @@ class ServerRepositoryImpl @Inject constructor(
         libraryDao.deleteByServerId(serverId)
         dao.deleteById(serverId)
         tokenStorage.deleteToken(serverId)
+        tokenStorage.deletePassword(serverId)
         // The file stores live outside Room, so the FK cascade above doesn't touch them — purge the
         // Server's downloaded/cached files here so they don't leak on disk after removal.
         filesCleaner.deleteAllForServer(serverId)

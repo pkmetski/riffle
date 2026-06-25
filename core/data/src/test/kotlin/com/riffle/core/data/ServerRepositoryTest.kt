@@ -270,7 +270,7 @@ class ServerRepositoryTest {
         val url = ServerUrl.parse("https://abs.example.com")!!
         val pending = PendingServer(
             url = url,
-            username = "admin", userId = "uid-1", token = "tok-xyz",
+            username = "admin", userId = "uid-1", token = "tok-xyz", password = "",
             insecureConnectionAllowed = false,
             libraries = listOf(
                 Library("lib-1", "Books", "book", false),
@@ -338,14 +338,14 @@ class ServerRepositoryTest {
 
         val pendingA = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            username = "plamen", userId = "", token = "tok-A",
+            username = "plamen", userId = "", token = "tok-A", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
         )
         val pendingB = PendingServer(
             url = ServerUrl.parse("https://readalouds.example.com")!!,
-            username = "plamen", userId = "", token = "tok-B",
+            username = "plamen", userId = "", token = "tok-B", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
@@ -386,7 +386,7 @@ class ServerRepositoryTest {
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            username = "plamen", userId = "", token = "tok-st",
+            username = "plamen", userId = "", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
@@ -411,7 +411,7 @@ class ServerRepositoryTest {
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            username = "plamen", userId = "", token = "tok-st",
+            username = "plamen", userId = "", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
             serverType = ServerType.STORYTELLER,
@@ -435,7 +435,7 @@ class ServerRepositoryTest {
 
         val pending = PendingServer(
             url = ServerUrl.parse("http://media-server:8001")!!,
-            username = "plamen", userId = "uid-1", token = "tok-st",
+            username = "plamen", userId = "uid-1", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
             serverType = com.riffle.core.domain.ServerType.STORYTELLER,
@@ -580,7 +580,7 @@ class ServerRepositoryTest {
         val result = repo.commit(
             PendingServer(
                 url = ServerUrl.parse("https://abs.example.com")!!,
-                username = "admin", userId = "abs-user-uuid-shared", token = "tok",
+                username = "admin", userId = "abs-user-uuid-shared", token = "tok", password = "",
                 insecureConnectionAllowed = false,
                 libraries = emptyList(),
             ),
@@ -606,7 +606,7 @@ class ServerRepositoryTest {
         val result = repo.commit(
             PendingServer(
                 url = ServerUrl.parse("http://media-server:8001")!!,
-                username = "plamen", userId = "", token = "tok-st",
+                username = "plamen", userId = "", token = "tok-st", password = "",
                 insecureConnectionAllowed = false,
                 libraries = emptyList(),
                 serverType = ServerType.STORYTELLER,
