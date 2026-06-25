@@ -111,12 +111,29 @@ internal object ColumnSnap {
      * Empty when the sentence fits a single column, isn't on this resource, or the reader is in scroll
      * mode (vertical follow handles that) — all of which mean "don't turn within the sentence".
      */
-    suspend fun measureNarratedColumns(fragment: EpubNavigatorFragment, text: String): List<Double> {
-        val raw = fragment.evaluateJavascript(measureNarratedColumnsJs(text))?.trim('"')?.trim() ?: return emptyList()
-        if (raw == "off" || raw == "scroll" || !raw.startsWith("[")) return emptyList()
-        // The JS returns a JSON number array (no quote chars to unescape).
+    suspend fun measureNarratedColumns(fragment: EpubNavigatorFragment, text: String): List<Double> =
+        parseNarratedColumnsResult(fragment.evaluateJavascript(measureNarratedColumnsJs(text)))
+
+    /**
+     * Parse the raw string [measureNarratedColumnsJs] returned through `evaluateJavascript`.
+     * `evaluateJavascript` wraps a returned string in JSON quotes (the inner JSON number array
+     * has no quotes to escape) and returns `null` when the page is gone. The protocol the JS
+     * defines (see [measureNarratedColumnsJs]):
+     *
+     * - `null` → page gone → `[]`
+     * - `"off"` → sentence not on this resource → `[]`
+     * - `"scroll"` → vertical scroll mode → `[]`
+     * - `"[…]"` → JSON number array of cumulative width fractions (last ≈ 1.0)
+     * - anything else (malformed) → `[]` (defensive — never crash the playback loop)
+     *
+     * Extracted from [measureNarratedColumns] so the contract can be JVM-unit-tested without
+     * a WebView; see `NarratedColumnsResultParserTest`.
+     */
+    internal fun parseNarratedColumnsResult(raw: String?): List<Double> {
+        val trimmed = raw?.trim('"')?.trim() ?: return emptyList()
+        if (trimmed == "off" || trimmed == "scroll" || !trimmed.startsWith("[")) return emptyList()
         return runCatching {
-            val arr = org.json.JSONArray(raw)
+            val arr = org.json.JSONArray(trimmed)
             List(arr.length()) { arr.getDouble(it) }
         }.getOrDefault(emptyList())
     }
