@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,6 +73,7 @@ import com.riffle.app.feature.reader.behaviorSummary
 import com.riffle.app.feature.reader.displaySummary
 import com.riffle.app.feature.reader.formattingSummary
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.app.feature.server.AddServerBackend
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.Server
@@ -85,9 +87,8 @@ import java.util.Date
 fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onNavigateToAddServer: () -> Unit,
+    onNavigateToAddServer: (backend: AddServerBackend, editId: String?) -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
-    onNavigateToAnnotationSync: () -> Unit = {},
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -119,7 +120,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
-                is SettingsNavEvent.NavigateToAddServer -> onNavigateToAddServer()
+                is SettingsNavEvent.NavigateToAddServer -> onNavigateToAddServer(AddServerBackend.AUDIOBOOKSHELF, null)
                 is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.serverId)
             }
         }
@@ -149,85 +150,39 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Servers",
+                    text = "Audiobookshelf servers",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                servers.forEach { server ->
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
-                            if (value == SwipeToDismissBoxValue.EndToStart) {
-                                viewModel.removeServer(server.id)
-                                true
-                            } else false
-                        }
+                servers.filter { it.serverType == ServerType.AUDIOBOOKSHELF }.forEach { server ->
+                    ServerRow(
+                        server = server,
+                        isExpanded = expandedServers[server.id] == true,
+                        onToggleExpanded = {
+                            expandedServers[server.id] = expandedServers[server.id] != true
+                        },
+                        onRemove = { viewModel.removeServer(server.id) },
+                        serverVersion = serverVersions[server.id],
+                        libraryItems = libraryItemsByServer[server.id].orEmpty(),
+                        summary = readaloudSummaries[server.id],
+                        onSetLibraryVisible = { libraryId, visible ->
+                            viewModel.setLibraryVisible(server.id, libraryId, visible)
+                        },
+                        onReorderLibraries = { orderedIds ->
+                            viewModel.setLibraryOrder(server.id, orderedIds)
+                        },
+                        onOpenReadaloudMatches = { viewModel.openReadaloudMatches(server.id) },
                     )
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        backgroundContent = {},
-                    ) {
-                        Column {
-                            val isExpanded = expandedServers[server.id] == true
-                            val username = server.username.takeIf { it.isNotEmpty() }
-                            val version = serverVersions[server.id]
-                            val subtitle = buildString {
-                                if (username != null) {
-                                    append(username)
-                                    append(" · ")
-                                }
-                                append(server.url.value)
-                                if (version != null) {
-                                    append(" · v")
-                                    append(version)
-                                }
-                            }
-                            val chevronRotation by animateFloatAsState(
-                                targetValue = if (isExpanded) 90f else 0f,
-                                label = "chevron",
-                            )
-                            ListItem(
-                                modifier = Modifier.clickable {
-                                    expandedServers[server.id] = !isExpanded
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                        modifier = Modifier.rotate(chevronRotation),
-                                    )
-                                },
-                                headlineContent = { Text(server.serverType.label) },
-                                supportingContent = { Text(subtitle) },
-                                trailingContent = if (server.isActive) {
-                                    { Text("Active", style = MaterialTheme.typography.labelSmall) }
-                                } else null,
-                            )
-                            AnimatedVisibility(visible = isExpanded) {
-                                ServerSettingsExpansion(
-                                    server = server,
-                                    libraryItems = libraryItemsByServer[server.id].orEmpty(),
-                                    summary = readaloudSummaries[server.id],
-                                    onSetLibraryVisible = { libraryId, visible ->
-                                        viewModel.setLibraryVisible(server.id, libraryId, visible)
-                                    },
-                                    onReorderLibraries = { orderedIds ->
-                                        viewModel.setLibraryOrder(server.id, orderedIds)
-                                    },
-                                    onOpenReadaloudMatches = { viewModel.openReadaloudMatches(server.id) },
-                                )
-                            }
-                        }
-                    }
                 }
                 Button(
-                    onClick = onNavigateToAddServer,
+                    onClick = { onNavigateToAddServer(AddServerBackend.AUDIOBOOKSHELF, null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Text("Add Server")
+                    Text("Add server")
                 }
                 HorizontalDivider()
 
@@ -301,13 +256,104 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
+                val storytellerServers = servers.filter { it.serverType == ServerType.STORYTELLER }
+                if (storytellerServers.isEmpty()) {
+                    ListItem(
+                        modifier = Modifier.clickable { onNavigateToAddServer(AddServerBackend.STORYTELLER, null) },
+                        leadingContent = { StorytellerBadge(configured = false) },
+                        headlineContent = { Text("Configure Storyteller") },
+                        supportingContent = { Text("Not configured") },
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                            )
+                        },
+                    )
+                } else {
+                    storytellerServers.forEach { server ->
+                        val username = server.username.takeIf { it.isNotEmpty() }
+                        val version = serverVersions[server.id]
+                        val subtitle = buildString {
+                            if (username != null) {
+                                append(username)
+                                append(" · ")
+                            }
+                            append(server.url.value)
+                            if (version != null) {
+                                append(" · v")
+                                append(version)
+                            }
+                        }
+                        ListItem(
+                            modifier = Modifier.clickable {
+                                onNavigateToAddServer(AddServerBackend.STORYTELLER, server.id)
+                            },
+                            leadingContent = { StorytellerBadge(configured = true) },
+                            headlineContent = { Text("Storyteller") },
+                            supportingContent = { Text(subtitle) },
+                            trailingContent = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                )
+                            },
+                        )
+                    }
+                }
+                val storytellerActive = storytellerServers.firstOrNull()
+                ListItem(
+                    modifier = if (storytellerActive != null) {
+                        Modifier.clickable { viewModel.openReadaloudMatches(storytellerActive.id) }
+                    } else {
+                        Modifier
+                    },
+                    headlineContent = { Text("Review readaloud matches") },
+                    supportingContent = {
+                        val s = storytellerActive?.let { readaloudSummaries[it.id] }
+                        if (s != null) {
+                            Text(
+                                "${s.unmatchedCount} unmatched · " +
+                                    "${s.suggestedCount} suggested · " +
+                                    "${s.partiallyMatchedCount} partially matched · " +
+                                    "${s.matchedCount} matched",
+                            )
+                        } else {
+                            Text("Configure Storyteller first to review matches")
+                        }
+                    },
+                    colors = if (storytellerActive != null) {
+                        ListItemDefaults.colors()
+                    } else {
+                        ListItemDefaults.colors(
+                            headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            supportingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
+                    },
+                )
+                val highlightEnabled = storytellerServers.isNotEmpty()
                 ListItem(
                     headlineContent = { Text("Sentence highlight") },
+                    colors = if (highlightEnabled) {
+                        ListItemDefaults.colors()
+                    } else {
+                        ListItemDefaults.colors(
+                            headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        )
+                    },
                     trailingContent = {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ReadaloudHighlightColor.entries.forEach { color ->
                                 val isSelected = readaloudPreferences.highlightColor == color
                                 val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
+                                    .copy(alpha = if (highlightEnabled) 1f else 0.38f)
                                 // Selected swatch reads clearly in both themes: an offset ring
                                 // (onSurface ring at the outer edge, separated from the swatch by a
                                 // transparent gap) plus a centred checkmark. The swatch keeps a
@@ -318,7 +364,11 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .clickable { viewModel.updateReadaloudHighlightColor(color) }
+                                        .then(
+                                            if (highlightEnabled) {
+                                                Modifier.clickable { viewModel.updateReadaloudHighlightColor(color) }
+                                            } else Modifier
+                                        )
                                         .then(
                                             if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                             else Modifier
@@ -356,7 +406,9 @@ fun SettingsScreen(
                 HorizontalDivider()
                 val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
                 ListItem(
-                    modifier = Modifier.clickable { onNavigateToAnnotationSync() },
+                    modifier = Modifier.clickable {
+                        onNavigateToAddServer(AddServerBackend.WEBDAV, null)
+                    },
                     leadingContent = { AnnotationSyncBadge(annotationSyncRow.badge) },
                     headlineContent = { Text("Configure WebDAV") },
                     supportingContent = {
@@ -548,6 +600,79 @@ private fun AppThemeRow(
 }
 
 /**
+ * One server entry in the Settings list: swipe-to-remove wrapper, the collapsed header row
+ * (chevron + type label + username/url/version + Active pill), and the expandable body that
+ * reveals ABS library toggles or the Storyteller readaloud-matches summary.
+ */
+@Composable
+private fun ServerRow(
+    server: Server,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onRemove: () -> Unit,
+    serverVersion: String?,
+    libraryItems: List<LibraryUiItem>,
+    summary: ReadaloudMatchSummary?,
+    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
+    onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
+    onOpenReadaloudMatches: () -> Unit,
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onRemove()
+                true
+            } else false
+        }
+    )
+    SwipeToDismissBox(state = dismissState, backgroundContent = {}) {
+        Column {
+            val username = server.username.takeIf { it.isNotEmpty() }
+            val subtitle = buildString {
+                if (username != null) {
+                    append(username)
+                    append(" · ")
+                }
+                append(server.url.value)
+                if (serverVersion != null) {
+                    append(" · v")
+                    append(serverVersion)
+                }
+            }
+            val chevronRotation by animateFloatAsState(
+                targetValue = if (isExpanded) 90f else 0f,
+                label = "chevron",
+            )
+            ListItem(
+                modifier = Modifier.clickable { onToggleExpanded() },
+                leadingContent = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        modifier = Modifier.rotate(chevronRotation),
+                    )
+                },
+                headlineContent = { Text(server.serverType.label) },
+                supportingContent = { Text(subtitle) },
+                trailingContent = if (server.isActive) {
+                    { Text("Active", style = MaterialTheme.typography.labelSmall) }
+                } else null,
+            )
+            AnimatedVisibility(visible = isExpanded) {
+                ServerSettingsExpansion(
+                    server = server,
+                    libraryItems = libraryItems,
+                    summary = summary,
+                    onSetLibraryVisible = onSetLibraryVisible,
+                    onReorderLibraries = onReorderLibraries,
+                    onOpenReadaloudMatches = onOpenReadaloudMatches,
+                )
+            }
+        }
+    }
+}
+
+/**
  * The settings revealed when a server row is expanded: ABS servers show their library visibility
  * switches; Storyteller servers show a readaloud-matches summary that opens the full matches screen.
  */
@@ -668,6 +793,29 @@ private fun ExpansionNote(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
     )
+}
+
+@Composable
+private fun StorytellerBadge(configured: Boolean) {
+    val (bg, fg) = if (configured) {
+        Color(0x336CD591L) to Color(0xFF6CD591L)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Headphones,
+            contentDescription = null,
+            tint = fg,
+            modifier = Modifier.size(18.dp),
+        )
+    }
 }
 
 @Composable

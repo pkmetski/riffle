@@ -42,7 +42,6 @@ import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.ServerSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
-import com.riffle.app.feature.settings.annotationsync.AnnotationSyncSettingsScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
@@ -53,9 +52,9 @@ import java.net.URLEncoder
 private const val HOME = "home"
 private const val SERVER_SETUP_GRAPH = "server_setup"
 private const val ADD_SERVER = "add_server"
+private const val ADD_SERVER_ROUTE = "add_server?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
-private const val ANNOTATION_SYNC_SETTINGS = "settings/annotation_sync"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
 private const val DOWNLOADS = "downloads"
@@ -164,7 +163,7 @@ fun MainScreen(
             composable(HOME) {
                 HomeScreen(
                     onNavigateToAddServer = {
-                        navController.navigateAsRoot(ADD_SERVER)
+                        navController.navigateAsRoot("$ADD_SERVER?type=audiobookshelf")
                     },
                     onNavigateToLibrary = { libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
@@ -173,23 +172,39 @@ fun MainScreen(
                     },
                 )
             }
-            navigation(startDestination = ADD_SERVER, route = SERVER_SETUP_GRAPH) {
-                composable(ADD_SERVER) { backStackEntry ->
+            navigation(startDestination = ADD_SERVER_ROUTE, route = SERVER_SETUP_GRAPH) {
+                composable(
+                    route = ADD_SERVER_ROUTE,
+                    arguments = listOf(
+                        navArgument("type") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("editId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry(SERVER_SETUP_GRAPH)
                     }
                     val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    val cameFromSettings = navController.previousBackStackEntry
+                        ?.destination?.route == SETTINGS
                     AddServerScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
-                            navController.navigateAsRoot(HOME)
+                            if (cameFromSettings) navController.popBackStack()
+                            else navController.navigateAsRoot(HOME)
                         },
                         onAuthenticated = { pending ->
                             setupVm.pendingServer = pending
                             navController.navigate(SELECT_LIBRARIES)
                         },
                         onAutoCompleted = {
-                            navController.navigateAsRoot(HOME)
+                            if (cameFromSettings) navController.popBackStack()
+                            else navController.navigateAsRoot(HOME)
                         },
                     )
                 }
@@ -217,18 +232,18 @@ fun MainScreen(
                 SettingsScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToAddServer = { navController.navigate(ADD_SERVER) },
+                    onNavigateToAddServer = { backend, editId ->
+                        val params = buildList {
+                            add("type=${backend.name.lowercase()}")
+                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
+                        }.joinToString("&")
+                        navController.navigate("$ADD_SERVER?$params")
+                    },
                     onNavigateToReadaloudMatches = { serverId ->
                         val encoded = URLEncoder.encode(serverId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")
                     },
-                    onNavigateToAnnotationSync = { navController.navigate(ANNOTATION_SYNC_SETTINGS) },
                     onNavigateToAnnotationSyncMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
-                )
-            }
-            composable(ANNOTATION_SYNC_SETTINGS) {
-                AnnotationSyncSettingsScreen(
-                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(ANNOTATION_SYNC_MAINTENANCE) {

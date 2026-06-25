@@ -40,4 +40,16 @@ class KeystoreTokenStorage @Inject constructor(
 
     override suspend fun deleteToken(serverId: String) =
         withContext(Dispatchers.IO) { prefs.edit().remove(serverId).apply() }
+
+    override suspend fun savePassword(serverId: String, password: String) =
+        withContext(Dispatchers.IO) { prefs.edit().putString(passwordKey(serverId), password).apply() }
+
+    override suspend fun getPassword(serverId: String): String? =
+        withContext(Dispatchers.IO) { prefs.getString(passwordKey(serverId), null) }
+
+    override suspend fun deletePassword(serverId: String) =
+        withContext(Dispatchers.IO) { prefs.edit().remove(passwordKey(serverId)).apply() }
+
+    /** Distinct key prefix so passwords never collide with the bare-serverId token keys. */
+    private fun passwordKey(serverId: String): String = "password:$serverId"
 }

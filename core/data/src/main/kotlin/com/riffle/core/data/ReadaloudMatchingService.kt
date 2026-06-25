@@ -34,7 +34,7 @@ import javax.inject.Singleton
  *    from Pending Review on every subsequent run.
  */
 @Singleton
-class ReadaloudMatchingService(
+open class ReadaloudMatchingService(
     private val libraryItemDao: LibraryItemDao,
     private val readaloudLinkDao: ReadaloudLinkDao,
     private val readaloudCandidateDao: ReadaloudCandidateDao,
@@ -48,7 +48,7 @@ class ReadaloudMatchingService(
         readaloudDismissalDao: ReadaloudDismissalDao,
     ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
 
-    suspend fun reconcileLinks() {
+    open suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
         val absItems = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
 
