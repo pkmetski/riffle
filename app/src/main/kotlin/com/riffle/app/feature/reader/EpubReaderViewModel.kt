@@ -240,6 +240,10 @@ class EpubReaderViewModel @Inject constructor(
     @Volatile private var epubZip: ZipFile? = null
     private val chapterHtmlCache = mutableMapOf<Int, String>()
     private var syncJob: Job? = null
+    // Periodic pull of peer-device annotation files while the reader is foregrounded. Cancelled in
+    // [onReaderClosed] (STARTED gating) and restarted in [onReaderResumed]. The first cycle fires
+    // ~30s after start; the open-time pull is the separate [syncOnOpen] call further below.
+    private var annotationLiveSyncJob: Job? = null
     private var closeSyncDone = false
     // Non-null once a matched book's reconciliation prerequisites are cached: the unified cycle then
     // replaces the single-peer ABS/Storyteller paths. [readerSyncServerId] is the active server
@@ -688,6 +692,12 @@ class EpubReaderViewModel @Inject constructor(
                 if (namespace != null) {
                     // Pull other devices' annotations from WebDAV (no-op if sync isn't configured).
                     annotationSyncController.syncOnOpen(activeServer.id, namespace, itemId)
+                    // Then arm the live-pull loop so peer annotations appear within ~30s while the
+                    // reader stays open. Lifecycle gating is handled by [onReaderClosed] cancelling
+                    // and [onReaderResumed] restarting this job.
+                    annotationLiveSyncJob?.cancel()
+                    annotationLiveSyncJob = annotationSyncController
+                        .startLiveSync(activeServer.id, namespace, itemId)
                 }
             }
         }
@@ -1158,6 +1168,14 @@ class EpubReaderViewModel @Inject constructor(
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             startPeriodicSync()
+            // Re-arm the per-book annotation pull alongside position sync. Same identity the
+            // open-time syncOnOpen used; null namespace means sync isn't configured this session.
+            val sid = annotationServerId
+            val ns = annotationNamespace
+            if (sid != null && ns != null) {
+                annotationLiveSyncJob?.cancel()
+                annotationLiveSyncJob = annotationSyncController.startLiveSync(sid, ns, itemId)
+            }
         }
         // Restore the reading position after returning from background. Readium's WebView (all three
         // modes) consistently resets to the chapter top across the backgrounding round-trip —
@@ -1179,6 +1197,8 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
         syncJob?.cancel()
+        annotationLiveSyncJob?.cancel()
+        annotationLiveSyncJob = null
         storytellerSyncJob?.cancel()
         // Arm the resume-restore for the next ON_START. The footnote-popup URL-tap path may have
         // pre-armed this with the pre-popup origin (see captureFootnotePopupLinkOrigin); don't

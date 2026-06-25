@@ -10,11 +10,13 @@ import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -305,6 +307,183 @@ class AnnotationSyncControllerLifecycleTest {
 
         val merged = dao.upserts.single { it.id == "uuid-x" }
         assertTrue("expected the tombstone to win the merge", merged.deleted)
+    }
+
+    // ===== startLiveSync =====
+
+    @Test
+    fun `startLiveSync runs a syncOnOpen-equivalent read every interval`() = runTest {
+        target.files["annotations-device-A.jsonld"] = jsonArrayOf(
+            w3c("uuid-1", updatedAt = 100L, deviceId = "device-A"),
+        )
+        val controller = newController()
+
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+
+        // Nothing happens before the first interval elapses — the caller is expected to
+        // have already done the open-time syncOnOpen separately. NB: across all the
+        // live-sync tests, we deliberately do NOT call advanceUntilIdle: the loop schedules
+        // a fresh delay() after every tick, so draining "to idle" never terminates and the
+        // test body would hit runTest's wall-clock budget. advanceTimeBy runs all tasks
+        // scheduled within the advanced window, which is exactly what we want.
+        assertEquals(0, target.listCalls)
+
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertEquals(1, target.listCalls)
+
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertEquals(2, target.listCalls)
+
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertEquals(3, target.listCalls)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `startLiveSync stops firing after the returned job is cancelled`() = runTest {
+        val controller = newController()
+
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertEquals(1, target.listCalls)
+
+        job.cancelAndJoin()
+        advanceTimeBy(120_000L)
+        runCurrent()
+
+        assertEquals("no further cycles should run after cancel", 1, target.listCalls)
+    }
+
+    @Test
+    fun `startLiveSync survives a transient failure and resumes on the next tick`() = runTest {
+        // First tick fails (list throws). The loop must not die — the next tick must still fire.
+        target.failNextList = true
+        val controller = newController()
+
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertEquals(1, target.listCalls)
+        // Failure was swallowed inside syncOnOpen — dao untouched.
+        assertTrue(dao.upserts.isEmpty())
+
+        // Second tick: list succeeds.
+        target.files["annotations-device-A.jsonld"] = jsonArrayOf(
+            w3c("uuid-1", updatedAt = 100L, deviceId = "device-A"),
+        )
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertEquals(2, target.listCalls)
+        assertEquals(setOf("uuid-1"), dao.upserts.map { it.id }.toSet())
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `startLiveSync skips the per-file merge when this device's file is the only one in the namespace`() = runTest {
+        // Only our own device's file is on the target. The cheap PROPFIND should run, but the
+        // expensive read+merge pass must NOT — there's nothing to learn by re-reading our own copy.
+        target.files["annotations-$DEVICE_ID.jsonld"] = jsonArrayOf(
+            w3c("uuid-mine", updatedAt = 100L, deviceId = DEVICE_ID),
+        )
+        val status = AnnotationSyncStatusStore()
+        val controller = newController(statusStore = status)
+
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+        advanceTimeBy(30_000L)
+        runCurrent()
+
+        assertEquals("PROPFIND should have run", 1, target.listCalls)
+        assertTrue("no upserts — solo-device tick is a no-op merge", dao.upserts.isEmpty())
+        assertTrue(
+            "solo tick still reports Success so the badge can recover",
+            status.lastCycleOutcome.value is CycleOutcome.Success,
+        )
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `startLiveSync skips when the namespace is empty (no files at all yet)`() = runTest {
+        // No files anywhere — first tick should not merge.
+        val controller = newController()
+
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+        advanceTimeBy(30_000L)
+        runCurrent()
+
+        assertEquals(1, target.listCalls)
+        assertTrue(dao.upserts.isEmpty())
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `startLiveSync picks up a peer file that appears mid-session`() = runTest {
+        // Tick 1: only our own file → skip merge.
+        target.files["annotations-$DEVICE_ID.jsonld"] = jsonArrayOf(
+            w3c("uuid-mine", updatedAt = 100L, deviceId = DEVICE_ID),
+        )
+        val controller = newController()
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertTrue("tick 1 skipped the merge", dao.upserts.isEmpty())
+
+        // Tick 2: a peer device just pushed its file. Now the merge must fire.
+        target.files["annotations-device-B.jsonld"] = jsonArrayOf(
+            w3c("uuid-from-B", updatedAt = 200L, deviceId = "device-B"),
+        )
+        advanceTimeBy(30_000L)
+        runCurrent()
+
+        assertEquals(setOf("uuid-mine", "uuid-from-B"), dao.upserts.map { it.id }.toSet())
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `startLiveSync solo-tick Success recovers a previously Failed badge state`() = runTest {
+        // Tick 1: PROPFIND fails → Failed badge.
+        target.failNextList = true
+        val status = AnnotationSyncStatusStore()
+        val controller = newController(statusStore = status)
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertTrue(status.lastCycleOutcome.value is CycleOutcome.Failed)
+
+        // Tick 2: namespace is still empty, but the PROPFIND now succeeds. The skip path must
+        // report Success so the badge can clear — otherwise solo readers would stay stuck on
+        // a transient failure forever.
+        advanceTimeBy(30_000L)
+        runCurrent()
+        assertTrue(
+            "skip-tick must report Success after a recovered PROPFIND",
+            status.lastCycleOutcome.value is CycleOutcome.Success,
+        )
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `startLiveSync is a no-op when no target is configured`() = runTest {
+        currentTarget = null
+        val controller = newController()
+
+        val job = controller.startLiveSync(SRV, NS, ITEM)
+        advanceTimeBy(120_000L)
+        runCurrent()
+
+        assertEquals(0, target.listCalls)
+        job.cancelAndJoin()
     }
 
     // ===== helpers =====
