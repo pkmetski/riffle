@@ -21,8 +21,8 @@ internal fun extractCfiDocPath(fullCfi: String): String? {
 
 internal fun cfiDocPathToProgression(docPath: String, html: String): Double? {
     val doc = Jsoup.parse(html)
-    val htmlEl = doc.child(0) ?: return null
-    val body = doc.body() ?: return null
+    val htmlEl = doc.child(0)
+    val body = doc.body()
 
     val totalChars = countBodyChars(body)
     if (totalChars == 0L) return null
@@ -41,8 +41,8 @@ internal fun cfiDocPathToProgression(docPath: String, html: String): Double? {
 
 internal fun progressionToCfiDocPath(progression: Double, html: String): String? {
     val doc = Jsoup.parse(html)
-    val htmlEl = doc.child(0) ?: return null
-    val body = doc.body() ?: return null
+    val htmlEl = doc.child(0)
+    val body = doc.body()
 
     val totalChars = countBodyChars(body)
     if (totalChars == 0L) return null

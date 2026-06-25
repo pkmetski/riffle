@@ -90,7 +90,7 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
                 val request = Request.Builder().url(url).get().build()
                 okHttpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) throw IOException("HTTP ${response.code} for track $i")
-                    val body = response.body ?: throw IOException("Empty body for track $i")
+                    val body = response.body
                     val len = body.contentLength()
                     if (len > 0) total += len
                     body.byteStream().use { input ->
