@@ -1480,10 +1480,19 @@ private fun EpubNavigatorView(
     // mid-reading would be jarring. The background sync carries a within-chapter progression but
     // no DOM fragment, so landAtStartWhenNoTarget=false preserves where go() landed instead of
     // snapping to the chapter top.
+    //
+    // Awaits the fragment via snapshotFlow before snapping — same race as [goAndSnapWithCover]. On a
+    // cold open the resume locator is emitted on Activity ON_START (EpubReaderViewModel.onReaderResumed),
+    // which fires BEFORE the AndroidView composition has assigned fragmentRef. A bare `?.let` here
+    // silently drops the snap, leaving the page wherever Readium's initialLocator landing rested — which
+    // can be off-grid (the "page slightly turned to next" bug on book open). The at-rest backstop
+    // [SETTLE_SNAP_INSTALL_JS] doesn't rescue it: it arms on a scroll event, and Readium's programmatic
+    // initial landing never fires one.
     val serverLocatorTarget: NavigationTarget = remember(isContinuous) {
         if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
         else ReadiumNavigationTarget { locator ->
-            fragmentRef.value?.let { ColumnSnap.goAndSnap(it, locator, landAtStartWhenNoTarget = false) }
+            val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
         }
     }
 
