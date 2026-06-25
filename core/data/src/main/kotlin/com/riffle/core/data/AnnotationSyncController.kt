@@ -79,21 +79,22 @@ class AnnotationSyncController(
             // open, which retries the read pass. There is nothing for the push sweep to do.
             return
         }
-        runMergeFromListing(serverId, namespace, itemId, filenames)
+        runMergeFromListing(target, serverId, namespace, itemId, filenames)
     }
 
     /**
-     * Merge the device files already listed in [filenames] into Room. Reports a [CycleOutcome] to
-     * the status store on success or failure. Shared by [syncOnOpen] (which lists first) and
-     * [startLiveSync] (which lists itself so it can short-circuit when no peer files exist).
+     * Merge the device files already listed in [filenames] into Room using the same [target]
+     * instance that produced the listing. Reports a [CycleOutcome] to the status store on
+     * success or failure. Shared by [syncOnOpen] (which lists first) and [startLiveSync] (which
+     * lists itself so it can short-circuit when no peer files exist).
      */
     private suspend fun runMergeFromListing(
+        target: AnnotationSyncTarget,
         serverId: String,
         namespace: String,
         itemId: String,
         filenames: List<String>,
     ) {
-        val target = targetProvider() ?: return
         try {
             // Each device file is a JSON array of W3C annotations (one per annotation the device
             // created), so flat-map the parsed lists.
@@ -182,7 +183,16 @@ class AnnotationSyncController(
      */
     fun startLiveSync(serverId: String, namespace: String, itemId: String): Job =
         scope.launch {
-            val myFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+            // Resolve our own filename once; deviceId is stable for the install lifetime, so this
+            // doesn't need to be inside the tick. Wrap in try/catch so a DataStore failure surfaces
+            // as a Failed outcome — otherwise the launch dies silently before the first delay()
+            // and the loop is invisibly absent for the whole session.
+            val myFilename = try {
+                "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+            } catch (e: Exception) {
+                statusStore.report(e.toFailedCycleOutcome(clock()))
+                return@launch
+            }
             while (true) {
                 delay(LIVE_SYNC_INTERVAL_MS)
                 val target = targetProvider() ?: continue
@@ -194,7 +204,10 @@ class AnnotationSyncController(
                 }
                 val hasPeer = filenames.any { it != myFilename }
                 if (hasPeer) {
-                    runMergeFromListing(serverId, namespace, itemId, filenames)
+                    // Pass the captured target so the merge sees the same instance we just listed
+                    // — avoids a holder-swap race where the second resolve returns null and the
+                    // tick silently no-ops with the listed filenames discarded.
+                    runMergeFromListing(target, serverId, namespace, itemId, filenames)
                 } else {
                     // Solo namespace this tick — the PROPFIND was the only work needed. Report
                     // Success so the status badge can recover from a prior Failed.* state without
