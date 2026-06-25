@@ -82,40 +82,37 @@ class BookmarkRibbonOverWebViewTest {
         composeTestRule.mainClock.advanceTimeBy(1_000L)
         composeTestRule.waitForIdle()
 
-        val node = composeTestRule.onNodeWithContentDescription("Remove bookmark")
-        node.assertExists()
+        composeTestRule.onNodeWithContentDescription("Remove bookmark").assertExists()
 
-        // Read back the composited display surface. `boundsInWindow` is window-relative (excludes
-        // the status bar); `takeScreenshot()` returns the full screen (includes it). Offset by the
-        // status bar height so the crop lands on the ribbon, not on the status bar above it.
-        val bounds = node.fetchSemanticsNode().boundsInWindow
+        // Read back the composited display surface and scan the top-end region (where the
+        // CornerBookmarkIndicator is aligned) for any pixel matching the ribbon's brown fill.
+        // A scan is more robust than coordinate-cropping: window-vs-screen offsets (status bar)
+        // and per-device system-bar themes don't matter — we just need ONE brown pixel to exist
+        // anywhere in the indicator's quadrant. If the WebView were hiding the ribbon (the bug
+        // this test guards), the entire top-end region would read solid white instead.
         val screen: Bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
-        val statusBarHeightId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        val statusBarHeight = if (statusBarHeightId > 0) resources.getDimensionPixelSize(statusBarHeightId) else 0
-        val x = bounds.left.toInt().coerceAtLeast(0)
-        val y = (bounds.top.toInt() + statusBarHeight).coerceAtLeast(0)
-        val w = (bounds.width.toInt()).coerceAtMost(screen.width - x)
-        val h = (bounds.height.toInt()).coerceAtMost(screen.height - y)
-        val image = Bitmap.createBitmap(screen, x, y, w, h)
-
-        // Sample the ribbon's interior. The ribbon is 24×32dp, pentagon-shaped — the top half is
-        // a full-width rectangle so the centre x at ~25% height is solidly inside the fill.
-        val sampleX = image.width / 2
-        val sampleY = image.height / 4
-        val pixel = image.getPixel(sampleX, sampleY)
-        val r = (pixel shr 16) and 0xFF
-        val g = (pixel shr 8) and 0xFF
-        val b = pixel and 0xFF
-
-        // Active fill is 0xFFB5440E — a saturated brown. A pixel that's been hidden by the WebView
-        // beneath would read near-white (255, 255, 255). Allow some tolerance for anti-aliasing
-        // and the spring-scale settle, but reject anything that looks like the white background.
-        val looksBrown = r in 120..220 && g in 30..120 && b in 0..80
+        val xStart = screen.width / 2
+        val yEnd = screen.height / 4
+        var brownPixels = 0
+        for (yy in 0 until yEnd) {
+            for (xx in xStart until screen.width) {
+                val px = screen.getPixel(xx, yy)
+                val r = (px shr 16) and 0xFF
+                val g = (px shr 8) and 0xFF
+                val b = px and 0xFF
+                // Active fill is 0xFFB5440E — a saturated brown. Reject anything that looks like
+                // a white WebView background (255, 255, 255) or grey status-bar chrome.
+                if (r in 120..220 && g in 30..120 && b in 0..80) brownPixels++
+            }
+        }
+        // The ribbon is 24×32dp ≈ 96×128px at 4x density; a handful of brown pixels in the scan
+        // region is enough to prove it rendered. Demand a small minimum so a single stray red
+        // pixel from the system theme couldn't pass the test.
         assertTrue(
-            "Bookmark ribbon pixel must be brown (was r=$r g=$g b=$b) — the WebView is hiding " +
-                "the ribbon. Verify the indicator still has Modifier.graphicsLayer in its chain.",
-            looksBrown,
+            "Bookmark ribbon's brown fill not visible in the top-end region " +
+                "(found $brownPixels brown pixels) — the WebView is hiding the ribbon. " +
+                "Verify the indicator still has Modifier.graphicsLayer in its chain.",
+            brownPixels >= 50,
         )
     }
 }
