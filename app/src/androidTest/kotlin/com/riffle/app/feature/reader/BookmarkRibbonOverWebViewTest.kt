@@ -1,0 +1,102 @@
+package com.riffle.app.feature.reader
+
+import android.graphics.Color as AndroidColor
+import android.webkit.WebView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Regression test for: the corner bookmark ribbon is hidden by Readium's WebView in the steady
+ * state, because the WebView composites from its own hardware RenderNode and paints over sibling
+ * Compose children. The fix forces the ribbon into its own GPU layer via `Modifier.graphicsLayer`,
+ * which Compose then composites on top of the WebView surface.
+ *
+ * This test reproduces the same layout shape as [EpubReaderScreen]: a Box containing an
+ * [AndroidView] hosting a real [WebView] full-bleed below, with the [CornerBookmarkIndicator]
+ * aligned to the top-end above. A pixel sampled at the ribbon's location must be the active brown
+ * fill, NOT the WebView's white background — which is what the bug looked like on device.
+ *
+ * Without `graphicsLayer` in the indicator's modifier chain, the WebView's RenderNode wins the
+ * compositing step and the ribbon pixels never reach the screen even though the composable lays
+ * out at the right bounds (the original bug).
+ */
+@RunWith(AndroidJUnit4::class)
+class BookmarkRibbonOverWebViewTest {
+
+    @get:Rule val composeTestRule = createComposeRule()
+
+    @Test
+    fun bookmarkRibbon_rendersAboveWebView() {
+        composeTestRule.setContent {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            setBackgroundColor(AndroidColor.WHITE)
+                            loadDataWithBaseURL(
+                                null,
+                                "<html><body style='background:#ffffff;margin:0;'></body></html>",
+                                "text/html",
+                                "utf-8",
+                                null,
+                            )
+                        }
+                    },
+                )
+                CornerBookmarkIndicator(
+                    isBookmarked = true,
+                    isVisible = true,
+                    onToggle = {},
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = 12.dp)
+                        .graphicsLayer { },
+                )
+            }
+        }
+
+        // Wait for the bookmark fill animation (180ms tween) + spring scale to settle.
+        composeTestRule.waitForIdle()
+        composeTestRule.mainClock.advanceTimeBy(1_000L)
+        composeTestRule.waitForIdle()
+
+        val node = composeTestRule.onNodeWithContentDescription("Remove bookmark")
+        node.assertExists()
+        val image = node.captureToImage().asAndroidBitmap()
+
+        // Sample the ribbon's interior. The ribbon is 24×32dp, pentagon-shaped — the top half is
+        // a full-width rectangle so the centre x at ~25% height is solidly inside the fill.
+        val sampleX = image.width / 2
+        val sampleY = image.height / 4
+        val pixel = image.getPixel(sampleX, sampleY)
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+
+        // Active fill is 0xFFB5440E — a saturated brown. A pixel that's been hidden by the WebView
+        // beneath would read near-white (255, 255, 255). Allow some tolerance for anti-aliasing
+        // and the spring-scale settle, but reject anything that looks like the white background.
+        val looksBrown = r in 120..220 && g in 30..120 && b in 0..80
+        assertTrue(
+            "Bookmark ribbon pixel must be brown (was r=$r g=$g b=$b) — the WebView is hiding " +
+                "the ribbon. Verify the indicator still has Modifier.graphicsLayer in its chain.",
+            looksBrown,
+        )
+    }
+}
