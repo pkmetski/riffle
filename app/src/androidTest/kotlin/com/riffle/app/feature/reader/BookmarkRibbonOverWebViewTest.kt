@@ -1,22 +1,20 @@
 package com.riffle.app.feature.reader
 
+import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
-import android.os.Build
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.filters.SdkSuppress
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -36,17 +34,18 @@ import org.junit.runner.RunWith
  * Without `graphicsLayer` in the indicator's modifier chain, the WebView's RenderNode wins the
  * compositing step and the ribbon pixels never reach the screen even though the composable lays
  * out at the right bounds (the original bug).
+ *
+ * Capture path: [android.app.UiAutomation.takeScreenshot] reads back the actual composited
+ * display surface (the same surface the user sees), so the WebView's hardware RenderNode layer
+ * IS included — that's what makes this a valid regression test. Available since API 18, so it
+ * works on the project's minimum-supported Android 7.1.1 / API 25. Compose's `captureToImage()`
+ * uses `PixelCopy.request(Window, …)` which is API 26+ and would NoSuchMethodError on 7.1.1.
  */
 @RunWith(AndroidJUnit4::class)
 class BookmarkRibbonOverWebViewTest {
 
     @get:Rule val composeTestRule = createComposeRule()
 
-    // Suppressed on API 25: `captureToImage()` ultimately calls `PixelCopy.request(Window, …)`,
-    // an overload added in API 26 (Android 8.0). On Android 7.1.1 the method does not exist
-    // and the test throws NoSuchMethodError before it can assert anything. The compositing
-    // fix it guards is platform-independent, so running on API ≥ 26 is sufficient coverage.
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.O)
     @Test
     fun bookmarkRibbon_rendersAboveWebView() {
         composeTestRule.setContent {
@@ -85,7 +84,17 @@ class BookmarkRibbonOverWebViewTest {
 
         val node = composeTestRule.onNodeWithContentDescription("Remove bookmark")
         node.assertExists()
-        val image = node.captureToImage().asAndroidBitmap()
+
+        // Read back the composited display surface. Crop to the ribbon's bounds (in window
+        // coordinates, which equal screen coordinates here — the host activity is full-screen
+        // with no system bar offset on the test scaffold).
+        val bounds = node.fetchSemanticsNode().boundsInWindow
+        val screen: Bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val x = bounds.left.toInt().coerceAtLeast(0)
+        val y = bounds.top.toInt().coerceAtLeast(0)
+        val w = (bounds.width.toInt()).coerceAtMost(screen.width - x)
+        val h = (bounds.height.toInt()).coerceAtMost(screen.height - y)
+        val image = Bitmap.createBitmap(screen, x, y, w, h)
 
         // Sample the ribbon's interior. The ribbon is 24×32dp, pentagon-shaped — the top half is
         // a full-width rectangle so the centre x at ~25% height is solidly inside the fill.
