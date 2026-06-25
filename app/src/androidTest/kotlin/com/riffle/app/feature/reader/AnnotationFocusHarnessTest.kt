@@ -140,15 +140,21 @@ class AnnotationFocusHarnessTest {
     }
 
     /** Pop the back stack from reader (and the library detail screen, if interposed) back to the
-     *  library search grid where the annotation row is tappable again. */
+     *  library search grid where the annotation row is tappable again.
+     *
+     *  Uses the activity's onBackPressedDispatcher directly rather than `Espresso.pressBack()`.
+     *  Both trigger the same back-stack navigation, but pressBack first asserts the root view has
+     *  window focus — a precondition the headless API-25 emulator on CI cannot reliably satisfy
+     *  (the same test passes on local windowed AVDs because they do). Dispatching on the activity
+     *  is the documented Compose-test substitute and is what the assertion actually cares about. */
     private fun returnToLibrary() {
-        // Repeatedly press back until the Search field reappears (library home). Three attempts
-        // covers reader → details → library at most.
         var attempts = 0
         while (attempts < 4 &&
             composeTestRule.onAllNodesWithText("Search").fetchSemanticsNodes().isEmpty()
         ) {
-            androidx.test.espresso.Espresso.pressBack()
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+            }
             attempts++
             Thread.sleep(800)
         }

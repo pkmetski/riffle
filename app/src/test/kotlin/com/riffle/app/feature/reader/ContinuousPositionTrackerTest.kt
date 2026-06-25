@@ -457,4 +457,78 @@ class ContinuousPositionTrackerTest {
             ContinuousPositionTracker.sentenceIdForSelection("cat", duplicateWordQuotes),
         )
     }
+
+    // ── initialWindow ────────────────────────────────────────────────────────
+    //
+    // Regression coverage for "stuck at chapter N" when opening near the start of the book.
+    // With CHAPTERS_BEHIND=3 (raised from 1 in PR #241) the forward-shift trigger requires the
+    // viewport midpoint to be at slot index > 3. The old formula `behind + 1 + CHAPTERS_AHEAD`
+    // returned only 4 chapters when opening at the start, so slot 4 never existed and the
+    // window never shifted — the user walled off at the last loaded chapter.
+
+    @Test
+    fun `initialWindow at chapter 0 loads the full window ahead (no behind buffer available)`() {
+        // Opening at the very first chapter: no chapters behind, all spare slots go to ahead.
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 0, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
+        )
+        assertEquals(0, w.topIndex)
+        assertEquals(7, w.totalChapters)
+        assertEquals(0, w.targetWindowIndex)
+        // Critical invariant: total > chaptersBehind, so the forward-shift trigger can fire.
+        assertTrue("must load > chaptersBehind chapters or shift trigger is unreachable",
+            w.totalChapters > 3)
+    }
+
+    @Test
+    fun `initialWindow at chapter 1 reallocates 2 unused behind slots to ahead`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 1, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
+        )
+        assertEquals(0, w.topIndex)
+        assertEquals(7, w.totalChapters)
+        assertEquals(1, w.targetWindowIndex)
+    }
+
+    @Test
+    fun `initialWindow at chapter 2 reallocates 1 unused behind slot to ahead`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 2, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
+        )
+        assertEquals(0, w.topIndex)
+        assertEquals(7, w.totalChapters)
+        assertEquals(2, w.targetWindowIndex)
+    }
+
+    @Test
+    fun `initialWindow mid-book uses full behind plus full ahead (unchanged from prior behavior)`() {
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 25, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
+        )
+        assertEquals(22, w.topIndex)
+        assertEquals(7, w.totalChapters)
+        assertEquals(3, w.targetWindowIndex)
+    }
+
+    @Test
+    fun `initialWindow near end of book clamps total to remaining chapters`() {
+        // 50-chapter book, opening at chapter 48: topIndex=45, only 5 chapters remain.
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 48, allChaptersSize = 50, chaptersBehind = 3, windowSize = 7,
+        )
+        assertEquals(45, w.topIndex)
+        assertEquals(5, w.totalChapters)
+        assertEquals(3, w.targetWindowIndex)
+    }
+
+    @Test
+    fun `initialWindow in a tiny book clamps total to allChaptersSize`() {
+        // 3-chapter book opened at chapter 1: behind=1, total clamped to 3.
+        val w = ContinuousPositionTracker.initialWindow(
+            targetIndex = 1, allChaptersSize = 3, chaptersBehind = 3, windowSize = 7,
+        )
+        assertEquals(0, w.topIndex)
+        assertEquals(3, w.totalChapters)
+        assertEquals(1, w.targetWindowIndex)
+    }
 }

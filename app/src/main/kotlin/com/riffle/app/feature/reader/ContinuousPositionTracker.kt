@@ -124,4 +124,44 @@ internal object ContinuousPositionTracker {
         val pastBehindBudget = viewportChapterIndex - topIndex > chaptersBehind
         return moreChaptersExist && pastBehindBudget
     }
+
+    data class InitialWindow(val topIndex: Int, val totalChapters: Int, val targetWindowIndex: Int)
+
+    /**
+     * Compute the initial sliding-window layout for opening at [targetIndex] in a book of size
+     * [allChaptersSize].
+     *
+     * The forward-shift trigger ([forwardShiftNeeded]) requires the viewport midpoint to advance
+     * MORE THAN [chaptersBehind] slots past the top of the loaded window. When the user opens
+     * the book near its start, the behind buffer is truncated (`min(chaptersBehind, targetIndex)`)
+     * — but the *total* loaded count must still leave a slot at position > chaptersBehind for the
+     * midpoint to land in, otherwise forward shifts never fire and the user walls off at the last
+     * initially-loaded chapter.
+     *
+     * Fix: keep the total window size at [windowSize] regardless of how much behind buffer is
+     * available, allocating the unused behind slots to the ahead buffer. So at chapter 0 we load
+     * `windowSize` chapters ahead instead of just `chaptersAhead + 1`. Near the end of the book
+     * the natural `allChaptersSize - topIndex` clamp still applies.
+     *
+     * Regression: PR #241 raised CHAPTERS_BEHIND from 1 to 3 to absorb consecutive short
+     * chapters; that made the old `behind + 1 + chaptersAhead` formula return only 4 chapters
+     * when opening at the start, and the `> 3` shift trigger required a 5th slot that never
+     * existed. The reader got stuck at chapter 3.
+     */
+    fun initialWindow(
+        targetIndex: Int,
+        allChaptersSize: Int,
+        chaptersBehind: Int,
+        windowSize: Int,
+    ): InitialWindow {
+        require(windowSize > chaptersBehind) {
+            "windowSize ($windowSize) must exceed chaptersBehind ($chaptersBehind); " +
+                "otherwise the forward-shift trigger (gap > chaptersBehind) has no slot to land in " +
+                "and the reader walls off at the last initially-loaded chapter."
+        }
+        val behind = minOf(chaptersBehind, targetIndex)
+        val topIndex = targetIndex - behind
+        val totalChapters = minOf(windowSize, allChaptersSize - topIndex)
+        return InitialWindow(topIndex = topIndex, totalChapters = totalChapters, targetWindowIndex = behind)
+    }
 }

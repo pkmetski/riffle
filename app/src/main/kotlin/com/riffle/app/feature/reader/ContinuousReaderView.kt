@@ -550,14 +550,19 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // previous chapter showing, the target's heading pushed to the bottom). Waiting for the
         // behind buffer to measure costs one extra chapter's load before the first paint, which is
         // an acceptable trade for landing exactly where the TOC entry points.
-        val behind = minOf(CHAPTERS_BEHIND, targetIndex)
-        topIndex = targetIndex - behind
-        val targetWindowIndex = behind
+        val initial = ContinuousPositionTracker.initialWindow(
+            targetIndex = targetIndex,
+            allChaptersSize = allChapters.size,
+            chaptersBehind = CHAPTERS_BEHIND,
+            windowSize = WINDOW_SIZE,
+        )
+        topIndex = initial.topIndex
+        val targetWindowIndex = initial.targetWindowIndex
         pendingTargetWindowIndex = targetWindowIndex
         reapplyLandingAfterFallback = null
         reapplyTargetLastHeight = -1
         pendingFocusAnnotationId = focusAnnotationId
-        val totalChapters = minOf(behind + 1 + CHAPTERS_AHEAD, allChapters.size - topIndex)
+        val totalChapters = initial.totalChapters
         // Land only once every chapter up to and including the target has reported its real height,
         // so the target's slot.top (the sum of the heights before it) is exact.
         pendingInitialMeasureIndices.clear()
