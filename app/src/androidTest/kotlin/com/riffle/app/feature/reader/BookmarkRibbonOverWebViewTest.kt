@@ -85,13 +85,16 @@ class BookmarkRibbonOverWebViewTest {
         val node = composeTestRule.onNodeWithContentDescription("Remove bookmark")
         node.assertExists()
 
-        // Read back the composited display surface. Crop to the ribbon's bounds (in window
-        // coordinates, which equal screen coordinates here — the host activity is full-screen
-        // with no system bar offset on the test scaffold).
+        // Read back the composited display surface. `boundsInWindow` is window-relative (excludes
+        // the status bar); `takeScreenshot()` returns the full screen (includes it). Offset by the
+        // status bar height so the crop lands on the ribbon, not on the status bar above it.
         val bounds = node.fetchSemanticsNode().boundsInWindow
         val screen: Bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        val statusBarHeightId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        val statusBarHeight = if (statusBarHeightId > 0) resources.getDimensionPixelSize(statusBarHeightId) else 0
         val x = bounds.left.toInt().coerceAtLeast(0)
-        val y = bounds.top.toInt().coerceAtLeast(0)
+        val y = (bounds.top.toInt() + statusBarHeight).coerceAtLeast(0)
         val w = (bounds.width.toInt()).coerceAtMost(screen.width - x)
         val h = (bounds.height.toInt()).coerceAtMost(screen.height - y)
         val image = Bitmap.createBitmap(screen, x, y, w, h)
