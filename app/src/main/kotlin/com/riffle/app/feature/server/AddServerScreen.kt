@@ -208,9 +208,12 @@ private fun removeButtonLabel(backend: AddServerBackend): String = when (backend
     AddServerBackend.WEBDAV -> "Disable sync"
 }
 
+// User-facing description of what Riffle does with each backend. Keep in sync
+// with what the app actually supports — when a backend gains/loses a capability
+// (e.g. audiobook streaming, readaloud sync), revisit this copy.
 private fun backendHelpText(backend: AddServerBackend): String = when (backend) {
     AddServerBackend.AUDIOBOOKSHELF ->
-        "Audiobookshelf hosts your ebooks and audiobooks. Riffle reads ebooks from ABS; audio playback is handled by the official Audiobookshelf app."
+        "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices."
     AddServerBackend.STORYTELLER ->
         "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each completed readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
     AddServerBackend.WEBDAV ->
