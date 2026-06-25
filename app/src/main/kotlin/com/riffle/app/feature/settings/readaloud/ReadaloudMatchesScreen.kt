@@ -1,7 +1,6 @@
 package com.riffle.app.feature.settings.readaloud
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -319,7 +318,7 @@ private fun ConfirmedReadaloudRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onUnlink) { Text("Unlink") }
+            TextButton(onClick = onUnlink) { Text("Unmatch") }
         }
         Spacer(Modifier.height(8.dp))
         // Two fixed slots — a combined ABS item fills both; a one-sided match leaves the other
@@ -329,12 +328,14 @@ private fun ConfirmedReadaloudRow(
                 label = "📖 Ebook",
                 targets = link.targets.filter { it.hasEbook },
                 onAdd = { onAddMissing(AbsFormatFilter.EBOOK) },
+                kind = FormatSlotKind.EBOOK,
                 modifier = Modifier.weight(1f),
             )
             FormatSlot(
                 label = "🎧 Audiobook",
                 targets = link.targets.filter { it.hasAudio },
                 onAdd = { onAddMissing(AbsFormatFilter.AUDIO) },
+                kind = FormatSlotKind.AUDIOBOOK,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -351,11 +352,14 @@ private fun ConfirmedReadaloudRow(
     }
 }
 
+private enum class FormatSlotKind { EBOOK, AUDIOBOOK }
+
 @Composable
 private fun FormatSlot(
     label: String,
     targets: List<ConfirmedReadaloud.ConfirmedTarget>,
     onAdd: () -> Unit,
+    kind: FormatSlotKind,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(12.dp)
@@ -364,6 +368,16 @@ private fun FormatSlot(
     // amber dashed border + amber label so the gap reads as "needs attention", not a normal item.
     val amber = if (isSystemInDarkTheme()) Color(0xFFE6B450) else Color(0xFF9A6700)
     val amberFill = Color(0xFFFFC107).copy(alpha = if (isSystemInDarkTheme()) 0.10f else 0.16f)
+    // Filled slots use distinct M3 container tints so ebook and audiobook chips read as different
+    // things at a glance, not two identical outlined boxes.
+    val filledBg = when (kind) {
+        FormatSlotKind.EBOOK -> MaterialTheme.colorScheme.primaryContainer
+        FormatSlotKind.AUDIOBOOK -> MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val filledOn = when (kind) {
+        FormatSlotKind.EBOOK -> MaterialTheme.colorScheme.onPrimaryContainer
+        FormatSlotKind.AUDIOBOOK -> MaterialTheme.colorScheme.onTertiaryContainer
+    }
     Column(
         modifier = modifier
             .clip(shape)
@@ -374,7 +388,7 @@ private fun FormatSlot(
                         .dashedBorder(amber)
                         .clickable(onClick = onAdd)
                 } else {
-                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                    Modifier.background(filledBg, shape)
                 }
             )
             .padding(horizontal = 10.dp, vertical = 9.dp),
@@ -382,7 +396,7 @@ private fun FormatSlot(
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (isEmpty) amber else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isEmpty) amber else filledOn,
         )
         Spacer(Modifier.height(3.dp))
         if (isEmpty) {
@@ -396,6 +410,7 @@ private fun FormatSlot(
                 Text(
                     "${target.absTitle} · ${target.absLibraryName}",
                     style = MaterialTheme.typography.bodySmall,
+                    color = filledOn,
                 )
             }
         }
