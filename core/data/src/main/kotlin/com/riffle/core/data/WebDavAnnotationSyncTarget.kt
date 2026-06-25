@@ -228,61 +228,69 @@ class WebDavAnnotationSyncTarget(
     }
 
     private suspend fun readFile(url: HttpUrl): String? = withContext(Dispatchers.IO) {
-        val request = baseRequest(url).get().build()
-        client.newCall(request).execute().use { response ->
-            when {
-                response.code == 404 -> null
-                response.code == 401 || response.code == 403 ->
-                    throw AnnotationSyncException.AuthFailed(response.code)
-                !response.isSuccessful ->
-                    throw AnnotationSyncException.HttpFailure(response.code, "read ${url.encodedPath}")
-                else -> response.body.string()
+        classifyWebDavTransportErrors {
+            val request = baseRequest(url).get().build()
+            client.newCall(request).execute().use { response ->
+                when {
+                    response.code == 404 -> null
+                    response.code == 401 || response.code == 403 ->
+                        throw AnnotationSyncException.AuthFailed(response.code)
+                    !response.isSuccessful ->
+                        throw AnnotationSyncException.HttpFailure(response.code, "read ${url.encodedPath}")
+                    else -> response.body.string()
+                }
             }
         }
     }
 
     private fun putFile(url: HttpUrl, content: String, media: okhttp3.MediaType, op: String) {
-        val body = content.toRequestBody(media)
-        val response = put(url, body)
-        val code = response.code
-        val ok = response.isSuccessful
-        response.close()
-        if (!ok) {
-            when (code) {
-                401, 403 -> throw AnnotationSyncException.AuthFailed(code)
-                else -> throw AnnotationSyncException.HttpFailure(code, op)
+        classifyWebDavTransportErrors {
+            val body = content.toRequestBody(media)
+            val response = put(url, body)
+            val code = response.code
+            val ok = response.isSuccessful
+            response.close()
+            if (!ok) {
+                when (code) {
+                    401, 403 -> throw AnnotationSyncException.AuthFailed(code)
+                    else -> throw AnnotationSyncException.HttpFailure(code, op)
+                }
             }
         }
     }
 
     private suspend fun deleteFile(url: HttpUrl, op: String) = withContext(Dispatchers.IO) {
-        val request = baseRequest(url).delete().build()
-        client.newCall(request).execute().use { response ->
-            // 404 / 410 / 405 are treated as a no-op success — the file is already gone or the
-            // server rejects DELETE on a missing resource, which is what we want either way.
-            when {
-                response.isSuccessful || response.code in setOf(204, 404, 405, 410) -> Unit
-                response.code == 401 || response.code == 403 ->
-                    throw AnnotationSyncException.AuthFailed(response.code)
-                else -> throw AnnotationSyncException.HttpFailure(response.code, op)
+        classifyWebDavTransportErrors {
+            val request = baseRequest(url).delete().build()
+            client.newCall(request).execute().use { response ->
+                // 404 / 410 / 405 are treated as a no-op success — the file is already gone or the
+                // server rejects DELETE on a missing resource, which is what we want either way.
+                when {
+                    response.isSuccessful || response.code in setOf(204, 404, 405, 410) -> Unit
+                    response.code == 401 || response.code == 403 ->
+                        throw AnnotationSyncException.AuthFailed(response.code)
+                    else -> throw AnnotationSyncException.HttpFailure(response.code, op)
+                }
             }
         }
     }
 
     private suspend fun propfindBaseFilenames(): List<String> = withContext(Dispatchers.IO) {
-        val request = baseRequest(basePath)
-            .header("Depth", "1")
-            .header("Content-Type", "application/xml; charset=utf-8")
-            .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
-            .build()
-        client.newCall(request).execute().use { response ->
-            when {
-                response.code in setOf(400, 404, 405) -> emptyList()
-                response.code == 401 || response.code == 403 ->
-                    throw AnnotationSyncException.AuthFailed(response.code)
-                !response.isSuccessful && response.code != 207 ->
-                    throw AnnotationSyncException.HttpFailure(response.code, "enumerate")
-                else -> parsePropfindFilenames(response.body.string())
+        classifyWebDavTransportErrors {
+            val request = baseRequest(basePath)
+                .header("Depth", "1")
+                .header("Content-Type", "application/xml; charset=utf-8")
+                .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
+                .build()
+            client.newCall(request).execute().use { response ->
+                when {
+                    response.code in setOf(400, 404, 405) -> emptyList()
+                    response.code == 401 || response.code == 403 ->
+                        throw AnnotationSyncException.AuthFailed(response.code)
+                    !response.isSuccessful && response.code != 207 ->
+                        throw AnnotationSyncException.HttpFailure(response.code, "enumerate")
+                    else -> parsePropfindFilenames(response.body.string())
+                }
             }
         }
     }
@@ -397,10 +405,27 @@ sealed class TestConnectionResult {
 }
 
 /** Distinct failure modes thrown out of the data-path methods (list/read/write). */
-sealed class AnnotationSyncException(message: String) : Exception(message) {
+sealed class AnnotationSyncException(message: String, cause: Throwable? = null) : Exception(message, cause) {
     class AuthFailed(val code: Int) : AnnotationSyncException("WebDAV authentication failed ($code)")
     class HttpFailure(val code: Int, val operation: String) :
         AnnotationSyncException("WebDAV $operation failed with HTTP $code")
+    class NetworkError(message: String, cause: Throwable? = null) : AnnotationSyncException(message, cause)
+    class TlsError(message: String, cause: Throwable? = null) : AnnotationSyncException(message, cause)
+}
+
+/**
+ * Re-throw transport-layer failures as typed [AnnotationSyncException]s so the status surface
+ * can classify network vs. TLS vs. server-side errors without inspecting exception types.
+ * SSLException is a subtype of IOException — catch it first.
+ */
+internal inline fun <T> classifyWebDavTransportErrors(block: () -> T): T {
+    return try {
+        block()
+    } catch (e: javax.net.ssl.SSLException) {
+        throw AnnotationSyncException.TlsError(e.message ?: "TLS error", e)
+    } catch (e: java.io.IOException) {
+        throw AnnotationSyncException.NetworkError(e.message ?: "network error", e)
+    }
 }
 
 /** Parse a user-supplied URL; returns null on malformed input. */

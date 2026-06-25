@@ -24,6 +24,9 @@ import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
+import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
+import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.ServerRepository
@@ -41,6 +44,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** UI state for the at-a-glance "WebDAV" row in Settings (ADR 0036). */
+data class AnnotationSyncRowState(
+    val badge: Badge,
+    val headline: String,
+    val sub: String,
+    val subTone: Tone,
+) {
+    enum class Badge { Local, Synced, Pending, Error }
+    enum class Tone { Normal, Pending, Error }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -60,12 +74,81 @@ class SettingsViewModel @Inject constructor(
     private val appUpdateRepository: AppUpdateRepository,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
+    annotationSyncStatusStore: AnnotationSyncStatusStore,
+    annotationDao: AnnotationDao,
 ) : ViewModel() {
 
-    /** Live summary for the "Annotation sync (WebDAV)" row — null when sync is unconfigured. */
-    val annotationSyncSummary: StateFlow<String?> = annotationSyncConfigStore.observe()
-        .map { config -> config?.let { "Configured · ${it.username}@${shortHost(it.baseUrl)}" } }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /** At-a-glance row state for the main Settings "WebDAV" entry (ADR 0036). */
+    val annotationSyncRow: StateFlow<AnnotationSyncRowState> = combine(
+        annotationSyncConfigStore.observe(),
+        annotationSyncStatusStore.lastCycleOutcome,
+        annotationDao.observePendingCountAcrossAll(),
+    ) { config, outcome, pendingCount ->
+        deriveRow(config, outcome, pendingCount)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        deriveRow(null, CycleOutcome.NeverRun, 0),
+    )
+
+    private fun deriveRow(
+        config: com.riffle.core.domain.AnnotationSyncConfig?,
+        outcome: CycleOutcome,
+        pendingCount: Int,
+    ): AnnotationSyncRowState {
+        if (config == null) {
+            return AnnotationSyncRowState(
+                badge = AnnotationSyncRowState.Badge.Local,
+                headline = "WebDAV",
+                sub = "Not configured · tap to set up a WebDAV server",
+                subTone = AnnotationSyncRowState.Tone.Normal,
+            )
+        }
+        val identity = "${config.username}@${shortHost(config.baseUrl)}"
+        return when {
+            outcome is CycleOutcome.NeverRun -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Pending, "WebDAV",
+                "Waiting for first sync…",
+                AnnotationSyncRowState.Tone.Pending,
+            )
+            outcome is CycleOutcome.Failed.Auth -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Error, "WebDAV",
+                "Authentication failed · tap to re-enter credentials",
+                AnnotationSyncRowState.Tone.Error,
+            )
+            outcome is CycleOutcome.Failed.Tls -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Error, "WebDAV",
+                "TLS error · tap to check server URL",
+                AnnotationSyncRowState.Tone.Error,
+            )
+            outcome is CycleOutcome.Failed.Server -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Error, "WebDAV",
+                "Server error (HTTP ${outcome.code}) · will retry automatically",
+                AnnotationSyncRowState.Tone.Error,
+            )
+            outcome is CycleOutcome.Failed.Unknown -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Error, "WebDAV",
+                "Sync failed · will retry automatically",
+                AnnotationSyncRowState.Tone.Error,
+            )
+            outcome is CycleOutcome.Failed.Network -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Pending, "WebDAV",
+                if (pendingCount > 0) "$pendingCount book(s) pending · will sync when online"
+                else "Offline · will sync when connected",
+                AnnotationSyncRowState.Tone.Pending,
+            )
+            pendingCount > 0 -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Pending, "WebDAV",
+                "$pendingCount book(s) pending · will sync when online",
+                AnnotationSyncRowState.Tone.Pending,
+            )
+            else -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Synced, "WebDAV",
+                "Synced · $identity",
+                AnnotationSyncRowState.Tone.Normal,
+            )
+        }
+    }
 
     val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
 

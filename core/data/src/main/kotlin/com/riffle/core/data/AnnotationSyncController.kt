@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
@@ -33,6 +34,10 @@ import kotlinx.coroutines.launch
  * skip sync entirely — the local DB remains the source of truth.
  *
  * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled).
+ *
+ * Companion sweep ([AnnotationSweep], ADR 0036) handles durable retries after process death;
+ * this controller reports its own cycle outcomes through [statusStore] and asks [sweepEnqueuer]
+ * to schedule a WorkManager retry on failure so the catch-up isn't tied to staying foregrounded.
  */
 class AnnotationSyncController(
     private val targetProvider: () -> AnnotationSyncTarget?,
@@ -41,7 +46,10 @@ class AnnotationSyncController(
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelResolver: DeviceLabelResolver,
     private val scope: CoroutineScope,
+    private val statusStore: AnnotationSyncStatusStore,
+    private val sweepEnqueuer: AnnotationSweepEnqueuer,
     private val nowIso: () -> String = { Instant.now().toString() },
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
@@ -80,13 +88,25 @@ class AnnotationSyncController(
             // Seed merge with the local set (including tombstones) so LWW spans both sides — a
             // newer local edit isn't clobbered by an older remote copy, and a local tombstone wins
             // over a remote pre-delete entry.
-            val localExisting = annotationDao
+            val localExistingEntities = annotationDao
                 .getAllForItemIncludingDeleted(serverId, itemId)
+            val localById = localExistingEntities.associateBy { it.id }
+            val localExisting = localExistingEntities
                 .map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
             val merged = mergeService.merge(parsed = parsedAnnotations, existing = localExisting)
 
             val entities = merged.map { w3cAnnotation ->
+                val existing = localById[w3cAnnotation.id]
+                // Preserve the existing lastSyncedAt stamp when this device's row was the LWW winner.
+                // If there's no local row (purely remote content) or the remote row won (our row is
+                // being overwritten by content this device hasn't pushed), mark as dirty (0) so the
+                // next sweep pushes it.
+                val preservedLastSyncedAt = when {
+                    existing == null -> 0L
+                    existing.updatedAt >= w3cAnnotation.updatedAt -> existing.lastSyncedAt
+                    else -> 0L
+                }
                 AnnotationEntity(
                     id = w3cAnnotation.id,
                     serverId = serverId,
@@ -107,14 +127,18 @@ class AnnotationSyncController(
                     originDeviceId = w3cAnnotation.originDeviceId,
                     lastModifiedByDeviceId = w3cAnnotation.lastModifiedByDeviceId,
                     deleted = w3cAnnotation.deleted,
+                    lastSyncedAt = preservedLastSyncedAt,
                 )
             }
 
             for (entity in entities) {
                 annotationDao.upsert(entity)
             }
-        } catch (_: Exception) {
-            // Graceful error handling: continue silently on any error
+            statusStore.report(CycleOutcome.Success(clock()))
+        } catch (e: Exception) {
+            statusStore.report(e.toFailedCycleOutcome(clock()))
+            // Don't enqueue a sweep here — sync-on-open failures are recovered by the next book
+            // open, which retries the read pass. There is nothing for the push sweep to do.
         }
     }
 
@@ -153,7 +177,8 @@ class AnnotationSyncController(
      * Write this device's annotations to the sync target.
      *
      * Reads all local non-deleted annotations for a book, serializes them to W3C format,
-     * and writes them to a device-specific file.
+     * and writes them to a device-specific file. On success, stamps lastSyncedAt and reports
+     * Success; on failure, reports a typed failure outcome and enqueues a WorkManager retry.
      */
     private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
@@ -184,8 +209,12 @@ class AnnotationSyncController(
             val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)
             val filename = "annotations-$deviceId.jsonld"
             target.write(namespace, itemId, filename, jsonArray)
-        } catch (_: Exception) {
-            // Graceful error handling: continue silently on any error
+            val now = clock()
+            annotationDao.markSynced(localEntities.map { it.id }, now)
+            statusStore.report(CycleOutcome.Success(now))
+        } catch (e: Exception) {
+            statusStore.report(e.toFailedCycleOutcome(clock()))
+            sweepEnqueuer.enqueue()
         }
     }
 }

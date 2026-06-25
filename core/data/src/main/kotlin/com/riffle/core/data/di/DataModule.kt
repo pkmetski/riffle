@@ -790,6 +790,8 @@ abstract class DataModule {
             annotationDao: com.riffle.core.database.AnnotationDao,
             deviceIdStore: com.riffle.core.domain.DeviceIdStore,
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
+            statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
+            sweepEnqueuer: com.riffle.core.domain.AnnotationSweepEnqueuer,
         ): com.riffle.core.data.AnnotationSyncController =
             com.riffle.core.data.AnnotationSyncController(
                 targetProvider = { holder.current() },
@@ -800,6 +802,27 @@ abstract class DataModule {
                 scope = kotlinx.coroutines.CoroutineScope(
                     kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
                 ),
+                statusStore = statusStore,
+                sweepEnqueuer = sweepEnqueuer,
+            )
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSweep(
+            holder: com.riffle.core.data.AnnotationSyncTargetHolder,
+            annotationDao: com.riffle.core.database.AnnotationDao,
+            deviceIdStore: com.riffle.core.domain.DeviceIdStore,
+            deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
+            serverRepository: ServerRepository,
+            statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
+        ): com.riffle.core.data.AnnotationSweep =
+            com.riffle.core.data.AnnotationSweep(
+                targetProvider = { holder.current() },
+                annotationDao = annotationDao,
+                deviceIdStore = deviceIdStore,
+                deviceLabelResolver = deviceLabelResolver,
+                serverRepository = serverRepository,
+                statusStore = statusStore,
             )
 
         @Provides

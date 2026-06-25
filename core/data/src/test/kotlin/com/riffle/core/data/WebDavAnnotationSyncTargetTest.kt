@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import kotlinx.coroutines.test.runTest
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -309,6 +310,39 @@ class WebDavAnnotationSyncTargetTest {
         val result = target.testConnection()
 
         assertTrue("expected NetworkError, got $result", result is TestConnectionResult.NetworkError)
+    }
+
+    @Test
+    fun `list wraps IOException as NetworkError`() = runTest {
+        val target = makeTargetWithFailingClient(java.io.IOException("connection reset"))
+        try {
+            target.list("namespace-1", "item-1")
+            fail("expected NetworkError")
+        } catch (e: AnnotationSyncException.NetworkError) {
+            assertTrue(e.message!!.contains("connection reset"))
+        }
+    }
+
+    @Test
+    fun `list wraps SSLException as TlsError`() = runTest {
+        val target = makeTargetWithFailingClient(javax.net.ssl.SSLException("cert untrusted"))
+        try {
+            target.list("namespace-1", "item-1")
+            fail("expected TlsError")
+        } catch (e: AnnotationSyncException.TlsError) {
+            assertTrue(e.message!!.contains("cert untrusted"))
+        }
+    }
+
+    private fun makeTargetWithFailingClient(throwable: Throwable): WebDavAnnotationSyncTarget {
+        val failingInterceptor = okhttp3.Interceptor { throw throwable }
+        val client = OkHttpClient.Builder().addInterceptor(failingInterceptor).build()
+        return WebDavAnnotationSyncTarget(
+            baseUrl = "https://example.test/dav/".toHttpUrl(),
+            username = "u",
+            password = "p",
+            client = client,
+        )
     }
 
     private fun basicAuth(user: String, pass: String): String =

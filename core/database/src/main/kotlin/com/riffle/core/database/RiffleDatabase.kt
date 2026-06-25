@@ -28,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TocCacheEntity::class,
         AudiobookChapterCacheEntity::class,
     ],
-    version = 42,
+    version = 43,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -782,6 +782,15 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_41_42 = object : Migration(41, 42) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `servers` ADD COLUMN `absUserId` TEXT")
+            }
+        }
+
+        // ADR 0036: per-row dirty bit `lastSyncedAt`. A row is dirty when `updatedAt > lastSyncedAt`.
+        // Default 0 ⇒ pre-existing rows are dirty until the first sweep stamps them — safe because the
+        // W3C per-device-file format is idempotent (LWW by (uuid, updatedAt) on the receiver).
+        val MIGRATION_42_43 = object : Migration(42, 43) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `lastSyncedAt` INTEGER NOT NULL DEFAULT 0")
             }
         }
 

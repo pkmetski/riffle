@@ -1729,6 +1729,58 @@ class MigrationTest {
     }
 
     @Test
+    fun migration42To43_addsLastSyncedAtToAnnotations() {
+        helper.createDatabase(TEST_DB, 42).use { db ->
+            // Seed a server (FK target) and two annotation rows so we can verify pre-existing rows
+            // are preserved verbatim with lastSyncedAt defaulted to 0 (the "dirty until first push"
+            // state the sweep relies on).
+            db.execSQL(
+                "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId) " +
+                    "VALUES ('srv-A', 'https://abs.example.com', 1, 0, 'alice', 'AUDIOBOOKSHELF', 'abs-user-uuid')"
+            )
+            db.execSQL(
+                "INSERT INTO annotations " +
+                    "(id, serverId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, " +
+                    " chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, " +
+                    " originDeviceId, lastModifiedByDeviceId, deleted) " +
+                    "VALUES ('ann-1', 'srv-A', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2)', 'yellow', NULL, " +
+                    " 'snippet', '', '', 'OEBPS/ch1.xhtml', 0, 0.0, '', 1000, 1500, " +
+                    " 'dev-A', 'dev-A', 0)"
+            )
+            db.execSQL(
+                "INSERT INTO annotations " +
+                    "(id, serverId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, " +
+                    " chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, " +
+                    " originDeviceId, lastModifiedByDeviceId, deleted) " +
+                    "VALUES ('ann-2', 'srv-A', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/4)', 'pink', NULL, " +
+                    " 'snip2', '', '', 'OEBPS/ch1.xhtml', 0, 0.0, '', 2000, 2500, " +
+                    " 'dev-A', 'dev-A', 1)"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 43, true, RiffleDatabase.MIGRATION_42_43).use { db ->
+            db.query("SELECT id, updatedAt, lastSyncedAt, deleted FROM annotations ORDER BY id").use { c ->
+                assertEquals(2, c.count)
+                c.moveToFirst()
+                assertEquals("ann-1", c.getString(0))
+                assertEquals(1500L, c.getLong(1))
+                assertEquals(0L, c.getLong(2))   // new column defaults to 0 ⇒ dirty
+                assertEquals(0, c.getInt(3))
+                c.moveToNext()
+                assertEquals("ann-2", c.getString(0))
+                assertEquals(2500L, c.getLong(1))
+                assertEquals(0L, c.getLong(2))
+                assertEquals(1, c.getInt(3))    // tombstone preserved
+            }
+            // The new column is writable for the stamp-on-push path.
+            db.execSQL("UPDATE annotations SET lastSyncedAt = 9999 WHERE id = 'ann-1'")
+            db.query("SELECT lastSyncedAt FROM annotations WHERE id = 'ann-1'").use { c ->
+                c.moveToFirst()
+                assertEquals(9999L, c.getLong(0))
+            }
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1737,7 +1789,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 42, true,
+            TEST_DB, 43, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1779,6 +1831,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_39_40,
             RiffleDatabase.MIGRATION_40_41,
             RiffleDatabase.MIGRATION_41_42,
+            RiffleDatabase.MIGRATION_42_43,
         )
 
         db.query("SELECT url, username, serverType, absUserId FROM servers WHERE id = 's1'").use { cursor ->
@@ -1787,7 +1840,7 @@ class MigrationTest {
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("", cursor.getString(1))
             assertEquals("AUDIOBOOKSHELF", cursor.getString(2))
-            assertTrue("legacy rows reach v42 with absUserId still NULL", cursor.isNull(3))
+            assertTrue("legacy rows reach v43 with absUserId still NULL", cursor.isNull(3))
         }
     }
 

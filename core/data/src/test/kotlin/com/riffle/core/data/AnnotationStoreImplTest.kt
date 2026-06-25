@@ -73,6 +73,21 @@ class AnnotationStoreImplTest {
 
         override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> =
             rows.map { all -> all.filter { it.serverId == serverId && !it.deleted } }
+
+        override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> =
+            rows.map { all -> all.count { it.serverId == serverId && it.itemId == itemId && it.updatedAt > it.lastSyncedAt } }
+
+        override fun observePendingCountAcrossAll(): Flow<Int> =
+            rows.map { all -> all.count { it.updatedAt > it.lastSyncedAt } }
+
+        override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> =
+            rows.value.filter { it.updatedAt > it.lastSyncedAt }
+                .map { AnnotationDao.DirtyServerItem(it.serverId, it.itemId) }
+                .distinct()
+
+        override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
+            rows.value = rows.value.map { if (it.id in ids) it.copy(lastSyncedAt = syncedAt) else it }
+        }
     }
 
     private val deviceIdStore = object : DeviceIdStore {

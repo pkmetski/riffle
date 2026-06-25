@@ -7,6 +7,7 @@ import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.app.feature.reader.SystemTimeProvider
 import com.riffle.app.feature.reader.TimeProvider
 import com.riffle.core.domain.EbookCfiTranslatorFactory
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -96,4 +97,11 @@ object AppModule {
     ): PublicationOpener = PublicationOpener(
         DefaultPublicationParser(context, httpClient, assetRetriever, pdfFactory = PdfiumDocumentFactory(context))
     )
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class AnnotationSyncModule {
+    @Binds
+    abstract fun bindAnnotationSweepEnqueuer(impl: com.riffle.app.sync.AnnotationSweepEnqueuerImpl): com.riffle.core.domain.AnnotationSweepEnqueuer
 }

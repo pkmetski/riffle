@@ -79,4 +79,23 @@ interface AnnotationDao {
     /** Update the user-editable title of a bookmark, bumping updatedAt + provenance. */
     @Query("UPDATE annotations SET bookmarkTitle = :title, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'BOOKMARK'")
     suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String)
+
+    /** Pending-row count for one book — live Flow for reader-chrome and per-book status. */
+    @Query("SELECT COUNT(*) FROM annotations WHERE serverId = :serverId AND itemId = :itemId AND updatedAt > lastSyncedAt")
+    fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int>
+
+    /** Pending-row count across every book — live Flow for the Settings list-row badge. */
+    @Query("SELECT COUNT(*) FROM annotations WHERE updatedAt > lastSyncedAt")
+    fun observePendingCountAcrossAll(): Flow<Int>
+
+    /** One row per `(serverId, itemId)` with at least one dirty annotation. Used by AnnotationSweep. */
+    @Query("SELECT DISTINCT serverId, itemId FROM annotations WHERE updatedAt > lastSyncedAt")
+    suspend fun dirtyServerItems(): List<DirtyServerItem>
+
+    /** Stamp the given row ids as synced at the given wall-clock timestamp. */
+    @Query("UPDATE annotations SET lastSyncedAt = :syncedAt WHERE id IN (:ids)")
+    suspend fun markSynced(ids: List<String>, syncedAt: Long)
+
+    /** Result row for [dirtyServerItems]. */
+    data class DirtyServerItem(val serverId: String, val itemId: String)
 }

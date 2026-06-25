@@ -53,6 +53,8 @@ data class AnnotationEntity(
     val originDeviceId: String,
     val lastModifiedByDeviceId: String,
     val deleted: Boolean = false,
+    /** ADR 0036: stamp of the last successful PUT for this row. `updatedAt > lastSyncedAt` ⇒ dirty. */
+    val lastSyncedAt: Long = 0L,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"
