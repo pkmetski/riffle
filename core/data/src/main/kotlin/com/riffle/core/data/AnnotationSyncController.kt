@@ -53,6 +53,7 @@ class AnnotationSyncController(
 ) {
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
+        private const val LIVE_SYNC_INTERVAL_MS = 30_000L
     }
 
     private val debouncingJobs = mutableMapOf<Pair<String, String>, Job>()
@@ -70,9 +71,30 @@ class AnnotationSyncController(
     suspend fun syncOnOpen(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
 
-        try {
-            val filenames = target.list(namespace, itemId)
+        val filenames = try {
+            target.list(namespace, itemId)
+        } catch (e: Exception) {
+            statusStore.report(e.toFailedCycleOutcome(clock()))
+            // Don't enqueue a sweep here — sync-on-open failures are recovered by the next book
+            // open, which retries the read pass. There is nothing for the push sweep to do.
+            return
+        }
+        runMergeFromListing(serverId, namespace, itemId, filenames)
+    }
 
+    /**
+     * Merge the device files already listed in [filenames] into Room. Reports a [CycleOutcome] to
+     * the status store on success or failure. Shared by [syncOnOpen] (which lists first) and
+     * [startLiveSync] (which lists itself so it can short-circuit when no peer files exist).
+     */
+    private suspend fun runMergeFromListing(
+        serverId: String,
+        namespace: String,
+        itemId: String,
+        filenames: List<String>,
+    ) {
+        val target = targetProvider() ?: return
+        try {
             // Each device file is a JSON array of W3C annotations (one per annotation the device
             // created), so flat-map the parsed lists.
             val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
@@ -137,10 +159,50 @@ class AnnotationSyncController(
             statusStore.report(CycleOutcome.Success(clock()))
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
-            // Don't enqueue a sweep here — sync-on-open failures are recovered by the next book
-            // open, which retries the read pass. There is nothing for the push sweep to do.
         }
     }
+
+    /**
+     * Start a per-book pull loop that polls for peer-device annotation files every
+     * [LIVE_SYNC_INTERVAL_MS] so peer changes show up while the reader stays open.
+     *
+     * Each tick does a cheap PROPFIND ([AnnotationSyncTarget.list]) and only runs the
+     * expensive per-file GET + LWW merge if at least one file belongs to a peer (i.e. not
+     * this device's own `annotations-<deviceId>.jsonld`). A new peer that joins mid-session
+     * is discovered on the next tick because the PROPFIND still runs unconditionally —
+     * only the GET+merge is skipped.
+     *
+     * The first cycle fires **after** the interval — the caller is expected to have already
+     * invoked [syncOnOpen] once at book-open, so an immediate tick here would race that call.
+     * Per-tick failures are caught and reported through the status store; the loop itself does
+     * not die so a transient WebDAV failure does not silence subsequent ticks.
+     *
+     * Returns the [Job] backing the loop; callers must cancel it when the reader stops or the
+     * book closes. Backgrounding/foregrounding is handled by the caller via cancel + restart.
+     */
+    fun startLiveSync(serverId: String, namespace: String, itemId: String): Job =
+        scope.launch {
+            val myFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+            while (true) {
+                delay(LIVE_SYNC_INTERVAL_MS)
+                val target = targetProvider() ?: continue
+                val filenames = try {
+                    target.list(namespace, itemId)
+                } catch (e: Exception) {
+                    statusStore.report(e.toFailedCycleOutcome(clock()))
+                    continue
+                }
+                val hasPeer = filenames.any { it != myFilename }
+                if (hasPeer) {
+                    runMergeFromListing(serverId, namespace, itemId, filenames)
+                } else {
+                    // Solo namespace this tick — the PROPFIND was the only work needed. Report
+                    // Success so the status badge can recover from a prior Failed.* state without
+                    // forcing a no-op merge that would only re-read our own file.
+                    statusStore.report(CycleOutcome.Success(clock()))
+                }
+            }
+        }
 
     /**
      * Schedule a debounced push of pending annotations.
