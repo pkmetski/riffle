@@ -28,3 +28,15 @@ Every fix or new feature must be validated as actually working before it is mark
 When validating in an AVD, follow the same pattern as the Makefile's `harness-test` target: use the dedicated Harness AVD, run the filtered test/scenario against it exclusively, and shut it down when done. Do not target arbitrary connected devices, and do not interfere with other emulators the developer may have running.
 
 JVM unit tests alone are not sufficient validation for anything that touches Readium, the WebView, the reader UI, or other device-layer code.
+
+### Do not blindly update existing tests to make them pass
+
+When a fix causes existing tests to fail, the tests are usually protecting a prior invariant or regression scenario — updating them mechanically risks silently re-opening the bug they were added to catch.
+
+Before changing any existing test:
+
+1. Trace each failing test back to the commit/PR that introduced it. The commit message + the test's own comments name the invariant.
+2. Confirm the new code still upholds that invariant. If it does, the test inputs/assertions should still pass — re-examine the fix, not the test.
+3. Only adjust a test when the invariant itself has *deliberately* changed, and call that out explicitly in the PR description.
+
+A fix that requires "updating" several pre-existing regression tests to pass is a warning sign — prefer landing the change at a different layer that leaves the prior guarantees untouched.

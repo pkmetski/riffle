@@ -170,3 +170,93 @@ jobs:
           name: connected-test-reports
           path: core/database/build/reports/androidTests/
           if-no-files-found: ignore
+
+  harness-test-phone:
+    name: Harness tests (phone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: true
+      - name: Download Gradle wrapper jar
+        run: |
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
+            "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
+      - uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/fonts
+          key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
+      - run: make fonts
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run phone harness tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 25
+          target: default
+          arch: x86
+          profile: pixel
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout
+      - name: Upload harness phone reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-test-phone-reports
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore
+
+  harness-test-tablet:
+    name: Harness tests (tablet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: true
+      - name: Download Gradle wrapper jar
+        run: |
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
+            "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
+      - uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/fonts
+          key: fonts-v1-${{ hashFiles('Makefile') }}
+          restore-keys: fonts-v1-
+      - run: make fonts
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run tablet harness tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 25
+          target: default
+          arch: x86
+          profile: Nexus 10
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
+      - name: Upload harness tablet reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-test-tablet-reports
+          path: app/build/reports/androidTests/
+          if-no-files-found: ignore
