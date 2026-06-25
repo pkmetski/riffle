@@ -55,7 +55,6 @@ import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -73,8 +72,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -110,9 +107,6 @@ private const val SPEED_SAVE_DEBOUNCE_MS = 400L
 // Characters of textAfter used to build each highlight's context window for position
 // disambiguation in the overlap-detection logic (see createHighlight).
 private const val OVERLAP_CONTEXT_LEN = 60
-
-/** Reader-chrome sync indicator state (ADR 0036). null ⇒ icon hidden. */
-enum class AnnotationSyncIndicator { Pending, AuthOrTlsError, Offline }
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -168,8 +162,6 @@ class EpubReaderViewModel @Inject constructor(
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
     private val annotationSyncController: com.riffle.core.data.AnnotationSyncController,
-    private val annotationSyncStatusStore: com.riffle.core.data.AnnotationSyncStatusStore,
-    private val annotationDao: com.riffle.core.database.AnnotationDao,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
@@ -442,24 +434,6 @@ class EpubReaderViewModel @Inject constructor(
     // one captured id keeps the two symmetric and avoids a per-close getActive() DB read.
     private var readerServerId: String? = null
 
-    // Emits the active server id once openBook() resolves it; null until then (and after close).
-    // Drives annotationSyncIndicator so the indicator activates for the correct (serverId, itemId) pair.
-    private val _serverIdFlow = MutableStateFlow<String?>(null)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val annotationSyncIndicator: StateFlow<AnnotationSyncIndicator?> =
-        _serverIdFlow
-            .flatMapLatest { serverId ->
-                if (serverId == null) flowOf(null)
-                else combine(
-                    annotationDao.observePendingCountForBook(serverId, itemId),
-                    annotationSyncStatusStore.lastCycleOutcome,
-                ) { pendingCount, outcome ->
-                    mapAnnotationSyncIndicator(pendingCount, outcome)
-                }
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
     // Whether the bottom mini-player / sheet is showing.
     private val _readaloudOpen = MutableStateFlow(false)
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
@@ -585,7 +559,6 @@ class EpubReaderViewModel @Inject constructor(
             audioBookId = link?.storytellerBookId ?: itemId
             audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
             readerServerId = activeServer?.id
-            _serverIdFlow.value = readerServerId
             // The audiobook to switch to on swipe-up: among this readaloud's ABS targets, the listenable
             // one (the audiobook in a split library), or this same item if it's a combined ebook+audio.
             _audiobookItemId.value = link?.let { l ->
@@ -1577,7 +1550,6 @@ class EpubReaderViewModel @Inject constructor(
             openReconcileTargets.markClosed(sid, itemId)
             (readerSync?.audioItemId ?: audiobookFollow?.audioItemId)?.let { openReconcileTargets.markClosed(sid, it) }
         }
-        _serverIdFlow.value = null
         epubZip?.close()
         epubZip = null
         publication?.close()
@@ -2600,24 +2572,6 @@ class EpubReaderViewModel @Inject constructor(
             }
         }
     }
-}
-
-/**
- * Pure mapping from (pendingCount, lastCycleOutcome) → AnnotationSyncIndicator.
- * Extracted for unit-testability; called from EpubReaderViewModel.annotationSyncIndicator.
- */
-internal fun mapAnnotationSyncIndicator(
-    pendingCount: Int,
-    outcome: com.riffle.core.data.CycleOutcome,
-): AnnotationSyncIndicator? = when {
-    outcome is com.riffle.core.data.CycleOutcome.Failed.Auth ->
-        AnnotationSyncIndicator.AuthOrTlsError
-    outcome is com.riffle.core.data.CycleOutcome.Failed.Tls ->
-        AnnotationSyncIndicator.AuthOrTlsError
-    pendingCount > 0 && outcome is com.riffle.core.data.CycleOutcome.Failed.Network ->
-        AnnotationSyncIndicator.Offline
-    pendingCount > 0 -> AnnotationSyncIndicator.Pending
-    else -> null
 }
 
 /**

@@ -34,13 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,7 +44,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -174,7 +169,6 @@ internal fun rememberReflowReapplyGeneration(reflowTrigger: Any?): Int {
 fun EpubReaderScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onOpenAnnotationSyncSettings: () -> Unit = {},
     viewModel: EpubReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -191,8 +185,6 @@ fun EpubReaderScreen(
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
-    val annotationSyncIndicator by viewModel.annotationSyncIndicator.collectAsState()
-    var showSyncPopup by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var showFormattingPanel by remember { mutableStateOf(false) }
@@ -591,58 +583,6 @@ fun EpubReaderScreen(
                     },
                     actions = {
                         if (state is ReaderState.Ready) {
-                            annotationSyncIndicator?.let { indicator ->
-                                val (glyph, tint, hint) = when (indicator) {
-                                    AnnotationSyncIndicator.Pending ->
-                                        Triple(
-                                            Icons.Default.Schedule,
-                                            Color(0xFFB07A00),
-                                            "Changes pending",
-                                        )
-                                    AnnotationSyncIndicator.Offline ->
-                                        Triple(
-                                            Icons.Outlined.CloudOff,
-                                            Color(0xFF6B6B6B),
-                                            "Offline — will sync when connected",
-                                        )
-                                    AnnotationSyncIndicator.AuthOrTlsError ->
-                                        Triple(
-                                            Icons.Default.Warning,
-                                            Color(0xFFB13A32),
-                                            "Sync error — tap for details",
-                                        )
-                                }
-                                IconButton(onClick = { showSyncPopup = true }) {
-                                    Icon(imageVector = glyph, contentDescription = hint, tint = tint)
-                                }
-                            }
-                            if (showSyncPopup) {
-                                val (title, body) = when (annotationSyncIndicator) {
-                                    AnnotationSyncIndicator.Pending ->
-                                        "Changes pending" to "Your highlights and notes are saved on this device and will sync automatically when you're back online."
-                                    AnnotationSyncIndicator.Offline ->
-                                        "Offline" to "Couldn't reach the WebDAV server. Changes will sync automatically when connectivity returns."
-                                    AnnotationSyncIndicator.AuthOrTlsError ->
-                                        "Sync error" to "Open Settings → Annotation Sync to check your credentials or server URL."
-                                    null -> "" to ""
-                                }
-                                AlertDialog(
-                                    onDismissRequest = { showSyncPopup = false },
-                                    title = { Text(title) },
-                                    text = { Text(body) },
-                                    confirmButton = {
-                                        TextButton(onClick = {
-                                            showSyncPopup = false
-                                            onOpenAnnotationSyncSettings()
-                                        }) { Text("Open Settings") }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = { showSyncPopup = false }) {
-                                            Text("Dismiss")
-                                        }
-                                    },
-                                )
-                            }
                             IconButton(onClick = viewModel::openSearch) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
                             }
