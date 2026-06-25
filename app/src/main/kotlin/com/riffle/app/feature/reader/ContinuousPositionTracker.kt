@@ -154,6 +154,11 @@ internal object ContinuousPositionTracker {
         chaptersBehind: Int,
         windowSize: Int,
     ): InitialWindow {
+        require(windowSize > chaptersBehind) {
+            "windowSize ($windowSize) must exceed chaptersBehind ($chaptersBehind); " +
+                "otherwise the forward-shift trigger (gap > chaptersBehind) has no slot to land in " +
+                "and the reader walls off at the last initially-loaded chapter."
+        }
         val behind = minOf(chaptersBehind, targetIndex)
         val topIndex = targetIndex - behind
         val totalChapters = minOf(windowSize, allChaptersSize - topIndex)
