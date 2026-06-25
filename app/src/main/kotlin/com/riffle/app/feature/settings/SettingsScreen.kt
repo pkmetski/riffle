@@ -396,6 +396,13 @@ fun SettingsScreen(
                         ListItemDefaults.colors(
                             headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                             supportingColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
                         )
                     },
                 )
