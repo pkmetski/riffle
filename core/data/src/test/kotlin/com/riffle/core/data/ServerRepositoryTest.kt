@@ -53,12 +53,18 @@ class ServerRepositoryTest {
         }
     }
 
-    private fun fakeTokenStorage() = object : TokenStorage {
+    private class FakeTokenStorage : TokenStorage {
         val tokens = mutableMapOf<String, String>()
+        val passwords = mutableMapOf<String, String>()
         override suspend fun saveToken(serverId: String, token: String) { tokens[serverId] = token }
         override suspend fun getToken(serverId: String) = tokens[serverId]
         override suspend fun deleteToken(serverId: String) { tokens.remove(serverId) }
+        override suspend fun savePassword(serverId: String, password: String) { passwords[serverId] = password }
+        override suspend fun getPassword(serverId: String) = passwords[serverId]
+        override suspend fun deletePassword(serverId: String) { passwords.remove(serverId) }
     }
+
+    private fun fakeTokenStorage() = FakeTokenStorage()
 
     private class FakeServerDao(initial: List<ServerEntity>) : ServerDao {
         val store = initial.toMutableList()
@@ -461,6 +467,41 @@ class ServerRepositoryTest {
         repo.remove("srv-1")
         assertTrue("token not deleted", tokens.tokens.isEmpty())
         assertNull("entity not deleted from store", dao.getActive())
+    }
+
+    @Test
+    fun `commit persists the user-entered password alongside the token`() = runTest {
+        val dao = fakeDao(); val tokens = fakeTokenStorage()
+        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val absApi = AbsApi { _, _, _, _ -> error("not called") }
+        val repo = ServerRepositoryImpl(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+
+        val pending = PendingServer(
+            url = ServerUrl.parse("https://abs.example.com")!!,
+            username = "admin", userId = "uid-1", token = "tok-xyz", password = "hunter2",
+            insecureConnectionAllowed = false,
+            libraries = listOf(Library("lib-1", "Books", "book", false)),
+        )
+
+        val result = repo.commit(pending, hiddenLibraryIds = emptySet())
+        assertTrue(result is CommitServerResult.Success)
+        val id = (result as CommitServerResult.Success).server.id
+        assertEquals("hunter2", tokens.getPassword(id))
+    }
+
+    @Test
+    fun `remove also deletes the stored password`() = runTest {
+        val entity = ServerEntity("srv-1", "https://abs.example.com", true, false, username = "")
+        val dao = fakeDao(entity)
+        val tokens = fakeTokenStorage()
+        tokens.tokens["srv-1"] = "tok"
+        tokens.passwords["srv-1"] = "hunter2"
+        val absApi = AbsApi { _, _, _, _ -> NetworkLoginResult.WrongCredentials("") }
+        val repo = ServerRepositoryImpl(
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
+        )
+        repo.remove("srv-1")
+        assertTrue("password not deleted", tokens.passwords.isEmpty())
     }
 
     @Test

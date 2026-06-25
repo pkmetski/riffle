@@ -88,12 +88,15 @@ class AddServerViewModelTest {
                 username = "",
             )
         ),
+        private val storedById: Map<String, Server> = emptyMap(),
     ) : ServerRepository {
         var commitCallCount = 0
         var lastInsecureAllowed: Boolean? = null
         var lastServerType: com.riffle.core.domain.ServerType? = null
+        val removedIds = mutableListOf<String>()
         override fun observeAll(): Flow<List<Server>> = emptyFlow()
         override suspend fun getActive(): Server? = null
+        override suspend fun getById(serverId: String): Server? = storedById[serverId]
         override suspend fun authenticate(
             url: ServerUrl,
             username: String,
@@ -110,8 +113,30 @@ class AddServerViewModelTest {
             return commitResult
         }
         override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
+        override suspend fun remove(serverId: String) { removedIds += serverId }
         override suspend fun getServerVersion(serverId: String): String? = null
+    }
+
+    private class RecordingConfigStore(
+        initial: AnnotationSyncConfig? = null,
+    ) : AnnotationSyncConfigStore {
+        private val state = MutableStateFlow(initial)
+        var saved: AnnotationSyncConfig? = null
+        var clearCount = 0
+        override fun observe(): StateFlow<AnnotationSyncConfig?> = state
+        override suspend fun save(config: AnnotationSyncConfig) { saved = config; state.value = config }
+        override suspend fun clear() { clearCount += 1; state.value = null }
+    }
+
+    private class CountingTokenStorage(
+        private val passwords: MutableMap<String, String> = mutableMapOf(),
+    ) : com.riffle.core.domain.TokenStorage {
+        override suspend fun saveToken(serverId: String, token: String) {}
+        override suspend fun getToken(serverId: String): String? = null
+        override suspend fun deleteToken(serverId: String) {}
+        override suspend fun savePassword(serverId: String, password: String) { passwords[serverId] = password }
+        override suspend fun getPassword(serverId: String): String? = passwords[serverId]
+        override suspend fun deletePassword(serverId: String) { passwords.remove(serverId) }
     }
 
     private fun fakeRepo(authResult: AuthenticateResult): ServerRepository =
@@ -127,6 +152,7 @@ class AddServerViewModelTest {
         repository: ServerRepository,
         savedState: SavedStateHandle = SavedStateHandle(),
         configStore: AnnotationSyncConfigStore = NullConfigStore,
+        tokenStorage: com.riffle.core.domain.TokenStorage = io.mockk.mockk(relaxed = true),
     ): AddServerViewModel = AddServerViewModel(
         repository = repository,
         webdavConfigStore = configStore,
@@ -135,7 +161,7 @@ class AddServerViewModelTest {
         sweepEnqueuer = AnnotationSweepEnqueuer { },
         storytellerSyncer = io.mockk.mockk(relaxed = true),
         readaloudMatcher = io.mockk.mockk(relaxed = true),
-        tokenStorage = io.mockk.mockk(relaxed = true),
+        tokenStorage = tokenStorage,
         savedStateHandle = savedState,
     )
 
@@ -267,5 +293,121 @@ class AddServerViewModelTest {
         vm.onConnect()
         testDispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.isLoading)
+    }
+
+    @Test
+    fun `init with type=storyteller and editId prefills url, username, password from repo and token storage`() = runTest {
+        val storyteller = Server(
+            id = "st-1",
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            isActive = false,
+            insecureConnectionAllowed = true,
+            username = "plamen",
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+        )
+        val repo = RecordingRepository(
+            authResult = AuthenticateResult.WrongCredentials("x"),
+            storedById = mapOf("st-1" to storyteller),
+        )
+        val tokens = CountingTokenStorage(mutableMapOf("st-1" to "remembered"))
+        val savedState = SavedStateHandle(mapOf("type" to "storyteller", "editId" to "st-1"))
+
+        val vm = makeVm(repo, savedState = savedState, tokenStorage = tokens)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AddServerBackend.STORYTELLER, vm.backend)
+        assertTrue(vm.isEditing)
+        assertEquals("http://", vm.scheme)
+        assertEquals("media-server:8001", vm.host)
+        assertEquals("plamen", vm.username)
+        assertEquals("remembered", vm.password)
+    }
+
+    @Test
+    fun `init with type=webdav and existing config enters edit mode with all fields prefilled`() = runTest {
+        val existing = com.riffle.core.domain.AnnotationSyncConfig(
+            baseUrl = "https://dav.example.com/store",
+            username = "syncuser",
+            password = "syncpass",
+        )
+        val store = RecordingConfigStore(initial = existing)
+        val savedState = SavedStateHandle(mapOf("type" to "webdav"))
+
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = savedState,
+            configStore = store,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AddServerBackend.WEBDAV, vm.backend)
+        assertTrue(vm.isEditingWebdav)
+        assertEquals("https://", vm.scheme)
+        assertEquals("dav.example.com/store", vm.host)
+        assertEquals("syncuser", vm.username)
+        assertEquals("syncpass", vm.password)
+        assertNotNull(vm.webdavBanner)
+    }
+
+    @Test
+    fun `init with type=webdav and no config stays in add mode and blanks the form`() = runTest {
+        val savedState = SavedStateHandle(mapOf("type" to "webdav"))
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = savedState,
+            configStore = RecordingConfigStore(initial = null),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(AddServerBackend.WEBDAV, vm.backend)
+        assertFalse(vm.isEditingWebdav)
+        assertEquals("", vm.host)
+        assertEquals("", vm.username)
+        assertEquals("", vm.password)
+        assertNull(vm.webdavBanner)
+    }
+
+    @Test
+    fun `onRemove for WebDAV clears the config store and emits navigateHome`() = runTest {
+        val existing = com.riffle.core.domain.AnnotationSyncConfig("https://dav.example.com", "u", "p")
+        val store = RecordingConfigStore(initial = existing)
+        val savedState = SavedStateHandle(mapOf("type" to "webdav"))
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = savedState,
+            configStore = store,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.onRemove()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, store.clearCount)
+        vm.navigateHome.first()
+    }
+
+    @Test
+    fun `onRemove for Storyteller calls repository remove with the editing id and navigates home`() = runTest {
+        val storyteller = Server(
+            id = "st-1",
+            url = ServerUrl.parse("http://media-server:8001")!!,
+            isActive = false,
+            insecureConnectionAllowed = true,
+            username = "plamen",
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+        )
+        val repo = RecordingRepository(
+            authResult = AuthenticateResult.WrongCredentials("x"),
+            storedById = mapOf("st-1" to storyteller),
+        )
+        val savedState = SavedStateHandle(mapOf("type" to "storyteller", "editId" to "st-1"))
+        val vm = makeVm(repo, savedState = savedState)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.onRemove()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("st-1"), repo.removedIds)
+        vm.navigateHome.first()
     }
 }
