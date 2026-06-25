@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
@@ -33,6 +34,10 @@ import kotlinx.coroutines.launch
  * skip sync entirely — the local DB remains the source of truth.
  *
  * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled).
+ *
+ * Companion sweep ([AnnotationSweep], ADR 0036) handles durable retries after process death;
+ * this controller reports its own cycle outcomes through [statusStore] and asks [sweepEnqueuer]
+ * to schedule a WorkManager retry on failure so the catch-up isn't tied to staying foregrounded.
  */
 class AnnotationSyncController(
     private val targetProvider: () -> AnnotationSyncTarget?,
@@ -41,7 +46,10 @@ class AnnotationSyncController(
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelResolver: DeviceLabelResolver,
     private val scope: CoroutineScope,
+    private val statusStore: AnnotationSyncStatusStore,
+    private val sweepEnqueuer: AnnotationSweepEnqueuer,
     private val nowIso: () -> String = { Instant.now().toString() },
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
@@ -113,8 +121,10 @@ class AnnotationSyncController(
             for (entity in entities) {
                 annotationDao.upsert(entity)
             }
-        } catch (_: Exception) {
-            // Graceful error handling: continue silently on any error
+            statusStore.report(CycleOutcome.Success(clock()))
+        } catch (e: Exception) {
+            statusStore.report(e.toFailedCycleOutcome(clock()))
+            sweepEnqueuer.enqueue()
         }
     }
 
@@ -153,7 +163,8 @@ class AnnotationSyncController(
      * Write this device's annotations to the sync target.
      *
      * Reads all local non-deleted annotations for a book, serializes them to W3C format,
-     * and writes them to a device-specific file.
+     * and writes them to a device-specific file. On success, stamps lastSyncedAt and reports
+     * Success; on failure, reports a typed failure outcome and enqueues a WorkManager retry.
      */
     private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
@@ -184,8 +195,12 @@ class AnnotationSyncController(
             val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)
             val filename = "annotations-$deviceId.jsonld"
             target.write(namespace, itemId, filename, jsonArray)
-        } catch (_: Exception) {
-            // Graceful error handling: continue silently on any error
+            val now = clock()
+            annotationDao.markSynced(localEntities.map { it.id }, now)
+            statusStore.report(CycleOutcome.Success(now))
+        } catch (e: Exception) {
+            statusStore.report(e.toFailedCycleOutcome(clock()))
+            sweepEnqueuer.enqueue()
         }
     }
 }

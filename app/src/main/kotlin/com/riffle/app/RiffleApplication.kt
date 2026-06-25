@@ -65,6 +65,9 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         // safety net for progress on a book that is never reopened.
         com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this)
         com.riffle.app.sync.ProgressSyncScheduler.ensurePeriodic(this)
+        // Durable offline annotation reconcile (ADR 0036): symmetric with progress.
+        com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this)
+        com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
 
         // Flush promptly when connectivity returns mid-session (offline edits made while the app kept
         // running would otherwise wait for the periodic sweep). Skip the initial value; sweep on each
@@ -73,7 +76,10 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             var wasOnline = connectivity.isOnline.value
             connectivity.isOnline.collect { online ->
-                if (online && !wasOnline) com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this@RiffleApplication)
+                if (online && !wasOnline) {
+                    com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this@RiffleApplication)
+                    com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this@RiffleApplication)
+                }
                 wasOnline = online
             }
         }

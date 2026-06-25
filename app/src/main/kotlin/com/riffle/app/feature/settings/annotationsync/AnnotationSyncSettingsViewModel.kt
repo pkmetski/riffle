@@ -2,18 +2,24 @@ package com.riffle.app.feature.settings.annotationsync
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.TestConnectionResult
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,11 +44,38 @@ data class AnnotationSyncSettingsUiState(
     val saving: Boolean = false,
 )
 
+/** State for the drill-in WebDAV settings screen (ADR 0036). */
+sealed class AnnotationSyncScreenState {
+    object Unconfigured : AnnotationSyncScreenState()
+    data class Configured(
+        val status: StatusBadge,
+        val baseUrl: String,
+        val username: String,
+        val lastSyncRelative: String,
+    ) : AnnotationSyncScreenState()
+
+    sealed class StatusBadge {
+        object Synced : StatusBadge()
+        data class Pending(val count: Int) : StatusBadge()
+        sealed class Error : StatusBadge() {
+            object Auth : Error()
+            object Tls : Error()
+            data class Server(val code: Int) : Error()
+            object Unknown : Error()
+        }
+    }
+}
+
 @HiltViewModel
 class AnnotationSyncSettingsViewModel @Inject constructor(
     private val configStore: AnnotationSyncConfigStore,
     private val targetFactory: WebDavAnnotationSyncTargetFactory,
+    private val statusStore: AnnotationSyncStatusStore,
+    private val sweepEnqueuer: AnnotationSweepEnqueuer,
 ) : ViewModel() {
+
+    /** Overrideable in tests to control relative-time output. */
+    internal var clock: () -> Long = System::currentTimeMillis
 
     private val _state = MutableStateFlow(AnnotationSyncSettingsUiState())
     val state: StateFlow<AnnotationSyncSettingsUiState> = _state.asStateFlow()
@@ -50,6 +83,23 @@ class AnnotationSyncSettingsViewModel @Inject constructor(
     private val _closeRequests = Channel<Unit>(Channel.BUFFERED)
     /** Emits each time the screen should pop back (after a successful Save). */
     val closeRequests: Flow<Unit> = _closeRequests.receiveAsFlow()
+
+    val screenState: StateFlow<AnnotationSyncScreenState> = combine(
+        configStore.observe(),
+        statusStore.lastCycleOutcome,
+    ) { config, outcome ->
+        if (config == null) AnnotationSyncScreenState.Unconfigured
+        else AnnotationSyncScreenState.Configured(
+            status = badgeFor(outcome),
+            baseUrl = config.baseUrl,
+            username = config.username,
+            lastSyncRelative = relativeTime(outcome),
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        AnnotationSyncScreenState.Unconfigured,
+    )
 
     init {
         viewModelScope.launch {
@@ -60,6 +110,32 @@ class AnnotationSyncSettingsViewModel @Inject constructor(
                     password = existing.password,
                 )
             }
+        }
+    }
+
+    private fun badgeFor(outcome: CycleOutcome): AnnotationSyncScreenState.StatusBadge = when (outcome) {
+        is CycleOutcome.NeverRun -> AnnotationSyncScreenState.StatusBadge.Pending(count = 0)
+        is CycleOutcome.Success -> AnnotationSyncScreenState.StatusBadge.Synced
+        is CycleOutcome.Failed.Auth -> AnnotationSyncScreenState.StatusBadge.Error.Auth
+        is CycleOutcome.Failed.Tls -> AnnotationSyncScreenState.StatusBadge.Error.Tls
+        is CycleOutcome.Failed.Server -> AnnotationSyncScreenState.StatusBadge.Error.Server(outcome.code)
+        is CycleOutcome.Failed.Network -> AnnotationSyncScreenState.StatusBadge.Pending(count = 0)
+        is CycleOutcome.Failed.Unknown -> AnnotationSyncScreenState.StatusBadge.Error.Unknown
+    }
+
+    private fun relativeTime(outcome: CycleOutcome): String {
+        val atMs: Long = when (outcome) {
+            is CycleOutcome.NeverRun -> return "Never since app start"
+            is CycleOutcome.Success -> outcome.atMs
+            is CycleOutcome.Failed -> outcome.atMs
+        }
+        val elapsedMs = clock() - atMs
+        val elapsedSec = elapsedMs / 1_000L
+        return when {
+            elapsedSec < 60 -> "just now"
+            elapsedSec < 3_600 -> "${elapsedSec / 60} min ago"
+            elapsedSec < 86_400 -> "${elapsedSec / 3_600} h ago"
+            else -> "${elapsedSec / 86_400} d ago"
         }
     }
 
@@ -109,6 +185,7 @@ class AnnotationSyncSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             configStore.save(AnnotationSyncConfig(s.baseUrl, s.username, s.password))
             _state.value = _state.value.copy(saving = false)
+            sweepEnqueuer.enqueue()
             _closeRequests.trySend(Unit)
         }
     }

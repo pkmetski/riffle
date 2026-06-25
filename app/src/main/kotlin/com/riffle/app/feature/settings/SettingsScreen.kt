@@ -22,6 +22,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -350,15 +354,29 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                val annotationSyncSummary by viewModel.annotationSyncSummary.collectAsState()
+                val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
                 ListItem(
                     modifier = Modifier.clickable { onNavigateToAnnotationSync() },
+                    leadingContent = { AnnotationSyncBadge(annotationSyncRow.badge) },
                     headlineContent = { Text("Configure WebDAV") },
                     supportingContent = {
-                        Text(annotationSyncSummary ?: "Not configured · tap to set up a WebDAV server")
+                        Text(
+                            text = annotationSyncRow.sub,
+                            color = when (annotationSyncRow.subTone) {
+                                AnnotationSyncRowState.Tone.Error -> MaterialTheme.colorScheme.error
+                                AnnotationSyncRowState.Tone.Pending -> MaterialTheme.colorScheme.tertiary
+                                AnnotationSyncRowState.Tone.Normal -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
                     },
                 )
-                val maintenanceEnabled = annotationSyncSummary != null
+                val maintenanceEnabled = annotationSyncRow.badge != AnnotationSyncRowState.Badge.Local
                 ListItem(
                     modifier = if (maintenanceEnabled) {
                         Modifier.clickable { onNavigateToAnnotationSyncMaintenance() }
@@ -643,5 +661,40 @@ private fun ExpansionNote(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
     )
+}
+
+@Composable
+private fun AnnotationSyncBadge(badge: AnnotationSyncRowState.Badge) {
+    val (bg, fg, glyph) = when (badge) {
+        AnnotationSyncRowState.Badge.Local -> Triple(
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            Icons.Outlined.CloudOff,
+        )
+        AnnotationSyncRowState.Badge.Synced -> Triple(
+            Color(0x336CD591L), // success bg, ~20% alpha
+            Color(0xFF6CD591L),
+            Icons.Default.CheckCircle,
+        )
+        AnnotationSyncRowState.Badge.Pending -> Triple(
+            Color(0x33F5B94CL),
+            Color(0xFFF5B94CL),
+            Icons.Default.Schedule,
+        )
+        AnnotationSyncRowState.Badge.Error -> Triple(
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.error,
+            Icons.Default.Warning,
+        )
+    }
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(imageVector = glyph, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+    }
 }
 

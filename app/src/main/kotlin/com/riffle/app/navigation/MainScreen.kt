@@ -455,6 +455,7 @@ fun MainScreen(
                 EpubReaderScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
+                    onOpenAnnotationSyncSettings = { navController.navigate(ANNOTATION_SYNC_SETTINGS) },
                 )
             }
             composable(

@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
@@ -42,14 +43,21 @@ class AnnotationSyncControllerLifecycleTest {
     private var currentTarget: AnnotationSyncTarget? = target
 
     /** Build the controller against the test's scope so debounce delays advance with virtual time. */
-    private fun TestScope.newController() = AnnotationSyncController(
+    private fun TestScope.newController(
+        statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
+        sweepEnqueuer: AnnotationSweepEnqueuer = RecordingEnqueuer(),
+        clock: () -> Long = { 5_000L },
+    ) = AnnotationSyncController(
         targetProvider = { currentTarget },
         mergeService = AnnotationMergeService(),
         annotationDao = dao,
         deviceIdStore = deviceIdStore,
         deviceLabelResolver = LifecycleStubLabelResolver,
         scope = this,
+        statusStore = statusStore,
+        sweepEnqueuer = sweepEnqueuer,
         nowIso = { "2026-01-01T00:00:00Z" },
+        clock = clock,
     )
 
     // ===== syncOnOpen =====
@@ -357,6 +365,47 @@ class AnnotationSyncControllerLifecycleTest {
             ),
         )
 
+    // ===== stamp + report + enqueue-on-failure =====
+
+    @Test
+    fun `pushPending success stamps lastSyncedAt and reports Success`() = runTest {
+        dao.localAnnotations += highlightEntity("ann-1", updatedAt = 100L)
+        dao.localAnnotations += highlightEntity("ann-2", updatedAt = 200L)
+        val status = AnnotationSyncStatusStore()
+        val enqueuer = RecordingEnqueuer()
+
+        newController(statusStore = status, sweepEnqueuer = enqueuer, clock = { 5_000L })
+            .syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        assertEquals(listOf("ann-1", "ann-2"), dao.lastMarkSyncedIds)
+        assertEquals(5_000L, dao.lastMarkSyncedAt)
+        assertTrue(status.lastCycleOutcome.value is CycleOutcome.Success)
+        assertEquals(0, enqueuer.enqueueCalls)
+    }
+
+    @Test
+    fun `pushPending failure reports Failed and enqueues a sweep`() = runTest {
+        dao.localAnnotations += highlightEntity("ann-1", updatedAt = 100L)
+        val status = AnnotationSyncStatusStore()
+        val enqueuer = RecordingEnqueuer()
+        target.writeException = AnnotationSyncException.NetworkError("offline")
+
+        newController(statusStore = status, sweepEnqueuer = enqueuer, clock = { 7_000L })
+            .syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        assertEquals(0, dao.markSyncedCalls)
+        val outcome = status.lastCycleOutcome.value
+        assertTrue(outcome is CycleOutcome.Failed.Network)
+        assertEquals(1, enqueuer.enqueueCalls)
+    }
+
+    private class RecordingEnqueuer : AnnotationSweepEnqueuer {
+        var enqueueCalls = 0
+        override fun enqueue() { enqueueCalls++ }
+    }
+
     private companion object {
         const val SRV = "srv-1"
         const val NS = "abs-user-uuid-shared-across-devices"
@@ -371,6 +420,7 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     val listNamespaceArgs: MutableList<String> = mutableListOf()
     var listCalls = 0
     var failNextList: Boolean = false
+    var writeException: Throwable? = null
 
     data class Write(val namespace: String, val itemId: String, val filename: String, val content: String)
 
@@ -387,6 +437,7 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     override suspend fun read(namespace: String, itemId: String, filename: String): String? = files[filename]
 
     override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {
+        writeException?.let { throw it }
         files[filename] = content
         writes += Write(namespace, itemId, filename, content)
     }
@@ -412,6 +463,9 @@ private object LifecycleStubLabelResolver : DeviceLabelResolver {
 private class LifecycleInMemoryAnnotationDao : AnnotationDao {
     val localAnnotations: MutableList<AnnotationEntity> = mutableListOf()
     val upserts: MutableList<AnnotationEntity> = mutableListOf()
+    var lastMarkSyncedIds: List<String> = emptyList()
+    var lastMarkSyncedAt: Long = -1L
+    var markSyncedCalls: Int = 0
 
     override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> =
         localAnnotations.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
@@ -431,4 +485,12 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
     override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) = Unit
     override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) = Unit
+    override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> = flowOf(0)
+    override fun observePendingCountAcrossAll(): Flow<Int> = flowOf(0)
+    override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = emptyList()
+    override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
+        markSyncedCalls++
+        lastMarkSyncedIds = ids
+        lastMarkSyncedAt = syncedAt
+    }
 }

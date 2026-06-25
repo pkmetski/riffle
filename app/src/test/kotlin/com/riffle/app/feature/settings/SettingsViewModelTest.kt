@@ -1,5 +1,11 @@
 package com.riffle.app.feature.settings
 
+import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
+import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.domain.AnnotationSyncConfig
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ReadaloudHighlightColor
@@ -216,7 +222,11 @@ class SettingsViewModelTest {
         override suspend fun searchAbsItems(query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
 
-    private fun makeViewModel(report: CrashReport? = null) = SettingsViewModel(
+    private fun makeViewModel(
+        report: CrashReport? = null,
+        annotationSyncStatusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
+        annotationDao: AnnotationDao = stubAnnotationDao(pendingCount = 0),
+    ) = SettingsViewModel(
         crashReportRepository = object : CrashReportRepository {
             override fun getLastCrashReport() = report
         },
@@ -233,12 +243,63 @@ class SettingsViewModelTest {
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
         readaloudPreferencesStore = fakeReadaloudStore,
-        annotationSyncConfigStore = object : com.riffle.core.domain.AnnotationSyncConfigStore {
-            override fun observe() =
-                kotlinx.coroutines.flow.MutableStateFlow<com.riffle.core.domain.AnnotationSyncConfig?>(null)
-            override suspend fun save(config: com.riffle.core.domain.AnnotationSyncConfig) = Unit
+        annotationSyncConfigStore = object : AnnotationSyncConfigStore {
+            override fun observe() = MutableStateFlow<AnnotationSyncConfig?>(null)
+            override suspend fun save(config: AnnotationSyncConfig) = Unit
             override suspend fun clear() = Unit
         },
+        annotationSyncStatusStore = annotationSyncStatusStore,
+        annotationDao = annotationDao,
+    )
+
+    private fun stubAnnotationDao(pendingCount: Int): AnnotationDao = object : AnnotationDao {
+        override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
+        override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override suspend fun getById(id: String): AnnotationEntity? = null
+        override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+        override suspend fun upsert(entity: AnnotationEntity) {}
+        override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
+        override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
+        override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
+        override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
+        override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
+        override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
+        override fun observePendingCountAcrossAll() = flowOf(pendingCount)
+        override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+        override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
+    }
+
+    private fun stubConfigStore(flow: MutableStateFlow<AnnotationSyncConfig?>) = object : AnnotationSyncConfigStore {
+        override fun observe() = flow
+        override suspend fun save(config: AnnotationSyncConfig) { flow.value = config }
+        override suspend fun clear() { flow.value = null }
+    }
+
+    private fun newSettingsViewModel(
+        configStore: AnnotationSyncConfigStore,
+        statusStore: AnnotationSyncStatusStore,
+        annotationDao: AnnotationDao,
+    ) = SettingsViewModel(
+        crashReportRepository = object : CrashReportRepository { override fun getLastCrashReport() = null },
+        formattingPreferencesStore = noOpFormattingStore,
+        serverRepository = fakeServerRepo(),
+        libraryRepository = fakeLibraryRepo(),
+        visibilityStore = fakeVisibilityStore(),
+        orderStore = fakeOrderStore(),
+        wakeLockPreferencesStore = noOpWakeLockStore,
+        volumeKeyPreferencesStore = fakeVolumeKeyStore,
+        listeningPreferencesStore = fakeListeningPreferencesStore,
+        appThemeStore = fakeAppThemeStore,
+        readaloudReviewRepository = fakeReviewRepo,
+        connectivityObserver = fakeConnectivity,
+        appUpdateRepository = fakeAppUpdateRepo,
+        readaloudPreferencesStore = fakeReadaloudStore,
+        annotationSyncConfigStore = configStore,
+        annotationSyncStatusStore = statusStore,
+        annotationDao = annotationDao,
     )
 
     // --- existing crash report tests (unchanged) ---
@@ -597,5 +658,101 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(10, fakeListeningPreferencesStore.rewindOnResumeSeconds.first())
+    }
+
+    // --- annotationSyncRow ---
+
+    @Test
+    fun `annotationSyncRow is Local when unconfigured`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(null)
+        val status = AnnotationSyncStatusStore()
+        val dao = stubAnnotationDao(pendingCount = 0)
+        val vm = newSettingsViewModel(configStore = stubConfigStore(config), statusStore = status, annotationDao = dao)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Local, row.badge)
+        assertEquals("WebDAV", row.headline)
+        assertTrue(row.sub.startsWith("Not configured"))
+        assertEquals(AnnotationSyncRowState.Tone.Normal, row.subTone)
+    }
+
+    @Test
+    fun `annotationSyncRow is Synced when configured + Success + no pending`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Success(1_000L)) }
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingCount = 0),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Synced, row.badge)
+        assertTrue(row.sub.contains("Synced"))
+        assertTrue(row.sub.contains("alice"))
+    }
+
+    @Test
+    fun `annotationSyncRow is Pending when configured + pending count gt 0`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Network(1_000L, "offline")) }
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingCount = 2),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
+        assertTrue(row.sub.contains("2 book"))
+        assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
+    }
+
+    @Test
+    fun `annotationSyncRow is Error when Auth failed`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Auth(1_000L, 401)) }
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingCount = 0),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Error, row.badge)
+        assertTrue(row.sub.contains("Authentication failed"))
+        assertEquals(AnnotationSyncRowState.Tone.Error, row.subTone)
+    }
+
+    @Test
+    fun `annotationSyncRow is Error with Tls copy when Tls failure`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Tls(1_000L, "cert untrusted")) }
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingCount = 0),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Error, row.badge)
+        assertTrue(row.sub.contains("TLS error"))
+    }
+
+    @Test
+    fun `annotationSyncRow is Pending when Network failure with no pending books`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Network(1_000L, "timeout")) }
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingCount = 0),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
+        assertTrue("sub should mention Offline", row.sub.contains("Offline"))
+        assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
     }
 }

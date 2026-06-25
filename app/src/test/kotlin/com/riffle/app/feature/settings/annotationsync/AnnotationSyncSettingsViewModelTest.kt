@@ -1,6 +1,9 @@
 package com.riffle.app.feature.settings.annotationsync
 
+import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
@@ -43,7 +48,31 @@ class AnnotationSyncSettingsViewModelTest {
         server.shutdown()
     }
 
-    private fun newViewModel() = AnnotationSyncSettingsViewModel(configStore, factory)
+    private fun newViewModel() = AnnotationSyncSettingsViewModel(
+        configStore = configStore,
+        targetFactory = factory,
+        statusStore = AnnotationSyncStatusStore(),
+        sweepEnqueuer = RecordingEnqueuer(),
+    )
+
+    private fun newViewModel(
+        configFlow: MutableStateFlow<AnnotationSyncConfig?>,
+        outcome: CycleOutcome,
+        enqueuer: AnnotationSweepEnqueuer = RecordingEnqueuer(),
+    ): AnnotationSyncSettingsViewModel {
+        val store = object : AnnotationSyncConfigStore {
+            override fun observe() = configFlow
+            override suspend fun save(config: AnnotationSyncConfig) { configFlow.value = config }
+            override suspend fun clear() { configFlow.value = null }
+        }
+        val statusStore = AnnotationSyncStatusStore().apply { report(outcome) }
+        return AnnotationSyncSettingsViewModel(
+            configStore = store,
+            targetFactory = factory,
+            statusStore = statusStore,
+            sweepEnqueuer = enqueuer,
+        )
+    }
 
     /** Awaits the next state that is NOT in the Testing phase, with a real-time bound. */
     private fun awaitSettled(vm: AnnotationSyncSettingsViewModel) = runBlocking {
@@ -156,6 +185,62 @@ class AnnotationSyncSettingsViewModelTest {
         assertEquals("", vm.state.value.baseUrl)
         assertNull(configStore.observe().first())
     }
+
+    @Test
+    fun `screenState is Unconfigured when configStore is null`() = runTest {
+        val vm = newViewModel(
+            configFlow = MutableStateFlow(null),
+            outcome = CycleOutcome.NeverRun,
+        )
+        advanceUntilIdle()
+        assertTrue(vm.screenState.value is AnnotationSyncScreenState.Unconfigured)
+    }
+
+    @Test
+    fun `screenState is Configured Synced when configured + Success`() = runTest {
+        val vm = newViewModel(
+            configFlow = MutableStateFlow(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw")),
+            outcome = CycleOutcome.Success(1_000L),
+        )
+        advanceUntilIdle()
+        val state = vm.screenState.value
+        assertTrue(state is AnnotationSyncScreenState.Configured)
+        assertTrue((state as AnnotationSyncScreenState.Configured).status is AnnotationSyncScreenState.StatusBadge.Synced)
+        assertEquals("https://srv.example/dav/", state.baseUrl)
+        assertEquals("alice", state.username)
+    }
+
+    @Test
+    fun `screenState is Configured Error Auth when Auth failure`() = runTest {
+        val vm = newViewModel(
+            configFlow = MutableStateFlow(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw")),
+            outcome = CycleOutcome.Failed.Auth(1_000L, 401),
+        )
+        advanceUntilIdle()
+        val state = vm.screenState.value
+        assertTrue(state is AnnotationSyncScreenState.Configured)
+        assertTrue((state as AnnotationSyncScreenState.Configured).status is AnnotationSyncScreenState.StatusBadge.Error.Auth)
+    }
+
+    @Test
+    fun `onSave persists config and enqueues a sweep`() = runTest {
+        val flow = MutableStateFlow<AnnotationSyncConfig?>(null)
+        val enqueuer = RecordingEnqueuer()
+        val vm = newViewModel(configFlow = flow, outcome = CycleOutcome.NeverRun, enqueuer = enqueuer)
+        vm.onBaseUrlChanged("https://srv.example/dav/")
+        vm.onUsernameChanged("alice")
+        vm.onPasswordChanged("pw")
+        vm.onSave()
+        advanceUntilIdle()
+
+        assertEquals(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"), flow.value)
+        assertEquals(1, enqueuer.enqueueCalls)
+    }
+}
+
+private class RecordingEnqueuer : AnnotationSweepEnqueuer {
+    var enqueueCalls = 0
+    override fun enqueue() { enqueueCalls++ }
 }
 
 private class FakeAnnotationSyncConfigStore : AnnotationSyncConfigStore {
