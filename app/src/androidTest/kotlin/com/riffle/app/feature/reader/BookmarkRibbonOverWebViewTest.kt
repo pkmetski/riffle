@@ -2,23 +2,30 @@ package com.riffle.app.feature.reader
 
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
+import android.os.Handler
+import android.view.PixelCopy
+import android.view.Surface
+import android.view.Window
 import android.webkit.WebView
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Regression test for: the corner bookmark ribbon is hidden by Readium's WebView in the steady
@@ -28,23 +35,21 @@ import org.junit.runner.RunWith
  *
  * This test reproduces the same layout shape as [EpubReaderScreen]: a Box containing an
  * [AndroidView] hosting a real [WebView] full-bleed below, with the [CornerBookmarkIndicator]
- * aligned to the top-end above. A pixel sampled at the ribbon's location must be the active brown
- * fill, NOT the WebView's white background — which is what the bug looked like on device.
+ * aligned to the top-end above. The ribbon's brown fill must be present anywhere in the top-end
+ * region of the captured surface — if the WebView were hiding it (the original bug), the whole
+ * region would read solid white.
  *
- * Without `graphicsLayer` in the indicator's modifier chain, the WebView's RenderNode wins the
- * compositing step and the ribbon pixels never reach the screen even though the composable lays
- * out at the right bounds (the original bug).
- *
- * Capture path: [android.app.UiAutomation.takeScreenshot] reads back the actual composited
- * display surface (the same surface the user sees), so the WebView's hardware RenderNode layer
- * IS included — that's what makes this a valid regression test. Available since API 18, so it
- * works on the project's minimum-supported Android 7.1.1 / API 25. Compose's `captureToImage()`
- * uses `PixelCopy.request(Window, …)` which is API 26+ and would NoSuchMethodError on 7.1.1.
+ * Capture path: [PixelCopy.request] against the activity window's Surface (obtained via
+ * reflection on `ViewRootImpl.mSurface`). Available since API 24, works in headless emulators
+ * because it reads from the buffer SurfaceFlinger composites into — the same buffer that drives
+ * the WebView's hardware RenderNode promotion that the bug depends on. Compose's
+ * `captureToImage()` uses `PixelCopy.request(Window, …)` instead, which is API 26+ and would
+ * `NoSuchMethodError` on the project's minimum-supported Android 7.1.1.
  */
 @RunWith(AndroidJUnit4::class)
 class BookmarkRibbonOverWebViewTest {
 
-    @get:Rule val composeTestRule = createComposeRule()
+    @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun bookmarkRibbon_rendersAboveWebView() {
@@ -84,13 +89,13 @@ class BookmarkRibbonOverWebViewTest {
 
         composeTestRule.onNodeWithContentDescription("Remove bookmark").assertExists()
 
-        // Read back the composited display surface and scan the top-end region (where the
-        // CornerBookmarkIndicator is aligned) for any pixel matching the ribbon's brown fill.
-        // A scan is more robust than coordinate-cropping: window-vs-screen offsets (status bar)
-        // and per-device system-bar themes don't matter — we just need ONE brown pixel to exist
-        // anywhere in the indicator's quadrant. If the WebView were hiding the ribbon (the bug
-        // this test guards), the entire top-end region would read solid white instead.
-        val screen: Bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val window = composeTestRule.activity.window
+        val screen = captureWindowToBitmap(window)
+
+        // Scan the top-end quadrant (where Alignment.TopEnd places the ribbon) for any pixel
+        // matching the active fill, 0xFFB5440E. A scan beats coordinate-cropping: it sidesteps
+        // theme-dependent system-bar offsets and ribbon-positioning padding, and still rejects
+        // the regression — which would leave the whole quadrant solid white.
         val xStart = screen.width / 2
         val yEnd = screen.height / 4
         var brownPixels = 0
@@ -100,19 +105,51 @@ class BookmarkRibbonOverWebViewTest {
                 val r = (px shr 16) and 0xFF
                 val g = (px shr 8) and 0xFF
                 val b = px and 0xFF
-                // Active fill is 0xFFB5440E — a saturated brown. Reject anything that looks like
-                // a white WebView background (255, 255, 255) or grey status-bar chrome.
                 if (r in 120..220 && g in 30..120 && b in 0..80) brownPixels++
             }
         }
-        // The ribbon is 24×32dp ≈ 96×128px at 4x density; a handful of brown pixels in the scan
-        // region is enough to prove it rendered. Demand a small minimum so a single stray red
-        // pixel from the system theme couldn't pass the test.
+        // The ribbon is 24×32dp ≈ ~3000px of fill at 4x density; demand a small minimum so a
+        // stray system-theme pixel can't pass it but font-rendering AA variance can't fail it.
         assertTrue(
             "Bookmark ribbon's brown fill not visible in the top-end region " +
                 "(found $brownPixels brown pixels) — the WebView is hiding the ribbon. " +
                 "Verify the indicator still has Modifier.graphicsLayer in its chain.",
             brownPixels >= 50,
         )
+    }
+
+    /**
+     * Capture the activity window's composited Surface into a Bitmap via the API-24+
+     * `PixelCopy.request(Surface, …)` overload. Reflects on `ViewRootImpl.mSurface` to obtain
+     * the Surface — internal API, but the field has existed unchanged since at least API 16.
+     * Runs entirely off the UI thread; latches on the PixelCopy callback.
+     */
+    private fun captureWindowToBitmap(window: Window): Bitmap {
+        val decor = window.decorView
+        val viewRoot = decor.parent
+        val surfaceField = viewRoot.javaClass.getDeclaredField("mSurface").apply { isAccessible = true }
+        val surface = surfaceField.get(viewRoot) as Surface
+        val bitmap = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
+        val latch = CountDownLatch(1)
+        val result = intArrayOf(-1)
+        // Run the listener on a worker thread; PixelCopy itself dispatches off the UI thread.
+        val handlerThread = android.os.HandlerThread("PixelCopy").apply { start() }
+        try {
+            val handler = Handler(handlerThread.looper)
+            PixelCopy.request(
+                surface,
+                bitmap,
+                { code ->
+                    result[0] = code
+                    latch.countDown()
+                },
+                handler,
+            )
+            assertTrue("PixelCopy timed out", latch.await(5, TimeUnit.SECONDS))
+            assertEquals("PixelCopy result was not SUCCESS", PixelCopy.SUCCESS, result[0])
+        } finally {
+            handlerThread.quitSafely()
+        }
+        return bitmap
     }
 }

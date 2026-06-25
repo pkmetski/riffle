@@ -34,14 +34,17 @@ class NarratedColumnsJsTest {
             "fall into two distinct paginated columns of the document under test here today now."
 
     // Viewport-wide CSS columns with a fixed height, so overflow flows into horizontal columns
-    // (paginated mode, not scroll mode). The spacer deterministically pushes the spanning sentence
-    // across the first column boundary.
+    // (paginated mode, not scroll mode). The spacer must leave so little vertical room that the
+    // spanning sentence CANNOT fit in one column under any font-rendering quirk — at 95vh the
+    // remaining ~5vh (~80px on a 1600px viewport) holds at most 3 lines, and the ~330-char
+    // sentence needs ≥4 lines at any reasonable line wrap. With a smaller spacer (we had 82vh)
+    // tighter wraps under x86 WebView fit everything in one column, masking the assertion.
     private val spanningFixture = """
         <!DOCTYPE html>
         <html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
           <body style="margin:0">
             <div style="height:100vh; columns:100vw; column-gap:0; column-fill:auto; font-size:18px; line-height:26px">
-              <div style="height:82vh"></div>
+              <div style="height:95vh"></div>
               <span>$spanningText</span>
             </div>
           </body>
