@@ -174,7 +174,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -203,9 +203,9 @@ jobs:
       - name: Run phone harness tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 25
-          target: default
-          arch: x86
+          api-level: 30
+          target: google_apis
+          arch: x86_64
           profile: pixel
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout
       - name: Upload harness phone reports
@@ -219,7 +219,7 @@ jobs:
   harness-test-tablet:
     name: Harness tests (tablet)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -248,10 +248,10 @@ jobs:
       - name: Run tablet harness tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 25
-          target: default
-          arch: x86
-          profile: Nexus 10
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.riffle.app.harness.TabletLayout
       - name: Upload harness tablet reports
         if: always()
