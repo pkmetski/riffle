@@ -792,6 +792,8 @@ abstract class DataModule {
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
             statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
             sweepEnqueuer: com.riffle.core.domain.AnnotationSweepEnqueuer,
+            serverRepository: ServerRepository,
+            libraryItemDao: com.riffle.core.database.LibraryItemDao,
         ): com.riffle.core.data.AnnotationSyncController =
             com.riffle.core.data.AnnotationSyncController(
                 targetProvider = { holder.current() },
@@ -804,6 +806,10 @@ abstract class DataModule {
                 ),
                 statusStore = statusStore,
                 sweepEnqueuer = sweepEnqueuer,
+                usernameProvider = { sid -> serverRepository.getById(sid)?.username },
+                bookTitleProvider = { sid, itemId ->
+                    libraryItemDao.getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
+                },
             )
 
         @Provides
@@ -815,6 +821,7 @@ abstract class DataModule {
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
             serverRepository: ServerRepository,
             statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
+            libraryItemDao: com.riffle.core.database.LibraryItemDao,
         ): com.riffle.core.data.AnnotationSweep =
             com.riffle.core.data.AnnotationSweep(
                 targetProvider = { holder.current() },
@@ -823,6 +830,9 @@ abstract class DataModule {
                 deviceLabelResolver = deviceLabelResolver,
                 serverRepository = serverRepository,
                 statusStore = statusStore,
+                bookTitleProvider = { sid, itemId ->
+                    libraryItemDao.getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
+                },
             )
 
         @Provides

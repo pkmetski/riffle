@@ -7,7 +7,7 @@ import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.domain.DeviceMetadata
+import com.riffle.core.domain.AnnotationFileHeader
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -48,6 +48,19 @@ class AnnotationSyncController(
     private val scope: CoroutineScope,
     private val statusStore: AnnotationSyncStatusStore,
     private val sweepEnqueuer: AnnotationSweepEnqueuer,
+    /**
+     * Resolves the login username for a local Riffle server id. Used to embed the human-
+     * readable account name in each file's [AnnotationFileHeader] so the Maintenance screen
+     * can label foreign-user groups by name instead of by opaque user id. Returns null when the
+     * server is unknown or doesn't carry credentials (Storyteller peer, etc.).
+     */
+    private val usernameProvider: suspend (serverId: String) -> String? = { null },
+    /**
+     * Resolves the local catalog's book title for a (serverId, itemId). Embedded in the header
+     * so Maintenance can surface "Project Hail Mary" instead of an opaque itemId. Returns null
+     * when the catalog hasn't cached the title yet — header renderer falls back to the id.
+     */
+    private val bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
     private val nowIso: () -> String = { Instant.now().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -274,14 +287,16 @@ class AnnotationSyncController(
             val jsonStrings = localEntities.map { entity ->
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
-            // Embed device metadata as a header object at position 0 of the array. Old readers
-            // already drop entries with no `id`, so the header is invisible to merge.
-            val metadata = DeviceMetadata(
+            // Embed the file header at position 0 of the array. Old readers already drop entries
+            // with no `id`, so the header is invisible to merge.
+            val header = AnnotationFileHeader(
                 deviceId = deviceId,
                 label = deviceLabelResolver.resolveLabel(deviceId),
                 lastSeenAt = nowIso(),
+                username = usernameProvider(serverId),
+                bookTitle = bookTitleProvider(serverId, itemId),
             )
-            val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)
+            val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
             val filename = "annotations-$deviceId.jsonld"
             target.write(namespace, itemId, filename, jsonArray)
             val now = clock()

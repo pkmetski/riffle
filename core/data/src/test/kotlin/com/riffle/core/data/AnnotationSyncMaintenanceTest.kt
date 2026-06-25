@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
-import com.riffle.core.domain.DeviceMetadata
+import com.riffle.core.domain.AnnotationFileHeader
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.test.runTest
@@ -56,8 +56,8 @@ class AnnotationSyncMaintenanceTest {
 
     @Test
     fun `listDevices extracts the embedded metadata header from annotation files`() = runTest {
-        val headerA = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Phone A", "2026-01-01T00:00:00Z"),
+        val headerA = AnnotationFileHeaderCodec.buildFileBody(
+            AnnotationFileHeader("A", "Phone A", "2026-01-01T00:00:00Z"),
             annotationJsonStrings = emptyList(),
         )
         val target = InMemoryMaintenanceTarget(
@@ -81,13 +81,13 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
-    fun `publishDeviceMetadata rewrites every annotation file's header and preserves lastSeenAt`() = runTest {
-        val originalA = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Old Name", "2025-09-15T10:00:00Z"),
+    fun `publishHeader rewrites every annotation file's header and preserves lastSeenAt`() = runTest {
+        val originalA = AnnotationFileHeaderCodec.buildFileBody(
+            AnnotationFileHeader("A", "Old Name", "2025-09-15T10:00:00Z"),
             annotationJsonStrings = listOf("""{"id":"x"}"""),
         )
-        val originalA2 = DeviceMetadataCodec.buildFileBody(
-            DeviceMetadata("A", "Old Name", "2025-09-15T10:00:00Z"),
+        val originalA2 = AnnotationFileHeaderCodec.buildFileBody(
+            AnnotationFileHeader("A", "Old Name", "2025-09-15T10:00:00Z"),
             annotationJsonStrings = listOf("""{"id":"y"}"""),
         )
         val target = InMemoryMaintenanceTarget(
@@ -98,22 +98,24 @@ class AnnotationSyncMaintenanceTest {
             legacySidecars = mutableSetOf(),
         )
         val m = maintenanceFor(target)
-        val result = m.publishDeviceMetadata("ns", "A", "New Name")
+        val result = m.publishHeader("ns", "A", "New Name", username = "alice")
 
         assertEquals(2, result.rewrittenFiles)
         assertEquals(0, result.failures)
         target.files.values.forEach { body ->
-            val header = DeviceMetadataCodec.extractHeader(body)!!
+            val header = AnnotationFileHeaderCodec.extractHeader(body)!!
             assertEquals("New Name", header.label)
             // The original lastSeenAt is preserved — a rename must not masquerade as a fresh push.
             assertEquals("2025-09-15T10:00:00Z", header.lastSeenAt)
+            // Rename refreshes the recorded ABS username too.
+            assertEquals("alice", header.username)
         }
         assertTrue(target.files.values.any { it.contains("\"id\":\"x\"") })
         assertTrue(target.files.values.any { it.contains("\"id\":\"y\"") })
     }
 
     @Test
-    fun `publishDeviceMetadata mints a fallback lastSeenAt for legacy header-less files`() = runTest {
+    fun `publishHeader mints a fallback lastSeenAt for legacy header-less files`() = runTest {
         // Legacy file from a build prior to the embed-header refactor: pure annotations, no header.
         val legacy = """[{"id":"x"}]"""
         val target = InMemoryMaintenanceTarget(
@@ -121,9 +123,9 @@ class AnnotationSyncMaintenanceTest {
             legacySidecars = mutableSetOf(),
         )
         val m = maintenanceFor(target)
-        m.publishDeviceMetadata("ns", "A", "New Name")
+        m.publishHeader("ns", "A", "New Name", username = "alice")
 
-        val header = DeviceMetadataCodec.extractHeader(target.files.values.first())!!
+        val header = AnnotationFileHeaderCodec.extractHeader(target.files.values.first())!!
         assertEquals("New Name", header.label)
         assertEquals("2026-02-02T02:02:02Z", header.lastSeenAt)
     }
