@@ -88,13 +88,25 @@ class AnnotationSyncController(
             // Seed merge with the local set (including tombstones) so LWW spans both sides — a
             // newer local edit isn't clobbered by an older remote copy, and a local tombstone wins
             // over a remote pre-delete entry.
-            val localExisting = annotationDao
+            val localExistingEntities = annotationDao
                 .getAllForItemIncludingDeleted(serverId, itemId)
+            val localById = localExistingEntities.associateBy { it.id }
+            val localExisting = localExistingEntities
                 .map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
             val merged = mergeService.merge(parsed = parsedAnnotations, existing = localExisting)
 
             val entities = merged.map { w3cAnnotation ->
+                val existing = localById[w3cAnnotation.id]
+                // Preserve the existing lastSyncedAt stamp when this device's row was the LWW winner.
+                // If there's no local row (purely remote content) or the remote row won (our row is
+                // being overwritten by content this device hasn't pushed), mark as dirty (0) so the
+                // next sweep pushes it.
+                val preservedLastSyncedAt = when {
+                    existing == null -> 0L
+                    existing.updatedAt >= w3cAnnotation.updatedAt -> existing.lastSyncedAt
+                    else -> 0L
+                }
                 AnnotationEntity(
                     id = w3cAnnotation.id,
                     serverId = serverId,
@@ -115,6 +127,7 @@ class AnnotationSyncController(
                     originDeviceId = w3cAnnotation.originDeviceId,
                     lastModifiedByDeviceId = w3cAnnotation.lastModifiedByDeviceId,
                     deleted = w3cAnnotation.deleted,
+                    lastSyncedAt = preservedLastSyncedAt,
                 )
             }
 
@@ -124,7 +137,8 @@ class AnnotationSyncController(
             statusStore.report(CycleOutcome.Success(clock()))
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
-            sweepEnqueuer.enqueue()
+            // Don't enqueue a sweep here — sync-on-open failures are recovered by the next book
+            // open, which retries the read pass. There is nothing for the push sweep to do.
         }
     }
 

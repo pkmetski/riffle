@@ -812,6 +812,7 @@ abstract class DataModule {
             holder: com.riffle.core.data.AnnotationSyncTargetHolder,
             annotationDao: com.riffle.core.database.AnnotationDao,
             deviceIdStore: com.riffle.core.domain.DeviceIdStore,
+            deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
             serverRepository: ServerRepository,
             statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
         ): com.riffle.core.data.AnnotationSweep =
@@ -819,6 +820,7 @@ abstract class DataModule {
                 targetProvider = { holder.current() },
                 annotationDao = annotationDao,
                 deviceIdStore = deviceIdStore,
+                deviceLabelResolver = deviceLabelResolver,
                 serverRepository = serverRepository,
                 statusStore = statusStore,
             )

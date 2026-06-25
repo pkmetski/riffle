@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
+import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import io.mockk.coEvery
@@ -75,6 +76,8 @@ class AnnotationSyncControllerIntegrationTest {
             deviceIdStore = deviceIdStore,
             deviceLabelResolver = IntegrationStubLabelResolver,
             scope = scope,
+            statusStore = AnnotationSyncStatusStore(),
+            sweepEnqueuer = AnnotationSweepEnqueuer { /* no-op */ },
             nowIso = { "2026-01-01T00:00:00Z" },
         )
     }
@@ -323,6 +326,8 @@ class AnnotationSyncControllerIntegrationTest {
             deviceIdStore = deviceIdStore,
             deviceLabelResolver = IntegrationStubLabelResolver,
             scope = scope,
+            statusStore = AnnotationSyncStatusStore(),
+            sweepEnqueuer = AnnotationSweepEnqueuer { /* no-op */ },
             nowIso = { "2026-01-01T00:00:00Z" },
         )
 

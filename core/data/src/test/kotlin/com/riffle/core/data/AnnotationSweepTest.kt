@@ -4,8 +4,11 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.NamespaceDeviceListing
+import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
@@ -27,6 +30,7 @@ class AnnotationSweepTest {
             targetProvider = { null },
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
+            deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
             serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
             statusStore = status,
             clock = { 1000L },
@@ -56,6 +60,7 @@ class AnnotationSweepTest {
             targetProvider = { target },
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
+            deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
             serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
             statusStore = status,
             clock = { now },
@@ -70,6 +75,8 @@ class AnnotationSweepTest {
         assertEquals("annotations-dev-A.jsonld", write.filename)
         assertTrue(write.content.contains("ann-1"))
         assertTrue(write.content.contains("ann-2"))
+        // Fix 2: verify the file body includes the DeviceMeta header written by DeviceMetadataCodec.
+        assertTrue("sweep output must contain riffle:DeviceMeta header", write.content.contains("riffle:DeviceMeta"))
 
         assertEquals(listOf("ann-1", "ann-2"), dao.lastMarkSyncedIds)
         assertEquals(now, dao.lastMarkSyncedAt)
@@ -93,6 +100,7 @@ class AnnotationSweepTest {
             targetProvider = { target },
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
+            deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
             serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
             statusStore = status,
             clock = { 9_000L },
@@ -125,6 +133,7 @@ class AnnotationSweepTest {
             targetProvider = { target },
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
+            deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
             serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
             statusStore = status,
             clock = { 1L },
@@ -158,6 +167,7 @@ class AnnotationSweepTest {
             targetProvider = { target },
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
+            deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
             serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
             statusStore = status,
             clock = { 1L },
@@ -191,6 +201,11 @@ class AnnotationSweepTest {
             writes += WriteCall(namespace, itemId, filename, content.take(1024))
             writeException?.let { throw it }
         }
+        override suspend fun delete(namespace: String, itemId: String, filename: String) {}
+        override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
+        override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing = NamespaceDeviceListing(emptyList())
+        override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
+        override suspend fun forgetNamespace(namespace: String): Int = 0
     }
 
     private class FakeAnnotationDao(
@@ -212,6 +227,11 @@ class AnnotationSweepTest {
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {
         override suspend fun getOrCreate(): String = id
+    }
+
+    private class FakeDeviceLabelResolver(private val label: String) : DeviceLabelResolver {
+        override suspend fun resolveLabel(deviceId: String) = label
+        override fun deviceModel() = "test-model"
     }
 
     private class FakeServerRepository(private val absUserIds: Map<String, String>) : ServerRepository {

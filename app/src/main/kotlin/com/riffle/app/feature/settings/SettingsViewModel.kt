@@ -87,7 +87,7 @@ class SettingsViewModel @Inject constructor(
         deriveRow(config, outcome, pendingCount)
     }.stateIn(
         viewModelScope,
-        SharingStarted.Eagerly,
+        SharingStarted.WhileSubscribed(5_000),
         deriveRow(null, CycleOutcome.NeverRun, 0),
     )
 
@@ -106,6 +106,11 @@ class SettingsViewModel @Inject constructor(
         }
         val identity = "${config.username}@${shortHost(config.baseUrl)}"
         return when {
+            outcome is CycleOutcome.NeverRun -> AnnotationSyncRowState(
+                AnnotationSyncRowState.Badge.Pending, "WebDAV",
+                "Waiting for first sync…",
+                AnnotationSyncRowState.Tone.Pending,
+            )
             outcome is CycleOutcome.Failed.Auth -> AnnotationSyncRowState(
                 AnnotationSyncRowState.Badge.Error, "WebDAV",
                 "Authentication failed · tap to re-enter credentials",

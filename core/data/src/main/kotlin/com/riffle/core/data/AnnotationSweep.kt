@@ -3,7 +3,10 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DeviceLabelResolver
+import com.riffle.core.domain.DeviceMetadata
 import com.riffle.core.domain.ServerRepository
+import java.time.Instant
 
 /**
  * Push-only sweep over annotation rows whose `updatedAt > lastSyncedAt`. Companion to the live
@@ -21,8 +24,10 @@ class AnnotationSweep(
     private val targetProvider: () -> AnnotationSyncTarget?,
     private val annotationDao: AnnotationDao,
     private val deviceIdStore: DeviceIdStore,
+    private val deviceLabelResolver: DeviceLabelResolver,
     private val serverRepository: ServerRepository,
     private val statusStore: AnnotationSyncStatusStore,
+    private val nowIso: () -> String = { Instant.now().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     suspend fun run() {
@@ -49,7 +54,16 @@ class AnnotationSweep(
     ) {
         val rows = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
         if (rows.isEmpty()) return
-        val jsonArray = "[\n" + rows.joinToString(",\n") { AnnotationW3CCodec.annotationEntityToW3C(it) } + "\n]"
+        val jsonStrings = rows.map { AnnotationW3CCodec.annotationEntityToW3C(it) }
+        // Mirror the header written by AnnotationSyncController.pushPending so files from the
+        // sweep and from the live controller are format-identical. Without this, the sweep would
+        // overwrite device-metadata headers with a header-less array.
+        val metadata = DeviceMetadata(
+            deviceId = deviceId,
+            label = deviceLabelResolver.resolveLabel(deviceId),
+            lastSeenAt = nowIso(),
+        )
+        val jsonArray = DeviceMetadataCodec.buildFileBody(metadata, jsonStrings)
         target.write(namespace, itemId, "annotations-$deviceId.jsonld", jsonArray)
         annotationDao.markSynced(rows.map { it.id }, clock())
     }

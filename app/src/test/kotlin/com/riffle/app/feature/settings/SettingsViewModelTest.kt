@@ -668,6 +668,7 @@ class SettingsViewModelTest {
         val status = AnnotationSyncStatusStore()
         val dao = stubAnnotationDao(pendingCount = 0)
         val vm = newSettingsViewModel(configStore = stubConfigStore(config), statusStore = status, annotationDao = dao)
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val row = vm.annotationSyncRow.value
@@ -678,6 +679,23 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `annotationSyncRow is Pending when configured + NeverRun + no pending (not prematurely Synced)`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore() // NeverRun by default
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingCount = 0),
+        )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
+        assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
+        // Should NOT show the Synced badge before any cycle has completed.
+    }
+
+    @Test
     fun `annotationSyncRow is Synced when configured + Success + no pending`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Success(1_000L)) }
@@ -685,6 +703,7 @@ class SettingsViewModelTest {
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingCount = 0),
         )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val row = vm.annotationSyncRow.value
@@ -701,6 +720,7 @@ class SettingsViewModelTest {
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingCount = 2),
         )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val row = vm.annotationSyncRow.value
@@ -717,6 +737,7 @@ class SettingsViewModelTest {
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingCount = 0),
         )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val row = vm.annotationSyncRow.value
@@ -733,6 +754,7 @@ class SettingsViewModelTest {
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingCount = 0),
         )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val row = vm.annotationSyncRow.value
@@ -748,6 +770,7 @@ class SettingsViewModelTest {
             configStore = stubConfigStore(config), statusStore = status,
             annotationDao = stubAnnotationDao(pendingCount = 0),
         )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val row = vm.annotationSyncRow.value

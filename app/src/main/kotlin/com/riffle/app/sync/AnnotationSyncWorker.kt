@@ -35,8 +35,9 @@ class AnnotationSyncWorker(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Transport failures are already handled inside the sweep (dirty rows stay dirty +
-            // status reported). Any exception bubbling this far is a programming error; retry.
-            Result.retry()
+            // Anything reaching here is a programming error — AnnotationSweep absorbs all transport
+            // failures itself. Don't retry; report a permanent failure so WorkManager stops
+            // scheduling backoff retries.
+            Result.failure()
         }
 }

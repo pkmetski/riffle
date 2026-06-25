@@ -365,6 +365,27 @@ class AnnotationSyncControllerLifecycleTest {
             ),
         )
 
+    // ===== Fix 1: syncOnOpen preserves lastSyncedAt on local-wins rows =====
+
+    @Test
+    fun `syncOnOpen preserves lastSyncedAt on local-wins rows`() = runTest {
+        // Seed Room with one annotation stamped lastSyncedAt = 500 and updatedAt = 1000.
+        val local = highlightEntity("uuid-local-win", updatedAt = 1000L)
+        // Manually set lastSyncedAt = 500 on the seeded entity.
+        dao.localAnnotations += local.copy(lastSyncedAt = 500L)
+
+        // Remote file has the SAME annotation id with updatedAt = 800 (older — local wins LWW).
+        target.files["annotations-remote.jsonld"] = jsonArrayOf(
+            w3c("uuid-local-win", updatedAt = 800L, deviceId = "remote-device"),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        // The upserted row must still carry lastSyncedAt = 500, not 0.
+        val upserted = dao.upserts.single { it.id == "uuid-local-win" }
+        assertEquals("local wins — lastSyncedAt must be preserved", 500L, upserted.lastSyncedAt)
+    }
+
     // ===== stamp + report + enqueue-on-failure =====
 
     @Test
