@@ -18,6 +18,7 @@ import javax.inject.Inject
 /** Row data for the per-device list in the Maintenance screen. */
 data class MaintenanceDeviceRowUiState(
     val deviceId: String,
+    val namespace: String,
     val label: String,
     val secondary: String,
     val isThisDevice: Boolean,
@@ -40,25 +41,34 @@ sealed class MaintenanceScreenUiState {
 sealed class MaintenanceSnack {
     object None : MaintenanceSnack()
     data class Forgot(val label: String, val files: Int, val legacySidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
-    data class ForgotNamespace(val namespace: String, val files: Int) : MaintenanceSnack()
+    data class ForgotUser(val userLabel: String, val files: Int) : MaintenanceSnack()
     data class Renamed(val rewritten: Int, val failures: Int) : MaintenanceSnack()
 }
 
-/** A namespace on the target that isn't the currently-active one — typically an orphan. */
-data class OtherNamespaceRowUiState(
+/**
+ * A foreign ABS user's group of files on the share — i.e. annotations whose namespace doesn't
+ * match the currently-active account's. Expandable to per-device rows so the user can forget
+ * individual devices or wipe the whole user with one tap.
+ *
+ * @property displayLabel Human-readable label — the `username` from any device header
+ *     under [namespace], or `null` when no header carried one (legacy files). Renderer falls
+ *     back to a truncated id when null.
+ */
+data class OtherUserGroupUiState(
     val namespace: String,
-    val annotationFileCount: Int,
-    val sidecarCount: Int,
+    val displayLabel: String?,
+    val devices: List<MaintenanceDeviceRowUiState>,
+    val totalFileCount: Int,
 )
 
 /** Form state for the Maintenance screen. */
 data class AnnotationSyncMaintenanceUiState(
     val devices: MaintenanceScreenUiState = MaintenanceScreenUiState.Loading,
-    val otherNamespaces: List<OtherNamespaceRowUiState> = emptyList(),
+    val otherUsers: List<OtherUserGroupUiState> = emptyList(),
     val deviceLabel: String = "",
     val showRenameDialog: Boolean = false,
     val pendingForget: MaintenanceDeviceRowUiState? = null,
-    val pendingForgetNamespace: OtherNamespaceRowUiState? = null,
+    val pendingForgetUser: OtherUserGroupUiState? = null,
     val busy: Boolean = false,
     val snack: MaintenanceSnack = MaintenanceSnack.None,
 )
@@ -100,12 +110,10 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         val row = _state.value.pendingForget ?: return
         _state.value = _state.value.copy(pendingForget = null, busy = true)
         viewModelScope.launch {
-            val namespace = resolveNamespace()
-            if (namespace == null) {
-                _state.value = _state.value.copy(busy = false)
-                return@launch
-            }
-            val result = maintenance.forgetDevice(namespace, row.deviceId)
+            // Each row carries its own namespace — devices in foreign-user groups belong to a
+            // different ABS account, not the active one — so use the row's namespace, not the
+            // active-namespace fallback.
+            val result = maintenance.forgetDevice(row.namespace, row.deviceId)
             _state.value = _state.value.copy(
                 busy = false,
                 snack = MaintenanceSnack.Forgot(
@@ -119,22 +127,25 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         }
     }
 
-    fun onForgetNamespaceRequested(row: OtherNamespaceRowUiState) {
-        _state.value = _state.value.copy(pendingForgetNamespace = row)
+    fun onForgetUserRequested(group: OtherUserGroupUiState) {
+        _state.value = _state.value.copy(pendingForgetUser = group)
     }
 
-    fun onForgetNamespaceCancelled() {
-        _state.value = _state.value.copy(pendingForgetNamespace = null)
+    fun onForgetUserCancelled() {
+        _state.value = _state.value.copy(pendingForgetUser = null)
     }
 
-    fun onForgetNamespaceConfirmed() {
-        val row = _state.value.pendingForgetNamespace ?: return
-        _state.value = _state.value.copy(pendingForgetNamespace = null, busy = true)
+    fun onForgetUserConfirmed() {
+        val group = _state.value.pendingForgetUser ?: return
+        _state.value = _state.value.copy(pendingForgetUser = null, busy = true)
         viewModelScope.launch {
-            val deleted = maintenance.forgetNamespace(row.namespace)
+            val deleted = maintenance.forgetNamespace(group.namespace)
             _state.value = _state.value.copy(
                 busy = false,
-                snack = MaintenanceSnack.ForgotNamespace(namespace = row.namespace, files = deleted),
+                snack = MaintenanceSnack.ForgotUser(
+                    userLabel = group.displayLabel ?: group.namespace.take(8) + "…",
+                    files = deleted,
+                ),
             )
             refresh()
         }
@@ -165,10 +176,11 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             // new name immediately, instead of waiting for the next annotation push. Per-file
             // failures are surfaced via the snack so the user knows when peers will see a mix.
             val publishResult = resolveNamespace()?.let { namespace ->
-                maintenance.publishDeviceMetadata(
+                maintenance.publishHeader(
                     namespace = namespace,
                     deviceId = deviceIdStore.getOrCreate(),
                     label = updated,
+                    username = serverRepository.getActive()?.username,
                 )
             }
             if (publishResult != null) {
@@ -213,37 +225,24 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 metadata = null,
             )
         }
-        val ui = rows.map { row ->
-            val isMe = row.deviceId == myDeviceId
-            val label = when {
-                // For THIS device, always show the locally-resolved label so a fresh rename takes
-                // effect immediately — don't lag behind the last-pushed annotation-file header.
-                isMe -> myLocalLabel
-                else -> row.metadata?.label?.takeIf { it.isNotBlank() }
-                    ?: "device-${row.deviceId.take(8)}"
-            }
-            val parts = mutableListOf<String>()
-            parts += "${row.annotationFileCount} annotation file" + if (row.annotationFileCount == 1) "" else "s"
-            row.metadata?.lastSeenAt
-                ?.takeIf { it.isNotBlank() }
-                ?.let { humanizeLastSeen(it) }
-                ?.let { parts += "Last seen $it" }
-            MaintenanceDeviceRowUiState(
-                deviceId = row.deviceId,
-                label = label,
-                secondary = parts.joinToString(" · "),
-                isThisDevice = isMe,
-            )
-        }
-        // Surface every OTHER namespace present on the share so orphans aren't invisible.
-        val otherNamespaces = try {
+        val ui = rows.map { row -> row.toUiRow(namespace, myDeviceId, myLocalLabel) }
+        // Group every OTHER namespace on the share by user, hydrating each group's devices so
+        // foreign-user files surface per-device (with their own Forget buttons) instead of being
+        // collapsed into a single bulk row. Label each group with the username from the file
+        // headers when present; older files without that field fall back to the namespace id.
+        val otherUsers = try {
             maintenance.listNamespaces()
                 .filter { it.namespace != namespace }
-                .map {
-                    OtherNamespaceRowUiState(
-                        namespace = it.namespace,
-                        annotationFileCount = it.annotationFileCount,
-                        sidecarCount = it.sidecarCount,
+                .map { summary ->
+                    val nestedRows = maintenance.listDevices(summary.namespace)
+                    // All files under a single namespace belong to the same ABS account, so any
+                    // device's recorded username is good for the whole group — pick the first.
+                    val username = nestedRows.firstNotNullOfOrNull { it.metadata?.username }
+                    OtherUserGroupUiState(
+                        namespace = summary.namespace,
+                        displayLabel = username,
+                        devices = nestedRows.map { it.toUiRow(summary.namespace, myDeviceId = "", myLocalLabel = "") },
+                        totalFileCount = summary.annotationFileCount + summary.sidecarCount,
                     )
                 }
         } catch (_: Exception) {
@@ -252,7 +251,39 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
 
         _state.value = _state.value.copy(
             devices = MaintenanceScreenUiState.Loaded(ui),
-            otherNamespaces = otherNamespaces,
+            otherUsers = otherUsers,
+        )
+    }
+
+    /**
+     * Project a hydrated [AnnotationSyncMaintenance.DeviceRow] into the UI row shape. The
+     * "this device" treatment only applies when [myDeviceId] matches and the row is under the
+     * **active** namespace — foreign-user groups should never carry the chip even if a deviceId
+     * happens to collide.
+     */
+    private fun AnnotationSyncMaintenance.DeviceRow.toUiRow(
+        namespace: String,
+        myDeviceId: String,
+        myLocalLabel: String,
+    ): MaintenanceDeviceRowUiState {
+        val isMe = deviceId == myDeviceId
+        val label = when {
+            isMe -> myLocalLabel
+            else -> metadata?.label?.takeIf { it.isNotBlank() }
+                ?: "device-${deviceId.take(8)}"
+        }
+        val parts = mutableListOf<String>()
+        parts += "$annotationFileCount annotation file" + if (annotationFileCount == 1) "" else "s"
+        metadata?.lastSeenAt
+            ?.takeIf { it.isNotBlank() }
+            ?.let { humanizeLastSeen(it) }
+            ?.let { parts += "Last seen $it" }
+        return MaintenanceDeviceRowUiState(
+            deviceId = deviceId,
+            namespace = namespace,
+            label = label,
+            secondary = parts.joinToString(" · "),
+            isThisDevice = isMe,
         )
     }
 

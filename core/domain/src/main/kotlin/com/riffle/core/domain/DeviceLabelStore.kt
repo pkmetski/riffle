@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
  * Persists this device's user-overridden display label.
  *
  * A non-null value means the user typed a name on the Maintenance screen and we should
- * publish it verbatim in the annotation-file header (see [DeviceMetadata]). A null value means fall back
+ * publish it verbatim in the annotation-file header (see [AnnotationFileHeader]). A null value means fall back
  * through the [DeviceLabelResolver] chain.
  */
 interface DeviceLabelStore {

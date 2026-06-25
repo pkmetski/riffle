@@ -31,7 +31,10 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
+            serverRepository = FakeServerRepository(
+                absUserIds = mapOf("srv-A" to "abs-user-A"),
+                usernames = mapOf("srv-A" to "alice"),
+            ),
             statusStore = status,
             clock = { 1000L },
         )
@@ -61,8 +64,12 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
+            serverRepository = FakeServerRepository(
+                absUserIds = mapOf("srv-A" to "abs-user-A"),
+                usernames = mapOf("srv-A" to "alice"),
+            ),
             statusStore = status,
+            bookTitleProvider = { _, _ -> "Project Hail Mary" },
             clock = { now },
         )
 
@@ -75,8 +82,13 @@ class AnnotationSweepTest {
         assertEquals("annotations-dev-A.jsonld", write.filename)
         assertTrue(write.content.contains("ann-1"))
         assertTrue(write.content.contains("ann-2"))
-        // Fix 2: verify the file body includes the DeviceMeta header written by DeviceMetadataCodec.
-        assertTrue("sweep output must contain riffle:DeviceMeta header", write.content.contains("riffle:DeviceMeta"))
+        // Verify the file body carries the file-header object written by AnnotationFileHeaderCodec.
+        assertTrue("sweep output must contain riffle:FileHeader", write.content.contains("riffle:FileHeader"))
+        // Header carries the username so foreign-user groups on other devices' Maintenance
+        // screens can be labelled by name instead of by opaque user id.
+        assertTrue("sweep header must include username", write.content.contains("\"username\":\"alice\""))
+        // Header carries the catalog's book title so Maintenance can show recognisable names.
+        assertTrue("sweep header must include bookTitle", write.content.contains("\"bookTitle\":\"Project Hail Mary\""))
 
         assertEquals(listOf("ann-1", "ann-2"), dao.lastMarkSyncedIds)
         assertEquals(now, dao.lastMarkSyncedAt)
@@ -101,7 +113,10 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
+            serverRepository = FakeServerRepository(
+                absUserIds = mapOf("srv-A" to "abs-user-A"),
+                usernames = mapOf("srv-A" to "alice"),
+            ),
             statusStore = status,
             clock = { 9_000L },
         )
@@ -134,7 +149,10 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
+            serverRepository = FakeServerRepository(
+                absUserIds = mapOf("srv-A" to "abs-user-A"),
+                usernames = mapOf("srv-A" to "alice"),
+            ),
             statusStore = status,
             clock = { 1L },
         )
@@ -168,7 +186,10 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(mapOf("srv-A" to "abs-user-A")),
+            serverRepository = FakeServerRepository(
+                absUserIds = mapOf("srv-A" to "abs-user-A"),
+                usernames = mapOf("srv-A" to "alice"),
+            ),
             statusStore = status,
             clock = { 1L },
         )
@@ -234,8 +255,21 @@ class AnnotationSweepTest {
         override fun deviceModel() = "test-model"
     }
 
-    private class FakeServerRepository(private val absUserIds: Map<String, String>) : ServerRepository {
+    private class FakeServerRepository(
+        private val absUserIds: Map<String, String>,
+        private val usernames: Map<String, String> = emptyMap(),
+    ) : ServerRepository {
         override suspend fun ensureAbsUserId(serverId: String): String? = absUserIds[serverId]
+        override suspend fun getById(serverId: String): Server? = usernames[serverId]?.let {
+            Server(
+                id = serverId,
+                url = ServerUrl.parse("https://example.test/")!!,
+                isActive = true,
+                insecureConnectionAllowed = false,
+                username = it,
+                absUserId = absUserIds[serverId],
+            )
+        }
         override fun observeAll(): Flow<List<Server>> = emptyFlow()
         override suspend fun getActive(): Server? = null
         override suspend fun authenticate(

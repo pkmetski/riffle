@@ -8,8 +8,8 @@ package com.riffle.core.domain
  * <namespace>/<itemId>/annotations-<deviceId>.jsonld
  * ```
  *
- * Each per-device file is a JSON array whose first element is a [DeviceMetadata] header
- * (label / model / lastSeenAt) followed by the W3C annotation records — see [DeviceMetadata]
+ * Each per-device file is a JSON array whose first element is a [AnnotationFileHeader] header
+ * (label / model / lastSeenAt) followed by the W3C annotation records — see [AnnotationFileHeader]
  * for the format rationale. There is no separate sidecar file; legacy `device-*.json` files
  * from earlier builds are cleaned up opportunistically by `forgetDevice`.
  *

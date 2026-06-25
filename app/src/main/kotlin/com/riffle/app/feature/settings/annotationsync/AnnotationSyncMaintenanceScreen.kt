@@ -1,5 +1,7 @@
 package com.riffle.app.feature.settings.annotationsync
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -33,11 +36,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -103,8 +108,8 @@ fun AnnotationSyncMaintenanceScreen(
 
             MaintenanceSnackBanner(state.snack, viewModel::onSnackDismissed)
 
-            if (state.otherNamespaces.isNotEmpty()) {
-                OtherNamespacesSection(state.otherNamespaces, viewModel)
+            if (state.otherUsers.isNotEmpty()) {
+                OtherUsersSection(state.otherUsers, viewModel)
             }
         }
     }
@@ -116,11 +121,11 @@ fun AnnotationSyncMaintenanceScreen(
             onConfirm = viewModel::onForgetConfirmed,
         )
     }
-    state.pendingForgetNamespace?.let { row ->
-        ForgetNamespaceDialog(
-            row = row,
-            onCancel = viewModel::onForgetNamespaceCancelled,
-            onConfirm = viewModel::onForgetNamespaceConfirmed,
+    state.pendingForgetUser?.let { group ->
+        ForgetUserDialog(
+            group = group,
+            onCancel = viewModel::onForgetUserCancelled,
+            onConfirm = viewModel::onForgetUserConfirmed,
         )
     }
     if (state.showRenameDialog) {
@@ -257,58 +262,40 @@ private fun RenameDialog(initial: String, onCancel: () -> Unit, onConfirm: (Stri
 }
 
 @Composable
-private fun OtherNamespacesSection(
-    rows: List<OtherNamespaceRowUiState>,
+private fun OtherUsersSection(
+    groups: List<OtherUserGroupUiState>,
     vm: AnnotationSyncMaintenanceViewModel,
 ) {
     Text(
-        "Other namespaces on the server",
+        "Other users on this share",
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
     )
     Text(
-        "Files belonging to a different account or to an older naming scheme. They aren't read by " +
-            "any device using this account — forget them to free server space.",
+        "Files written by a different Audiobookshelf account. They aren't read by any device " +
+            "using your current account. Expand to forget individual devices, or remove the " +
+            "whole user.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    // Expanded state lives at the section, keyed on namespace — survives recomposition but not
+    // process death, which is fine (the screen always reopens collapsed).
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column {
-            rows.forEachIndexed { index, row ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "ns ${row.namespace.take(8)}…",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        val parts = mutableListOf<String>()
-                        parts += "${row.annotationFileCount} annotation file" +
-                            if (row.annotationFileCount == 1) "" else "s"
-                        // Only mention legacy sidecars when they're actually present — current
-                        // builds never write them, so '0 sidecars' is just noise.
-                        if (row.sidecarCount > 0) {
-                            parts += "${row.sidecarCount} legacy sidecar" +
-                                if (row.sidecarCount == 1) "" else "s"
-                        }
-                        Text(
-                            parts.joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    OutlinedButton(onClick = { vm.onForgetNamespaceRequested(row) }) { Text("Forget") }
-                }
-                if (index != rows.lastIndex) {
+            groups.forEachIndexed { index, group ->
+                val isOpen = expanded[group.namespace] ?: false
+                OtherUserGroup(
+                    group = group,
+                    isOpen = isOpen,
+                    onToggle = { expanded[group.namespace] = !isOpen },
+                    vm = vm,
+                )
+                if (index != groups.lastIndex) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
@@ -317,32 +304,126 @@ private fun OtherNamespacesSection(
 }
 
 @Composable
-private fun ForgetNamespaceDialog(
-    row: OtherNamespaceRowUiState,
+private fun OtherUserGroup(
+    group: OtherUserGroupUiState,
+    isOpen: Boolean,
+    onToggle: () -> Unit,
+    vm: AnnotationSyncMaintenanceViewModel,
+) {
+    val caretRotation by animateFloatAsState(if (isOpen) 90f else 0f, label = "caret")
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.KeyboardArrowRight,
+                contentDescription = if (isOpen) "Collapse" else "Expand",
+                modifier = Modifier.rotate(caretRotation),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    group.displayLabel ?: "Unknown user",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                val countLabel = "${group.devices.size} device" +
+                    (if (group.devices.size == 1) "" else "s") +
+                    " · " +
+                    "${group.totalFileCount} file" + (if (group.totalFileCount == 1) "" else "s")
+                val secondary = if (group.displayLabel == null) {
+                    "${group.namespace.take(8)}… · $countLabel"
+                } else {
+                    countLabel
+                }
+                Text(
+                    secondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (isOpen) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Column {
+                    group.devices.forEachIndexed { idx, device ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 38.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    device.label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                if (device.secondary.isNotBlank()) {
+                                    Text(
+                                        device.secondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            OutlinedButton(onClick = { vm.onForgetRequested(device) }) {
+                                Text("Forget")
+                            }
+                        }
+                        if (idx != group.devices.lastIndex) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(
+                            onClick = { vm.onForgetUserRequested(group) },
+                        ) {
+                            Text("Forget all from this user", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForgetUserDialog(
+    group: OtherUserGroupUiState,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val label = group.displayLabel ?: "this user"
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("Forget namespace?") },
+        title = { Text("Forget all from \"$label\"?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     buildString {
-                        append("Removes every file under ${row.namespace} from the WebDAV server — ")
-                        append("${row.annotationFileCount} annotation file")
-                        if (row.annotationFileCount != 1) append("s")
-                        if (row.sidecarCount > 0) {
-                            append(" and ${row.sidecarCount} legacy sidecar")
-                            if (row.sidecarCount != 1) append("s")
-                        }
+                        append("Removes every file from this user on the WebDAV server — ")
+                        append("${group.devices.size} device")
+                        if (group.devices.size != 1) append("s")
+                        append(", ${group.totalFileCount} file")
+                        if (group.totalFileCount != 1) append("s")
                         append(".")
                     },
                 )
                 Text(
-                    "Only do this if you're sure no device is still using this namespace — usually it's " +
-                        "either an old account you no longer sync from or a namespace orphaned by an " +
-                        "earlier naming scheme.",
+                    "Only do this if you're sure no device is still using this account — usually " +
+                        "it's an old account you no longer sync from.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -372,8 +453,8 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
             if (snack.failures > 0) parts += "${snack.failures} failure(s)"
             parts.joinToString(" · ") to (snack.failures > 0)
         }
-        is MaintenanceSnack.ForgotNamespace ->
-            "Forgot namespace ${snack.namespace.take(8)}… · ${snack.files} file(s) removed" to false
+        is MaintenanceSnack.ForgotUser ->
+            "Forgot \"${snack.userLabel}\" · ${snack.files} file(s) removed" to false
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),

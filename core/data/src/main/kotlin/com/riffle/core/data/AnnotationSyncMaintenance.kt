@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
-import com.riffle.core.domain.DeviceMetadata
+import com.riffle.core.domain.AnnotationFileHeader
 import com.riffle.core.domain.NamespaceSummary
 import java.time.Instant
 
@@ -22,23 +22,24 @@ class AnnotationSyncMaintenance(
     private val targetProvider: () -> AnnotationSyncTarget?,
     private val nowIso: () -> String = { Instant.now().toString() },
 ) {
-    /** Outcome of [publishDeviceMetadata] — lets the UI report partial failure to the user. */
+    /** Outcome of [publishHeader] — lets the UI report partial failure to the user. */
     data class PublishMetadataResult(
         val rewrittenFiles: Int,
         val failures: Int,
     )
 
     /**
-     * Refresh this device's [DeviceMetadata] header across every annotation file it owns under
+     * Refresh this device's [AnnotationFileHeader] header across every annotation file it owns under
      * [namespace]. Used after a rename so peer devices see the new label without waiting for
      * the next annotation push. Preserves each file's existing `lastSeenAt` so a rename does not
      * masquerade as a fresh push — the hint stays a real signal of when this device last
      * actually pushed. Returns counts so the caller can surface partial failure.
      */
-    suspend fun publishDeviceMetadata(
+    suspend fun publishHeader(
         namespace: String,
         deviceId: String,
         label: String,
+        username: String?,
     ): PublishMetadataResult {
         val target = targetProvider() ?: return PublishMetadataResult(0, 0)
         val listing = try {
@@ -57,13 +58,19 @@ class AnnotationSyncMaintenance(
         for (file in row.annotationFiles) {
             try {
                 val body = target.read(namespace, file.itemId, file.filename) ?: continue
-                val existing = DeviceMetadataCodec.extractHeader(body)
-                val metadata = DeviceMetadata(
+                val existing = AnnotationFileHeaderCodec.extractHeader(body)
+                val header = AnnotationFileHeader(
                     deviceId = deviceId,
                     label = label,
                     lastSeenAt = existing?.lastSeenAt ?: fallbackLastSeenAt,
+                    // Preserve any previously-recorded username when the caller didn't supply one
+                    // (e.g. rename triggered before the active user was resolved this session).
+                    username = username ?: existing?.username,
+                    // Rename doesn't know the book title (it iterates files, not catalog rows),
+                    // so keep whatever the previous push embedded — subsequent pushes refresh it.
+                    bookTitle = existing?.bookTitle,
                 )
-                val newBody = DeviceMetadataCodec.replaceHeader(body, metadata)
+                val newBody = AnnotationFileHeaderCodec.replaceHeader(body, header)
                 if (newBody != body) {
                     target.write(namespace, file.itemId, file.filename, newBody)
                     rewritten++
@@ -79,7 +86,7 @@ class AnnotationSyncMaintenance(
     data class DeviceRow(
         val deviceId: String,
         val annotationFileCount: Int,
-        val metadata: DeviceMetadata?,
+        val metadata: AnnotationFileHeader?,
     )
 
     /** All namespaces discovered on the target, regardless of which is currently active. */
@@ -115,7 +122,7 @@ class AnnotationSyncMaintenance(
         val metadata = summary.annotationFiles.firstNotNullOfOrNull { ref ->
             try {
                 target.read(namespace, ref.itemId, ref.filename)
-                    ?.let { DeviceMetadataCodec.extractHeader(it) }
+                    ?.let { AnnotationFileHeaderCodec.extractHeader(it) }
             } catch (_: Exception) {
                 null
             }
