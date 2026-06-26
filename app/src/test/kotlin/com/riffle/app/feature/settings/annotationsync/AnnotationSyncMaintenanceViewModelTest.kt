@@ -56,6 +56,40 @@ class AnnotationSyncMaintenanceViewModelTest {
     @After fun tearDown() { Dispatchers.resetMain() }
 
     @Test
+    fun `device row labels the header timestamp as Last synced not Last seen`() = runTest {
+        val activeNs = "alice-userid"
+        val header = AnnotationFileHeaderCodec.buildFileBody(
+            AnnotationFileHeader(
+                deviceId = "this-device",
+                label = "Alice's Pixel",
+                lastSeenAt = "2026-06-25T12:00:00Z",
+                username = "alice",
+                bookTitle = "Project Hail Mary",
+            ),
+            annotationJsonStrings = emptyList(),
+        )
+        val target = InMemoryTarget(
+            files = mutableMapOf(
+                FileKey(activeNs, "i1", "annotations-this-device.jsonld") to header,
+            ),
+        )
+
+        val vm = vmWith(target, activeNs = activeNs)
+        advanceUntilIdle()
+
+        val rows = (vm.state.value.devices as MaintenanceScreenUiState.Loaded).devices
+        val secondary = rows.single().secondary
+        assertTrue(
+            "secondary line must use \"Last synced\" — \"Last seen\" reads as nonsense for the current device; got: $secondary",
+            secondary.contains("Last synced"),
+        )
+        assertTrue(
+            "stale \"Last seen\" label must not resurface; got: $secondary",
+            !secondary.contains("Last seen"),
+        )
+    }
+
+    @Test
     fun `foreign namespace shows up as Other Users group labelled by username from header`() = runTest {
         val activeNs = "alice-userid"
         val foreignNs = "bob-userid"
