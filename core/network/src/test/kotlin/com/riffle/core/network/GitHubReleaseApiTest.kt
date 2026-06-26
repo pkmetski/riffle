@@ -35,13 +35,17 @@ class GitHubReleaseApiTest {
         server.enqueue(
             MockResponse().setBody(
                 """
-                {
-                  "tag_name": "v1.5.0",
-                  "assets": [
-                    { "name": "mapping.txt", "browser_download_url": "https://x/mapping.txt", "size": 10 },
-                    { "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/riffle.apk", "size": 4200 }
-                  ]
-                }
+                [
+                  {
+                    "tag_name": "v1.5.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "mapping.txt", "browser_download_url": "https://x/mapping.txt", "size": 10 },
+                      { "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/riffle.apk", "size": 4200 }
+                    ]
+                  }
+                ]
                 """.trimIndent()
             )
         )
@@ -56,10 +60,93 @@ class GitHubReleaseApiTest {
     }
 
     @Test
-    fun `latestRelease fails when no apk asset is present`() = runTest {
+    fun `latestRelease skips a still-building release and falls back to the prior apk release`() = runTest {
         server.enqueue(
             MockResponse().setBody(
-                """{ "tag_name": "v1.5.0", "assets": [ { "name": "notes.txt", "browser_download_url": "https://x/n", "size": 1 } ] }"""
+                """
+                [
+                  {
+                    "tag_name": "v1.6.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": []
+                  },
+                  {
+                    "tag_name": "v1.5.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/riffle.apk", "size": 4200 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
+            )
+        )
+
+        val result = api.latestRelease("pkmetski/riffle")
+
+        assertTrue(result is GitHubReleaseResult.Success)
+        assertEquals("v1.5.0", (result as GitHubReleaseResult.Success).release.tagName)
+    }
+
+    @Test
+    fun `latestRelease ignores drafts and prereleases`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  {
+                    "tag_name": "v2.0.0-rc1",
+                    "draft": false,
+                    "prerelease": true,
+                    "assets": [
+                      { "name": "riffle-2.0.0-rc1.apk", "browser_download_url": "https://x/rc.apk", "size": 1 }
+                    ]
+                  },
+                  {
+                    "tag_name": "v1.9.0-draft",
+                    "draft": true,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "riffle-1.9.0.apk", "browser_download_url": "https://x/draft.apk", "size": 1 }
+                    ]
+                  },
+                  {
+                    "tag_name": "v1.5.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/riffle.apk", "size": 4200 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
+            )
+        )
+
+        val result = api.latestRelease("pkmetski/riffle")
+
+        assertTrue(result is GitHubReleaseResult.Success)
+        assertEquals("v1.5.0", (result as GitHubReleaseResult.Success).release.tagName)
+    }
+
+    @Test
+    fun `latestRelease fails when no release has an apk asset`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  {
+                    "tag_name": "v1.5.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "notes.txt", "browser_download_url": "https://x/n", "size": 1 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
             )
         )
 
