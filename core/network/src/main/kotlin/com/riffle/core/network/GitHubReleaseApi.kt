@@ -22,10 +22,14 @@ class GitHubReleaseApi(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** Fetches the repo's latest (non-prerelease) release and its APK asset. */
+    /**
+     * Fetches the repo's most recent non-prerelease, non-draft release whose assets include an APK.
+     * Releases that exist but haven't finished their APK build yet are skipped so an in-flight release
+     * doesn't stall the updater.
+     */
     suspend fun latestRelease(repo: String): GitHubReleaseResult = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$apiBaseUrl/repos/$repo/releases/latest")
+            .url("$apiBaseUrl/repos/$repo/releases?per_page=10")
             .header("Accept", "application/vnd.github+json")
             .get()
             .build()
@@ -36,16 +40,21 @@ class GitHubReleaseApi(
                 }
                 val raw = response.body?.string()
                     ?: return@use GitHubReleaseResult.Failed("Empty response")
-                val parsed = json.decodeFromString<ReleaseResponse>(raw)
-                val apk = parsed.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-                    ?: return@use GitHubReleaseResult.Failed("Release has no APK asset")
-                GitHubReleaseResult.Success(
-                    GitHubRelease(
-                        tagName = parsed.tagName,
-                        apkUrl = apk.downloadUrl,
-                        apkSizeBytes = apk.size,
+                val parsed = json.decodeFromString<List<ReleaseResponse>>(raw)
+                for (release in parsed) {
+                    if (release.draft || release.prerelease) continue
+                    val apk = release.assets.firstOrNull {
+                        it.name.endsWith(".apk", ignoreCase = true)
+                    } ?: continue
+                    return@use GitHubReleaseResult.Success(
+                        GitHubRelease(
+                            tagName = release.tagName,
+                            apkUrl = apk.downloadUrl,
+                            apkSizeBytes = apk.size,
+                        )
                     )
-                )
+                }
+                GitHubReleaseResult.Failed("No release with an APK asset")
             }
         } catch (e: IOException) {
             GitHubReleaseResult.Failed(e.message ?: "Network error")
@@ -110,6 +119,8 @@ data class GitHubRelease(
 @Serializable
 private data class ReleaseResponse(
     @SerialName("tag_name") val tagName: String,
+    val draft: Boolean = false,
+    val prerelease: Boolean = false,
     val assets: List<AssetResponse> = emptyList(),
 )
 
