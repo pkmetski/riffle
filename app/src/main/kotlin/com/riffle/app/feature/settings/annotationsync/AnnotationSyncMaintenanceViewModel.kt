@@ -277,7 +277,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         metadata?.lastSeenAt
             ?.takeIf { it.isNotBlank() }
             ?.let { humanizeLastSeen(it) }
-            ?.let { parts += "Last seen $it" }
+            ?.let { parts += "Last synced $it" }
         return MaintenanceDeviceRowUiState(
             deviceId = deviceId,
             namespace = namespace,

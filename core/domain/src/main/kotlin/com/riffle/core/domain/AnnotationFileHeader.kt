@@ -19,7 +19,7 @@ import kotlinx.serialization.Serializable
  * @property label Human-friendly device name shown to the user. Source order: user override on
  *     this device > `Settings.Global.DEVICE_NAME` (API 25+) > `Build.MANUFACTURER + " " + Build.MODEL`
  *     (manufacturer dropped when MODEL already starts with it). Always non-blank on a real device.
- * @property lastSeenAt ISO 8601 timestamp of the publishing push. Drives the "Last seen …"
+ * @property lastSeenAt ISO 8601 timestamp of the publishing push. Drives the "Last synced …"
  *     hint in the Maintenance list so the user can pick the dead device to Forget.
  * @property username The account username that owned this push (i.e. the login used by the
  *     writing device). Read on Maintenance to label a *foreign* user's group of files — the
