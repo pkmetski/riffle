@@ -215,7 +215,7 @@ private fun backendHelpText(backend: AddServerBackend): String = when (backend) 
     AddServerBackend.AUDIOBOOKSHELF ->
         "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices."
     AddServerBackend.STORYTELLER ->
-        "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each completed readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
+        "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
     AddServerBackend.WEBDAV ->
         "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
 }
