@@ -43,6 +43,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             showReadingTimeEstimate = prefs[KEY_SHOW_READING_TIME_ESTIMATE] ?: false,
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
             justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
+            autoScrollWpm = prefs[KEY_AUTO_SCROLL_WPM] ?: FormattingPreferences.DEFAULT_AUTO_SCROLL_WPM,
             themeSchedule = ThemeSchedule(
                 dayStart = prefs[KEY_SCHEDULE_DAY_START]?.let(::minuteOfDayToLocalTime)
                     ?: ThemeSchedule.DEFAULT_DAY_START,
@@ -74,6 +75,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_SHOW_READING_TIME_ESTIMATE] = preferences.showReadingTimeEstimate
             prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
             prefs[KEY_JUSTIFY_TEXT] = preferences.justifyText
+            prefs[KEY_AUTO_SCROLL_WPM] = preferences.autoScrollWpm
             prefs[KEY_SCHEDULE_DAY_START] = preferences.themeSchedule.dayStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_NIGHT_START] = preferences.themeSchedule.nightStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_DAY_THEME] = preferences.themeSchedule.dayTheme.name
@@ -94,6 +96,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_SHOW_READING_TIME_ESTIMATE = booleanPreferencesKey("show_reading_time_estimate")
         val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
         val KEY_JUSTIFY_TEXT = booleanPreferencesKey("justify_text")
+        val KEY_AUTO_SCROLL_WPM = intPreferencesKey("auto_scroll_wpm")
         val KEY_SCHEDULE_DAY_START = intPreferencesKey("theme_schedule_day_start_minute_of_day")
         val KEY_SCHEDULE_NIGHT_START = intPreferencesKey("theme_schedule_night_start_minute_of_day")
         val KEY_SCHEDULE_DAY_THEME = stringPreferencesKey("theme_schedule_day_theme")

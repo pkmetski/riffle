@@ -323,6 +323,10 @@ fun EpubReaderScreen(
         viewModel.onAudiobookOverlayDismissed()
     }
 
+    // Auto-Scroll HUD pill lives at the outer Box so it overlays the chapter rail and
+    // ContinuousReaderView, and survives Immersive Mode (which only hides the TopAppBar).
+    val autoScrollStateForPill by viewModel.autoScrollState.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Status bar insets are consumed at the AndroidView root (see
         // ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so they never
@@ -410,6 +414,8 @@ fun EpubReaderScreen(
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
+                        autoScrollDeltas = viewModel.autoScrollScrollDeltas,
+                        onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -607,6 +613,20 @@ fun EpubReaderScreen(
                                     modifier = Modifier.semantics { contentDescription = "Format" },
                                 )
                             }
+                            val autoScrollState by viewModel.autoScrollState.collectAsState()
+                            val orientation = formattingPrefs.orientation
+                            if (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous) {
+                                com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon(
+                                    isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
+                                    onClick = {
+                                        if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
+                                            viewModel.stopAutoScroll()
+                                        } else {
+                                            viewModel.startAutoScroll()
+                                        }
+                                    },
+                                )
+                            }
                             if (readaloudVisible) {
                                 IconButton(
                                     onClick = viewModel::openReadaloud,
@@ -682,6 +702,13 @@ fun EpubReaderScreen(
                 },
             )
         }
+        // Auto-Scroll HUD pill — overlays everything else and survives Immersive Mode.
+        com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill(
+            state = autoScrollStateForPill,
+            onPause = { viewModel.stopAutoScroll() },
+            onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+            onFaster = { viewModel.nudgeAutoScroll(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+        )
     }
 }
 
@@ -949,6 +976,21 @@ private const val NAV_COVER_SETTLE_MS = 250L
  * and otherwise falls back to a TextQuoteAnchor search over the document body — so the highlight
  * still lands when Readium has stripped the sentence span from the rendered (ABS) EPUB.
  */
+/**
+ * Walks the view tree of a Readium [EpubNavigatorFragment]'s root view to find the currently
+ * visible WebView. Used by Vertical-mode Auto-Scroll to drive scroll deltas into Readium's own
+ * WebView (Readium exposes no public scroll API for this).
+ */
+private fun findActiveWebView(root: android.view.View): android.webkit.WebView? {
+    if (root is android.webkit.WebView && root.isShown) return root
+    if (root is android.view.ViewGroup) {
+        for (i in 0 until root.childCount) {
+            findActiveWebView(root.getChildAt(i))?.let { return it }
+        }
+    }
+    return null
+}
+
 private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
     Locator.fromJSON(readaloudLocatorJson(ref, quote))
 
@@ -1051,6 +1093,8 @@ private fun EpubNavigatorView(
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
+    autoScrollDeltas: Flow<Int>,
+    onReachedEndOfBook: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2132,6 +2176,44 @@ private fun EpubNavigatorView(
                     publication = state.publication,
                     focusAnnotationId = focusId,
                 )
+            }
+            // Drive Auto-Scroll deltas into the ContinuousReaderView's scrollBy. When the view
+            // reaches the bottom of the book the delta is rejected by the NestedScrollView and we
+            // dispatch ReachedEndOfBook to stop the controller silently (ADR 0037).
+            LaunchedEffect(continuousView) {
+                val view = continuousView ?: return@LaunchedEffect
+                autoScrollDeltas.collect { delta ->
+                    val before = view.scrollY
+                    view.scrollBy(0, delta)
+                    val maxScroll = (view.getChildAt(0)?.height ?: 0) - view.height
+                    if (view.scrollY == before || view.scrollY >= maxScroll - 1) {
+                        onReachedEndOfBook()
+                    }
+                }
+            }
+        }
+        // Vertical (Readium scroll) mode: drive Auto-Scroll deltas into the active WebView inside
+        // Readium's EpubNavigatorFragment. On reaching the bottom of the chapter, advance with
+        // goForward(); when that returns false (last chapter), stop silently per ADR 0037.
+        if (formattingPrefs.orientation == ReaderOrientation.Vertical) {
+            val verticalFragment = fragmentRef.value
+            LaunchedEffect(verticalFragment) {
+                val fragment = verticalFragment ?: return@LaunchedEffect
+                autoScrollDeltas.collect { delta ->
+                    val root = fragment.view ?: return@collect
+                    val webView = findActiveWebView(root) ?: return@collect
+                    val before = webView.scrollY
+                    webView.scrollBy(0, delta)
+                    if (webView.scrollY == before) {
+                        // Stuck at the bottom of this chapter — try advancing to the next.
+                        val advanced = try {
+                            fragment.goForward(animated = false)
+                        } catch (_: Throwable) {
+                            false
+                        }
+                        if (!advanced) onReachedEndOfBook()
+                    }
+                }
             }
         }
         AnimatedVisibility(

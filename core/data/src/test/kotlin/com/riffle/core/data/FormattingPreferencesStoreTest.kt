@@ -111,4 +111,16 @@ class FormattingPreferencesStoreTest {
         store.update(FormattingPreferences(theme = ReaderTheme.Auto))
         assertEquals(ReaderTheme.Auto, store.preferences.first().theme)
     }
+
+    @Test
+    fun `autoScrollWpm default is 250 for empty DataStore`() = testScope.runTest {
+        assertEquals(250, buildStore().preferences.first().autoScrollWpm)
+    }
+
+    @Test
+    fun `saved autoScrollWpm round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(autoScrollWpm = 320))
+        assertEquals(320, store.preferences.first().autoScrollWpm)
+    }
 }

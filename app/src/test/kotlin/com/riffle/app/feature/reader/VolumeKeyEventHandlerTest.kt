@@ -13,6 +13,7 @@ class VolumeKeyEventHandlerTest {
         invertVolumeKeys: Boolean = false,
         isPanelOpen: Boolean = false,
         isAudioPlaying: Boolean = false,
+        isAutoScrolling: Boolean = false,
     ) = VolumeKeyEventHandler.handle(
         isVolumeDown = isVolumeDown,
         isReaderActive = isReaderActive,
@@ -20,6 +21,7 @@ class VolumeKeyEventHandlerTest {
         invertVolumeKeys = invertVolumeKeys,
         isPanelOpen = isPanelOpen,
         isAudioPlaying = isAudioPlaying,
+        isAutoScrolling = isAutoScrolling,
     )
 
     @Test
@@ -80,6 +82,55 @@ class VolumeKeyEventHandlerTest {
     @Test
     fun `volume-up navigates forward when inverted`() {
         assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = false, invertVolumeKeys = true))
+    }
+
+    @Test
+    fun `auto-scroll volume-up speeds up when not inverted`() {
+        assertEquals(
+            VolumeKeyAction.AutoScrollFaster,
+            handle(isVolumeDown = false, isAutoScrolling = true),
+        )
+    }
+
+    @Test
+    fun `auto-scroll volume-down slows down when not inverted`() {
+        assertEquals(
+            VolumeKeyAction.AutoScrollSlower,
+            handle(isVolumeDown = true, isAutoScrolling = true),
+        )
+    }
+
+    @Test
+    fun `auto-scroll inverts speed direction with invertVolumeKeys`() {
+        assertEquals(
+            VolumeKeyAction.AutoScrollSlower,
+            handle(isVolumeDown = false, isAutoScrolling = true, invertVolumeKeys = true),
+        )
+        assertEquals(
+            VolumeKeyAction.AutoScrollFaster,
+            handle(isVolumeDown = true, isAutoScrolling = true, invertVolumeKeys = true),
+        )
+    }
+
+    @Test
+    fun `auto-scroll overrides panel swallow and volumeNavEnabled`() {
+        assertEquals(
+            VolumeKeyAction.AutoScrollFaster,
+            handle(
+                isVolumeDown = false,
+                isAutoScrolling = true,
+                isPanelOpen = true,
+                volumeNavEnabled = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `audio playback still wins over auto-scroll`() {
+        assertEquals(
+            VolumeKeyAction.PassThrough,
+            handle(isVolumeDown = true, isAutoScrolling = true, isAudioPlaying = true),
+        )
     }
 
 }
