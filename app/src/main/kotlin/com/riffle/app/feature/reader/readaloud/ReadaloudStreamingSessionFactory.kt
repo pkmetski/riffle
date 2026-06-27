@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.readaloud
 
 import android.content.Context
 import com.riffle.core.data.AudiobookIdentityResolver
+import com.riffle.core.data.MediaOverlayReader
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StreamingSetupBuilder
 import com.riffle.core.domain.AudioIdentityResolver
@@ -34,6 +35,10 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val linkRepository: ReadaloudLinkRepository,
 ) {
+    // Guard against an evict-and-refetch loop when the Storyteller bundle is still partially aligned:
+    // we attempt one fresh fetch per session, but if the re-fetched sidecar is also partial we stop.
+    private val evictedPartialSidecars = mutableSetOf<String>()
+
     /**
      * [sidecarFile] stands in for the bundle for the track, highlight quotes, and cross-EPUB index;
      * [absToken] lets the caller eager-complete the audio download while playing (ADR 0028).
@@ -48,7 +53,9 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     suspend fun tryBuild(storytellerServerId: String, storytellerBookId: String): Session? = withContext(Dispatchers.IO) {
         // 1. Resolve the ABS audiobook linked to this readaloud. No audiobook → not streamable.
         val audiobook = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
-        if (audiobook.serverId == storytellerServerId && audiobook.bookId == storytellerBookId) return@withContext null
+        if (audiobook.serverId == storytellerServerId && audiobook.bookId == storytellerBookId) {
+            return@withContext null
+        }
 
         val absServer = serverRepository.getById(audiobook.serverId) ?: return@withContext null
         val absToken = tokenStorage.getToken(audiobook.serverId) ?: return@withContext null
@@ -82,13 +89,44 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         // 4. The sidecar (SMIL + text). Use ONLY the already-cached copy — the slow /synced fetch is done
         //    ahead of time by ReadaloudSidecarStore.prepare() when the book is opened (ADR 0028), so the
         //    Play path never blocks on it. Not prepared yet → null → the caller surfaces "Preparing…".
-        val sidecarFile = sidecarStore.cachedFile(storytellerServerId, storytellerBookId) ?: return@withContext null
+        val sidecarFile = sidecarStore.cachedFile(storytellerServerId, storytellerBookId)
+            ?: return@withContext null
 
         // 5. Reconcile segments to tracks; null when timelines disagree → bundle.
         val setup = StreamingSetupBuilder().build(sidecarFile, tracks, absServer.url.value, audiobook.bookId, absToken)
-            ?: return@withContext null
+        if (setup == null) {
+            evictStaleOrPartialSidecar(storytellerServerId, storytellerBookId, sidecarFile, tracks.sumOf { it.durationSec }.toLong())
+            return@withContext null
+        }
 
         val httpFactory = StreamingAudioCache.dataSourceFactory(context, absToken)
         Session(setup.track, SharedBundle.Streaming(httpFactory, setup.items.associateBy { it.audioSrc }), sidecarFile, absToken)
+    }
+
+    /**
+     * When [StreamingSetupBuilder] returns null, inspect the sidecar to decide whether it's a stale
+     * intermediate artifact (no clips, or covers only part of the book) and evict it so the next
+     * prepare() fetches from the now-complete Storyteller bundle. Partial-sidecar eviction is guarded
+     * to one attempt per session — if the re-fetched sidecar is also partial, alignment is still in
+     * progress on the server and we stop trying until the next app launch.
+     */
+    private fun evictStaleOrPartialSidecar(serverId: String, bookId: String, sidecarFile: File, absTotalSec: Long) {
+        val sidecarTrack = runCatching { MediaOverlayReader.readTrack(sidecarFile) }.getOrNull() ?: return
+        val clips = sidecarTrack.clips
+        val segCount = clips.map { it.audioSrc }.distinct().size
+        val segTotal = if (segCount > 0) clips.map { it.audioSrc }.distinct().sumOf { src ->
+            clips.filter { it.audioSrc == src }.maxOf { it.clipEndSec }
+        }.toLong() else -1L
+
+        val isPartial = segTotal >= 0 && absTotalSec - segTotal > 10L * segCount
+        when {
+            clips.isEmpty() || isPartial -> {
+                val bookKey = sidecarStore.key(serverId, bookId)
+                if (clips.isEmpty() || evictedPartialSidecars.add(bookKey)) {
+                    sidecarStore.remove(serverId, bookId)
+                    sidecarStore.prepare(serverId, bookId)
+                }
+            }
+        }
     }
 }
