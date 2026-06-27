@@ -63,6 +63,14 @@ interface AnnotationSyncTarget {
     suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String)
 
     /**
+     * Delete the per-device metadata sentinel for [deviceId] under [namespace]. No-op if absent.
+     * Called by `forgetDevice` so a forgotten peer leaves no orphan sentinel that could resurrect
+     * the row if the same deviceId ever writes another annotation file. Implementations MUST NOT
+     * throw on a 404-equivalent.
+     */
+    suspend fun deleteDeviceMeta(namespace: String, deviceId: String)
+
+    /**
      * Enumerate every device that owns annotation files under [namespace], grouping by
      * `deviceId`. Devices appear iff they own at least one annotation file.
      *

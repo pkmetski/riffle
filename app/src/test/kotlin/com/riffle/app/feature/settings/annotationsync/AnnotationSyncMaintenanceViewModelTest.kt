@@ -222,6 +222,9 @@ class AnnotationSyncMaintenanceViewModelTest {
         override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
             deviceMetaFiles[namespace to deviceId] = content
         }
+        override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {
+            deviceMetaFiles.remove(namespace to deviceId)
+        }
         override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
             val byDevice = files.keys
                 .filter { it.namespace == namespace }

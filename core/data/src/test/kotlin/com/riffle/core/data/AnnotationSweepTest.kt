@@ -242,6 +242,7 @@ class AnnotationSweepTest {
             deviceMetaWrites += DeviceMetaWriteCall(namespace, deviceId, content.take(1024))
             writeException?.let { throw it }
         }
+        override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {}
         override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing = NamespaceDeviceListing(emptyList())
         override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
         override suspend fun forgetNamespace(namespace: String): Int = 0

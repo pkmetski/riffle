@@ -96,6 +96,10 @@ class WebDavAnnotationSyncTarget(
         }
     }
 
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {
+        deleteFile(deviceMetaUrl(namespace, deviceId), "delete device-meta $deviceId")
+    }
+
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing =
         withContext(Dispatchers.IO) {
             val all = propfindBaseFilenames()

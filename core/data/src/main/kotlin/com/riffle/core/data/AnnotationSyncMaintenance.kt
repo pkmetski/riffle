@@ -120,7 +120,14 @@ class AnnotationSyncMaintenance(
         val failures: Int,
     )
 
-    /** Deletes every annotation file belonging to [deviceId] under [namespace]. */
+    /**
+     * Deletes every annotation file belonging to [deviceId] under [namespace], plus that device's
+     * metadata sentinel. The sentinel delete is best-effort — failures don't block reporting
+     * success on the annotation-file deletes, but they DO count against [ForgetResult.failures]
+     * so the user sees the partial outcome. Without the sentinel delete, a forgotten peer that
+     * later writes one annotation file would resurrect its row carrying the stale pre-forget
+     * label and lastSyncedAt.
+     */
     suspend fun forgetDevice(namespace: String, deviceId: String): ForgetResult {
         val target = targetProvider() ?: return ForgetResult(0, failures = 0)
         val listing = try {
@@ -140,6 +147,11 @@ class AnnotationSyncMaintenance(
             } catch (_: Exception) {
                 failures++
             }
+        }
+        try {
+            target.deleteDeviceMeta(namespace, deviceId)
+        } catch (_: Exception) {
+            failures++
         }
         return ForgetResult(deleted, failures)
     }

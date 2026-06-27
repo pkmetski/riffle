@@ -684,6 +684,7 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
         deviceMetaWrites += DeviceMetaWrite(namespace, deviceId, content)
     }
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {}
     override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
     override suspend fun forgetNamespace(namespace: String): Int = 0

@@ -93,6 +93,15 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
         }
     }
 
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {
+        try {
+            val file = deviceMetaFile(namespace, deviceId)
+            if (file.exists()) file.delete()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete device-meta $deviceId for $namespace", e)
+        }
+    }
+
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
         return try {
             val nsDir = namespaceDir(namespace)

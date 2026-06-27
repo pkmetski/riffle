@@ -61,6 +61,7 @@ private class RecordingTarget : AnnotationSyncTarget {
     override suspend fun delete(namespace: String, itemId: String, filename: String) {}
     override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? = null
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {}
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {}
     override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
     override suspend fun forgetNamespace(namespace: String): Int = 0

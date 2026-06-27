@@ -38,6 +38,31 @@ class AnnotationSyncMaintenanceTest {
     }
 
     @Test
+    fun `forgetDevice also deletes the device's metadata sentinel`() = runTest {
+        // Without this, forgetting a peer would leave its sentinel orphan on the share — and the
+        // peer's row would resurrect carrying the pre-forget label/lastSyncedAt the next time
+        // that deviceId pushed even a single annotation file.
+        val target = InMemoryMaintenanceTarget(
+            files = mutableMapOf(
+                FileKey("ns", "item-1", "annotations-dev-A.jsonld") to "[]",
+                FileKey("ns", "item-1", "annotations-dev-B.jsonld") to "[]",
+            ),
+        )
+        target.deviceMetaFiles["ns" to "dev-A"] = AnnotationDeviceMetaCodec.encode(
+            AnnotationDeviceMeta("dev-A", "A's phone", "2026-06-01T00:00:00Z")
+        )
+        target.deviceMetaFiles["ns" to "dev-B"] = AnnotationDeviceMetaCodec.encode(
+            AnnotationDeviceMeta("dev-B", "B's phone", "2026-06-01T00:00:00Z")
+        )
+
+        maintenanceFor(target).forgetDevice("ns", "dev-A")
+
+        assertFalse(target.deviceMetaFiles.containsKey("ns" to "dev-A"))
+        // Other devices' sentinels are untouched.
+        assertTrue(target.deviceMetaFiles.containsKey("ns" to "dev-B"))
+    }
+
+    @Test
     fun `listDevices reads the per-device sentinel for label and lastSyncedAt`() = runTest {
         val target = InMemoryMaintenanceTarget(
             files = mutableMapOf(
@@ -144,6 +169,9 @@ private class InMemoryMaintenanceTarget(
         deviceMetaFiles[namespace to deviceId]
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
         deviceMetaFiles[namespace to deviceId] = content
+    }
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {
+        deviceMetaFiles.remove(namespace to deviceId)
     }
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
         val byDevice = files.keys
