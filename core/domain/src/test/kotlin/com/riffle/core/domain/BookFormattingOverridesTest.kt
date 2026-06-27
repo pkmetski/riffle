@@ -36,6 +36,32 @@ class BookFormattingOverridesTest {
     }
 
     @Test
+    fun `applyTo threads autoScrollWpm override`() {
+        val effective = BookFormattingOverrides(autoScrollWpm = 320).applyTo(global)
+        assertEquals(320, effective.autoScrollWpm)
+    }
+
+    @Test
+    fun `applyTo falls back to global autoScrollWpm when override is null`() {
+        val withGlobal = global.copy(autoScrollWpm = 180)
+        val effective = BookFormattingOverrides().applyTo(withGlobal)
+        assertEquals(180, effective.autoScrollWpm)
+    }
+
+    @Test
+    fun `isEmpty considers autoScrollWpm override`() {
+        assertFalse(BookFormattingOverrides(autoScrollWpm = 320).isEmpty)
+    }
+
+    @Test
+    fun `withChanges records new autoScrollWpm when changed`() {
+        val previous = global.copy(autoScrollWpm = 250)
+        val new = previous.copy(autoScrollWpm = 320)
+        val updated = BookFormattingOverrides().withChanges(previous, new)
+        assertEquals(320, updated.autoScrollWpm)
+    }
+
+    @Test
     fun `applyTo threads showCurrentChapterLabel`() {
         val effective = BookFormattingOverrides(showCurrentChapterLabel = true).applyTo(global)
         assertTrue(effective.showCurrentChapterLabel)
