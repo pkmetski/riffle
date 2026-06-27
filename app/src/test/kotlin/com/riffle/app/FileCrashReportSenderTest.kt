@@ -69,15 +69,14 @@ class FileCrashReportSenderTest {
     @Test
     fun `send writes a new txt file per crash so history is preserved`() {
         // The prior single-file design overwrote on every crash. Verify that two consecutive
-        // sends leave two distinct files behind so the Settings list can show both.
+        // sends with distinct stack traces leave two files behind — distinct content yields
+        // distinct content-hashes, so the {epochMillis}-{hash} filename is unique without a
+        // wall-clock delay between writes.
         val dir = tmpFolder.newFolder("crash_reports")
         val sender = makeSender(dir)
 
-        sender.send(/* context = */ mockk<Context>(relaxed = true),
-            makeReport(stackTrace = "first"))
-        Thread.sleep(2) // distinct timestamp millis for the filename
-        sender.send(mockk<Context>(relaxed = true),
-            makeReport(stackTrace = "second"))
+        sender.send(mockk<Context>(relaxed = true), makeReport(stackTrace = "first"))
+        sender.send(mockk<Context>(relaxed = true), makeReport(stackTrace = "second"))
 
         val files = dir.listFiles { f -> f.extension == "txt" }!!.sortedBy { it.name }
         assertEquals(2, files.size)
