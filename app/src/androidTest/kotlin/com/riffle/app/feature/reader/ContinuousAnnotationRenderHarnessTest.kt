@@ -79,6 +79,12 @@ class ContinuousAnnotationRenderHarnessTest {
         Runtime.getRuntime().gc()
         Thread.sleep(400)
         database.clearAllTables()
+        // Reset orientation so subsequent tests on the shared APK install start in Horizontal —
+        // leaving it in Continuous breaks any test that asserts column-pagination scrollLeft.
+        runBlocking {
+            val prefs = formattingPreferencesStore.preferences.first()
+            formattingPreferencesStore.update(prefs.copy(orientation = ReaderOrientation.Horizontal))
+        }
     }
 
     @Test
