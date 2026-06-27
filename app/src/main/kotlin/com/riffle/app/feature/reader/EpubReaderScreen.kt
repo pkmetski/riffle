@@ -980,15 +980,35 @@ private const val NAV_COVER_SETTLE_MS = 250L
  * Walks the view tree of a Readium [EpubNavigatorFragment]'s root view to find the currently
  * visible WebView. Used by Vertical-mode Auto-Scroll to drive scroll deltas into Readium's own
  * WebView (Readium exposes no public scroll API for this).
+ *
+ * In Readium's scroll mode the inner ViewPager preloads adjacent chapter WebViews, all of which
+ * report `isShown = true` while sitting off-screen. Picking by the largest visible rect on screen
+ * reliably returns the WebView the user is actually looking at — the off-screen prev/next pages
+ * have visible rects that don't intersect the screen and lose the comparison cleanly.
  */
 private fun findActiveWebView(root: android.view.View): android.webkit.WebView? {
-    if (root is android.webkit.WebView && root.isShown) return root
-    if (root is android.view.ViewGroup) {
-        for (i in 0 until root.childCount) {
-            findActiveWebView(root.getChildAt(i))?.let { return it }
+    val all = mutableListOf<android.webkit.WebView>()
+    collectWebViews(root, all)
+    var best: android.webkit.WebView? = null
+    var bestArea = 0
+    val rect = android.graphics.Rect()
+    for (wv in all) {
+        if (!wv.isShown) continue
+        if (!wv.getGlobalVisibleRect(rect)) continue
+        val area = rect.width() * rect.height()
+        if (area > bestArea) {
+            bestArea = area
+            best = wv
         }
     }
-    return null
+    return best
+}
+
+private fun collectWebViews(root: android.view.View, into: MutableList<android.webkit.WebView>) {
+    if (root is android.webkit.WebView) into += root
+    if (root is android.view.ViewGroup) {
+        for (i in 0 until root.childCount) collectWebViews(root.getChildAt(i), into)
+    }
 }
 
 private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
