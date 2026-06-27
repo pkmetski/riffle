@@ -8,8 +8,16 @@ import kotlinx.coroutines.flow.Flow
  */
 interface ReadaloudReviewRepository {
 
-    /** The live three-section review for one Storyteller Server. */
-    fun observeReview(storytellerServerId: String): Flow<ReadaloudReview>
+    /**
+     * The live three-section review for one Storyteller Server. [absServerId] scopes the
+     * pending-candidate suggestions to a single ABS Server — the one the user is currently
+     * matching against — so two ABS accounts pointing at the same library don't produce
+     * duplicate suggestions for every readaloud. Pass `null` to keep the legacy cross-server
+     * behaviour (used only by stable test scaffolding); production callers pass the active
+     * ABS Server's id. Confirmed/Partial matches are NOT filtered — they stay visible across
+     * Servers so existing links can be inspected or unlinked.
+     */
+    fun observeReview(storytellerServerId: String, absServerId: String? = null): Flow<ReadaloudReview>
 
     /** Confirm a candidate: create a sticky `userConfirmed` link and clear the book's candidates. */
     suspend fun confirmCandidate(
@@ -51,11 +59,17 @@ interface ReadaloudReviewRepository {
     )
 
     /**
-     * Search ABS Library Items across every configured ABS Server by title/author. [filter] narrows
-     * results to items that can fill a specific missing slot (ebook / audio) of a Confirmed match;
-     * [AbsFormatFilter.ANY] is the unfiltered manual-pairing search.
+     * Search ABS Library Items on a single ABS Server by title/author. [absServerId] scopes
+     * the search to one ABS Server — the one the user is currently matching against — so
+     * two ABS accounts pointing at the same library don't produce identical-looking
+     * duplicate rows. An empty [absServerId] returns no results.
+     *
+     * [filter] narrows results to items that can fill a specific missing slot
+     * (ebook / audio) of a Confirmed match; [AbsFormatFilter.ANY] is the unfiltered
+     * manual-pairing search.
      */
     suspend fun searchAbsItems(
+        absServerId: String,
         query: String,
         filter: AbsFormatFilter = AbsFormatFilter.ANY,
     ): List<AbsPickerItem>

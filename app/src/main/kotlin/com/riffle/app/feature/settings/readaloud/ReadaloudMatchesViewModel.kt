@@ -11,8 +11,10 @@ import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,12 +22,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ReadaloudMatchesViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -39,7 +43,24 @@ class ReadaloudMatchesViewModel @Inject constructor(
     /** Set when the screen was opened from a readaloud's "Pair manually" footer link. */
     val pairBookId: String? = savedStateHandle.get<String>("pairBookId")?.takeIf { it.isNotEmpty() }
 
-    val review: StateFlow<ReadaloudReview> = reviewRepository.observeReview(serverId)
+    /**
+     * The ABS Server the user is currently matching against — the one whose library is shown
+     * in the manual picker and whose candidate suggestions appear in "Suggested". Picked as:
+     * the active ABS Server, else any other ABS Server, else empty. Empty disables the picker
+     * (no results) so the picker can't link a Storyteller readaloud against the wrong account
+     * just because no ABS server is configured. See ADR 0021 and the pkmetski/readaloud-
+     * manual-match-crash PR — multiple ABS accounts pointing at the same library would
+     * otherwise produce indistinguishable duplicate rows.
+     */
+    val activeAbsServerId: StateFlow<String> = serverRepository.observeAll()
+        .map { servers ->
+            val abs = servers.filter { it.serverType == ServerType.AUDIOBOOKSHELF }
+            (abs.firstOrNull { it.isActive } ?: abs.firstOrNull())?.id ?: ""
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val review: StateFlow<ReadaloudReview> = activeAbsServerId
+        .flatMapLatest { absId -> reviewRepository.observeReview(serverId, absId.takeIf { it.isNotEmpty() }) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -71,9 +92,9 @@ class ReadaloudMatchesViewModel @Inject constructor(
             _tokensByServer.value = map
         }
         viewModelScope.launch {
-            combine(_pickerQuery.debounce(200), _pickerFilter) { query, filter -> query to filter }
-                .collect { (query, filter) ->
-                    _pickerResults.value = reviewRepository.searchAbsItems(query, filter)
+            combine(_pickerQuery.debounce(200), _pickerFilter, activeAbsServerId) { q, f, absId -> Triple(q, f, absId) }
+                .collect { (query, filter, absId) ->
+                    _pickerResults.value = reviewRepository.searchAbsItems(absId, query, filter)
                 }
         }
     }

@@ -57,12 +57,17 @@ class ReadaloudReviewRepositoryImpl(
         audioIdentityResolver, audioPlaybackPreferencesStore, System::currentTimeMillis,
     )
 
-    override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
+    override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
         combine(
             linkDao.observeAll(),
             candidateDao.observeForStorytellerServer(storytellerServerId),
         ) { links, candidates ->
-            buildReview(storytellerServerId, links, candidates)
+            // When the screen scopes to one ABS Server, filter candidate suggestions to that
+            // server here. Confirmed links stay unscoped so existing matches on the other ABS
+            // accounts remain visible and unlinkable.
+            val scopedCandidates = if (absServerId == null) candidates
+                else candidates.filter { it.absServerId == absServerId }
+            buildReview(storytellerServerId, links, scopedCandidates)
         }
 
     private suspend fun buildReview(
@@ -253,9 +258,11 @@ class ReadaloudReviewRepositoryImpl(
         if (before != after) audioPlaybackPreferencesStore.rekey(before, after)
     }
 
-    override suspend fun searchAbsItems(query: String, filter: AbsFormatFilter): List<AbsPickerItem> {
+    override suspend fun searchAbsItems(absServerId: String, query: String, filter: AbsFormatFilter): List<AbsPickerItem> {
+        if (absServerId.isEmpty()) return emptyList()
         val trimmed = query.trim()
         val all = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
+            .filter { it.serverId == absServerId }
         val matched = if (trimmed.isEmpty()) {
             all
         } else {

@@ -259,7 +259,7 @@ class ReadaloudReviewRepositoryTest {
     fun `searchAbsItems EBOOK filter keeps ebook and combined, drops audio-only`() = runTest {
         val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
 
-        val result = repo.searchAbsItems("", AbsFormatFilter.EBOOK)
+        val result = repo.searchAbsItems("abs", "", AbsFormatFilter.EBOOK)
 
         assertEquals(setOf("ebook", "both"), result.map { it.absLibraryItemId }.toSet())
         assertTrue("every offered item can supply an ebook", result.all { it.hasEbook })
@@ -269,7 +269,7 @@ class ReadaloudReviewRepositoryTest {
     fun `searchAbsItems AUDIO filter keeps audiobook and combined, drops ebook-only`() = runTest {
         val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
 
-        val result = repo.searchAbsItems("", AbsFormatFilter.AUDIO)
+        val result = repo.searchAbsItems("abs", "", AbsFormatFilter.AUDIO)
 
         assertEquals(setOf("audio", "both"), result.map { it.absLibraryItemId }.toSet())
         assertTrue("every offered item can supply audio", result.all { it.hasAudio })
@@ -279,12 +279,96 @@ class ReadaloudReviewRepositoryTest {
     fun `searchAbsItems ANY returns all with correct format flags`() = runTest {
         val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
 
-        val byId = repo.searchAbsItems("").associateBy { it.absLibraryItemId }
+        val byId = repo.searchAbsItems("abs", "").associateBy { it.absLibraryItemId }
 
         assertEquals(setOf("ebook", "audio", "both"), byId.keys)
         assertEquals(true to false, byId.getValue("ebook").let { it.hasEbook to it.hasAudio })
         assertEquals(false to true, byId.getValue("audio").let { it.hasEbook to it.hasAudio })
         assertEquals(true to true, byId.getValue("both").let { it.hasEbook to it.hasAudio })
+    }
+
+    @Test
+    fun `searchAbsItems scoped to one ABS Server omits items from a sibling ABS account`() = runTest {
+        // Two ABS Servers pointing at the same library (e.g. two accounts on one ABS instance)
+        // share library_item ids, so the unscoped picker would surface each book twice — once per
+        // Server config — even though the books are visually identical. The picker now scopes to
+        // a single absServerId; the sibling account's copy must not appear.
+        val items = MatchableLibraryItemDao(
+            listOf(
+                absCombined("X").copy(serverId = "abs-A"),
+                absCombined("X").copy(serverId = "abs-B"),
+                absCombined("Y").copy(serverId = "abs-A"),
+            ),
+            absServerIds = setOf("abs-A", "abs-B"),
+            storytellerServerIds = emptySet(),
+        )
+        val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = items)
+
+        val result = repo.searchAbsItems("abs-A", "")
+
+        assertEquals(setOf("X", "Y"), result.map { it.absLibraryItemId }.toSet())
+        assertTrue("every result must belong to the scoped Server", result.all { it.absServerId == "abs-A" })
+    }
+
+    @Test
+    fun `searchAbsItems returns empty when absServerId is empty`() = runTest {
+        // No active ABS Server (e.g. only Storyteller is configured) must not silently fan out
+        // across every ABS Server — the picker should show "no results" so a manual link can't
+        // bind a readaloud to an unrelated account.
+        val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
+
+        assertTrue(repo.searchAbsItems("", "").isEmpty())
+    }
+
+    @Test
+    fun `observeReview pending candidates are scoped to the chosen ABS Server`() = runTest {
+        // The auto-matcher writes one candidate row per (storyteller book, ABS item). When two
+        // ABS accounts share the library, the same storyteller book gets a candidate against each
+        // Server's copy. Surfacing both would show duplicate "Suggested" candidates — the screen
+        // scopes pending to a single ABS Server.
+        val items = MatchableLibraryItemDao(
+            listOf(
+                absCombined("X").copy(serverId = "abs-A"),
+                absCombined("X").copy(serverId = "abs-B"),
+                storytellerBook("42"),
+            ),
+            absServerIds = setOf("abs-A", "abs-B"),
+            storytellerServerIds = setOf("st"),
+        )
+        val candidates = RecordingCandidateDao().apply {
+            seed(ReadaloudCandidateEntity("st", "42", "abs-A", "X", 0.9))
+            seed(ReadaloudCandidateEntity("st", "42", "abs-B", "X", 0.9))
+        }
+        val repo = repo(RecordingLinkDao(), candidates, libraryItemDao = items)
+
+        val pending = repo.observeReview("st", absServerId = "abs-A").first().pending.single()
+
+        assertEquals(listOf("abs-A"), pending.candidates.map { it.absServerId })
+    }
+
+    @Test
+    fun `observeReview confirmed targets stay visible across all ABS Servers even when scoped`() = runTest {
+        // Symmetric to the pending scoping: existing confirmed links across other ABS accounts
+        // MUST stay visible so the user can see and unlink them. Otherwise scoping to one ABS
+        // account would hide the cross-account history and feel destructive.
+        val items = MatchableLibraryItemDao(
+            listOf(
+                absCombined("X").copy(serverId = "abs-A"),
+                absCombined("X").copy(serverId = "abs-B"),
+                storytellerBook("42"),
+            ),
+            absServerIds = setOf("abs-A", "abs-B"),
+            storytellerServerIds = setOf("st"),
+        )
+        val links = RecordingLinkDao().apply {
+            seed(link("abs-A", "X", "st", "42", userConfirmed = true))
+            seed(link("abs-B", "X", "st", "42", userConfirmed = true))
+        }
+        val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items)
+
+        val confirmed = repo.observeReview("st", absServerId = "abs-A").first().confirmed.single()
+
+        assertEquals(setOf("abs-A", "abs-B"), confirmed.targets.map { it.absServerId }.toSet())
     }
 
     private fun absSearchDao() = MatchableLibraryItemDao(
