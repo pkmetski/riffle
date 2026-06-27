@@ -114,17 +114,21 @@ interface LibraryItemDao {
     suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow>
 
     /**
-     * All library items whose owning Library lives on a Server of the given [serverType].
-     * Used by the Storyteller↔ABS matcher to enumerate candidates across every configured
-     * Server of a side. No format filter — `readaloud_links` is now keyed by ABS item, so
-     * an audiobook-stub entry coexisting with an ebook entry produces two link rows
-     * rather than a Tier 2 collision.
+     * All library items whose owning Server is of the given [serverType]. Used by the
+     * Storyteller↔ABS matcher to enumerate candidates across every configured Server of a
+     * side. No format filter — `readaloud_links` is now keyed by ABS item, so an audiobook-
+     * stub entry coexisting with an ebook entry produces two link rows rather than a Tier 2
+     * collision.
+     *
+     * Joined against [servers] via `library_items.serverId`, NOT through `libraries.id`:
+     * library ids are only unique within a Server (issue #113), so joining by library id
+     * multiplies each item by every Server whose library happens to share that id, which
+     * surfaces as a duplicate-key crash in the Readaloud picker's LazyColumn.
      */
     @Query(
-        "SELECT li.id AS itemId, lib.serverId AS serverId, li.title, li.author, li.isbn, li.asin " +
+        "SELECT li.id AS itemId, li.serverId AS serverId, li.title, li.author, li.isbn, li.asin " +
             "FROM library_items li " +
-            "JOIN libraries lib ON li.libraryId = lib.id " +
-            "JOIN servers s ON lib.serverId = s.id " +
+            "JOIN servers s ON li.serverId = s.id " +
             "WHERE s.serverType = :serverType"
     )
     suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow>
