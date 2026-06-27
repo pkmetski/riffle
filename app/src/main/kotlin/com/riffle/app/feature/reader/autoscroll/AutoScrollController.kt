@@ -46,8 +46,13 @@ open class AutoScrollController internal constructor(
     val scrollDeltas: SharedFlow<Int> = _scrollDeltas.asSharedFlow()
 
     private var defaultSpeed: AutoScrollSpeed = AutoScrollSpeed.Default
+
+    // Default layout assumes a typical xxhdpi Android phone reading body text at the project's
+    // default font size: ~22 CSS px line height × density 3 ≈ 66 device pixels per line, and
+    // about 9 words on a 411dp-wide page. The reader screen overrides this at runtime via
+    // [setLayoutContext] so the live pace stays correct when the user bumps font size or rotates.
     private var layoutContext: () -> LayoutContext =
-        { LayoutContext(wordsPerLine = 9f, lineHeightPx = 28f) }
+        { LayoutContext(wordsPerLine = 9f, lineHeightPx = 66f) }
     private var now: () -> Long = { System.nanoTime() }
 
     private val accumulator = ScrollDeltaAccumulator()

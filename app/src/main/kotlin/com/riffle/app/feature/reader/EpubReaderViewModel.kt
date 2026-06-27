@@ -575,6 +575,26 @@ class EpubReaderViewModel @Inject constructor(
                     )
                 }
         }
+        // Auto-Scroll layout context (line height in device pixels) follows the effective font
+        // size. Without this the px-per-second pace defaults to a CSS-px estimate and ends up
+        // ~3× too slow on a typical xxhdpi screen. Body text ~22 CSS px line height at default
+        // font size; scaled by user font multiplier and the device density.
+        viewModelScope.launch {
+            val density = application.resources.displayMetrics.density
+            _formattingPreferences
+                .map { it.fontSize }
+                .distinctUntilChanged()
+                .collect { fontSize ->
+                    val cssLineHeight = 22f * fontSize
+                    val deviceLineHeight = cssLineHeight * density
+                    autoScrollController.setLayoutContext {
+                        com.riffle.core.domain.autoscroll.LayoutContext(
+                            wordsPerLine = 9f,
+                            lineHeightPx = deviceLineHeight,
+                        )
+                    }
+                }
+        }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037).
         viewModelScope.launch {
             playerCoordinator.state
