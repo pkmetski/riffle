@@ -2215,23 +2215,13 @@ private fun EpubNavigatorView(
                     ) ?: return@collect
                     val moved = rawResult.trim().trim('"') == "1"
                     if (moved) return@collect
-                    // Probe the advance BEFORE pausing — if there's no next chapter (goForward
-                    // returns false), dispatch Stop so the pill clears. Pausing first and then
-                    // dispatching ReachedEndOfBook is a no-op (the reducer only handles end-of-
-                    // book from Running, not Paused) and produced a Paused↔Running blink.
-                    val advanced = try {
-                        fragment.goForward(animated = false)
-                    } catch (_: Throwable) {
-                        false
-                    }
-                    if (!advanced) {
-                        onReachedEndOfBook()
-                        return@collect
-                    }
-                    // Advanced — pause for the load flash, then resume on the new chapter.
-                    onAutoScrollPause(com.riffle.core.domain.autoscroll.PauseCause.OrientationChange)
-                    kotlinx.coroutines.delay(600)
-                    onAutoScrollResume()
+                    // Stuck at the bottom of this chapter. Vertical mode stops auto-scroll
+                    // rather than auto-advancing — the user's eye is mid-viewport when scrollY
+                    // hits max, so an immediate goForward would swap out ~half a viewport of
+                    // unread text. The user pulls to advance, then re-taps the toggle on the
+                    // next chapter when ready. Continuous mode has no chapter boundary so this
+                    // limitation only applies here.
+                    onReachedEndOfBook()
                 }
             }
         }
