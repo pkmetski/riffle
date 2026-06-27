@@ -2200,22 +2200,20 @@ private fun EpubNavigatorView(
                     // was already at the bottom (no further scroll possible), else the new scrollY.
                     val flushed = pendingPx
                     pendingPx = 0
-                    val resultJson = fragment.evaluateJavascript(
+                    // Return a plain integer (1 = moved, 0 = stuck). Returning a JSON object
+                    // and parsing it as a string is a trap: evaluateJavascript JSON-encodes the
+                    // JS return value, so a JSON-stringified object comes back as a doubly-
+                    // encoded string ('"{\"moved\":true}"') whose internal quotes are escaped.
+                    val rawResult = fragment.evaluateJavascript(
                         """
                         (function(){
                           var before = window.scrollY;
                           window.scrollBy(0, $flushed);
-                          var after = window.scrollY;
-                          var atBottom = (after + window.innerHeight) >= (document.body.scrollHeight - 1);
-                          return JSON.stringify({moved: after !== before, atBottom: atBottom});
+                          return window.scrollY !== before ? 1 : 0;
                         })()
                         """.trimIndent(),
                     ) ?: return@collect
-                    val moved = resultJson.contains("\"moved\":true")
-                    // Only advance when scrollBy could not move the page at all (truly stuck at
-                    // the bottom). Landing at the last pixel via a normal delta is still in-page
-                    // motion; treating it as 'go to next chapter' caused chapter-to-chapter
-                    // skipping when atBottom was used alone.
+                    val moved = rawResult.trim().trim('"') == "1"
                     if (moved) return@collect
                     // Probe the advance BEFORE pausing — if there's no next chapter (goForward
                     // returns false), dispatch Stop so the pill clears. Pausing first and then
