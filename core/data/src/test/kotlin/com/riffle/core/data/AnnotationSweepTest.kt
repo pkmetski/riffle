@@ -39,10 +39,13 @@ class AnnotationSweepTest {
             clock = { 1000L },
         )
 
-        sweep.run()
+        val outcome = sweep.run()
 
         assertEquals(CycleOutcome.NeverRun, status.lastCycleOutcome.value)
         assertEquals(0, dao.markSyncedCalls)
+        // Unconfigured target returns null so the worker treats it as success — there's nothing
+        // to retry until the user configures a target.
+        assertEquals(null, outcome)
     }
 
     @Test
@@ -73,7 +76,8 @@ class AnnotationSweepTest {
             clock = { now },
         )
 
-        sweep.run()
+        val returned = sweep.run()
+        assertTrue("run() must return the reported outcome", returned is CycleOutcome.Success)
 
         assertEquals(1, target.writes.size)
         val write = target.writes.single()
@@ -133,13 +137,15 @@ class AnnotationSweepTest {
             clock = { 9_000L },
         )
 
-        sweep.run()
+        val returned = sweep.run()
 
         assertEquals(0, dao.markSyncedCalls)
         val outcome = status.lastCycleOutcome.value
         assertTrue(outcome is CycleOutcome.Failed.Auth)
         assertEquals(9_000L, (outcome as CycleOutcome.Failed.Auth).atMs)
         assertEquals(401, outcome.code)
+        // run() returns the same outcome so the worker can map Failed.Auth → Result.failure().
+        assertEquals(outcome, returned)
     }
 
     @Test
@@ -169,12 +175,15 @@ class AnnotationSweepTest {
             clock = { 1L },
         )
 
-        sweep.run()
+        val returned = sweep.run()
 
         // First book attempted, failed; second book never attempted.
         assertEquals(1, target.writes.size)
         assertEquals(0, dao.markSyncedCalls)
         assertTrue(status.lastCycleOutcome.value is CycleOutcome.Failed.Network)
+        // run() returns Failed.Network so the worker maps it to Result.retry() — that's the queue
+        // entry whose CONNECTED constraint re-fires when the device comes back online.
+        assertTrue("run() must return Failed.Network", returned is CycleOutcome.Failed.Network)
     }
 
     @Test
