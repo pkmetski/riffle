@@ -368,18 +368,52 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `deleteDeviceSidecar targets the namespace-scoped sidecar path (no itemId)`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(204))
+    fun `readDeviceMeta GETs the namespace-scoped sentinel path`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"type":"riffle:DeviceSyncMeta","deviceId":"dev-A","label":"L","lastSyncedAt":"2026-06-27T12:00:00Z"}"""))
 
-        newTarget().deleteDeviceSidecar("srv1", "dev-A")
+        val body = newTarget().readDeviceMeta("srv1", "dev-A")
 
+        assertNotNull(body)
+        assertTrue(body!!.contains("riffle:DeviceSyncMeta"))
         val req = server.takeRequest()
-        assertEquals("DELETE", req.method)
-        assertEquals("/annotations/srv1__device-dev-A.json", req.path)
+        assertEquals("GET", req.method)
+        assertEquals("/annotations/srv1__device-meta-dev-A.json", req.path)
     }
 
     @Test
-    fun `enumerateNamespaces groups files by namespace prefix and counts annotations vs sidecars`() = runTest {
+    fun `readDeviceMeta returns null on 404`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+        assertNull(newTarget().readDeviceMeta("srv1", "dev-A"))
+    }
+
+    @Test
+    fun `writeDeviceMeta PUTs to the namespace-scoped sentinel path`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201))
+
+        newTarget().writeDeviceMeta("srv1", "dev-A", """{"type":"riffle:DeviceSyncMeta","deviceId":"dev-A","label":"L","lastSyncedAt":"now"}""")
+
+        val req = server.takeRequest()
+        assertEquals("PUT", req.method)
+        assertEquals("/annotations/srv1__device-meta-dev-A.json", req.path)
+        assertTrue(req.body.readUtf8().contains("riffle:DeviceSyncMeta"))
+    }
+
+    @Test
+    fun `enumerateDevices ignores device-meta files at the namespace root`() = runTest {
+        // PROPFIND surfaces device-meta files too; the device-listing must not invent a phantom
+        // device row from one, otherwise Maintenance would show duplicates.
+        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_WITH_DEVICE_META_BODY))
+
+        val listing = newTarget().enumerateDevices("srv1")
+
+        // Only the real annotation file contributes a row — the device-meta-A.json sibling is
+        // not annotation content and must not surface as its own device.
+        assertEquals(1, listing.devices.size)
+        assertEquals("dev-A", listing.devices.single().deviceId)
+    }
+
+    @Test
+    fun `enumerateNamespaces groups files by namespace prefix and counts annotations`() = runTest {
         server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
 
         val result = newTarget().enumerateNamespaces()
@@ -387,10 +421,10 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals(2, result.size)
         val ns1 = result.first { it.namespace == "ns-1" }
         val ns2 = result.first { it.namespace == "ns-2" }
+        // Only .jsonld files count; the legacy `ns-1__device-dev-a.json` sidecar in the fixture
+        // is an unknown-shape file under base and is skipped silently.
         assertEquals(2, ns1.annotationFileCount)
-        assertEquals(1, ns1.sidecarCount)
         assertEquals(1, ns2.annotationFileCount)
-        assertEquals(0, ns2.sidecarCount)
     }
 
     @Test
@@ -405,9 +439,10 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `forgetNamespace DELETEs every file matching the prefix, including the sidecar`() = runTest {
+    fun `forgetNamespace DELETEs every file matching the prefix`() = runTest {
         server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
-        // 3 files match ns-1 (2 jsonld + 1 sidecar); the 1 ns-2 file must NOT be DELETEd.
+        // 3 files match ns-1 (2 jsonld + 1 unknown-shape json the fixture happens to include);
+        // forgetNamespace deletes by prefix regardless of suffix. The 1 ns-2 file must NOT be DELETEd.
         repeat(3) { server.enqueue(MockResponse().setResponseCode(204)) }
 
         val deleted = newTarget().forgetNamespace("ns-1")
@@ -505,6 +540,29 @@ class WebDavAnnotationSyncTargetTest {
               </d:response>
               <d:response>
                 <d:href>/annotations/srv1__book2__annotations-device-A.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        // PROPFIND that includes one annotation file *and* its sibling per-device sentinel,
+        // both under `srv1`. enumerateDevices must surface only the annotation file's owner.
+        private val PROPFIND_WITH_DEVICE_META_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__book1__annotations-dev-A.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/srv1__device-meta-dev-A.json</d:href>
                 <d:propstat><d:prop><d:resourcetype/></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>

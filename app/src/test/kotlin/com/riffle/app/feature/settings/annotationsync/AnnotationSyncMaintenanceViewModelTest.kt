@@ -1,8 +1,10 @@
 package com.riffle.app.feature.settings.annotationsync
 
-import com.riffle.core.data.AnnotationFileHeaderCodec
+import com.riffle.core.data.AnnotationDeviceMetaCodec
 import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.domain.AnnotationFileHeader
+import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
+import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
@@ -56,58 +58,65 @@ class AnnotationSyncMaintenanceViewModelTest {
     @After fun tearDown() { Dispatchers.resetMain() }
 
     @Test
-    fun `device row labels the header timestamp as Last synced not Last seen`() = runTest {
+    fun `this-device row reads Last synced from the in-memory status store, not from any file`() = runTest {
+        // The status store advances on every successful cycle (including pull-only), so this is
+        // the only honest source for the current device's "Last synced". The per-device sentinel
+        // on disk lags the cycle store by a network write, and per-file headers don't capture
+        // pull-only cycles at all.
         val activeNs = "alice-userid"
-        val header = AnnotationFileHeaderCodec.buildFileBody(
-            AnnotationFileHeader(
-                deviceId = "this-device",
-                label = "Alice's Pixel",
-                lastSeenAt = "2026-06-25T12:00:00Z",
-                username = "alice",
-                bookTitle = "Project Hail Mary",
-            ),
-            annotationJsonStrings = emptyList(),
-        )
-        val target = InMemoryTarget(
-            files = mutableMapOf(
-                FileKey(activeNs, "i1", "annotations-this-device.jsonld") to header,
-            ),
-        )
-
-        val vm = vmWith(target, activeNs = activeNs)
-        advanceUntilIdle()
-
-        val rows = (vm.state.value.devices as MaintenanceScreenUiState.Loaded).devices
-        val secondary = rows.single().secondary
-        assertTrue(
-            "secondary line must use \"Last synced\" — \"Last seen\" reads as nonsense for the current device; got: $secondary",
-            secondary.contains("Last synced"),
-        )
-        assertTrue(
-            "stale \"Last seen\" label must not resurface; got: $secondary",
-            !secondary.contains("Last seen"),
-        )
-    }
-
-    @Test
-    fun `foreign namespace shows up as Other Users group labelled by username from header`() = runTest {
-        val activeNs = "alice-userid"
-        val foreignNs = "bob-userid"
-        val foreignHeader = AnnotationFileHeaderCodec.buildFileBody(
-            AnnotationFileHeader(
-                deviceId = "bobs-phone",
-                label = "Bob's Pixel",
-                lastSeenAt = "2026-06-25T12:00:00Z",
-                username = "bob",
-                bookTitle = "Project Hail Mary",
-            ),
-            annotationJsonStrings = emptyList(),
-        )
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
-                FileKey(foreignNs, "i2", "annotations-bobs-phone.jsonld") to foreignHeader,
             ),
+        )
+        val statusStore = AnnotationSyncStatusStore().apply {
+            report(CycleOutcome.Success(atMs = 1_780_000_000_000L))
+        }
+
+        val vm = vmWith(target, activeNs = activeNs, statusStore = statusStore)
+        advanceUntilIdle()
+
+        val rows = (vm.state.value.devices as MaintenanceScreenUiState.Loaded).devices
+        val secondary = rows.single { it.isThisDevice }.secondary
+        assertTrue("got: $secondary", secondary.contains("Last synced"))
+        // No "Last seen" — the relabel and source change took effect together.
+        assertTrue("got: $secondary", !secondary.contains("Last seen"))
+    }
+
+    @Test
+    fun `this-device row shows no Last synced when the status store is NeverRun`() = runTest {
+        val activeNs = "alice-userid"
+        val target = InMemoryTarget(
+            files = mutableMapOf(
+                FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
+            ),
+        )
+        // Default status store is NeverRun — fresh process, no cycle has fired yet.
+        val vm = vmWith(target, activeNs = activeNs, statusStore = AnnotationSyncStatusStore())
+        advanceUntilIdle()
+
+        val rows = (vm.state.value.devices as MaintenanceScreenUiState.Loaded).devices
+        val secondary = rows.single { it.isThisDevice }.secondary
+        assertTrue("got: $secondary", !secondary.contains("Last synced"))
+    }
+
+    @Test
+    fun `foreign namespace surfaces as Other Users group labelled by username from sentinel`() = runTest {
+        val activeNs = "alice-userid"
+        val foreignNs = "bob-userid"
+        val target = InMemoryTarget(
+            files = mutableMapOf(
+                FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
+                FileKey(foreignNs, "i2", "annotations-bobs-phone.jsonld") to "[]",
+            ),
+        )
+        target.deviceMetaFiles[foreignNs to "bobs-phone"] = AnnotationDeviceMetaCodec.encode(
+            AnnotationDeviceMeta(
+                deviceId = "bobs-phone",
+                label = "Bob's Pixel",
+                lastSyncedAt = "2026-06-25T12:00:00Z",
+                username = "bob",
+            )
         )
 
         val vm = vmWith(target, activeNs = activeNs)
@@ -117,7 +126,6 @@ class AnnotationSyncMaintenanceViewModelTest {
         assertEquals(1, state.otherUsers.size)
         val group = state.otherUsers.single()
         assertEquals(foreignNs, group.namespace)
-        // Username from the header object surfaces as the group label — not the opaque user.id.
         assertEquals("bob", group.displayLabel)
         assertEquals(1, group.devices.size)
         assertEquals(foreignNs, group.devices.single().namespace)
@@ -130,14 +138,10 @@ class AnnotationSyncMaintenanceViewModelTest {
     fun `forget on a foreign-user device routes to the foreign namespace`() = runTest {
         val activeNs = "alice-userid"
         val foreignNs = "bob-userid"
-        val foreignHeader = AnnotationFileHeaderCodec.buildFileBody(
-            AnnotationFileHeader("bobs-phone", "Bob's Pixel", "2026-06-25T12:00:00Z", "bob"),
-            annotationJsonStrings = emptyList(),
-        )
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
-                FileKey(foreignNs, "i2", "annotations-bobs-phone.jsonld") to foreignHeader,
+                FileKey(foreignNs, "i2", "annotations-bobs-phone.jsonld") to "[]",
             ),
         )
 
@@ -158,10 +162,9 @@ class AnnotationSyncMaintenanceViewModelTest {
     }
 
     @Test
-    fun `legacy file with no username falls back to a null displayLabel`() = runTest {
+    fun `foreign namespace with no sentinel falls back to a null displayLabel`() = runTest {
         val activeNs = "alice-userid"
         val foreignNs = "old-userid"
-        // Header-less file (pre-embed-header refactor) → listDevices yields a row with null metadata.
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -173,7 +176,8 @@ class AnnotationSyncMaintenanceViewModelTest {
         advanceUntilIdle()
 
         val group = vm.state.value.otherUsers.single()
-        assertNull("no username in any header → group has no displayLabel", group.displayLabel)
+        assertNull("no sentinel for any device in this namespace → group has no displayLabel",
+            group.displayLabel)
     }
 
     // --- fakes ---
@@ -181,6 +185,7 @@ class AnnotationSyncMaintenanceViewModelTest {
     private fun vmWith(
         target: InMemoryTarget,
         activeNs: String,
+        statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
     ): AnnotationSyncMaintenanceViewModel {
         val maintenance = AnnotationSyncMaintenance(targetProvider = { target })
         return AnnotationSyncMaintenanceViewModel(
@@ -190,6 +195,7 @@ class AnnotationSyncMaintenanceViewModelTest {
             deviceLabelStore = FakeDeviceLabelStore(),
             deviceLabelResolver = FakeDeviceLabelResolver("This Device"),
             serverRepository = FakeServerRepository(activeAbsUserId = activeNs),
+            statusStore = statusStore,
         )
     }
 
@@ -210,7 +216,15 @@ class AnnotationSyncMaintenanceViewModelTest {
         override suspend fun delete(namespace: String, itemId: String, filename: String) {
             files.remove(FileKey(namespace, itemId, filename))
         }
-        override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
+        val deviceMetaFiles: MutableMap<Pair<String, String>, String> = mutableMapOf()
+        override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? =
+            deviceMetaFiles[namespace to deviceId]
+        override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+            deviceMetaFiles[namespace to deviceId] = content
+        }
+        override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {
+            deviceMetaFiles.remove(namespace to deviceId)
+        }
         override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
             val byDevice = files.keys
                 .filter { it.namespace == namespace }
@@ -219,7 +233,6 @@ class AnnotationSyncMaintenanceViewModelTest {
                 DeviceFileSummary(
                     deviceId = deviceId,
                     annotationFiles = byDevice[deviceId].orEmpty().map { AnnotationFileRef(it.itemId, it.filename) },
-                    hasLegacySidecar = false,
                 )
             }
             return NamespaceDeviceListing(rows)
@@ -227,7 +240,7 @@ class AnnotationSyncMaintenanceViewModelTest {
         override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
             val byNs = files.keys.groupBy { it.namespace }.mapValues { it.value.size }
             return byNs.keys.toSortedSet().map { ns ->
-                NamespaceSummary(namespace = ns, annotationFileCount = byNs[ns] ?: 0, sidecarCount = 0)
+                NamespaceSummary(namespace = ns, annotationFileCount = byNs[ns] ?: 0)
             }
         }
         override suspend fun forgetNamespace(namespace: String): Int {

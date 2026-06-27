@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
-import com.riffle.core.domain.AnnotationFileHeader
 import com.riffle.core.domain.NamespaceSummary
 import java.time.Instant
 
@@ -10,10 +10,9 @@ import java.time.Instant
  * Manual housekeeping for the per-device-file annotation-sync model (issue #78).
  *
  * Single user-initiated action: [forgetDevice] — DELETE every annotation file owned by a single
- * `deviceId` under one namespace, plus any legacy `device-<deviceId>.json` sidecar left over
- * from earlier builds. Safe under the all-mirrors-everything push model because each peer's
- * file already carries the same records; the only risk is data loss from devices that went
- * offline before any other device synced their last edits.
+ * `deviceId` under one namespace. Safe under the all-mirrors-everything push model because each
+ * peer's file already carries the same records; the only risk is data loss from devices that
+ * went offline before any other device synced their last edits.
  *
  * A tombstone-compaction action was prototyped and removed — see ADR 0025 for the rationale.
  * Operates against the controller's active target (gracefully no-ops when sync is disabled).
@@ -29,11 +28,11 @@ class AnnotationSyncMaintenance(
     )
 
     /**
-     * Refresh this device's [AnnotationFileHeader] header across every annotation file it owns under
-     * [namespace]. Used after a rename so peer devices see the new label without waiting for
-     * the next annotation push. Preserves each file's existing `lastSeenAt` so a rename does not
-     * masquerade as a fresh push — the hint stays a real signal of when this device last
-     * actually pushed. Returns counts so the caller can surface partial failure.
+     * Refresh this device's metadata sentinel under [namespace]. Used after a rename so peer
+     * devices see the new label without waiting for the next sync cycle. A rename does not
+     * masquerade as a fresh sync — the sentinel's `lastSyncedAt` is preserved when present so
+     * the visible "Last synced" timestamp stays a real signal of when this device last actually
+     * synced. Returns counts so the caller can surface success/failure.
      */
     suspend fun publishHeader(
         namespace: String,
@@ -42,51 +41,32 @@ class AnnotationSyncMaintenance(
         username: String?,
     ): PublishMetadataResult {
         val target = targetProvider() ?: return PublishMetadataResult(0, 0)
-        val listing = try {
-            target.enumerateDevices(namespace)
+        val existing = try {
+            target.readDeviceMeta(namespace, deviceId)?.let { AnnotationDeviceMetaCodec.decode(it) }
         } catch (_: Exception) {
-            return PublishMetadataResult(0, 1)
+            null
         }
-        val row = listing.devices.firstOrNull { it.deviceId == deviceId }
-            ?: return PublishMetadataResult(0, 0)
-
-        // Mint a single fallback timestamp for files that don't yet have a header. This only fires
-        // on legacy files written before the embed-header refactor; current files always have one.
-        val fallbackLastSeenAt = nowIso()
-        var rewritten = 0
-        var failures = 0
-        for (file in row.annotationFiles) {
-            try {
-                val body = target.read(namespace, file.itemId, file.filename) ?: continue
-                val existing = AnnotationFileHeaderCodec.extractHeader(body)
-                val header = AnnotationFileHeader(
-                    deviceId = deviceId,
-                    label = label,
-                    lastSeenAt = existing?.lastSeenAt ?: fallbackLastSeenAt,
-                    // Preserve any previously-recorded username when the caller didn't supply one
-                    // (e.g. rename triggered before the active user was resolved this session).
-                    username = username ?: existing?.username,
-                    // Rename doesn't know the book title (it iterates files, not catalog rows),
-                    // so keep whatever the previous push embedded — subsequent pushes refresh it.
-                    bookTitle = existing?.bookTitle,
-                )
-                val newBody = AnnotationFileHeaderCodec.replaceHeader(body, header)
-                if (newBody != body) {
-                    target.write(namespace, file.itemId, file.filename, newBody)
-                    rewritten++
-                }
-            } catch (_: Exception) {
-                failures++
-            }
+        val meta = AnnotationDeviceMeta(
+            deviceId = deviceId,
+            label = label,
+            // Rename must NOT bump the visible "Last synced" timestamp — keep whatever the last
+            // real cycle stamped (or, if none, the fallback minted by [nowIso]).
+            lastSyncedAt = existing?.lastSyncedAt ?: nowIso(),
+            username = username ?: existing?.username,
+        )
+        return try {
+            target.writeDeviceMeta(namespace, deviceId, AnnotationDeviceMetaCodec.encode(meta))
+            PublishMetadataResult(rewrittenFiles = 1, failures = 0)
+        } catch (_: Exception) {
+            PublishMetadataResult(rewrittenFiles = 0, failures = 1)
         }
-        return PublishMetadataResult(rewritten, failures)
     }
 
     /** A row in the Maintenance device-list, post header-hydration. */
     data class DeviceRow(
         val deviceId: String,
         val annotationFileCount: Int,
-        val metadata: AnnotationFileHeader?,
+        val metadata: AnnotationDeviceMeta?,
     )
 
     /** All namespaces discovered on the target, regardless of which is currently active. */
@@ -117,15 +97,15 @@ class AnnotationSyncMaintenance(
         namespace: String,
         summary: DeviceFileSummary,
     ): DeviceRow {
-        // Read the header from the first available annotation file. Stop at the first parse — every
-        // file owned by this device carries the same metadata (refreshed atomically with each push).
-        val metadata = summary.annotationFiles.firstNotNullOfOrNull { ref ->
-            try {
-                target.read(namespace, ref.itemId, ref.filename)
-                    ?.let { AnnotationFileHeaderCodec.extractHeader(it) }
-            } catch (_: Exception) {
-                null
-            }
+        // Single source of truth: the per-device sentinel. No fallback to per-file headers —
+        // a device that hasn't run a sync cycle on the new client legitimately has no
+        // "Last synced" yet, and presenting per-file `lastSeenAt` would re-introduce the
+        // push-vs-pull dishonesty the sentinel was created to eliminate.
+        val metadata = try {
+            target.readDeviceMeta(namespace, summary.deviceId)
+                ?.let { AnnotationDeviceMetaCodec.decode(it) }
+        } catch (_: Exception) {
+            null
         }
         return DeviceRow(
             deviceId = summary.deviceId,
@@ -137,26 +117,26 @@ class AnnotationSyncMaintenance(
     /** Result of [forgetDevice]. Surfaces partial-success info to the UI. */
     data class ForgetResult(
         val deletedAnnotationFiles: Int,
-        val deletedLegacySidecar: Boolean,
         val failures: Int,
     )
 
     /**
-     * Deletes every annotation file belonging to [deviceId] under [namespace], plus any legacy
-     * `device-<deviceId>.json` sidecar file from earlier builds. The legacy delete is
-     * opportunistic — current builds don't write sidecars, but older clients in the household
-     * may still publish them.
+     * Deletes every annotation file belonging to [deviceId] under [namespace], plus that device's
+     * metadata sentinel. The sentinel delete is best-effort — failures don't block reporting
+     * success on the annotation-file deletes, but they DO count against [ForgetResult.failures]
+     * so the user sees the partial outcome. Without the sentinel delete, a forgotten peer that
+     * later writes one annotation file would resurrect its row carrying the stale pre-forget
+     * label and lastSyncedAt.
      */
     suspend fun forgetDevice(namespace: String, deviceId: String): ForgetResult {
-        val target = targetProvider()
-            ?: return ForgetResult(0, deletedLegacySidecar = false, failures = 0)
+        val target = targetProvider() ?: return ForgetResult(0, failures = 0)
         val listing = try {
             target.enumerateDevices(namespace)
         } catch (_: Exception) {
-            return ForgetResult(0, deletedLegacySidecar = false, failures = 1)
+            return ForgetResult(0, failures = 1)
         }
         val row = listing.devices.firstOrNull { it.deviceId == deviceId }
-            ?: return ForgetResult(0, deletedLegacySidecar = false, failures = 0)
+            ?: return ForgetResult(0, failures = 0)
 
         var deleted = 0
         var failures = 0
@@ -168,16 +148,12 @@ class AnnotationSyncMaintenance(
                 failures++
             }
         }
-        var legacySidecarDeleted = false
-        if (row.hasLegacySidecar) {
-            try {
-                target.deleteDeviceSidecar(namespace, deviceId)
-                legacySidecarDeleted = true
-            } catch (_: Exception) {
-                failures++
-            }
+        try {
+            target.deleteDeviceMeta(namespace, deviceId)
+        } catch (_: Exception) {
+            failures++
         }
-        return ForgetResult(deleted, legacySidecarDeleted, failures)
+        return ForgetResult(deleted, failures)
     }
 
 }

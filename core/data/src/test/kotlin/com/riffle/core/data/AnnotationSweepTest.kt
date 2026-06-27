@@ -84,11 +84,12 @@ class AnnotationSweepTest {
         assertTrue(write.content.contains("ann-2"))
         // Verify the file body carries the file-header object written by AnnotationFileHeaderCodec.
         assertTrue("sweep output must contain riffle:FileHeader", write.content.contains("riffle:FileHeader"))
-        // Header carries the username so foreign-user groups on other devices' Maintenance
-        // screens can be labelled by name instead of by opaque user id.
-        assertTrue("sweep header must include username", write.content.contains("\"username\":\"alice\""))
-        // Header carries the catalog's book title so Maintenance can show recognisable names.
+        // The per-file header is book-scoped only: deviceId + bookTitle. Device-scoped fields
+        // (label/lastSyncedAt/username) live in the per-device sentinel — see below.
         assertTrue("sweep header must include bookTitle", write.content.contains("\"bookTitle\":\"Project Hail Mary\""))
+        assertTrue("no label in per-file header", !write.content.contains("\"label\""))
+        assertTrue("no lastSeenAt in per-file header", !write.content.contains("\"lastSeenAt\""))
+        assertTrue("no username in per-file header", !write.content.contains("\"username\""))
 
         assertEquals(listOf("ann-1", "ann-2"), dao.lastMarkSyncedIds)
         assertEquals(now, dao.lastMarkSyncedAt)
@@ -96,6 +97,17 @@ class AnnotationSweepTest {
         val outcome = status.lastCycleOutcome.value
         assertTrue(outcome is CycleOutcome.Success)
         assertEquals(now, (outcome as CycleOutcome.Success).atMs)
+
+        // One sentinel was written per unique namespace touched this cycle, carrying
+        // label/lastSyncedAt/username — peers read this to label the device and surface
+        // an honest "Last synced …" timestamp.
+        assertEquals(1, target.deviceMetaWrites.size)
+        val sentinel = target.deviceMetaWrites.single()
+        assertEquals("abs-user-A", sentinel.namespace)
+        assertEquals("dev-A", sentinel.deviceId)
+        val parsed = AnnotationDeviceMetaCodec.decode(sentinel.content)!!
+        assertEquals("test-label", parsed.label)
+        assertEquals("alice", parsed.username)
     }
 
     @Test
@@ -214,7 +226,9 @@ class AnnotationSweepTest {
 
     private class FakeTarget(private val writeException: Throwable? = null) : AnnotationSyncTarget {
         data class WriteCall(val namespace: String, val itemId: String, val filename: String, val content: String)
+        data class DeviceMetaWriteCall(val namespace: String, val deviceId: String, val content: String)
         val writes = mutableListOf<WriteCall>()
+        val deviceMetaWrites = mutableListOf<DeviceMetaWriteCall>()
         override suspend fun list(namespace: String, itemId: String): List<String> = emptyList()
         override suspend fun read(namespace: String, itemId: String, filename: String): String? = null
         override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {
@@ -223,7 +237,12 @@ class AnnotationSweepTest {
             writeException?.let { throw it }
         }
         override suspend fun delete(namespace: String, itemId: String, filename: String) {}
-        override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
+        override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? = null
+        override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+            deviceMetaWrites += DeviceMetaWriteCall(namespace, deviceId, content.take(1024))
+            writeException?.let { throw it }
+        }
+        override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {}
         override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing = NamespaceDeviceListing(emptyList())
         override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
         override suspend fun forgetNamespace(namespace: String): Int = 0

@@ -15,7 +15,7 @@ import java.io.File
  * Stores per-device annotation files in the app's internal files directory:
  * ```
  * <filesDir>/annotation-sync/<namespace>/<itemId>/annotations-<deviceId>.jsonld
- * <filesDir>/annotation-sync/<namespace>/device-<deviceId>.json   (sidecar; no itemId)
+ * <filesDir>/annotation-sync/<namespace>/device-meta-<deviceId>.json   (sentinel; no itemId)
  * ```
  *
  * This is a test scaffold for issue #75. Issue #76 adds the first network backend
@@ -70,12 +70,35 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
         }
     }
 
-    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {
+    override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? {
+        return try {
+            val file = deviceMetaFile(namespace, deviceId)
+            if (!file.exists()) null else file.readText()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read device-meta $deviceId for $namespace", e)
+            null
+        }
+    }
+
+    override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
         try {
-            val file = sidecarFile(namespace, deviceId)
+            val dir = namespaceDir(namespace)
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw Exception("Failed to create directory: ${dir.absolutePath}")
+            }
+            deviceMetaFile(namespace, deviceId).writeText(content)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to write device-meta $deviceId for $namespace", e)
+            throw Exception("Failed to write device-meta $deviceId: ${e.message}", e)
+        }
+    }
+
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {
+        try {
+            val file = deviceMetaFile(namespace, deviceId)
             if (file.exists()) file.delete()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete sidecar $deviceId for $namespace", e)
+            Log.e(TAG, "Failed to delete device-meta $deviceId for $namespace", e)
         }
     }
 
@@ -85,15 +108,6 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             if (!nsDir.exists()) return NamespaceDeviceListing(emptyList())
 
             val annotationFiles = mutableMapOf<String, MutableList<AnnotationFileRef>>()
-            val sidecarDeviceIds = mutableSetOf<String>()
-
-            // Sidecars sit at the namespace root.
-            nsDir.listFiles { f ->
-                f.isFile && f.name.startsWith(SIDECAR_NAME_PREFIX) && f.name.endsWith(JSON_SUFFIX)
-            }?.forEach { f ->
-                val deviceId = f.name.removePrefix(SIDECAR_NAME_PREFIX).removeSuffix(JSON_SUFFIX)
-                if (deviceId.isNotEmpty()) sidecarDeviceIds += deviceId
-            }
 
             // Annotation files live under <namespace>/<itemId>/.
             nsDir.listFiles { f -> f.isDirectory }?.forEach { itemDir ->
@@ -113,7 +127,6 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 DeviceFileSummary(
                     deviceId = deviceId,
                     annotationFiles = annotationFiles[deviceId]?.toList().orEmpty(),
-                    hasLegacySidecar = deviceId in sidecarDeviceIds,
                 )
             }
             NamespaceDeviceListing(devices = rows)
@@ -129,10 +142,6 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             if (!root.exists()) return emptyList()
             root.listFiles { f -> f.isDirectory }?.map { nsDir ->
                 var annotations = 0
-                var sidecars = 0
-                nsDir.listFiles { f ->
-                    f.isFile && f.name.startsWith(SIDECAR_NAME_PREFIX) && f.name.endsWith(JSON_SUFFIX)
-                }?.let { sidecars = it.size }
                 nsDir.listFiles { f -> f.isDirectory }?.forEach { itemDir ->
                     itemDir.listFiles { f ->
                         f.isFile && f.name.startsWith(ANNOTATION_NAME_PREFIX) && f.name.endsWith(JSONLD_SUFFIX)
@@ -141,7 +150,6 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 NamespaceSummary(
                     namespace = nsDir.name,
                     annotationFileCount = annotations,
-                    sidecarCount = sidecars,
                 )
             }.orEmpty().sortedBy { it.namespace }
         } catch (e: Exception) {
@@ -180,14 +188,14 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     private fun annotationFile(namespace: String, itemId: String, filename: String): File =
         File(bookDir(namespace, itemId), filename)
 
-    private fun sidecarFile(namespace: String, deviceId: String): File =
-        File(namespaceDir(namespace), "$SIDECAR_NAME_PREFIX$deviceId$JSON_SUFFIX")
+    private fun deviceMetaFile(namespace: String, deviceId: String): File =
+        File(namespaceDir(namespace), "$DEVICE_META_NAME_PREFIX$deviceId$JSON_SUFFIX")
 
     companion object {
         private const val TAG = "LocalDirectoryTarget"
         private const val ROOT = "annotation-sync"
         private const val ANNOTATION_NAME_PREFIX = "annotations-"
-        private const val SIDECAR_NAME_PREFIX = "device-"
+        private const val DEVICE_META_NAME_PREFIX = "device-meta-"
         private const val JSONLD_SUFFIX = ".jsonld"
         private const val JSON_SUFFIX = ".json"
     }

@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -96,6 +97,33 @@ class AnnotationSyncController(
     }
 
     /**
+     * Best-effort write of this device's metadata sentinel under [namespace]. Called at the end
+     * of every successful sync cycle so peers see "Last synced …" advance on pull-only cycles too.
+     * Failure is swallowed — the next cycle will rewrite, and we don't want a transient WebDAV
+     * blip on the sentinel to flip a successful merge/push to Failed.
+     */
+    private suspend fun writeDeviceMetaQuietly(
+        target: AnnotationSyncTarget,
+        namespace: String,
+        serverId: String,
+    ) {
+        try {
+            val deviceId = deviceIdStore.getOrCreate()
+            val body = AnnotationDeviceMetaCodec.encode(
+                AnnotationDeviceMeta(
+                    deviceId = deviceId,
+                    label = deviceLabelResolver.resolveLabel(deviceId),
+                    lastSyncedAt = nowIso(),
+                    username = usernameProvider(serverId),
+                )
+            )
+            target.writeDeviceMeta(namespace, deviceId, body)
+        } catch (_: Exception) {
+            // Best-effort. See kdoc.
+        }
+    }
+
+    /**
      * Merge the device files already listed in [filenames] into Room using the same [target]
      * instance that produced the listing. Reports a [CycleOutcome] to the status store on
      * success or failure. Shared by [syncOnOpen] (which lists first) and [startLiveSync] (which
@@ -171,6 +199,7 @@ class AnnotationSyncController(
                 annotationDao.upsert(entity)
             }
             statusStore.report(CycleOutcome.Success(clock()))
+            writeDeviceMetaQuietly(target, namespace, serverId)
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
         }
@@ -226,6 +255,7 @@ class AnnotationSyncController(
                     // Success so the status badge can recover from a prior Failed.* state without
                     // forcing a no-op merge that would only re-read our own file.
                     statusStore.report(CycleOutcome.Success(clock()))
+                    writeDeviceMetaQuietly(target, namespace, serverId)
                 }
             }
         }
@@ -288,12 +318,11 @@ class AnnotationSyncController(
                 AnnotationW3CCodec.annotationEntityToW3C(entity)
             }
             // Embed the file header at position 0 of the array. Old readers already drop entries
-            // with no `id`, so the header is invisible to merge.
+            // with no `id`, so the header is invisible to merge. Device-scoped metadata
+            // (label, lastSyncedAt, username) lives in the per-device sentinel — see
+            // [AnnotationDeviceMeta] — so this header carries only the book-scoped bookTitle.
             val header = AnnotationFileHeader(
                 deviceId = deviceId,
-                label = deviceLabelResolver.resolveLabel(deviceId),
-                lastSeenAt = nowIso(),
-                username = usernameProvider(serverId),
                 bookTitle = bookTitleProvider(serverId, itemId),
             )
             val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
@@ -302,6 +331,7 @@ class AnnotationSyncController(
             val now = clock()
             annotationDao.markSynced(localEntities.map { it.id }, now)
             statusStore.report(CycleOutcome.Success(now))
+            writeDeviceMetaQuietly(target, namespace, serverId)
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
             sweepEnqueuer.enqueue()

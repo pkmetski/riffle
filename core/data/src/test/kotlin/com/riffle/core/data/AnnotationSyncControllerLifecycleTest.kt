@@ -246,6 +246,39 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals(setOf("uuid-a", "uuid-b"), parsed.map { it.id }.toSet())
     }
 
+    @Test
+    fun `pushPending success writes the device-meta sentinel under the namespace`() = runTest {
+        // Sentinel write is the only way a peer's Maintenance screen ever advances "Last synced"
+        // for this device — without it, the cycle is invisible to other devices. The write is
+        // best-effort (failure is swallowed), but a successful push MUST emit one.
+        dao.localAnnotations += highlightEntity("uuid-a", updatedAt = 100L)
+
+        newController().syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        assertEquals(1, target.deviceMetaWrites.size)
+        val sentinel = target.deviceMetaWrites.single()
+        assertEquals(NS, sentinel.namespace)
+        assertEquals(DEVICE_ID, sentinel.deviceId)
+        val parsed = AnnotationDeviceMetaCodec.decode(sentinel.content)!!
+        assertEquals(DEVICE_ID, parsed.deviceId)
+        assertEquals("test-label", parsed.label)
+    }
+
+    @Test
+    fun `pushPending failure does NOT write a sentinel`() = runTest {
+        // The sentinel announces "this device just synced". A failed push has not synced, so the
+        // sentinel must not advance — peers would otherwise show a fresh "Last synced" timestamp
+        // for a device that never actually got its content through.
+        target.writeException = RuntimeException("simulated push failure")
+        dao.localAnnotations += highlightEntity("uuid-a", updatedAt = 100L)
+
+        newController().syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        assertTrue(target.deviceMetaWrites.isEmpty())
+    }
+
     // ===== Code review fixes =====
 
     @Test
@@ -617,12 +650,14 @@ class AnnotationSyncControllerLifecycleTest {
 private class LifecycleRecordingTarget : AnnotationSyncTarget {
     val files: MutableMap<String, String> = mutableMapOf()
     val writes: MutableList<Write> = mutableListOf()
+    val deviceMetaWrites: MutableList<DeviceMetaWrite> = mutableListOf()
     val listNamespaceArgs: MutableList<String> = mutableListOf()
     var listCalls = 0
     var failNextList: Boolean = false
     var writeException: Throwable? = null
 
     data class Write(val namespace: String, val itemId: String, val filename: String, val content: String)
+    data class DeviceMetaWrite(val namespace: String, val deviceId: String, val content: String)
 
     override suspend fun list(namespace: String, itemId: String): List<String> {
         listCalls++
@@ -645,7 +680,11 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     override suspend fun delete(namespace: String, itemId: String, filename: String) {
         files.remove(filename)
     }
-    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {}
+    override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? = null
+    override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+        deviceMetaWrites += DeviceMetaWrite(namespace, deviceId, content)
+    }
+    override suspend fun deleteDeviceMeta(namespace: String, deviceId: String) {}
     override suspend fun enumerateDevices(namespace: String) = NamespaceDeviceListing(emptyList())
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> = emptyList()
     override suspend fun forgetNamespace(namespace: String): Int = 0

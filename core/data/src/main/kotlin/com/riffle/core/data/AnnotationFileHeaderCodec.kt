@@ -11,12 +11,12 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
- * JSON helpers for the [AnnotationFileHeader] embedded in each annotation file.
+ * JSON helpers for the book-scoped [AnnotationFileHeader] embedded in each annotation file.
  *
  * Each per-device annotation file is a JSON array whose first element is a header object:
  * ```
  * [
- *   {"type":"riffle:FileHeader","deviceId":"...","label":"...","lastSeenAt":"...","username":"..."},
+ *   {"type":"riffle:FileHeader","deviceId":"...","bookTitle":"..."},
  *   { ...annotation 1... },
  *   { ...annotation 2... }
  * ]
@@ -24,6 +24,11 @@ import kotlinx.serialization.json.put
  *
  * The W3C annotation parser drops entries that don't carry an `id`, so the header is
  * automatically excluded from merge and from older readers — backwards-compatible.
+ *
+ * Legacy headers from earlier builds also carried device-scoped fields (`label`, `lastSeenAt`,
+ * `username`). Those moved to the per-device sentinel ([AnnotationDeviceMetaCodec]) on this build;
+ * on read we ignore the legacy fields here, and on write we don't emit them, so the headers in the
+ * share converge on the slim shape after every device's next push.
  */
 object AnnotationFileHeaderCodec {
 
@@ -35,11 +40,6 @@ object AnnotationFileHeaderCodec {
      * AnnotationFileHeader rename still surface their metadata on Maintenance; write-side
      * never uses it. The transition is bounded — every push rewrites the file from scratch
      * with [HEADER_TYPE], so over time every file in the share converges on the new marker.
-     *
-     * TODO(annotation-sync): remove this legacy marker — and all references to it in
-     *  [recognisedHeaderTypes], [extractHeader], [replaceHeader], and any test fixtures —
-     *  once we're confident every install has rewritten its files at least once. Safe to
-     *  drop a few releases after the rename ships.
      */
     private const val LEGACY_HEADER_TYPE = "riffle:DeviceMeta"
 
@@ -51,9 +51,6 @@ object AnnotationFileHeaderCodec {
     fun encodeHeader(header: AnnotationFileHeader): String = buildJsonObject {
         put("type", HEADER_TYPE)
         put("deviceId", header.deviceId)
-        put("label", header.label)
-        put("lastSeenAt", header.lastSeenAt)
-        header.username?.takeIf { it.isNotBlank() }?.let { put("username", it) }
         header.bookTitle?.takeIf { it.isNotBlank() }?.let { put("bookTitle", it) }
     }.toString()
 
@@ -71,8 +68,9 @@ object AnnotationFileHeaderCodec {
     /**
      * Pull the [AnnotationFileHeader] out of a serialised annotation-file body, if present.
      * Accepts both the current and legacy header markers so files written by older builds
-     * still surface their metadata. Returns null when the body is malformed, isn't a JSON
-     * array, or carries no recognised header object.
+     * still surface their book title. Legacy device-scoped fields (label/lastSeenAt/username)
+     * are silently ignored — they live in the per-device sentinel now. Returns null when the
+     * body is malformed, isn't a JSON array, or carries no recognised header object.
      */
     fun extractHeader(fileBody: String): AnnotationFileHeader? = try {
         val root = json.parseToJsonElement(fileBody)
@@ -89,35 +87,9 @@ object AnnotationFileHeaderCodec {
         null
     }
 
-    /**
-     * Replace the existing header in [fileBody] with [header]. Used by "rename this device" to
-     * refresh the label across every annotation file owned by this device. Drops headers
-     * carrying either the current or legacy marker so renaming through the transition leaves a
-     * single clean header instead of stacking a new one on top of an old one. Returns the
-     * original body unchanged when parsing fails.
-     */
-    fun replaceHeader(fileBody: String, header: AnnotationFileHeader): String {
-        val root = try { json.parseToJsonElement(fileBody) } catch (_: Exception) { return fileBody }
-        val elements: List<JsonElement> = when (root) {
-            is JsonArray -> root.toList()
-            is JsonObject -> listOf(root)
-            else -> return fileBody
-        }
-        val annotationsOnly = elements
-            .filter { el ->
-                val obj = el as? JsonObject ?: return@filter true
-                (obj["type"]?.jsonPrimitive?.content ?: "") !in recognisedHeaderTypes
-            }
-            .map { it.toString() }
-        return buildFileBody(header, annotationsOnly)
-    }
-
     private fun headerObjectToHeader(obj: JsonObject): AnnotationFileHeader? {
         val deviceId = obj["deviceId"]?.jsonPrimitive?.content ?: return null
-        val label = obj["label"]?.jsonPrimitive?.content ?: return null
-        val lastSeenAt = obj["lastSeenAt"]?.jsonPrimitive?.content ?: return null
-        val username = obj["username"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
         val bookTitle = obj["bookTitle"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-        return AnnotationFileHeader(deviceId, label, lastSeenAt, username, bookTitle)
+        return AnnotationFileHeader(deviceId, bookTitle)
     }
 }
