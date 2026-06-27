@@ -78,15 +78,6 @@ class ReadaloudSidecarStoreTest {
         }
     }
 
-    private fun notAlignedFetcher(): StorytellerSidecarFetcher {
-        return object : StorytellerSidecarFetcher(StorytellerBundleApi { _, _, _, _ ->
-            error("unreachable in fake")
-        }) {
-            override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
-                FetchResult.NotAligned
-        }
-    }
-
     // --- basic success ---
 
     @Test

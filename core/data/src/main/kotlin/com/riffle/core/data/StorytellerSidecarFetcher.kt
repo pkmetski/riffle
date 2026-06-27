@@ -53,7 +53,7 @@ open class StorytellerSidecarFetcher(
 
         // Fast path returned null — SMIL may be after audio in this bundle's zip ordering.
         // Download the full bundle to a temp file and confirm with ZipFile random access.
-        val tempFile = File(tempDir(), "sidecar_$bookId.tmp")
+        val tempFile = File.createTempFile("sidecar_$bookId", ".tmp", tempDir())
         try {
             when (val r = fullBundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)) {
                 is NetworkStorytellerBundleResult.NetworkError -> FetchResult.NetworkError

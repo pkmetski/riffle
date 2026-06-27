@@ -95,7 +95,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         // 5. Reconcile segments to tracks; null when timelines disagree → bundle.
         val setup = StreamingSetupBuilder().build(sidecarFile, tracks, absServer.url.value, audiobook.bookId, absToken)
         if (setup == null) {
-            evictStaleOrPartialSidecar(storytellerServerId, storytellerBookId, sidecarFile, tracks.sumOf { it.durationSec }.toLong())
+            evictStaleOrPartialSidecar(storytellerServerId, storytellerBookId, sidecarFile, tracks.sumOf { it.durationSec })
             return@withContext null
         }
 
@@ -110,22 +110,18 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
      * to one attempt per session — if the re-fetched sidecar is also partial, alignment is still in
      * progress on the server and we stop trying until the next app launch.
      */
-    private fun evictStaleOrPartialSidecar(serverId: String, bookId: String, sidecarFile: File, absTotalSec: Long) {
+    private fun evictStaleOrPartialSidecar(serverId: String, bookId: String, sidecarFile: File, absTotalSec: Double) {
         val sidecarTrack = runCatching { MediaOverlayReader.readTrack(sidecarFile) }.getOrNull() ?: return
         val clips = sidecarTrack.clips
-        val segCount = clips.map { it.audioSrc }.distinct().size
-        val segTotal = if (segCount > 0) clips.map { it.audioSrc }.distinct().sumOf { src ->
-            clips.filter { it.audioSrc == src }.maxOf { it.clipEndSec }
-        }.toLong() else -1L
+        val segments = clips.groupBy { it.audioSrc }
+        val segTotal = if (segments.isNotEmpty()) segments.values.sumOf { group -> group.maxOf { it.clipEndSec } } else -1.0
 
-        val isPartial = segTotal >= 0 && absTotalSec - segTotal > 10L * segCount
-        when {
-            clips.isEmpty() || isPartial -> {
-                val bookKey = sidecarStore.key(serverId, bookId)
-                if (clips.isEmpty() || evictedPartialSidecars.add(bookKey)) {
-                    sidecarStore.remove(serverId, bookId)
-                    sidecarStore.prepare(serverId, bookId)
-                }
+        val isPartial = segTotal >= 0.0 && absTotalSec - segTotal > 10.0 * segments.size
+        if (clips.isEmpty() || isPartial) {
+            val bookKey = sidecarStore.key(serverId, bookId)
+            if (evictedPartialSidecars.add(bookKey)) {
+                sidecarStore.remove(serverId, bookId)
+                sidecarStore.prepare(serverId, bookId)
             }
         }
     }
