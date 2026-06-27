@@ -93,14 +93,17 @@ class MainActivity : FragmentActivity() {
         setContent {
             val theme by appTheme.collectAsState()
             val isDark = theme.isDark(isSystemInDarkTheme())
-            // Keep the transparent system-bar icon contrast in step with the chosen chrome theme,
+            // Keep the transparent status-bar icon contrast in step with the chosen chrome theme,
             // overriding the system-driven default from enableEdgeToEdge above (otherwise a forced
             // Dark theme under a Light OS would render dark icons on the dark top app bar).
+            // The navigation bar always sits over our dark BottomNavBarScrim, so its icons must
+            // stay light regardless of theme — otherwise light-mode renders dark-on-dark and the
+            // gesture pill / 3-button nav vanishes.
             val view = LocalView.current
             SideEffect {
                 WindowCompat.getInsetsController(window, view).run {
                     isAppearanceLightStatusBars = !isDark
-                    isAppearanceLightNavigationBars = !isDark
+                    isAppearanceLightNavigationBars = false
                 }
             }
             RiffleTheme(darkTheme = isDark) {
