@@ -123,6 +123,7 @@ sealed class ReaderState {
 }
 
 private const val PREPARING_MESSAGE = "Preparing narration…"
+private const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
 
 @HiltViewModel
 class EpubReaderViewModel @Inject constructor(
@@ -628,7 +629,7 @@ class EpubReaderViewModel @Inject constructor(
                     sidecarStore.states.collect { byKey ->
                         when (byKey[sidecarStore.key(audioServerId, audioBookId)]) {
                             ReadaloudSidecarStore.State.Ready -> {
-                                // The sidecar stands in for the bundle for the synced-highlight text quotes
+                                        // The sidecar stands in for the bundle for the synced-highlight text quotes
                                 // (ADR 0028): build them the moment it's cached, through the SAME
                                 // buildSentenceQuotes path the on-disk bundle uses below. Without this the
                                 // streaming highlight only ever built on isPlaying, so it never anchored when
@@ -639,15 +640,21 @@ class EpubReaderViewModel @Inject constructor(
                                     buildSentenceQuotes(sidecar)
                                 }
                                 if (autoPlayWhenPrepared) {
+                                    preparingTimeoutJob?.cancel()
+                                    preparingTimeoutJob = null
                                     autoPlayWhenPrepared = false
                                     if (_readaloudBarMessage.value == PREPARING_MESSAGE) _readaloudBarMessage.value = null
                                     onPlayTapped()
                                 }
                             }
-                            ReadaloudSidecarStore.State.Failed -> if (autoPlayWhenPrepared) {
-                                autoPlayWhenPrepared = false
-                                _readaloudBarMessage.value =
-                                    "Couldn't stream readaloud — download it from the book's details to listen"
+                            ReadaloudSidecarStore.State.Failed -> {
+                                if (autoPlayWhenPrepared) {
+                                    preparingTimeoutJob?.cancel()
+                                    preparingTimeoutJob = null
+                                    autoPlayWhenPrepared = false
+                                    _readaloudBarMessage.value =
+                                        "Couldn't stream readaloud — download it from the book's details to listen"
+                                }
                             }
                             else -> Unit
                         }
@@ -2213,9 +2220,18 @@ class EpubReaderViewModel @Inject constructor(
                     ReadaloudSidecarStore.State.Preparing -> {
                         _readaloudBarMessage.value = PREPARING_MESSAGE
                         autoPlayWhenPrepared = true
+                        preparingTimeoutJob?.cancel()
+                        preparingTimeoutJob = viewModelScope.launch {
+                            kotlinx.coroutines.delay(PREPARING_SLOW_TIMEOUT_MS)
+                            if (autoPlayWhenPrepared) {
+                                _readaloudBarMessage.value =
+                                    "Taking longer than usual — download it from the book's details to listen offline"
+                            }
+                        }
                     }
-                    else ->
+                    else -> {
                         _readaloudBarMessage.value = "Couldn't stream readaloud — download it from the book's details to listen"
+                    }
                 }
                 return@launch
             }
@@ -2265,7 +2281,8 @@ class EpubReaderViewModel @Inject constructor(
      */
     private suspend fun ensureStreamingSession(): com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory.Session? {
         streamingSession?.let { return it }
-        if (sidecarStore.cachedFile(audioServerId, audioBookId) == null) return null
+        val cached = sidecarStore.cachedFile(audioServerId, audioBookId)
+        if (cached == null) return null
         if (streamingBuilding) return null
         streamingBuilding = true
         try {
@@ -2360,6 +2377,7 @@ class EpubReaderViewModel @Inject constructor(
     // Set when the user taps Play while the sidecar is still preparing; the prepare-state observer starts
     // playback once it flips to Ready (ADR 0028).
     private var autoPlayWhenPrepared = false
+    private var preparingTimeoutJob: kotlinx.coroutines.Job? = null
 
     // True once playback has been started this session, so the first play seeks to the reader's
     // position while a later resume-after-pause stays where it was.

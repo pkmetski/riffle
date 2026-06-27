@@ -1,9 +1,11 @@
 package com.riffle.core.data
 
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
@@ -21,21 +23,20 @@ object ReadaloudSidecarReader {
 
     /**
      * Streams the `/synced` bundle and copies the non-audio entries into the sidecar, STOPPING at the
-     * first audio entry (ADR 0028). Storyteller's aligned EPUB packs the text + Media Overlay `.smil`
-     * files FIRST and the (huge) audio blobs LAST, so the whole sidecar is a ~1 MB front prefix: once an
-     * audio entry appears, everything after it is audio. Stopping there closes the HTTP stream after the
-     * prefix, so the prepare transfers ~1 MB and finishes shortly after the server's bundle-generation —
-     * far faster than the full download (which streams the whole hundreds-of-MB bundle), even though both
-     * wait out the same generation. Reading the whole stream instead would make the prepare as slow as a
-     * full download (and time out), which is exactly the bug this avoids.
+     * first audio entry (ADR 0028). Returns null when no SMIL entry was seen before that stop point —
+     * this happens either because the book is unaligned (no SMIL anywhere) or because this particular
+     * bundle packs SMIL after audio in the zip. The caller cannot distinguish these cases from a stream
+     * alone; use [readFromFile] on the fully-downloaded bundle to resolve the ambiguity.
      *
-     * Byte-range extraction (fetch only the non-audio bytes) isn't an option here: this Storyteller
-     * regenerates the bundle per request and rejects higher-offset ranges with HTTP 416.
-     *
-     * [input] is read sequentially via local file headers — no central directory needed.
+     * Storyteller writes audio entries as STORED with a data descriptor (general-purpose bit 3), which
+     * ZipInputStream refuses — the moment it reads the first audio entry's local header it throws
+     * ZipException. Non-audio entries are DEFLATED and (usually) packed before audio, so by the time
+     * this fires the sidecar is already complete; treat it as end-of-prefix. Some bundles break this
+     * ordering assumption — see [readFromFile] for the fallback.
      */
-    fun readStreaming(input: InputStream): ByteArray {
+    fun readStreaming(input: InputStream): ByteArray? {
         val out = ByteArrayOutputStream()
+        var hasSMIL = false
         ZipInputStream(input).use { zis ->
             ZipOutputStream(out).use { zos ->
                 try {
@@ -43,24 +44,40 @@ object ReadaloudSidecarReader {
                     while (entry != null) {
                         if (AUDIO_EXTENSION.containsMatchIn(entry.name)) break
                         if (!entry.name.endsWith("/")) {
+                            if (entry.name.endsWith(".smil", ignoreCase = true)) hasSMIL = true
                             zos.putNextEntry(ZipEntry(entry.name))
                             zis.copyTo(zos)
                             zos.closeEntry()
                         }
                         entry = zis.nextEntry
                     }
-                } catch (e: ZipException) {
-                    // Storyteller writes the audio entries STORED with a data descriptor (general-purpose
-                    // bit 3), which java's ZipInputStream refuses — "only DEFLATED entries can have EXT
-                    // descriptor" — the moment it reads the FIRST audio entry's local header. The non-audio
-                    // entries (text + SMIL) are DEFLATED and packed BEFORE the audio, so by the time this
-                    // fires we've already copied the whole sidecar; treat it as the end of the prefix rather
-                    // than discarding everything. (This is also why streaming with ZipInputStream is the only
-                    // viable reader: /synced rejects byte-ranges with HTTP 416, and a full ZipFile read would
-                    // need the entire hundreds-of-MB bundle on disk first.)
-                }
+                } catch (e: ZipException) { /* treat as end of prefix */ }
             }
         }
-        return out.toByteArray()
+        return if (hasSMIL) out.toByteArray() else null
+    }
+
+    /**
+     * Extracts the sidecar from a fully-downloaded bundle on disk using [ZipFile] random access via
+     * the central directory. Works regardless of entry ordering — handles bundles where SMIL appears
+     * after audio (which [readStreaming] cannot reach). Returns null when the bundle has no SMIL at all
+     * (Storyteller not yet aligned for this book).
+     */
+    fun readFromFile(zipFile: File): ByteArray? {
+        val out = ByteArrayOutputStream()
+        var hasSMIL = false
+        ZipFile(zipFile).use { zf ->
+            ZipOutputStream(out).use { zos ->
+                zf.entries().asSequence()
+                    .filter { !it.isDirectory && !AUDIO_EXTENSION.containsMatchIn(it.name) }
+                    .forEach { entry ->
+                        if (entry.name.endsWith(".smil", ignoreCase = true)) hasSMIL = true
+                        zos.putNextEntry(ZipEntry(entry.name))
+                        zf.getInputStream(entry).use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
+            }
+        }
+        return if (hasSMIL) out.toByteArray() else null
     }
 }

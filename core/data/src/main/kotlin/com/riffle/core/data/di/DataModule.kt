@@ -533,11 +533,17 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideStorytellerSidecarFetcher(api: StorytellerBundleApiImpl): com.riffle.core.data.StorytellerSidecarFetcher =
-            // Bind to the BOUNDED streaming GET so a wedged /synced fails the background prepare instead
-            // of hanging the "Preparing…" indicator forever (ADR 0028). The full download stays unbounded.
+        fun provideStorytellerSidecarFetcher(
+            api: StorytellerBundleApiImpl,
+            @ApplicationContext context: Context,
+        ): com.riffle.core.data.StorytellerSidecarFetcher =
+            // Fast path: bounded streaming GET (sidecarStreamClient, 240 s callTimeout) stops at the
+            // first audio entry. Full-download fallback: unbounded downloadBundle client, used only when
+            // the fast path finds no SMIL before audio (non-standard bundle ordering — ADR 0028).
             com.riffle.core.data.StorytellerSidecarFetcher(
                 bundleApi = { url, bookId, token, insecure -> api.streamSidecar(url, bookId, token, insecure) },
+                fullBundleApi = { url, bookId, token, insecure -> api.downloadBundle(url, bookId, token, insecure) },
+                tempDir = { context.cacheDir },
             )
 
         @Provides

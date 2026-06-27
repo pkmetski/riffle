@@ -69,6 +69,11 @@ object SegmentTrackMapper {
 
     private const val TOLERANCE_SEC = SegmentTrackMap.TOLERANCE_SEC
 
+    // Storyteller re-splits source audio at ~57 MB boundaries, so each segment may end a few
+    // seconds after the last voiced word (encoder padding, partial-frame silence). Allow this
+    // much unvoiced overshoot per segment before treating the gap as a partial alignment.
+    private const val SILENCE_PER_SEGMENT_SEC = 10.0
+
     fun align(clips: List<MediaOverlayClip>, absTrackDurationsSec: List<Double>): SegmentTrackMap? {
         val segmentOrder = clips.map { it.audioSrc }.distinct()
         val segmentDurations = segmentOrder.map { src ->
@@ -80,10 +85,16 @@ object SegmentTrackMapper {
             return SegmentTrackMap(segmentOrder, start, segmentDurations, cumulative(absTrackDurationsSec))
         }
 
-        // Concatenated fallback: only valid when the two timelines cover the same total length.
+        // Concatenated fallback: segTotal is the end of the last voiced word per segment; absTotal
+        // includes trailing silence in every audio file. Each Storyteller segment may be a stream-copy
+        // slice that ends slightly past the last spoken word (encoder padding, silence before next
+        // chapter boundary). Allow each segment up to SILENCE_PER_SEGMENT_SEC of such overshoot.
+        // Reject when SMIL overclaims (segTotal > absTotal), or when the gap is so large it indicates
+        // a genuinely partial alignment (Storyteller only processed part of the book).
         val segTotal = segmentDurations.sum()
         val absTotal = absTrackDurationsSec.sum()
-        if (kotlin.math.abs(segTotal - absTotal) > TOLERANCE_SEC) return null
+        if (segTotal - absTotal > TOLERANCE_SEC) return null
+        if (absTotal - segTotal > SILENCE_PER_SEGMENT_SEC * segmentDurations.size.coerceAtLeast(1)) return null
         return SegmentTrackMap(segmentOrder, null, segmentDurations, cumulative(absTrackDurationsSec))
     }
 

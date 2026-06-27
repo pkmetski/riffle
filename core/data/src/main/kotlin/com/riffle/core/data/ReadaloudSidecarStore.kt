@@ -10,12 +10,12 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,17 +42,65 @@ fun interface ReadaloudSidecarPrefetcher {
 }
 
 @Singleton
-class ReadaloudSidecarStore @Inject constructor(
-    @ApplicationContext private val context: Context,
+class ReadaloudSidecarStore private constructor(
+    private val cacheRootDir: () -> File,
     private val fetcher: StorytellerSidecarFetcher,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
-) : ReadaloudSidecarPrefetcher, ReadaloudSidecarCache {
-    enum class State { Preparing, Ready, Failed }
-
     // App-scoped: a prepare started on the details screen must survive into the reader (and vice versa),
     // so it can't hang off a ViewModel scope. SupervisorJob so one book's failure doesn't cancel others.
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope: CoroutineScope,
+) : ReadaloudSidecarPrefetcher, ReadaloudSidecarCache {
+
+    @Inject constructor(
+        @ApplicationContext context: Context,
+        fetcher: StorytellerSidecarFetcher,
+        serverRepository: ServerRepository,
+        tokenStorage: TokenStorage,
+    ) : this(
+        cacheRootDir = { context.cacheDir },
+        fetcher = fetcher,
+        serverRepository = serverRepository,
+        tokenStorage = tokenStorage,
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    )
+
+    internal constructor(
+        cacheRootDir: File,
+        fetcher: StorytellerSidecarFetcher,
+        serverRepository: ServerRepository,
+        tokenStorage: TokenStorage,
+        scope: CoroutineScope,
+    ) : this(
+        cacheRootDir = { cacheRootDir },
+        fetcher = fetcher,
+        serverRepository = serverRepository,
+        tokenStorage = tokenStorage,
+        scope = scope,
+    )
+
+    enum class State { Preparing, Ready, Failed }
+
+    init {
+        // Purge cached sidecars that are unplayable: (1) no SMIL at all (fetched before hasSMIL
+        // validation, e.g. Storyteller at SPLIT_TRACKS stage), or (2) SMIL files present but with
+        // no <par> clips — fetched during an intermediate alignment stage where SMIL structure was
+        // written but sentence-level alignment had not yet run. Both cases make stateOf() return
+        // Ready and prepare() a no-op, so streaming always fails. Deleting forces a fresh fetch.
+        scope.launch {
+            dir().listFiles().orEmpty()
+                .filter { it.isFile && it.extension == "epub" && it.length() > 0 }
+                .forEach { file ->
+                    val hasClips = runCatching {
+                        MediaOverlayReader.readTrack(file).clips.isNotEmpty()
+                    }.getOrDefault(true) // keep on read error — not ours to diagnose
+                    if (!hasClips) {
+                        file.delete()
+                    }
+                }
+        }
+    }
+
     private val mutex = Mutex()
     private val inFlight = HashMap<String, Deferred<File?>>()
     private val _states = MutableStateFlow<Map<String, State>>(emptyMap())
@@ -62,7 +110,7 @@ class ReadaloudSidecarStore @Inject constructor(
 
     fun key(storytellerServerId: String, storytellerBookId: String) = "$storytellerServerId-$storytellerBookId"
 
-    private fun dir(): File = File(context.cacheDir, "readaloud-sidecars").apply { mkdirs() }
+    private fun dir(): File = File(cacheRootDir(), "readaloud-sidecars").apply { mkdirs() }
     private fun fileFor(serverId: String, bookId: String) = File(dir(), "${key(serverId, bookId)}.epub")
 
     /** The cached sidecar if it's already on disk — never triggers a fetch. */
@@ -70,13 +118,22 @@ class ReadaloudSidecarStore @Inject constructor(
         fileFor(storytellerServerId, storytellerBookId).takeIf { it.exists() && it.length() > 0 }
 
     /** State for the bar/UX: Ready when cached, else the in-flight/last prepare outcome. */
-    fun stateOf(storytellerServerId: String, storytellerBookId: String): State? =
-        if (cachedFile(storytellerServerId, storytellerBookId) != null) State.Ready
-        else _states.value[key(storytellerServerId, storytellerBookId)]
+    fun stateOf(storytellerServerId: String, storytellerBookId: String): State? {
+        val cached = cachedFile(storytellerServerId, storytellerBookId)
+        return if (cached != null) State.Ready else _states.value[key(storytellerServerId, storytellerBookId)]
+    }
 
-    /** Idempotently start (or join) a background prepare. No-op if already cached or in flight. */
+    /** Idempotently start (or join) a background prepare. No-op if already cached, already failed, or in flight. */
     override fun prepare(storytellerServerId: String, storytellerBookId: String) {
         if (cachedFile(storytellerServerId, storytellerBookId) != null) return
+        // Don't retry a book that already exhausted all attempts this session. The in-memory state
+        // resets on process restart, giving one fresh retry cycle per session. Without this guard,
+        // every navigation back to the book re-launches the full retry loop (4 × ~30 MB downloads).
+        if (_states.value[key(storytellerServerId, storytellerBookId)] == State.Failed) return
+        // Set Preparing synchronously so that any stateOf() check after this call (but before the
+        // background coroutine runs) already sees Preparing — avoiding a window where the UI shows
+        // "Couldn't stream" instead of "Preparing…" when eviction+re-prepare happen on the Play path.
+        setState(storytellerServerId, storytellerBookId, State.Preparing)
         scope.launch { ensurePrepared(storytellerServerId, storytellerBookId) }
     }
 
@@ -97,11 +154,23 @@ class ReadaloudSidecarStore @Inject constructor(
 
     private suspend fun doPrepare(storytellerServerId: String, storytellerBookId: String): File? {
         setState(storytellerServerId, storytellerBookId, State.Preparing)
-        val file = withTimeoutOrNull(PREPARE_TIMEOUT_MS) {
-            val server = serverRepository.getById(storytellerServerId) ?: return@withTimeoutOrNull null
-            val token = tokenStorage.getToken(storytellerServerId) ?: return@withTimeoutOrNull null
-            val bytes = fetcher.fetch(server.url.value, storytellerBookId, token, server.insecureConnectionAllowed)
-            bytes?.let { fileFor(storytellerServerId, storytellerBookId).apply { writeBytes(it) } }
+        val server = serverRepository.getById(storytellerServerId)
+        val token = if (server != null) tokenStorage.getToken(storytellerServerId) else null
+        var file: File? = null
+        if (server != null && token != null) {
+            for (attempt in 0..MAX_RETRIES) {
+                if (attempt > 0) delay(RETRY_BACKOFF_MS[attempt - 1])
+                when (val result = fetcher.fetch(server.url.value, storytellerBookId, token, server.insecureConnectionAllowed)) {
+                    is StorytellerSidecarFetcher.FetchResult.Success -> {
+                        file = fileFor(storytellerServerId, storytellerBookId).apply { writeBytes(result.bytes) }
+                        break
+                    }
+                    // Book definitively has no SMIL — no point retrying until Storyteller aligns it.
+                    StorytellerSidecarFetcher.FetchResult.NotAligned -> break
+                    // Transient transport failure — retry up to MAX_RETRIES times.
+                    StorytellerSidecarFetcher.FetchResult.NetworkError -> { /* continue loop */ }
+                }
+            }
         }
         mutex.withLock { inFlight.remove(key(storytellerServerId, storytellerBookId)) }
         setState(storytellerServerId, storytellerBookId, if (file != null) State.Ready else State.Failed)
@@ -138,8 +207,9 @@ class ReadaloudSidecarStore @Inject constructor(
     }
 
     private companion object {
-        // Storyteller can take a minute+ to generate /synced; bound the background prepare so a dead
-        // server fails it rather than leaving it pending forever.
-        const val PREPARE_TIMEOUT_MS = 240_000L
+        // 3 retries (4 total attempts). Each attempt is bounded by sidecarStreamClient's callTimeout(240s).
+        // Backoff covers transient server load; the dominant cost per attempt is the 240s network timeout.
+        const val MAX_RETRIES = 3
+        val RETRY_BACKOFF_MS = longArrayOf(30_000L, 60_000L, 120_000L)
     }
 }

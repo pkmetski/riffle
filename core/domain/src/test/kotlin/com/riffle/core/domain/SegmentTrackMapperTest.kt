@@ -77,8 +77,17 @@ class SegmentTrackMapperTest {
     }
 
     @Test
-    fun `returns null when the audio durations cannot be reconciled`() {
-        // Segments total 8s but ABS only has 3s — not the same recording.
+    fun `ABS track longer than SMIL coverage aligns via concatenated regime`() {
+        // segTotal = 8s; ABS has 15s (7s trailing silence after the last sentence).
+        // With many chapters, trailing silence easily exceeds the old 2s symmetric tolerance.
+        val map = SegmentTrackMapper.align(clips, absTrackDurationsSec = listOf(15.0))!!
+        assertEquals(AbsAudioPosition(0, 2.0), map.positionFor(clips[1])) // c1#s2 → 0+2 = 2s
+        assertEquals(AbsAudioPosition(0, 5.0), map.positionFor(clips[2])) // c2#s1 → 5+0 = 5s
+    }
+
+    @Test
+    fun `returns null when SMIL claims more content than ABS provides`() {
+        // Segments total 8s but ABS only has 3s — SMIL overclaims, not the same recording.
         assertNull(SegmentTrackMapper.align(clips, absTrackDurationsSec = listOf(3.0)))
     }
 }
