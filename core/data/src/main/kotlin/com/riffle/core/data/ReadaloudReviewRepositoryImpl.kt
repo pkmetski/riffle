@@ -62,12 +62,17 @@ class ReadaloudReviewRepositoryImpl(
             linkDao.observeAll(),
             candidateDao.observeForStorytellerServer(storytellerServerId),
         ) { links, candidates ->
-            // When the screen scopes to one ABS Server, filter candidate suggestions to that
-            // server here. Confirmed links stay unscoped so existing matches on the other ABS
-            // accounts remain visible and unlinkable.
+            // When the screen scopes to one ABS Server, both confirmed links and pending
+            // candidates are filtered to that server so each ABS account (= one server+login)
+            // shows its own self-contained match set. Without this, a readaloud auto-matched
+            // against the same title on two ABS accounts piles their links into one card
+            // ("2 ebook + 2 audiobook" per match). Switching the active ABS account flips the
+            // visible set; nothing is permanently hidden.
+            val scopedLinks = if (absServerId == null) links
+                else links.filter { it.absServerId == absServerId }
             val scopedCandidates = if (absServerId == null) candidates
                 else candidates.filter { it.absServerId == absServerId }
-            buildReview(storytellerServerId, links, scopedCandidates)
+            buildReview(storytellerServerId, scopedLinks, scopedCandidates)
         }
 
     private suspend fun buildReview(

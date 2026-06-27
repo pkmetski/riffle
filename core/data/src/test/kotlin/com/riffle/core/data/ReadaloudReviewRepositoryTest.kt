@@ -347,10 +347,11 @@ class ReadaloudReviewRepositoryTest {
     }
 
     @Test
-    fun `observeReview confirmed targets stay visible across all ABS Servers even when scoped`() = runTest {
-        // Symmetric to the pending scoping: existing confirmed links across other ABS accounts
-        // MUST stay visible so the user can see and unlink them. Otherwise scoping to one ABS
-        // account would hide the cross-account history and feel destructive.
+    fun `observeReview confirmed targets are scoped to the chosen ABS Server`() = runTest {
+        // Each ABS account (= one server+login) shows its own self-contained match set so a
+        // readaloud auto-matched against the same title on two ABS accounts doesn't pile their
+        // links into one card ("2 ebook + 2 audiobook" per match). Switching the active ABS
+        // account flips the visible set; the sibling account's links remain in the DB.
         val items = MatchableLibraryItemDao(
             listOf(
                 absCombined("X").copy(serverId = "abs-A"),
@@ -368,7 +369,7 @@ class ReadaloudReviewRepositoryTest {
 
         val confirmed = repo.observeReview("st", absServerId = "abs-A").first().confirmed.single()
 
-        assertEquals(setOf("abs-A", "abs-B"), confirmed.targets.map { it.absServerId }.toSet())
+        assertEquals(setOf("abs-A"), confirmed.targets.map { it.absServerId }.toSet())
     }
 
     private fun absSearchDao() = MatchableLibraryItemDao(
