@@ -246,7 +246,10 @@ private fun WebdavStatusCard(banner: WebdavBanner) {
             Icons.Default.Warning,
         )
     }
-    Card(colors = CardDefaults.cardColors(containerColor = container)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = container),
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
