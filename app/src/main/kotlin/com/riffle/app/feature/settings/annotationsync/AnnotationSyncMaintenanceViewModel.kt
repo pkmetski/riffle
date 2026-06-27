@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncStatusStore
-import com.riffle.core.data.CycleOutcome
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
@@ -263,11 +262,13 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
      * **active** namespace — foreign-user groups should never carry the chip even if a deviceId
      * happens to collide.
      *
-     * "Last synced" sources differ by row type. This device reads the in-memory cycle outcome
-     * (matches the AddServer banner) and so honours pull-only cycles even though they leave no
-     * trace in WebDAV. Foreign devices read their own sentinel (refreshed by them on every
-     * cycle), so a peer that hasn't run a cycle on the new client shows no "Last synced" — the
-     * honest signal that we have no recent evidence of them.
+     * "Last synced" sources differ by row type. This device reads the sticky last-success
+     * timestamp from the status store (matches the AddServer banner) and so honours pull-only
+     * cycles even though they leave no trace in WebDAV — and crucially survives subsequent
+     * failed retries instead of disappearing the moment we go offline. Foreign devices read
+     * their own sentinel (refreshed by them on every cycle), so a peer that hasn't run a cycle
+     * on the new client shows no "Last synced" — the honest signal that we have no recent
+     * evidence of them.
      */
     private fun AnnotationSyncMaintenance.DeviceRow.toUiRow(
         namespace: String,
@@ -283,9 +284,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         val parts = mutableListOf<String>()
         parts += "$annotationFileCount annotation file" + if (annotationFileCount == 1) "" else "s"
         val lastSynced = when {
-            isMe -> (statusStore.lastCycleOutcome.value as? CycleOutcome.Success)
-                ?.atMs
-                ?.let { humanizeEpochMs(it) }
+            isMe -> statusStore.lastSuccessAtMs.value?.let { humanizeEpochMs(it) }
             else -> metadata?.lastSyncedAt
                 ?.takeIf { it.isNotBlank() }
                 ?.let { humanizeIso(it) }
