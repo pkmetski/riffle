@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,7 +117,10 @@ fun AddServerScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                viewModel.webdavBanner?.let { WebdavStatusCard(it) }
+                val webdavBanner by viewModel.webdavBanner.collectAsState()
+                if (backend == AddServerBackend.WEBDAV) {
+                    webdavBanner?.let { WebdavStatusCard(it) }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     var schemeExpanded by remember { mutableStateOf(false) }
                     Box {

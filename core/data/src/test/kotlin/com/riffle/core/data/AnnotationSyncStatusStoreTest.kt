@@ -39,4 +39,28 @@ class AnnotationSyncStatusStoreTest {
         store.report(CycleOutcome.Success(2L))
         assertTrue(store.lastCycleOutcome.value is CycleOutcome.Success)
     }
+
+    @Test
+    fun `lastSuccessAtMs starts null`() {
+        val store = AnnotationSyncStatusStore()
+        assertEquals(null, store.lastSuccessAtMs.value)
+    }
+
+    @Test
+    fun `reporting Success updates lastSuccessAtMs`() {
+        val store = AnnotationSyncStatusStore()
+        store.report(CycleOutcome.Success(1_234L))
+        assertEquals(1_234L, store.lastSuccessAtMs.value)
+    }
+
+    @Test
+    fun `reporting a Failed outcome does not touch lastSuccessAtMs`() {
+        val store = AnnotationSyncStatusStore()
+        store.report(CycleOutcome.Success(100L))
+        store.report(CycleOutcome.Failed.Network(200L, "timeout"))
+        assertEquals(
+            "a failed attempt must not overwrite the last successful sync timestamp",
+            100L, store.lastSuccessAtMs.value,
+        )
+    }
 }
