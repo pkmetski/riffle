@@ -88,6 +88,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "showCurrentChapterLabel" to "UI affordance outside the reader content; no CSS implication.",
     "showReadingTimeEstimate" to "UI affordance outside the reader content; no CSS implication.",
     "themeSchedule" to "Schedule metadata used to derive the resolved theme at runtime; has no direct CSS implication.",
+    "autoScrollWpm" to "Auto-Scroll pace (words-per-minute); a kinetics setting consumed by AutoScrollController, not a CSS property.",
 )
 
 /**
