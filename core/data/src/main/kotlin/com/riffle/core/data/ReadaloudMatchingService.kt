@@ -74,11 +74,9 @@ open class ReadaloudMatchingService(
             // Sticky is per-ABS-server: a user-confirmed link on Server A leaves Server A alone
             // but doesn't suppress auto-matching on Server B. Keep user slots fresh so the
             // stale sweep doesn't delete them.
-            val userConfirmedAbsServers = existingLinks.asSequence()
-                .filter { it.userConfirmed }
-                .onEach { freshAutoSlots += it.absServerId to it.absLibraryItemId }
-                .map { it.absServerId }
-                .toSet()
+            val userConfirmedLinks = existingLinks.filter { it.userConfirmed }
+            userConfirmedLinks.forEach { freshAutoSlots += it.absServerId to it.absLibraryItemId }
+            val userConfirmedAbsServers = userConfirmedLinks.map { it.absServerId }.toSet()
 
             val dismissedPairs = readaloudDismissalDao
                 .findByStorytellerBook(book.serverId, book.itemId)
