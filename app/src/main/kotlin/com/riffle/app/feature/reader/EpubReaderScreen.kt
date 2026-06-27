@@ -978,41 +978,6 @@ private const val NAV_COVER_SETTLE_MS = 250L
  * and otherwise falls back to a TextQuoteAnchor search over the document body — so the highlight
  * still lands when Readium has stripped the sentence span from the rendered (ABS) EPUB.
  */
-/**
- * Walks the view tree of a Readium [EpubNavigatorFragment]'s root view to find the currently
- * visible WebView. Used by Vertical-mode Auto-Scroll to drive scroll deltas into Readium's own
- * WebView (Readium exposes no public scroll API for this).
- *
- * In Readium's scroll mode the inner ViewPager preloads adjacent chapter WebViews, all of which
- * report `isShown = true` while sitting off-screen. Picking by the largest visible rect on screen
- * reliably returns the WebView the user is actually looking at — the off-screen prev/next pages
- * have visible rects that don't intersect the screen and lose the comparison cleanly.
- */
-private fun findActiveWebView(root: android.view.View): android.webkit.WebView? {
-    val all = mutableListOf<android.webkit.WebView>()
-    collectWebViews(root, all)
-    var best: android.webkit.WebView? = null
-    var bestArea = 0
-    val rect = android.graphics.Rect()
-    for (wv in all) {
-        if (!wv.isShown) continue
-        if (!wv.getGlobalVisibleRect(rect)) continue
-        val area = rect.width() * rect.height()
-        if (area > bestArea) {
-            bestArea = area
-            best = wv
-        }
-    }
-    return best
-}
-
-private fun collectWebViews(root: android.view.View, into: MutableList<android.webkit.WebView>) {
-    if (root is android.webkit.WebView) into += root
-    if (root is android.view.ViewGroup) {
-        for (i in 0 until root.childCount) collectWebViews(root.getChildAt(i), into)
-    }
-}
-
 private fun fragmentLocator(ref: String, quote: SentenceQuote? = null): Locator? =
     Locator.fromJSON(readaloudLocatorJson(ref, quote))
 
@@ -2216,23 +2181,40 @@ private fun EpubNavigatorView(
                 }
             }
         }
-        // Vertical (Readium scroll) mode: drive Auto-Scroll deltas into the active WebView inside
-        // Readium's EpubNavigatorFragment. On reaching the bottom of the chapter, pause the
-        // controller (stops the 60Hz ticker so no deltas queue while Readium swaps WebViews),
-        // call goForward, give Readium a ~600ms settle window to absorb the load flash, then
-        // resume at the retained speed. If goForward returns false (last chapter), stop silently
-        // per ADR 0037.
+        // Vertical (Readium scroll) mode: drive Auto-Scroll deltas via JS `window.scrollBy`
+        // because Readium's scroll mode intercepts native View.scrollBy on the inner WebView
+        // (the existing volume-key path uses the same JS scroll mechanism, see line ~1810).
+        // At chapter end we hand off to fragment.goForward() and use a ~600ms settle window so
+        // the next chapter's WebView is painted before the ticker resumes scrolling on it.
         if (formattingPrefs.orientation == ReaderOrientation.Vertical) {
             val verticalFragment = fragmentRef.value
             LaunchedEffect(verticalFragment) {
                 val fragment = verticalFragment ?: return@LaunchedEffect
+                // Cumulative scroll deltas: JS scrolling is async, so we accumulate locally and
+                // flush periodically rather than firing one evaluateJavascript per pixel.
+                var pendingPx = 0
                 autoScrollDeltas.collect { delta ->
-                    val root = fragment.view ?: return@collect
-                    val webView = findActiveWebView(root) ?: return@collect
-                    val before = webView.scrollY
-                    webView.scrollBy(0, delta)
-                    if (webView.scrollY != before) return@collect
-                    // Stuck at the bottom of this chapter — pause-advance-resume.
+                    pendingPx += delta
+                    if (pendingPx < 1) return@collect
+                    // Atomically scroll and detect chapter-end. Returns "advance" if the WebView
+                    // was already at the bottom (no further scroll possible), else the new scrollY.
+                    val flushed = pendingPx
+                    pendingPx = 0
+                    val resultJson = fragment.evaluateJavascript(
+                        """
+                        (function(){
+                          var before = window.scrollY;
+                          window.scrollBy(0, $flushed);
+                          var after = window.scrollY;
+                          var atBottom = (after + window.innerHeight) >= (document.body.scrollHeight - 1);
+                          return JSON.stringify({moved: after !== before, atBottom: atBottom});
+                        })()
+                        """.trimIndent(),
+                    ) ?: return@collect
+                    val moved = resultJson.contains("\"moved\":true")
+                    val atBottom = resultJson.contains("\"atBottom\":true")
+                    if (moved && !atBottom) return@collect
+                    // Stuck at the bottom of this chapter — pause, advance, settle, resume.
                     onAutoScrollPause(com.riffle.core.domain.autoscroll.PauseCause.OrientationChange)
                     val advanced = try {
                         fragment.goForward(animated = false)
@@ -2243,9 +2225,6 @@ private fun EpubNavigatorView(
                         onReachedEndOfBook()
                         return@collect
                     }
-                    // Settle window: lets Readium's WebView load + apply ReadiumCSS before the
-                    // ticker starts emitting again. Without it, the first delta lands on the
-                    // not-yet-painted WebView and the scrollBy is a no-op → spurious goForward.
                     kotlinx.coroutines.delay(600)
                     onAutoScrollResume()
                 }
