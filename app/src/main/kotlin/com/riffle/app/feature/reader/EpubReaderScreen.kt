@@ -2212,10 +2212,15 @@ private fun EpubNavigatorView(
                         """.trimIndent(),
                     ) ?: return@collect
                     val moved = resultJson.contains("\"moved\":true")
-                    val atBottom = resultJson.contains("\"atBottom\":true")
-                    if (moved && !atBottom) return@collect
-                    // Stuck at the bottom of this chapter — pause, advance, settle, resume.
-                    onAutoScrollPause(com.riffle.core.domain.autoscroll.PauseCause.OrientationChange)
+                    // Only advance when scrollBy could not move the page at all (truly stuck at
+                    // the bottom). Landing at the last pixel via a normal delta is still in-page
+                    // motion; treating it as 'go to next chapter' caused chapter-to-chapter
+                    // skipping when atBottom was used alone.
+                    if (moved) return@collect
+                    // Probe the advance BEFORE pausing — if there's no next chapter (goForward
+                    // returns false), dispatch Stop so the pill clears. Pausing first and then
+                    // dispatching ReachedEndOfBook is a no-op (the reducer only handles end-of-
+                    // book from Running, not Paused) and produced a Paused↔Running blink.
                     val advanced = try {
                         fragment.goForward(animated = false)
                     } catch (_: Throwable) {
@@ -2225,6 +2230,8 @@ private fun EpubNavigatorView(
                         onReachedEndOfBook()
                         return@collect
                     }
+                    // Advanced — pause for the load flash, then resume on the new chapter.
+                    onAutoScrollPause(com.riffle.core.domain.autoscroll.PauseCause.OrientationChange)
                     kotlinx.coroutines.delay(600)
                     onAutoScrollResume()
                 }

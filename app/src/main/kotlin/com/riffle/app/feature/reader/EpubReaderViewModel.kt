@@ -303,7 +303,10 @@ class EpubReaderViewModel @Inject constructor(
     val autoScrollScrollDeltas: kotlinx.coroutines.flow.Flow<Int> = autoScrollController.scrollDeltas
 
     fun reachedEndOfBookForAutoScroll() {
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.ReachedEndOfBook)
+        // Dispatch Stop (not ReachedEndOfBook) so the controller transitions to Idle from any
+        // state — including Paused, which the Vertical-mode handler enters transiently while
+        // waiting for goForward to settle. ReachedEndOfBook is Running-only in the reducer.
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
     }
 
     fun startAutoScroll() {
