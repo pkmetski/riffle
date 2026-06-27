@@ -52,7 +52,14 @@ open class ReadaloudMatchingService(
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
         val absItems = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
 
-        val candidates = absItems.map { it.toAbsCandidate() }
+        // Match each ABS server (= one user login on one ABS instance) independently: a
+        // Storyteller readaloud is evaluated against each ABS server's library set on its own.
+        // Without per-server scoping, two ABS logins exposing the same title in both ebook +
+        // audiobook form would each emit Confirmed links, surfacing 2 ebook + 2 audiobook rows
+        // per match on the Matches screen instead of one set per server.
+        val candidatesByAbsServer: Map<String, List<MatchableAbsItem>> = absItems
+            .groupBy { it.serverId }
+            .mapValues { (_, rows) -> rows.map { it.toAbsCandidate() } }
         val now = clock()
         // Track every ABS PK the current pass auto-Confirmed (or a sticky user slot), to sweep
         // stale rows. Fresh Pending-Review candidate rows are collected then written wholesale.
@@ -60,64 +67,70 @@ open class ReadaloudMatchingService(
         val freshCandidates = mutableListOf<ReadaloudCandidateEntity>()
 
         for (book in storytellerBooks) {
-            val existingLinks = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
-            // Sticky: a user-Confirmed readaloud is left untouched — no re-match, no candidates.
-            // Keep its slots fresh so the stale sweep below doesn't delete them.
-            if (existingLinks.any { it.userConfirmed }) {
-                existingLinks.filter { it.userConfirmed }
-                    .forEach { freshAutoSlots += it.absServerId to it.absLibraryItemId }
-                continue
-            }
-            // Sticky: "No match — don't ask again" keeps the book Unmatched forever.
+            // Sticky: "No match — don't ask again" keeps the book Unmatched on every ABS server.
             if (readaloudDismissalDao.isBookDismissed(book.serverId, book.itemId)) continue
 
-            when (val outcome = ReadaloudMatcher.match(book.toStorytellerBook(), candidates)) {
-                is MatchOutcome.Confirmed -> outcome.links.forEach { match ->
-                    val slot = match.absServerUuid to match.absLibraryItemId
-                    val existing = readaloudLinkDao.findByAbsItem(match.absServerUuid, match.absLibraryItemId)
-                    if (existing?.userConfirmed == true) {
-                        // The user owns this ABS slot; never overwrite it. Only mark it fresh when
-                        // it already points at this book, so an unrelated user choice isn't swept.
-                        if (existing.storytellerServerId == book.serverId && existing.storytellerBookId == book.itemId) {
-                            freshAutoSlots += slot
-                        }
-                        return@forEach
-                    }
-                    readaloudLinkDao.upsert(
-                        ReadaloudLinkEntity(
-                            absServerId = match.absServerUuid,
-                            absLibraryItemId = match.absLibraryItemId,
-                            storytellerServerId = book.serverId,
-                            storytellerBookId = book.itemId,
-                            state = ReadaloudLinkEntity.STATE_CONFIRMED,
-                            userConfirmed = false,
-                            createdAt = existing?.createdAt ?: now,
-                            updatedAt = now,
-                        )
-                    )
-                    freshAutoSlots += slot
-                }
+            val existingLinks = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
+            // Sticky is per-ABS-server: a user-confirmed link on Server A leaves Server A alone
+            // but doesn't suppress auto-matching on Server B. Keep user slots fresh so the
+            // stale sweep doesn't delete them.
+            val userConfirmedAbsServers = existingLinks.asSequence()
+                .filter { it.userConfirmed }
+                .onEach { freshAutoSlots += it.absServerId to it.absLibraryItemId }
+                .map { it.absServerId }
+                .toSet()
 
-                is MatchOutcome.PendingReview -> {
-                    val dismissedPairs = readaloudDismissalDao
-                        .findByStorytellerBook(book.serverId, book.itemId)
-                        .filter { it.scope == ReadaloudDismissalEntity.SCOPE_CANDIDATE }
-                        .map { it.absServerId to it.absLibraryItemId }
-                        .toSet()
-                    outcome.candidates
-                        .filter { (it.absServerUuid to it.absLibraryItemId) !in dismissedPairs }
-                        .forEach {
-                            freshCandidates += ReadaloudCandidateEntity(
+            val dismissedPairs = readaloudDismissalDao
+                .findByStorytellerBook(book.serverId, book.itemId)
+                .filter { it.scope == ReadaloudDismissalEntity.SCOPE_CANDIDATE }
+                .map { it.absServerId to it.absLibraryItemId }
+                .toSet()
+
+            for ((absServerId, serverCandidates) in candidatesByAbsServer) {
+                if (absServerId in userConfirmedAbsServers) continue
+                when (val outcome = ReadaloudMatcher.match(book.toStorytellerBook(), serverCandidates)) {
+                    is MatchOutcome.Confirmed -> outcome.links.forEach { match ->
+                        val slot = match.absServerUuid to match.absLibraryItemId
+                        val existing = readaloudLinkDao.findByAbsItem(match.absServerUuid, match.absLibraryItemId)
+                        if (existing?.userConfirmed == true) {
+                            // The user owns this ABS slot; never overwrite it. Only mark it fresh when
+                            // it already points at this book, so an unrelated user choice isn't swept.
+                            if (existing.storytellerServerId == book.serverId && existing.storytellerBookId == book.itemId) {
+                                freshAutoSlots += slot
+                            }
+                            return@forEach
+                        }
+                        readaloudLinkDao.upsert(
+                            ReadaloudLinkEntity(
+                                absServerId = match.absServerUuid,
+                                absLibraryItemId = match.absLibraryItemId,
                                 storytellerServerId = book.serverId,
                                 storytellerBookId = book.itemId,
-                                absServerId = it.absServerUuid,
-                                absLibraryItemId = it.absLibraryItemId,
-                                score = it.score,
+                                state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                                userConfirmed = false,
+                                createdAt = existing?.createdAt ?: now,
+                                updatedAt = now,
                             )
-                        }
-                }
+                        )
+                        freshAutoSlots += slot
+                    }
 
-                MatchOutcome.Unmatched -> Unit
+                    is MatchOutcome.PendingReview -> {
+                        outcome.candidates
+                            .filter { (it.absServerUuid to it.absLibraryItemId) !in dismissedPairs }
+                            .forEach {
+                                freshCandidates += ReadaloudCandidateEntity(
+                                    storytellerServerId = book.serverId,
+                                    storytellerBookId = book.itemId,
+                                    absServerId = it.absServerUuid,
+                                    absLibraryItemId = it.absLibraryItemId,
+                                    score = it.score,
+                                )
+                            }
+                    }
+
+                    MatchOutcome.Unmatched -> Unit
+                }
             }
         }
 

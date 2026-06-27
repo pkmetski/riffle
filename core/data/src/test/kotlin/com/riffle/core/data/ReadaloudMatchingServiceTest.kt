@@ -66,6 +66,61 @@ class ReadaloudMatchingServiceTest {
     }
 
     @Test
+    fun `matching is scoped per ABS server so the same title across two servers doesn't double-count`() = runTest {
+        // Two ABS logins, each with a Books library + an Audiobooks library containing the
+        // same title. With per-server scoping we get one ebook + one audiobook link per
+        // server (4 rows across 2 servers), NOT 4 rows on each server.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", title = "The Martian: A Novel", author = "Andy Weir")),
+            abs = listOf(
+                row("abs-A", "A-ebook", title = "The Martian", author = "Andy Weir"),
+                row("abs-A", "A-audio", title = "The Martian", author = "Andy Weir"),
+                row("abs-B", "B-ebook", title = "The Martian", author = "Andy Weir"),
+                row("abs-B", "B-audio", title = "The Martian", author = "Andy Weir"),
+            ),
+        )
+        val links = RecordingReadaloudLinkDao()
+
+        service(items, links).reconcileLinks()
+
+        val keys = links.upserts.map { it.absServerId to it.absLibraryItemId }.toSet()
+        assertEquals(
+            setOf("abs-A" to "A-ebook", "abs-A" to "A-audio", "abs-B" to "B-ebook", "abs-B" to "B-audio"),
+            keys,
+        )
+        // Each (server, item) is upserted exactly once — no cross-server duplication.
+        assertEquals(4, links.upserts.size)
+    }
+
+    @Test
+    fun `user-confirmed link on one ABS server doesn't suppress auto-matching on another`() = runTest {
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-B", "B-ebook", isbn = "9780261103573")),
+        )
+        val links = RecordingReadaloudLinkDao().apply {
+            // User already locked in a slot on server A for this readaloud.
+            seed(
+                ReadaloudLinkEntity(
+                    absServerId = "abs-A",
+                    absLibraryItemId = "A-user-pick",
+                    storytellerServerId = "st-1",
+                    storytellerBookId = "42",
+                    state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                    userConfirmed = true,
+                    createdAt = 1L, updatedAt = 1L,
+                ),
+            )
+        }
+
+        service(items, links).reconcileLinks()
+
+        val newLinks = links.upserts.map { it.absServerId to it.absLibraryItemId }
+        assertEquals(listOf("abs-B" to "B-ebook"), newLinks)
+        assertTrue("server A user pick must not be swept", links.deletions.none { it == "abs-A" to "A-user-pick" })
+    }
+
+    @Test
     fun `userConfirmed row in an ABS slot is never overwritten by the auto-matcher`() = runTest {
         val items = StubLibraryItemDao(
             storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
