@@ -27,7 +27,7 @@ import org.readium.r2.shared.publication.Publication
  */
 internal class ContinuousReaderCoordinator(
     private val publication: Publication,
-    private val railSegmentsProvider: () -> List<RailSegment>,
+    private val spinePositionsProvider: () -> Pair<List<String>, List<Int>>,
     private val onLocator: (Locator) -> Unit,
     private val onTap: () -> Unit,
     private val latestLocator: () -> Locator?,
@@ -61,7 +61,8 @@ internal class ContinuousReaderCoordinator(
         viewFlow.value = view
 
         view.onRawPosition = { href, progression ->
-            val locator = buildContinuousLocator(href, progression, railSegmentsProvider())
+            val (spineHrefs, counts) = spinePositionsProvider()
+            val locator = buildContinuousLocator(href, progression, spineHrefs, counts)
             if (locator != null) onLocator(locator)
         }
 
