@@ -2,14 +2,52 @@ package com.riffle.core.domain
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * A reader position expressed in the canonical coordinate system of the cycle — the
  * Readium Locator on the EPUB the reader currently displays (ADR 0019). Opaque to the
  * cycle, which only compares update times and routes the value to remotes; remotes
  * translate it to/from their native coordinates at their boundary.
+ *
+ * The wire form is the Locator JSON string; [href], [chapterProgression], and
+ * [totalProgression] are lazily-parsed read accessors so callers can pull fields
+ * without re-parsing the string at every site.
  */
-data class CanonicalReaderPosition(val value: String)
+data class CanonicalReaderPosition(val value: String) {
+    private val parsed: ParsedLocator? by lazy(LazyThreadSafetyMode.NONE) { ParsedLocator.parse(value) }
+
+    /** Spine href the locator points at, or `null` when the value isn't a parseable Locator JSON. */
+    val href: String? get() = parsed?.href
+
+    /** Within-chapter progression `[0..1]`, or `null` when absent / unparseable. */
+    val chapterProgression: Double? get() = parsed?.chapterProgression
+
+    /** Book-wide progression `[0..1]`. `null` for a canonical reconstructed from a remote
+     *  (audio / Storyteller) — the bridge then weights it from chapter character counts. */
+    val totalProgression: Double? get() = parsed?.totalProgression
+
+    private class ParsedLocator(val href: String?, val chapterProgression: Double?, val totalProgression: Double?) {
+        companion object {
+            fun parse(value: String): ParsedLocator? {
+                if (value.isEmpty()) return null
+                val element = runCatching { Json.parseToJsonElement(value) }.getOrNull() ?: return null
+                val root = element as? JsonObject ?: return null
+                val href = (root["href"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotEmpty() }
+                val locations = root["locations"] as? JsonObject
+                val cp = locations?.get("progression")?.let { it as? JsonPrimitive }?.doubleOrNull
+                val tp = locations?.get("totalProgression")?.let { it as? JsonPrimitive }?.doubleOrNull
+                return ParsedLocator(href, cp, tp)
+            }
+        }
+    }
+}
 
 /** The local reader position and the single `localUpdatedAt` it was last changed at. */
 data class LocalCanonical(val position: CanonicalReaderPosition, val lastUpdate: Long)

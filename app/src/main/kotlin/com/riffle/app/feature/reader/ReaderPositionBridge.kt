@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.CanonicalPositionTranslator
+import com.riffle.core.domain.CanonicalReaderPosition
 import com.riffle.core.domain.ChapterProgression
 import org.json.JSONObject
 
@@ -91,10 +92,7 @@ class ReaderPositionBridge(
      * remote win to the ebook would write progress 0 and clear the server's progress bar.
      */
     fun canonicalBookProgress(locatorJson: String): Float {
-        val locations = runCatching { JSONObject(locatorJson).optJSONObject("locations") }.getOrNull()
-        if (locations != null && locations.has("totalProgression")) {
-            return locations.optDouble("totalProgression", 0.0).toFloat()
-        }
+        CanonicalReaderPosition(locatorJson).totalProgression?.let { return it.toFloat() }
         val p = canonicalToDisplayedProgression(locatorJson) ?: return 0f
         return (translator.absBookProgression(p) ?: p.progression).toFloat()
     }
