@@ -7,8 +7,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * A reader position expressed in the canonical coordinate system of the cycle — the
@@ -41,8 +39,8 @@ data class CanonicalReaderPosition(val value: String) {
                 val root = element as? JsonObject ?: return null
                 val href = (root["href"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotEmpty() }
                 val locations = root["locations"] as? JsonObject
-                val cp = locations?.get("progression")?.let { it as? JsonPrimitive }?.doubleOrNull
-                val tp = locations?.get("totalProgression")?.let { it as? JsonPrimitive }?.doubleOrNull
+                val cp = (locations?.get("progression") as? JsonPrimitive)?.doubleOrNull
+                val tp = (locations?.get("totalProgression") as? JsonPrimitive)?.doubleOrNull
                 return ParsedLocator(href, cp, tp)
             }
         }
