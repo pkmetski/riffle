@@ -150,7 +150,24 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    val lastCrashReport: CrashReport? = crashReportRepository.getLastCrashReport()
+    private val _crashReports = MutableStateFlow(crashReportRepository.listCrashReports())
+    /** All recorded crashes, newest first. Refreshed by [clearCrashReports] / [refreshCrashReports]. */
+    val crashReports: StateFlow<List<CrashReport>> = _crashReports.asStateFlow()
+
+    fun refreshCrashReports() {
+        _crashReports.value = crashReportRepository.listCrashReports()
+    }
+
+    fun clearCrashReports() {
+        crashReportRepository.clearAllCrashReports()
+        _crashReports.value = emptyList()
+    }
+
+    /** Files backing the currently-listed reports — used by the Settings "Share" button to
+     *  build an ACTION_SEND_MULTIPLE intent. Kept in the VM so the screen doesn't have to
+     *  hold the repository. */
+    fun crashReportFiles(): List<java.io.File> =
+        crashReportRepository.resolveReportFiles(_crashReports.value.map { it.id })
 
     /** The currently installed app version, shown as the update row's subtitle. */
     val installedVersionName: String = BuildConfig.VERSION_NAME

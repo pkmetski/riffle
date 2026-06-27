@@ -1,6 +1,10 @@
 package com.riffle.app.feature.settings
 
 import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -92,7 +96,7 @@ fun SettingsScreen(
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val report = viewModel.lastCrashReport
+    val crashReports by viewModel.crashReports.collectAsState()
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
@@ -111,7 +115,8 @@ fun SettingsScreen(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
-    var expanded by remember { mutableStateOf(false) }
+    val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
+    val context = LocalContext.current
     var showFormattingPanel by remember { mutableStateOf(false) }
     var showDisplayPanel by remember { mutableStateOf(false) }
     var showBehaviorPanel by remember { mutableStateOf(false) }
@@ -467,42 +472,83 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                if (report == null) {
+                if (crashReports.isEmpty()) {
                     ListItem(
                         headlineContent = { Text("No crashes recorded") },
                         supportingContent = { Text("The app has not crashed since installation") },
                     )
                 } else {
-                    val timestamp = DateFormat.getDateTimeInstance().format(Date(report.timestampMillis))
+                    // Bulk affordances: "Share all" zips nothing — it just attaches each .txt
+                    // file via FileProvider so the user can pick an email / messaging app from
+                    // the share sheet. "Clear" deletes the on-disk archive.
                     ListItem(
-                        headlineContent = { Text("Last crash") },
-                        supportingContent = { Text(timestamp) },
+                        headlineContent = { Text("${crashReports.size} crash report${if (crashReports.size == 1) "" else "s"}") },
+                        supportingContent = { Text("Newest first") },
                         trailingContent = {
                             Row {
                                 TextButton(onClick = {
-                                    scope.launch {
-                                        clipboard.setClipEntry(
-                                            ClipEntry(ClipData.newPlainText("crash report", report.content))
+                                    val files = viewModel.crashReportFiles()
+                                    if (files.isEmpty()) return@TextButton
+                                    val uris = ArrayList<Uri>(files.size)
+                                    files.forEach { f ->
+                                        uris += FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            f,
                                         )
                                     }
+                                    val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                        type = "text/plain"
+                                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                        putExtra(Intent.EXTRA_SUBJECT, "Riffle crash reports (${files.size})")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Share crash reports"))
                                 }) {
-                                    Text("Copy")
+                                    Text("Share")
                                 }
-                                TextButton(onClick = { expanded = !expanded }) {
-                                    Text(if (expanded) "Hide" else "Show")
+                                TextButton(onClick = {
+                                    viewModel.clearCrashReports()
+                                    expandedCrashes.clear()
+                                }) {
+                                    Text("Clear")
                                 }
                             }
                         },
                     )
-                    if (expanded) {
-                        Text(
-                            text = report.content,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .horizontalScroll(rememberScrollState()),
+                    crashReports.forEach { item ->
+                        val timestamp = DateFormat.getDateTimeInstance().format(Date(item.timestampMillis))
+                        val isOpen = expandedCrashes[item.id] == true
+                        ListItem(
+                            headlineContent = { Text(timestamp) },
+                            supportingContent = { Text(item.content.lineSequence().firstOrNull { it.isNotBlank() && it != "STACK_TRACE:" } ?: "") },
+                            trailingContent = {
+                                Row {
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            clipboard.setClipEntry(
+                                                ClipEntry(ClipData.newPlainText("crash report", item.content))
+                                            )
+                                        }
+                                    }) {
+                                        Text("Copy")
+                                    }
+                                    TextButton(onClick = { expandedCrashes[item.id] = !isOpen }) {
+                                        Text(if (isOpen) "Hide" else "Show")
+                                    }
+                                }
+                            },
                         )
+                        if (isOpen) {
+                            Text(
+                                text = item.content,
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .horizontalScroll(rememberScrollState()),
+                            )
+                        }
                     }
                 }
                 HorizontalDivider()

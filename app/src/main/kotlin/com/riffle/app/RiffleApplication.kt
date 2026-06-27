@@ -18,7 +18,10 @@ import kotlinx.coroutines.launch
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import org.acra.ReportField
+import org.acra.config.dialog
+import org.acra.config.limiter
 import org.acra.ktx.initAcra
+import java.util.concurrent.TimeUnit
 
 @HiltAndroidApp
 class RiffleApplication : Application(), ImageLoaderFactory {
@@ -41,6 +44,24 @@ class RiffleApplication : Application(), ImageLoaderFactory {
                 ReportField.APP_VERSION_NAME,
                 ReportField.AVAILABLE_MEM_SIZE,
             )
+            // Show a confirmation on next launch so the user knows the app crashed and can
+            // open Settings → Crash reports to share the details. Without this, the only
+            // signal was the process restart itself.
+            dialog {
+                text = "Riffle crashed. Open Settings → Crash reports to view or share the details."
+                title = "Crash report"
+                positiveButtonText = "OK"
+                negativeButtonText = "Dismiss"
+            }
+            // Cap retention so a looping bug can't fill the disk between launches. Pairs with
+            // FileCrashReportSender.pruneToMax — Limiter bounds the upstream queue, the sender
+            // bounds the on-disk archive.
+            limiter {
+                period = 7
+                periodUnit = TimeUnit.DAYS
+                overallLimit = 50
+                stacktraceLimit = 5
+            }
         }
     }
 

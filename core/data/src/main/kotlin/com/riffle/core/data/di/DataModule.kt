@@ -123,7 +123,7 @@ import javax.inject.Singleton
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
-annotation class CrashReportFile
+annotation class CrashReportDir
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -475,9 +475,9 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        @CrashReportFile
-        fun provideCrashReportFile(@ApplicationContext context: Context): File =
-            File(context.filesDir, "crash_report.txt")
+        @CrashReportDir
+        fun provideCrashReportDir(@ApplicationContext context: Context): File =
+            File(context.filesDir, "crash_reports").apply { mkdirs() }
 
         @Provides
         @Singleton

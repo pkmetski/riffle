@@ -164,6 +164,8 @@ dependencies {
 
     implementation(libs.acra.core)
     implementation(libs.acra.toast)
+    implementation(libs.acra.dialog)
+    implementation(libs.acra.limiter)
 
     implementation(libs.jsoup)
     testImplementation(libs.jsoup)

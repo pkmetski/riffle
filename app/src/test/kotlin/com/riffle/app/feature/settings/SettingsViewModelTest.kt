@@ -223,12 +223,15 @@ class SettingsViewModelTest {
     }
 
     private fun makeViewModel(
-        report: CrashReport? = null,
+        reports: List<CrashReport> = emptyList(),
         annotationSyncStatusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
         annotationDao: AnnotationDao = stubAnnotationDao(pendingCount = 0),
     ) = SettingsViewModel(
         crashReportRepository = object : CrashReportRepository {
-            override fun getLastCrashReport() = report
+            private val current = reports.toMutableList()
+            override fun listCrashReports(): List<CrashReport> = current.toList()
+            override fun resolveReportFiles(ids: List<String>) = emptyList<java.io.File>()
+            override fun clearAllCrashReports() { current.clear() }
         },
         formattingPreferencesStore = noOpFormattingStore,
         serverRepository = fakeServerRepo(),
@@ -283,7 +286,11 @@ class SettingsViewModelTest {
         statusStore: AnnotationSyncStatusStore,
         annotationDao: AnnotationDao,
     ) = SettingsViewModel(
-        crashReportRepository = object : CrashReportRepository { override fun getLastCrashReport() = null },
+        crashReportRepository = object : CrashReportRepository {
+            override fun listCrashReports(): List<CrashReport> = emptyList()
+            override fun resolveReportFiles(ids: List<String>) = emptyList<java.io.File>()
+            override fun clearAllCrashReports() = Unit
+        },
         formattingPreferencesStore = noOpFormattingStore,
         serverRepository = fakeServerRepo(),
         libraryRepository = fakeLibraryRepo(),
@@ -302,19 +309,28 @@ class SettingsViewModelTest {
         annotationDao = annotationDao,
     )
 
-    // --- existing crash report tests (unchanged) ---
+    // --- crash report list tests ---
 
     @Test
-    fun `lastCrashReport is populated from repository when a crash has been recorded`() {
-        val report = CrashReport(content = "stack trace here", timestampMillis = 1_000_000L)
-        val vm = makeViewModel(report)
-        assertEquals(report, vm.lastCrashReport)
+    fun `crashReports surfaces every report from the repository, newest first`() {
+        val older = CrashReport(id = "100", content = "older crash", timestampMillis = 1_000L)
+        val newer = CrashReport(id = "200", content = "newer crash", timestampMillis = 2_000L)
+        val vm = makeViewModel(listOf(newer, older))
+        assertEquals(listOf(newer, older), vm.crashReports.value)
     }
 
     @Test
-    fun `lastCrashReport is null when repository has no report`() {
-        val vm = makeViewModel(null)
-        assertNull(vm.lastCrashReport)
+    fun `crashReports is empty when repository has no reports`() {
+        val vm = makeViewModel(emptyList())
+        assertTrue(vm.crashReports.value.isEmpty())
+    }
+
+    @Test
+    fun `clearCrashReports clears both repository and the exposed state`() {
+        val vm = makeViewModel(listOf(CrashReport("1", "boom", 1L)))
+        assertEquals(1, vm.crashReports.value.size)
+        vm.clearCrashReports()
+        assertTrue(vm.crashReports.value.isEmpty())
     }
 
     // --- server management ---
