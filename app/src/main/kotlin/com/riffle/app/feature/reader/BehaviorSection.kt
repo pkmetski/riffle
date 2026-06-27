@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -60,14 +59,19 @@ fun BehaviorSection(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
-                .clickable(enabled = volumeKeyNavigationEnabled) { onInvertVolumeKeysChange(!invertVolumeKeys) }
+                .toggleable(
+                    value = invertVolumeKeys,
+                    enabled = volumeKeyNavigationEnabled,
+                    role = Role.Switch,
+                    onValueChange = onInvertVolumeKeysChange,
+                )
                 .alpha(if (volumeKeyNavigationEnabled) 1f else 0.38f),
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Invert volume keys", style = MaterialTheme.typography.bodyLarge)
                 Text("Applies to all books", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Switch(checked = invertVolumeKeys, onCheckedChange = onInvertVolumeKeysChange, enabled = volumeKeyNavigationEnabled)
+            Switch(checked = invertVolumeKeys, onCheckedChange = null, enabled = volumeKeyNavigationEnabled)
         }
     }
 }
