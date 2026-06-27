@@ -145,6 +145,30 @@ class LibraryItemDaoTest {
         assertEquals("A Different Book", dao.getById("s2", "1")?.title)
     }
 
+    // A0b — when two Servers each host a library with the same id (per issue #113, library ids
+    // are only unique within a Server), every item must still be enumerated once. Before the
+    // fix this query JOINed by library id alone and multiplied each item by the number of
+    // colliding library rows — the duplicates crashed the Readaloud picker's LazyColumn with
+    // "Key X was already used."
+    @Test
+    fun listMatchableByServerType_doesNotDuplicateAcrossServersWithCollidingLibraryIds() = runTest {
+        // s1 and s2 are seeded with the default serverType AUDIOBOOKSHELF in @Before.
+        db.libraryDao().upsertAll(listOf(
+            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", serverId = "s1"),
+            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", serverId = "s2"),
+        ))
+        dao.upsertAll(listOf(
+            item("a", readingProgress = 0f, serverId = "s1").copy(libraryId = "shared-lib"),
+            item("b", readingProgress = 0f, serverId = "s2").copy(libraryId = "shared-lib"),
+        ))
+
+        val rows = dao.listMatchableByServerType("AUDIOBOOKSHELF")
+        val keys = rows.map { it.serverId to it.itemId }
+
+        assertEquals(setOf("s1" to "a", "s2" to "b"), keys.toSet())
+        assertEquals("each item must appear once, not duplicated by the library-id JOIN", keys.toSet().size, keys.size)
+    }
+
     // A6 — replaceAllForLibrary must never expose an empty intermediate state to observers.
     // If @Transaction is removed the delete emits before the insert, causing a visible flicker.
     @Test

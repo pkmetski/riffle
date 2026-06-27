@@ -1,7 +1,10 @@
 package com.riffle.app
 
+import android.content.Context
+import io.mockk.mockk
 import org.acra.ReportField
 import org.acra.data.CrashReportData
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -13,7 +16,8 @@ class FileCrashReportSenderTest {
     @get:Rule
     val tmpFolder = TemporaryFolder()
 
-    private fun makeSender() = FileCrashReportSender(tmpFolder.newFile("crash_report.txt"))
+    private fun makeSender(dir: java.io.File = tmpFolder.newFolder("crash_reports")) =
+        FileCrashReportSender(dir)
 
     private fun makeReport(
         stackTrace: String = "java.lang.RuntimeException: boom\n\tat com.example.Foo.bar(Foo.kt:10)",
@@ -29,7 +33,6 @@ class FileCrashReportSenderTest {
         put(ReportField.AVAILABLE_MEM_SIZE, availableMemory)
     }
 
-    // Cycle 1: content includes the stack trace and is non-empty
     @Test
     fun `buildContent produces non-empty string containing the stack trace`() {
         val content = makeSender().buildContent(makeReport(stackTrace = "java.lang.RuntimeException: boom"))
@@ -38,7 +41,6 @@ class FileCrashReportSenderTest {
         assertTrue("content should contain the stack trace", "RuntimeException: boom" in content)
     }
 
-    // Cycle 2: sanitization — allowed fields are present, sensitive fields are absent
     @Test
     fun `buildContent includes device model, OS version, app version, and memory`() {
         val content = makeSender().buildContent(makeReport(
@@ -56,15 +58,55 @@ class FileCrashReportSenderTest {
 
     @Test
     fun `buildContent does not include server URL, user or book content fields`() {
-        // Simulate what would happen if ACRA were misconfigured to collect extra fields;
-        // our sender must only write the safe fields it explicitly reads.
         val report = makeReport()
-        // The report has no sensitive fields — buildContent only reads the five allowed fields.
         val content = makeSender().buildContent(report)
 
-        // Verify no spurious keys appear (buildContent only emits the five safe fields)
         assertFalse("CUSTOM_DATA must not appear", "CUSTOM_DATA" in content)
         assertFalse("SHARED_PREFERENCES must not appear", "SHARED_PREFERENCES" in content)
         assertFalse("LOGCAT must not appear", "LOGCAT" in content)
+    }
+
+    @Test
+    fun `send writes a new txt file per crash so history is preserved`() {
+        // The prior single-file design overwrote on every crash. Verify that two consecutive
+        // sends with distinct stack traces leave two files behind — distinct content yields
+        // distinct content-hashes, so the {epochMillis}-{hash} filename is unique without a
+        // wall-clock delay between writes.
+        val dir = tmpFolder.newFolder("crash_reports")
+        val sender = makeSender(dir)
+
+        sender.send(mockk<Context>(relaxed = true), makeReport(stackTrace = "first"))
+        sender.send(mockk<Context>(relaxed = true), makeReport(stackTrace = "second"))
+
+        val files = dir.listFiles { f -> f.extension == "txt" }!!.sortedBy { it.name }
+        assertEquals(2, files.size)
+        assertTrue("first" in files[0].readText() || "first" in files[1].readText())
+        assertTrue("second" in files[0].readText() || "second" in files[1].readText())
+    }
+
+    @Test
+    fun `send prunes the oldest report once max is exceeded`() {
+        // Defense-in-depth: ACRA's LimiterConfiguration caps the upstream queue, but a
+        // flapping crash inside one session would still write here. Cap the on-disk archive
+        // so it never grows unbounded.
+        val dir = tmpFolder.newFolder("crash_reports")
+        // Pre-populate MAX_REPORTS old files so the next send must prune.
+        repeat(FileCrashReportSender.MAX_REPORTS) { i ->
+            dir.resolve("old-$i.txt").apply {
+                writeText("old")
+                setLastModified(1000L + i)
+            }
+        }
+        val sender = FileCrashReportSender(dir)
+
+        sender.send(mockk<Context>(relaxed = true),
+            makeReport(stackTrace = "newest"))
+
+        val files = dir.listFiles { f -> f.extension == "txt" }!!
+        assertEquals(FileCrashReportSender.MAX_REPORTS, files.size)
+        assertTrue("oldest pre-existing file should have been pruned",
+            files.none { it.name == "old-0.txt" })
+        assertTrue("newest crash must remain",
+            files.any { "newest" in it.readText() })
     }
 }
