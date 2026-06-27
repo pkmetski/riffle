@@ -29,15 +29,21 @@ class ConnectivityObserverImpl @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob())
 
     override val isOnline: StateFlow<Boolean> = callbackFlow {
+        // Online-state is derived from callback events rather than re-queried on each transition.
+        // Re-querying ConnectivityManager.activeNetwork inside onLost is racy: at the instant the
+        // callback fires, the just-lost network can still appear active and validated, which would
+        // emit `true` and — because our NetworkRequest filters on VALIDATED — never produce another
+        // event for that network. Result: airplane mode never flipped the offline banner.
+        val tracker = ValidatedNetworkTracker<Network>()
         trySend(currentOnline())
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                trySend(true)
+                trySend(tracker.onAvailable(network))
             }
 
             override fun onLost(network: Network) {
-                trySend(currentOnline())
+                trySend(tracker.onLost(network))
             }
 
             override fun onCapabilitiesChanged(
@@ -46,7 +52,7 @@ class ConnectivityObserverImpl @Inject constructor(
             ) {
                 val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                     capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                trySend(hasInternet)
+                trySend(tracker.onCapabilitiesChanged(network, hasInternet))
             }
         }
 
