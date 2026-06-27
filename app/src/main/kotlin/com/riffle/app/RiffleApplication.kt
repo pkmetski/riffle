@@ -122,14 +122,15 @@ class RiffleApplication : Application(), ImageLoaderFactory {
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024
 
 /**
- * Serves cached covers instantly and revalidates silently after a day; stale copies are acceptable
- * for up to 7 days (covers rarely change). Coil's DiskCache reads these response headers to decide
- * freshness, so the policy applies without an OkHttp disk cache.
+ * Treats covers as immutable so Coil's DiskCache serves them without ever needing the network —
+ * critical for offline mode, where any revalidation would fail and leave cells blank. Safe because
+ * cover URLs embed the item's `updatedAt` as `?t=…` (see `LibraryRepositoryImpl.absCoverUrl`): a
+ * real cover change in ABS bumps `updatedAt`, producing a new URL and a fresh Coil cache key.
  */
 internal val coverCacheControlInterceptor = Interceptor { chain ->
     chain.proceed(chain.request())
         .newBuilder()
-        .header("Cache-Control", "max-age=86400, stale-while-revalidate=604800")
+        .header("Cache-Control", "max-age=31536000, immutable")
         .build()
 }
 

@@ -41,20 +41,23 @@ class RiffleImageLoaderTest {
     }
 
     @Test
-    fun `revalidation interceptor rewrites Cache-Control so Coil can cache and revalidate covers`() {
+    fun `cover interceptor marks responses immutable so offline cells keep rendering past one day`() {
+        // Covers must be served from Coil's DiskCache without revalidation — otherwise offline
+        // mode blanks out every cell whose cache entry has aged past Cache-Control max-age.
+        // Cover URLs embed the ABS item updatedAt as ?t=… so a real cover change produces a new
+        // URL (and a fresh cache key), making `immutable` safe.
         val request = Request.Builder().url("https://abs.example/cover.jpg").build()
         val upstream = Response.Builder()
             .request(request)
             .protocol(Protocol.HTTP_1_1)
             .code(200)
             .message("OK")
-            // Server sends no caching headers — without the interceptor covers wouldn't cache.
             .body("img".toResponseBody(null))
             .build()
 
         val result = coverCacheControlInterceptor.intercept(FakeChain(request, upstream))
 
-        assertEquals("max-age=86400, stale-while-revalidate=604800", result.header("Cache-Control"))
+        assertEquals("max-age=31536000, immutable", result.header("Cache-Control"))
     }
 
     /** Minimal [Interceptor.Chain] that returns a canned response for the request. */
