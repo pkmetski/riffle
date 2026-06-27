@@ -232,12 +232,13 @@ class ReaderSyncCoordinator(
      */
     fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {
         val canonicalJson = bridge.audioSecondsToCanonical(seconds) ?: return null
-        val fragmentRef = bridge.canonicalToFragmentRef(canonicalJson)
-        val locations = runCatching { org.json.JSONObject(canonicalJson) }.getOrNull()?.optJSONObject("locations")
-        val href = runCatching { org.json.JSONObject(canonicalJson) }.getOrNull()?.optString("href")
-            ?.takeIf { it.isNotEmpty() } ?: return null
-        val progression = locations?.takeIf { it.has("progression") }?.optDouble("progression")?.takeIf { !it.isNaN() }
-        return com.riffle.core.domain.ReadaloudResumePosition(href, progression, fragmentRef)
+        val pos = CanonicalReaderPosition(canonicalJson)
+        val href = pos.href ?: return null
+        return com.riffle.core.domain.ReadaloudResumePosition(
+            href = href,
+            progression = pos.chapterProgression,
+            fragmentRef = bridge.canonicalToFragmentRef(canonicalJson),
+        )
     }
 
     /**
