@@ -7,8 +7,12 @@ import kotlinx.serialization.Serializable
  * sync time, regardless of how many annotation files it owns.
  *
  * Stored at `<namespace>/device-meta-<deviceId>.json` (one file per device per namespace) and
- * rewritten on every successful sync cycle, including pull-only cycles. This is what other
- * devices read to answer "is this peer still syncing?"
+ * rewritten by every successful pass through the live controller (push, pull-merge, or
+ * solo-PROPFIND). The push-only [AnnotationSweep] additionally writes a sentinel for every
+ * namespace it touched on a cycle, but skips the sentinel write when nothing was dirty —
+ * pull-only sweeps don't refresh the sentinel because they don't represent a sync event the
+ * controller hasn't already advertised. This is what other devices read to answer "is this
+ * peer still syncing?"
  *
  * Split from the per-file annotation header so that:
  *  - the per-file header can shrink to `deviceId + bookTitle` (book-scoped) — no duplicated

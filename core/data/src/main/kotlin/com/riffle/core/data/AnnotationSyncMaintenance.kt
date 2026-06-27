@@ -66,7 +66,7 @@ class AnnotationSyncMaintenance(
     data class DeviceRow(
         val deviceId: String,
         val annotationFileCount: Int,
-        val metadata: com.riffle.core.domain.AnnotationDeviceMeta?,
+        val metadata: AnnotationDeviceMeta?,
     )
 
     /** All namespaces discovered on the target, regardless of which is currently active. */

@@ -97,12 +97,6 @@ class AnnotationSyncController(
     }
 
     /**
-     * Merge the device files already listed in [filenames] into Room using the same [target]
-     * instance that produced the listing. Reports a [CycleOutcome] to the status store on
-     * success or failure. Shared by [syncOnOpen] (which lists first) and [startLiveSync] (which
-     * lists itself so it can short-circuit when no peer files exist).
-     */
-    /**
      * Best-effort write of this device's metadata sentinel under [namespace]. Called at the end
      * of every successful sync cycle so peers see "Last synced …" advance on pull-only cycles too.
      * Failure is swallowed — the next cycle will rewrite, and we don't want a transient WebDAV
@@ -129,6 +123,12 @@ class AnnotationSyncController(
         }
     }
 
+    /**
+     * Merge the device files already listed in [filenames] into Room using the same [target]
+     * instance that produced the listing. Reports a [CycleOutcome] to the status store on
+     * success or failure. Shared by [syncOnOpen] (which lists first) and [startLiveSync] (which
+     * lists itself so it can short-circuit when no peer files exist).
+     */
     private suspend fun runMergeFromListing(
         target: AnnotationSyncTarget,
         serverId: String,
