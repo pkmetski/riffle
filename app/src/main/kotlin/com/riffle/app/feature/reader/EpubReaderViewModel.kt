@@ -1125,11 +1125,13 @@ class EpubReaderViewModel @Inject constructor(
         val cp = locator.locations.progression?.toFloat()
         _currentLocatorProgression.value = cp
         // Prefer totalProgression from the locator (Readium sets it in paginated/vertical modes).
-        // In continuous mode the locator is built by buildContinuousLocator which computes it from
-        // railSegments; if segments are empty at scroll time the field is absent. Fall back to an
-        // inline computation so the value is always populated when segments are already available.
+        // In continuous mode the locator is built by buildContinuousLocator which derives it from
+        // the spine's per-resource position counts; if counts are empty at scroll time the field
+        // is absent. Fall back to an inline computation so the value is always populated when
+        // position counts are already available.
+        val (spineHrefs, counts) = spinePositionCounts.value
         val tp = locator.locations.totalProgression?.toFloat()
-            ?: cp?.let { computeTotalProgression(locator.href.toString(), it, railSegments.value) }
+            ?: cp?.let { computeTotalProgression(locator.href.toString(), it, spineHrefs, counts) }
         tp?.let { _currentLocatorTotalProgression.value = it }
         // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
         // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
@@ -1649,10 +1651,15 @@ class EpubReaderViewModel @Inject constructor(
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val railSegments: StateFlow<List<RailSegment>> = state
+    /**
+     * Per-spine-resource position counts (Readium-computed), paired with their spine hrefs.
+     * Drives book-wide totalProgression in continuous mode (see [computeTotalProgression]) and
+     * feeds [railSegments] weighting. Exposed so the continuous reader can build correctly
+     * scaled locators when a rail segment spans multiple spine resources.
+     */
+    val spinePositionCounts: StateFlow<Pair<List<String>, List<Int>>> = state
         .map { s ->
-            val ready = s as? ReaderState.Ready ?: return@map emptyList()
-            val base = buildRailSegments(ready.publication.tableOfContents.toTocEntries(), ready.title)
+            val ready = s as? ReaderState.Ready ?: return@map emptyList<String>() to emptyList<Int>()
             val pub = ready.publication
             val positions: List<List<Locator>> = try {
                 pub.positionsByReadingOrder()
@@ -1660,25 +1667,33 @@ class EpubReaderViewModel @Inject constructor(
                 emptyList()
             }
             val spineHrefs = pub.readingOrder.map { it.url().toString() }
-            val positionCounts = positions.map { it.size }
-            val weighted = weightSegmentsByChapterLength(base, spineHrefs, positionCounts)
-            weighted
+            val counts = positions.map { it.size }
+            spineHrefs to counts
         }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList<String>() to emptyList<Int>())
+
+    val railSegments: StateFlow<List<RailSegment>> = combine(state, spinePositionCounts) { s, (spineHrefs, counts) ->
+        val ready = s as? ReaderState.Ready ?: return@combine emptyList()
+        val base = buildRailSegments(ready.publication.tableOfContents.toTocEntries(), ready.title)
+        weightSegmentsByChapterLength(base, spineHrefs, counts)
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Back-fill totalProgression when railSegments arrives after the first position event.
-    // In continuous mode the initial scroll may fire before segments load, leaving
-    // _currentLocatorTotalProgression null. When segments become non-empty, recompute from the
-    // last known href + chapter progression so time-remaining and rail cursor update immediately.
-    // Placed after railSegments declaration so the Dispatchers.Main.immediate coroutine start
-    // does not access the field while it is still null during class initialization.
+    // Back-fill totalProgression when spine position counts arrive after the first position event.
+    // In continuous mode the initial scroll may fire before positions load, leaving
+    // _currentLocatorTotalProgression null. When counts become non-empty, recompute from the
+    // last known href + within-resource progression so time-remaining and rail cursor update
+    // immediately. Placed after spinePositionCounts declaration so the Dispatchers.Main.immediate
+    // coroutine start does not access the field while it is still null during class initialization.
     init {
         viewModelScope.launch {
-            railSegments.collect { segs ->
-                if (segs.isEmpty() || _currentLocatorTotalProgression.value != null) return@collect
+            spinePositionCounts.collect { (spineHrefs, counts) ->
+                if (counts.isEmpty() || _currentLocatorTotalProgression.value != null) return@collect
                 val href = _currentLocatorHref.value ?: return@collect
                 val cp = _currentLocatorProgression.value ?: return@collect
-                computeTotalProgression(href, cp, segs)?.let { _currentLocatorTotalProgression.value = it }
+                computeTotalProgression(href, cp, spineHrefs, counts)?.let {
+                    _currentLocatorTotalProgression.value = it
+                }
             }
         }
     }

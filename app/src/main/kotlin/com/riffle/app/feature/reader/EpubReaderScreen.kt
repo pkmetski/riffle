@@ -356,10 +356,12 @@ fun EpubReaderScreen(
                         if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
+                    val spinePositions by viewModel.spinePositionCounts.collectAsState()
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
                         railSegments = railSegments,
+                        spinePositions = spinePositions,
                         // Use formattingPreferences (= _formattingPreferences, set synchronously by
                         // loadFormattingPreferences()) rather than effectiveFormattingPreferences.
                         // effectiveFormattingPreferences propagates through a combine→stateIn chain
@@ -1013,6 +1015,7 @@ private fun EpubNavigatorView(
     state: ReaderState.Ready,
     formattingPrefs: FormattingPreferences,
     railSegments: List<RailSegment>,
+    spinePositions: Pair<List<String>, List<Int>>,
     formattingPrefsProvider: () -> FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
     onNavigationEvents: Flow<Link>,
@@ -1114,17 +1117,17 @@ private fun EpubNavigatorView(
     // freshly loaded page re-applies the current value.
     val currentReadaloudReservePx by rememberUpdatedState(readaloudReservePx)
     val currentPublication by rememberUpdatedState(state.publication)
-    // rememberUpdatedState: railSegments arrives asynchronously (Readium computes positions after
-    // publication load). The AndroidView factory captures this reference so the continuous
-    // onPositionChanged lambda always reads the latest list.
-    val currentRailSegments by rememberUpdatedState(railSegments)
+    // rememberUpdatedState: spinePositions arrives asynchronously (Readium computes positions
+    // after publication load). The AndroidView factory captures this reference so the continuous
+    // onPositionChanged lambda always reads the latest pair when building the locator.
+    val currentSpinePositions by rememberUpdatedState(spinePositions)
 
     // Coordinator created once; lambdas close over rememberUpdatedState delegates so each
     // invocation always reads the latest value, not the value at remember time.
     val coordinator = remember(state.publication) {
         ContinuousReaderCoordinator(
             publication = state.publication,
-            railSegmentsProvider = { currentRailSegments },
+            spinePositionsProvider = { currentSpinePositions },
             onLocator = onPositionChanged,
             onTap = { currentOnTap() },
             latestLocator = { currentLatestLocator() },

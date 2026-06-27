@@ -859,10 +859,9 @@ class ReadingProgressLabelSourceTest {
  */
 class TotalProgressionFallbackTest {
 
-    private fun seg(href: String, weight: Float) = RailSegment(title = href, href = href, weight = weight)
-
     private class Source {
-        var segments: List<RailSegment> = emptyList()
+        var spineHrefs: List<String> = emptyList()
+        var positionCounts: List<Int> = emptyList()
         private var lastHref: String? = null
         private var lastCp: Float? = null
         val totalProgression = MutableStateFlow<Float?>(null)
@@ -870,62 +869,68 @@ class TotalProgressionFallbackTest {
         fun onPositionChanged(href: String, progression: Float?, total: Float?) {
             lastHref = href
             lastCp = progression
-            val tp = total ?: progression?.let { computeTotalProgression(href, it, segments) }
+            val tp = total ?: progression?.let {
+                computeTotalProgression(href, it, spineHrefs, positionCounts)
+            }
             tp?.let { totalProgression.value = it }
         }
 
-        fun onSegmentsChanged(newSegments: List<RailSegment>) {
-            segments = newSegments
-            if (newSegments.isEmpty() || totalProgression.value != null) return
+        fun onSpinePositionsChanged(spine: List<String>, counts: List<Int>) {
+            spineHrefs = spine
+            positionCounts = counts
+            if (counts.isEmpty() || totalProgression.value != null) return
             val href = lastHref ?: return
             val cp = lastCp ?: return
-            computeTotalProgression(href, cp, newSegments)?.let { totalProgression.value = it }
+            computeTotalProgression(href, cp, spine, counts)?.let { totalProgression.value = it }
         }
     }
 
     @Test
     fun `when locator has totalProgression it is used directly`() {
         val s = Source()
-        s.segments = listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f))
+        s.spineHrefs = listOf("ch1.xhtml", "ch2.xhtml")
+        s.positionCounts = listOf(100, 100)
         s.onPositionChanged("ch1.xhtml", progression = 0.5f, total = 0.25f)
         assertEquals(0.25f, s.totalProgression.value!!, 0.001f)
     }
 
     @Test
-    fun `when locator has no totalProgression and segments available, falls back to computeTotalProgression`() {
+    fun `when locator has no totalProgression and counts available, falls back to computeTotalProgression`() {
         val s = Source()
-        s.segments = listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f))
-        // Continuous-mode locator: totalProgression absent, segments already loaded.
+        s.spineHrefs = listOf("ch1.xhtml", "ch2.xhtml")
+        s.positionCounts = listOf(100, 100)
+        // Continuous-mode locator: totalProgression absent, position counts already loaded.
         s.onPositionChanged("ch2.xhtml", progression = 0f, total = null)
-        // ch2 at 0% through the chapter = 50% through the book.
+        // ch2 at 0% through the resource = 50% through the book.
         assertEquals(0.5f, s.totalProgression.value!!, 0.001f)
     }
 
     @Test
-    fun `when locator has no totalProgression and segments are empty, value stays null`() {
+    fun `when locator has no totalProgression and counts are empty, value stays null`() {
         val s = Source()
         s.onPositionChanged("ch1.xhtml", progression = 0.5f, total = null)
         assertNull(s.totalProgression.value)
     }
 
     @Test
-    fun `when segments arrive after first scroll, totalProgression is back-filled`() {
+    fun `when counts arrive after first scroll, totalProgression is back-filled`() {
         val s = Source()
         s.onPositionChanged("ch2.xhtml", progression = 0f, total = null)
-        assertNull("no segments yet — should stay null", s.totalProgression.value)
+        assertNull("no counts yet — should stay null", s.totalProgression.value)
 
-        s.onSegmentsChanged(listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f)))
+        s.onSpinePositionsChanged(listOf("ch1.xhtml", "ch2.xhtml"), listOf(100, 100))
         assertEquals(0.5f, s.totalProgression.value!!, 0.001f)
     }
 
     @Test
     fun `backfill does not overwrite a totalProgression already set from a locator`() {
         val s = Source()
-        s.segments = listOf(seg("ch1.xhtml", 1f), seg("ch2.xhtml", 1f))
+        s.spineHrefs = listOf("ch1.xhtml", "ch2.xhtml")
+        s.positionCounts = listOf(100, 100)
         s.onPositionChanged("ch2.xhtml", progression = 0f, total = 0.6f)
 
-        // Segments reload / re-emit — backfill guard must skip because value is already non-null.
-        s.onSegmentsChanged(s.segments)
+        // Counts reload / re-emit — backfill guard must skip because value is already non-null.
+        s.onSpinePositionsChanged(s.spineHrefs, s.positionCounts)
         assertEquals(0.6f, s.totalProgression.value!!, 0.001f)
     }
 }
