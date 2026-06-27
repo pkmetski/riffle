@@ -416,6 +416,8 @@ fun EpubReaderScreen(
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
                         autoScrollDeltas = viewModel.autoScrollScrollDeltas,
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
+                        onAutoScrollPause = viewModel::pauseAutoScroll,
+                        onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -1115,6 +1117,8 @@ private fun EpubNavigatorView(
     onUpdateHighlightNote: (String, String?) -> Unit,
     autoScrollDeltas: Flow<Int>,
     onReachedEndOfBook: () -> Unit,
+    onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
+    onAutoScrollResume: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2213,8 +2217,11 @@ private fun EpubNavigatorView(
             }
         }
         // Vertical (Readium scroll) mode: drive Auto-Scroll deltas into the active WebView inside
-        // Readium's EpubNavigatorFragment. On reaching the bottom of the chapter, advance with
-        // goForward(); when that returns false (last chapter), stop silently per ADR 0037.
+        // Readium's EpubNavigatorFragment. On reaching the bottom of the chapter, pause the
+        // controller (stops the 60Hz ticker so no deltas queue while Readium swaps WebViews),
+        // call goForward, give Readium a ~600ms settle window to absorb the load flash, then
+        // resume at the retained speed. If goForward returns false (last chapter), stop silently
+        // per ADR 0037.
         if (formattingPrefs.orientation == ReaderOrientation.Vertical) {
             val verticalFragment = fragmentRef.value
             LaunchedEffect(verticalFragment) {
@@ -2224,15 +2231,23 @@ private fun EpubNavigatorView(
                     val webView = findActiveWebView(root) ?: return@collect
                     val before = webView.scrollY
                     webView.scrollBy(0, delta)
-                    if (webView.scrollY == before) {
-                        // Stuck at the bottom of this chapter — try advancing to the next.
-                        val advanced = try {
-                            fragment.goForward(animated = false)
-                        } catch (_: Throwable) {
-                            false
-                        }
-                        if (!advanced) onReachedEndOfBook()
+                    if (webView.scrollY != before) return@collect
+                    // Stuck at the bottom of this chapter — pause-advance-resume.
+                    onAutoScrollPause(com.riffle.core.domain.autoscroll.PauseCause.OrientationChange)
+                    val advanced = try {
+                        fragment.goForward(animated = false)
+                    } catch (_: Throwable) {
+                        false
                     }
+                    if (!advanced) {
+                        onReachedEndOfBook()
+                        return@collect
+                    }
+                    // Settle window: lets Readium's WebView load + apply ReadiumCSS before the
+                    // ticker starts emitting again. Without it, the first delta lands on the
+                    // not-yet-painted WebView and the scrollBy is a no-op → spurious goForward.
+                    kotlinx.coroutines.delay(600)
+                    onAutoScrollResume()
                 }
             }
         }
