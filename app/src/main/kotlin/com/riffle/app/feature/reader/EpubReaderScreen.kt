@@ -1607,7 +1607,11 @@ private fun EpubNavigatorView(
 
     // ---- Persisted highlights (annotations + note glyphs) ----------------------------------
     // Superset keys: continuous re-keys on activeFragmentRef's base href when a new chapter
-    // enters the sliding window; Readium re-applies on reflow/pageLoad events.
+    // enters the sliding window; Readium re-applies on reflow/pageLoad events. Note: the
+    // initial bootstrap for continuous mode happens in the LaunchedEffect(continuousView)
+    // block below (around line 2110) — when the AndroidView factory binds the ref, this effect
+    // alone wouldn't re-fire (none of its keys change on orientation flip) and the new
+    // ContinuousHighlightRenderer would never be invoked, leaving annotations un-rendered.
     LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
         highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
     }
@@ -2113,6 +2117,13 @@ private fun EpubNavigatorView(
                 val initialHref = if (anchor != null) "$rawHref#$anchor" else rawHref
                 val focusId = state.initialFocusAnnotationId?.takeIf { focusIsFresh }
                 focusIsFresh = false
+                // Bootstrap persisted highlights for this freshly-bound view BEFORE chapters load:
+                // the persisted-highlights LaunchedEffect above this block doesn't re-fire on the
+                // ref-null→view transition (its keys don't include continuousViewRef.value), so on
+                // a paged↔continuous orientation flip the new ContinuousHighlightRenderer would
+                // otherwise never be invoked and ContinuousReaderView.currentAnnotationsByHref
+                // would stay empty — onPageFinished would skip every chapter as it loaded.
+                highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,
