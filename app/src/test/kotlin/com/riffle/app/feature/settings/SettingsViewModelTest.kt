@@ -211,7 +211,7 @@ class SettingsViewModelTest {
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
-        override fun observeReview(storytellerServerId: String): Flow<ReadaloudReview> =
+        override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
             reviewsFlow.map { it[storytellerServerId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
         override suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
@@ -219,7 +219,7 @@ class SettingsViewModelTest {
         override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) = Unit
         override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun searchAbsItems(query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
+        override suspend fun searchAbsItems(absServerId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
 
     private fun makeViewModel(
