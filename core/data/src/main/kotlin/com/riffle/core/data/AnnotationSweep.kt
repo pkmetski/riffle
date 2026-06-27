@@ -37,14 +37,21 @@ class AnnotationSweep(
     private val nowIso: () -> String = { Instant.now().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    suspend fun run() {
-        val target = targetProvider() ?: return
+    /**
+     * Runs one push cycle. Returns the [CycleOutcome] reported to the status store, or `null` when
+     * the sync target is unconfigured (silent no-op — see class kdoc). The worker maps the outcome
+     * to a [androidx.work.ListenableWorker.Result] so transient failures get WorkManager's
+     * exponential-backoff retry, which is also what re-fires the work the moment connectivity
+     * returns (CONNECTED constraint on the retried JobInfo).
+     */
+    suspend fun run(): CycleOutcome? {
+        val target = targetProvider() ?: return null
 
         // Sentinels are written once per unique namespace touched this cycle. Skip pull-only
         // sweeps with nothing dirty — the live controller refreshes sentinels on its own paths
         // and writing here would require iterating every known namespace.
         val sentinelTargets = mutableSetOf<Pair<String, String>>()
-        try {
+        val outcome: CycleOutcome = try {
             val deviceId = deviceIdStore.getOrCreate()
             for ((serverId, itemId) in annotationDao.dirtyServerItems()) {
                 val namespace = serverRepository.ensureAbsUserId(serverId) ?: continue
@@ -52,13 +59,15 @@ class AnnotationSweep(
                 pushBook(target, serverId, namespace, itemId, deviceId, bookTitle)
                 sentinelTargets += serverId to namespace
             }
-            statusStore.report(CycleOutcome.Success(clock()))
             for ((serverId, namespace) in sentinelTargets) {
                 writeDeviceMetaQuietly(target, deviceId, namespace, serverId)
             }
+            CycleOutcome.Success(clock())
         } catch (e: Exception) {
-            statusStore.report(e.toFailedCycleOutcome(clock()))
+            e.toFailedCycleOutcome(clock())
         }
+        statusStore.report(outcome)
+        return outcome
     }
 
     /**
