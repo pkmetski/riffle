@@ -10,8 +10,7 @@ package com.riffle.core.domain
  *
  * Each per-device file is a JSON array whose first element is a [AnnotationFileHeader] header
  * (label / model / lastSeenAt) followed by the W3C annotation records — see [AnnotationFileHeader]
- * for the format rationale. There is no separate sidecar file; legacy `device-*.json` files
- * from earlier builds are cleaned up opportunistically by `forgetDevice`.
+ * for the format rationale.
  *
  * [namespace] is an opaque, **cross-device-stable** identity that scopes a sync target's view
  * of "the same account" — for ABS that is `/api/me` → `user.id`, persisted as
@@ -50,21 +49,25 @@ interface AnnotationSyncTarget {
     suspend fun delete(namespace: String, itemId: String, filename: String)
 
     /**
-     * Delete a device's legacy `device-<deviceId>.json` sidecar. No-op if absent. Kept on the
-     * interface so [com.riffle.core.data.AnnotationSyncMaintenance.forgetDevice] can clean up
-     * sidecars left behind by builds prior to the embedded-header migration. Current builds
-     * never write a sidecar.
+     * Read the per-device metadata sentinel for [deviceId] under [namespace]. Single JSON object,
+     * stored at the namespace root (no `itemId` segment). Returns null when the file does not
+     * exist — devices that haven't run a successful sync cycle on the new client never have one.
      */
-    suspend fun deleteDeviceSidecar(namespace: String, deviceId: String)
+    suspend fun readDeviceMeta(namespace: String, deviceId: String): String?
+
+    /**
+     * Write (overwrite) the per-device metadata sentinel for [deviceId] under [namespace].
+     * Called at the end of every successful sync cycle, push or pull-only — see
+     * [com.riffle.core.data.AnnotationDeviceMetaCodec] for the body shape.
+     */
+    suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String)
 
     /**
      * Enumerate every device that owns annotation files under [namespace], grouping by
-     * `deviceId`. Devices appear iff they own at least one annotation file; legacy sidecars
-     * are tracked separately via [hasLegacySidecar] so [forgetDevice] can clean them up.
+     * `deviceId`. Devices appear iff they own at least one annotation file.
      *
      * This drives the Maintenance UI (per-device row with file counts) and is the work-list
-     * for both forget-device (delete its files) and compact-tombstones (rewrite every
-     * annotation file).
+     * for forget-device (delete its files).
      */
     suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing
 
@@ -72,13 +75,13 @@ interface AnnotationSyncTarget {
      * Enumerate every distinct namespace prefix found under the target's base. Used by the
      * Maintenance UI to surface namespaces other than the currently-active one — typically
      * orphans left behind by a previous namespacing scheme (see commit history around the
-     * absUserId migration). Returns counts of annotation files and sidecars per namespace.
+     * absUserId migration). Returns counts of annotation files per namespace.
      */
     suspend fun enumerateNamespaces(): List<NamespaceSummary>
 
     /**
-     * Delete every file (annotation + sidecar) under [namespace]. Used by the Maintenance
-     * "Forget orphan namespace" bulk action. Returns the number of files actually deleted.
+     * Delete every file under [namespace]. Used by the Maintenance "Forget orphan namespace"
+     * bulk action. Returns the number of files actually deleted.
      */
     suspend fun forgetNamespace(namespace: String): Int
 }
@@ -93,15 +96,11 @@ data class NamespaceDeviceListing(
  *
  * @property deviceId The opaque device identifier (UUID minted at install time on each device).
  * @property annotationFiles References to that device's per-book annotation files. Used as the
- *     work-list for "forget device" (delete each) and "compact tombstones" (rewrite each).
- * @property hasLegacySidecar Whether a legacy `device-<deviceId>.json` file (from builds prior
- *     to the embedded-header migration) is still present. Used by `forgetDevice` to clean it
- *     up alongside the annotation files. Not surfaced in the UI.
+ *     work-list for "forget device" (delete each).
  */
 data class DeviceFileSummary(
     val deviceId: String,
     val annotationFiles: List<AnnotationFileRef>,
-    val hasLegacySidecar: Boolean,
 )
 
 /** Reference to a single annotation file under a namespace. */
@@ -114,5 +113,4 @@ data class AnnotationFileRef(
 data class NamespaceSummary(
     val namespace: String,
     val annotationFileCount: Int,
-    val sidecarCount: Int,
 )

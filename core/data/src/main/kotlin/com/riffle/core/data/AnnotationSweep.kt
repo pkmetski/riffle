@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
@@ -39,17 +40,49 @@ class AnnotationSweep(
     suspend fun run() {
         val target = targetProvider() ?: return
 
+        // Sentinels are written once per unique namespace touched this cycle. Skip pull-only
+        // sweeps with nothing dirty — the live controller refreshes sentinels on its own paths
+        // and writing here would require iterating every known namespace.
+        val sentinelTargets = mutableSetOf<Pair<String, String>>()
         try {
             val deviceId = deviceIdStore.getOrCreate()
             for ((serverId, itemId) in annotationDao.dirtyServerItems()) {
                 val namespace = serverRepository.ensureAbsUserId(serverId) ?: continue
-                val username = serverRepository.getById(serverId)?.username
                 val bookTitle = bookTitleProvider(serverId, itemId)
-                pushBook(target, serverId, namespace, itemId, deviceId, username, bookTitle)
+                pushBook(target, serverId, namespace, itemId, deviceId, bookTitle)
+                sentinelTargets += serverId to namespace
             }
             statusStore.report(CycleOutcome.Success(clock()))
+            for ((serverId, namespace) in sentinelTargets) {
+                writeDeviceMetaQuietly(target, deviceId, namespace, serverId)
+            }
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
+        }
+    }
+
+    /**
+     * Best-effort write of this device's metadata sentinel under [namespace]. See
+     * [AnnotationSyncController.writeDeviceMetaQuietly] for the rationale; same swallow behaviour.
+     */
+    private suspend fun writeDeviceMetaQuietly(
+        target: AnnotationSyncTarget,
+        deviceId: String,
+        namespace: String,
+        serverId: String,
+    ) {
+        try {
+            val body = AnnotationDeviceMetaCodec.encode(
+                AnnotationDeviceMeta(
+                    deviceId = deviceId,
+                    label = deviceLabelResolver.resolveLabel(deviceId),
+                    lastSyncedAt = nowIso(),
+                    username = serverRepository.getById(serverId)?.username,
+                )
+            )
+            target.writeDeviceMeta(namespace, deviceId, body)
+        } catch (_: Exception) {
+            // Swallowed — see [AnnotationSyncController.writeDeviceMetaQuietly].
         }
     }
 
@@ -59,22 +92,15 @@ class AnnotationSweep(
         namespace: String,
         itemId: String,
         deviceId: String,
-        username: String?,
         bookTitle: String?,
     ) {
         val rows = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
         if (rows.isEmpty()) return
         val jsonStrings = rows.map { AnnotationW3CCodec.annotationEntityToW3C(it) }
         // Mirror the header written by AnnotationSyncController.pushPending so files from the
-        // sweep and from the live controller are format-identical. Without this, the sweep would
-        // overwrite the header on every alternate push.
-        val header = AnnotationFileHeader(
-            deviceId = deviceId,
-            label = deviceLabelResolver.resolveLabel(deviceId),
-            lastSeenAt = nowIso(),
-            username = username,
-            bookTitle = bookTitle,
-        )
+        // sweep and from the live controller are format-identical. Device-scoped metadata
+        // lives in the per-device sentinel — see [AnnotationDeviceMeta].
+        val header = AnnotationFileHeader(deviceId = deviceId, bookTitle = bookTitle)
         val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
         target.write(namespace, itemId, "annotations-$deviceId.jsonld", jsonArray)
         annotationDao.markSynced(rows.map { it.id }, clock())

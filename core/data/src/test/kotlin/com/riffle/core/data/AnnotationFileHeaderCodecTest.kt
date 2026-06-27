@@ -8,11 +8,7 @@ import org.junit.Test
 
 class AnnotationFileHeaderCodecTest {
 
-    private val meta = AnnotationFileHeader(
-        deviceId = "dev-1",
-        label = "Phone A",
-        lastSeenAt = "2026-01-01T00:00:00Z",
-    )
+    private val meta = AnnotationFileHeader(deviceId = "dev-1")
 
     @Test
     fun `buildFileBody with no annotations renders just the header`() {
@@ -34,37 +30,14 @@ class AnnotationFileHeaderCodecTest {
     }
 
     @Test
-    fun `replaceHeader swaps the header without losing annotations`() {
-        val original = AnnotationFileHeaderCodec.buildFileBody(
-            meta,
-            annotationJsonStrings = listOf("""{"id":"x"}"""),
-        )
-        val newMeta = meta.copy(label = "Renamed", lastSeenAt = "2026-02-02T02:02:02Z")
-        val rewritten = AnnotationFileHeaderCodec.replaceHeader(original, newMeta)
-        val extracted = AnnotationFileHeaderCodec.extractHeader(rewritten)
-        assertEquals(newMeta, extracted)
-        assertTrue(rewritten.contains("\"id\":\"x\""))
-    }
-
-    @Test
     fun `extractHeader returns null for legacy header-less files`() {
         val legacy = """[{"id":"a"},{"id":"b"}]"""
         assertNull(AnnotationFileHeaderCodec.extractHeader(legacy))
     }
 
     @Test
-    fun `replaceHeader on a legacy file inserts a header`() {
-        val legacy = """[{"id":"a"}]"""
-        val rewritten = AnnotationFileHeaderCodec.replaceHeader(legacy, meta)
-        assertEquals(meta, AnnotationFileHeaderCodec.extractHeader(rewritten))
-        assertTrue(rewritten.contains("\"id\":\"a\""))
-    }
-
-    @Test
-    fun `malformed input is returned unchanged by replaceHeader and null by extractHeader`() {
-        val bogus = "not json {{"
-        assertNull(AnnotationFileHeaderCodec.extractHeader(bogus))
-        assertEquals(bogus, AnnotationFileHeaderCodec.replaceHeader(bogus, meta))
+    fun `extractHeader returns null on malformed input`() {
+        assertNull(AnnotationFileHeaderCodec.extractHeader("not json {{"))
     }
 
     @Test
@@ -76,19 +49,28 @@ class AnnotationFileHeaderCodecTest {
     }
 
     @Test
-    fun `username round-trips through encode and extract`() {
-        val withUser = meta.copy(username = "alice")
-        val body = AnnotationFileHeaderCodec.buildFileBody(withUser, annotationJsonStrings = emptyList())
-        assertTrue(body.contains("\"username\":\"alice\""))
-        assertEquals(withUser, AnnotationFileHeaderCodec.extractHeader(body))
+    fun `device-scoped fields are not emitted on encode`() {
+        // The slim file header carries only book-scoped data. label/lastSeenAt/username live in
+        // the per-device sentinel ([AnnotationDeviceMeta]); they must not be re-emitted here even
+        // by accident — duplicating them would re-introduce the inconsistency the split fixed.
+        val body = AnnotationFileHeaderCodec.buildFileBody(meta.copy(bookTitle = "Title"), emptyList())
+        assertTrue("no label", !body.contains("\"label\""))
+        assertTrue("no lastSeenAt", !body.contains("\"lastSeenAt\""))
+        assertTrue("no username", !body.contains("\"username\""))
     }
 
     @Test
-    fun `username is omitted when null and parses back as null`() {
-        val body = AnnotationFileHeaderCodec.buildFileBody(meta, annotationJsonStrings = emptyList())
-        assertTrue(!body.contains("username"))
-        val extracted = AnnotationFileHeaderCodec.extractHeader(body)
-        assertNull(extracted?.username)
+    fun `legacy header carrying device-scoped fields is read as the slim shape`() {
+        // Pre-split file: the embedded header still has label/lastSeenAt/username/bookTitle.
+        // extractHeader must ignore the device-scoped extras and surface only deviceId + bookTitle.
+        val legacyBody = """
+            [
+              {"type":"riffle:FileHeader","deviceId":"legacy-A","label":"Old","lastSeenAt":"2025-01-01T00:00:00Z","username":"alice","bookTitle":"Dune"},
+              {"id":"ann-1"}
+            ]
+        """.trimIndent()
+        val header = AnnotationFileHeaderCodec.extractHeader(legacyBody)
+        assertEquals(AnnotationFileHeader(deviceId = "legacy-A", bookTitle = "Dune"), header)
     }
 
     @Test
@@ -103,25 +85,6 @@ class AnnotationFileHeaderCodecTest {
             ]
         """.trimIndent()
         val header = AnnotationFileHeaderCodec.extractHeader(legacyBody)
-        assertEquals(AnnotationFileHeader("legacy-A", "Old", "2025-01-01T00:00:00Z", "alice"), header)
-    }
-
-    @Test
-    fun `replaceHeader on a legacy-marker file leaves a single new-marker header`() {
-        // Mid-transition: another device wrote the file with the old marker; we rename on this
-        // device and rewrite. The legacy header must be removed, not stacked alongside the new one.
-        val legacyBody = """[{"type":"riffle:DeviceMeta","deviceId":"A","label":"Old","lastSeenAt":"2025-01-01T00:00:00Z"},{"id":"x"}]"""
-        val rewritten = AnnotationFileHeaderCodec.replaceHeader(legacyBody, meta.copy(deviceId = "A"))
-        assertTrue("new marker must be present", rewritten.contains("riffle:FileHeader"))
-        assertTrue("legacy marker must be gone", !rewritten.contains("riffle:DeviceMeta"))
-        assertTrue("annotation records survive", rewritten.contains("\"id\":\"x\""))
-    }
-
-    @Test
-    fun `blank username is treated as absent on both sides`() {
-        val blank = meta.copy(username = "")
-        val body = AnnotationFileHeaderCodec.buildFileBody(blank, annotationJsonStrings = emptyList())
-        assertTrue(!body.contains("username"))
-        assertNull(AnnotationFileHeaderCodec.extractHeader(body)?.username)
+        assertEquals(AnnotationFileHeader(deviceId = "legacy-A"), header)
     }
 }

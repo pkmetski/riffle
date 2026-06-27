@@ -1,15 +1,16 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
-import com.riffle.core.domain.AnnotationFileHeader
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,108 +27,98 @@ class AnnotationSyncMaintenanceTest {
                 FileKey("ns", "item-2", "annotations-dev-A.jsonld") to "[]",
                 FileKey("ns", "item-1", "annotations-dev-B.jsonld") to "[]",
             ),
-            legacySidecars = mutableSetOf(),
         )
         val m = maintenanceFor(target)
         val result = m.forgetDevice("ns", "dev-A")
 
         assertEquals(2, result.deletedAnnotationFiles)
-        assertFalse(result.deletedLegacySidecar)
         assertEquals(0, result.failures)
         assertFalse(target.files.keys.any { it.deviceId == "dev-A" })
         assertTrue(target.files.containsKey(FileKey("ns", "item-1", "annotations-dev-B.jsonld")))
     }
 
     @Test
-    fun `forgetDevice also nukes a leftover legacy sidecar`() = runTest {
+    fun `listDevices reads the per-device sentinel for label and lastSyncedAt`() = runTest {
         val target = InMemoryMaintenanceTarget(
             files = mutableMapOf(
-                FileKey("ns", "item-1", "annotations-dev-A.jsonld") to "[]",
-            ),
-            legacySidecars = mutableSetOf("dev-A"),
-        )
-        val m = maintenanceFor(target)
-        val result = m.forgetDevice("ns", "dev-A")
-
-        assertEquals(1, result.deletedAnnotationFiles)
-        assertTrue(result.deletedLegacySidecar)
-        assertFalse(target.legacySidecars.contains("dev-A"))
-    }
-
-    @Test
-    fun `listDevices extracts the embedded metadata header from annotation files`() = runTest {
-        val headerA = AnnotationFileHeaderCodec.buildFileBody(
-            AnnotationFileHeader("A", "Phone A", "2026-01-01T00:00:00Z"),
-            annotationJsonStrings = emptyList(),
-        )
-        val target = InMemoryMaintenanceTarget(
-            files = mutableMapOf(
-                FileKey("ns", "i1", "annotations-A.jsonld") to headerA,
+                FileKey("ns", "i1", "annotations-A.jsonld") to "[]",
                 FileKey("ns", "i1", "annotations-B.jsonld") to "[]",
             ),
-            legacySidecars = mutableSetOf(),
         )
-        val m = maintenanceFor(target)
-        val rows = m.listDevices("ns")
+        target.deviceMetaFiles["ns" to "A"] = AnnotationDeviceMetaCodec.encode(
+            AnnotationDeviceMeta("A", "Phone A", "2026-01-01T00:00:00Z", username = "alice")
+        )
+
+        val rows = maintenanceFor(target).listDevices("ns")
 
         assertEquals(2, rows.size)
         val a = rows.first { it.deviceId == "A" }
         val b = rows.first { it.deviceId == "B" }
-        assertEquals(1, a.annotationFileCount)
         assertNotNull(a.metadata)
         assertEquals("Phone A", a.metadata!!.label)
-        assertEquals(1, b.annotationFileCount)
-        assertEquals(null, b.metadata)
+        assertEquals("2026-01-01T00:00:00Z", a.metadata!!.lastSyncedAt)
+        assertEquals("alice", a.metadata!!.username)
+        // No sentinel for B → no metadata. The Maintenance UI shows just the deviceId-derived
+        // label, which is the honest signal that we have no recent evidence of this peer.
+        assertNull(b.metadata)
     }
 
     @Test
-    fun `publishHeader rewrites every annotation file's header and preserves lastSeenAt`() = runTest {
-        val originalA = AnnotationFileHeaderCodec.buildFileBody(
-            AnnotationFileHeader("A", "Old Name", "2025-09-15T10:00:00Z"),
-            annotationJsonStrings = listOf("""{"id":"x"}"""),
-        )
-        val originalA2 = AnnotationFileHeaderCodec.buildFileBody(
-            AnnotationFileHeader("A", "Old Name", "2025-09-15T10:00:00Z"),
-            annotationJsonStrings = listOf("""{"id":"y"}"""),
-        )
-        val target = InMemoryMaintenanceTarget(
-            files = mutableMapOf(
-                FileKey("ns", "i1", "annotations-A.jsonld") to originalA,
-                FileKey("ns", "i2", "annotations-A.jsonld") to originalA2,
-            ),
-            legacySidecars = mutableSetOf(),
-        )
-        val m = maintenanceFor(target)
-        val result = m.publishHeader("ns", "A", "New Name", username = "alice")
-
-        assertEquals(2, result.rewrittenFiles)
-        assertEquals(0, result.failures)
-        target.files.values.forEach { body ->
-            val header = AnnotationFileHeaderCodec.extractHeader(body)!!
-            assertEquals("New Name", header.label)
-            // The original lastSeenAt is preserved — a rename must not masquerade as a fresh push.
-            assertEquals("2025-09-15T10:00:00Z", header.lastSeenAt)
-            // Rename refreshes the recorded ABS username too.
-            assertEquals("alice", header.username)
-        }
-        assertTrue(target.files.values.any { it.contains("\"id\":\"x\"") })
-        assertTrue(target.files.values.any { it.contains("\"id\":\"y\"") })
-    }
-
-    @Test
-    fun `publishHeader mints a fallback lastSeenAt for legacy header-less files`() = runTest {
-        // Legacy file from a build prior to the embed-header refactor: pure annotations, no header.
-        val legacy = """[{"id":"x"}]"""
+    fun `listDevices does NOT fall back to per-file headers when sentinel is missing`() = runTest {
+        // Old per-file header carrying device-scoped fields. Maintenance must NOT mine it for
+        // label/lastSyncedAt — that would reintroduce the push-vs-pull dishonesty.
+        val legacy = """
+            [
+              {"type":"riffle:FileHeader","deviceId":"A","label":"Old Per-File Label","lastSeenAt":"2024-01-01T00:00:00Z","username":"alice","bookTitle":"Dune"},
+              {"id":"x"}
+            ]
+        """.trimIndent()
         val target = InMemoryMaintenanceTarget(
             files = mutableMapOf(FileKey("ns", "i1", "annotations-A.jsonld") to legacy),
-            legacySidecars = mutableSetOf(),
         )
-        val m = maintenanceFor(target)
-        m.publishHeader("ns", "A", "New Name", username = "alice")
 
-        val header = AnnotationFileHeaderCodec.extractHeader(target.files.values.first())!!
-        assertEquals("New Name", header.label)
-        assertEquals("2026-02-02T02:02:02Z", header.lastSeenAt)
+        val rows = maintenanceFor(target).listDevices("ns")
+
+        assertEquals(1, rows.size)
+        assertNull(rows.single().metadata)
+    }
+
+    @Test
+    fun `publishHeader writes exactly one sentinel, with the new label`() = runTest {
+        val target = InMemoryMaintenanceTarget(
+            files = mutableMapOf(
+                FileKey("ns", "i1", "annotations-A.jsonld") to "[]",
+                FileKey("ns", "i2", "annotations-A.jsonld") to "[]",
+            ),
+        )
+        target.deviceMetaFiles["ns" to "A"] = AnnotationDeviceMetaCodec.encode(
+            AnnotationDeviceMeta("A", "Old Name", "2025-09-15T10:00:00Z")
+        )
+
+        val result = maintenanceFor(target).publishHeader("ns", "A", "New Name", username = "alice")
+
+        assertEquals(1, result.rewrittenFiles)
+        assertEquals(0, result.failures)
+        // No annotation files were rewritten — rename is a one-PUT operation now.
+        target.files.values.forEach { assertEquals("[]", it) }
+        val updated = AnnotationDeviceMetaCodec.decode(target.deviceMetaFiles["ns" to "A"]!!)!!
+        assertEquals("New Name", updated.label)
+        assertEquals("alice", updated.username)
+        // Rename does NOT bump the visible "Last synced" — preserves the prior sentinel value.
+        assertEquals("2025-09-15T10:00:00Z", updated.lastSyncedAt)
+    }
+
+    @Test
+    fun `publishHeader mints a fallback lastSyncedAt when no sentinel exists yet`() = runTest {
+        val target = InMemoryMaintenanceTarget(
+            files = mutableMapOf(FileKey("ns", "i1", "annotations-A.jsonld") to "[]"),
+        )
+
+        maintenanceFor(target).publishHeader("ns", "A", "New Name", username = "alice")
+
+        val written = AnnotationDeviceMetaCodec.decode(target.deviceMetaFiles["ns" to "A"]!!)!!
+        assertEquals("New Name", written.label)
+        assertEquals("2026-02-02T02:02:02Z", written.lastSyncedAt)
     }
 }
 
@@ -137,7 +128,6 @@ private data class FileKey(val namespace: String, val itemId: String, val filena
 
 private class InMemoryMaintenanceTarget(
     val files: MutableMap<FileKey, String>,
-    val legacySidecars: MutableSet<String>,
 ) : AnnotationSyncTarget {
     override suspend fun list(namespace: String, itemId: String): List<String> =
         files.keys.filter { it.namespace == namespace && it.itemId == itemId }.map { it.filename }
@@ -149,8 +139,11 @@ private class InMemoryMaintenanceTarget(
     override suspend fun delete(namespace: String, itemId: String, filename: String) {
         files.remove(FileKey(namespace, itemId, filename))
     }
-    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {
-        legacySidecars.remove(deviceId)
+    val deviceMetaFiles: MutableMap<Pair<String, String>, String> = mutableMapOf()
+    override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? =
+        deviceMetaFiles[namespace to deviceId]
+    override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+        deviceMetaFiles[namespace to deviceId] = content
     }
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
         val byDevice = files.keys
@@ -160,7 +153,6 @@ private class InMemoryMaintenanceTarget(
             DeviceFileSummary(
                 deviceId = deviceId,
                 annotationFiles = byDevice[deviceId].orEmpty().map { AnnotationFileRef(it.itemId, it.filename) },
-                hasLegacySidecar = legacySidecars.contains(deviceId),
             )
         }
         return NamespaceDeviceListing(rows)
@@ -172,7 +164,6 @@ private class InMemoryMaintenanceTarget(
             NamespaceSummary(
                 namespace = ns,
                 annotationFileCount = annotations[ns] ?: 0,
-                sidecarCount = if (ns == "ns") legacySidecars.size else 0,
             )
         }
     }
@@ -180,11 +171,6 @@ private class InMemoryMaintenanceTarget(
     override suspend fun forgetNamespace(namespace: String): Int {
         val keys = files.keys.filter { it.namespace == namespace }
         keys.forEach { files.remove(it) }
-        var deleted = keys.size
-        if (namespace == "ns") {
-            deleted += legacySidecars.size
-            legacySidecars.clear()
-        }
-        return deleted
+        return keys.size
     }
 }

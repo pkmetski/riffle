@@ -3,6 +3,8 @@ package com.riffle.app.feature.settings.annotationsync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotationSyncMaintenance
+import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
@@ -40,7 +42,7 @@ sealed class MaintenanceScreenUiState {
 /** Banner shown after Forget/Compact completes. */
 sealed class MaintenanceSnack {
     object None : MaintenanceSnack()
-    data class Forgot(val label: String, val files: Int, val legacySidecarDeleted: Boolean, val failures: Int) : MaintenanceSnack()
+    data class Forgot(val label: String, val files: Int, val failures: Int) : MaintenanceSnack()
     data class ForgotUser(val userLabel: String, val files: Int) : MaintenanceSnack()
     data class Renamed(val rewritten: Int, val failures: Int) : MaintenanceSnack()
 }
@@ -81,6 +83,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
     private val deviceLabelStore: DeviceLabelStore,
     private val deviceLabelResolver: DeviceLabelResolver,
     private val serverRepository: ServerRepository,
+    private val statusStore: AnnotationSyncStatusStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AnnotationSyncMaintenanceUiState())
@@ -119,7 +122,6 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                 snack = MaintenanceSnack.Forgot(
                     label = row.label,
                     files = result.deletedAnnotationFiles,
-                    legacySidecarDeleted = result.deletedLegacySidecar,
                     failures = result.failures,
                 ),
             )
@@ -242,7 +244,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                         namespace = summary.namespace,
                         displayLabel = username,
                         devices = nestedRows.map { it.toUiRow(summary.namespace, myDeviceId = "", myLocalLabel = "") },
-                        totalFileCount = summary.annotationFileCount + summary.sidecarCount,
+                        totalFileCount = summary.annotationFileCount,
                     )
                 }
         } catch (_: Exception) {
@@ -260,6 +262,12 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
      * "this device" treatment only applies when [myDeviceId] matches and the row is under the
      * **active** namespace — foreign-user groups should never carry the chip even if a deviceId
      * happens to collide.
+     *
+     * "Last synced" sources differ by row type. This device reads the in-memory cycle outcome
+     * (matches the AddServer banner) and so honours pull-only cycles even though they leave no
+     * trace in WebDAV. Foreign devices read their own sentinel (refreshed by them on every
+     * cycle), so a peer that hasn't run a cycle on the new client shows no "Last synced" — the
+     * honest signal that we have no recent evidence of them.
      */
     private fun AnnotationSyncMaintenance.DeviceRow.toUiRow(
         namespace: String,
@@ -274,10 +282,15 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         }
         val parts = mutableListOf<String>()
         parts += "$annotationFileCount annotation file" + if (annotationFileCount == 1) "" else "s"
-        metadata?.lastSeenAt
-            ?.takeIf { it.isNotBlank() }
-            ?.let { humanizeLastSeen(it) }
-            ?.let { parts += "Last synced $it" }
+        val lastSynced = when {
+            isMe -> (statusStore.lastCycleOutcome.value as? CycleOutcome.Success)
+                ?.atMs
+                ?.let { humanizeEpochMs(it) }
+            else -> metadata?.lastSyncedAt
+                ?.takeIf { it.isNotBlank() }
+                ?.let { humanizeIso(it) }
+        }
+        lastSynced?.let { parts += "Last synced $it" }
         return MaintenanceDeviceRowUiState(
             deviceId = deviceId,
             namespace = namespace,
@@ -287,8 +300,8 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
         )
     }
 
-    /** Best-effort ISO-8601 → "yyyy-MM-dd HH:mm" formatter; returns the raw input on failure. */
-    private fun humanizeLastSeen(iso: String): String = try {
+    /** ISO-8601 → "yyyy-MM-dd HH:mm" in the device's timezone; returns the raw input on failure. */
+    private fun humanizeIso(iso: String): String = try {
         val instant = java.time.Instant.parse(iso)
         java.time.format.DateTimeFormatter
             .ofPattern("yyyy-MM-dd HH:mm")
@@ -297,6 +310,13 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
     } catch (_: Exception) {
         iso
     }
+
+    /** Epoch millis → "yyyy-MM-dd HH:mm" in the device's timezone. */
+    private fun humanizeEpochMs(atMs: Long): String =
+        java.time.format.DateTimeFormatter
+            .ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(java.time.ZoneId.systemDefault())
+            .format(java.time.Instant.ofEpochMilli(atMs))
 
     private suspend fun resolveNamespace(): String? {
         // Active server first (most relevant to the user), then any configured ABS server with a

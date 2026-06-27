@@ -27,8 +27,6 @@ import javax.xml.parsers.SAXParserFactory
  * under `basePath` and carries the per-account+book scope in its name:
  *
  * - Annotation file: `<basePath>/<namespace>__<itemId>__annotations-<deviceId>.jsonld`
- * - Device sidecar: `<basePath>/<namespace>__device-<deviceId>.json` (no `itemId` segment —
- *   sidecars are global to a device, not per-book).
  *
  * `namespace` is the cross-device-stable ABS user id (`/api/me` → `user.id`, persisted on
  * [com.riffle.core.domain.Server.absUserId]). Using the local `servers.id` here would break
@@ -89,28 +87,24 @@ class WebDavAnnotationSyncTarget(
         deleteFile(annotationFileUrl(namespace, itemId, filename), "delete $filename")
     }
 
-    override suspend fun deleteDeviceSidecar(namespace: String, deviceId: String) {
-        deleteFile(sidecarFileUrl(namespace, deviceId), "delete sidecar $deviceId")
+    override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? =
+        readFile(deviceMetaUrl(namespace, deviceId))
+
+    override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+        withContext(Dispatchers.IO) {
+            putFile(deviceMetaUrl(namespace, deviceId), content, JSON_MEDIA, "write device-meta $deviceId")
+        }
     }
 
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing =
         withContext(Dispatchers.IO) {
             val all = propfindBaseFilenames()
             val annotationPrefix = "$namespace$NAMESPACE_SEPARATOR"
-            val sidecarPrefix = "$namespace$NAMESPACE_SEPARATOR$SIDECAR_NAME_PREFIX"
 
             val annotationFiles = mutableMapOf<String, MutableList<AnnotationFileRef>>()
-            val sidecarDeviceIds = mutableSetOf<String>()
 
             for (physicalName in all) {
                 if (!physicalName.startsWith(annotationPrefix)) continue
-                if (physicalName.startsWith(sidecarPrefix) && physicalName.endsWith(JSON_SUFFIX)) {
-                    val deviceId = physicalName
-                        .removePrefix(sidecarPrefix)
-                        .removeSuffix(JSON_SUFFIX)
-                    if (deviceId.isNotEmpty()) sidecarDeviceIds += deviceId
-                    continue
-                }
                 if (!physicalName.endsWith(JSONLD_SUFFIX)) continue
                 // <namespace>__<itemId>__annotations-<deviceId>.jsonld
                 val afterNamespace = physicalName.removePrefix(annotationPrefix)
@@ -128,14 +122,10 @@ class WebDavAnnotationSyncTarget(
                     .add(AnnotationFileRef(itemId = itemId, filename = filename))
             }
 
-            // Devices appear iff they own at least one annotation file. Legacy sidecars without
-            // matching annotation files are intentionally ignored — they're handled by the
-            // namespace-level cleanup (NamespaceSummary.sidecarCount + forgetNamespace).
             val rows = annotationFiles.keys.toSortedSet().map { deviceId ->
                 DeviceFileSummary(
                     deviceId = deviceId,
                     annotationFiles = annotationFiles[deviceId]?.toList().orEmpty(),
-                    hasLegacySidecar = deviceId in sidecarDeviceIds,
                 )
             }
             NamespaceDeviceListing(devices = rows)
@@ -145,25 +135,21 @@ class WebDavAnnotationSyncTarget(
         withContext(Dispatchers.IO) {
             val all = propfindBaseFilenames()
             val annotationByNs = mutableMapOf<String, Int>()
-            val sidecarByNs = mutableMapOf<String, Int>()
             for (physical in all) {
                 val sepIdx = physical.indexOf(NAMESPACE_SEPARATOR)
                 if (sepIdx <= 0) continue
                 val ns = physical.substring(0, sepIdx)
                 val tail = physical.substring(sepIdx + NAMESPACE_SEPARATOR.length)
                 when {
-                    tail.startsWith(SIDECAR_NAME_PREFIX) && tail.endsWith(JSON_SUFFIX) ->
-                        sidecarByNs[ns] = (sidecarByNs[ns] ?: 0) + 1
                     tail.endsWith(JSONLD_SUFFIX) ->
                         annotationByNs[ns] = (annotationByNs[ns] ?: 0) + 1
                     // else: unknown file under base — skip silently.
                 }
             }
-            (annotationByNs.keys + sidecarByNs.keys).toSortedSet().map { ns ->
+            annotationByNs.keys.toSortedSet().map { ns ->
                 NamespaceSummary(
                     namespace = ns,
                     annotationFileCount = annotationByNs[ns] ?: 0,
-                    sidecarCount = sidecarByNs[ns] ?: 0,
                 )
             }
         }
@@ -174,7 +160,7 @@ class WebDavAnnotationSyncTarget(
         var deleted = 0
         for (physical in all) {
             if (!physical.startsWith(prefix)) continue
-            // Use the physical filename as the URL segment directly. annotationFileUrl/sidecarFileUrl
+            // Use the physical filename as the URL segment directly. annotationFileUrl
             // would re-prefix and double-encode the namespace; just hit the literal name we saw.
             val url = basePath.newBuilder().addPathSegment(physical).build()
             try {
@@ -316,9 +302,9 @@ class WebDavAnnotationSyncTarget(
             .addPathSegment(annotationPrefix(namespace, itemId) + filename)
             .build()
 
-    private fun sidecarFileUrl(namespace: String, deviceId: String): HttpUrl =
+    private fun deviceMetaUrl(namespace: String, deviceId: String): HttpUrl =
         basePath.newBuilder()
-            .addPathSegment("$namespace$NAMESPACE_SEPARATOR$SIDECAR_NAME_PREFIX$deviceId$JSON_SUFFIX")
+            .addPathSegment("$namespace$NAMESPACE_SEPARATOR$DEVICE_META_NAME_PREFIX$deviceId$JSON_SUFFIX")
             .build()
 
     /** Composite filename prefix that emulates the per-book directory: `<namespace>__<itemId>__`. */
@@ -378,7 +364,7 @@ class WebDavAnnotationSyncTarget(
     companion object {
         private const val NAMESPACE_SEPARATOR = "__"
         private const val ANNOTATION_NAME_PREFIX = "annotations-"
-        private const val SIDECAR_NAME_PREFIX = "device-"
+        private const val DEVICE_META_NAME_PREFIX = "device-meta-"
         private const val JSONLD_SUFFIX = ".jsonld"
         private const val JSON_SUFFIX = ".json"
         // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
@@ -386,6 +372,7 @@ class WebDavAnnotationSyncTarget(
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
         private val XML_MEDIA = "application/xml; charset=utf-8".toMediaType()
         private val JSON_LD_MEDIA = "application/ld+json; charset=utf-8".toMediaType()
+        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
         // Minimal PROPFIND asking for resourcetype on each child resource.
         private const val PROPFIND_BODY =

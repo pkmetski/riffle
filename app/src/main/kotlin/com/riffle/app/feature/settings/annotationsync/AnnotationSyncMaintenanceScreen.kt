@@ -442,16 +442,14 @@ private fun MaintenanceSnackBanner(snack: MaintenanceSnack, onDismiss: () -> Uni
             val parts = mutableListOf<String>()
             parts += "Forgot \"${snack.label}\""
             parts += "${snack.files} file(s) removed"
-            if (snack.legacySidecarDeleted) parts += "legacy sidecar removed"
             if (snack.failures > 0) parts += "${snack.failures} failure(s)"
             parts.joinToString(" · ") to (snack.failures > 0)
         }
         is MaintenanceSnack.Renamed -> {
-            val parts = mutableListOf<String>()
-            parts += "Device renamed"
-            parts += "${snack.rewritten} file(s) updated"
-            if (snack.failures > 0) parts += "${snack.failures} failure(s)"
-            parts.joinToString(" · ") to (snack.failures > 0)
+            // The sentinel is a single file; reporting a count would always say "1 file(s) updated"
+            // on success, which carries no information. Surface only success vs. failure.
+            val text = if (snack.failures > 0) "Device rename failed" else "Device renamed"
+            text to (snack.failures > 0)
         }
         is MaintenanceSnack.ForgotUser ->
             "Forgot \"${snack.userLabel}\" · ${snack.files} file(s) removed" to false
