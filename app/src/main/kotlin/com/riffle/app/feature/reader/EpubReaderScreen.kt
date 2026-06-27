@@ -1594,30 +1594,31 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Key on highlightRenderer + the continuous view ref so the effect re-fires when the
-    // orientation flips and a new renderer instance is bound — otherwise switching paged↔continuous
-    // mid-session leaves the new renderer un-invoked (none of the other keys naturally change on
-    // orientation flip; the renderer's targetProvider needs the view ref to be populated, which
-    // happens in the AndroidView factory's commit phase, so we re-fire on that too).
-    LaunchedEffect(highlightRenderer, continuousViewRef.value, fragmentRef.value, searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
+    // Key on highlightRenderer so the effect re-fires when an orientation flip rebinds a fresh
+    // renderer instance (otherwise none of the other keys naturally change on the flip).
+    LaunchedEffect(highlightRenderer, searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applySearch(searchResults, currentSearchIndex)
     }
 
     // ---- Readaloud synced highlight --------------------------------------------------------
     // Superset keys cover both Readium (pageLoadGeneration, reflowGeneration re-apply on
     // reflow/rotation) and Continuous (sentenceQuotes re-applies when quotes build asynchronously).
-    LaunchedEffect(highlightRenderer, continuousViewRef.value, fragmentRef.value, activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
+    LaunchedEffect(highlightRenderer, activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
         highlightRenderer.applyReadaloud(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
     }
 
     // ---- Persisted highlights (annotations + note glyphs) ----------------------------------
     // Superset keys: continuous re-keys on activeFragmentRef's base href when a new chapter
-    // enters the sliding window; Readium re-applies on reflow/pageLoad events.
-    LaunchedEffect(highlightRenderer, continuousViewRef.value, fragmentRef.value, highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
+    // enters the sliding window; Readium re-applies on reflow/pageLoad events. The
+    // continuousViewRef.value key is required because the ContinuousReaderView's
+    // targetProvider is null until the AndroidView factory commits, AFTER the
+    // initial fire — and unlike search/readaloud, there is no downstream data event
+    // (no user re-search, no playback frame) to re-trigger this apply.
+    LaunchedEffect(highlightRenderer, continuousViewRef.value, highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
         highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
     }
 
-    LaunchedEffect(highlightRenderer, continuousViewRef.value, fragmentRef.value, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applyNoteGlyphs(highlightRenders)
     }
 
