@@ -25,9 +25,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -69,6 +71,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -105,6 +108,7 @@ import com.riffle.core.domain.Collection
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.Series
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
 
@@ -1210,6 +1214,19 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 
 // --- Tab content composables ---
 
+internal fun homeLeadingSectionKey(
+    inProgress: List<LibraryItem>,
+    continueSeries: List<LibraryItem>,
+    recentlyAdded: List<LibraryItem>,
+    finished: List<LibraryItem>,
+): String? = when {
+    inProgress.isNotEmpty() -> "in_progress"
+    continueSeries.isNotEmpty() -> "continue_series"
+    recentlyAdded.isNotEmpty() -> "recently_added"
+    finished.isNotEmpty() -> "finished"
+    else -> null
+}
+
 @Composable
 private fun HomeTabContent(
     inProgress: List<LibraryItem>,
@@ -1230,7 +1247,30 @@ private fun HomeTabContent(
         }
         return
     }
+    val listState = rememberLazyListState()
+    val leadingSectionKey = homeLeadingSectionKey(
+        inProgress = inProgress,
+        continueSeries = continueSeries,
+        recentlyAdded = recentlyAdded,
+        finished = finished,
+    )
+    val userHasScrolled = remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions
+            .filterIsInstance<DragInteraction.Start>()
+            .collect { userHasScrolled.value = true }
+    }
+    // Sections hydrate asynchronously; a late-arriving higher-priority section
+    // would be prepended above the user's view, leaving them parked on a lower
+    // section ("scrolled to the bottom"). While the user hasn't dragged, keep
+    // the column anchored at the top so prepends don't shove them down.
+    LaunchedEffect(leadingSectionKey, userHasScrolled.value) {
+        if (!userHasScrolled.value && leadingSectionKey != null) {
+            listState.scrollToItem(0)
+        }
+    }
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .pinchCoverZoom(onCoverScaleChange)
             .fillMaxSize(),
