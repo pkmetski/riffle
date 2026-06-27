@@ -84,6 +84,31 @@ class AnnotationSyncMaintenanceViewModelTest {
     }
 
     @Test
+    fun `this-device row keeps Last synced visible after a Success is followed by a Failed cycle`() = runTest {
+        // Regression for the bug where Maintenance hid "Last synced" the moment we went offline:
+        // it read lastCycleOutcome and pattern-matched Success, so a subsequent Failed.Network
+        // erased the timestamp even though sync had succeeded an hour earlier.
+        val activeNs = "alice-userid"
+        val target = InMemoryTarget(
+            files = mutableMapOf(
+                FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
+            ),
+        )
+        val statusStore = AnnotationSyncStatusStore().apply {
+            report(CycleOutcome.Success(atMs = 1_780_000_000_000L))
+            // A later transient failure must not erase the sticky last-success timestamp.
+            report(CycleOutcome.Failed.Network(atMs = 1_780_000_060_000L, message = "offline"))
+        }
+
+        val vm = vmWith(target, activeNs = activeNs, statusStore = statusStore)
+        advanceUntilIdle()
+
+        val rows = (vm.state.value.devices as MaintenanceScreenUiState.Loaded).devices
+        val secondary = rows.single { it.isThisDevice }.secondary
+        assertTrue("got: $secondary", secondary.contains("Last synced"))
+    }
+
+    @Test
     fun `this-device row shows no Last synced when the status store is NeverRun`() = runTest {
         val activeNs = "alice-userid"
         val target = InMemoryTarget(

@@ -26,8 +26,12 @@ import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -70,8 +74,21 @@ class AddServerViewModel @Inject constructor(
     var password by mutableStateOf(BuildConfig.DEV_PASSWORD)
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
-    var webdavBanner by mutableStateOf<WebdavBanner?>(null)
-        private set
+    /**
+     * Reactive banner state derived from the stored WebDAV config, the in-memory cycle outcome,
+     * and the last-success timestamp — so when the periodic sweep flips Failed.Network → Success
+     * in the background, the on-screen card updates without the screen being re-entered. Caller
+     * (the WebDAV screen) is responsible for only rendering this on the WebDAV backend; it stays
+     * non-null whenever a config exists, regardless of which backend the user is editing.
+     */
+    val webdavBanner: StateFlow<WebdavBanner?> = combine(
+        webdavConfigStore.observe(),
+        webdavStatusStore.lastCycleOutcome,
+        webdavStatusStore.lastSuccessAtMs,
+    ) { config, outcome, lastSuccessAtMs ->
+        config?.let { webdavBanner(it, outcome, lastSuccessAtMs) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
 
     private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
@@ -102,7 +119,9 @@ class AddServerViewModel @Inject constructor(
                     applyUrl(existing.baseUrl)
                     username = existing.username
                     password = existing.password
-                    webdavBanner = webdavBanner(existing, webdavStatusStore.lastCycleOutcome.value)
+                    // Banner content is driven by the reactive `webdavBanner` StateFlow above —
+                    // intentionally no one-shot snapshot here, so the card refreshes when the
+                    // background sweep flips the outcome.
                 } else {
                     // Fresh WebDAV add — wipe ABS dev defaults so the form starts clean.
                     applyUrl("")
@@ -253,7 +272,11 @@ class AddServerViewModel @Inject constructor(
         }
     }
 
-    private fun webdavBanner(config: AnnotationSyncConfig, outcome: CycleOutcome): WebdavBanner {
+    private fun webdavBanner(
+        config: AnnotationSyncConfig,
+        outcome: CycleOutcome,
+        lastSuccessAtMs: Long?,
+    ): WebdavBanner {
         val (kind, prescription) = when (outcome) {
             is CycleOutcome.NeverRun -> WebdavBannerKind.Pending to null
             is CycleOutcome.Success -> WebdavBannerKind.Synced to null
@@ -274,18 +297,19 @@ class AddServerViewModel @Inject constructor(
             host = host,
             baseUrl = config.baseUrl,
             username = config.username,
-            lastSyncRelative = relativeTime(outcome),
+            lastSyncRelative = relativeSuccessTime(lastSuccessAtMs),
             prescription = prescription,
         )
     }
 
-    private fun relativeTime(outcome: CycleOutcome): String {
-        val atMs: Long = when (outcome) {
-            is CycleOutcome.NeverRun -> return "Never since app start"
-            is CycleOutcome.Success -> outcome.atMs
-            is CycleOutcome.Failed -> outcome.atMs
-        }
-        val elapsedSec = (System.currentTimeMillis() - atMs) / 1_000L
+    /**
+     * Renders "Last sync" as the elapsed time since the most recent *successful* push — not the
+     * most recent attempt. A failing retry every few minutes would otherwise slide this forward to
+     * "just now" while sync is in fact still broken.
+     */
+    private fun relativeSuccessTime(lastSuccessAtMs: Long?): String {
+        if (lastSuccessAtMs == null) return "Never"
+        val elapsedSec = (System.currentTimeMillis() - lastSuccessAtMs) / 1_000L
         return when {
             elapsedSec < 60 -> "just now"
             elapsedSec < 3_600 -> "${elapsedSec / 60} min ago"

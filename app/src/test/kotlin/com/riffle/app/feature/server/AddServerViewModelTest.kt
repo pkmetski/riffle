@@ -2,6 +2,7 @@ package com.riffle.app.feature.server
 
 import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
@@ -153,11 +154,12 @@ class AddServerViewModelTest {
         savedState: SavedStateHandle = SavedStateHandle(),
         configStore: AnnotationSyncConfigStore = NullConfigStore,
         tokenStorage: com.riffle.core.domain.TokenStorage = io.mockk.mockk(relaxed = true),
+        statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
     ): AddServerViewModel = AddServerViewModel(
         repository = repository,
         webdavConfigStore = configStore,
         webdavTargetFactory = WebDavAnnotationSyncTargetFactory(OkHttpClient()),
-        webdavStatusStore = AnnotationSyncStatusStore(),
+        webdavStatusStore = statusStore,
         sweepEnqueuer = AnnotationSweepEnqueuer { },
         storytellerSyncer = io.mockk.mockk(relaxed = true),
         readaloudMatcher = io.mockk.mockk(relaxed = true),
@@ -346,7 +348,7 @@ class AddServerViewModelTest {
         assertEquals("dav.example.com/store", vm.host)
         assertEquals("syncuser", vm.username)
         assertEquals("syncpass", vm.password)
-        assertNotNull(vm.webdavBanner)
+        assertNotNull(vm.webdavBanner.value)
     }
 
     @Test
@@ -364,7 +366,44 @@ class AddServerViewModelTest {
         assertEquals("", vm.host)
         assertEquals("", vm.username)
         assertEquals("", vm.password)
-        assertNull(vm.webdavBanner)
+        assertNull(vm.webdavBanner.value)
+    }
+
+    @Test
+    fun `webdavBanner re-evaluates when the status store reports a new outcome`() = runTest {
+        val existing = com.riffle.core.domain.AnnotationSyncConfig(
+            baseUrl = "https://dav.example.com/store",
+            username = "syncuser",
+            password = "syncpass",
+        )
+        val store = RecordingConfigStore(initial = existing)
+        val statusStore = AnnotationSyncStatusStore()
+        // Seed an offline failure — UI should land on Pending.
+        statusStore.report(CycleOutcome.Failed.Network(1_000L, "offline"))
+
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "webdav")),
+            configStore = store,
+            statusStore = statusStore,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val pending = vm.webdavBanner.value
+        assertNotNull(pending)
+        assertEquals(WebdavBannerKind.Pending, pending!!.kind)
+        // No successful sync yet → "Never", NOT "just now"/"1 d ago" derived from the failed attempt.
+        assertEquals("Never", pending.lastSyncRelative)
+
+        // Connectivity returns, sweep succeeds. Banner must flip Pending → Synced without the
+        // screen being re-entered.
+        statusStore.report(CycleOutcome.Success(System.currentTimeMillis()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val synced = vm.webdavBanner.value
+        assertNotNull(synced)
+        assertEquals(WebdavBannerKind.Synced, synced!!.kind)
+        assertEquals("just now", synced.lastSyncRelative)
     }
 
     @Test
