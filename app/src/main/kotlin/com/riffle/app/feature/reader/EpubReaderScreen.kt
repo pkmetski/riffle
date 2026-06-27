@@ -360,6 +360,15 @@ fun EpubReaderScreen(
                         if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
+                    // Pause Auto-Scroll while any reader panel is open (TOC / Formatting /
+                    // Search / Annotations); resume on close. Per ADR 0037.
+                    LaunchedEffect(tocVisible, showFormattingPanel, isSearchActive, annotationsPanelVisible) {
+                        val anyOpen = tocVisible || showFormattingPanel || isSearchActive || annotationsPanelVisible
+                        viewModel.setAutoScrollPaused(
+                            paused = anyOpen,
+                            cause = com.riffle.core.domain.autoscroll.PauseCause.PanelOpen,
+                        )
+                    }
                     val spinePositions by viewModel.spinePositionCounts.collectAsState()
                     EpubNavigatorView(
                         state = s,
@@ -2190,16 +2199,11 @@ private fun EpubNavigatorView(
             val verticalFragment = fragmentRef.value
             LaunchedEffect(verticalFragment) {
                 val fragment = verticalFragment ?: return@LaunchedEffect
-                // Cumulative scroll deltas: JS scrolling is async, so we accumulate locally and
-                // flush periodically rather than firing one evaluateJavascript per pixel.
-                var pendingPx = 0
-                autoScrollDeltas.collect { delta ->
-                    pendingPx += delta
-                    if (pendingPx < 1) return@collect
-                    // Atomically scroll and detect chapter-end. Returns "advance" if the WebView
-                    // was already at the bottom (no further scroll possible), else the new scrollY.
-                    val flushed = pendingPx
-                    pendingPx = 0
+                // JS evaluation is suspending: a delta isn't collected until the previous
+                // evaluateJavascript round-trip resolves, so per-delta dispatch already gets
+                // natural backpressure-driven batching (no need to accumulate manually before
+                // the call — the accumulator inside the controller only emits whole pixels).
+                autoScrollDeltas.collect { flushed ->
                     // Return a plain integer (1 = moved, 0 = stuck). Returning a JSON object
                     // and parsing it as a string is a trap: evaluateJavascript JSON-encodes the
                     // JS return value, so a JSON-stringified object comes back as a doubly-

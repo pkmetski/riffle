@@ -302,6 +302,19 @@ class EpubReaderViewModel @Inject constructor(
 
     val autoScrollScrollDeltas: kotlinx.coroutines.flow.Flow<Int> = autoScrollController.scrollDeltas
 
+    /**
+     * Drive Auto-Scroll's PanelOpen pause from the screen — pause while any reader panel is
+     * open (TOC / Formatting / Search / Annotations) and resume on close. The screen layer
+     * holds those booleans; the ViewModel just routes the bit through to the controller.
+     */
+    fun setAutoScrollPaused(paused: Boolean, cause: com.riffle.core.domain.autoscroll.PauseCause) {
+        if (paused) {
+            autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Pause(cause))
+        } else {
+            autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Resume)
+        }
+    }
+
     fun reachedEndOfBookForAutoScroll() {
         // Dispatch Stop (not ReachedEndOfBook) so the controller transitions to Idle from any
         // state — including Paused, which the Vertical-mode handler enters transiently while
@@ -598,7 +611,9 @@ class EpubReaderViewModel @Inject constructor(
                     }
                 }
         }
-        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037).
+        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037). Stop (not Pause):
+        // pausing would leave an invisible Auto-Scroll session waiting to silently resume on
+        // Readaloud stop — the surprise the ADR was written to head off.
         viewModelScope.launch {
             playerCoordinator.state
                 .map { it.isPlaying }
@@ -608,13 +623,14 @@ class EpubReaderViewModel @Inject constructor(
                         autoScrollController.state.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running
                     ) {
                         autoScrollController.dispatch(
-                            com.riffle.core.domain.autoscroll.AutoScrollEvent.Pause(
-                                com.riffle.core.domain.autoscroll.PauseCause.ReadaloudStarted,
-                            ),
+                            com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop,
                         )
                     }
                 }
         }
+        // Panel-open pause/resume is driven from the screen layer (it knows about
+        // showFormattingPanel / tocVisible / annotationsPanelVisible / isSearchActive),
+        // see [setAutoScrollPaused] below.
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 val locator = serverProgressToLocator(serverProgress) ?: return@collect
