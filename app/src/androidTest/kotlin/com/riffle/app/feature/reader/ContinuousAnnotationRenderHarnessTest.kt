@@ -196,21 +196,6 @@ class ContinuousAnnotationRenderHarnessTest {
         composeTestRule.onNodeWithText(targetPhrase).performClick()
     }
 
-    private fun visibleWebViews(): List<WebView> {
-        val latch = CountDownLatch(1)
-        val out = mutableListOf<WebView>()
-        composeTestRule.activityRule.scenario.onActivity { activity ->
-            fun walk(v: View) {
-                if (v is WebView && v.width > 0 && v.height > 0 && v.isShown) out.add(v)
-                if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
-            }
-            walk(activity.window.decorView)
-            latch.countDown()
-        }
-        latch.await(5, TimeUnit.SECONDS)
-        return out
-    }
-
     private fun evalJs(wv: WebView, js: String): String {
         val latch = CountDownLatch(1)
         val result = arrayOfNulls<String>(1)
