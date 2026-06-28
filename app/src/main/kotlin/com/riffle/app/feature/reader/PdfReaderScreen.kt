@@ -12,8 +12,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,10 +36,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -46,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.readium.adapter.pdfium.navigator.PdfiumEngineProvider
@@ -108,6 +116,13 @@ fun PdfReaderScreen(
     }
 
     val title = (state as? ReaderState.Ready)?.title ?: ""
+    val tocVisible by viewModel.tocVisible.collectAsState()
+    val annotationsPanelVisible by viewModel.annotationsPanelVisible.collectAsState()
+    val toc by viewModel.toc.collectAsState()
+    val annotations by viewModel.annotations.collectAsState()
+    val currentPageBookmarked by viewModel.currentPageBookmarked.collectAsState()
+    val currentPage by viewModel.currentPage.collectAsState()
+    val annotationsAvailable = state is ReaderState.Ready
 
     // TopAppBar floats as an overlay so its show/hide never resizes the PDF view —
     // same pattern as EpubReaderScreen.
@@ -130,7 +145,6 @@ fun PdfReaderScreen(
                     )
                 }
                 is ReaderState.Ready -> {
-                    val currentPage by viewModel.currentPage.collectAsState()
                     PdfNavigatorView(
                         state = s,
                         onPageChanged = { locator ->
@@ -151,6 +165,42 @@ fun PdfReaderScreen(
                                     append(if (keepScreenOn) "on" else "off")
                                 }
                             },
+                    )
+
+                    if (tocVisible) {
+                        TocPanel(
+                            entries = toc,
+                            activeHref = currentPage?.let { pdfActiveHref((it - 1).coerceAtLeast(0)) },
+                            onEntryClick = { entry ->
+                                viewModel.navigateToEntry(entry)
+                                immersiveState.hide()
+                            },
+                            onDismiss = viewModel::closeToc,
+                        )
+                    }
+
+                    if (annotationsPanelVisible) {
+                        AnnotationsPanel(
+                            annotations = annotations,
+                            onNavigate = { id -> viewModel.navigateToAnnotation(id) },
+                            onDelete = { id -> viewModel.deleteAnnotation(id) },
+                            onRename = { id, title -> viewModel.renameBookmark(id, title) },
+                            onDismiss = viewModel::closeAnnotationsPanel,
+                        )
+                    }
+
+                    // Corner bookmark ribbon. graphicsLayer{} forces it into its own GPU
+                    // layer so it composites above the PDF view's SurfaceView/TextureView
+                    // — Compose Box child order alone wouldn't otherwise beat the native
+                    // view's hardware-accelerated draw.
+                    CornerBookmarkIndicator(
+                        isBookmarked = currentPageBookmarked,
+                        isVisible = annotationsAvailable,
+                        onToggle = viewModel::toggleBookmark,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(end = 12.dp)
+                            .graphicsLayer { },
                     )
                 }
                 is ReaderState.Error -> {
@@ -176,10 +226,59 @@ fun PdfReaderScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    if (state is ReaderState.Ready) {
+                        IconButton(
+                            onClick = viewModel::openToc,
+                            modifier = Modifier.testTag("pdf_open_toc"),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
+                        }
+                        IconButton(
+                            onClick = viewModel::openAnnotationsPanel,
+                            modifier = Modifier.testTag("pdf_open_annotations"),
+                        ) {
+                            Icon(Icons.Filled.Bookmarks, contentDescription = "Annotations")
+                        }
+                    }
+                },
                 colors = readerTopAppBarColors(),
             )
         }
+
+        // Chapter navigation rail along the bottom of the reader. Reuses the EPUB rail
+        // visual — same Composable, fed by the PDF-side rail-segment generator. The rail
+        // sits at the bottom (above the nav bar) and is only present in the Ready state.
+        if (state is ReaderState.Ready) {
+            PdfChapterRailOverlay(
+                viewModel = viewModel,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+            )
+        }
     }
+}
+
+@Composable
+private fun PdfChapterRailOverlay(
+    viewModel: PdfReaderViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val railSegments by viewModel.railSegments.collectAsState()
+    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
+    val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    if (railSegments.isEmpty()) return
+    ChapterNavigationRail(
+        segments = railSegments,
+        activeIndex = activeRailSegmentIndex,
+        cursorPosition = cursorPosition,
+        // PDF reader doesn't have its own theme picker yet (deferred to follow-up spec);
+        // use Light as a neutral default that matches the typical PDF page background.
+        readerTheme = ReaderTheme.Light,
+        onSegmentClick = viewModel::navigateToSegment,
+        modifier = modifier,
+    )
 }
 
 @Composable
