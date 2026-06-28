@@ -86,7 +86,7 @@ class SeriesDaoTest {
             SeriesItemEntity("s1", serverId = "s1", itemId = "item-2", sequenceOrder = 3f),
         ))
 
-        val result = dao.observeItemsBySeriesId("s1").first()
+        val result = dao.observeItemsBySeriesId("s1", "s1").first()
 
         assertEquals(listOf("item-3", "item-1", "item-2"), result.map { it.id })
     }
@@ -110,7 +110,7 @@ class SeriesDaoTest {
             SeriesItemEntity("series-B", serverId = "s1", itemId = "item-3", sequenceOrder = 1f),
         ))
 
-        val result = dao.observeContinueSeriesItems("lib1").first()
+        val result = dao.observeContinueSeriesItems("s1", "lib1").first()
 
         assertEquals(listOf("item-2"), result.map { it.id })
     }
@@ -132,7 +132,7 @@ class SeriesDaoTest {
         ))
 
         // item-2 is in progress → the whole series is excluded
-        val result = dao.observeContinueSeriesItems("lib1").first()
+        val result = dao.observeContinueSeriesItems("s1", "lib1").first()
 
         assertEquals(emptyList<String>(), result.map { it.id })
     }
@@ -154,7 +154,7 @@ class SeriesDaoTest {
         ))
 
         // item-2 is barely opened (1% < 5% threshold) → must NOT block the series; item-2 is next
-        val result = dao.observeContinueSeriesItems("lib1").first()
+        val result = dao.observeContinueSeriesItems("s1", "lib1").first()
 
         assertEquals(listOf("item-2"), result.map { it.id })
     }
@@ -178,7 +178,7 @@ class SeriesDaoTest {
             SeriesItemEntity("series-new", serverId = "s1", itemId = "new-next", sequenceOrder = 2f),
         ))
 
-        val result = dao.observeContinueSeriesItems("lib1").first()
+        val result = dao.observeContinueSeriesItems("s1", "lib1").first()
 
         // series-new finished more recently → new-next must come first
         assertEquals(listOf("new-next", "old-next"), result.map { it.id })
@@ -203,7 +203,7 @@ class SeriesDaoTest {
             SeriesItemEntity("series-null", serverId = "s1", itemId = "null-next", sequenceOrder = 2f),
         ))
 
-        val result = dao.observeContinueSeriesItems("lib1").first()
+        val result = dao.observeContinueSeriesItems("s1", "lib1").first()
 
         // Both series appear; series-ts (real timestamp) before series-null (null → COALESCE 0)
         assertEquals(listOf("ts-next", "null-next"), result.map { it.id })
@@ -226,7 +226,7 @@ class SeriesDaoTest {
             SeriesItemEntity("series-B", serverId = "s1", itemId = "shared-next", sequenceOrder = 2f),
         ))
 
-        val result = dao.observeContinueSeriesItems("lib1").first()
+        val result = dao.observeContinueSeriesItems("s1", "lib1").first()
 
         // shared-next qualifies via both series but must only appear once
         assertEquals(listOf("shared-next"), result.map { it.id })

@@ -68,7 +68,7 @@ class LibraryItemDaoTest {
             item("finished", readingProgress = 1.0f),
         ))
 
-        val result = dao.observeInProgress("lib1").first()
+        val result = dao.observeInProgress("s1", "lib1").first()
 
         assertEquals(1, result.size)
         assertEquals("in-progress", result[0].id)
@@ -84,7 +84,7 @@ class LibraryItemDaoTest {
             item("null-ts",  readingProgress = 0.5f, lastOpenedAt = null),
         ))
 
-        val ids = dao.observeInProgress("lib1").first().map { it.id }
+        val ids = dao.observeInProgress("s1", "lib1").first().map { it.id }
 
         assertEquals(listOf("newest", "middle", "oldest", "null-ts"), ids)
     }
@@ -98,7 +98,7 @@ class LibraryItemDaoTest {
             item("finished",    readingProgress = 1.0f),
         ))
 
-        val result = dao.observeFinished("lib1").first()
+        val result = dao.observeFinished("s1", "lib1").first()
 
         assertEquals(1, result.size)
         assertEquals("finished", result[0].id)
@@ -113,7 +113,7 @@ class LibraryItemDaoTest {
             item("finished",    readingProgress = 1.0f),
         ))
 
-        val result = dao.observeAllBooks("lib1").first()
+        val result = dao.observeAllBooks("s1", "lib1").first()
 
         assertEquals(3, result.size)
     }
@@ -123,9 +123,9 @@ class LibraryItemDaoTest {
     fun notStartedItem_appearsOnlyInAllBooks() = runTest {
         dao.upsertAll(listOf(item("not-started", readingProgress = 0.0f)))
 
-        val inProgress = dao.observeInProgress("lib1").first()
-        val finished   = dao.observeFinished("lib1").first()
-        val allBooks   = dao.observeAllBooks("lib1").first()
+        val inProgress = dao.observeInProgress("s1", "lib1").first()
+        val finished   = dao.observeFinished("s1", "lib1").first()
+        val allBooks   = dao.observeAllBooks("s1", "lib1").first()
 
         assertEquals(0, inProgress.size)
         assertEquals(0, finished.size)
@@ -169,6 +169,23 @@ class LibraryItemDaoTest {
         assertEquals("each item must appear once, not duplicated by the library-id JOIN", keys.toSet().size, keys.size)
     }
 
+    // A0c — library-scoped queries (ADR 0025) must isolate by serverId. Two Servers sharing
+    // a library id with overlapping item ids must each see only their own rows.
+    @Test
+    fun observeByLibraryId_scopesByServerId() = runTest {
+        dao.upsertAll(listOf(
+            item("1", readingProgress = 0.3f, serverId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 1"),
+            item("2", readingProgress = 0.7f, serverId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 2"),
+            item("1", readingProgress = 0.4f, serverId = "s2").copy(libraryId = "shared-lib", title = "S2 Book 1"),
+        ))
+
+        val s1 = dao.observeByLibraryId("s1", "shared-lib").first().map { it.serverId to it.id }
+        val s2 = dao.observeByLibraryId("s2", "shared-lib").first().map { it.serverId to it.id }
+
+        assertEquals(setOf("s1" to "1", "s1" to "2"), s1.toSet())
+        assertEquals(setOf("s2" to "1"), s2.toSet())
+    }
+
     // A6 — replaceAllForLibrary must never expose an empty intermediate state to observers.
     // If @Transaction is removed the delete emits before the insert, causing a visible flicker.
     @Test
@@ -179,11 +196,11 @@ class LibraryItemDaoTest {
         // emissions deterministically (with a timeout) rather than racing them with yield().
         val emittedStates = CopyOnWriteArrayList<List<LibraryItemEntity>>()
         val collectJob = launch(Dispatchers.IO) {
-            dao.observeAllBooks("lib1").collect { emittedStates.add(it.toList()) }
+            dao.observeAllBooks("s1", "lib1").collect { emittedStates.add(it.toList()) }
         }
         withTimeout(5_000) { while (emittedStates.isEmpty()) delay(10) }
 
-        dao.replaceAllForLibrary("lib1", listOf(item("c", 0f), item("d", 0.5f), item("e", 1f)))
+        dao.replaceAllForLibrary("s1", "lib1", listOf(item("c", 0f), item("d", 0.5f), item("e", 1f)))
         withTimeout(5_000) {
             while (emittedStates.last().map { it.id }.toSet() != setOf("c", "d", "e")) delay(10)
         }

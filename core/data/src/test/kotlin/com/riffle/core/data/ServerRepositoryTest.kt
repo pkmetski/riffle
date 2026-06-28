@@ -139,14 +139,14 @@ class ServerRepositoryTest {
             rows[libraryId] = items.toMutableList()
         }
         fun itemsFor(libraryId: String): List<com.riffle.core.database.LibraryItemEntity> = rows[libraryId].orEmpty()
-        override fun observeByLibraryId(libraryId: String) =
-            flowOf(rows[libraryId].orEmpty().toList())
-        override fun observeUngroupedByLibraryId(libraryId: String) =
-            flowOf(rows[libraryId].orEmpty().toList())
-        override fun observeInProgress(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-        override fun observeFinished(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-        override fun observeRecentlyAdded(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
-        override fun observeAllBooks(libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeByLibraryId(serverId: String, libraryId: String) =
+            flowOf(rows[libraryId].orEmpty().filter { it.serverId == serverId }.toList())
+        override fun observeUngroupedByLibraryId(serverId: String, libraryId: String) =
+            flowOf(rows[libraryId].orEmpty().filter { it.serverId == serverId }.toList())
+        override fun observeInProgress(serverId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeFinished(serverId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeRecentlyAdded(serverId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
+        override fun observeAllBooks(serverId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override suspend fun getById(serverId: String, itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
         override fun observeById(serverId: String, itemId: String) = flowOf(rows.values.flatten().firstOrNull { it.id == itemId })
         override suspend fun findServerIdForItem(itemId: String): String? = rows.values.flatten().firstOrNull { it.id == itemId }?.serverId
@@ -157,14 +157,15 @@ class ServerRepositoryTest {
         }
         override suspend fun insertOrIgnore(items: List<com.riffle.core.database.LibraryItemEntity>) = Unit
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
-        override suspend fun deleteByLibraryId(libraryId: String) {
+        override suspend fun deleteByLibraryId(serverId: String, libraryId: String) {
             deletedLibraryIds += libraryId
-            rows.remove(libraryId)
+            rows[libraryId]?.removeAll { it.serverId == serverId }
+            if (rows[libraryId]?.isEmpty() == true) rows.remove(libraryId)
         }
         override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
-        override suspend fun getLastOpenedAtMap(libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
-        override suspend fun getReadingProgressMap(libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
+        override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
+        override suspend fun getReadingProgressMap(serverId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
         override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableByServerType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()

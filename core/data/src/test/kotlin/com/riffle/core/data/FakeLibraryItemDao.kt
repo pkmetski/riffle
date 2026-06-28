@@ -16,23 +16,26 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     fun itemsFor(libraryId: String): List<LibraryItemEntity> =
         roomData[libraryId]?.value ?: emptyList()
 
-    override fun observeByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> =
-        roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+    private fun scoped(serverId: String, libraryId: String): List<LibraryItemEntity> =
+        roomData[libraryId]?.value?.filter { it.serverId == serverId }.orEmpty()
 
-    override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> =
-        roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+    override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(serverId, libraryId))
 
-    override fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(roomData[libraryId]?.value?.filter { it.readingProgress > 0f && it.readingProgress < 1f } ?: emptyList())
+    override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(serverId, libraryId))
 
-    override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(roomData[libraryId]?.value?.filter { it.readingProgress == 1f } ?: emptyList())
+    override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(serverId, libraryId).filter { it.readingProgress > 0f && it.readingProgress < 1f })
 
-    override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(roomData[libraryId]?.value?.sortedByDescending { it.addedAt } ?: emptyList())
+    override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(serverId, libraryId).filter { it.readingProgress == 1f })
 
-    override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> =
-        roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+    override fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(serverId, libraryId).sortedByDescending { it.addedAt })
+
+    override fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(serverId, libraryId))
 
     override suspend fun upsertAll(items: List<LibraryItemEntity>) {
         upserted.addAll(items)
@@ -101,23 +104,22 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override suspend fun findServerIdForItem(itemId: String): String? =
         roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }?.serverId
 
-    override suspend fun deleteByLibraryId(libraryId: String) {
-        roomData[libraryId]?.value = emptyList()
+    override suspend fun deleteByLibraryId(serverId: String, libraryId: String) {
+        val current = roomData[libraryId]?.value ?: return
+        roomData[libraryId]!!.value = current.filterNot { it.serverId == serverId }
     }
 
     override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
 
-    override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> =
-        roomData[libraryId]?.value
-            ?.filter { it.lastOpenedAt != null }
-            ?.map { LastOpenedAtRow(it.id, it.lastOpenedAt!!) }
-            ?: emptyList()
+    override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow> =
+        scoped(serverId, libraryId)
+            .filter { it.lastOpenedAt != null }
+            .map { LastOpenedAtRow(it.id, it.lastOpenedAt!!) }
 
-    override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> =
-        roomData[libraryId]?.value
-            ?.filter { it.readingProgress > 0f }
-            ?.map { ReadingProgressRow(it.id, it.readingProgress) }
-            ?: emptyList()
+    override suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow> =
+        scoped(serverId, libraryId)
+            .filter { it.readingProgress > 0f }
+            .map { ReadingProgressRow(it.id, it.readingProgress) }
 
     override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
 

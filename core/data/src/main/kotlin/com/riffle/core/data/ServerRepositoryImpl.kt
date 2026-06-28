@@ -189,7 +189,7 @@ class ServerRepositoryImpl @Inject constructor(
         // For Storyteller servers this purges the synthetic Readaloud library and its books;
         // for ABS servers it cleans up real libraries and their items. ReadaloudLinks cross-server
         // cleanup belongs to #36 (matching slice) — until that lands the count of links is 0.
-        libraryDao.libraryIdsForServer(serverId).forEach { libraryItemDao.deleteByLibraryId(it) }
+        libraryDao.libraryIdsForServer(serverId).forEach { libraryItemDao.deleteByLibraryId(serverId, it) }
         libraryDao.deleteByServerId(serverId)
         dao.deleteById(serverId)
         tokenStorage.deleteToken(serverId)

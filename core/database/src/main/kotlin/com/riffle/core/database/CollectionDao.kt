@@ -16,10 +16,10 @@ interface CollectionDao {
     @Query("""
         SELECT li.* FROM library_items li
         INNER JOIN collection_items ci ON li.serverId = ci.serverId AND li.id = ci.itemId
-        WHERE ci.collectionId = :collectionId
+        WHERE ci.serverId = :serverId AND ci.collectionId = :collectionId
         ORDER BY li.title ASC
     """)
-    fun observeItemsByCollectionId(collectionId: String): Flow<List<LibraryItemEntity>>
+    fun observeItemsByCollectionId(serverId: String, collectionId: String): Flow<List<LibraryItemEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(collections: List<CollectionEntity>)

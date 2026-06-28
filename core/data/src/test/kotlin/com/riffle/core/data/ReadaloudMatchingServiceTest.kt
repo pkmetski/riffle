@@ -378,25 +378,25 @@ class ReadaloudMatchingServiceTest {
             "AUDIOBOOKSHELF" -> abs
             else -> emptyList()
         }
-        override fun observeByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
         override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? = byId[itemId]
         override fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(byId[itemId])
         override suspend fun findServerIdForItem(itemId: String): String? = byId[itemId]?.serverId
-        override suspend fun deleteByLibraryId(libraryId: String) = Unit
+        override suspend fun deleteByLibraryId(serverId: String, libraryId: String) = Unit
         override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) = Unit
         override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) = Unit
         override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) = Unit
-        override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
-        override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
+        override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
+        override suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
     }
 
     private class RecordingReadaloudLinkDao : ReadaloudLinkDao {

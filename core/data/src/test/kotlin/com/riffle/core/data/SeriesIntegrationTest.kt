@@ -87,10 +87,10 @@ class SeriesIntegrationTest {
         private val itemData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
         override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> =
             seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
-        override fun observeItemsBySeriesId(seriesId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeItemsBySeriesId(serverId: String, seriesId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
         override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeContinueSeriesItems(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun upsertAll(series: List<SeriesEntity>) { upsertedSeries.addAll(series) }
         override suspend fun upsertAllItems(items: List<SeriesItemEntity>) { upsertedItems.addAll(items) }
         override suspend fun deleteByLibraryId(libraryId: String) {}
@@ -107,23 +107,23 @@ class SeriesIntegrationTest {
     }
 
     private class FakeLibraryItemDao : LibraryItemDao {
-        override fun observeByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? = null
         override fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?> = MutableStateFlow(null)
         override suspend fun findServerIdForItem(itemId: String): String? = null
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {}
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) {}
-        override suspend fun deleteByLibraryId(libraryId: String) {}
+        override suspend fun deleteByLibraryId(serverId: String, libraryId: String) {}
         override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) {}
         override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
-        override suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow> = emptyList()
-        override suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow> = emptyList()
+        override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
+        override suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
         override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
@@ -131,7 +131,7 @@ class SeriesIntegrationTest {
 
     private class FakeCollectionDao : CollectionDao {
         override fun observeByLibraryId(libraryId: String): Flow<List<CollectionEntity>> = MutableStateFlow(emptyList())
-        override fun observeItemsByCollectionId(collectionId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeItemsByCollectionId(serverId: String, collectionId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun upsertAll(collections: List<CollectionEntity>) {}
         override suspend fun upsertAllItems(items: List<CollectionItemEntity>) {}
         override suspend fun deleteByLibraryId(libraryId: String) {}
