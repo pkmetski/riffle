@@ -168,6 +168,12 @@ make check       # Full CI check: build + lint + tests
 make install     # Build and install debug APK on connected device
 ```
 
+## License
+
+Riffle is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
+
+Commits up to and including [`44d17c362`](https://github.com/pkmetski/riffle/commit/44d17c3628210f90bbb8854c8b0847c0a4c55083) were also published under the Apache License 2.0. From the relicense commit onward, the project is AGPL-only. If you forked or copied Riffle before the relicense, your existing copy retains its Apache-2.0 grant; future updates are AGPL-3.0-or-later.
+
 ## Glossary
 
 See [`CONTEXT.md`](CONTEXT.md) for the full domain glossary (Server, Library, Library Item, Cache, Download, Reading Session, Progress Sync, etc.).
