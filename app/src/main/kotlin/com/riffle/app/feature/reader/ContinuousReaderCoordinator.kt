@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.IntRect
+import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,16 @@ internal class ContinuousReaderCoordinator(
 ) {
     private var view: ContinuousReaderView? = null
 
+    /**
+     * Optional [ContinuousPresenter] hook for the seam (issue #300 step 6). When non-null,
+     * continuous-mode raw-position events also feed [ContinuousPresenter.feedPosition] so
+     * [ContinuousPresenter.positionEvents] becomes the canonical event source for any orchestrator
+     * built on top of [com.riffle.app.feature.reader.presenter.ReaderPresenter]. The existing
+     * [onLocator] callback path is unchanged in this step — full bypass deletion is the step 7
+     * cleanup pass.
+     */
+    var presenter: ContinuousPresenter? = null
+
     // Updated in attach() every time a new ContinuousReaderView is created (including after
     // Activity rotation, when Compose recreates the AndroidView and calls attach() again).
     // onTocNavigation awaits the first non-null emission to survive the race between the
@@ -63,7 +74,15 @@ internal class ContinuousReaderCoordinator(
         view.onRawPosition = { href, progression ->
             val (spineHrefs, counts) = spinePositionsProvider()
             val locator = buildContinuousLocator(href, progression, spineHrefs, counts)
-            if (locator != null) onLocator(locator)
+            if (locator != null) {
+                onLocator(locator)
+                presenter?.feedPosition(
+                    href = locator.href.toString(),
+                    progression = locator.locations.progression?.toFloat() ?: progression,
+                    totalProgression = locator.locations.totalProgression?.toFloat(),
+                    locatorJson = locator.toJSON().toString(),
+                )
+            }
         }
 
         view.onTap = { onTap() }
