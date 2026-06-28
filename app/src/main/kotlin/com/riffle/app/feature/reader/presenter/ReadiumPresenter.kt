@@ -3,11 +3,15 @@ package com.riffle.app.feature.reader.presenter
 import com.riffle.app.feature.reader.typographyOverrideInjectionJs
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.readium.r2.navigator.Decoration
+import org.readium.r2.navigator.DecorableNavigator
 import org.readium.r2.navigator.epub.EpubNavigatorFragment
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
@@ -142,6 +146,26 @@ internal class ReadiumPresenter(
     }
 
     override fun snapshotPosition(): ReaderPosition? = lastPosition
+
+    /**
+     * Apply Readium decorations to the currently attached fragment for a given group. No-op when
+     * no fragment is attached or the fragment is not a [DecorableNavigator] — exactly mirrors the
+     * original screen-level `applyDecorationsBlock` lambda this method replaces.
+     *
+     * Cutover Step 2 (issue #300): callers in the screen pass through here instead of capturing
+     * `fragmentRef.value as? DecorableNavigator` directly.
+     */
+    suspend fun applyDecorations(decorations: List<Decoration>, group: String) {
+        val nav = fragment as? DecorableNavigator ?: return
+        withContext(Dispatchers.Main) { nav.applyDecorations(decorations, group) }
+    }
+
+    /**
+     * Stable token that changes whenever the attached fragment changes. Replaces the
+     * `currentNavigatorStamp` lambda the screen passes into the highlight renderer: search-result
+     * settle loops break out when the stamp changes mid-iteration.
+     */
+    fun attachmentStamp(): Any? = fragment
 
     override suspend fun pageBy(direction: PageDirection) {
         val fragment = fragment ?: return

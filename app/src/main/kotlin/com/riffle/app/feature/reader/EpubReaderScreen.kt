@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.reader.presenter.ReadiumPresenter
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -1104,18 +1105,28 @@ private fun EpubNavigatorView(
     val isContinuous = formattingPrefs.orientation == ReaderOrientation.Continuous
     val fragmentRef = remember { mutableStateOf<EpubNavigatorFragment?>(null) }
 
-    val highlightRenderer: HighlightRenderer = remember(isContinuous) {
+    // Per-publication ReadiumPresenter (#300 step 2). Owns the seam between paginated/vertical
+    // rendering and the rest of the reader. Step 2 routes decoration application through it; the
+    // remaining concerns (typography, navigation, page-load + position events) cut over in later
+    // steps. Continuous mode bypasses the presenter until step 5 introduces ContinuousPresenter.
+    val readiumPresenter: ReadiumPresenter? = remember(state.publication, isContinuous, coroutineScope) {
+        if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication)
+    }
+    DisposableEffect(readiumPresenter) {
+        onDispose { readiumPresenter?.detach() }
+    }
+
+    val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
         if (isContinuous) {
             ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
         } else {
+            val presenter = readiumPresenter!! // by construction: non-null when !isContinuous
             ReadiumHighlightRenderer(
                 applyDecorationsBlock = { decorations, group ->
-                    (fragmentRef.value as? DecorableNavigator)?.let { nav ->
-                        withContext(Dispatchers.Main) { nav.applyDecorations(decorations, group) }
-                    }
+                    presenter.applyDecorations(decorations, group)
                 },
                 fragmentLocator = ::fragmentLocator,
-                currentNavigatorStamp = { fragmentRef.value },
+                currentNavigatorStamp = { presenter.attachmentStamp() },
             )
         }
     }
@@ -2034,6 +2045,7 @@ private fun EpubNavigatorView(
                 val existingFrag = fragmentRef.value
                 if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
                     fm.beginTransaction().remove(existingFrag).commitNow()
+                    readiumPresenter?.detach()
                     fragmentRef.value = null
                     fragmentDoublePageHolder[0] = null
                 }
@@ -2078,6 +2090,9 @@ private fun EpubNavigatorView(
                         ?: return@AndroidView
                     fragmentRef.value = fragment
                     fragmentDoublePageHolder[0] = isDoublePage
+                    // Attach to the ReaderPresenter seam (#300 step 2). Today only decoration
+                    // application flows through it; remaining concerns cut over in later steps.
+                    readiumPresenter?.attach(fragment)
                     // Readium's built-in ANIMATED page transition (Kotlin toolkit 3.2.0+): edge taps
                     // turn the page with a smooth slide instead of an instant jump. Added before
                     // tapListener so the adapter consumes horizontal edge taps and tapListener only
