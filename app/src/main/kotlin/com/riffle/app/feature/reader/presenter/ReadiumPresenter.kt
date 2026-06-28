@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.presenter
 
-import com.riffle.app.feature.reader.ColumnSnap
 import com.riffle.app.feature.reader.typographyOverrideInjectionJs
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -129,10 +128,9 @@ internal class ReadiumPresenter(
     override suspend fun navigateTo(target: NavigationTarget) {
         val fragment = fragment ?: return
         val locator = target.toLocator(publication) ?: return
-        // Step 1: a plain go(); the column-snap dance that today wraps go() in EpubReaderScreen
-        // stays where it is until cutover Step 3 routes navigation through the adapter. That step
-        // will swap this for ColumnSnap.goAndSnap() in paginated mode and a plain go() in vertical.
-        @Suppress("UNUSED_VARIABLE") val unused = ColumnSnap // referenced so the import survives cutover
+        // Step 1: plain go(). The column-snap dance currently lives in EpubReaderScreen and moves
+        // behind this method at cutover Step 3 (paginated mode → ColumnSnap.goAndSnap, vertical →
+        // plain go).
         fragment.go(locator, animated = true)
     }
 
