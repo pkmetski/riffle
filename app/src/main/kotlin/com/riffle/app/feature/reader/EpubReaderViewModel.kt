@@ -51,7 +51,6 @@ import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.resolveEpubHref
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -63,7 +62,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -78,7 +76,6 @@ import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.locateProgression
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
-import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -162,6 +159,8 @@ class EpubReaderViewModel @Inject constructor(
     private val audiobookHandoffState: AudiobookHandoffState,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
     private val formattingSessionFactory: FormattingSession.Factory,
+    private val bookmarksControllerFactory: com.riffle.app.feature.reader.controllers.BookmarksController.Factory,
+    private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -169,6 +168,15 @@ class EpubReaderViewModel @Inject constructor(
     private val formatting: FormattingSession = formattingSessionFactory.create(viewModelScope).also {
         it.setDeviceDensity(application.resources.displayMetrics.density)
     }
+
+    // Bookmark observation + page-bookmarked detection. onScheduleSync delegates to
+    // scheduleAnnotationSync() which is resolved lazily at call time.
+    private val bookmarks: com.riffle.app.feature.reader.controllers.BookmarksController =
+        bookmarksControllerFactory.create(viewModelScope, onScheduleSync = { scheduleAnnotationSync() })
+
+    // Search execution, debounce, result navigation. Bound to the Publication once the book opens.
+    private val search: com.riffle.app.feature.reader.controllers.SearchController =
+        searchControllerFactory.create(viewModelScope)
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
@@ -235,6 +243,8 @@ class EpubReaderViewModel @Inject constructor(
 
     private var lastLocator: Locator? = null
     val latestLocator: Locator? get() = lastLocator
+    // A StateFlow mirror of lastLocator so controllers (BookmarksController) can observe it reactively.
+    private val _currentLocatorState = MutableStateFlow<Locator?>(null)
     private var publication: Publication? = null
     private var epubFile: File? = null
     @Volatile private var epubZip: ZipFile? = null
@@ -356,22 +366,13 @@ class EpubReaderViewModel @Inject constructor(
 
     val formattingPreferencesReady: StateFlow<Boolean> = formatting.formattingPreferencesReady
 
-    private val _isSearchActive = MutableStateFlow(false)
-    val isSearchActive: StateFlow<Boolean> = _isSearchActive
+    // ---- SearchController delegations -----------------------------------------------------------
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery
-
-    private val _searchResults = MutableStateFlow<List<Locator>>(emptyList())
-    val searchResults: StateFlow<List<Locator>> = _searchResults
-
-    private val _currentSearchIndex = MutableStateFlow(-1)
-    val currentSearchIndex: StateFlow<Int> = _currentSearchIndex
-
-    private val _searchNavigationChannel = Channel<Locator>(Channel.BUFFERED)
-    val searchNavigationEvents: Flow<Locator> = _searchNavigationChannel.receiveAsFlow()
-
-    private var searchJob: Job? = null
+    val isSearchActive: StateFlow<Boolean> = search.isSearchActive
+    val searchQuery: StateFlow<String> = search.searchQuery
+    val searchResults: StateFlow<List<Locator>> = search.searchResults
+    val currentSearchIndex: StateFlow<Int> = search.currentSearchIndex
+    val searchNavigationEvents: Flow<Locator> = search.searchNavigationEvents
 
     // ---- Readaloud (ADR 0023) ----------------------------------------------------------------
 
@@ -403,11 +404,6 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _highlightRenders = MutableStateFlow<List<HighlightRender>>(emptyList())
     val highlightRenders: StateFlow<List<HighlightRender>> = _highlightRenders
-
-    /** A persisted bookmark decoded to its chapter position for page-level indicator matching. */
-    data class BookmarkPosition(val id: String, val chapterHref: String, val progression: Double)
-
-    private val _bookmarkPositions = MutableStateFlow<List<BookmarkPosition>>(emptyList())
 
     data class HighlightEditTarget(val id: String, val anchorRect: IntRect, val noteOnly: Boolean = false)
 
@@ -674,7 +670,13 @@ class EpubReaderViewModel @Inject constructor(
                 annotationServerId = activeServer.id
                 _annotationsAvailable.value = true
                 observeHighlights(activeServer.id)
-                observeBookmarks(activeServer.id)
+                // Bind the bookmarks controller so it can observe bookmarks and track the current
+                // locator for page-bookmark detection.
+                bookmarks.bind(
+                    serverId = activeServer.id,
+                    itemId = itemId,
+                    currentLocator = _currentLocatorState,
+                )
                 observeAnnotationsForPanel(activeServer.id)
                 // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
                 // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
@@ -720,20 +722,6 @@ class EpubReaderViewModel @Inject constructor(
                 }
             }
         }
-        @OptIn(FlowPreview::class)
-        viewModelScope.launch {
-            _searchQuery
-                .debounce(300)
-                .collect { query ->
-                    searchJob?.cancel()
-                    if (query.length < 2) {
-                        _searchResults.value = emptyList()
-                        _currentSearchIndex.value = -1
-                        return@collect
-                    }
-                    searchJob = launch { performSearch(query) }
-                }
-        }
     }
 
     private suspend fun openBook() {
@@ -751,6 +739,8 @@ class EpubReaderViewModel @Inject constructor(
                     return
                 }
                 publication = pub
+                // Bind the search controller to the new publication so it can execute queries.
+                search.bind(pub)
                 // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's
                 // translation fix (< 2.6.x) may still hold a raw ABS `epubcfi(...)` — convert
                 // those on open so legacy progress isn't lost (one-time healing; new rows are
@@ -1096,6 +1086,7 @@ class EpubReaderViewModel @Inject constructor(
             }
         }
         lastLocator = locator
+        _currentLocatorState.value = locator
         _currentLocatorHref.value = locator.href.toString()
         val cp = locator.locations.progression?.toFloat()
         _currentLocatorProgression.value = cp
@@ -1293,19 +1284,6 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    private fun observeBookmarks(serverId: String) {
-        viewModelScope.launch {
-            combine(
-                annotationStore.observeBookmarks(serverId, itemId),
-                state,
-            ) { annotations, st -> annotations to (st is ReaderState.Ready) }
-                .collect { (annotations, ready) ->
-                    _bookmarkPositions.value =
-                        if (!ready) emptyList() else annotations.map { annotationToBookmarkPosition(it) }
-                }
-        }
-    }
-
     private fun observeAnnotationsForPanel(serverId: String) {
         viewModelScope.launch {
             combine(
@@ -1317,11 +1295,6 @@ class EpubReaderViewModel @Inject constructor(
                 }
         }
     }
-
-    private fun annotationToBookmarkPosition(a: Annotation): BookmarkPosition =
-        // chapterHref is normalized so cross-session URL prefix changes (Readium's per-session
-        // localhost port; file:// vs http://localhost) don't make the indicator miss its own page.
-        BookmarkPosition(a.id, normalizeEpubHref(a.chapterHref), a.progression)
 
     // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
@@ -1384,7 +1357,7 @@ class EpubReaderViewModel @Inject constructor(
             val href = locator.href.toString()
             val hrefNorm = normalizeEpubHref(href)
             val prog = locator.locations.progression ?: 0.0
-            val existing = _bookmarkPositions.value.firstOrNull { bm ->
+            val existing = bookmarks.bookmarkPositions.value.firstOrNull { bm ->
                 bm.chapterHref == hrefNorm && kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS
             }
             if (existing != null) {
@@ -1459,13 +1432,8 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    /** Rename a bookmark; observeAnnotationsForPanel re-emits with the new title. */
-    fun renameBookmark(id: String, title: String) {
-        viewModelScope.launch {
-            annotationStore.renameBookmark(id, title)
-            scheduleAnnotationSync()
-        }
-    }
+    /** Rename a bookmark; delegates to BookmarksController which calls scheduleAnnotationSync. */
+    fun renameBookmark(id: String, title: String) = bookmarks.renameBookmark(id, title)
 
     /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
     fun deleteAnnotation(id: String) {
@@ -1569,23 +1537,10 @@ class EpubReaderViewModel @Inject constructor(
     val currentLocatorProgression: StateFlow<Float?> = _currentLocatorProgression
 
     /**
-     * True when one of this item's bookmarks falls on the reader's current page (chapter href +
-     * within-chapter progression within [BOOKMARK_PAGE_EPS]).
+     * True when one of this item's bookmarks falls on the reader's current page.
+     * Delegated to [BookmarksController] which does the reactive combination.
      */
-    val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
-        _bookmarkPositions,
-        _currentLocatorHref,
-        _currentLocatorProgression,
-    ) { positions, href, prog ->
-        if (href == null) false
-        else {
-            val hrefNorm = normalizeEpubHref(href)
-            positions.any { bm ->
-                bm.chapterHref == hrefNorm &&
-                    (prog == null || kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS)
-            }
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val isCurrentPageBookmarked: StateFlow<Boolean> = bookmarks.isCurrentPageBookmarked
 
     // Whole-book progress (0..1) for the reading "% read" label — the same coordinate persisted as
     // ebookProgress and shown in book details. Distinct from railCursorPosition, which is a
@@ -1817,80 +1772,13 @@ class EpubReaderViewModel @Inject constructor(
         TimeRemaining.Estimated(sec)
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun openSearch() {
-        _isSearchActive.value = true
-    }
+    // ---- SearchController delegations ----------------------------------------------------------
 
-    fun closeSearch() {
-        _isSearchActive.value = false
-        _searchQuery.value = ""
-        _searchResults.value = emptyList()
-        _currentSearchIndex.value = -1
-        searchJob?.cancel()
-    }
-
-    fun onSearchQueryChanged(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun nextSearchResult() {
-        val results = _searchResults.value
-        if (results.isEmpty()) return
-        val next = (_currentSearchIndex.value + 1).coerceAtMost(results.size - 1)
-        _currentSearchIndex.value = next
-        _searchNavigationChannel.trySend(results[next])
-    }
-
-    fun prevSearchResult() {
-        val results = _searchResults.value
-        if (results.isEmpty()) return
-        val prev = (_currentSearchIndex.value - 1).coerceAtLeast(0)
-        _currentSearchIndex.value = prev
-        _searchNavigationChannel.trySend(results[prev])
-    }
-
-    private suspend fun performSearch(query: String) {
-        // Drain any pending navigation events buffered from the previous search so they don't
-        // fire after the new results arrive.
-        while (_searchNavigationChannel.tryReceive().isSuccess) { /* drain */ }
-        val pub = publication ?: return
-        val service = pub.findService(SearchService::class)
-        if (service == null) {
-            _searchResults.value = emptyList()
-            _currentSearchIndex.value = -1
-            return
-        }
-        val results = try {
-            withContext(Dispatchers.IO) {
-                chapterHtmlCache.clear()
-                val iterator = service.search(query)
-                val acc = mutableListOf<Locator>()
-                try {
-                    while (true) {
-                        val pageResult = iterator.next()
-                        // isFailure = chapter unreadable (e.g. OOM wrapped by Readium as
-                        // SearchError.Reading); skip this chapter and continue to the next.
-                        // getOrNull() == null = end of book; stop.
-                        if (pageResult.isFailure) continue
-                        val page = pageResult.getOrNull() ?: break
-                        acc.addAll(page.locators)
-                    }
-                } finally {
-                    iterator.close()
-                }
-                acc
-            }
-        } catch (_: OutOfMemoryError) {
-            emptyList()
-        }
-        _searchResults.value = results
-        if (results.isEmpty()) {
-            _currentSearchIndex.value = -1
-        } else {
-            _currentSearchIndex.value = 0
-            _searchNavigationChannel.trySend(results[0])
-        }
-    }
+    fun openSearch() = search.openSearch()
+    fun closeSearch() = search.closeSearch()
+    fun onSearchQueryChanged(query: String) = search.onSearchQueryChanged(query)
+    fun nextSearchResult() = search.nextSearchResult()
+    fun prevSearchResult() = search.prevSearchResult()
 
     private val _navigationEvents = Channel<Link>(Channel.CONFLATED)
     val navigationEvents: Flow<Link> = _navigationEvents.receiveAsFlow()
