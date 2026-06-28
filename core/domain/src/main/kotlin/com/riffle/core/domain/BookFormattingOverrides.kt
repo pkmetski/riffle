@@ -13,6 +13,7 @@ data class BookFormattingOverrides(
     val showReadingTimeEstimate: Boolean? = null,
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
+    val autoScrollWpm: Int? = null,
 ) {
     val isEmpty: Boolean
         get() = fontSize == null &&
@@ -26,7 +27,8 @@ data class BookFormattingOverrides(
             showCurrentChapterLabel == null &&
             showReadingTimeEstimate == null &&
             doublePageSpread == null &&
-            justifyText == null
+            justifyText == null &&
+            autoScrollWpm == null
 
     fun applyTo(global: FormattingPreferences): FormattingPreferences = FormattingPreferences(
         fontSize = fontSize ?: global.fontSize,
@@ -45,6 +47,7 @@ data class BookFormattingOverrides(
         // global through keeps the in-reader Auto resolution honouring the user's
         // configured day/night times instead of silently falling back to defaults.
         themeSchedule = global.themeSchedule,
+        autoScrollWpm = autoScrollWpm ?: global.autoScrollWpm,
     )
 
     // Treat each field the user just changed (new != previously-effective) as an explicit book
@@ -65,5 +68,6 @@ data class BookFormattingOverrides(
         showReadingTimeEstimate = if (new.showReadingTimeEstimate != previous.showReadingTimeEstimate) new.showReadingTimeEstimate else showReadingTimeEstimate,
         doublePageSpread = if (new.doublePageSpread != previous.doublePageSpread) new.doublePageSpread else doublePageSpread,
         justifyText = if (new.justifyText != previous.justifyText) new.justifyText else justifyText,
+        autoScrollWpm = if (new.autoScrollWpm != previous.autoScrollWpm) new.autoScrollWpm else autoScrollWpm,
     )
 }

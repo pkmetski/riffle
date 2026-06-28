@@ -16,6 +16,7 @@ data class FormattingPreferences(
     val doublePageSpread: Boolean = DEFAULT_DOUBLE_PAGE_SPREAD,
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
     val themeSchedule: ThemeSchedule = ThemeSchedule(),
+    val autoScrollWpm: Int = DEFAULT_AUTO_SCROLL_WPM,
 ) {
     companion object {
         const val DEFAULT_FONT_SIZE: Float = 1.0f
@@ -27,6 +28,7 @@ data class FormattingPreferences(
         const val DEFAULT_SHOW_READING_TIME_ESTIMATE: Boolean = false
         const val DEFAULT_DOUBLE_PAGE_SPREAD: Boolean = false
         const val DEFAULT_JUSTIFY_TEXT: Boolean = false
+        const val DEFAULT_AUTO_SCROLL_WPM: Int = 250
         val DEFAULT_THEME: ReaderTheme = ReaderTheme.Light
         val DEFAULT_FONT_FAMILY: ReaderFontFamily = ReaderFontFamily.Serif
         val DEFAULT_ORIENTATION: ReaderOrientation = ReaderOrientation.Horizontal

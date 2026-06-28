@@ -29,6 +29,10 @@ import com.riffle.app.feature.reader.VolumeKeyAction
 import com.riffle.app.feature.reader.VolumeKeyEventHandler
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.VolumeNavigationController
+import com.riffle.app.feature.reader.autoscroll.AutoScrollController
+import com.riffle.core.domain.autoscroll.AutoScrollEvent
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.core.domain.autoscroll.isActive as isAutoScrollActive
 import com.riffle.app.navigation.MainScreen
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.ui.BottomNavBarScrim
@@ -51,6 +55,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var volumeKeyPreferencesStore: VolumeKeyPreferencesStore
     @Inject lateinit var appThemeStore: AppThemeStore
     @Inject lateinit var nowPlayingNavigator: NowPlayingNavigator
+    @Inject lateinit var autoScrollController: AutoScrollController
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
@@ -131,6 +136,7 @@ class MainActivity : FragmentActivity() {
             invertVolumeKeys = invertVolumeKeys.value,
             isPanelOpen = readerStateHolder.isPanelOpen,
             isAudioPlaying = readerStateHolder.isAudioPlaying,
+            isAutoScrolling = autoScrollController.state.value.isAutoScrollActive,
         )
         return when (action) {
             VolumeKeyAction.NavigateForward -> {
@@ -141,6 +147,16 @@ class MainActivity : FragmentActivity() {
             VolumeKeyAction.NavigateBackward -> {
                 consumedVolumeKeyCodes.add(keyCode)
                 volumeNavigationController.emit(VolumeNavEvent.Backward)
+                true
+            }
+            VolumeKeyAction.AutoScrollFaster -> {
+                consumedVolumeKeyCodes.add(keyCode)
+                autoScrollController.dispatch(AutoScrollEvent.NudgeSpeed(by = AutoScrollSpeed.STEP_WPM))
+                true
+            }
+            VolumeKeyAction.AutoScrollSlower -> {
+                consumedVolumeKeyCodes.add(keyCode)
+                autoScrollController.dispatch(AutoScrollEvent.NudgeSpeed(by = -AutoScrollSpeed.STEP_WPM))
                 true
             }
             VolumeKeyAction.Swallow -> {

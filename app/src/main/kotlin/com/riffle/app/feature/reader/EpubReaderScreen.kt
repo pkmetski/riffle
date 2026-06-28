@@ -323,6 +323,10 @@ fun EpubReaderScreen(
         viewModel.onAudiobookOverlayDismissed()
     }
 
+    // Auto-Scroll HUD pill lives at the outer Box so it overlays the chapter rail and
+    // ContinuousReaderView, and survives Immersive Mode (which only hides the TopAppBar).
+    val autoScrollStateForPill by viewModel.autoScrollState.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Status bar insets are consumed at the AndroidView root (see
         // ViewCompat.setOnApplyWindowInsetsListener in EpubNavigatorView) so they never
@@ -355,6 +359,15 @@ fun EpubReaderScreen(
                     LaunchedEffect(tocVisible, showFormattingPanel) {
                         if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
+                    }
+                    // Pause Auto-Scroll while any reader panel is open (TOC / Formatting /
+                    // Search / Annotations); resume on close. Per ADR 0037.
+                    LaunchedEffect(tocVisible, showFormattingPanel, isSearchActive, annotationsPanelVisible) {
+                        val anyOpen = tocVisible || showFormattingPanel || isSearchActive || annotationsPanelVisible
+                        viewModel.setAutoScrollPaused(
+                            paused = anyOpen,
+                            cause = com.riffle.core.domain.autoscroll.PauseCause.PanelOpen,
+                        )
                     }
                     val spinePositions by viewModel.spinePositionCounts.collectAsState()
                     EpubNavigatorView(
@@ -410,6 +423,10 @@ fun EpubReaderScreen(
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
+                        autoScrollDeltas = viewModel.autoScrollScrollDeltas,
+                        onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
+                        onAutoScrollPause = viewModel::pauseAutoScroll,
+                        onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -607,6 +624,20 @@ fun EpubReaderScreen(
                                     modifier = Modifier.semantics { contentDescription = "Format" },
                                 )
                             }
+                            val autoScrollState by viewModel.autoScrollState.collectAsState()
+                            val orientation = formattingPrefs.orientation
+                            if (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous) {
+                                com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon(
+                                    isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
+                                    onClick = {
+                                        if (autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
+                                            viewModel.stopAutoScroll()
+                                        } else {
+                                            viewModel.startAutoScroll()
+                                        }
+                                    },
+                                )
+                            }
                             if (readaloudVisible) {
                                 IconButton(
                                     onClick = viewModel::openReadaloud,
@@ -682,6 +713,13 @@ fun EpubReaderScreen(
                 },
             )
         }
+        // Auto-Scroll HUD pill — overlays everything else and survives Immersive Mode.
+        com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill(
+            state = autoScrollStateForPill,
+            onPause = { viewModel.stopAutoScroll() },
+            onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+            onFaster = { viewModel.nudgeAutoScroll(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+        )
     }
 }
 
@@ -1051,6 +1089,10 @@ private fun EpubNavigatorView(
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
+    autoScrollDeltas: Flow<Int>,
+    onReachedEndOfBook: () -> Unit,
+    onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
+    onAutoScrollResume: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2175,6 +2217,59 @@ private fun EpubNavigatorView(
                     alignToTop = false,
                     focusAnnotationId = focusId,
                 )
+            }
+            // Drive Auto-Scroll deltas into the ContinuousReaderView's scrollBy. When the view
+            // reaches the bottom of the book the delta is rejected by the NestedScrollView and we
+            // dispatch ReachedEndOfBook to stop the controller silently (ADR 0037).
+            LaunchedEffect(continuousView) {
+                val view = continuousView ?: return@LaunchedEffect
+                autoScrollDeltas.collect { delta ->
+                    val before = view.scrollY
+                    view.scrollBy(0, delta)
+                    val maxScroll = (view.getChildAt(0)?.height ?: 0) - view.height
+                    if (view.scrollY == before || view.scrollY >= maxScroll - 1) {
+                        onReachedEndOfBook()
+                    }
+                }
+            }
+        }
+        // Vertical (Readium scroll) mode: drive Auto-Scroll deltas via JS `window.scrollBy`
+        // because Readium's scroll mode intercepts native View.scrollBy on the inner WebView
+        // (the existing volume-key path uses the same JS scroll mechanism, see line ~1810).
+        // At chapter end we hand off to fragment.goForward() and use a ~600ms settle window so
+        // the next chapter's WebView is painted before the ticker resumes scrolling on it.
+        if (formattingPrefs.orientation == ReaderOrientation.Vertical) {
+            val verticalFragment = fragmentRef.value
+            LaunchedEffect(verticalFragment) {
+                val fragment = verticalFragment ?: return@LaunchedEffect
+                // JS evaluation is suspending: a delta isn't collected until the previous
+                // evaluateJavascript round-trip resolves, so per-delta dispatch already gets
+                // natural backpressure-driven batching (no need to accumulate manually before
+                // the call — the accumulator inside the controller only emits whole pixels).
+                autoScrollDeltas.collect { flushed ->
+                    // Return a plain integer (1 = moved, 0 = stuck). Returning a JSON object
+                    // and parsing it as a string is a trap: evaluateJavascript JSON-encodes the
+                    // JS return value, so a JSON-stringified object comes back as a doubly-
+                    // encoded string ('"{\"moved\":true}"') whose internal quotes are escaped.
+                    val rawResult = fragment.evaluateJavascript(
+                        """
+                        (function(){
+                          var before = window.scrollY;
+                          window.scrollBy(0, $flushed);
+                          return window.scrollY !== before ? 1 : 0;
+                        })()
+                        """.trimIndent(),
+                    ) ?: return@collect
+                    val moved = rawResult.trim().trim('"') == "1"
+                    if (moved) return@collect
+                    // Stuck at the bottom of this chapter. Vertical mode stops auto-scroll
+                    // rather than auto-advancing — the user's eye is mid-viewport when scrollY
+                    // hits max, so an immediate goForward would swap out ~half a viewport of
+                    // unread text. The user pulls to advance, then re-taps the toggle on the
+                    // next chapter when ready. Continuous mode has no chapter boundary so this
+                    // limitation only applies here.
+                    onReachedEndOfBook()
+                }
             }
         }
         AnimatedVisibility(

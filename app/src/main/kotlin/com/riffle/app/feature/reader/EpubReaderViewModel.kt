@@ -169,6 +169,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readingSpeedStore: ReadingSpeedStore,
     private val audiobookHandoffState: AudiobookHandoffState,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
+    private val autoScrollController: com.riffle.app.feature.reader.autoscroll.AutoScrollController,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -287,8 +288,72 @@ class EpubReaderViewModel @Inject constructor(
     // any user-driven navigation.
     private var returnRestoreAttempts = 0
 
-    val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    // Hold the screen on whenever EITHER the global preference says to OR Auto-Scroll is running
+    // (ADR 0037 — a sleeping screen would visibly break a hands-free session).
+    val keepScreenOn: StateFlow<Boolean> = combine(
+        wakeLockPreferencesStore.keepScreenOn,
+        autoScrollController.state,
+    ) { pref, scroll ->
+        pref || scroll is com.riffle.core.domain.autoscroll.AutoScrollState.Running
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val autoScrollState: StateFlow<com.riffle.core.domain.autoscroll.AutoScrollState> =
+        autoScrollController.state
+
+    val autoScrollScrollDeltas: kotlinx.coroutines.flow.Flow<Int> = autoScrollController.scrollDeltas
+
+    /**
+     * Drive Auto-Scroll's PanelOpen pause from the screen — pause while any reader panel is
+     * open (TOC / Formatting / Search / Annotations) and resume on close. The screen layer
+     * holds those booleans; the ViewModel just routes the bit through to the controller.
+     */
+    fun setAutoScrollPaused(paused: Boolean, cause: com.riffle.core.domain.autoscroll.PauseCause) {
+        if (paused) {
+            autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Pause(cause))
+        } else {
+            autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Resume)
+        }
+    }
+
+    fun reachedEndOfBookForAutoScroll() {
+        // Dispatch Stop (not ReachedEndOfBook) so the controller transitions to Idle from any
+        // state — including Paused, which the Vertical-mode handler enters transiently while
+        // waiting for goForward to settle. ReachedEndOfBook is Running-only in the reducer.
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
+    }
+
+    fun startAutoScroll() {
+        // Stop Readaloud if it's playing — mutual exclusion (ADR 0037).
+        if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
+            playerCoordinator.pause()
+        }
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Start)
+    }
+
+    fun stopAutoScroll() {
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
+    }
+
+    fun nudgeAutoScroll(by: Int) {
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.NudgeSpeed(by))
+        // Persist the new speed so it survives close/reopen.
+        val newSpeed = when (val s = autoScrollController.state.value) {
+            is com.riffle.core.domain.autoscroll.AutoScrollState.Running -> s.speed
+            is com.riffle.core.domain.autoscroll.AutoScrollState.Paused -> s.speed
+            else -> null
+        } ?: return
+        val current = _formattingPreferences.value
+        if (current.autoScrollWpm == newSpeed.wpm) return
+        updateFormatting(current.copy(autoScrollWpm = newSpeed.wpm))
+    }
+
+    fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) {
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Pause(cause))
+    }
+
+    fun resumeAutoScrollIfPaused() {
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Resume)
+    }
 
     val volumeKeyNavigationEnabled: StateFlow<Boolean> = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -493,6 +558,10 @@ class EpubReaderViewModel @Inject constructor(
     val downloadProgress: StateFlow<Float?> = _downloadProgress
 
     init {
+        // The AutoScrollController is a process-wide Singleton. Defensively reset to Idle on every
+        // book open so a session that wasn't cleanly torn down (process kill mid-scroll, then
+        // restart into a different book) does not auto-start the new book mid-air.
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
         viewModelScope.launch {
             // Sequential: prefs must be available before openBook() so initialPreferences is set correctly.
             loadFormattingPreferences()
@@ -511,6 +580,57 @@ class EpubReaderViewModel @Inject constructor(
                     _hasBookOverrides.value = hasOverrides
                 }
         }
+        // Auto-Scroll defaultSpeed follows the effective FormattingPreferences (global + override).
+        viewModelScope.launch {
+            _formattingPreferences
+                .map { it.autoScrollWpm }
+                .distinctUntilChanged()
+                .collect { wpm ->
+                    autoScrollController.setDefaultSpeed(
+                        com.riffle.core.domain.autoscroll.AutoScrollSpeed.of(wpm),
+                    )
+                }
+        }
+        // Auto-Scroll layout context (line height in device pixels) follows the effective font
+        // size. Without this the px-per-second pace defaults to a CSS-px estimate and ends up
+        // ~3× too slow on a typical xxhdpi screen. Body text ~22 CSS px line height at default
+        // font size; scaled by user font multiplier and the device density.
+        viewModelScope.launch {
+            val density = application.resources.displayMetrics.density
+            _formattingPreferences
+                .map { it.fontSize }
+                .distinctUntilChanged()
+                .collect { fontSize ->
+                    val cssLineHeight = 22f * fontSize
+                    val deviceLineHeight = cssLineHeight * density
+                    autoScrollController.setLayoutContext {
+                        com.riffle.core.domain.autoscroll.LayoutContext(
+                            wordsPerLine = 9f,
+                            lineHeightPx = deviceLineHeight,
+                        )
+                    }
+                }
+        }
+        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037). Stop (not Pause):
+        // pausing would leave an invisible Auto-Scroll session waiting to silently resume on
+        // Readaloud stop — the surprise the ADR was written to head off.
+        viewModelScope.launch {
+            playerCoordinator.state
+                .map { it.isPlaying }
+                .distinctUntilChanged()
+                .collect { playing ->
+                    if (playing &&
+                        autoScrollController.state.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running
+                    ) {
+                        autoScrollController.dispatch(
+                            com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop,
+                        )
+                    }
+                }
+        }
+        // Panel-open pause/resume is driven from the screen layer (it knows about
+        // showFormattingPanel / tocVisible / annotationsPanelVisible / isSearchActive),
+        // see [setAutoScrollPaused] below.
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 val locator = serverProgressToLocator(serverProgress) ?: return@collect
@@ -1563,6 +1683,9 @@ class EpubReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Stop any in-flight Auto-Scroll so the next book open starts idle, not auto-scrolling
+        // mid-session into someone else's text.
+        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
         // Push any pending annotation edits to the WebDAV sync target (#76). Use progressFlushScope
         // so the PATCH survives viewModelScope cancellation at teardown. Skip when the namespace
         // wasn't resolved this session — there's nowhere to push to. Use [annotationServerId] for
