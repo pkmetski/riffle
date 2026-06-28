@@ -126,7 +126,6 @@ class EpubReaderViewModel @Inject constructor(
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
     private val readingSessionRepository: ReadingSessionRepository,
-    private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val timeProvider: TimeProvider,
     private val readerStateHolder: ReaderStateHolder,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
@@ -160,6 +159,7 @@ class EpubReaderViewModel @Inject constructor(
     private val formattingSessionFactory: FormattingSession.Factory,
     private val bookmarksControllerFactory: com.riffle.app.feature.reader.controllers.BookmarksController.Factory,
     private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
+    private val wakeLockControllerFactory: com.riffle.app.feature.reader.controllers.WakeLockController.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
 ) : AndroidViewModel(application) {
 
@@ -168,6 +168,10 @@ class EpubReaderViewModel @Inject constructor(
     private val formatting: FormattingSession = formattingSessionFactory.create(viewModelScope).also {
         it.setDeviceDensity(application.resources.displayMetrics.density)
     }
+
+    // WakeLock controller — derives keepScreenOn from prefs + autoScroll state.
+    private val wakeLock: com.riffle.app.feature.reader.controllers.WakeLockController =
+        wakeLockControllerFactory.create(viewModelScope, formatting.autoScrollState)
 
     // Bookmark observation + page-bookmarked detection. onScheduleSync delegates to
     // scheduleAnnotationSync() which is resolved lazily at call time.
@@ -298,13 +302,7 @@ class EpubReaderViewModel @Inject constructor(
 
     // Hold the screen on whenever EITHER the global preference says to OR Auto-Scroll is running
     // (ADR 0037 — a sleeping screen would visibly break a hands-free session).
-    // TODO(Task 5): move to WakeLockController which will combine wakeLock pref + autoScrollState.
-    val keepScreenOn: StateFlow<Boolean> = combine(
-        wakeLockPreferencesStore.keepScreenOn,
-        formatting.autoScrollState,
-    ) { pref, scroll ->
-        pref || scroll is com.riffle.core.domain.autoscroll.AutoScrollState.Running
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val keepScreenOn: StateFlow<Boolean> = wakeLock.keepScreenOn
 
     // ---- FormattingSession delegations ---------------------------------------------------------
 
@@ -1827,7 +1825,7 @@ class EpubReaderViewModel @Inject constructor(
     fun resetToGlobalDefaults() = formatting.resetToGlobalDefaults(itemId)
 
     fun setKeepScreenOn(value: Boolean) {
-        viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
+        viewModelScope.launch { wakeLock.setKeepScreenOn(value) }
     }
 
     fun setVolumeKeyNavigationEnabled(value: Boolean) {
