@@ -1778,6 +1778,30 @@ private fun EpubNavigatorView(
         if (isContinuous) navigating = false
     }
 
+    // Sync the Readium fragment to the continuous reader's position when the user switches
+    // FROM Continuous to a Readium-driven mode. In continuous mode the fragment is held alive
+    // for its HTTP server only — invisible, height=0 — and TOC/scroll navigation steers
+    // ContinuousReaderView via [ContinuousNavigationTarget], leaving the fragment parked at
+    // wherever the book first opened. Without this, mode-switching showed the user the original
+    // book-open chapter instead of the chapter they were actually reading in continuous mode.
+    //
+    // Suppress the first composition so a fresh open (already initialised with the same
+    // locator) doesn't fire a redundant nav. wasContinuous tracks the previous value via
+    // rememberSaveable so a config change can't fire a spurious sync.
+    var wasContinuous by rememberSaveable { mutableStateOf(isContinuous) }
+    LaunchedEffect(isContinuous) {
+        val transitionedFromContinuous = wasContinuous && !isContinuous
+        wasContinuous = isContinuous
+        if (!transitionedFromContinuous) return@LaunchedEffect
+        val locator = currentLatestLocator() ?: return@LaunchedEffect
+        // Wait for the fragment to be present AND for the AndroidView update block to have
+        // flipped its container visibility (mode change → recomposition → update runs). The
+        // navigator's WebView only completes go() once visible, so navigating it while still
+        // height=0 would suspend forever (the same gotcha called out in onNavigationEvents).
+        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+        fragment.go(locator, animated = false)
+    }
+
     DisposableEffect(tapListener) {
         onDispose { fragmentRef.value?.removeInputListener(tapListener) }
     }
