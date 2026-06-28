@@ -5,7 +5,7 @@ plugins {
 android {
     namespace = "com.riffle.core.pdfium.text"
     compileSdk = 37
-    ndkVersion = "29.0.13113456"
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         minSdk = 24
