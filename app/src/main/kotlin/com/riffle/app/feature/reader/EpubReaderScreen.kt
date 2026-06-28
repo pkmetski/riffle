@@ -2026,7 +2026,19 @@ private fun EpubNavigatorView(
                     coroutineScope.launch {
                         fragment.currentLocator.collect { locator ->
                             currentHrefHolder[0] = locator.href.toString()
-                            onPositionChanged(locator)
+                            // In Continuous mode the EpubNavigatorFragment is held alive only to keep
+                            // Readium's HTTP server up (see the height=0 / INVISIBLE collapse above).
+                            // Its currentLocator still emits its content-top "initial locator"
+                            // (progression=0 with the chapter title) shortly after WebView load —
+                            // typically AFTER ContinuousReaderView has already persisted a real
+                            // midpoint-derived position via [onRawPosition]. Without this guard, that
+                            // delayed Readium emission overwrites the saved position with prog=0,
+                            // and the next reopen lands viewport-top at the chapter top instead of
+                            // the user's actual reading spot. ContinuousReaderView owns position
+                            // tracking in this mode.
+                            if (formattingPrefsProvider().orientation != ReaderOrientation.Continuous) {
+                                onPositionChanged(locator)
+                            }
                             val key = locator.href.removeFragment().toString()
                             if (key.isNotEmpty() && !footnoteDocCache.containsKey(key)) {
                                 launch(Dispatchers.IO) {
@@ -2130,6 +2142,13 @@ private fun EpubNavigatorView(
                     initialHref = initialHref,
                     initialProgression = initialLocator?.locations?.progression?.toFloat() ?: 0f,
                     publication = state.publication,
+                    // Saved reading positions come from locatorAt, which measures progression at the
+                    // viewport midpoint. The inverse — scrollYForProgression — places mid-chapter
+                    // progressions back at the midpoint. Top-aligning instead drifts the view
+                    // forward by half a viewport on every reopen. Annotation-tap opens still land
+                    // precisely via the focusAnnotationId mark-anchor path in openWindowAt, which
+                    // takes priority over the progression fallback.
+                    alignToTop = false,
                     focusAnnotationId = focusId,
                 )
             }

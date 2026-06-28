@@ -70,6 +70,23 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
+    fun `top-aligning a midpoint-saved progression drifts forward by half a viewport — do not use for resume`() {
+        // Pins the failure mode behind the resume-overshoot bug: the call site that opens at a saved
+        // position must invoke scrollYForProgression (midpoint inverse), NOT the slot.top + p*height
+        // top-alignment used for TOC/bookmark jumps. Using top-alignment on a locatorAt-derived
+        // progression lands the view exactly viewport/2 past the original scrollY on every reopen.
+        val viewport = 800
+        for (scrollY in listOf(200, 400, 700, 900)) {
+            val (href, prog) = ContinuousPositionTracker.locatorAt(scrollY, viewport, window)
+            val slot = window.first { it.href == href }
+            val topAligned = (slot.top + (prog * slot.height).toInt()).coerceAtLeast(0)
+            assertEquals(
+                "scrollY=$scrollY", (scrollY + viewport / 2).toFloat(), topAligned.toFloat(), 2f,
+            )
+        }
+    }
+
+    @Test
     fun `scrollYForProgression top-aligns a chapter start and never goes negative`() {
         // progression 0 → top of the chapter (no half-viewport shift up into the previous chapter).
         assertEquals(1000, ContinuousPositionTracker.scrollYForProgression(1000, 500, 0f, 800))

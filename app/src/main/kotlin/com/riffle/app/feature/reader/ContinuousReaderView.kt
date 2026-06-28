@@ -74,6 +74,11 @@ internal class ContinuousReaderView @JvmOverloads constructor(
          * typically measure in <300ms), short enough that a stuck case recovers quickly.
          */
         private const val INITIAL_SCROLL_FALLBACK_MS = 700L
+
+        /** How long after the initial land to override framework smooth-scroll restoration of a
+         *  stale scrollY (NestedScrollView's mScroller resumes ~50ms after the land scrollTo and
+         *  drives the viewport off-target by hundreds of pixels). Cleared early on user touch. */
+        private const val LANDING_HOLD_MS = 600L
     }
 
     data class ChapterEntry(val link: Link, val url: String)
@@ -208,6 +213,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Window index of the chapter the initial scroll lands on (set in [openWindowAt]). */
     private var pendingTargetWindowIndex: Int = -1
 
+    /** Href of the chapter the initial scroll lands on. Stable across window shifts — used to
+     *  re-resolve the current window slot at scrollTo time so a forward/backward shift between
+     *  [pendingInitialScroll] firing and the deferred [post] draining doesn't lock in pre-shift
+     *  coordinates (was: a shift made [pendingTargetWindowIndex] point at the next chapter and
+     *  the saved-position restore landed one chapter forward). */
+    private var pendingTargetHref: String? = null
+
     /**
      * The initial-scroll closure, retained when the safety-net fallback fires it BEFORE the target
      * chapter measured (so it may have landed short against a placeholder height). Re-invoked once
@@ -226,6 +238,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      *  chain has been disarmed (touch event during boot, mark created after height stabilised, etc).
      *  Cleared on first manual touch and on rebuilds. */
     private var pendingFocusAnnotationId: String? = null
+
+    /** The scrollY of the most recent initial land, and the deadline (uptime ms) until which any
+     *  off-target scroll movement should be reverted. The framework restarts [NestedScrollView]'s
+     *  [OverScroller] after the land (a smooth-scroll restoration of a stale scroll-position from
+     *  saved view state — drives the user's content off the saved position by hundreds of pixels);
+     *  computeScroll() aborts that scroller and snaps back to the target while the window is open.
+     *  Cleared on first user touch and on a fresh window open. */
+    private var landingHoldTargetY: Int = -1
+    private var landingHoldUntilUptimeMs: Long = 0L
 
     /**
      * Placeholder height used before real measurement arrives. One screen height keeps the
@@ -398,6 +419,24 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         super.scrollBy(x, y)
     }
 
+    override fun computeScroll() {
+        super.computeScroll()
+        // Hold the post-land target against framework smooth-scroll restoration of a stale scroll
+        // position. NestedScrollView's mScroller resumes ~50ms after the initial-land scrollTo and
+        // drives scrollY hundreds of pixels off-target (finalY = a stale scroll position from view-
+        // state save). The drifted value would then be persisted, and the next reopen would land
+        // even further off — pushing the chapter forward on every reopen. Window is open until
+        // LANDING_HOLD_MS elapses or the user touches the screen.
+        if (landingHoldTargetY >= 0) {
+            if (android.os.SystemClock.uptimeMillis() > landingHoldUntilUptimeMs) {
+                landingHoldTargetY = -1
+            } else if (scrollY != landingHoldTargetY) {
+                abortFling()
+                super.scrollTo(0, landingHoldTargetY)
+            }
+        }
+    }
+
     /**
      * Block all scroll-into-view requests bubbling up from a child [ChapterWebView].
      *
@@ -456,6 +495,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 // out from under a manual scroll.
                 reapplyLandingAfterFallback = null
                 pendingFocusAnnotationId = null
+                landingHoldTargetY = -1
+                landingHoldUntilUptimeMs = 0L
             }
             MotionEvent.ACTION_MOVE ->
                 if (abs(ev.y - interceptDownY) > touchSlop / 2f) return true
@@ -559,6 +600,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         topIndex = initial.topIndex
         val targetWindowIndex = initial.targetWindowIndex
         pendingTargetWindowIndex = targetWindowIndex
+        pendingTargetHref = initialHref
         reapplyLandingAfterFallback = null
         reapplyTargetLastHeight = -1
         pendingFocusAnnotationId = focusAnnotationId
@@ -567,60 +609,69 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // so the target's slot.top (the sum of the heights before it) is exact.
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(0..targetWindowIndex)
+        val targetHref = initialHref
         pendingInitialScroll = {
-            val slot = buildWindow().getOrNull(targetWindowIndex)
-            val targetWv = webViews.getOrNull(targetWindowIndex)
-            if (slot != null) {
-                // Three landing strategies in priority order:
-                //  1) annotation-decoration anchor: the `<mark data-riffle-ann="<id>">` exists only
-                //     after applyAnnotationHighlightsJs has run inside onPageFinished (post-style-
-                //     injection / post-reflow), so its rect reflects the FINAL layout. Exact landing.
-                //  2) element-id anchor (#fragment): for TOC/cross-ref targets that point at a real
-                //     DOM element. Same recipe but the element is created by the chapter itself.
-                //  3) progression × slot.height: char-fraction × measured-WebView-height — works
-                //     for the resource-top / resume case but lands inexactly when the highlight sits
-                //     in dense text (heading-vs-paragraph density mismatch).
-                //
-                // The reflow-tracking re-land (see [appendChapter]'s onHeightMeasured) re-fires this
-                // closure on every target remeasure, so a cold start where (1) returns null on the
-                // first fire (mark not yet decorated) falls back to (2)/(3), and the NEXT remeasure
-                // — which is virtually always after applyAnnotationHighlightsJs has run — re-fires
-                // and snaps onto the precise mark Y.
-                fun landViaProgression(): Int {
-                    return if (alignToTop) {
-                        (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
-                    } else {
-                        ContinuousPositionTracker.scrollYForProgression(
+            // Three landing strategies in priority order:
+            //  1) annotation-decoration anchor: the `<mark data-riffle-ann="<id>">` exists only
+            //     after applyAnnotationHighlightsJs has run inside onPageFinished (post-style-
+            //     injection / post-reflow), so its rect reflects the FINAL layout. Exact landing.
+            //  2) element-id anchor (#fragment): for TOC/cross-ref targets that point at a real
+            //     DOM element. Same recipe but the element is created by the chapter itself.
+            //  3) progression × slot.height: char-fraction × measured-WebView-height — works
+            //     for the resource-top / resume case but lands inexactly when the highlight sits
+            //     in dense text (heading-vs-paragraph density mismatch).
+            //
+            // The reflow-tracking re-land (see [appendChapter]'s onHeightMeasured) re-fires this
+            // closure on every target remeasure, so a cold start where (1) returns null on the
+            // first fire (mark not yet decorated) falls back to (2)/(3), and the NEXT remeasure
+            // — which is virtually always after applyAnnotationHighlightsJs has run — re-fires
+            // and snaps onto the precise mark Y.
+            //
+            // slot / target WebView are resolved by href INSIDE the deferred [post]: a forward or
+            // backward shift can fire between closure invocation and the scrollTo draining (the
+            // closure clears [pendingInitialScroll] before posting, so [maybeShift] is no longer
+            // gated; a previously-queued scroll handler can trigger a shift via [handleScrollChange]).
+            // A captured pre-shift [pendingTargetWindowIndex] would then point at the NEXT chapter,
+            // landing the user one chapter forward. Looking up by href is shift-stable.
+            fun postLandAt(offsetWithinTargetPx: Int?) {
+                post {
+                    val i = webViewIndexFor(targetHref) ?: return@post
+                    val slot = buildWindow().getOrNull(i) ?: return@post
+                    val y = when {
+                        offsetWithinTargetPx != null -> (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
+                        alignToTop -> (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
+                        else -> ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
                         )
                     }
+                    abortFling()
+                    scrollTo(0, y)
+                    // Hold the landing target against framework smooth-scroll restoration of a
+                    // stale scrollY from view-state. Without this, NestedScrollView's mScroller
+                    // resumes ~50ms after this scrollTo and drives the viewport hundreds of pixels
+                    // toward an old saved position — pushing the reader past the actual saved
+                    // position on every reopen.
+                    landingHoldTargetY = y
+                    landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
                 }
-                fun landViaAnchor(onMiss: () -> Unit) {
-                    if (anchorFragment.isNotEmpty() && targetWv != null) {
-                        targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                            if (anchorOffset != null) post { scrollTo(0, (slot.top + anchorOffset).coerceAtLeast(0)) }
-                            else onMiss()
-                        }
-                    } else {
-                        onMiss()
-                    }
-                }
-                // post the scrollTo so the pending requestLayout from onHeightMeasured's
-                // layoutParams update has a chance to run BEFORE NestedScrollView clamps the target
-                // against the child's measured height. Without this, on first measurement the WV's
-                // layout is still at the pre-reflow size (~2274px) and scrollTo(0, 8544) clamps to
-                // (childMeasured - viewHeight), stranding the reader well short of the annotation.
-                if (focusAnnotationId != null && targetWv != null) {
-                    targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
-                        if (annOffset != null) {
-                            post { scrollTo(0, (slot.top + annOffset).coerceAtLeast(0)) }
-                        } else {
-                            landViaAnchor { post { scrollTo(0, landViaProgression()) } }
-                        }
+            }
+            val targetWv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
+            fun resolveAnchorThenLand() {
+                if (anchorFragment.isNotEmpty() && targetWv != null) {
+                    targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
+                        postLandAt(anchorOffset)
                     }
                 } else {
-                    landViaAnchor { post { scrollTo(0, landViaProgression()) } }
+                    postLandAt(null)
                 }
+            }
+            if (focusAnnotationId != null && targetWv != null) {
+                targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+                    if (annOffset != null) postLandAt(annOffset)
+                    else resolveAnchorThenLand()
+                }
+            } else {
+                resolveAnchorThenLand()
             }
         }
 
@@ -888,7 +939,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * call sites just invoke this and don't need to repeat the index check.
      */
     private fun onAnnotationHighlightsApplied(wv: ChapterWebView) {
-        if (webViews.indexOf(wv) != pendingTargetWindowIndex) return
+        if (wv.chapterHref != pendingTargetHref) return
         reapplyLandingAfterFallback?.invoke()
         scrollToPendingFocusAnnotation(wv)
     }
@@ -901,7 +952,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val id = pendingFocusAnnotationId ?: return
         wv.annotationOffsetTopDevicePx(id) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
-            val slot = buildWindow().getOrNull(pendingTargetWindowIndex) ?: return@annotationOffsetTopDevicePx
+            // Resolve by href, not by index — a window shift between the JS in-flight and this
+            // callback would otherwise look up the wrong slot.
+            val i = pendingTargetHref?.let { webViewIndexFor(it) } ?: return@annotationOffsetTopDevicePx
+            val slot = buildWindow().getOrNull(i) ?: return@annotationOffsetTopDevicePx
             val y = (slot.top + annOffset).coerceAtLeast(0)
             post { scrollTo(0, y) }
             pendingFocusAnnotationId = null
@@ -1011,8 +1065,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                     // a re-land that tracks the target chapter's height until it stabilises so the
                     // landing follows the reflow. Disarmed on the first manual touch.
                     reapplyLandingAfterFallback = scroll
-                    reapplyTargetLastHeight = measuredHeights.getOrElse(pendingTargetWindowIndex) { measuredPx }
-                } else if (i == pendingTargetWindowIndex && reapplyLandingAfterFallback != null &&
+                    val targetIdx = pendingTargetHref?.let { webViewIndexFor(it) } ?: -1
+                    reapplyTargetLastHeight = measuredHeights.getOrElse(targetIdx) { measuredPx }
+                } else if (webViews.getOrNull(i)?.chapterHref == pendingTargetHref &&
+                    reapplyLandingAfterFallback != null &&
                     measuredPx != reapplyTargetLastHeight
                 ) {
                     // Re-land on EACH target remeasure — the chapter keeps growing as typography
