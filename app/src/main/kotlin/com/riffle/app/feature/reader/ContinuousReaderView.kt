@@ -574,6 +574,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         // Clear the oscillation guard so a stale forward-shift flag from the previous position
         // doesn't suppress the first backward check after the window is rebuilt here.
         windowManager.reset()
+        // Hide the chapter stack until the initial scroll lands. While chapters mount with
+        // placeholder heights and then shrink to their real sizes, NestedScrollView re-clamps
+        // scrollY in big visible jumps (e.g. 0 → 460 → 5396) — the user sees the wrong content
+        // sliding past before the land snaps to the right spot. Held invisible until [postLandAt]
+        // runs the deferred scrollTo and the target slot.height has stabilised.
+        container.visibility = android.view.View.INVISIBLE
 
         val targetIndex = ContinuousPositionTracker
             .chapterIndexForHref(allChapters.map { it.link.href.toString() }, initialHref)
@@ -635,8 +641,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             // landing the user one chapter forward. Looking up by href is shift-stable.
             fun postLandAt(offsetWithinTargetPx: Int?) {
                 post {
-                    val i = webViewIndexFor(targetHref) ?: return@post
-                    val slot = buildWindow().getOrNull(i) ?: return@post
+                    val i = webViewIndexFor(targetHref)
+                    val slot = i?.let { buildWindow().getOrNull(it) }
+                    if (i == null || slot == null) {
+                        // Target dropped out of the window before this fired — reveal anyway so
+                        // the user isn't stuck staring at a blank page.
+                        container.visibility = android.view.View.VISIBLE
+                        return@post
+                    }
                     val y = when {
                         offsetWithinTargetPx != null -> (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
                         alignToTop -> (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
@@ -653,6 +665,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                     // position on every reopen.
                     landingHoldTargetY = y
                     landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
+                    // Reveal the chapter stack on the next frame so the first paint after the
+                    // visibility change happens against the post-scrollTo position, not the
+                    // pre-scrollTo one — eliminates the "page slides into place" flash.
+                    postOnAnimation { container.visibility = android.view.View.VISIBLE }
                 }
             }
             val targetWv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
