@@ -184,6 +184,48 @@ jobs:
           path: core/database/build/reports/androidTests/
           if-no-files-found: ignore
 
+  pdfium-text-smoke:
+    name: Pdfium text bridge smoke (core:pdfium-text)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          cache-read-only: true
+      - name: Download Gradle wrapper jar
+        run: |
+          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
+            "https://raw.githubusercontent.com/gradle/gradle/v9.4.1/gradle/wrapper/gradle-wrapper.jar"
+      - name: Install NDK + CMake for core/pdfium-text native build
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;26.3.11579264" "cmake;3.22.1" > /dev/null
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run pdfium-text smoke tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          script: ./gradlew :core:pdfium-text:connectedDebugAndroidTest
+      - name: Upload pdfium-text smoke reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pdfium-text-smoke-reports
+          path: core/pdfium-text/build/reports/androidTests/
+          if-no-files-found: ignore
+
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest

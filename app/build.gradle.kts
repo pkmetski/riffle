@@ -129,6 +129,9 @@ dependencies {
     implementation(project(":core:database"))
     // Three-peer reader sync constructs SyncRemotes over the position APIs directly (issue #38).
     implementation(project(":core:network"))
+    // PDF text-extraction bridge: ships libriffle_pdfium_text.so in the APK so
+    // the PDF reader can dlsym into the already-loaded libmodpdfium.so.
+    implementation(project(":core:pdfium-text"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
