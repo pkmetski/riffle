@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.reader.presenter.PageDirection
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -1515,7 +1516,7 @@ private fun EpubNavigatorView(
                 return@collect
             }
             // Wait for the fragment to be ready — same timing concern as the continuous case above.
-            val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+            snapshotFlow { fragmentRef.value }.filterNotNull().first()
             // Cover only a cross-resource jump (where the load flash happens); a same-chapter jump
             // is instant and needs no mask.
             val cover = link.href.toString().substringBefore('#') !=
@@ -1524,7 +1525,7 @@ private fun EpubNavigatorView(
             try {
                 // Navigate and snap onto the target's column, tracked through the new chapter's async
                 // typography reflow (ColumnSnap owns the grid math). The cover is just cosmetic now.
-                ColumnSnap.goAndSnap(fragment, link)
+                readiumPresenter?.navigateToLink(link)
                 if (cover) delay(NAV_COVER_SETTLE_MS)
             } finally {
                 navigating = false
@@ -1544,11 +1545,11 @@ private fun EpubNavigatorView(
     // can be off-grid (the "page slightly turned to next" bug on book open). The at-rest backstop
     // [SETTLE_SNAP_INSTALL_JS] doesn't rescue it: it arms on a scroll event, and Readium's programmatic
     // initial landing never fires one.
-    val serverLocatorTarget: NavigationTarget = remember(isContinuous) {
+    val serverLocatorTarget: NavigationTarget = remember(isContinuous, readiumPresenter) {
         if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
         else ReadiumNavigationTarget { locator ->
-            val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
-            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+            snapshotFlow { fragmentRef.value }.filterNotNull().first()
+            readiumPresenter?.navigateToLocator(locator, landAtStartWhenNoTarget = false)
         }
     }
 
@@ -1568,12 +1569,12 @@ private fun EpubNavigatorView(
         // silently drop the snap when this fires before the fragment is created — which is the
         // openAtCfi-from-library path: openBook emits the annotation-nav event before the AndroidView
         // factory has built the fragment, so the column-snap never ran and the page rested off-grid.
-        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+        snapshotFlow { fragmentRef.value }.filterNotNull().first()
         val cover = locator.href.toString().substringBefore('#') !=
             currentHrefHolder[0]?.substringBefore('#')
         navigating = cover
         try {
-            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget = false)
+            readiumPresenter?.navigateToLocator(locator, landAtStartWhenNoTarget = false)
             if (cover) delay(NAV_COVER_SETTLE_MS)
         } finally {
             navigating = false
@@ -1581,15 +1582,15 @@ private fun EpubNavigatorView(
     }
 
     // Navigate in vertical (scroll) mode: use Readium's go() without column snapping.
-    // Vertical mode uses native scroll, not column pagination, so ColumnSnap.goAndSnap doesn't apply.
+    // Vertical mode uses native scroll, not column pagination, so the snap call is a no-op there.
     val goInScrollMode: suspend (Locator) -> Unit = goInScrollMode@{ locator ->
         // Same wait-for-fragment as [goAndSnapWithCover] above.
-        val fragment = snapshotFlow { fragmentRef.value }.filterNotNull().first()
+        snapshotFlow { fragmentRef.value }.filterNotNull().first()
         val cover = locator.href.toString().substringBefore('#') !=
             currentHrefHolder[0]?.substringBefore('#')
         navigating = cover
         try {
-            fragment.go(locator, animated = true)
+            readiumPresenter?.navigateToLocator(locator, snap = false)
             if (cover) delay(NAV_COVER_SETTLE_MS)
         } finally {
             navigating = false
@@ -1747,7 +1748,7 @@ private fun EpubNavigatorView(
         // (another chapter), where we fall back to a text-anchored go() to load it.
         val where = ColumnSnap.followNarratedSentence(fragment, quote.highlight)
         if (where != "off") return@LaunchedEffect
-        fragmentLocator(ref, quote)?.let { fragment.go(it, animated = false) }
+        fragmentLocator(ref, quote)?.let { readiumPresenter?.navigateToLocator(it, snap = false, animated = false) }
     }
 
     // INTRA-sentence page follow (paginated): the effect above snaps to the column holding the
@@ -1810,8 +1811,8 @@ private fun EpubNavigatorView(
                 }
             } else {
                 when (event) {
-                    VolumeNavEvent.Forward -> fragment.goForward(animated = false)
-                    VolumeNavEvent.Backward -> fragment.goBackward(animated = false)
+                    VolumeNavEvent.Forward -> readiumPresenter?.pageBy(PageDirection.Forward)
+                    VolumeNavEvent.Backward -> readiumPresenter?.pageBy(PageDirection.Backward)
                 }
             }
         }
@@ -2134,12 +2135,12 @@ private fun EpubNavigatorView(
                     }
                 }
 
-                fragmentRef.value?.let { fragment ->
+                fragmentRef.value?.let { _ ->
                     container.onNavigateForward = navigateForward@{
                         val idx = state.publication.readingOrder
                             .indexOfFirst { it.href.toString() == currentHrefHolder[0] }
                         if (idx < 0 || idx >= state.publication.readingOrder.size - 1) return@navigateForward
-                        fragment.goForward(animated = false)
+                        coroutineScope.launch { readiumPresenter?.pageBy(PageDirection.Forward) }
                     }
                     container.onNavigateBackward = navigateBackward@{
                         val idx = state.publication.readingOrder
@@ -2153,7 +2154,7 @@ private fun EpubNavigatorView(
                                 .put("locations", JSONObject().put("progression", 1.0))
                         ) ?: return@navigateBackward
                         coroutineScope.launch {
-                            fragment.go(locator, animated = false)
+                            readiumPresenter?.navigateToLocator(locator, snap = false, animated = false)
                         }
                     }
                 }
