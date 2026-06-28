@@ -8,6 +8,10 @@ Do not `assembleDebug` (or any APK build) unless the user explicitly asks. Do no
 
 Always run harness tests via `make harness-test` (phone-form-factor tests) or `make harness-test-tablet` (tests annotated with `@TabletLayout`). Never call `./gradlew :app:connectedDebugAndroidTest` directly — it targets all connected devices and will interfere with the developer's physical device. Each target boots its dedicated AVD ("Harness Medium Phone" or "Harness Medium Tablet"), runs its filtered test subset against it exclusively, then shuts it down. The two subsets are mutually exclusive, so tests never double-run across targets.
 
+## Debugging on the developer's device
+
+When debugging with `[DEBUG-<tag>]` logs the user is reproducing for you, **fetch the logcat yourself** — don't ask the user to paste it. The user's device is connected via `adb`; run e.g. `adb logcat -d | grep DEBUG-<tag>` (use `-d` to dump and exit, not stream). Clear the buffer with `adb logcat -c` before they reproduce so the output isn't drowned in history. If multiple devices/emulators are connected, pick the right one with `-s <serial>` (`adb devices`). Trust the user when they say "reproduced" — go fetch.
+
 ## Reader mode changes
 
 The reader has three modes: **paginated**, **vertical**, and **continuous**.
