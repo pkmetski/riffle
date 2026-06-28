@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
+import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.core.data.ReadaloudSidecarStore
@@ -126,8 +127,6 @@ class EpubReaderViewModel @Inject constructor(
     private val publicationOpener: PublicationOpener,
     private val readingSessionRepository: ReadingSessionRepository,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
-    private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
-    private val volumeNavigationController: VolumeNavigationController,
     private val timeProvider: TimeProvider,
     private val readerStateHolder: ReaderStateHolder,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
@@ -161,6 +160,7 @@ class EpubReaderViewModel @Inject constructor(
     private val formattingSessionFactory: FormattingSession.Factory,
     private val bookmarksControllerFactory: com.riffle.app.feature.reader.controllers.BookmarksController.Factory,
     private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
+    private val volumeKeyDispatcher: VolumeKeyDispatcher,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -335,10 +335,12 @@ class EpubReaderViewModel @Inject constructor(
 
     fun resumeAutoScrollIfPaused() = formatting.resumeAutoScrollIfPaused()
 
-    val volumeKeyNavigationEnabled: StateFlow<Boolean> = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
+    // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
+
+    val volumeKeyNavigationEnabled = volumeKeyDispatcher.volumeKeyNavigationEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
-    val invertVolumeKeys: StateFlow<Boolean> = volumeKeyPreferencesStore.invertVolumeKeys
+    val invertVolumeKeys = volumeKeyDispatcher.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
@@ -353,7 +355,7 @@ class EpubReaderViewModel @Inject constructor(
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
 
-    val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
+    val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeKeyDispatcher.volumeNavEvents
 
     // Raw user-picked prefs (theme = Auto stays as Auto) — feeds the FormattingPanel chip selection.
     val formattingPreferences: StateFlow<FormattingPreferences> = formatting.formattingPreferences
@@ -1829,11 +1831,11 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun setVolumeKeyNavigationEnabled(value: Boolean) {
-        viewModelScope.launch { volumeKeyPreferencesStore.setVolumeKeyNavigationEnabled(value) }
+        viewModelScope.launch { volumeKeyDispatcher.setVolumeKeyNavigationEnabled(value) }
     }
 
     fun setInvertVolumeKeys(value: Boolean) {
-        viewModelScope.launch { volumeKeyPreferencesStore.setInvertVolumeKeys(value) }
+        viewModelScope.launch { volumeKeyDispatcher.setInvertVolumeKeys(value) }
     }
 
     // ---- Readaloud playback --------------------------------------------------------------------
