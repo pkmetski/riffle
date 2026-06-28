@@ -4,6 +4,7 @@ import android.net.FakeUri
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -120,6 +121,48 @@ class SearchControllerTest {
         assertEquals(emptyList<Locator>(), controller.searchResults.value)
         assertEquals(-1, controller.currentSearchIndex.value)
         assertEquals("", controller.searchQuery.value)
+    }
+
+    @Test
+    fun `onSearchQueryChanged debounces at 300ms before performSearch`() = runTest {
+        // Use StandardTestDispatcher so coroutine time is manually controlled.
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val scope = kotlinx.coroutines.CoroutineScope(testDispatcher)
+        val controller = SearchController(scope = scope)
+
+        // bind(null) starts the debounce coroutine. publication=null means performSearch
+        // exits early, but the debounce *fires* and applies the query-length<2 branch,
+        // which explicitly resets currentSearchIndex to -1.
+        controller.bind(null)
+        // Drain the initial bind reset coroutines.
+        testScheduler.advanceUntilIdle()
+
+        // Put the controller into a non-default state so we can observe the debounce firing.
+        // Use the test helper to set currentSearchIndex=0 without going through the debounce.
+        val loc = buildLocator("ch1.xhtml", 0.0)
+        controller.setResultsForTest(listOf(loc), startIndex = 0)
+        assertEquals(0, controller.currentSearchIndex.value)
+
+        // Change query to a short string (length < 2). When the debounce fires it will
+        // reset currentSearchIndex back to -1. Before 300ms it must not have fired.
+        controller.onSearchQueryChanged("f")
+
+        // --- Before 300 ms: debounce has NOT fired ---
+        advanceTimeBy(299)
+        assertEquals(
+            "currentSearchIndex should still be 0 at 299ms — debounce not yet elapsed",
+            0,
+            controller.currentSearchIndex.value,
+        )
+
+        // --- At 300 ms: debounce fires, short-query branch sets index = -1 ---
+        advanceTimeBy(1)
+        testScheduler.advanceUntilIdle()
+        assertEquals(
+            "currentSearchIndex should be -1 at 300ms — debounce fired and reset state",
+            -1,
+            controller.currentSearchIndex.value,
+        )
     }
 
     // --- Helpers ---
