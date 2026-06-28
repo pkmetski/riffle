@@ -8,12 +8,12 @@ import org.junit.Test
 
 class ProgressSyncStrategyTest {
 
-    private class FakeRemote(override val id: String) : SyncRemote {
+    private class FakePeer(override val id: String) : ProgressPeer {
         var patchedWith: CanonicalReaderPosition? = null
         override suspend fun tryGet(): RemoteRead? = null
-        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
+        override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
             patchedWith = canonical
-            return 1L // non-null = stored; a fixed server timestamp
+            return WriteResult.Ok(serverStamp = 1L)
         }
     }
 
@@ -22,7 +22,7 @@ class ProgressSyncStrategyTest {
     @Test
     fun `a matched state reconciles the ebook and the audiobook`() = runTest {
         val built = mutableListOf<RemoteKind>()
-        val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
+        val strategy = ProgressSyncStrategy { kind -> built += kind; FakePeer(kind.name) }
 
         val state = BookSyncState(
             isMatched = true,
@@ -41,7 +41,7 @@ class ProgressSyncStrategyTest {
     @Test
     fun `an ebook-only match reconciles the ebook only`() = runTest {
         val built = mutableListOf<RemoteKind>()
-        val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
+        val strategy = ProgressSyncStrategy { kind -> built += kind; FakePeer(kind.name) }
 
         val state = BookSyncState(
             isMatched = true,
@@ -57,7 +57,7 @@ class ProgressSyncStrategyTest {
     @Test
     fun `an unmatched ABS-side book runs single-peer over ABS ebook only`() = runTest {
         val built = mutableListOf<RemoteKind>()
-        val strategy = ProgressSyncStrategy { kind -> built += kind; FakeRemote(kind.name) }
+        val strategy = ProgressSyncStrategy { kind -> built += kind; FakePeer(kind.name) }
 
         val state = BookSyncState(isMatched = false, hasAbsEbookTarget = true, hasAbsAudioTarget = false, prerequisitesCached = false)
         strategy.runCycle(state, local)
@@ -69,7 +69,7 @@ class ProgressSyncStrategyTest {
     fun `a remote the factory cannot build is skipped without poisoning the cycle`() = runTest {
         // Prerequisites cached but the audiobook remote can't be constructed (e.g. bundle gone).
         val strategy = ProgressSyncStrategy { kind ->
-            if (kind == RemoteKind.ABS_AUDIO) null else FakeRemote(kind.name)
+            if (kind == RemoteKind.ABS_AUDIO) null else FakePeer(kind.name)
         }
 
         val state = BookSyncState(isMatched = true, hasAbsEbookTarget = true, hasAbsAudioTarget = true, prerequisitesCached = true)

@@ -8,12 +8,12 @@ import org.junit.Test
 
 class CanonicalSyncCycleTest {
 
-    /** A fake remote with injectable GET result, recorded PATCH, and the timestamp the PATCH stores. */
-    private class FakeRemote(
+    /** A fake peer with injectable GET result, recorded PATCH, and the timestamp the PATCH stores. */
+    private class FakePeer(
         override val id: String,
         private val getResult: RemoteRead?,
         private val patchStamp: Long = 1L,
-    ) : SyncRemote {
+    ) : ProgressPeer {
         var patchedWith: CanonicalReaderPosition? = null
             private set
         var patchFails: Boolean = false
@@ -25,10 +25,10 @@ class CanonicalSyncCycleTest {
             return getResult
         }
 
-        override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
-            if (patchFails) return null
+        override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
+            if (patchFails) return WriteResult.Failed("test-induced failure")
             patchedWith = canonical
-            return patchStamp
+            return WriteResult.Ok(patchStamp)
         }
     }
 
@@ -37,9 +37,9 @@ class CanonicalSyncCycleTest {
     @Test
     fun `the newest remote wins, the reader jumps to it, and stale remotes are patched to it`() = runTest {
         val local = LocalCanonical(pos("L"), lastUpdate = 100)
-        val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
-        val audio = FakeRemote("ABS_AUDIO", RemoteRead(pos("B"), lastUpdate = 80))
-        val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
+        val ebook = FakePeer("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
+        val audio = FakePeer("ABS_AUDIO", RemoteRead(pos("B"), lastUpdate = 80))
+        val storyteller = FakePeer("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
         val result = CanonicalSyncCycle.run(local, listOf(ebook, audio, storyteller))
 
@@ -56,8 +56,8 @@ class CanonicalSyncCycleTest {
     @Test
     fun `when local is newest there is no jump and every remote is patched to local`() = runTest {
         val local = LocalCanonical(pos("L"), lastUpdate = 200)
-        val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
-        val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
+        val ebook = FakePeer("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
+        val storyteller = FakePeer("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
         val result = CanonicalSyncCycle.run(local, listOf(ebook, storyteller))
 
@@ -72,7 +72,7 @@ class CanonicalSyncCycleTest {
         // ABS stamps an ebook write with a server time later than the local clock. The cycle must
         // adopt it, so the write doesn't read back next cycle as a newer remote and bounce the reader.
         val local = LocalCanonical(pos("L"), lastUpdate = 200)
-        val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90), patchStamp = 5_000)
+        val ebook = FakePeer("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90), patchStamp = 5_000)
 
         val result = CanonicalSyncCycle.run(local, listOf(ebook))
 
@@ -84,9 +84,9 @@ class CanonicalSyncCycleTest {
     @Test
     fun `a failed GET excludes that remote from comparison and from patching`() = runTest {
         val local = LocalCanonical(pos("L"), lastUpdate = 100)
-        val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
-        val audio = FakeRemote("ABS_AUDIO", getResult = null) // unreachable
-        val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
+        val ebook = FakePeer("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90))
+        val audio = FakePeer("ABS_AUDIO", getResult = null) // unreachable
+        val storyteller = FakePeer("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
         val result = CanonicalSyncCycle.run(local, listOf(ebook, audio, storyteller))
 
@@ -99,12 +99,31 @@ class CanonicalSyncCycleTest {
     @Test
     fun `a failed PATCH leaves that remote out of the patched set but does not poison others`() = runTest {
         val local = LocalCanonical(pos("L"), lastUpdate = 200)
-        val ebook = FakeRemote("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90)).apply { patchFails = true }
-        val storyteller = FakeRemote("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
+        val ebook = FakePeer("ABS_EBOOK", RemoteRead(pos("A"), lastUpdate = 90)).apply { patchFails = true }
+        val storyteller = FakePeer("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
 
         val result = CanonicalSyncCycle.run(local, listOf(ebook, storyteller))
 
         assertEquals(setOf("STORYTELLER"), result.patched)
         assertEquals(pos("L"), storyteller.patchedWith)
+    }
+
+    @Test
+    fun `a peer that skips its PATCH is treated identically to one that fails`() = runTest {
+        // WriteResult.Skipped models a deliberate no-op (e.g. translator couldn't place the
+        // canonical position, or an inbound-only wrapper suppressed the outbound). The cycle must
+        // leave it out of `patched` and never adopt a stamp, exactly like Failed.
+        val local = LocalCanonical(pos("L"), lastUpdate = 200)
+        val skipping = object : ProgressPeer {
+            override val id = "SKIPPING"
+            override suspend fun tryGet() = RemoteRead(pos("X"), lastUpdate = 90)
+            override suspend fun tryPatch(canonical: CanonicalReaderPosition) = WriteResult.Skipped
+        }
+        val storyteller = FakePeer("STORYTELLER", RemoteRead(pos("S"), lastUpdate = 150))
+
+        val result = CanonicalSyncCycle.run(local, listOf(skipping, storyteller))
+
+        assertEquals(setOf("STORYTELLER"), result.patched)
+        assertEquals("the skipped peer's (non-existent) stamp must not be adopted", 200L, result.canonicalLastUpdate)
     }
 }
