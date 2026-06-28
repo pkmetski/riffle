@@ -10,10 +10,11 @@ import kotlinx.coroutines.flow.SharedFlow
  * endless-scroll renderer used in [com.riffle.core.domain.ReaderOrientation.Continuous] mode)
  * so the view-model never imports continuous-rendering types.
  *
- * **Step 5 scope (issue #300).** The class exists, owns its event flows, and exposes
- * [attach]/[detach] + the basic command set ([applyTypography], [pageBy], [navigateTo]).
- * Position events still flow through the existing screen-level `onPositionChanged` lambda;
- * step 6 routes that through [positionEvents].
+ * Issue #300 cuts over: volume-key paging ([pageBy]), and position events
+ * ([positionEvents] — fed from [ContinuousReaderCoordinator]'s `view.onRawPosition` handler).
+ * Decoration application via [ContinuousHighlightRenderer] still goes through the existing
+ * `targetProvider` lambda; that path collapses when the view-model owns decoration
+ * orchestration (out of this issue's scope).
  *
  * Lifecycle parallels [ReadiumPresenter]: construct once per reader session in continuous mode,
  * call [attach] when the view is created, [detach] when the view goes away.
@@ -47,11 +48,11 @@ internal class ContinuousPresenter : ReaderPresenter {
         this.view = null
     }
 
-    // ----- Feed methods called by the screen's existing continuous-view callback wiring ------
+    // ----- Feed methods called by the coordinator and (future) the screen's callbacks --------
     //
-    // The view exposes nine plain-Kotlin callbacks (onRawPosition, onTap, onInternalLinkTapped,
-    // etc.). Step 6 will route them through these feeders so [positionEvents], [tapEvents], and
-    // friends become the canonical paths. Until then, dormant.
+    // [feedPosition] is wired today via [ContinuousReaderCoordinator]. The remaining feeders
+    // exist so future orchestrators can subscribe to [tapEvents] / [linkEvents] / etc. without
+    // touching ContinuousReaderView callbacks directly.
 
     fun feedPosition(href: String, progression: Float, totalProgression: Float?, locatorJson: String) {
         val position = ReaderPosition(href, progression, totalProgression, locatorJson)
@@ -99,10 +100,11 @@ internal class ContinuousPresenter : ReaderPresenter {
                 alignToTop = false,
             )
             is NavigationTarget.ToLocatorJson -> {
-                // Continuous-mode resume reads (href, progression) out of the Locator JSON. The
-                // existing ContinuousReaderCoordinator does the parse; until step 6 lets it call
-                // back through here, decline to handle Locator-JSON navigation in the presenter
-                // and let the coordinator continue to drive resume.
+                // Continuous-mode resume reads (href, progression) out of the Locator JSON.
+                // ContinuousReaderCoordinator owns the parse + landing today (it has the spine
+                // hrefs + chapter counts the math needs); routing resume through here would
+                // require relocating that machinery to the presenter, which is the job of the
+                // view-model split, not this seam.
             }
         }
     }
