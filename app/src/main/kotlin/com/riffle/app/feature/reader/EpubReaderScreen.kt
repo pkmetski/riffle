@@ -2187,8 +2187,11 @@ private fun EpubNavigatorView(
                 factory = { ctx ->
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
-                        coordinator.attach(view)
+                        // Wire the presenter BEFORE attach so the coordinator's onRawPosition
+                        // handler routes raw-position events through it on the very first scroll.
+                        coordinator.presenter = continuousPresenter
                         continuousPresenter?.attach(view)
+                        coordinator.attach(view)
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                     }
