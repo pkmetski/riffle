@@ -54,22 +54,55 @@ data class LocalCanonical(val position: CanonicalReaderPosition, val lastUpdate:
 data class RemoteRead(val canonical: CanonicalReaderPosition, val lastUpdate: Long)
 
 /**
- * One reconcilable position holder (ABS ebook, ABS audiobook, or Storyteller). Both
- * operations are per-target isolated: [tryGet] returns `null` when the remote is
- * unreachable or its position cannot be translated to canonical (so it is left out of the
- * inbound comparison and not patched).
+ * The outcome of one [ProgressPeer.tryPatch] call. Explicit about the three things the cycle needs
+ * to distinguish:
  *
- * [tryPatch] returns the **server timestamp the write was stored under** (or `null` on
- * failure / a deliberate no-op). The cycle folds that timestamp into the canonical
- * `lastUpdate`: a remote that stamps the write later than the local clock (ABS stamps
- * server-side) would otherwise read back next cycle as a "newer" position and bounce the
- * reader to the very position it just wrote. Adopting the returned timestamp keeps local
- * the winner on the next tie. A remote that stores the timestamp we sent simply returns it.
+ *  - [Ok] — the peer stored the write and stamped it server-side at [serverStamp]. The cycle adds
+ *    the peer to `patched` and folds the stamp into the canonical `lastUpdate`, so the write
+ *    doesn't read back next cycle as a "newer remote" (ADR 0008).
+ *  - [Skipped] — the peer deliberately did not write (a translator boundary couldn't place the
+ *    canonical position, an inbound-only wrapper suppressed the outbound, etc.). Not a failure;
+ *    the row stays at its current state and the cycle does not retry.
+ *  - [Failed] — the write was attempted and failed (network, server error). The cycle leaves the
+ *    row dirty so a later sweep can retry; [retriable] is advisory for telemetry.
+ *
+ * The two non-Ok cases are observably identical in the live cycle (neither stamps, neither marks
+ * the peer patched), but the distinction makes the contract honest and gives the sweep / telemetry
+ * something to act on without sniffing nulls.
  */
-interface SyncRemote {
+sealed interface WriteResult {
+    data class Ok(val serverStamp: Long) : WriteResult
+    data object Skipped : WriteResult
+    data class Failed(val reason: String, val retriable: Boolean = true) : WriteResult
+}
+
+/**
+ * One reconcilable position holder for the live canonical cycle — today an ABS ebook peer and an
+ * ABS audiobook peer (ADR 0019, as amended by ADR 0029 which dropped the Storyteller position
+ * peer). Both operations are per-target isolated:
+ *
+ *  - [tryGet] returns `null` when the peer is unreachable or its position cannot be translated to
+ *    canonical (so it is left out of the inbound comparison and not patched).
+ *
+ *  - [tryPatch] returns a [WriteResult]: [WriteResult.Ok] with the server timestamp the write was
+ *    stored under, [WriteResult.Skipped] for a deliberate no-op (translator boundary, inbound-only
+ *    wrapper), or [WriteResult.Failed] when the write was attempted and failed. The cycle adopts
+ *    the [WriteResult.Ok.serverStamp] into the canonical `lastUpdate`; a peer that stamps later
+ *    than the local clock (ABS stamps server-side) would otherwise read back next cycle as a
+ *    "newer" position and bounce the reader to the very position it just wrote. A peer that stores
+ *    the timestamp we sent simply returns it.
+ *
+ * Note: the local Room store is **not** a `ProgressPeer` — it is the canonical authority the cycle
+ * is reconciling toward, and its write semantics are compare-and-swap (`ifLocalUpdatedAt` guarded
+ * via [SyncPositionStore]) rather than push-then-stamp. Storyteller is also not a peer: there is
+ * no progress-write endpoint on the Storyteller server. Both are intentionally absent; do not add
+ * a no-op peer to satisfy a symmetry that doesn't exist.
+ */
+interface ProgressPeer {
+    /** Stable identifier for logging, telemetry, and `SyncCycleResult.patched`. */
     val id: String
     suspend fun tryGet(): RemoteRead?
-    suspend fun tryPatch(canonical: CanonicalReaderPosition): Long?
+    suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult
 }
 
 /** Outcome of one reconciliation cycle. */
@@ -86,15 +119,15 @@ data class SyncCycleResult(
  */
 object CanonicalSyncCycle {
 
-    suspend fun run(local: LocalCanonical, remotes: List<SyncRemote>): SyncCycleResult {
-        // GET each remote in parallel, isolating per-target failures (null = excluded).
+    suspend fun run(local: LocalCanonical, peers: List<ProgressPeer>): SyncCycleResult {
+        // GET each peer in parallel, isolating per-target failures (null = excluded).
         val reads = coroutineScope {
-            remotes.map { remote -> remote to async { remote.tryGet() } }
-                .map { (remote, deferred) -> remote to deferred.await() }
+            peers.map { peer -> peer to async { peer.tryGet() } }
+                .map { (peer, deferred) -> peer to deferred.await() }
         }
 
         // Inbound winner: the maximum lastUpdate among the local position and the
-        // successfully-read remotes. Local wins ties, so an in-sync remote never forces a jump.
+        // successfully-read peers. Local wins ties, so an in-sync peer never forces a jump.
         var winnerCanonical = local.position
         var canonicalLastUpdate = local.lastUpdate
         for ((_, read) in reads) {
@@ -106,19 +139,23 @@ object CanonicalSyncCycle {
 
         val jumpTo = if (winnerCanonical != local.position) winnerCanonical else null
 
-        // Outbound: patch every successfully-read remote that is now stale, all from the
-        // single canonical winner. Unreachable remotes (null read) are left untouched. Adopt the
+        // Outbound: patch every successfully-read peer that is now stale, all from the
+        // single canonical winner. Unreachable peers (null read) are left untouched. Adopt the
         // latest server timestamp any write was stored under, so a write the server stamps later
-        // than the local clock doesn't read back next cycle as a "newer" remote and bounce the
+        // than the local clock doesn't read back next cycle as a "newer" peer and bounce the
         // reader to the position it just wrote (the "server always overwrites local" bug).
         val patched = mutableSetOf<String>()
         var effectiveLastUpdate = canonicalLastUpdate
-        for ((remote, read) in reads) {
+        for ((peer, read) in reads) {
             if (read != null && read.lastUpdate < canonicalLastUpdate) {
-                val stamp = remote.tryPatch(winnerCanonical)
-                if (stamp != null) {
-                    patched += remote.id
-                    if (stamp > effectiveLastUpdate) effectiveLastUpdate = stamp
+                when (val outcome = peer.tryPatch(winnerCanonical)) {
+                    is WriteResult.Ok -> {
+                        patched += peer.id
+                        if (outcome.serverStamp > effectiveLastUpdate) effectiveLastUpdate = outcome.serverStamp
+                    }
+                    // Skipped/Failed: leave the peer out of `patched`; the cycle's other peers and
+                    // the durable sweep (ADR 0030) handle retry.
+                    WriteResult.Skipped, is WriteResult.Failed -> Unit
                 }
             }
         }

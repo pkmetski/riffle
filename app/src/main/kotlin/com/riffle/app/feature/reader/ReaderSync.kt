@@ -3,10 +3,11 @@ package com.riffle.app.feature.reader
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.CanonicalReaderPosition
 import com.riffle.core.domain.LocalCanonical
+import com.riffle.core.domain.ProgressPeer
 import com.riffle.core.domain.ProgressSyncStrategy
 import com.riffle.core.domain.RemoteKind
 import com.riffle.core.domain.RemoteRead
-import com.riffle.core.domain.SyncRemote
+import com.riffle.core.domain.WriteResult
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
@@ -22,7 +23,7 @@ data class AbsSyncEndpoint(val baseUrl: String, val token: String, val insecure:
 
 // A reachable peer that has no position yet: it never wins (timestamp 0) but is stale relative
 // to any local progress, so the cycle still pushes the reader's first position to it.
-internal val EMPTY_REMOTE_READ = RemoteRead(CanonicalReaderPosition(""), 0L)
+internal val EMPTY_PEER_READ = RemoteRead(CanonicalReaderPosition(""), 0L)
 
 // ABS's progress PATCH replies "OK" with no timestamp, so after a write we GET the record back to
 // learn the server time it was stored under. Callers record it as the local timestamp; without it a
@@ -39,12 +40,12 @@ internal suspend fun AbsSessionApi.writeAudiobookSeconds(ep: AbsSyncEndpoint, se
     return serverStamp(ep)
 }
 
-/** ABS ebook progress as a sync remote: an ebookLocation CFI on the ABS EPUB. */
-internal class AbsEbookSyncRemote(
+/** ABS ebook progress as a [ProgressPeer]: an ebookLocation CFI on the ABS EPUB. */
+internal class AbsEbookProgressPeer(
     private val api: AbsSessionApi,
     private val ep: AbsSyncEndpoint,
     private val bridge: ReaderPositionBridge,
-) : SyncRemote {
+) : ProgressPeer {
     override val id = RemoteKind.ABS_EBOOK.name
 
     override suspend fun tryGet(): RemoteRead? {
@@ -52,16 +53,19 @@ internal class AbsEbookSyncRemote(
         val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
             ?.progress ?: return null
         val cfi = p.ebookLocation.takeIf { it.startsWith("epubcfi(") }
-        if (p.lastUpdate <= 0L || cfi == null) return EMPTY_REMOTE_READ
-        val canonical = bridge.absCfiToCanonical(cfi) ?: return EMPTY_REMOTE_READ
+        if (p.lastUpdate <= 0L || cfi == null) return EMPTY_PEER_READ
+        val canonical = bridge.absCfiToCanonical(cfi) ?: return EMPTY_PEER_READ
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
     }
 
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
-        val cfi = bridge.canonicalToAbsCfi(canonical.value) ?: return null
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
+        val cfi = bridge.canonicalToAbsCfi(canonical.value)
+            ?: return WriteResult.Skipped // canonical can't be placed in the ABS EPUB this cycle
         val payload = NetworkEbookProgressPayload(cfi, bridge.canonicalBookProgress(canonical.value))
-        if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
-        return api.serverStamp(ep)
+        if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success)
+            return WriteResult.Failed("ABS ebook PATCH network error")
+        val stamp = api.serverStamp(ep) ?: return WriteResult.Failed("ABS ebook stamp read-back failed")
+        return WriteResult.Ok(stamp)
     }
 }
 
@@ -77,43 +81,46 @@ internal class AbsEbookSyncRemote(
  * position — so a behind/early playback clock cannot drive the ebook. The feedback loop is closed by
  * adopting the server timestamp each write returns (the cycle / push records it as the local time).
  */
-internal class AbsAudiobookSyncRemote(
+internal class AbsAudiobookProgressPeer(
     private val api: AbsSessionApi,
     private val ep: AbsSyncEndpoint,
     private val bridge: ReaderPositionBridge,
-) : SyncRemote {
+) : ProgressPeer {
     override val id = RemoteKind.ABS_AUDIO.name
 
     override suspend fun tryGet(): RemoteRead? {
         val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
             ?.progress ?: return null
-        if (p.lastUpdate <= 0L || p.currentTime <= 0.0) return EMPTY_REMOTE_READ // no audiobook position yet
-        val canonical = bridge.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_REMOTE_READ
+        if (p.lastUpdate <= 0L || p.currentTime <= 0.0) return EMPTY_PEER_READ // no audiobook position yet
+        val canonical = bridge.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_PEER_READ
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
     }
 
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? {
-        val seconds = bridge.canonicalToAudioSeconds(canonical.value) ?: return null
-        return api.writeAudiobookSeconds(ep, seconds)
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
+        val seconds = bridge.canonicalToAudioSeconds(canonical.value)
+            ?: return WriteResult.Skipped // canonical can't be placed on the audio timeline this cycle
+        val stamp = api.writeAudiobookSeconds(ep, seconds)
+            ?: return WriteResult.Failed("ABS audiobook PATCH or stamp read-back failed")
+        return WriteResult.Ok(stamp)
     }
 }
 
 /**
- * Wraps a remote so the cycle still READS it (a genuinely-newer remote still wins inbound) but never
+ * Wraps a peer so the cycle still READS it (a genuinely-newer remote still wins inbound) but never
  * PATCHes it. Used while the reader is parked on the sentence readaloud stopped on: readaloud already
  * wrote the precise audiobook position on close, so the cycle's page-derived outbound push must not
  * regress it to the page top (ADR 0031). Outbound resumes once the user navigates off that page.
  */
-private class InboundOnlyRemote(private val inner: SyncRemote) : SyncRemote {
+private class InboundOnlyPeer(private val inner: ProgressPeer) : ProgressPeer {
     override val id = inner.id
     override suspend fun tryGet(): RemoteRead? = inner.tryGet()
-    override suspend fun tryPatch(canonical: CanonicalReaderPosition): Long? = null
+    override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult = WriteResult.Skipped
 }
 
 /**
  * Drives one matched readaloud book's two-ABS-peer reconciliation (ADR 0019, as amended by ADR 0029
  * which dropped the Storyteller position peer). Builds the live
- * [SyncRemote]s for the applicable peer set and runs the unified [ProgressSyncStrategy] each
+ * [ProgressPeer]s for the applicable peer set and runs the unified [ProgressSyncStrategy] each
  * cycle. The canonical position is the displayed-EPUB Locator JSON; [runCycle] returns the
  * Locator JSON the reader should jump to, or `null` for no jump.
  *
@@ -151,12 +158,12 @@ class ReaderSyncCoordinator(
     suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long, pushAudio: Boolean = true): ReaderSyncCycleResult {
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
-                RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookSyncRemote(absApi, it, bridge) }
+                RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookProgressPeer(absApi, it, bridge) }
                 RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let {
-                    val remote = AbsAudiobookSyncRemote(absApi, it, bridge)
-                    if (pushAudio) remote else InboundOnlyRemote(remote)
+                    val peer = AbsAudiobookProgressPeer(absApi, it, bridge)
+                    if (pushAudio) peer else InboundOnlyPeer(peer)
                 }
-                // Bookmarks are not a position remote — they reconcile via the sweep, not this cycle.
+                // Bookmarks are not a position peer — they reconcile via the sweep, not this cycle.
                 RemoteKind.ABS_BOOKMARK -> null
             }
         }

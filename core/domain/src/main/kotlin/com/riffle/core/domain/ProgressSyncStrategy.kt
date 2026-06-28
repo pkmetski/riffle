@@ -7,15 +7,15 @@ package com.riffle.core.domain
  * strategy [ProgressSyncController] delegates to once it knows the book's [BookSyncState];
  * the open side feeds only into [applicableRemotes], never into the cycle itself.
  *
- * [remoteFor] constructs the live [SyncRemote] for a kind (wiring the network APIs and the
- * [CanonicalPositionTranslator]); it may return `null` when a remote cannot be built this
+ * [peerFor] constructs the live [ProgressPeer] for a kind (wiring the network APIs and the
+ * [CanonicalPositionTranslator]); it may return `null` when a peer cannot be built this
  * cycle (e.g. a prerequisite went missing), in which case that target is simply skipped.
  */
 class ProgressSyncStrategy(
-    private val remoteFor: (RemoteKind) -> SyncRemote?,
+    private val peerFor: (RemoteKind) -> ProgressPeer?,
 ) {
     suspend fun runCycle(state: BookSyncState, local: LocalCanonical): SyncCycleResult {
-        val remotes = applicableRemotes(state).mapNotNull { remoteFor(it) }
-        return CanonicalSyncCycle.run(local, remotes)
+        val peers = applicableRemotes(state).mapNotNull { peerFor(it) }
+        return CanonicalSyncCycle.run(local, peers)
     }
 }
