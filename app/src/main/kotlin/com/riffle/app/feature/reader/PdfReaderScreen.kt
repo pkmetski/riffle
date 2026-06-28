@@ -13,6 +13,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -264,12 +265,15 @@ fun PdfReaderScreen(
         // Chapter navigation rail along the bottom of the reader. Reuses the EPUB rail
         // visual — same Composable, fed by the PDF-side rail-segment generator. The rail
         // sits at the bottom (above the nav bar) and is only present in the Ready state.
+        // navigationBarsPadding() lifts it above the system-nav inset so it isn't
+        // hidden behind the nav bar on devices with gesture-nav or 3-button-nav.
         if (state is ReaderState.Ready) {
             PdfChapterRailOverlay(
                 viewModel = viewModel,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
             )
         }
     }
