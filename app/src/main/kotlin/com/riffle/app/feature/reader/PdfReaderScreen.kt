@@ -145,6 +145,7 @@ fun PdfReaderScreen(
                     )
                 }
                 is ReaderState.Ready -> {
+                    val pdfViewHolder = remember { mutableStateOf<com.github.barteksc.pdfviewer.PDFView?>(null) }
                     PdfNavigatorView(
                         state = s,
                         onPageChanged = { locator ->
@@ -155,6 +156,7 @@ fun PdfReaderScreen(
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         latestLocator = { viewModel.latestLocator },
+                        onPdfViewReady = { pdfViewHolder.value = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -165,6 +167,16 @@ fun PdfReaderScreen(
                                     append(if (keepScreenOn) "on" else "off")
                                 }
                             },
+                    )
+
+                    // Selection overlay — long-press to highlight the word
+                    // under the press. Sits above PdfiumNavigatorFragment so
+                    // taps reach it before reaching the page (long-press is
+                    // exclusive with edge-tap navigation).
+                    PdfSelectionOverlay(
+                        viewModel = viewModel,
+                        getPdfView = { pdfViewHolder.value },
+                        modifier = Modifier.fillMaxSize(),
                     )
 
                     if (tocVisible) {
@@ -281,6 +293,17 @@ private fun PdfChapterRailOverlay(
     )
 }
 
+/** Recursively walks a view tree looking for a barteksc PDFView instance. */
+private fun findPdfView(view: View): com.github.barteksc.pdfviewer.PDFView? {
+    if (view is com.github.barteksc.pdfviewer.PDFView) return view
+    if (view is android.view.ViewGroup) {
+        for (i in 0 until view.childCount) {
+            findPdfView(view.getChildAt(i))?.let { return it }
+        }
+    }
+    return null
+}
+
 @Composable
 private fun PdfNavigatorView(
     state: ReaderState.Ready,
@@ -289,6 +312,7 @@ private fun PdfNavigatorView(
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
     latestLocator: () -> Locator?,
+    onPdfViewReady: (com.github.barteksc.pdfviewer.PDFView) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -396,6 +420,20 @@ private fun PdfNavigatorView(
                 fragment.addInputListener(tapListener)
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
+                }
+                // Wait for the fragment view to attach, then locate the
+                // PDFView inside it and hand it up to the selection overlay.
+                // PdfiumNavigatorFragment inflates a single PDFView into a
+                // FrameLayout root; we walk the view tree to find it
+                // (no public accessor exists).
+                coroutineScope.launch {
+                    repeat(20) {
+                        val root = fragment.view
+                        if (root != null) {
+                            findPdfView(root)?.let { onPdfViewReady(it); return@launch }
+                        }
+                        kotlinx.coroutines.delay(50)
+                    }
                 }
             }
         },

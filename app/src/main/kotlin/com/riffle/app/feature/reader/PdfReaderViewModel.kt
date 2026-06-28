@@ -15,6 +15,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.pdfium.text.PdfiumTextApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -99,6 +100,162 @@ class PdfReaderViewModel @Inject constructor(
     private var tocLinks: List<Link> = emptyList()
     private var totalPages: Int = 0
 
+    // ---- Parallel PdfiumTextApi document for text selection -------------
+    // We open a SECOND, independent FPDF_DOCUMENT against the same file
+    // (separate from whatever handle Readium/barteksc holds for rendering).
+    // Pdfium documents are isolated; the extra parse-tree memory is ~hundreds
+    // of KB per book — negligible vs the rendered-page bitmap cache. Closed
+    // on book teardown.
+    private var pdfFilePath: String? = null
+    private var pdfTextDocPtr: Long = 0L
+    private val openedPagePtrs = mutableMapOf<Int, Long>()      // pageIndex → FPDF_PAGE
+    private val openedTextPagePtrs = mutableMapOf<Int, Long>()  // pageIndex → FPDF_TEXTPAGE
+    private val pdfPageDimensionsCache = mutableMapOf<Int, Pair<Double, Double>>()
+
+    private fun ensurePdfTextDoc(): Long {
+        if (pdfTextDocPtr != 0L) return pdfTextDocPtr
+        val path = pdfFilePath ?: return 0L
+        if (!PdfiumTextApi.ensureResolved()) return 0L
+        pdfTextDocPtr = PdfiumTextApi.openDocument(path)
+        return pdfTextDocPtr
+    }
+
+    private fun ensurePagePtrs(pageIndex: Int): Pair<Long, Long>? {
+        val doc = ensurePdfTextDoc()
+        if (doc == 0L) return null
+        val page = openedPagePtrs.getOrPut(pageIndex) {
+            PdfiumTextApi.openPage(doc, pageIndex)
+        }
+        if (page == 0L) return null
+        val textPage = openedTextPagePtrs.getOrPut(pageIndex) {
+            PdfiumTextApi.openTextPage(page)
+        }
+        if (textPage == 0L) return null
+        return page to textPage
+    }
+
+    /** Returns (widthPoints, heightPoints) for the given page, or null if unavailable. */
+    fun pdfPageDimensionsPoints(pageIndex: Int): Pair<Double, Double>? {
+        pdfPageDimensionsCache[pageIndex]?.let { return it }
+        val (page, _) = ensurePagePtrs(pageIndex) ?: return null
+        val w = PdfiumTextApi.getPageWidth(page)
+        val h = PdfiumTextApi.getPageHeight(page)
+        if (w <= 0.0 || h <= 0.0) return null
+        val dims = w to h
+        pdfPageDimensionsCache[pageIndex] = dims
+        return dims
+    }
+
+    /**
+     * Find the word at the given PDF user-space point and persist a highlight
+     * for it. Returns the created annotation, or null if the touch missed
+     * any text. The actual quads/charRange are persisted in the locator JSON
+     * so the overlay can render them.
+     */
+    suspend fun createHighlightAtPdfPoint(
+        pageIndex: Int,
+        xPoints: Double,
+        yPoints: Double,
+        color: String = "yellow",
+    ): Annotation? {
+        val serverId = annotationServerId ?: return null
+        val (_, textPage) = ensurePagePtrs(pageIndex) ?: return null
+        val resolver = PdfTextResolver(PdfiumTextApiSource)
+        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 4.0, tolY = 4.0)
+            ?: return null
+        val quads = resolver.quadsForRange(textPage, word)
+        val snippet = resolver.extractSnippet(textPage, word)
+        val (pdfW, pdfH) = pdfPageDimensionsPoints(pageIndex) ?: return null
+        val position = pageIndex + 1
+        val totalProg = if (totalPages > 0) pageIndex.toDouble() / totalPages else 0.0
+        val pageHref = lastLocator?.href?.toString() ?: pdfFilePath.orEmpty()
+        val locatorJson = buildPdfHighlightLocatorJson(
+            href = pageHref,
+            position = position,
+            totalProgression = totalProg,
+            charStart = word.start.value,
+            charEnd = word.endExclusive.value,
+            quads = quads,
+        )
+        return annotationStore.createHighlight(
+            serverId = serverId,
+            itemId = itemId,
+            cfi = locatorJson,
+            textSnippet = snippet.highlight,
+            textBefore = snippet.before,
+            textAfter = snippet.after,
+            chapterHref = pageHref,
+            color = color,
+            spineIndex = 0,
+            progression = totalProg,
+        )
+    }
+
+    private fun buildPdfHighlightLocatorJson(
+        href: String,
+        position: Int,
+        totalProgression: Double,
+        charStart: Int,
+        charEnd: Int,
+        quads: List<android.graphics.RectF>,
+    ): String {
+        val quadsArr = org.json.JSONArray().also { arr ->
+            quads.forEach { q ->
+                arr.put(JSONObject()
+                    .put("x", q.left.toDouble())
+                    .put("y", q.top.toDouble())
+                    .put("w", (q.right - q.left).toDouble())
+                    .put("h", (q.top - q.bottom).toDouble()))
+            }
+        }
+        val other = JSONObject()
+            .put("charStart", charStart)
+            .put("charEnd", charEnd)
+            .put("quads", quadsArr)
+        return JSONObject()
+            .put("href", href)
+            .put("type", "application/pdf")
+            .put("locations", JSONObject()
+                .put("position", position)
+                .put("totalProgression", totalProgression)
+                .put("otherLocations", other))
+            .toString()
+    }
+
+    /**
+     * Returns persisted quads (PDF user-space points) for highlights anchored
+     * to [pageIndex], paired with their annotation id (for tap-to-edit lookup).
+     * Read-only lookup — drives the overlay's draw pass.
+     */
+    fun highlightsForPage(pageIndex: Int): List<Pair<String, List<android.graphics.RectF>>> {
+        val position = pageIndex + 1
+        return _annotations.value.mapNotNull { a ->
+            if (a.cfi.startsWith("{") && pdfLocatorPosition(a.cfi) == position) {
+                val quads = parseQuadsFromLocator(a.cfi)
+                if (quads.isNotEmpty()) a.id to quads else null
+            } else null
+        }
+    }
+
+    private fun parseQuadsFromLocator(cfi: String): List<android.graphics.RectF> {
+        return try {
+            val arr = JSONObject(cfi)
+                .optJSONObject("locations")
+                ?.optJSONObject("otherLocations")
+                ?.optJSONArray("quads") ?: return emptyList()
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val x = o.optDouble("x").toFloat()
+                val y = o.optDouble("y").toFloat()
+                val w = o.optDouble("w").toFloat()
+                val h = o.optDouble("h").toFloat()
+                android.graphics.RectF(x, y, x + w, y - h)  // PDF Y grows up, so y-h is the lower edge
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     // ---- TOC / chapter rail state ----------------------------------------
 
     private val _toc = MutableStateFlow<List<TocEntry>>(emptyList())
@@ -177,6 +334,7 @@ class PdfReaderViewModel @Inject constructor(
         }
         when (val result = pdfRepository.openPdf(item)) {
             is PdfOpenResult.Success -> {
+                pdfFilePath = result.pdfFile.absolutePath
                 val publicationResult = openPublication(result.pdfFile)
                 val publication = publicationResult.getOrElse {
                     _state.value = ReaderState.Error("Failed to open PDF: ${it.message}")
@@ -378,6 +536,7 @@ class PdfReaderViewModel @Inject constructor(
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
         syncJob?.cancel()
+        closePdfTextHandles()
         if (closeSyncDone) return
         closeSyncDone = true
         val locator = lastLocator ?: return
@@ -386,6 +545,23 @@ class PdfReaderViewModel @Inject constructor(
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
             progressSyncController.sync(itemId, payload)
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        closePdfTextHandles()
+    }
+
+    private fun closePdfTextHandles() {
+        openedTextPagePtrs.values.forEach { if (it != 0L) PdfiumTextApi.closeTextPage(it) }
+        openedTextPagePtrs.clear()
+        openedPagePtrs.values.forEach { if (it != 0L) PdfiumTextApi.closePage(it) }
+        openedPagePtrs.clear()
+        if (pdfTextDocPtr != 0L) {
+            PdfiumTextApi.closeDocument(pdfTextDocPtr)
+            pdfTextDocPtr = 0L
+        }
+        pdfPageDimensionsCache.clear()
     }
 
     private suspend fun openPublication(file: File): Result<Publication> {

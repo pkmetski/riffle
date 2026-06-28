@@ -24,13 +24,27 @@ import android.graphics.RectF
 object PdfiumTextApi {
 
     init {
-        // Load libmodpdfium.so directly into the process. Idempotent —
-        // System.loadLibrary is a no-op when the same .so has already been
-        // loaded (e.g. by barteksc's PdfiumCore.<clinit>). Calling it
-        // ourselves means we don't have a compile-time dep on barteksc
-        // (which would drag in Readium's core-library-desugaring requirement).
-        System.loadLibrary("modpdfium")
-
+        // Load the Pdfium native binary into the process. Different forks of
+        // pdfium-android ship it under different names:
+        //
+        //   • marain87/PdfiumAndroid 1.9.x (Readium 3.3.0 transitive):
+        //     libpdfium.cr.so (Pdfium renamed to "Chromium release"),
+        //     libpdfiumandroid.so (its JNI bridge).
+        //   • barteksc/pdfium-android 1.8.x (older Riffle, our smoke-test dep):
+        //     libmodpdfium.so + libjniPdfium.so + libmodft2.so + libmodpng.so.
+        //
+        // We try both names so this module works in either consumer (Riffle
+        // app via Readium → marain87, smoke-test via direct dep → barteksc).
+        // System.loadLibrary is idempotent; calling it for an already-loaded
+        // .so (e.g. PdfiumCore.<clinit> ran first) is a no-op.
+        val loaded = runCatching { System.loadLibrary("pdfium.cr") }.isSuccess ||
+            runCatching { System.loadLibrary("modpdfium") }.isSuccess
+        if (!loaded) {
+            throw UnsatisfiedLinkError(
+                "Neither libpdfium.cr.so (marain87) nor libmodpdfium.so " +
+                    "(barteksc) is loadable. Did the consumer drop the pdfium AAR?"
+            )
+        }
         System.loadLibrary("riffle_pdfium_text")
     }
 

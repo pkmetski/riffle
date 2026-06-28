@@ -99,14 +99,17 @@ bool resolve_one(void* handle, const char* name, Fn* slot) {
 }
 
 void resolve_symbols() {
-    // RTLD_NOLOAD: get a handle to libmodpdfium.so if it's already loaded,
-    // else return nullptr (we do NOT want to load it ourselves — the caller is
-    // responsible for ensuring barteksc's PdfiumCore.<clinit> ran first).
-    g_syms.handle = dlopen("libmodpdfium.so", RTLD_NOW | RTLD_NOLOAD);
+    // RTLD_NOLOAD: get a handle to the already-loaded Pdfium .so. The
+    // marain87 fork (Readium 3.3.0) names it libpdfium.cr.so; barteksc
+    // 1.8.2 names it libmodpdfium.so. Try both.
+    g_syms.handle = dlopen("libpdfium.cr.so", RTLD_NOW | RTLD_NOLOAD);
     if (g_syms.handle == nullptr) {
-        ALOGE("dlopen(libmodpdfium.so, RTLD_NOLOAD) returned null — "
-              "PdfiumCore must be touched (its <clinit> loads the .so) before "
-              "any PdfiumTextApi call.");
+        g_syms.handle = dlopen("libmodpdfium.so", RTLD_NOW | RTLD_NOLOAD);
+    }
+    if (g_syms.handle == nullptr) {
+        ALOGE("dlopen(libpdfium.cr.so | libmodpdfium.so, RTLD_NOLOAD) "
+              "returned null — Pdfium must be loaded into the process before "
+              "any PdfiumTextApi call (PdfiumCore.<clinit> does this).");
         return;
     }
 
