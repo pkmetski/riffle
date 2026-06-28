@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.github.barteksc.pdfviewer.PDFView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -55,6 +57,7 @@ import kotlinx.coroutines.launch
 fun PdfSelectionOverlay(
     viewModel: PdfReaderViewModel,
     getPdfView: () -> PDFView?,
+    onSingleTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val annotations by viewModel.annotations.collectAsState()
@@ -66,33 +69,15 @@ fun PdfSelectionOverlay(
     // We bind via View.setOnLongClickListener which runs after the platform's
     // 500ms long-press timeout regardless of any other gesture detectors
     // PDFView or Readium have wired underneath.
-    DisposableEffect(pdfView, viewModel) {
-        val view = pdfView ?: return@DisposableEffect onDispose { }
-        val downPosition = floatArrayOf(0f, 0f)
-        val touchListener = android.view.View.OnTouchListener { _, event ->
-            if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
-                downPosition[0] = event.x
-                downPosition[1] = event.y
-            }
-            false  // never consume — PDFView still handles scroll/zoom/edge-tap
-        }
-        val longClickListener = android.view.View.OnLongClickListener {
-            android.util.Log.i(
-                "RifflePdfSel",
-                "OnLongClickListener fired at (${downPosition[0]}, ${downPosition[1]})",
-            )
-            handleLongPressAt(view, downPosition[0], downPosition[1], viewModel, scope)
-            true
-        }
-        view.setOnTouchListener(touchListener)
-        view.isLongClickable = true
-        view.setOnLongClickListener(longClickListener)
-        android.util.Log.i("RifflePdfSel", "Installed OnLongClickListener")
-        onDispose {
-            view.setOnLongClickListener(null)
-            view.setOnTouchListener(null)
-        }
-    }
+    // Long-press detection lives in the Compose overlay's pointerInput
+    // rather than on PDFView. Touching PDFView via setOnTouchListener /
+    // setOnLongClickListener breaks Readium's tap-to-toggle-immersive
+    // (PDFView's child Views capture the gesture after ACTION_DOWN, so my
+    // OnTouchListener never sees ACTION_UP and the platform's long-press
+    // path mis-fires). Compose's pointerInput, layered on the overlay Box
+    // ABOVE the AndroidView, observes events BEFORE PDFView. By NOT
+    // consuming pointer changes, events still propagate down to PDFView
+    // for its own scroll/zoom/tap behavior.
 
     // Tick state that bumps whenever PDFView's scroll/zoom changes so the
     // highlight quads re-position. Polled at ~60Hz while the reader is on
@@ -122,7 +107,31 @@ fun PdfSelectionOverlay(
     if (pdfView != null) {
         val density = LocalDensity.current
         val fillColor = Color(0xFFFFEB3B).copy(alpha = 0.45f)
-        Box(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .pointerInput(pdfView, viewModel) {
+                    // detectTapGestures owns tap + long-press detection. It
+                    // consumes the touch when a gesture is detected, which
+                    // means PDFView won't see taps that we handle here —
+                    // so we forward tap → onSingleTap (chrome toggle). Drags
+                    // (scroll/zoom) don't fire any of these callbacks; those
+                    // events propagate through to PDFView normally.
+                    detectTapGestures(
+                        onTap = {
+                            android.util.Log.i("RifflePdfSel", "onTap → chrome toggle")
+                            onSingleTap()
+                        },
+                        onLongPress = { offset ->
+                            android.util.Log.i(
+                                "RifflePdfSel",
+                                "onLongPress at (${offset.x}, ${offset.y})",
+                            )
+                            handleLongPressAt(pdfView, offset.x, offset.y, viewModel, scope)
+                        },
+                    )
+                },
+        ) {
             // Touch scrollTick so this scope recomposes when PDFView scrolls.
             @Suppress("UNUSED_EXPRESSION") scrollTick
             val totalPages = pdfPageCount(pdfView)

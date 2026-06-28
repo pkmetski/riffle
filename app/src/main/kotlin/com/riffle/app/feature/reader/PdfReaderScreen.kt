@@ -169,13 +169,16 @@ fun PdfReaderScreen(
                             },
                     )
 
-                    // Selection overlay — long-press to highlight the word
-                    // under the press. Sits above PdfiumNavigatorFragment so
-                    // taps reach it before reaching the page (long-press is
-                    // exclusive with edge-tap navigation).
+                    // Selection overlay — owns tap (chrome toggle) AND
+                    // long-press (highlight) for the PDF area. Sits above
+                    // PdfiumNavigatorFragment so it receives taps before
+                    // Readium's InputListener. Scroll / zoom drags pass
+                    // through to PDFView unchanged (detectTapGestures only
+                    // intercepts short taps and long-presses).
                     PdfSelectionOverlay(
                         viewModel = viewModel,
                         getPdfView = { pdfViewHolder.value },
+                        onSingleTap = immersiveState::toggle,
                         modifier = Modifier.fillMaxSize(),
                     )
 
@@ -280,6 +283,11 @@ private fun PdfChapterRailOverlay(
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    android.util.Log.v(
+        "RifflePdfRail",
+        "PdfChapterRailOverlay segments=${railSegments.size} " +
+            "active=$activeRailSegmentIndex cursor=$cursorPosition",
+    )
     if (railSegments.isEmpty()) return
     ChapterNavigationRail(
         segments = railSegments,
@@ -326,6 +334,7 @@ private fun PdfNavigatorView(
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
+                android.util.Log.i("RifflePdfSel", "Readium InputListener.onTap fired at $event")
                 currentOnTap()
                 return false
             }
