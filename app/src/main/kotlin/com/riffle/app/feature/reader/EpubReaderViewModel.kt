@@ -18,19 +18,16 @@ import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
-import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudResumePlanner
@@ -52,10 +49,8 @@ import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.resolveEpubHref
-import com.riffle.core.domain.withResolvedTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -67,7 +62,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -134,8 +128,6 @@ class EpubReaderViewModel @Inject constructor(
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
     private val readingSessionRepository: ReadingSessionRepository,
-    private val formattingPreferencesStore: FormattingPreferencesStore,
-    private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeKeyPreferencesStore: VolumeKeyPreferencesStore,
     private val volumeNavigationController: VolumeNavigationController,
@@ -169,8 +161,14 @@ class EpubReaderViewModel @Inject constructor(
     private val readingSpeedStore: ReadingSpeedStore,
     private val audiobookHandoffState: AudiobookHandoffState,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
-    private val autoScrollController: com.riffle.app.feature.reader.autoscroll.AutoScrollController,
+    private val formattingSessionFactory: FormattingSession.Factory,
 ) : AndroidViewModel(application) {
+
+    // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
+    // teardown is deterministic (the orchestrator's coroutines cancel when the VM is cleared).
+    private val formatting: FormattingSession = formattingSessionFactory.create(viewModelScope).also {
+        it.setDeviceDensity(application.resources.displayMetrics.density)
+    }
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
@@ -290,70 +288,42 @@ class EpubReaderViewModel @Inject constructor(
 
     // Hold the screen on whenever EITHER the global preference says to OR Auto-Scroll is running
     // (ADR 0037 — a sleeping screen would visibly break a hands-free session).
+    // TODO(Task 5): move to WakeLockController which will combine wakeLock pref + autoScrollState.
     val keepScreenOn: StateFlow<Boolean> = combine(
         wakeLockPreferencesStore.keepScreenOn,
-        autoScrollController.state,
+        formatting.autoScrollState,
     ) { pref, scroll ->
         pref || scroll is com.riffle.core.domain.autoscroll.AutoScrollState.Running
     }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    // ---- FormattingSession delegations ---------------------------------------------------------
+
     val autoScrollState: StateFlow<com.riffle.core.domain.autoscroll.AutoScrollState> =
-        autoScrollController.state
+        formatting.autoScrollState
 
-    val autoScrollScrollDeltas: kotlinx.coroutines.flow.Flow<Int> = autoScrollController.scrollDeltas
+    val autoScrollScrollDeltas: kotlinx.coroutines.flow.Flow<Int> = formatting.autoScrollScrollDeltas
 
-    /**
-     * Drive Auto-Scroll's PanelOpen pause from the screen — pause while any reader panel is
-     * open (TOC / Formatting / Search / Annotations) and resume on close. The screen layer
-     * holds those booleans; the ViewModel just routes the bit through to the controller.
-     */
-    fun setAutoScrollPaused(paused: Boolean, cause: com.riffle.core.domain.autoscroll.PauseCause) {
-        if (paused) {
-            autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Pause(cause))
-        } else {
-            autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Resume)
-        }
-    }
+    fun setAutoScrollPaused(paused: Boolean, cause: com.riffle.core.domain.autoscroll.PauseCause) =
+        formatting.setAutoScrollPaused(paused, cause)
 
-    fun reachedEndOfBookForAutoScroll() {
-        // Dispatch Stop (not ReachedEndOfBook) so the controller transitions to Idle from any
-        // state — including Paused, which the Vertical-mode handler enters transiently while
-        // waiting for goForward to settle. ReachedEndOfBook is Running-only in the reducer.
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
-    }
+    fun reachedEndOfBookForAutoScroll() = formatting.reachedEndOfBookForAutoScroll()
 
     fun startAutoScroll() {
         // Stop Readaloud if it's playing — mutual exclusion (ADR 0037).
         if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
             playerCoordinator.pause()
         }
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Start)
+        formatting.startAutoScroll()
     }
 
-    fun stopAutoScroll() {
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
-    }
+    fun stopAutoScroll() = formatting.stopAutoScroll()
 
-    fun nudgeAutoScroll(by: Int) {
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.NudgeSpeed(by))
-        // Persist the new speed so it survives close/reopen.
-        val newSpeed = when (val s = autoScrollController.state.value) {
-            is com.riffle.core.domain.autoscroll.AutoScrollState.Running -> s.speed
-            is com.riffle.core.domain.autoscroll.AutoScrollState.Paused -> s.speed
-            else -> null
-        } ?: return
-        val current = _formattingPreferences.value
-        if (current.autoScrollWpm == newSpeed.wpm) return
-        updateFormatting(current.copy(autoScrollWpm = newSpeed.wpm))
-    }
+    fun nudgeAutoScroll(by: Int) = formatting.nudgeAutoScroll(itemId, by)
 
-    fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) {
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Pause(cause))
-    }
+    fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) =
+        formatting.pauseAutoScroll(cause)
 
-    fun resumeAutoScrollIfPaused() {
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Resume)
-    }
+    fun resumeAutoScrollIfPaused() = formatting.resumeAutoScrollIfPaused()
 
     val volumeKeyNavigationEnabled: StateFlow<Boolean> = volumeKeyPreferencesStore.volumeKeyNavigationEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -375,42 +345,16 @@ class EpubReaderViewModel @Inject constructor(
 
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
 
-    // Per-field book overrides. null on a field means "follow global", so changing global later
-    // propagates to the book for fields the user hasn't touched in the panel.
-    private val _bookOverrides = MutableStateFlow(BookFormattingOverrides())
+    // Raw user-picked prefs (theme = Auto stays as Auto) — feeds the FormattingPanel chip selection.
+    val formattingPreferences: StateFlow<FormattingPreferences> = formatting.formattingPreferences
 
-    // Effective prefs = global ⊕ overrides. Updated optimistically on user change so the
-    // navigator sees the new value without waiting for the Room write to complete.
-    private val _formattingPreferences = MutableStateFlow(FormattingPreferences())
-    val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
+    // Resolved prefs (Auto theme replaced by concrete colour) — feeds Readium and the palette.
+    val effectiveFormattingPreferences: StateFlow<FormattingPreferences> =
+        formatting.effectiveFormattingPreferences
 
-    // Ticks emitted at each ThemeSchedule boundary so the resolved theme can flip live
-    // during a reading session. Re-armed whenever the schedule changes.
-    private val scheduleTicks = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1).apply {
-        tryEmit(Unit) // prime the combine() below so it emits immediately on collection
-    }
+    val hasBookOverrides: StateFlow<Boolean> = formatting.hasBookOverrides
 
-    // The user's pick with `theme` replaced by the resolver's concrete value when the
-    // pick is Auto. Every downstream consumer (Readium navigator submitPreferences,
-    // chapter rail backdrop, palette) reads this — they stay ignorant of Auto.
-    val effectiveFormattingPreferences: StateFlow<FormattingPreferences> = combine(
-        _formattingPreferences,
-        scheduleTicks,
-    ) { prefs, _ -> prefs.withResolvedTheme(timeProvider.nowLocalTime()) }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, FormattingPreferences())
-
-    private val _hasBookOverrides = MutableStateFlow(false)
-    val hasBookOverrides: StateFlow<Boolean> = _hasBookOverrides
-
-    // False until loadFormattingPreferences() has both written the loaded value into
-    // _formattingPreferences AND that value has propagated through the combine→stateIn chain
-    // backing effectiveFormattingPreferences. The screen gates EpubNavigatorFragment /
-    // ContinuousReaderView construction on this so the first paint never uses the StateFlow's
-    // FormattingPreferences() default — which would otherwise produce an occasional unstyled
-    // render (no typography overrides applied) that survives until the user reopens the book.
-    private val _formattingPreferencesReady = MutableStateFlow(false)
-    val formattingPreferencesReady: StateFlow<Boolean> = _formattingPreferencesReady
+    val formattingPreferencesReady: StateFlow<Boolean> = formatting.formattingPreferencesReady
 
     private val _isSearchActive = MutableStateFlow(false)
     val isSearchActive: StateFlow<Boolean> = _isSearchActive
@@ -558,58 +502,12 @@ class EpubReaderViewModel @Inject constructor(
     val downloadProgress: StateFlow<Float?> = _downloadProgress
 
     init {
-        // The AutoScrollController is a process-wide Singleton. Defensively reset to Idle on every
-        // book open so a session that wasn't cleanly torn down (process kill mid-scroll, then
-        // restart into a different book) does not auto-start the new book mid-air.
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
         viewModelScope.launch {
-            // Sequential: prefs must be available before openBook() so initialPreferences is set correctly.
-            loadFormattingPreferences()
+            // Sequential: formatting prefs must be available before openBook() so the
+            // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
+            // waits for effectiveFormattingPreferences to reflect the loaded value).
+            formatting.bindToBook(itemId)
             openBook()
-        }
-        // Keep effective prefs in sync with both global changes and override updates. This is
-        // why per-book settings are sparse: a global change to a field the user hasn't touched
-        // in this book flows through immediately.
-        viewModelScope.launch {
-            combine(
-                formattingPreferencesStore.preferences,
-                _bookOverrides,
-            ) { global, overrides -> overrides.applyTo(global) to !overrides.isEmpty }
-                .collect { (effective, hasOverrides) ->
-                    _formattingPreferences.value = effective
-                    _hasBookOverrides.value = hasOverrides
-                }
-        }
-        // Auto-Scroll defaultSpeed follows the effective FormattingPreferences (global + override).
-        viewModelScope.launch {
-            _formattingPreferences
-                .map { it.autoScrollWpm }
-                .distinctUntilChanged()
-                .collect { wpm ->
-                    autoScrollController.setDefaultSpeed(
-                        com.riffle.core.domain.autoscroll.AutoScrollSpeed.of(wpm),
-                    )
-                }
-        }
-        // Auto-Scroll layout context (line height in device pixels) follows the effective font
-        // size. Without this the px-per-second pace defaults to a CSS-px estimate and ends up
-        // ~3× too slow on a typical xxhdpi screen. Body text ~22 CSS px line height at default
-        // font size; scaled by user font multiplier and the device density.
-        viewModelScope.launch {
-            val density = application.resources.displayMetrics.density
-            _formattingPreferences
-                .map { it.fontSize }
-                .distinctUntilChanged()
-                .collect { fontSize ->
-                    val cssLineHeight = 22f * fontSize
-                    val deviceLineHeight = cssLineHeight * density
-                    autoScrollController.setLayoutContext {
-                        com.riffle.core.domain.autoscroll.LayoutContext(
-                            wordsPerLine = 9f,
-                            lineHeightPx = deviceLineHeight,
-                        )
-                    }
-                }
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037). Stop (not Pause):
         // pausing would leave an invisible Auto-Scroll session waiting to silently resume on
@@ -618,15 +516,7 @@ class EpubReaderViewModel @Inject constructor(
             playerCoordinator.state
                 .map { it.isPlaying }
                 .distinctUntilChanged()
-                .collect { playing ->
-                    if (playing &&
-                        autoScrollController.state.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running
-                    ) {
-                        autoScrollController.dispatch(
-                            com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop,
-                        )
-                    }
-                }
+                .collect { playing -> formatting.onPlaybackStateChanged(playing) }
         }
         // Panel-open pause/resume is driven from the screen layer (it knows about
         // showFormattingPanel / tocVisible / annotationsPanelVisible / isSearchActive),
@@ -643,30 +533,6 @@ class EpubReaderViewModel @Inject constructor(
                 }
                 _serverLocatorChannel.trySend(locator)
             }
-        }
-        viewModelScope.launch {
-            _formattingPreferences
-                .map { it.themeSchedule to (it.theme == ReaderTheme.Auto) }
-                .distinctUntilChanged()
-                .collectLatest { (schedule, autoActive) ->
-                    if (!autoActive) return@collectLatest
-                    // Degenerate schedule (equal day/night times) collapses to always-day —
-                    // no boundary will ever arrive. Park until cancelled (the schedule
-                    // changes) instead of spinning at 1 Hz against the 1_000L floor.
-                    if (schedule.dayStart == schedule.nightStart) {
-                        awaitCancellation()
-                    }
-                    while (true) {
-                        val now = timeProvider.nowLocalTime()
-                        val next = schedule.nextBoundaryAfter(now)
-                        val nowSec = now.toSecondOfDay().toLong()
-                        val nextSec = next.toSecondOfDay().toLong()
-                        val delayMs = (((nextSec - nowSec + 24 * 3600) % (24 * 3600)) * 1000L)
-                            .coerceAtLeast(1_000L)
-                        delay(delayMs)
-                        scheduleTicks.tryEmit(Unit)
-                    }
-                }
         }
         viewModelScope.launch {
             // Active-server type decides Readaloud availability: every Storyteller book qualifies,
@@ -870,24 +736,6 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadFormattingPreferences() {
-        val overrides = bookFormattingPreferencesStore.load(itemId)
-        val global = formattingPreferencesStore.preferences.first()
-        _bookOverrides.value = overrides
-        val effective = overrides.applyTo(global)
-        _formattingPreferences.value = effective
-        _hasBookOverrides.value = !overrides.isEmpty
-        // Wait until the derived effectiveFormattingPreferences StateFlow actually reflects
-        // the loaded value before flipping the gate. The combine→stateIn chain has its own
-        // dispatch latency: writing _formattingPreferences.value does not synchronously
-        // update effectiveFormattingPreferences.value, and the screen reads the latter when
-        // constructing the Readium navigator. Without this wait, ReaderState.Ready can
-        // arrive while effectiveFormattingPreferences.value still holds FormattingPreferences().
-        val targetEffective = effective.withResolvedTheme(timeProvider.nowLocalTime())
-        effectiveFormattingPreferences.first { it == targetEffective }
-        _formattingPreferencesReady.value = true
-    }
-
     private suspend fun openBook() {
         val item = libraryRepository.getItem(itemId)
         if (item == null) {
@@ -959,7 +807,7 @@ class EpubReaderViewModel @Inject constructor(
                 // (which doesn't reflow-track) against that careful machinery and break the landing.
                 // Vertical mode is also excluded — initialLocator already lands correctly without a
                 // snap, and a redundant fragment.go() would only add a same-place re-positioning.
-                if (openAtLocator != null && _formattingPreferences.value.orientation == ReaderOrientation.Horizontal) {
+                if (openAtLocator != null && formatting.effectiveFormattingPreferences.value.orientation == ReaderOrientation.Horizontal) {
                     _annotationNavigationChannel.trySend(openAtLocator)
                 }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
@@ -1685,7 +1533,7 @@ class EpubReaderViewModel @Inject constructor(
         super.onCleared()
         // Stop any in-flight Auto-Scroll so the next book open starts idle, not auto-scrolling
         // mid-session into someone else's text.
-        autoScrollController.dispatch(com.riffle.core.domain.autoscroll.AutoScrollEvent.Stop)
+        formatting.onBookClosed()
         // Push any pending annotation edits to the WebDAV sync target (#76). Use progressFlushScope
         // so the PATCH survives viewModelScope cancellation at teardown. Skip when the namespace
         // wasn't resolved this session — there's nowhere to push to. Use [annotationServerId] for
@@ -2084,23 +1932,9 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    fun updateFormatting(prefs: FormattingPreferences) {
-        val previousEffective = _formattingPreferences.value
-        val updated = _bookOverrides.value.withChanges(previousEffective, prefs)
-        _bookOverrides.value = updated
-        _formattingPreferences.value = prefs
-        _hasBookOverrides.value = !updated.isEmpty
-        viewModelScope.launch { bookFormattingPreferencesStore.save(itemId, updated) }
-    }
+    fun updateFormatting(prefs: FormattingPreferences) = formatting.updateFormatting(itemId, prefs)
 
-    fun resetToGlobalDefaults() {
-        viewModelScope.launch {
-            bookFormattingPreferencesStore.clear(itemId)
-            _bookOverrides.value = BookFormattingOverrides()
-            _formattingPreferences.value = formattingPreferencesStore.preferences.first()
-            _hasBookOverrides.value = false
-        }
-    }
+    fun resetToGlobalDefaults() = formatting.resetToGlobalDefaults(itemId)
 
     fun setKeepScreenOn(value: Boolean) {
         viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
