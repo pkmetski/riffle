@@ -681,10 +681,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                 }
             }
             val targetWv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
+            // The offset returned by the async JS query is only trustworthy if [targetWv] is still
+            // serving the target chapter. A window shift between the JS dispatch and its callback
+            // can recycle [targetWv] to a different chapter (the closure cleared
+            // [pendingInitialScroll], unblocking [maybeShift]), in which case the JS resolved
+            // against the wrong DOM. Treat that case as a miss and fall back to progression.
+            fun ChapterWebView.offsetIfStillTarget(offset: Int?): Int? =
+                if (offset != null && chapterHref == targetHref) offset else null
             fun resolveAnchorThenLand() {
                 if (anchorFragment.isNotEmpty() && targetWv != null) {
                     targetWv.anchorOffsetTopDevicePx(anchorFragment) { anchorOffset ->
-                        postLandAt(anchorOffset)
+                        postLandAt(targetWv.offsetIfStillTarget(anchorOffset))
                     }
                 } else {
                     postLandAt(null)
@@ -692,7 +699,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             }
             if (focusAnnotationId != null && targetWv != null) {
                 targetWv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
-                    if (annOffset != null) postLandAt(annOffset)
+                    val validated = targetWv.offsetIfStillTarget(annOffset)
+                    if (validated != null) postLandAt(validated)
                     else resolveAnchorThenLand()
                 }
             } else {
