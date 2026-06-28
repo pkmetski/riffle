@@ -210,13 +210,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      *  it fires against the new window's [pendingInitialScroll]. */
     private var pendingFallbackRunnable: Runnable? = null
 
-    /** Window index of the chapter the initial scroll lands on (set in [openWindowAt]). */
-    private var pendingTargetWindowIndex: Int = -1
-
     /** Href of the chapter the initial scroll lands on. Stable across window shifts — used to
      *  re-resolve the current window slot at scrollTo time so a forward/backward shift between
      *  [pendingInitialScroll] firing and the deferred [post] draining doesn't lock in pre-shift
-     *  coordinates (was: a shift made [pendingTargetWindowIndex] point at the next chapter and
+     *  coordinates (was: a shift made the captured window index point at the next chapter and
      *  the saved-position restore landed one chapter forward). */
     private var pendingTargetHref: String? = null
 
@@ -614,7 +611,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         )
         topIndex = initial.topIndex
         val targetWindowIndex = initial.targetWindowIndex
-        pendingTargetWindowIndex = targetWindowIndex
         pendingTargetHref = initialHref
         reapplyLandingAfterFallback = null
         reapplyTargetLastHeight = -1
@@ -646,8 +642,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             // backward shift can fire between closure invocation and the scrollTo draining (the
             // closure clears [pendingInitialScroll] before posting, so [maybeShift] is no longer
             // gated; a previously-queued scroll handler can trigger a shift via [handleScrollChange]).
-            // A captured pre-shift [pendingTargetWindowIndex] would then point at the NEXT chapter,
-            // landing the user one chapter forward. Looking up by href is shift-stable.
+            // A captured pre-shift window index would then point at the NEXT chapter, landing the
+            // user one chapter forward. Looking up by href is shift-stable.
             fun postLandAt(offsetWithinTargetPx: Int?) {
                 post {
                     val i = webViewIndexFor(targetHref)
