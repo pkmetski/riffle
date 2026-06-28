@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.PageDirection
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
 import androidx.compose.runtime.LaunchedEffect
@@ -1113,8 +1114,14 @@ private fun EpubNavigatorView(
     val readiumPresenter: ReadiumPresenter? = remember(state.publication, isContinuous, coroutineScope) {
         if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication)
     }
-    DisposableEffect(readiumPresenter) {
-        onDispose { readiumPresenter?.detach() }
+    val continuousPresenter: ContinuousPresenter? = remember(isContinuous) {
+        if (isContinuous) ContinuousPresenter() else null
+    }
+    DisposableEffect(readiumPresenter, continuousPresenter) {
+        onDispose {
+            readiumPresenter?.detach()
+            continuousPresenter?.detach()
+        }
     }
 
     val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
@@ -1785,7 +1792,9 @@ private fun EpubNavigatorView(
     LaunchedEffect(volumeNavEvents, isContinuous) {
         volumeNavEvents.collect { event ->
             if (isContinuous) {
-                coordinator.onVolumeKey(event == VolumeNavEvent.Forward)
+                continuousPresenter?.pageBy(
+                    if (event == VolumeNavEvent.Forward) PageDirection.Forward else PageDirection.Backward,
+                )
                 return@collect
             }
             val fragment = fragmentRef.value ?: return@collect
@@ -2179,6 +2188,7 @@ private fun EpubNavigatorView(
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
                         coordinator.attach(view)
+                        continuousPresenter?.attach(view)
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                     }
