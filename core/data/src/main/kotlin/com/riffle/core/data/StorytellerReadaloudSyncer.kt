@@ -89,8 +89,8 @@ open class StorytellerReadaloudSyncer(
         val libraryId = ServerRepositoryImpl.readaloudLibraryId(server.id)
         return when (val r = storytellerApi.listReadalouds(server.url.value, token, server.insecureConnectionAllowed)) {
             is NetworkStorytellerBooksResult.Success -> {
-                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
-                val progressMap = libraryItemDao.getReadingProgressMap(libraryId).associate { it.id to it.readingProgress }
+                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
+                val progressMap = libraryItemDao.getReadingProgressMap(server.id, libraryId).associate { it.id to it.readingProgress }
                 val entities = storytellerBooksToEntities(
                     books = r.books,
                     serverId = server.id,
@@ -99,7 +99,7 @@ open class StorytellerReadaloudSyncer(
                     lastOpenedAtMap = lastOpenedAtMap,
                     progressMap = progressMap,
                 )
-                libraryItemDao.replaceAllForLibrary(libraryId, entities)
+                libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
                 true
             }
             is NetworkStorytellerBooksResult.NetworkError -> false

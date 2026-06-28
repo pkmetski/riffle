@@ -33,7 +33,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -70,24 +69,6 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeLibraries(serverId: String): Flow<List<Library>> =
         libraryDao.observeByServerId(serverId).map { list -> list.map { it.toDomain() } }
 
-    override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeByLibraryId(libraryId).scopedToActiveServer()
-
-    override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeUngroupedByLibraryId(libraryId).scopedToActiveServer()
-
-    override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeInProgress(libraryId).scopedToActiveServer()
-
-    override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeFinished(libraryId).scopedToActiveServer()
-
-    override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeRecentlyAdded(libraryId).scopedToActiveServer()
-
-    override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
-        libraryItemDao.observeAllBooks(libraryId).scopedToActiveServer()
-
     // Id of the Server whose libraries the user is currently browsing. The nav drawer only ever
     // lists the active Server's libraries, so the visible library always belongs to it.
     private val activeServerId: Flow<String?> =
@@ -95,18 +76,36 @@ class LibraryRepositoryImpl @Inject constructor(
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
 
-    // Two Servers pointing at the same Audiobookshelf instance emit identical library and item ids
-    // (issue #113), so the libraryId-keyed item-shelf queries return a row per Server. Keep only the
-    // active Server's copy — the one book detail reads and markAsRead/the reader write. Without this,
-    // an inactive duplicate's stale progress keeps a finished book pinned to In Progress even though
-    // detail shows 100%. No active Server → pass rows through (nothing is being browsed anyway), still
-    // collapsing any duplicate ids. Mirrors how observeLibraries/getLibrary/getItem scope by Server.
-    private fun Flow<List<LibraryItemEntity>>.scopedToActiveServer(): Flow<List<LibraryItem>> =
-        combine(activeServerId) { list, serverId ->
-            list.filter { serverId == null || it.serverId == serverId }
-                .distinctBy { it.id }
-                .map { it.toDomain() }
+    // Library-scoped item flows resolve the active Server's id and pass it as the DAO's primary
+    // scope. library_items is keyed by (serverId, id) (ADR 0025), so the query itself enforces
+    // server isolation — no post-query filter required. With no active Server the screen has
+    // nothing to show, so we emit an empty list rather than mixing data across Servers.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun scopedItemFlow(
+        query: (String) -> Flow<List<LibraryItemEntity>>,
+    ): Flow<List<LibraryItem>> =
+        activeServerId.flatMapLatest { serverId ->
+            if (serverId == null) flowOf(emptyList())
+            else query(serverId).map { list -> list.map { it.toDomain() } }
         }
+
+    override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
+        scopedItemFlow { serverId -> libraryItemDao.observeByLibraryId(serverId, libraryId) }
+
+    override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
+        scopedItemFlow { serverId -> libraryItemDao.observeUngroupedByLibraryId(serverId, libraryId) }
+
+    override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> =
+        scopedItemFlow { serverId -> libraryItemDao.observeInProgress(serverId, libraryId) }
+
+    override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
+        scopedItemFlow { serverId -> libraryItemDao.observeFinished(serverId, libraryId) }
+
+    override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> =
+        scopedItemFlow { serverId -> libraryItemDao.observeRecentlyAdded(serverId, libraryId) }
+
+    override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
+        scopedItemFlow { serverId -> libraryItemDao.observeAllBooks(serverId, libraryId) }
 
     override fun observeSeries(libraryId: String): Flow<List<Series>> =
         seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
@@ -115,13 +114,13 @@ class LibraryRepositoryImpl @Inject constructor(
         collectionDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
 
     override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
-        seriesDao.observeItemsBySeriesId(seriesId).scopedToActiveServer()
+        scopedItemFlow { serverId -> seriesDao.observeItemsBySeriesId(serverId, seriesId) }
 
     override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> =
-        seriesDao.observeContinueSeriesItems(libraryId).scopedToActiveServer()
+        scopedItemFlow { serverId -> seriesDao.observeContinueSeriesItems(serverId, libraryId) }
 
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
-        collectionDao.observeItemsByCollectionId(collectionId).scopedToActiveServer()
+        scopedItemFlow { serverId -> collectionDao.observeItemsByCollectionId(serverId, collectionId) }
 
     // Item ids are only unique within a Server (ADR 0025); reads/writes here target the active
     // Server's copy, mirroring how reading positions are keyed. No active Server → nothing to do.
@@ -197,7 +196,7 @@ class LibraryRepositoryImpl @Inject constructor(
             }
             when (val result = itemsDeferred.await()) {
                 is NetworkLibraryItemsResult.Success -> {
-                    val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(libraryId).associate { it.id to it.lastOpenedAt }
+                    val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
                     val entities = result.items
                         .sortedByDescending { it.isSupported }
                         .distinctBy { it.title.trim().lowercase() }
@@ -239,7 +238,7 @@ class LibraryRepositoryImpl @Inject constructor(
                                 finishedAt = serverProgress?.finishedAt,
                             )
                         }
-                    libraryItemDao.replaceAllForLibrary(libraryId, entities)
+                    libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
                     val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
                     libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
                     // syncStale and reconcileLinks are not on the critical path — fire them on a

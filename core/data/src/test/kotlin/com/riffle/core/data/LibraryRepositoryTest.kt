@@ -47,9 +47,13 @@ import java.io.IOException
 class LibraryRepositoryTest {
 
     private val fakeServerRepository = object : ServerRepository {
-        var activeServer: Server? = null
-        override fun observeAll() = MutableStateFlow(listOfNotNull(activeServer))
-        override suspend fun getActive() = activeServer
+        private val backing = MutableStateFlow<List<Server>>(emptyList())
+        var activeServer: Server?
+            get() = backing.value.firstOrNull { it.isActive }
+            set(value) { backing.value = listOfNotNull(value) }
+        fun setServers(servers: List<Server>) { backing.value = servers }
+        override fun observeAll() = backing
+        override suspend fun getActive() = backing.value.firstOrNull { it.isActive }
         override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.NetworkError(IOException())
         override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
@@ -109,14 +113,14 @@ class LibraryRepositoryTest {
         override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> =
             seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
-        override fun observeItemsBySeriesId(seriesId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeItemsBySeriesId(serverId: String, seriesId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
 
         override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
 
         private val continueSeriesData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
 
-        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeContinueSeriesItems(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
             continueSeriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
         fun seedContinueSeriesItems(libraryId: String, items: List<LibraryItemEntity>) {
@@ -154,7 +158,7 @@ class LibraryRepositoryTest {
         override fun observeByLibraryId(libraryId: String): Flow<List<CollectionEntity>> =
             collectionData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
-        override fun observeItemsByCollectionId(collectionId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeItemsByCollectionId(serverId: String, collectionId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
 
         override suspend fun upsertAll(collections: List<CollectionEntity>) {
@@ -625,6 +629,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `observeRecentlyAddedItems emits items from DAO ordered by addedAt`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
             LibraryItemEntity("s1", "item-1", "lib-1", "Older Book", "Author", null, 0f, addedAt = 1_000L),
@@ -677,6 +682,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `hasAudio maps from entity to domain`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Audiobook", "Author", null, 0f, hasAudio = true)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
@@ -687,6 +693,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `observeLibraryItems emits from Room`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f)))
         val result = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()
@@ -720,6 +727,30 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `library shelves re-resolve when active server changes`() = runTest {
+        // ADR 0025: library-item flows resolve activeServerId via flatMapLatest, so when the user
+        // switches Servers, subsequent emissions come only from the new Server's DAO scope —
+        // never a stale snapshot of the previous Server's rows.
+        fakeServerRepository.activeServer = activeServer(id = "s1")
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-shared", "S1 Book", "Author", null, 0.5f),
+            LibraryItemEntity("s2", "item-1", "lib-shared", "S2 Book", "Author", null, 0.2f),
+            LibraryItemEntity("s2", "item-99", "lib-shared", "S2 Other", "Author", null, 0.1f),
+        ))
+        val repo = makeRepo(libraryItemDao = dao)
+
+        val initial = repo.observeLibraryItems("lib-shared").first()
+        assertEquals(listOf("item-1"), initial.map { it.id })
+        assertEquals(0.5f, initial[0].readingProgress, 0.001f)
+
+        fakeServerRepository.activeServer = activeServer(id = "s2")
+        val afterSwitch = repo.observeLibraryItems("lib-shared").first()
+        assertEquals(setOf("item-1", "item-99"), afterSwitch.map { it.id }.toSet())
+        assertEquals(0.2f, afterSwitch.first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
     fun `library shelves exclude rows owned by inactive duplicate servers`() = runTest {
         // The active Server (s1) has the in-progress copy; an inactive duplicate (s2) carries a
         // different fraction for the same id. Every shelf must show only the active Server's row.
@@ -744,6 +775,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `epub ebookFormat maps to isReadable true`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "epub")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
@@ -753,6 +785,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `pdf ebookFormat maps to isReadable true`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "pdf")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
@@ -762,6 +795,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `unsupported ebookFormat maps to isReadable false`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "unsupported")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
@@ -771,6 +805,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `unknown ebookFormat string maps to isReadable false`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Comic", "Author", null, 0f, ebookFormat = "cbz")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
@@ -1005,6 +1040,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `observeSeriesItems emits items from Room in series order`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeSeriesDao()
         val item1 = LibraryItemEntity("s1", "item-1", "lib-1", "WoK", "Sanderson", null, 0.5f)
         val item2 = LibraryItemEntity("s1", "item-2", "lib-1", "WoR", "Sanderson", null, 0f)
@@ -1019,6 +1055,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `observeContinueSeriesItems maps entities from DAO`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeSeriesDao()
         val repo = makeRepo(seriesDao = dao)
         dao.seedContinueSeriesItems("lib-1", listOf(
@@ -1047,6 +1084,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `observeCollectionItems emits items from Room`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
         val dao = FakeCollectionDao()
         val item1 = LibraryItemEntity("s1", "item-1", "lib-1", "Book A", "Author", null, 0f)
         dao.seedItems("col-1", listOf(item1))

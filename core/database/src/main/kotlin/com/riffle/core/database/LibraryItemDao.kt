@@ -11,23 +11,25 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface LibraryItemDao {
 
-    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY title ASC")
-    fun observeByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId ORDER BY title ASC")
+    fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Query("""
         SELECT * FROM library_items
-        WHERE libraryId = :libraryId
+        WHERE serverId = :serverId AND libraryId = :libraryId
         AND id NOT IN (
             SELECT itemId FROM series_items
-            WHERE seriesId IN (SELECT id FROM series WHERE libraryId = :libraryId)
+            WHERE serverId = :serverId
+              AND seriesId IN (SELECT id FROM series WHERE libraryId = :libraryId)
         )
         AND id NOT IN (
             SELECT itemId FROM collection_items
-            WHERE collectionId IN (SELECT id FROM collections WHERE libraryId = :libraryId)
+            WHERE serverId = :serverId
+              AND collectionId IN (SELECT id FROM collections WHERE libraryId = :libraryId)
         )
         ORDER BY title ASC
     """)
-    fun observeUngroupedByLibraryId(libraryId: String): Flow<List<LibraryItemEntity>>
+    fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LibraryItemEntity>)
@@ -63,17 +65,17 @@ interface LibraryItemDao {
     @Query("SELECT serverId FROM library_items WHERE id = :itemId LIMIT 1")
     suspend fun findServerIdForItem(itemId: String): String?
 
-    @Query("DELETE FROM library_items WHERE libraryId = :libraryId")
-    suspend fun deleteByLibraryId(libraryId: String)
+    @Query("DELETE FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId")
+    suspend fun deleteByLibraryId(serverId: String, libraryId: String)
 
     @Transaction
-    suspend fun replaceAllForLibrary(libraryId: String, items: List<LibraryItemEntity>) {
+    suspend fun replaceAllForLibrary(serverId: String, libraryId: String, items: List<LibraryItemEntity>) {
         if (items.isEmpty()) {
-            deleteByLibraryId(libraryId)
+            deleteByLibraryId(serverId, libraryId)
             return
         }
         // Remove items no longer present on the server.
-        deleteRemovedFromLibrary(items.first().serverId, libraryId, items.map { it.id })
+        deleteRemovedFromLibrary(serverId, libraryId, items.map { it.id })
         // Insert truly new items — they get the server's readingProgress as the initial seed.
         insertOrIgnore(items)
         // Update metadata for all items, preserving each row's local readingProgress.
@@ -82,21 +84,21 @@ interface LibraryItemDao {
 
     @Query("""
         SELECT * FROM library_items
-        WHERE libraryId = :libraryId
+        WHERE serverId = :serverId AND libraryId = :libraryId
           AND readingProgress > 0.0
           AND readingProgress < 0.99
         ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
     """)
-    fun observeInProgress(libraryId: String): Flow<List<LibraryItemEntity>>
+    fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
-    fun observeFinished(libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
+    fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
-    fun observeRecentlyAdded(libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
+    fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE libraryId = :libraryId ORDER BY title ASC")
-    fun observeAllBooks(libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId ORDER BY title ASC")
+    fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE serverId = :serverId AND id = :itemId")
     suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long)
@@ -107,11 +109,11 @@ interface LibraryItemDao {
     @Query("UPDATE library_items SET finishedAt = :finishedAt WHERE serverId = :serverId AND id = :itemId")
     suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?)
 
-    @Query("SELECT id, lastOpenedAt FROM library_items WHERE libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
-    suspend fun getLastOpenedAtMap(libraryId: String): List<LastOpenedAtRow>
+    @Query("SELECT id, lastOpenedAt FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
+    suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow>
 
-    @Query("SELECT id, readingProgress FROM library_items WHERE libraryId = :libraryId AND readingProgress > 0.0")
-    suspend fun getReadingProgressMap(libraryId: String): List<ReadingProgressRow>
+    @Query("SELECT id, readingProgress FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND readingProgress > 0.0")
+    suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow>
 
     /**
      * All library items whose owning Server is of the given [serverType]. Used by the

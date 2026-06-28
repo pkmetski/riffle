@@ -85,7 +85,7 @@ class CollectionDaoTest {
             CollectionItemEntity("c1", serverId = "s1", itemId = "item-m"),
         ))
 
-        val result = dao.observeItemsByCollectionId("c1").first()
+        val result = dao.observeItemsByCollectionId("s1", "c1").first()
 
         assertEquals(listOf("item-a", "item-m", "item-z"), result.map { it.id })
     }
