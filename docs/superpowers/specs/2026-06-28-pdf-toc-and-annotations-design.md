@@ -12,10 +12,11 @@ The user-facing parity work depends on a foundational engine upgrade: the upstre
 
 **In scope**
 
-1. New `core/pdfium` Gradle module that vendors `oothp/PdfiumAndroid` (Apache-2.0, modern Pdfium 133.x prebuilt, 16KB-aligned, no MIPS) and adds `FPDFText_*` JNI bindings on top. Replaces the transitive `com.github.barteksc:pdfium-android` consumed by Readium's adapter.
+1. New `core/pdfium-text` Gradle module — a small parasitic JNI bridge that resolves `FPDFText_*` symbols at runtime from the `libmodpdfium.so` that `com.github.barteksc:pdfium-android` already loads. No vendoring of upstream sources or binaries. No replacement of the engine Readium uses.
 2. PDF TOC via `PdfDocument.outline`, exposed through the existing EPUB TOC drawer Composable (generalized to take a book-format-agnostic TOC model).
-3. PDF bookmark, highlight, and note annotations: data model, selection overlay, persistence, rendering, sync.
-4. Locator schema extension: Readium-`Locator`-JSON-shaped PDF locators stored in the existing `Annotation.cfi` column.
+3. PDF **chapter navigation rail** (the side-rail with chapter ticks + current-position indicator), adapted from the EPUB `ChapterNavigationRail`, fed by the same TOC + page-count data the drawer uses.
+4. PDF bookmark, highlight, and note annotations: data model, selection overlay, persistence, rendering, sync.
+5. Locator schema extension: Readium-`Locator`-JSON-shaped PDF locators stored in the existing `Annotation.cfi` column.
 
 **Out of scope (deferred to follow-up specs)**
 
@@ -30,12 +31,12 @@ The user-facing parity work depends on a foundational engine upgrade: the upstre
 Four layered changes, each isolated from the others:
 
 ```
-core/pdfium  (NEW Gradle module — Android library, Kotlin + Java + JNI)
-  ├─ vendored sources of oothp/PdfiumAndroid (Apache-2.0)
-  ├─ +~20 lines: FPDFText_* JNI bridge in mainJNILib.cpp
-  ├─ +~20 lines: matching `external` Java methods in PdfiumCore.java
-  ├─ NDK build of libjniPdfium.so per ABI (arm64-v8a, armeabi-v7a, x86, x86_64)
-  └─ keeps upstream libmodpdfium.so prebuilt (Pdfium 133.x, 16KB-aligned)
+core/pdfium-text  (NEW Gradle module — Android library, Kotlin + small C++ JNI bridge)
+  ├─ src/main/cpp/fpdf_text.h         (only header we need — function signatures)
+  ├─ src/main/cpp/pdfium_text_jni.cpp (~80 LoC: dlopen RTLD_NOLOAD + dlsym wiring)
+  ├─ src/main/cpp/CMakeLists.txt      (builds libriffle_pdfium_text.so per ABI)
+  ├─ src/main/kotlin/com/riffle/core/pdfium/text/PdfiumTextApi.kt (external decls)
+  └─ NO Pdfium binaries committed — the .so loaded by barteksc is reused at runtime
 
 core/data (existing — small additions)
   ├─ AnnotationStore: queries unchanged (already book-agnostic)
@@ -58,78 +59,113 @@ app/feature/reader (existing — bulk of the new code)
 
 **Boundary invariants:**
 
-- `core/pdfium` contains no Riffle business logic. It exists only to make a richer Pdfium API available, and could in principle be replaced by an upstream PR or an alternative engine without touching anything above it.
-- The Readium adapter (`org.readium.kotlin-toolkit:readium-adapter-pdfium-navigator`) is **not modified or forked**. We just resolve a different transitive dep underneath it. The adapter's public surface (`PdfiumNavigatorFragment`, `Locator`, `currentLocator` flow) keeps working unchanged for the parts Riffle uses today.
-- All selection / decoration logic lives in `app/feature/reader/`, *outside* both Readium and `core/pdfium`. This is the Spike 3 result: `PdfNavigatorFragment` doesn't implement `SelectableNavigator` or `DecorableNavigator`, so we wrap our own equivalents around it.
+- `core/pdfium-text` contains no Riffle business logic. It exists only to expose `FPDFText_*` Pdfium functions to Kotlin. It does not own or replace the Pdfium engine; it borrows symbols from the engine barteksc already loads.
+- The Readium adapter (`org.readium.kotlin-toolkit:readium-adapter-pdfium-navigator`) is **not modified or forked**, and its transitive `com.github.barteksc:pdfium-android` dependency is **not excluded or replaced**. Our module sits alongside that dep, calling into the same already-loaded `libmodpdfium.so` at runtime via `dlopen`+`dlsym`.
+- All selection / decoration logic lives in `app/feature/reader/`, *outside* both Readium and `core/pdfium-text`. This is the Spike 3 result: `PdfNavigatorFragment` doesn't implement `SelectableNavigator` or `DecorableNavigator`, so we wrap our own equivalents around it.
 - The `Annotation` row schema does not change. PDF rows reuse `cfi` (treated as opaque Locator JSON), `chapterHref` (PDF resource URL), `textSnippet/Before/After` (snippet text from `FPDFText_GetBoundedText`). `spineIndex` stays `0`. `progression` carries Locator's page-level progression.
 
-## Engine module — `core/pdfium`
+## Engine module — `core/pdfium-text` (parasitic JNI bridge)
 
-A new Android library Gradle module that owns the vendored Pdfium binding code.
+A small Android-library module — no vendoring of upstream binaries or sources. The Pdfium native code Riffle uses today (shipped by `com.github.barteksc:pdfium-android:1.8.2` and pulled in transitively by Readium's adapter) already contains every `FPDFText_*` symbol we need (verified by `nm -D` on the prebuilt `libmodpdfium.so`). The only thing missing is a JNI bridge that exposes those symbols to Java. This module adds exactly that bridge — nothing else.
+
+**How it works:** at first call into our Kotlin facade, our native bridge calls `dlopen("libmodpdfium.so", RTLD_NOW | RTLD_NOLOAD)`. `RTLD_NOLOAD` returns a handle to the already-loaded `.so` without reloading it (barteksc's `PdfiumCore` static initializer loaded it earlier). We then `dlsym` each `FPDFText_*` symbol once and cache the function pointers. Subsequent calls go through the cached pointers — same overhead as a normal JNI call into a linked library.
 
 **Source layout**
 
 ```
-core/pdfium/
-├─ build.gradle.kts            # androidLibrary plugin, NDK config, ndkVersion pin
+core/pdfium-text/
+├─ build.gradle.kts                       # androidLibrary + externalNativeBuild { cmake }
 ├─ src/main/
-│   ├─ java/com/shockwave/pdfium/
-│   │   ├─ PdfiumCore.java     # vendored from oothp; +20 lines native decls
-│   │   ├─ PdfDocument.java    # vendored unchanged
-│   │   └─ util/...             # vendored unchanged
-│   ├─ jni/
-│   │   ├─ CMakeLists.txt      # vendored (modern CMake, replaces Android.mk)
-│   │   ├─ mainJNILib.cpp      # vendored + ~20 lines FPDFText bridge appended
-│   │   └─ util.hpp            # vendored unchanged
-│   └─ jniLibs/                # upstream prebuilt libmodpdfium.so per ABI (Pdfium 133.x)
-└─ src/test/                   # JVM tests for any pure-Kotlin helpers
+│   ├─ cpp/
+│   │   ├─ CMakeLists.txt                 # builds libriffle_pdfium_text.so per ABI
+│   │   ├─ fpdf_text.h                    # upstream signatures only (~5 KB, from Pdfium)
+│   │   ├─ fpdfview.h                     # for FPDF_PAGE typedefs (~10 KB)
+│   │   └─ pdfium_text_jni.cpp            # ~120 LoC dlopen+dlsym bridge + JNI wrappers
+│   └─ kotlin/com/riffle/core/pdfium/text/
+│       └─ PdfiumTextApi.kt               # object with external fun declarations
+└─ src/androidTest/                       # instrumentation smoke test
 ```
 
-**Native bridge additions** (in `mainJNILib.cpp`), one C function per added Java native, each ~5–10 lines of standard JNI: `nativeLoadTextPage`, `nativeCloseTextPage`, `nativeCountChars`, `nativeGetCharBox`, `nativeGetCharIndexAtPos`, `nativeCountRects`, `nativeGetRect`, `nativeGetText`, `nativeGetBoundedText`. Each is a thin marshaling layer over the corresponding `FPDFText_*` symbol already present in the upstream `libmodpdfium.so`.
+**Native bridge** (`pdfium_text_jni.cpp`): a one-time symbol-resolution helper plus one `extern "C" JNIEXPORT` function per Java native. Each JNI wrapper calls the cached function pointer with marshaled arguments and converts the result back to Java/Kotlin types.
 
-**Java surface additions** (in `PdfiumCore.java`):
+```cpp
+// Sketch — actual file ~120 LoC including symbol resolution and error handling.
+static void* sPdfiumHandle = nullptr;
+static FPDF_TEXTPAGE (*FPDFText_LoadPage_p)(FPDF_PAGE) = nullptr;
+static int (*FPDFText_CountChars_p)(FPDF_TEXTPAGE) = nullptr;
+// ... etc.
 
-```java
-public long openTextPage(PdfDocument doc, int pageIndex);
-public void closeTextPage(long textPagePtr);
-public int countChars(long textPagePtr);
-public RectF getCharBox(long textPagePtr, int charIndex);
-public int getCharIndexAtPos(long textPagePtr, double x, double y, double tolX, double tolY);
-public int countRects(long textPagePtr, int startIndex, int count);
-public RectF getRect(long textPagePtr, int rectIndex);
-public String getText(long textPagePtr, int startIndex, int count);
-public String getBoundedText(long textPagePtr, RectF bounds);
+static bool resolveSymbols() {
+    if (sPdfiumHandle) return true;
+    sPdfiumHandle = dlopen("libmodpdfium.so", RTLD_NOW | RTLD_NOLOAD);
+    if (!sPdfiumHandle) return false;
+    FPDFText_LoadPage_p = (decltype(FPDFText_LoadPage_p))
+        dlsym(sPdfiumHandle, "FPDFText_LoadPage");
+    // ... etc.
+    return FPDFText_LoadPage_p != nullptr; /* etc */
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_riffle_core_pdfium_text_PdfiumTextApi_nativeOpenTextPage(
+    JNIEnv*, jobject, jlong pagePtr) {
+    if (!resolveSymbols()) return 0L;
+    return (jlong) FPDFText_LoadPage_p((FPDF_PAGE) pagePtr);
+}
 ```
 
-A deliberate 1:1 mirror of the underlying Pdfium C API — no Riffle-flavored abstractions. Higher-level helpers (word boundaries, line-break detection, snippet extraction with context) live in `app/feature/reader/`, not here.
+**Kotlin facade** (`PdfiumTextApi.kt`):
+
+```kotlin
+object PdfiumTextApi {
+    init { System.loadLibrary("riffle_pdfium_text") }
+
+    fun openTextPage(pagePtr: Long): Long = nativeOpenTextPage(pagePtr)
+    fun closeTextPage(textPagePtr: Long) { nativeCloseTextPage(textPagePtr) }
+    fun countChars(textPagePtr: Long): Int = nativeCountChars(textPagePtr)
+    fun getCharBox(textPagePtr: Long, charIndex: Int): RectF? = ...
+    fun getCharIndexAtPos(textPagePtr: Long, x: Double, y: Double, tolX: Double, tolY: Double): Int = ...
+    fun countRects(textPagePtr: Long, startIndex: Int, count: Int): Int = ...
+    fun getRect(textPagePtr: Long, rectIndex: Int): RectF? = ...
+    fun getText(textPagePtr: Long, startIndex: Int, count: Int): String = ...
+    fun getBoundedText(textPagePtr: Long, bounds: RectF): String = ...
+
+    private external fun nativeOpenTextPage(pagePtr: Long): Long
+    // ... etc.
+}
+```
+
+The `pagePtr: Long` is `barteksc.com.shockwave.pdfium.PdfiumCore` page handle, obtained from its existing `openPage(...)` API. We pass it straight through to `FPDFText_LoadPage` (the underlying C API takes an `FPDF_PAGE` which is just a `void*`). The two libraries cooperate by sharing native pointer values — same `libmodpdfium.so`, same opaque handles.
 
 **Gradle wiring** (in `app/build.gradle.kts`):
 
 ```kotlin
-implementation(project(":core:pdfium"))
-implementation(libs.readium.adapter.pdfium) {
-    exclude(group = "com.github.barteksc", module = "pdfium-android")
-}
+implementation(project(":core:pdfium-text"))
+// barteksc transitive (via readium-adapter-pdfium) stays untouched.
 ```
 
-The `exclude` is critical — without it, Gradle resolves both our vendored module's `com.shockwave.pdfium.PdfiumCore` and barteksc's identically-named class. With it, Readium's adapter binds against *our* `PdfiumCore` at runtime.
+No `exclude`. No drop-in replacement. The two modules coexist.
 
 **NDK build config**
 
-- `ndkVersion` pinned in `build.gradle.kts` to the version the CI matrix installs.
-- ABIs built: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`. No MIPS, no `armeabi` (both deprecated).
-- 16KB page alignment enabled (oothp already configures this; we keep it).
-- Output artifact: `libjniPdfium.so` per ABI, packaged into the AAR alongside the upstream `libmodpdfium.so`.
-
-**Testing**
-
-- Instrumentation smoke test on Harness AVD: open a known fixture PDF, call each new native method against a known page, assert non-null results and sensible bounds. Fast, deterministic, doesn't need the rest of the reader. Lives under `core/pdfium/src/androidTest/`.
+- `ndkVersion` pinned in `build.gradle.kts` to the version the CI matrix installs (`29.0.13113456`).
+- `cmakeVersion` pinned to `3.22.1`.
+- ABIs built: `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`.
+- Output artifact: `libriffle_pdfium_text.so` per ABI (~10 KB each), packaged into the AAR. Total APK size impact: <100 KB.
 
 **Risks**
 
-- *Wrong `.so` loaded.* If Gradle exclusion doesn't take, we crash at first `openTextPage` call with `UnsatisfiedLinkError`. The instrumentation smoke test catches this in CI before any user-facing code runs.
-- *ABI mismatch in CI.* CI runners need the NDK installed and the right CMake. Pin `ndkVersion` and `cmakeVersion` in `build.gradle.kts`; add an explicit `androidNdk` install step to the existing GH Actions workflow.
-- *Vendoring drift.* Upstream `oothp` may release fixes we want. Tag the import with the upstream commit SHA in a top-level `core/pdfium/VENDORED.md`; refresh as needed in dedicated PRs.
+- *Symbol export changes.* Our approach depends on `FPDFText_*` symbols being exported with stable C names in `libmodpdfium.so`. They are (the Pdfium ABI is the same one Chromium ships); barteksc's prebuilt is frozen at Pdfium ~78 (Nov 2017) and the FPDFText API has been stable since Pdfium ~30. Mitigated by the instrumentation smoke test catching `nullptr` symbols at first call.
+- *Library not loaded yet.* `dlopen(..., RTLD_NOLOAD)` returns `nullptr` if `libmodpdfium.so` hasn't been loaded by anyone. We mitigate by always touching `com.shockwave.pdfium.PdfiumCore.<clinit>` (loads the .so via `System.loadLibrary`) before the first `PdfiumTextApi` call. Easiest: call `PdfiumCore.<some-trivial-method>` at module init.
+- *Cross-loader symbol visibility.* Android `System.loadLibrary` uses `RTLD_LOCAL` by default, but `dlopen(..., RTLD_NOLOAD)` against the same path returns the loader's handle and can resolve its symbols regardless. Verified pattern (used by Chromium's own PartitionAlloc and others on Android).
+- *Engine swap regret.* If we later decide to replace the engine (e.g., MuPDF), our module's signatures still hold — only the JNI body changes to call the new engine. No call sites churn.
+
+**Testing**
+
+- Instrumentation smoke test on Harness AVD: open a known fixture PDF via `PdfiumCore`, hand the page pointer to `PdfiumTextApi.openTextPage`, assert non-zero handle and sensible char counts / boxes / extracted text. Verifies both that `dlsym` resolves the symbols and that the cross-library handle sharing works. Lives under `core/pdfium-text/src/androidTest/`.
+
+**Risks**
+
+- *ABI mismatch in CI.* CI runners need the NDK installed and the right CMake. Pin `ndkVersion` and `cmakeVersion`; add an explicit `androidNdk` install step to the existing GH Actions workflow.
 
 ## TOC integration
 
@@ -336,8 +372,28 @@ Read:   pull JSON-LD doc from WebDAV
 
 JVM tests alone don't cover the WebView / Pdfium / native layers — per AGENTS.md, instrumentation coverage is required for anything that touches Pdfium or the reader UI.
 
+## Chapter navigation rail (PDF)
+
+Riffle's EPUB reader has a side rail that shows chapter tick-marks along the book's reading axis, with the current position indicated. The visual lives in `ChapterNavigationRail.kt` and is fed by `RailSegmentGenerator.kt` — given a sequence of `(progressionStart, progressionEnd, label)` segments plus a `currentProgression`, it produces ticks + a position marker.
+
+For PDFs, segments come from the same TOC tree the drawer renders (decision: TOC is the source of truth for chapter boundaries). The generator becomes book-format-agnostic with one additional construction call:
+
+```kotlin
+RailSegmentGenerator.fromPdfToc(
+    toc: List<TocNode>,            // flattened to top-level nodes only — nested chapters fold up
+    totalPages: Int,
+): List<RailSegment>
+```
+
+It walks the top-level TOC nodes in order; for each node `i`, the segment is `(pageIndex_i / totalPages, pageIndex_{i+1} / totalPages, title_i)`. The trailing chapter terminates at `1.0`. Nested sub-chapters are not rendered as ticks on the rail (keeps the rail visually consistent with EPUB, where the rail also uses top-level spine items, not their inner anchors).
+
+**PDF without TOC**: the rail renders as a single segment spanning `0.0–1.0` with no label — same fallback EPUB uses when its publication has no TOC. The position indicator still shows progress, which is the rail's primary utility.
+
+**Visibility**: the rail is gated by the existing `showChapterMap` formatting preference. PDF doesn't have its own formatting menu yet (deferred to follow-up spec), so we read the same global preference EPUB uses. Default `true`, matches EPUB.
+
+**Tap-to-jump on the rail**: existing EPUB behavior — tap a segment to jump to that chapter. For PDF, "jump to chapter" means `goToPageIndex(toc[i].pageIndex)`. Wires through the same `PdfReaderViewModel` method TOC-drawer taps already use.
+
 ## Open items / explicit non-decisions
 
-- **Maven hosting for the vendored engine** — N/A; vendored in-tree as a Gradle module, no separate publish.
-- **NDK / CMake version pinning** — settled at implementation time against whatever Riffle's CI currently provides; recorded in `core/pdfium/build.gradle.kts`.
+- **NDK / CMake version pinning** — `ndkVersion = "29.0.13113456"`, `cmakeVersion = "3.22.1"` to match `core/pdfium-text/build.gradle.kts`. CI workflow update (in scope of this spec) installs them.
 - **Fixture PDF for tests** — TBD at implementation time; a small (<200 KB) public-domain PDF with a known outline and known text content.
