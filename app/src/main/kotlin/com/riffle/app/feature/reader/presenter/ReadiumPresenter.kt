@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.presenter
 
 import com.riffle.app.feature.reader.ColumnSnap
+import com.riffle.app.feature.reader.toEpubPreferences
 import com.riffle.app.feature.reader.typographyOverrideInjectionJs
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -61,6 +62,20 @@ internal class ReadiumPresenter(
     private var lastPosition: ReaderPosition? = null
     private var positionGeneration: Long = 0L
     private var pageLoadCount: Int = 0
+
+    /**
+     * Layout state the screen owns (device rotation, EPUB layout type). The Readium
+     * [submitPreferences] call needs both to derive RS column count and the fixed-layout flag;
+     * the screen pushes them in via [updateLayoutContext] whenever they change.
+     */
+    @Volatile private var isLandscape: Boolean = false
+    @Volatile private var isFixedLayout: Boolean = false
+
+    /** Push the current device/EPUB layout into the presenter before [applyTypography] runs. */
+    fun updateLayoutContext(isLandscape: Boolean, isFixedLayout: Boolean) {
+        this.isLandscape = isLandscape
+        this.isFixedLayout = isFixedLayout
+    }
 
     /** Bind a freshly-created fragment. Starts forwarding its `currentLocator` to [positionEvents]. */
     fun attach(fragment: EpubNavigatorFragment) {
@@ -140,9 +155,15 @@ internal class ReadiumPresenter(
     }
 
     override suspend fun applyTypography(prefs: FormattingPreferences) {
-        // The adapter doesn't yet own preference→JS translation; it forwards to the existing
-        // injection helper. Cutover Step 4 will move the full typography pipeline behind here.
         val fragment = fragment ?: return
+        // Live-update Readium's typography for the attached fragment. The screen previously
+        // called `fragmentRef.value?.submitPreferences(...)` directly; routing through here keeps
+        // the layout context (orientation + fixed-layout flag) on the presenter rather than
+        // forcing every caller to thread it through.
+        fragment.submitPreferences(prefs.toEpubPreferences(isLandscape, isFixedLayout))
+        // The injected CSS overrides (font family, custom margins) are still applied on each
+        // onPageLoaded by the existing PaginationListener. Step 5 will move that into the
+        // presenter once page-load events flow through this seam.
         fragment.evaluateJavascript(typographyOverrideInjectionJs())
     }
 
