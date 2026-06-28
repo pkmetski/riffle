@@ -31,6 +31,7 @@ typedef int            FPDF_BOOL;
 }
 
 // Function-pointer typedefs for the symbols we dlsym.
+using FnInitLibrary        = void          (*)();
 using FnLoadDocumentFromFD = FPDF_DOCUMENT (*)(int file_handle, const char* password);
 using FnLoadDocument       = FPDF_DOCUMENT (*)(const char* file_path, const char* password);
 using FnCloseDocument      = void          (*)(FPDF_DOCUMENT);
@@ -64,6 +65,7 @@ namespace {
 
 struct Symbols {
     void* handle = nullptr;
+    FnInitLibrary           init_library           = nullptr;
     FnLoadDocument          load_document          = nullptr;
     FnCloseDocument         close_document         = nullptr;
     FnLoadPage              load_page              = nullptr;
@@ -109,6 +111,7 @@ void resolve_symbols() {
     }
 
     bool ok = true;
+    ok &= resolve_one(g_syms.handle, "FPDF_InitLibrary",        &g_syms.init_library);
     ok &= resolve_one(g_syms.handle, "FPDF_LoadDocument",       &g_syms.load_document);
     ok &= resolve_one(g_syms.handle, "FPDF_CloseDocument",      &g_syms.close_document);
     ok &= resolve_one(g_syms.handle, "FPDF_LoadPage",           &g_syms.load_page);
@@ -127,7 +130,16 @@ void resolve_symbols() {
     ok &= resolve_one(g_syms.handle, "FPDFText_GetText",        &g_syms.text_get_text);
     ok &= resolve_one(g_syms.handle, "FPDFText_GetBoundedText", &g_syms.text_get_bounded_text);
     g_resolve_ok = ok;
-    if (ok) ALOGI("Pdfium FPDFText symbols resolved");
+    if (!ok) return;
+
+    // Pdfium requires FPDF_InitLibrary() before any other API. In production
+    // barteksc's PdfiumCore.<clinit> calls it indirectly via its own JNI
+    // bridge. In standalone tests of this module (no PdfiumCore touched),
+    // nobody has — so we call it ourselves. FPDF_InitLibrary is idempotent
+    // on every Pdfium build since ~2018: it sets a global initialized flag
+    // and short-circuits on subsequent calls. Safe to invoke unconditionally.
+    g_syms.init_library();
+    ALOGI("Pdfium FPDFText symbols resolved + FPDF_InitLibrary called");
 }
 
 bool ensure_resolved() {

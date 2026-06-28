@@ -40,11 +40,24 @@ kotlin {
 }
 
 dependencies {
-    // We depend on barteksc's PdfiumCore so callers can hand us page pointers
-    // obtained from PdfiumCore.openPage(...). The native library it loads
-    // (libmodpdfium.so) is what our JNI bridge dlsyms into at runtime.
-    implementation(libs.readium.adapter.pdfium)
+    // Deliberately no compile-time dep on com.github.barteksc:pdfium-android
+    // or org.readium.*. This module only needs libmodpdfium.so to be loaded
+    // into the process at runtime; PdfiumTextApi.<clinit> calls
+    // System.loadLibrary("modpdfium") directly from its own classloader.
+    // The .so itself is supplied by barteksc's pdfium-android AAR (already
+    // packaged into the APK via Readium's transitive dep in :app), so there
+    // is no risk of "missing native library" at runtime — but we never need
+    // to compile against barteksc's Kotlin/Java surface, which keeps this
+    // module's dependency tree minimal and avoids dragging Readium's
+    // core-library-desugaring requirement into a module that contains no
+    // desugar-needing code.
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    // Standalone module tests need libmodpdfium.so present in the test APK so
+    // System.loadLibrary("modpdfium") and the dlsym path can resolve symbols.
+    // In the real app, Readium pulls this in transitively; here we pin
+    // barteksc directly to avoid dragging Readium's core-library-desugaring
+    // requirement into this otherwise-tiny module.
+    androidTestImplementation("com.github.barteksc:pdfium-android:1.8.2")
 }

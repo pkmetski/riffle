@@ -1,34 +1,35 @@
 package com.riffle.core.pdfium.text
 
 import android.graphics.RectF
-import com.shockwave.pdfium.PdfiumCore
 
 /**
  * Pdfium text-extraction APIs that the barteksc PdfiumAndroid binding never
  * exposed. Implemented as a parasitic JNI bridge that dlsym()s into the
- * `libmodpdfium.so` already loaded by [PdfiumCore].
+ * `libmodpdfium.so` shipped in the APK by `com.github.barteksc:pdfium-android`
+ * (pulled in transitively by Readium's adapter).
  *
- * **Lifecycle:** [PdfiumCore]'s static initializer loads `libmodpdfium.so`
- * the first time the class is touched. We force that to happen by referencing
- * `PdfiumCore.class` in our own `init`, so callers don't have to think about
- * ordering. After that, [ensureResolved] grabs an `RTLD_NOLOAD` handle and
- * resolves every `FPDFText_*` symbol once; subsequent calls go through
- * cached function pointers.
+ * **Lifecycle:** we explicitly call `System.loadLibrary("modpdfium")` from
+ * our own classloader so we don't depend on any other module having touched
+ * `com.shockwave.pdfium.PdfiumCore` first. Once the `.so` is loaded into
+ * the process, our native bridge `dlopen("libmodpdfium.so", RTLD_NOLOAD)`s
+ * a handle to it and resolves every `FPDFText_*` symbol once; subsequent
+ * calls go through cached function pointers.
  *
  * **Independent document handles.** This API opens its own [FPDF_DOCUMENT]
- * (separate from whatever document handle barteksc's [PdfiumCore.newDocument]
- * holds). The two coexist — Pdfium document handles are isolated. The
- * additional memory cost is the parse tree, a few hundred KB per PDF, which
- * is negligible compared to the rendered-page bitmap caches barteksc holds.
+ * (separate from whatever document handle barteksc holds). The two coexist —
+ * Pdfium document handles are isolated. The additional memory cost is the
+ * parse tree, a few hundred KB per PDF, which is negligible compared to
+ * the rendered-page bitmap caches barteksc holds.
  */
 object PdfiumTextApi {
 
     init {
-        // Touch PdfiumCore so its <clinit> runs and System.loadLibrary("modpdfium")
-        // populates the process's loaded-library table. Once that's done,
-        // dlopen("libmodpdfium.so", RTLD_NOLOAD) inside our .so will find it.
-        @Suppress("UNUSED_EXPRESSION")
-        PdfiumCore::class.java
+        // Load libmodpdfium.so directly into the process. Idempotent —
+        // System.loadLibrary is a no-op when the same .so has already been
+        // loaded (e.g. by barteksc's PdfiumCore.<clinit>). Calling it
+        // ourselves means we don't have a compile-time dep on barteksc
+        // (which would drag in Readium's core-library-desugaring requirement).
+        System.loadLibrary("modpdfium")
 
         System.loadLibrary("riffle_pdfium_text")
     }

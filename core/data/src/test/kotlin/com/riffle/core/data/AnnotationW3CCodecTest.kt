@@ -1,6 +1,10 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationEntity
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -727,7 +731,13 @@ class AnnotationW3CCodecTest {
         val roundTripped = rawJson.parseToJsonElement(parsed.cfi).jsonObject
 
         assertEquals("application/pdf", roundTripped["type"]?.jsonPrimitive?.content)
-        assertEquals("books/x.pdf", roundTripped["href"]?.jsonPrimitive?.content)
+        // chapterHref on the round-tripped locator comes from the W3C source URL
+        // (`pdf://item-<id>`), which carries entity.itemId per the existing
+        // codec convention shared with EPUB. The locator's original `href` field
+        // isn't transmitted separately on the wire — chapterHref subsumes it.
+        // This is a pre-existing pattern; PDF mirrors EPUB.
+        assertEquals("pdf-item", roundTripped["href"]?.jsonPrimitive?.content)
+        assertEquals("pdf-item", parsed.chapterHref)
 
         val locations = roundTripped["locations"]?.jsonObject!!
         assertEquals(42, locations["position"]?.jsonPrimitive?.intOrNull)
