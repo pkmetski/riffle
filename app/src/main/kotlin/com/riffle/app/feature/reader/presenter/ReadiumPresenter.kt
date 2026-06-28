@@ -24,14 +24,16 @@ import org.readium.r2.shared.util.Url
  * The Readium adapter for [ReaderPresenter]. Wraps an [EpubNavigatorFragment] (paginated +
  * vertical modes) so the view-model never imports Readium types.
  *
- * **Step 1 scope (issue #300).** This adapter exists; no caller is cut over yet. The screen
- * still mounts the fragment and installs Readium listeners directly. Subsequent cutover steps
- * will replace those direct touches with [attach] + the feed methods on this class so the
- * fragment's events flow through the seam.
+ * Lifecycle: construct once per reader session (the screen does so when not in continuous mode),
+ * call [attach] when the fragment is available, [detach] when it goes away (e.g. orientation
+ * change). All events fired through the feed methods are buffered (extra capacity 64) so
+ * producers never suspend.
  *
- * Lifecycle: construct the adapter once per reader session; call [attach] when the fragment is
- * available, [detach] when it goes away (e.g. on orientation change). All events fired through
- * the feed methods are buffered (extra capacity 64) so producers never suspend.
+ * Issue #300 cuts over: decoration application ([applyDecorations]), navigation
+ * ([navigateToLocator], [navigateToLink], [pageBy]), typography ([applyTypography] +
+ * [updateLayoutContext]). Fragment-listener events (`feedPageLoaded`,
+ * `feedInternalLink`, …) exist for future orchestrators; the screen still installs the
+ * Readium listeners directly today.
  *
  * @param scope a lifecycle-scoped [CoroutineScope] (usually `viewModelScope`) that owns the
  *   fragment-position collector. It must outlive the adapter.
@@ -97,9 +99,11 @@ internal class ReadiumPresenter(
 
     // ----- Feed methods called by the screen's existing Readium listener objects --------------
     //
-    // These exist so Step 3 (route navigation through the adapter) and Step 5 (page-load events)
-    // can be small mechanical changes: the listener objects forward to these instead of calling
-    // the VM directly. Until then, callers don't exist — these are dormant.
+    // [PaginationListener.onPageLoaded], [EpubNavigatorFragment.Listener.shouldFollowInternalLink],
+    // tap zones, selection, and annotation-tap callbacks forward to these so [pageLoadEvents],
+    // [linkEvents], [tapEvents], [selectionEvents], and [annotationTapEvents] become the
+    // canonical paths for future orchestrators. The screen still installs the listeners and
+    // wires them up; the view-model split is what removes that intermediate.
 
     fun feedPageLoaded() {
         pageLoadCount += 1
@@ -148,9 +152,10 @@ internal class ReadiumPresenter(
     override suspend fun navigateTo(target: NavigationTarget) {
         val fragment = fragment ?: return
         val locator = target.toLocator(publication) ?: return
-        // Step 1: plain go(). The column-snap dance currently lives in EpubReaderScreen and moves
-        // behind this method at cutover Step 3 (paginated mode → ColumnSnap.goAndSnap, vertical →
-        // plain go).
+        // The Readium-typed convenience overloads ([navigateToLocator], [navigateToLink]) own
+        // the column-snap dance. This abstract entry point — used by future orchestrators that
+        // only know the abstract [NavigationTarget] shape — issues a plain go(); the snap
+        // backstop on PaginationListener.onPageLoaded rounds the page if needed.
         fragment.go(locator, animated = true)
     }
 
@@ -161,9 +166,9 @@ internal class ReadiumPresenter(
         // the layout context (orientation + fixed-layout flag) on the presenter rather than
         // forcing every caller to thread it through.
         fragment.submitPreferences(prefs.toEpubPreferences(isLandscape, isFixedLayout))
-        // The injected CSS overrides (font family, custom margins) are still applied on each
-        // onPageLoaded by the existing PaginationListener. Step 5 will move that into the
-        // presenter once page-load events flow through this seam.
+        // The injected CSS overrides (font family, custom margins) are also re-applied on each
+        // onPageLoaded by PaginationListener; doing it here too means a live preferences change
+        // takes effect immediately without waiting for the next page turn.
         fragment.evaluateJavascript(typographyOverrideInjectionJs())
     }
 
@@ -174,8 +179,8 @@ internal class ReadiumPresenter(
      * no fragment is attached or the fragment is not a [DecorableNavigator] — exactly mirrors the
      * original screen-level `applyDecorationsBlock` lambda this method replaces.
      *
-     * Cutover Step 2 (issue #300): callers in the screen pass through here instead of capturing
-     * `fragmentRef.value as? DecorableNavigator` directly.
+     * Called from [com.riffle.app.feature.reader.ReadiumHighlightRenderer] via the screen's
+     * `applyDecorationsBlock` lambda.
      */
     suspend fun applyDecorations(decorations: List<Decoration>, group: String) {
         val nav = fragment as? DecorableNavigator ?: return
@@ -189,12 +194,12 @@ internal class ReadiumPresenter(
      */
     fun attachmentStamp(): Any? = fragment
 
-    // ----- Readium-typed navigation (#300 step 3) -------------------------------------------
+    // ----- Readium-typed navigation ---------------------------------------------------------
     //
     // The screen still constructs Readium Locator/Link from TOC entries, search results, and
-    // server progress; these convenience overloads keep the type-conversion at the cutover
-    // boundary instead of forcing every caller to round-trip through JSON. They will collapse
-    // into [navigateTo] once the view-model owns navigation entirely (a later issue's job).
+    // server progress; these convenience overloads keep the type-conversion at the boundary
+    // instead of forcing every caller to round-trip through JSON. They collapse into
+    // [navigateTo] once the view-model owns navigation entirely (out of this issue's scope).
 
     /**
      * Navigate to [locator] and snap to the column it landed in. Replaces the screen-level

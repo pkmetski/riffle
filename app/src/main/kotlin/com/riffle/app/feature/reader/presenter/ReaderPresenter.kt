@@ -4,18 +4,18 @@ import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The seam between the reader UI (screen + view-model) and the concrete rendering pipeline
- * (Readium [org.readium.r2.navigator.epub.EpubNavigatorFragment] for paginated/vertical modes,
- * or the custom [com.riffle.app.feature.reader.ContinuousReaderView] for continuous mode).
+ * The seam between the reader UI (screen + view-model) and the concrete rendering pipeline.
+ * Two adapters today: [ReadiumPresenter] (paginated + vertical via Readium's
+ * [org.readium.r2.navigator.epub.EpubNavigatorFragment]) and [ContinuousPresenter] (the custom
+ * endless-scroll renderer). Both implement this interface; the view-model and any future
+ * orchestrators depend only on the interface — they MUST NOT import Readium or
+ * [com.riffle.app.feature.reader.ContinuousReaderView] types directly.
  *
- * The view-model and screen depend on this interface; they MUST NOT import Readium types
- * directly. Mode-specific concerns — column snap, fragment lifecycle, manual scroll-to-Locator
- * translation — live behind one of the adapters.
- *
- * **Step 1 scope (issue #300).** Only [ReadiumPresenter] exists today; the screen still mounts
- * Readium fragments and the continuous view directly. Decoration application stays on the
- * existing [com.riffle.app.feature.reader.HighlightRenderer] for now and will move behind this
- * seam in a follow-up cutover step.
+ * Mode-specific concerns (column snap, fragment lifecycle, sliding-window position translation)
+ * live behind the adapters. Issue #300 routes decoration application, navigation, typography,
+ * volume-key paging, and continuous-mode position events through this seam. Higher-level
+ * concerns — three-peer progress sync, readaloud highlight orchestration, annotation merge —
+ * sit upstream of the seam in orchestrators that subscribe to its event flows.
  */
 internal interface ReaderPresenter {
 
