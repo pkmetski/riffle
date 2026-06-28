@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.presenter
 
+import com.riffle.app.feature.reader.ColumnSnap
 import com.riffle.app.feature.reader.typographyOverrideInjectionJs
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -166,6 +167,43 @@ internal class ReadiumPresenter(
      * settle loops break out when the stamp changes mid-iteration.
      */
     fun attachmentStamp(): Any? = fragment
+
+    // ----- Readium-typed navigation (#300 step 3) -------------------------------------------
+    //
+    // The screen still constructs Readium Locator/Link from TOC entries, search results, and
+    // server progress; these convenience overloads keep the type-conversion at the cutover
+    // boundary instead of forcing every caller to round-trip through JSON. They will collapse
+    // into [navigateTo] once the view-model owns navigation entirely (a later issue's job).
+
+    /**
+     * Navigate to [locator] and snap to the column it landed in. Replaces the screen-level
+     * `ColumnSnap.goAndSnap` and `fragment.go` calls. In vertical (scroll) mode the snap JS is a
+     * no-op, so passing `snap = true` is safe for both orientations; pass `snap = false` to skip
+     * the snap entirely when the caller knows the page must not be rounded (e.g. the readaloud
+     * `play-from-here` resume which already lands precisely).
+     */
+    suspend fun navigateToLocator(
+        locator: Locator,
+        landAtStartWhenNoTarget: Boolean = true,
+        snap: Boolean = true,
+        animated: Boolean = true,
+    ) {
+        val fragment = fragment ?: return
+        if (snap) {
+            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget)
+        } else {
+            fragment.go(locator, animated = animated)
+        }
+    }
+
+    /**
+     * Navigate to [link] (TOC tap, internal cross-resource link) and snap to the column it
+     * landed in. Replaces the screen-level `ColumnSnap.goAndSnap(fragment, link)`.
+     */
+    suspend fun navigateToLink(link: Link) {
+        val fragment = fragment ?: return
+        ColumnSnap.goAndSnap(fragment, link)
+    }
 
     override suspend fun pageBy(direction: PageDirection) {
         val fragment = fragment ?: return
