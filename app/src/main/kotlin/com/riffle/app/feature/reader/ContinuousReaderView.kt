@@ -248,6 +248,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private var landingHoldTargetY: Int = -1
     private var landingHoldUntilUptimeMs: Long = 0L
 
+    /** Disarm the landing hold so a deliberate programmatic scroll (volume-key page-turn,
+     *  readaloud highlight-follow, in-window TOC nav, post-annotation re-land, …) isn't reverted
+     *  to the initial-land target. The hold is meant to fight the framework's stale-state
+     *  smooth-scroll restoration, not legitimate scroll requests. */
+    private fun clearLandingHold() {
+        landingHoldTargetY = -1
+        landingHoldUntilUptimeMs = 0L
+    }
+
     /**
      * Placeholder height used before real measurement arrives. One screen height keeps the
      * forward-shift trigger working (the last chapter needs enough height to scroll into) while
@@ -799,6 +808,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private fun scrollToLoadedChapter(target: String, progression: Float, fragment: String, smooth: Boolean, alignToTop: Boolean = false) {
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
+        clearLandingHold()
         fun go(y: Int) {
             val clamped = y.coerceAtLeast(0)
             if (smooth) smoothScrollTo(0, clamped) else scrollTo(0, clamped)
@@ -822,6 +832,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Scroll one viewport-page forward/backward (wired to the volume keys). */
     fun scrollByPage(forward: Boolean) {
         val delta = ContinuousPositionTracker.pageScrollDelta(height)
+        clearLandingHold()
         smoothScrollBy(0, if (forward) delta else -delta)
     }
 
@@ -861,6 +872,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             // Using abs() avoids the previous bug where absoluteY just inside the top of the
             // viewport triggered a backward scroll (absoluteY < scrollY+margin → target < scrollY).
             if (abs(targetScrollY - scrollY) > height / 8) {
+                clearLandingHold()
                 smoothScrollTo(0, targetScrollY)
             }
         }
@@ -973,6 +985,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             val i = pendingTargetHref?.let { webViewIndexFor(it) } ?: return@annotationOffsetTopDevicePx
             val slot = buildWindow().getOrNull(i) ?: return@annotationOffsetTopDevicePx
             val y = (slot.top + annOffset).coerceAtLeast(0)
+            // This is a deliberate precise re-land onto the freshly-decorated mark; the initial
+            // land's hold (which fights the framework's stale-state restoration) would otherwise
+            // revert this scrollTo on the next computeScroll tick. Clear so the precise mark Y wins.
+            clearLandingHold()
             post { scrollTo(0, y) }
             pendingFocusAnnotationId = null
         }
