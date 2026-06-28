@@ -656,4 +656,160 @@ class AnnotationW3CCodecTest {
         assertEquals(" решил да замине", parsed.textAfter)
         assertEquals("Куджиа", parsed.textSnippet)
     }
+
+    // ---- PDF locator round-trip (PDF parity v1) ----------------------------
+    //
+    // PDF annotation rows store a Readium Locator JSON object in the `cfi`
+    // column (a misnomer kept for schema stability — see CONTEXT.md and the
+    // PDF parity design spec). The codec must:
+    //
+    // 1. emit a `pdf://item-<id>` source URL,
+    // 2. emit a FragmentSelector with `conformsTo = RFC 3778` and `value =
+    //    page=N` from the locator's `locations.position`,
+    // 3. nest a RefinedBy DataPositionSelector carrying `start/end` char
+    //    indices from `locations.otherLocations.{charStart,charEnd}`,
+    // 4. attach persisted highlight quads as a Riffle-namespaced property,
+    // 5. round-trip back to the same Locator JSON string on decode (Locator
+    //    field order isn't significant, so tests verify by re-parsing JSON,
+    //    not by string equality).
+
+    private val pdfHighlightCfi = """
+        {"href":"books/x.pdf","type":"application/pdf","locations":
+        {"position":42,"otherLocations":
+        {"charStart":1503,"charEnd":1547,
+         "quads":[{"x":120,"y":280,"w":340,"h":18},
+                  {"x":68,"y":300,"w":280,"h":18}]}}}
+    """.trimIndent().replace("\n", "").replace(" ", "")
+
+    private val pdfBookmarkCfi = """
+        {"href":"books/x.pdf","type":"application/pdf","locations":{"position":7}}
+    """.trimIndent()
+
+    private fun pdfHighlightEntity() = AnnotationEntity(
+        id = "uuid-pdf-1",
+        serverId = "abs1",
+        itemId = "pdf-item",
+        type = AnnotationEntity.TYPE_HIGHLIGHT,
+        cfi = pdfHighlightCfi,
+        color = "yellow",
+        note = null,
+        textSnippet = "the selected passage",
+        textBefore = "before context for disambiguation ",
+        textAfter = " after context for disambiguation",
+        chapterHref = "books/x.pdf",
+        createdAt = 1700000000000L,
+        updatedAt = 1700000000000L,
+        originDeviceId = "device-A",
+        lastModifiedByDeviceId = "device-A",
+    )
+
+    @Test
+    fun `PDF highlight serializes with RFC 3778 FragmentSelector and refinedBy DataPositionSelector`() {
+        val json = codec.annotationEntityToW3C(pdfHighlightEntity())
+        assertTrue("source uses pdf:// scheme", json.contains("\"pdf://item-pdf-item\""))
+        assertTrue("FragmentSelector conformsTo RFC 3778",
+            json.contains("\"http://tools.ietf.org/rfc/rfc3778\""))
+        assertTrue("value carries page= fragment", json.contains("\"value\":\"page=42\""))
+        assertTrue("RefinedBy is a DataPositionSelector",
+            json.contains("\"DataPositionSelector\""))
+        assertTrue("char range start present", json.contains("\"start\":1503"))
+        assertTrue("char range end present", json.contains("\"end\":1547"))
+        assertTrue("quads ride as Riffle-namespaced property",
+            json.contains("\"riffle:quads\""))
+    }
+
+    @Test
+    fun `PDF highlight round-trips back to equivalent Locator JSON`() {
+        val w3cJson = codec.annotationEntityToW3C(pdfHighlightEntity())
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+
+        val rawJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val roundTripped = rawJson.parseToJsonElement(parsed.cfi).jsonObject
+
+        assertEquals("application/pdf", roundTripped["type"]?.jsonPrimitive?.content)
+        assertEquals("books/x.pdf", roundTripped["href"]?.jsonPrimitive?.content)
+
+        val locations = roundTripped["locations"]?.jsonObject!!
+        assertEquals(42, locations["position"]?.jsonPrimitive?.intOrNull)
+        val other = locations["otherLocations"]?.jsonObject!!
+        assertEquals(1503, other["charStart"]?.jsonPrimitive?.intOrNull)
+        assertEquals(1547, other["charEnd"]?.jsonPrimitive?.intOrNull)
+        val quads = other["quads"]?.jsonArray!!
+        assertEquals(2, quads.size)
+    }
+
+    @Test
+    fun `PDF bookmark (no char range) serializes without RefinedBy`() {
+        val entity = pdfHighlightEntity().copy(
+            id = "uuid-pdf-bm-1",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = pdfBookmarkCfi,
+            color = "",
+            textSnippet = "",
+            textBefore = "",
+            textAfter = "",
+            bookmarkTitle = "Page 7",
+        )
+        val json = codec.annotationEntityToW3C(entity)
+        assertTrue("bookmark motivation", json.contains("\"motivation\":\"bookmarking\""))
+        assertTrue("source uses pdf:// scheme", json.contains("\"pdf://item-pdf-item\""))
+        assertTrue("value carries page= fragment", json.contains("\"value\":\"page=7\""))
+        assertFalse("no RefinedBy for char-rangeless bookmark",
+            json.contains("\"DataPositionSelector\""))
+        assertFalse("no quads on a bookmark", json.contains("\"riffle:quads\""))
+    }
+
+    @Test
+    fun `PDF bookmark round-trips with position only`() {
+        val entity = pdfHighlightEntity().copy(
+            id = "uuid-pdf-bm-2",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = pdfBookmarkCfi,
+            color = "",
+            textSnippet = "",
+            textBefore = "",
+            textAfter = "",
+            bookmarkTitle = "Page 7",
+        )
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        val rawJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val roundTripped = rawJson.parseToJsonElement(parsed.cfi).jsonObject
+        assertEquals("application/pdf", roundTripped["type"]?.jsonPrimitive?.content)
+        val locations = roundTripped["locations"]?.jsonObject!!
+        assertEquals(7, locations["position"]?.jsonPrimitive?.intOrNull)
+        assertNull("no char range / quads on a bookmark", locations["otherLocations"])
+        assertEquals(AnnotationEntity.TYPE_BOOKMARK, parsed.type)
+        assertEquals("Page 7", parsed.bookmarkTitle)
+    }
+
+    @Test
+    fun `EPUB rows still emit the EPUB CFI FragmentSelector unchanged`() {
+        val entity = AnnotationEntity(
+            id = "uuid-epub-1",
+            serverId = "abs1",
+            itemId = "epub-item",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",
+            color = "yellow",
+            note = null,
+            textSnippet = "x",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "ch1.xhtml",
+            createdAt = 1700000000000L,
+            updatedAt = 1700000000000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+        )
+        val json = codec.annotationEntityToW3C(entity)
+        assertTrue("source uses epub:// scheme",
+            json.contains("\"epub://item-epub-item\""))
+        assertTrue("FragmentSelector conformsTo IDPF EPUB CFI",
+            json.contains("\"http://idpf.org/epub/linking/cfi/epub-cfi.html\""))
+        assertTrue("value carries raw epubcfi",
+            json.contains("\"epubcfi(/6/4!/4/2,/1:0,/1:100)\""))
+        assertFalse("no RFC 3778 conformsTo for EPUB",
+            json.contains("rfc3778"))
+    }
 }
