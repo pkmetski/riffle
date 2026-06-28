@@ -341,4 +341,92 @@ class FormattingSessionTest {
             scope.cancel()
         }
     }
+
+    // 13. init dispatches AutoScrollEvent.Stop to defensively reset singleton state
+    @Test
+    fun `init dispatches AutoScrollEvent Stop to defensively reset singleton AutoScrollController`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher()
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        // Put the controller into Running state before constructing FormattingSession
+        autoScrollController.dispatch(AutoScrollEvent.Start)
+        assertTrue(autoScrollController.state.value is AutoScrollState.Running)
+
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        try {
+            FormattingSession(
+                scope = sessionScope,
+                timeProvider = FakeTimeProvider(),
+                formattingPreferencesStore = FakeFormattingPreferencesStore(),
+                bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
+                wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+                listeningPreferencesStore = FakeListeningPreferencesStore(),
+                autoScrollController = autoScrollController,
+            )
+            // Construction alone must reset the singleton to Idle
+            assertTrue(autoScrollController.state.value is AutoScrollState.Idle)
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
+
+    // 14. onBookClosed dispatches AutoScrollEvent.Stop
+    @Test
+    fun `onBookClosed dispatches AutoScrollEvent Stop`() = runTest {
+        val (session, _, _, _, autoScrollController, scope) = makeEager()
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            assertTrue(autoScrollController.state.value is AutoScrollState.Running)
+
+            session.onBookClosed()
+            assertTrue(autoScrollController.state.value is AutoScrollState.Idle)
+        } finally {
+            autoScrollController.release()
+            scope.cancel()
+        }
+    }
+
+    // 15. onBookClosed cancels the theme schedule job (extends test 11)
+    @Test
+    fun `onBookClosed cancels theme schedule job and clears formattingPreferencesReady`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val schedule = ThemeSchedule(
+            dayStart = LocalTime.of(7, 0),
+            nightStart = LocalTime.of(21, 0),
+            dayTheme = ReaderTheme.Light,
+            nightTheme = ReaderTheme.Dark,
+        )
+        val global = FormattingPreferences(theme = ReaderTheme.Auto, themeSchedule = schedule)
+        val fakeTime = FakeTimeProvider(LocalTime.of(20, 59))
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        val session = FormattingSession(
+            scope = sessionScope,
+            timeProvider = fakeTime,
+            formattingPreferencesStore = FakeFormattingPreferencesStore(global),
+            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
+            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            autoScrollController = autoScrollController,
+        )
+        try {
+            session.bindToBook("item1")
+            advanceTimeBy(500)
+            assertTrue(session.formattingPreferencesReady.value)
+
+            session.onBookClosed()
+
+            // formattingPreferencesReady must be cleared
+            assertFalse(session.formattingPreferencesReady.value)
+
+            // Theme schedule must be dead: advancing past the next boundary should NOT flip theme
+            fakeTime.setTime(LocalTime.of(21, 0))
+            advanceTimeBy(61_000)
+            // Still Light — the schedule loop was cancelled before the tick could fire
+            assertEquals(ReaderTheme.Light, session.effectiveFormattingPreferences.value.theme)
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
 }

@@ -116,6 +116,10 @@ class FormattingSession @AssistedInject constructor(
     }
 
     init {
+        // The AutoScrollController is a process-wide Singleton. Defensively reset to Idle on every
+        // book open so a session that wasn't cleanly torn down (process kill mid-scroll, then
+        // restart into a different book) does not auto-start the new book mid-air.
+        autoScrollController.dispatch(AutoScrollEvent.Stop)
         // Keep effective prefs in sync with both global changes and override updates.
         scope.launch {
             combine(
@@ -259,6 +263,7 @@ class FormattingSession @AssistedInject constructor(
 
     /** Called when the book is closed. Cancels any in-flight theme schedule loop. */
     fun onBookClosed() {
+        autoScrollController.dispatch(AutoScrollEvent.Stop)
         themeScheduleJob?.cancel()
         themeScheduleJob = null
         _formattingPreferencesReady.value = false
