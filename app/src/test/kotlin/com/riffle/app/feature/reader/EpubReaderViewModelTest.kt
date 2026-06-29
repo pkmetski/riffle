@@ -1205,7 +1205,7 @@ class BookmarkIndicatorTest {
         val eps = if (continuous) 0.25 else 0.05
         return positions.any { bm ->
             bm.chapterHref == hrefNorm &&
-                (progression == null || kotlin.math.abs(bm.progression - progression) < eps)
+                (progression == null || kotlin.math.abs(bm.progression - progression) <= eps)
         }
     }
 

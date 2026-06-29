@@ -79,19 +79,26 @@ class BookmarksController @AssistedInject constructor(
         val hrefNorm = normalizeEpubHref(href)
         val eps = when {
             orientation != ReaderOrientation.Continuous -> BOOKMARK_PAGE_EPS
-            viewportFraction != null -> (viewportFraction / 2.0).coerceAtLeast(BOOKMARK_PAGE_EPS)
+            // `viewportFraction / 2` is the geometric minimum that covers a viewport's worth of
+            // chapter. Add a [BOOKMARK_PAGE_EPS] slack on top to absorb the per-chapter anchor
+            // offset (heading elements rarely sit at pixel-0 of the slot — typically there's a
+            // few px of leading padding, plus float noise between the JS-reported scroll metrics
+            // and our derived progression). Without the slack, a heading-at-top landing produces
+            // `|cur - bm| ≈ viewportFraction/2 + small`, which a strict viewport-only window
+            // silently rounds OFF — exactly the bug the user reproduced.
+            viewportFraction != null -> (viewportFraction / 2.0 + BOOKMARK_PAGE_EPS)
             else -> BOOKMARK_VIEWPORT_EPS
         }
+        // `<= eps` (not `< eps`) so the boundary case is inclusive — geometrically, when the
+        // bookmark anchor sits exactly at the viewport's top edge, |cur - bm| equals
+        // `viewportFraction / 2` to machine precision, and a strict `<` would silently call that
+        // OFF even though the anchor is visible. The same fix benefits Readium modes: a column-
+        // or page-aligned bookmark whose progression matches the current locator to within
+        // floating-point noise should also light.
         val matched = positions.any { bm ->
             bm.chapterHref == hrefNorm &&
-                (prog == null || kotlin.math.abs(bm.progression - prog) < eps)
+                (prog == null || kotlin.math.abs(bm.progression - prog) <= eps)
         }
-        val first = positions.firstOrNull { it.chapterHref == hrefNorm }
-        android.util.Log.d(
-            "DEBUG-bkmrk",
-            "match: matched=$matched orient=$orientation cur.prog=$prog vf=$viewportFraction eps=$eps " +
-                "bm.prog=${first?.progression} diff=${if (first != null && prog != null) kotlin.math.abs(first.progression - prog) else null} href=$href",
-        )
         matched
     }.stateIn(scope, SharingStarted.Eagerly, false)
 
