@@ -107,6 +107,28 @@ class ReadingPositionStoreTest {
     }
 
     @Test
+    fun `save never regresses localUpdatedAt below an adopted future server stamp`() = runTest {
+        // Regression: when ABS's clock is ahead of the device, the sync cycle adopts a future server
+        // stamp as localUpdatedAt. A subsequent save() using raw now() would silently lower
+        // localUpdatedAt back under the server's last-known stamp, making every next cycle conclude
+        // server-wins and yank the reader to the older server position — the "periodic sync
+        // overwrites my position" bug. save() must always advance localUpdatedAt strictly past
+        // whatever's already stored.
+        val dao = FakeReadingPositionDao()
+        val store = ReadingPositionStoreImpl(dao)
+        val futureServerStamp = System.currentTimeMillis() + 120_000L // 2 minutes ahead
+        dao.seed(ReadingPositionEntity("server-A", "item-1", "old", futureServerStamp, futureServerStamp))
+
+        store.save("server-A", "item-1", "fresh")
+
+        val after = dao.store["server-A" to "item-1"]?.localUpdatedAt ?: 0L
+        assert(after > futureServerStamp) {
+            "save() must advance localUpdatedAt past the adopted server stamp; was $after, server stamp $futureServerStamp"
+        }
+        assertEquals("fresh", store.load("server-A", "item-1"))
+    }
+
+    @Test
     fun `load on a different server returns null even when itemId is saved elsewhere`() = runTest {
         val dao = FakeReadingPositionDao().also {
             it.seed(ReadingPositionEntity("server-A", "item-1", "epubcfi(/6/2!/4/1:42)"))
