@@ -14,7 +14,7 @@ navigation = "2.9.8"
 hiltNavigation = "1.2.0"
 security = "1.1.0"
 hilt = "2.59.2"
-acra = "5.11.3"
+acra = "5.13.1"
 # Pinned to latest (3.3.0). The readaloud highlight is now text-anchored so it's engine-independent
 # (Readium strips media-overlay spans regardless of version). Reflowable column defaults and decoration
 # positioning ARE version-sensitive, so ReadiumVersionPinTest fails on any bump — re-verify on a real
