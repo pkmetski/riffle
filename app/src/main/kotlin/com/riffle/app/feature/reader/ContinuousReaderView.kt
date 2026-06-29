@@ -829,8 +829,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val wvIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
         if (fragment.isNotEmpty() && wvIndex >= 0) {
             webViews[wvIndex].anchorOffsetTopDevicePx(fragment) { anchorOffset ->
-                if (anchorOffset != null) go(slot.top + anchorOffset)
-                else go(slot.top + (progression * slot.height).toInt())
+                val offset = anchorOffset ?: (progression * slot.height).toInt()
+                // alignToTop puts the anchor at the viewport top (chapter-heading / page-bookmark
+                // landing); !alignToTop puts the anchor at the viewport midpoint (highlight / note
+                // landing) — half a viewport up, mirroring what scrollYForProgression does for the
+                // anchorless branch below. Without this branch, every CFI carrying a DOM-element
+                // fragment landed at the top, ignoring alignToTop and gluing highlighted text to
+                // the very top of the viewport with no reading context above it.
+                go(if (alignToTop) slot.top + offset else slot.top + offset - height / 2)
             }
         } else {
             // Top-align a chapter start; centre a mid-chapter target (inverse of locatorAt).
