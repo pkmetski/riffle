@@ -248,6 +248,25 @@ internal class ReadiumPresenter(
         }
     }
 
+    override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult {
+        val fragment = fragment ?: return ReadaloudFollowResult.Unavailable
+        // ColumnSnap's JS protocol returns "off" when the sentence isn't on the rendered resource
+        // (caller then falls back to navigation), null when the WebView is gone, and "scroll" / any
+        // other value when the page successfully snapped or the mode doesn't drive per-column follow.
+        val where = ColumnSnap.followNarratedSentence(fragment, text) ?: return ReadaloudFollowResult.Unavailable
+        return if (where == "off") ReadaloudFollowResult.OffPage else ReadaloudFollowResult.Snapped
+    }
+
+    override suspend fun measureReadaloudColumns(text: String): List<Double> {
+        val fragment = fragment ?: return emptyList()
+        return ColumnSnap.measureNarratedColumns(fragment, text)
+    }
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
+        val fragment = fragment ?: return
+        ColumnSnap.snapNarratedColumn(fragment, text, columnIndex)
+    }
+
     // ----- internals ------------------------------------------------------------------------
 
     private fun publishPosition(position: ReaderPosition) {

@@ -32,6 +32,11 @@ internal class FakeReaderPresenter : ReaderPresenter {
     val recordedNavigations: MutableList<NavigationTarget> = mutableListOf()
     val recordedTypography: MutableList<FormattingPreferences> = mutableListOf()
     val recordedPagesBy: MutableList<PageDirection> = mutableListOf()
+    val recordedFollowReadaloud: MutableList<String> = mutableListOf()
+    val recordedMeasureReadaloud: MutableList<String> = mutableListOf()
+    val recordedSnapReadaloud: MutableList<Pair<String, Int>> = mutableListOf()
+    var followReadaloudResult: ReadaloudFollowResult = ReadaloudFollowResult.Unavailable
+    var measureReadaloudColumnsResult: List<Double> = emptyList()
 
     private var lastPosition: ReaderPosition? = null
     private var generation: Long = 0L
@@ -48,6 +53,20 @@ internal class FakeReaderPresenter : ReaderPresenter {
 
     override suspend fun pageBy(direction: PageDirection) {
         recordedPagesBy += direction
+    }
+
+    override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult {
+        recordedFollowReadaloud += text
+        return followReadaloudResult
+    }
+
+    override suspend fun measureReadaloudColumns(text: String): List<Double> {
+        recordedMeasureReadaloud += text
+        return measureReadaloudColumnsResult
+    }
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
+        recordedSnapReadaloud += text to columnIndex
     }
 
     // ----- Event drivers (for tests) -------------------------------------------------------

@@ -129,4 +129,14 @@ internal class ContinuousPresenter : ReaderPresenter {
         val view = view ?: return
         view.scrollByPage(forward = direction == PageDirection.Forward)
     }
+
+    // Continuous mode runs its readaloud highlight through ContinuousReaderView's own JS injection
+    // pipeline; the paginated column-snap protocol does not apply, so these methods always report
+    // Unavailable and the screen's snap effects short-circuit accordingly.
+    override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult =
+        ReadaloudFollowResult.Unavailable
+
+    override suspend fun measureReadaloudColumns(text: String): List<Double> = emptyList()
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) = Unit
 }

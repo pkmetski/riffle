@@ -49,6 +49,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.PageDirection
+import com.riffle.app.feature.reader.presenter.ReadaloudFollowResult
+import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -1117,6 +1119,10 @@ private fun EpubNavigatorView(
     val continuousPresenter: ContinuousPresenter? = remember(isContinuous) {
         if (isContinuous) ContinuousPresenter() else null
     }
+    // Mode-agnostic seam handle: one of the two concrete presenters is non-null for any given mode.
+    // Use this for any call that only depends on [ReaderPresenter]'s abstract surface. Use the
+    // concrete refs only where the screen still drives Readium/continuous-specific commands.
+    val readerPresenter: ReaderPresenter = readiumPresenter ?: continuousPresenter!!
     DisposableEffect(readiumPresenter, continuousPresenter) {
         onDispose {
             readiumPresenter?.detach()
@@ -1761,9 +1767,7 @@ private fun EpubNavigatorView(
     // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
     // no longer reflows it, so opening it doesn't move the narrated sentence's column.
     LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
-        if (isContinuous) return@LaunchedEffect
         val ref = activeFragmentRef ?: return@LaunchedEffect
-        val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (ref.indexOf('#') < 0) return@LaunchedEffect
         // No quote yet (the map is built off-thread once playback starts) → we can neither locate the
         // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
@@ -1771,11 +1775,14 @@ private fun EpubNavigatorView(
         // this effect re-keys on [sentenceQuotes] and re-runs to follow correctly once it's available.
         val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@LaunchedEffect
         // Locate the sentence by its text (spans are stripped). The probe snaps to the sentence's
-        // column itself in paginated mode; "off" comes back only when the text isn't on this resource
-        // (another chapter), where we fall back to a text-anchored go() to load it.
-        val where = ColumnSnap.followNarratedSentence(fragment, quote.highlight)
-        if (where != "off") return@LaunchedEffect
-        fragmentLocator(ref, quote)?.let { readiumPresenter?.navigateToLocator(it, snap = false, animated = false) }
+        // column itself in paginated mode; OffPage comes back only when the text isn't on this resource
+        // (another chapter), where we fall back to a text-anchored go() to load it. Vertical / continuous
+        // adapters report Unavailable — their per-sentence follow lives elsewhere.
+        when (readerPresenter.followReadaloudSentence(quote.highlight)) {
+            ReadaloudFollowResult.Snapped, ReadaloudFollowResult.Unavailable -> Unit
+            ReadaloudFollowResult.OffPage ->
+                fragmentLocator(ref, quote)?.let { readiumPresenter?.navigateToLocator(it, snap = false, animated = false) }
+        }
     }
 
     // INTRA-sentence page follow (paginated): the effect above snaps to the column holding the
@@ -1793,18 +1800,19 @@ private fun EpubNavigatorView(
     LaunchedEffect(sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
         var measuredRef: String? = null
         narrationProgress.collect { progress ->
-            val fragment = fragmentRef.value ?: return@collect
             if (progress == null) { columnProgression.reset(); measuredRef = null; return@collect }
             val ref = progress.fragmentRef
             if (ref.indexOf('#') < 0) return@collect
             val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@collect
             if (ref != measuredRef) {
                 // New sentence (or a relayout restarted this effect): measure how it spans columns.
-                columnProgression.onSentence(ColumnSnap.measureNarratedColumns(fragment, quote.highlight))
+                // Empty in vertical / continuous — the progression then never advances, which is the
+                // correct behaviour for those modes.
+                columnProgression.onSentence(readerPresenter.measureReadaloudColumns(quote.highlight))
                 measuredRef = ref
             }
             columnProgression.advance(progress.fraction)?.let { column ->
-                ColumnSnap.snapNarratedColumn(fragment, quote.highlight, column)
+                readerPresenter.snapReadaloudColumn(quote.highlight, column)
             }
         }
     }

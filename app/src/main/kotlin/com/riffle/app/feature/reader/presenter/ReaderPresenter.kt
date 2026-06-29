@@ -60,6 +60,43 @@ internal interface ReaderPresenter {
 
     /** Page forward / page backward (volume keys, configurable gestures). */
     suspend fun pageBy(direction: PageDirection)
+
+    // ----- Readaloud sentence follow (paginated only — vertical / continuous return Unavailable) -
+
+    /**
+     * Locate the narrated sentence [text] on the current page and, if found, snap to the column
+     * holding its start. Drives the per-sentence highlight follow.
+     *
+     * Implementations:
+     * - Paginated (Readium): runs the column-snap probe inside the fragment WebView.
+     * - Vertical / continuous: return [ReadaloudFollowResult.Unavailable]; their follow pipelines
+     *   live elsewhere (vertical = native scroll; continuous = JS injection in
+     *   `ContinuousReaderView`).
+     */
+    suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult
+
+    /**
+     * Measure how [text] spans the paginated column grid; non-empty only in paginated mode.
+     * Empty means "single column / not on this resource / vertical / continuous" — all cases
+     * where intra-sentence page turns should not be driven by [NarratedColumnProgression].
+     */
+    suspend fun measureReadaloudColumns(text: String): List<Double>
+
+    /**
+     * Snap the page to the [columnIndex]-th column the narrated [text] spans. The companion to
+     * [measureReadaloudColumns]. No-op in vertical / continuous.
+     */
+    suspend fun snapReadaloudColumn(text: String, columnIndex: Int)
+}
+
+/** Outcome of [ReaderPresenter.followReadaloudSentence]. */
+internal enum class ReadaloudFollowResult {
+    /** The sentence was located on the current resource and the page snapped to its column. */
+    Snapped,
+    /** The sentence is not on the currently-rendered resource — caller falls back to navigation. */
+    OffPage,
+    /** This presenter does not drive per-sentence follow (vertical scroll / continuous mode). */
+    Unavailable,
 }
 
 // =================== Event payloads ==========================================================
