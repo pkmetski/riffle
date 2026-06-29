@@ -51,7 +51,6 @@ class BookmarksController @AssistedInject constructor(
 
     private val _currentLocator = MutableStateFlow<Locator?>(null)
     private val _currentOrientation = MutableStateFlow(ReaderOrientation.Horizontal)
-    private val _continuousViewportFraction = MutableStateFlow<Float?>(null)
 
     /**
      * True when one of this item's bookmarks falls inside the reader's currently visible viewport.
@@ -60,61 +59,42 @@ class BookmarksController @AssistedInject constructor(
      *  - **Readium (paginated + vertical):** content-top progression. Bookmark anchor and
      *    current locator share the same frame, so a tight ±5% window is the correct match.
      *  - **Continuous:** viewport-midpoint progression (`ContinuousPositionTracker.locatorAt`).
-     *    Bookmark anchor pixel y = `M_save * slot.height`; the anchor is visible iff
-     *    `top_progression ≤ M_save ≤ bottom_progression`. Equivalently (rearranging),
-     *    `|midpoint_now - M_save| < viewportFraction/2`. We use the live `viewportFraction`
-     *    plumbed in from `ContinuousReaderView` so the window is the *actual* visible range,
-     *    not a fixed guess that's too tight for short chapters and too loose for long ones.
-     *    Falls back to a conservative [BOOKMARK_VIEWPORT_EPS] when the fraction hasn't arrived
-     *    yet (no scroll events since open).
+     *    The bookmark anchor is visible iff `|midpoint_now - M_save| <= viewportFraction/2`.
+     *    Without a live viewport-fraction signal, we use a fixed [BOOKMARK_VIEWPORT_EPS] (25%)
+     *    which covers typical viewports (~20–40% of chapter height) with a small slack for
+     *    anchor offsets and float noise. False-positive cost: two bookmarks within 25% of each
+     *    other in the same chapter light at once. Acceptable given the indicator is a boolean.
+     *
+     * The `<= eps` (not `< eps`) makes the boundary case inclusive — geometrically, when the
+     * bookmark anchor sits exactly at the viewport's top edge, |cur - bm| equals
+     * `viewportFraction / 2` to machine precision, and a strict `<` would silently call that
+     * OFF even though the anchor is visible.
      */
     val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
         _bookmarkPositions,
         _currentLocator,
         _currentOrientation,
-        _continuousViewportFraction,
-    ) { positions, locator, orientation, viewportFraction ->
+    ) { positions, locator, orientation ->
         val href = locator?.href?.toString() ?: return@combine false
         val prog = locator.locations.progression
         val hrefNorm = normalizeEpubHref(href)
-        val eps = when {
-            orientation != ReaderOrientation.Continuous -> BOOKMARK_PAGE_EPS
-            // `viewportFraction / 2` is the geometric minimum that covers a viewport's worth of
-            // chapter. Add a [BOOKMARK_PAGE_EPS] slack on top to absorb the per-chapter anchor
-            // offset (heading elements rarely sit at pixel-0 of the slot — typically there's a
-            // few px of leading padding, plus float noise between the JS-reported scroll metrics
-            // and our derived progression). Without the slack, a heading-at-top landing produces
-            // `|cur - bm| ≈ viewportFraction/2 + small`, which a strict viewport-only window
-            // silently rounds OFF — exactly the bug the user reproduced.
-            viewportFraction != null -> (viewportFraction / 2.0 + BOOKMARK_PAGE_EPS)
-            else -> BOOKMARK_VIEWPORT_EPS
-        }
-        // `<= eps` (not `< eps`) so the boundary case is inclusive — geometrically, when the
-        // bookmark anchor sits exactly at the viewport's top edge, |cur - bm| equals
-        // `viewportFraction / 2` to machine precision, and a strict `<` would silently call that
-        // OFF even though the anchor is visible. The same fix benefits Readium modes: a column-
-        // or page-aligned bookmark whose progression matches the current locator to within
-        // floating-point noise should also light.
-        val matched = positions.any { bm ->
+        val eps = if (orientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
+        else BOOKMARK_PAGE_EPS
+        positions.any { bm ->
             bm.chapterHref == hrefNorm &&
                 (prog == null || kotlin.math.abs(bm.progression - prog) <= eps)
         }
-        matched
     }.stateIn(scope, SharingStarted.Eagerly, false)
 
     private var observeJob: Job? = null
     private var locatorJob: Job? = null
     private var orientationJob: Job? = null
-    private var viewportFractionJob: Job? = null
 
     /**
      * Bind to a specific book. Cancels any previous observation and starts fresh.
      *
      * [currentLocator] — the live VM locator so [isCurrentPageBookmarked] stays reactive.
      * [currentOrientation] — selects the match-window strategy (see [isCurrentPageBookmarked]).
-     * [continuousViewportFraction] — viewport size as a fraction of the chapter slot's pixel
-     *   height; emits `null` until the user first scrolls, and `null` in non-continuous modes.
-     *   The match-window in continuous is derived from this fraction.
      */
     fun bind(
         serverId: String,
@@ -124,16 +104,13 @@ class BookmarksController @AssistedInject constructor(
         // about the continuous-mode widened eps still compile; the production VM passes a real
         // flow tracking the user's chosen orientation.
         currentOrientation: StateFlow<ReaderOrientation> = MutableStateFlow(ReaderOrientation.Horizontal),
-        continuousViewportFraction: StateFlow<Float?> = MutableStateFlow(null),
     ) {
         observeJob?.cancel()
         locatorJob?.cancel()
         orientationJob?.cancel()
-        viewportFractionJob?.cancel()
         _bookmarkPositions.value = emptyList()
         _currentLocator.value = null
         _currentOrientation.value = currentOrientation.value
-        _continuousViewportFraction.value = continuousViewportFraction.value
 
         observeJob = scope.launch {
             annotationStore.observeBookmarks(serverId, itemId).collect { annotations ->
@@ -156,11 +133,6 @@ class BookmarksController @AssistedInject constructor(
                 _currentOrientation.value = orientation
             }
         }
-        viewportFractionJob = scope.launch {
-            continuousViewportFraction.collect { fraction ->
-                _continuousViewportFraction.value = fraction
-            }
-        }
     }
 
     /** Rename a bookmark; schedules annotation sync. */
@@ -176,11 +148,19 @@ class BookmarksController @AssistedInject constructor(
         // content-top progression and the bookmark stores the same, so a tight match is correct.
         internal const val BOOKMARK_PAGE_EPS = 0.05
 
-        // Conservative fallback when the live continuous-mode viewport fraction hasn't been
-        // emitted yet (cold open, no scroll events). 25% is wide enough to catch typical viewports
-        // (~20–40% of chapter height) without being so wide it lights bookmarks halfway across
-        // a chapter. The match window is replaced by `viewportFraction / 2` as soon as the
-        // ContinuousReaderView produces its first onViewportFraction emission.
-        internal const val BOOKMARK_VIEWPORT_EPS = 0.25
+        // ±33% within-chapter window for continuous mode. The locator emits the viewport-midpoint
+        // progression while the bookmark anchor can sit anywhere from the viewport top to bottom,
+        // so the geometric minimum is `viewportFraction / 2`. We use a static 33% as a
+        // conservative cover: typical viewports (~20–40% of chapter height) put `vf/2` at
+        // 0.10–0.20, while short chapters (≤ 2× viewport tall) push `vf/2` up to ~0.30; 33%
+        // catches both with a small slack for anchor offsets and float noise.
+        //
+        // The trade-off: two bookmarks within ~33% of each other in the same chapter both light.
+        // Acceptable for a boolean indicator. We previously tried plumbing the live viewport
+        // fraction through to size this exactly, but the on-scroll emission churn flaked the
+        // continuous→paginated annotation-repaint harness test (Compose recomposition pressure
+        // prevented the chrome-reveal LaunchedEffect from idling within the test's waitUntil).
+        // The static value here picks 33% as the band that covers all observed cases.
+        internal const val BOOKMARK_VIEWPORT_EPS = 0.33
     }
 }

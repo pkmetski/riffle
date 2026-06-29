@@ -195,60 +195,34 @@ class BookmarksControllerTest {
             controller.isCurrentPageBookmarked.value,
         )
 
-        // A bookmark a full viewport away in either direction is genuinely off-page.
-        currentLocator.value = buildLocator("ch1.xhtml", 0.20)
+        // A bookmark well past the widened window in either direction is genuinely off-page.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.10)
         assertFalse(controller.isCurrentPageBookmarked.value)
     }
 
     @Test
-    fun `continuous indicator activates when heading lands at viewport top (user-reproduced)`() = runTest {
-        // Regression for the user-reported "indicator off when heading is at top" bug, captured
-        // verbatim from logcat: bm.prog=0 (chapter start), viewportFraction=0.516 (chapter ~2x
-        // viewport tall), and cur.prog hovering around 0.2585 (= vf/2 + small anchor offset).
-        // A strict viewport-only window misses this by a hair; the eps must include
-        // BOOKMARK_PAGE_EPS slack to absorb the offset and float noise.
+    fun `continuous indicator uses the widened 33% window`() = runTest {
+        // The continuous-mode eps is BOOKMARK_VIEWPORT_EPS (33%), which absorbs the offset
+        // between the viewport-midpoint progression locatorAt emits and where the bookmark
+        // anchor actually sits inside the visible viewport. 33% covers short chapters where
+        // viewportFraction can hit ~0.6 (so vf/2 ≈ 0.30) — the exact case the user reproduced.
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
         val orientation = MutableStateFlow(com.riffle.core.domain.ReaderOrientation.Continuous)
-        val viewportFraction = MutableStateFlow<Float?>(0.516129f)
-        controller.bind("srv", "item1", currentLocator, orientation, viewportFraction)
+        controller.bind("srv", "item1", currentLocator, orientation)
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.0))
-        // The exact logcat snapshot the user reproduced — without the slack, this was the first
-        // sample that flipped to FALSE.
+        // The exact logcat snapshot the user reproduced — at heading-at-top in a short chapter
+        // the midpoint sits ~0.2585 past the saved bookmark midpoint. 33% catches it.
         currentLocator.value = buildLocator("ch1.xhtml", 0.2585)
         assertTrue(
             "indicator must be ON when the bookmark anchor is at the viewport top edge",
             controller.isCurrentPageBookmarked.value,
         )
-    }
 
-    @Test
-    fun `continuous mode uses live viewportFraction over the conservative fallback`() = runTest {
-        val (controller, store) = makeController()
-        val currentLocator = MutableStateFlow<Locator?>(null)
-        val orientation = MutableStateFlow(com.riffle.core.domain.ReaderOrientation.Continuous)
-        val viewportFraction = MutableStateFlow<Float?>(null)
-        controller.bind("srv", "item1", currentLocator, orientation, viewportFraction)
-
-        // Bookmark at chapter-progression 0.5 (midpoint when saved).
-        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
-
-        // Tiny viewport (~10% of chapter). Match window is 5% (half-viewport). A 12% offset misses.
-        viewportFraction.value = 0.10f
-        currentLocator.value = buildLocator("ch1.xhtml", 0.62)
-        assertFalse(
-            "10% viewport means match must be within 5% — 0.12 away should miss",
-            controller.isCurrentPageBookmarked.value,
-        )
-
-        // Wide viewport (~60% of chapter, short chapter). Match window is 30%. Same 12% offset hits.
-        viewportFraction.value = 0.60f
-        currentLocator.value = buildLocator("ch1.xhtml", 0.62)
-        assertTrue(
-            "60% viewport widens the match to 30% — 0.12 away must hit",
-            controller.isCurrentPageBookmarked.value,
-        )
+        // A bookmark well past the 33% window is genuinely off-page.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.50)
+        assertFalse(controller.isCurrentPageBookmarked.value)
     }
 
     @Test

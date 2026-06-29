@@ -1202,7 +1202,7 @@ class BookmarkIndicatorTest {
     ): Boolean {
         if (href == null) return false
         val hrefNorm = normalizeEpubHref(href)
-        val eps = if (continuous) 0.25 else 0.05
+        val eps = if (continuous) 0.33 else 0.05
         return positions.any { bm ->
             bm.chapterHref == hrefNorm &&
                 (progression == null || kotlin.math.abs(bm.progression - progression) <= eps)
@@ -1293,9 +1293,9 @@ class BookmarkIndicatorTest {
 
     @Test
     fun `continuous-mode widened eps still rejects bookmarks outside a viewport`() {
-        // A bookmark a full chapter-quarter away from the current midpoint is genuinely off-page;
-        // the widened eps shouldn't be so wide that adjacent bookmarks light spuriously.
+        // A bookmark well past the 33% window is genuinely off-page; the widened eps shouldn't be
+        // so wide that adjacent bookmarks light spuriously.
         val bm = BookmarkPosition("id", "ch1.xhtml", 0.10)
-        assertFalse(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.70f, continuous = true))
+        assertFalse(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.50f, continuous = true))
     }
 }

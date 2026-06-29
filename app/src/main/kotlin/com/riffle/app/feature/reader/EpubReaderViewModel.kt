@@ -276,21 +276,6 @@ class EpubReaderViewModel @Inject constructor(
     val currentLocatorTotalProgression: StateFlow<Float?> = position.currentLocatorTotalProgression
     val latestLocator: Locator? get() = position.snapshotLastLocator()
 
-    /**
-     * Continuous-mode viewport size as a fraction of the active chapter slot's pixel height. Used
-     * by [BookmarksController] to size its match window: in continuous mode the locator emits the
-     * viewport-midpoint progression, so the bookmark anchor falls inside the visible viewport iff
-     * `|bookmark.progression - midpoint| < viewportFraction/2`. The screen forwards every scroll
-     * update from [ContinuousReaderView.onViewportFraction] here. `null` in paginated and vertical
-     * modes (the BookmarksController falls back to a tight content-top eps there).
-     */
-    private val _continuousViewportFraction = MutableStateFlow<Float?>(null)
-    val continuousViewportFraction: StateFlow<Float?> = _continuousViewportFraction
-
-    fun onContinuousViewportFraction(fraction: Float) {
-        _continuousViewportFraction.value = fraction
-    }
-
     // -----------------------------------------------------------------------------------------
 
     private var publication: Publication? = null
@@ -703,7 +688,6 @@ class EpubReaderViewModel @Inject constructor(
                         currentOrientation = formatting.formattingPreferences
                             .map { it.orientation }
                             .stateIn(viewModelScope, SharingStarted.Eagerly, formatting.formattingPreferences.value.orientation),
-                        continuousViewportFraction = continuousViewportFraction,
                     )
                     // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
                     // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
