@@ -36,27 +36,15 @@
 | 1521, 2271   | Vertical boundary polling (`atForwardBoundary`) | 5 |
 | 632, 1840–1858, 1934, 2012, 2053, 2174 | UI lifecycle (cover frame, fragment recreate, paged-only chrome) | 6 (audit) |
 
+## Recalibration
+
+After reading the code: `ReaderPresenter` (139 lines, `internal`) already exists with both adapters wired (`ReadiumPresenter`, `ContinuousPresenter`). The original "introduce a `ReaderModeStrategy` interface" framing was based on an outdated survey. Slice 1 ("unify presenter handle") was dropped because the two concrete handles remain justified by their use sites until slices 2–5 narrow them.
+
+Issue #320 has been updated with this discovery.
+
 ## Slice plan
 
 Each slice is one commit and is independently mergeable. The PR aggregates them.
-
----
-
-### Slice 1 — Unify decoration application + presenter handle
-
-**Files:**
-- Modify: `app/.../reader/presenter/ReaderPresenter.kt` — add `suspend fun applyDecorations(decorations: List<Any>, group: String)` and `fun attachmentStamp(): Any?` to the interface. (Use `Any` for decorations to avoid leaking Readium types; concrete presenters narrow internally.)
-- Modify: `app/.../reader/presenter/ContinuousPresenter.kt` — implement `applyDecorations` as no-op (continuous has its own pipeline) and `attachmentStamp` returning the view ref.
-- Modify: `app/.../reader/presenter/ReadiumPresenter.kt` — already has both; promote signatures to override.
-- Modify: `app/.../reader/HighlightRenderer.kt` (and Continuous variant) if needed so it depends on `ReaderPresenter`, not `ReadiumPresenter`.
-- Modify: `app/.../reader/EpubReaderScreen.kt:1107–1131` — fold the two presenter `remember{}` blocks into one `presenter: ReaderPresenter` chosen by `if (isContinuous)`. Pass `presenter` (not the concrete type) to the highlight-renderer factory.
-
-**Acceptance:**
-- Only one `remember { isContinuous? ... : ... }` site for the presenter selection itself.
-- Existing JVM tests `ReadiumPresenterTest` / `ContinuousPresenterTest` (if present) stay green; add a new test asserting `applyDecorations` is no-op on continuous.
-- App boots; opening a book in each of the three modes shows highlights as before.
-
-**Commit:** `refactor(reader): hold a single ReaderPresenter handle in EpubReaderScreen`
 
 ---
 
