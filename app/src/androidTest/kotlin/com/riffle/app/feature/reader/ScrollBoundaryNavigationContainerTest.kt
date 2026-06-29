@@ -238,6 +238,54 @@ class ScrollBoundaryNavigationContainerTest {
         assertFalse(invoked)
     }
 
+    @Test
+    fun leftwardSwipeAtForwardBoundaryDoesNotArmPull() {
+        // Regression: a leftward swipe at a forward boundary with per-MOVE y jitter that
+        // exceeds MOVEMENT_SLOP_PX (real fingers, especially on a phone, never produce a
+        // perfectly horizontal trace) must not arm the pull. Gating on |totalDx| > |totalDy|
+        // since ACTION_DOWN prevents this — only predominantly-vertical gestures arm.
+        var navigated = false
+        var pillShown = false
+        val c = container(atForwardBoundary = true)
+        c.onNavigateForward = { navigated = true }
+        c.onPullStarted = { pillShown = true }
+        // 600 px leftward, 30 px cumulative upward (1.5 px per step would pass slop=2; use 3 px
+        // to be unambiguously above slop). dx (600) >>> dy (60) → gate must suppress.
+        val perMoveDx = 30f
+        val perMoveDy = 3f
+        val steps = 20
+        onMain { dispatchDown(c, 700f, 1000f) }
+        for (i in 1..steps) {
+            Thread.sleep(50)
+            onMain { dispatchMove(c, 700f - i * perMoveDx, 1000f - i * perMoveDy) }
+        }
+        onMain { dispatchUp(c, 700f - steps * perMoveDx, 1000f - steps * perMoveDy) }
+        onMain {}
+        assertFalse(pillShown)
+        assertFalse(navigated)
+    }
+
+    @Test
+    fun rightwardSwipeAtBackwardBoundaryDoesNotArmPull() {
+        var navigated = false
+        var pillShown = false
+        val c = container(atBackwardBoundary = true)
+        c.onNavigateBackward = { navigated = true }
+        c.onPullStarted = { pillShown = true }
+        val perMoveDx = 30f
+        val perMoveDy = 3f
+        val steps = 20
+        onMain { dispatchDown(c, 100f, 200f) }
+        for (i in 1..steps) {
+            Thread.sleep(50)
+            onMain { dispatchMove(c, 100f + i * perMoveDx, 200f + i * perMoveDy) }
+        }
+        onMain { dispatchUp(c, 100f + steps * perMoveDx, 200f + steps * perMoveDy) }
+        onMain {}
+        assertFalse(pillShown)
+        assertFalse(navigated)
+    }
+
     // -- Chapter-nav suppression on ACTION_UP --
     //
     // The container lets MOVE events pass through to the WebView so vertical scrolling and
