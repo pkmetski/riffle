@@ -1128,7 +1128,14 @@ private fun EpubNavigatorView(
     // Mode-agnostic seam handle: one of the two concrete presenters is non-null for any given mode.
     // Use this for any call that only depends on [ReaderPresenter]'s abstract surface. Use the
     // concrete refs only where the screen still drives Readium/continuous-specific commands.
-    val readerPresenter: ReaderPresenter = readiumPresenter ?: continuousPresenter!!
+    //
+    // The `!!` is justified by construction: both `remember` blocks above key on the same
+    // `isContinuous` and emit one non-null value (continuous when true, Readium when false). Any
+    // future third mode must update this derivation to stay non-null — `requireNotNull` would
+    // surface the regression as a clear message instead of a generic NPE.
+    val readerPresenter: ReaderPresenter = requireNotNull(readiumPresenter ?: continuousPresenter) {
+        "ReaderPresenter must be non-null: both concrete adapters were null for isContinuous=$isContinuous"
+    }
     DisposableEffect(readiumPresenter, continuousPresenter) {
         onDispose {
             readiumPresenter?.detach()

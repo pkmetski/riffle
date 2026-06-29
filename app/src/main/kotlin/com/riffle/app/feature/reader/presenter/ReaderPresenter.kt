@@ -201,9 +201,24 @@ internal sealed class AnnotationTapEvent {
  *   Readium-go animation control).
  */
 internal data class NavigationOptions(
+    /** Readium-only. Run [ColumnSnap.goAndSnap] after `go()` to round the page to the column grid. */
     val snap: Boolean = true,
+    /**
+     * Readium-only. When the target locator carries no DOM anchor (no `#fragment`), `true` lands
+     * at the chapter top; `false` honours the locator's progression. Ignored in continuous mode
+     * (continuous always honours the explicit progression).
+     */
     val landAtStartWhenNoTarget: Boolean = true,
+    /**
+     * Readium-only. Whether the page-turn animates. Only consulted on the non-snap branch — the
+     * snap branch's animation is owned by [ColumnSnap.goAndSnap].
+     */
     val animated: Boolean = true,
+    /**
+     * Continuous-only. `true` for content-top-relative progressions (CFI-derived bookmarks);
+     * `false` for viewport-midpoint progressions (the inverse [locatorAt] uses). Ignored by
+     * Readium (it handles column alignment internally).
+     */
     val alignToTop: Boolean = false,
 )
 

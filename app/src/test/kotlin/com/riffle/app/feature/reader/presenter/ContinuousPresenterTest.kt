@@ -106,6 +106,33 @@ class ContinuousPresenterTest {
     }
 
     @Test
+    fun `NavigationOptions defaults match the documented tap-from-TOC intent`() {
+        // Guard against silent default drift: every screen call site explicitly overrides
+        // landAtStartWhenNoTarget=false for resume/return/search/annotation nav, so a regression
+        // that flips a default would change behaviour for any future caller that takes them.
+        val defaults = NavigationOptions()
+        assertEquals(true, defaults.snap)
+        assertEquals(true, defaults.landAtStartWhenNoTarget)
+        assertEquals(true, defaults.animated)
+        assertEquals(false, defaults.alignToTop)
+    }
+
+    @Test
+    fun `navigateTo ToLocatorJson honours alignToTop from options`() = runTest {
+        val presenter = ContinuousPresenter()
+        val view = FakeView()
+        presenter.attach(view)
+
+        presenter.navigateTo(
+            NavigationTarget.ToLocatorJson("""{"href":"ch07.xhtml","locations":{"progression":0.5}}"""),
+            NavigationOptions(alignToTop = true),
+        )
+
+        assertEquals(1, view.navCalls.size)
+        assertEquals(true, view.navCalls[0].alignToTop)
+    }
+
+    @Test
     fun `pageBy forwards direction to scrollByPage`() = runTest {
         val presenter = ContinuousPresenter()
         val view = FakeView()
