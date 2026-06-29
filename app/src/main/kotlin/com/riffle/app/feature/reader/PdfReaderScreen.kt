@@ -13,7 +13,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -62,7 +61,6 @@ import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFactory
 import org.readium.adapter.pdfium.navigator.PdfiumNavigatorFragment
 import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
-import org.readium.r2.navigator.util.DirectionalNavigationAdapter
 import org.readium.r2.shared.publication.Locator
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,7 +144,6 @@ fun PdfReaderScreen(
                     )
                 }
                 is ReaderState.Ready -> {
-                    val pdfViewHolder = remember { mutableStateOf<com.github.barteksc.pdfviewer.PDFView?>(null) }
                     PdfNavigatorView(
                         state = s,
                         onPageChanged = { locator ->
@@ -157,7 +154,6 @@ fun PdfReaderScreen(
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         latestLocator = { viewModel.latestLocator },
-                        onPdfViewReady = { pdfViewHolder.value = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -168,19 +164,6 @@ fun PdfReaderScreen(
                                     append(if (keepScreenOn) "on" else "off")
                                 }
                             },
-                    )
-
-                    // Selection overlay — owns tap (chrome toggle) AND
-                    // long-press (highlight) for the PDF area. Sits above
-                    // PdfiumNavigatorFragment so it receives taps before
-                    // Readium's InputListener. Scroll / zoom drags pass
-                    // through to PDFView unchanged (detectTapGestures only
-                    // intercepts short taps and long-presses).
-                    PdfSelectionOverlay(
-                        viewModel = viewModel,
-                        getPdfView = { pdfViewHolder.value },
-                        onSingleTap = immersiveState::toggle,
-                        modifier = Modifier.fillMaxSize(),
                     )
 
                     if (tocVisible) {
@@ -263,17 +246,15 @@ fun PdfReaderScreen(
         }
 
         // Chapter navigation rail along the bottom of the reader. Reuses the EPUB rail
-        // visual — same Composable, fed by the PDF-side rail-segment generator. The rail
-        // sits at the bottom (above the nav bar) and is only present in the Ready state.
-        // navigationBarsPadding() lifts it above the system-nav inset so it isn't
-        // hidden behind the nav bar on devices with gesture-nav or 3-button-nav.
+        // visual — same Composable, fed by the PDF-side rail-segment generator. Anchored
+        // to the absolute screen bottom so the system nav bar overlays it without shifting
+        // it up; this keeps the rail stationary as immersive mode toggles (matches EPUB).
         if (state is ReaderState.Ready) {
             PdfChapterRailOverlay(
                 viewModel = viewModel,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
+                    .fillMaxWidth(),
             )
         }
     }
@@ -305,17 +286,6 @@ private fun PdfChapterRailOverlay(
     )
 }
 
-/** Recursively walks a view tree looking for a barteksc PDFView instance. */
-private fun findPdfView(view: View): com.github.barteksc.pdfviewer.PDFView? {
-    if (view is com.github.barteksc.pdfviewer.PDFView) return view
-    if (view is android.view.ViewGroup) {
-        for (i in 0 until view.childCount) {
-            findPdfView(view.getChildAt(i))?.let { return it }
-        }
-    }
-    return null
-}
-
 @Composable
 private fun PdfNavigatorView(
     state: ReaderState.Ready,
@@ -324,7 +294,6 @@ private fun PdfNavigatorView(
     serverLocatorEvents: Flow<Locator>,
     volumeNavEvents: Flow<VolumeNavEvent>,
     latestLocator: () -> Locator?,
-    onPdfViewReady: (com.github.barteksc.pdfviewer.PDFView) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -422,31 +391,12 @@ private fun PdfNavigatorView(
                 val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
                 fragmentRef.value = fragment
-                // DirectionalNavigationAdapter handles edge taps for page navigation;
-                // tapListener (registered after) receives only center taps that DA doesn't consume.
-                fragment.addInputListener(
-                    DirectionalNavigationAdapter(
-                        navigator = fragment,
-                        handleTapsWhileScrolling = true,
-                    )
-                )
+                // Page advancement is via drag (PDFView's native swipe-page-turn),
+                // matching paginated EPUB. Edge-tap navigation is intentionally
+                // not wired — taps only toggle the reader chrome.
                 fragment.addInputListener(tapListener)
                 coroutineScope.launch {
                     fragment.currentLocator.collect { locator -> onPageChanged(locator) }
-                }
-                // Wait for the fragment view to attach, then locate the
-                // PDFView inside it and hand it up to the selection overlay.
-                // PdfiumNavigatorFragment inflates a single PDFView into a
-                // FrameLayout root; we walk the view tree to find it
-                // (no public accessor exists).
-                coroutineScope.launch {
-                    repeat(20) {
-                        val root = fragment.view
-                        if (root != null) {
-                            findPdfView(root)?.let { onPdfViewReady(it); return@launch }
-                        }
-                        kotlinx.coroutines.delay(50)
-                    }
                 }
             }
         },

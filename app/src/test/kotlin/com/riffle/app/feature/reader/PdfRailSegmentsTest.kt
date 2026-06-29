@@ -133,6 +133,29 @@ class PdfRailSegmentsTest {
     }
 
     @Test
+    fun `rail cursor on early page of a short opening chapter stays near rail start`() {
+        // Regression: the PDF rail used to feed the within-segment fraction directly to
+        // ChapterNavigationRail.cursorPosition (which expects 0..1 over the WHOLE rail). That
+        // made page 4 of a short opening chapter render the cursor ~80% across the entire bar.
+        // The cursor must reflect global book progress (here ~4/300 ≈ 1.3%).
+        val toc = listOf(
+            PdfTocEntry("Preface", 0),
+            PdfTocEntry("Ch 1", 5),
+            PdfTocEntry("Ch 2", 50),
+            PdfTocEntry("Ch 3", 150),
+        )
+        val segs = buildPdfRailSegments(toc, totalPages = 300)
+        val zeroPage = 3
+        val active = findActivePdfSegmentIndex(segs, zeroPage)
+        val withinSeg = pdfProgressionWithinActiveSegment(
+            segments = segs, activeIndex = active,
+            currentPageIndex = zeroPage, intraPageOffset = 0f, totalPages = 300,
+        )
+        val cursor = weightedRailCursorPosition(active, segs, withinSeg)
+        assertTrue("cursor on page 4 must be near rail start, was $cursor", cursor < 0.05f)
+    }
+
+    @Test
     fun `pdfProgressionWithinActiveSegment defends against out-of-range inputs`() {
         val segs = buildPdfRailSegments(
             listOf(PdfTocEntry("A", 0), PdfTocEntry("B", 10)),

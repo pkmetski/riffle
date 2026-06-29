@@ -3,6 +3,7 @@ package com.riffle.app.harness
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -81,10 +82,12 @@ class PdfHarnessTest {
         composeTestRule.assertNoErrorState()
         composeTestRule.waitUntilPdfLoaded()
 
+        // Pages advance via horizontal swipe (PDFView's native page-turn),
+        // matching paginated EPUB UX. Edge-tap navigation is intentionally not wired.
         repeat(2) {
             composeTestRule
                 .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                .performTouchInput { click(centerRight) }
+                .performTouchInput { swipeLeft() }
             composeTestRule.waitForIdle()
         }
 
