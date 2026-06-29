@@ -86,7 +86,7 @@ class PositionOrchestrator @AssistedInject constructor(
      * jump's resulting onPositionChanged. That emission persists the CFI but keeps this server
      * timestamp instead of stamping `now`.
      */
-    @Volatile var pendingServerJumpStamp: Long? = null
+    @Volatile private var pendingServerJumpStamp: Long? = null
 
     /**
      * The locator to restore on [onReaderResumed]. Armed in [onReaderClosed] from [lastLocator];

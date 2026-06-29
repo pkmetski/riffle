@@ -270,7 +270,7 @@ class ReadaloudSession @AssistedInject constructor(
     @Volatile internal var quotesBuildStarted = false
 
     // --- Background jobs ---
-    internal var storytellerSyncJob: Job? = null
+    private var storytellerSyncJob: Job? = null
     internal var preWarmTrackJob: Job? = null
 
     // ---- Leaf controls — lifted verbatim from EpubReaderViewModel in sub-task 8.1 ---------------
@@ -813,6 +813,16 @@ class ReadaloudSession @AssistedInject constructor(
         )
     } catch (_: Exception) {
         null
+    }
+
+    /**
+     * Cancel the Storyteller sidecar polling job. Called from the VM's `onReaderClosed` lifecycle
+     * hook (reader backgrounded). The session retains the right to recreate the job on its next
+     * `bind()`. Internal job state stays private to the session.
+     */
+    fun cancelStorytellerSync() {
+        storytellerSyncJob?.cancel()
+        storytellerSyncJob = null
     }
 
     /**

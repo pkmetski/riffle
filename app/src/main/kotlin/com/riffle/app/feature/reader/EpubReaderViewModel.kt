@@ -909,7 +909,7 @@ class EpubReaderViewModel @Inject constructor(
         syncJob?.cancel()
         // Cancel the Storyteller sync loop while the reader is backgrounded; reopening restarts it
         // when the readaloud player is re-opened. Owned by the session; cancel via method.
-        readaloud.storytellerSyncJob?.cancel()
+        readaloud.cancelStorytellerSync()
         // Cancel the annotation live-pull loop while the reader is backgrounded; onReaderResumed() restarts it.
         annotationSession.onReaderClosed()
         // Arm the resume-restore for the next ON_START. The footnote-popup URL-tap path may have
