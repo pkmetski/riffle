@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.session
 
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
 import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
 import com.riffle.app.playback.NowPlayingStore
@@ -56,7 +57,7 @@ class ReadaloudSession @AssistedInject constructor(
      * The park-state setters (on pause/close) need this to record which page they stopped on.
      */
     @Assisted private val snapshotLocator: () -> Locator?,
-    private val playerCoordinator: PlayerCoordinator,
+    private val playerCoordinator: PlayerController,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
     private val streamingSessionFactory: ReadaloudStreamingSessionFactory,
     private val storytellerSyncController: StorytellerPositionSyncController,
