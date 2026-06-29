@@ -26,6 +26,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.app.feature.reader.session.AnnotationSession
 import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
 import com.riffle.core.domain.LibraryRepository
@@ -163,6 +164,7 @@ class EpubReaderViewModel @Inject constructor(
     private val wakeLockControllerFactory: com.riffle.app.feature.reader.controllers.WakeLockController.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
+    private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -187,6 +189,27 @@ class EpubReaderViewModel @Inject constructor(
     // Position orchestrator — owns the canonical reading-position stream and all hot-path state
     // (lastLocator, serverLocatorChannel, pendingServerJumpStamp, suppressNextServerLocator, etc.).
     private val position: PositionOrchestrator = positionOrchestratorFactory.create(viewModelScope)
+
+    // Annotation session — owns highlight/annotation state, panel visibility, navigation channel,
+    // sync lifecycle (syncOnOpen, live-pull loop, syncOnClose). Publication-dependent operations
+    // (createHighlight, toggleBookmark, CFI build, annotationToRender) stay in the VM and are
+    // injected as resolver lambdas at bind() time so the session stays Readium-import-free.
+    private val annotationSession: com.riffle.app.feature.reader.session.AnnotationSession =
+        annotationSessionFactory.create(
+            scope = viewModelScope,
+            startLiveSync = { sid, ns, iid ->
+                annotationSyncController.startLiveSync(sid, ns, iid)
+            },
+            scheduleSync = { sid, ns, iid ->
+                annotationSyncController.scheduleDebounce(sid, ns, iid)
+            },
+            syncOnOpen = { sid, ns, iid ->
+                annotationSyncController.syncOnOpen(sid, ns, iid)
+            },
+            syncOnClose = { sid, ns, iid ->
+                annotationSyncController.syncOnClose(sid, ns, iid)
+            },
+        )
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
@@ -253,10 +276,6 @@ class EpubReaderViewModel @Inject constructor(
     @Volatile private var epubZip: ZipFile? = null
     private val chapterHtmlCache = mutableMapOf<Int, String>()
     private var syncJob: Job? = null
-    // Periodic pull of peer-device annotation files while the reader is foregrounded. Cancelled in
-    // [onReaderClosed] (STARTED gating) and restarted in [onReaderResumed]. The first cycle fires
-    // ~30s after start; the open-time pull is the separate [syncOnOpen] call further below.
-    private var annotationLiveSyncJob: Job? = null
     private var closeSyncDone = false
     // Non-null once a matched book's reconciliation prerequisites are cached: the unified cycle then
     // replaces the single-peer ABS/Storyteller paths. [readerSyncServerId] is the active server
@@ -370,31 +389,32 @@ class EpubReaderViewModel @Inject constructor(
     // backfill /api/me call fails offline — in which case sync is skipped, not broken.
     private var annotationNamespace: String? = null
 
+    // ---- AnnotationSession delegations -------------------------------------------------------
+
     // Highlights exist only while reading the ABS side. False on a Storyteller-only book — the
     // "Highlight" affordance must not appear there (ADR 0024).
-    private val _annotationsAvailable = MutableStateFlow(false)
-    val annotationsAvailable: StateFlow<Boolean> = _annotationsAvailable
+    val annotationsAvailable: StateFlow<Boolean> = annotationSession.annotationsAvailable
 
     /** A persisted highlight reconstructed into a renderable Readium locator + colour token + optional note. */
     data class HighlightRender(val id: String, val locator: Locator, val color: String, val note: String?)
 
-    private val _highlightRenders = MutableStateFlow<List<HighlightRender>>(emptyList())
-    val highlightRenders: StateFlow<List<HighlightRender>> = _highlightRenders
+    val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
 
     data class HighlightEditTarget(val id: String, val anchorRect: IntRect, val noteOnly: Boolean = false)
 
-    private val _highlightToEdit = MutableStateFlow<HighlightEditTarget?>(null)
     /** Highlight whose actions popup should be open (just-created or tapped), else null. */
-    val highlightToEdit: StateFlow<HighlightEditTarget?> = _highlightToEdit
+    val highlightToEdit: StateFlow<HighlightEditTarget?> = annotationSession.highlightToEdit
 
-    fun openHighlightActions(id: String, anchorRect: IntRect) {
-        _highlightToEdit.value = HighlightEditTarget(id, anchorRect)
-    }
+    fun openHighlightActions(id: String, anchorRect: IntRect) =
+        annotationSession.openHighlightActions(id, anchorRect)
+
     /** Opens the popup in note-only read mode (no colour pickers, no delete). Used by the margin glyph. */
-    fun openNoteReader(id: String, anchorRect: IntRect) {
-        _highlightToEdit.value = HighlightEditTarget(id, anchorRect, noteOnly = true)
-    }
-    fun dismissHighlightActions() { _highlightToEdit.value = null }
+    fun openNoteReader(id: String, anchorRect: IntRect) =
+        annotationSession.openNoteReader(id, anchorRect)
+
+    fun dismissHighlightActions() = annotationSession.dismissHighlightActions()
+
+    // -----------------------------------------------------------------------------------------
 
     private val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
@@ -641,8 +661,6 @@ class EpubReaderViewModel @Inject constructor(
             // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
             if (!isStorytellerServer && activeServer != null) {
                 annotationServerId = activeServer.id
-                _annotationsAvailable.value = true
-                observeHighlights(activeServer.id)
                 // Bind the bookmarks controller so it can observe bookmarks and track the current
                 // locator for page-bookmark detection.
                 bookmarks.bind(
@@ -650,23 +668,24 @@ class EpubReaderViewModel @Inject constructor(
                     itemId = itemId,
                     currentLocator = position.currentLocator,
                 )
-                observeAnnotationsForPanel(activeServer.id)
                 // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
                 // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
                 // means we can't sync this session (offline or non-ABS or backfill failed) — the
                 // local DB stays as the source of truth and sync resumes on the next open.
                 val namespace = serverRepository.ensureAbsUserId(activeServer.id)
                 annotationNamespace = namespace
-                if (namespace != null) {
-                    // Pull other devices' annotations from WebDAV (no-op if sync isn't configured).
-                    annotationSyncController.syncOnOpen(activeServer.id, namespace, itemId)
-                    // Then arm the live-pull loop so peer annotations appear within ~30s while the
-                    // reader stays open. Lifecycle gating is handled by [onReaderClosed] cancelling
-                    // and [onReaderResumed] restarting this job.
-                    annotationLiveSyncJob?.cancel()
-                    annotationLiveSyncJob = annotationSyncController
-                        .startLiveSync(activeServer.id, namespace, itemId)
-                }
+                // Bind the annotation session: starts observation, syncOnOpen, and live-pull loop.
+                // Observation always starts (shows local highlights). A blank namespace means the
+                // ABS user id wasn't resolved this session — syncOnOpen/scheduleSync/startLiveSync
+                // lambdas delegate to AnnotationSyncController which self-guards via targetProvider.
+                annotationSession.bind(
+                    serverId = activeServer.id,
+                    namespace = namespace ?: "",
+                    itemId = itemId,
+                    currentLocator = position.currentLocator,
+                    highlightRenderResolver = { a -> annotationToRender(a) },
+                    cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
+                )
             }
         }
         // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
@@ -782,7 +801,7 @@ class EpubReaderViewModel @Inject constructor(
                 // Vertical mode is also excluded — initialLocator already lands correctly without a
                 // snap, and a redundant fragment.go() would only add a same-place re-positioning.
                 if (openAtLocator != null && formatting.effectiveFormattingPreferences.value.orientation == ReaderOrientation.Horizontal) {
-                    _annotationNavigationChannel.trySend(openAtLocator)
+                    annotationSession.emitAnnotationNavigation(openAtLocator)
                 }
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
@@ -1063,14 +1082,8 @@ class EpubReaderViewModel @Inject constructor(
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             startPeriodicSync()
-            // Re-arm the per-book annotation pull alongside position sync. Same identity the
-            // open-time syncOnOpen used; null namespace means sync isn't configured this session.
-            val sid = annotationServerId
-            val ns = annotationNamespace
-            if (sid != null && ns != null) {
-                annotationLiveSyncJob?.cancel()
-                annotationLiveSyncJob = annotationSyncController.startLiveSync(sid, ns, itemId)
-            }
+            // Re-arm the per-book annotation live-pull loop alongside position sync.
+            annotationSession.onReaderResumed()
         }
         // Restore the reading position after returning from background. Readium's WebView (all three
         // modes) consistently resets to the chapter top across the backgrounding round-trip —
@@ -1091,8 +1104,6 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
         syncJob?.cancel()
-        annotationLiveSyncJob?.cancel()
-        annotationLiveSyncJob = null
         storytellerSyncJob?.cancel()
         // Arm the resume-restore for the next ON_START. The footnote-popup URL-tap path may have
         // pre-armed this with the pre-popup origin (see captureFootnotePopupLinkOrigin); don't
@@ -1195,33 +1206,6 @@ class EpubReaderViewModel @Inject constructor(
 
     // ---- Annotations -------------------------------------------------------------------------
 
-    // Keeps highlightRenders in sync with the store. Re-runs when the book finishes opening
-    // (state → Ready) so persisted highlights re-render on reopen, and whenever the set changes.
-    private fun observeHighlights(serverId: String) {
-        viewModelScope.launch {
-            combine(
-                annotationStore.observeHighlights(serverId, itemId),
-                state,
-            ) { annotations, st -> annotations to (st is ReaderState.Ready) }
-                .collect { (annotations, ready) ->
-                    _highlightRenders.value =
-                        if (!ready) emptyList() else annotations.mapNotNull { annotationToRender(it) }
-                }
-        }
-    }
-
-    private fun observeAnnotationsForPanel(serverId: String) {
-        viewModelScope.launch {
-            combine(
-                annotationStore.observeAnnotations(serverId, itemId),
-                state,
-            ) { list, st -> list to (st is ReaderState.Ready) }
-                .collect { (list, ready) ->
-                    _annotations.value = if (!ready) emptyList() else list
-                }
-        }
-    }
-
     // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
     // Any existing highlights in the same chapter that overlap the new selection are deleted first —
@@ -1242,7 +1226,7 @@ class EpubReaderViewModel @Inject constructor(
 
             // Delete existing highlights in the same chapter that the new selection covers.
             val newAfter = selectionLocator.text.after ?: ""
-            _highlightRenders.value
+            annotationSession.highlightRenders.value
                 .filter { normalizeEpubHref(it.locator.href.toString()) == normalizeEpubHref(href) }
                 .forEach { render ->
                     val existSnippet = render.locator.text.highlight ?: return@forEach
@@ -1321,65 +1305,47 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    /** Recolour an existing highlight; observeHighlights re-emits → decoration re-applies. */
+    /** Recolour an existing highlight; annotationStore re-emits → decoration re-applies. */
     fun recolorHighlight(id: String, color: HighlightColor) {
-        viewModelScope.launch {
-            annotationStore.recolor(id, color.token)
-            scheduleAnnotationSync()
-        }
+        viewModelScope.launch { annotationSession.recolorHighlight(id, color) }
     }
 
-    /** Soft-delete a highlight; observeHighlights re-emits without it → decoration is removed. */
+    /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed. */
     fun deleteHighlight(id: String) {
-        viewModelScope.launch {
-            annotationStore.delete(id)
-            scheduleAnnotationSync()
-            if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
-        }
-    }
-
-    /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when
-     *  sync is not configured or the ABS namespace hasn't been resolved (Storyteller-only, offline
-     *  backfill failure). [annotationServerId] and [annotationNamespace] are set together on book
-     *  open, so checking the namespace also guarantees the serverId is present. */
-    private fun scheduleAnnotationSync() {
-        val sid = annotationServerId ?: return
-        val ns = annotationNamespace ?: return
-        annotationSyncController.scheduleDebounce(sid, ns, itemId)
+        viewModelScope.launch { annotationSession.deleteHighlight(id) }
     }
 
     /** Navigate the reader to the annotation with [id], then close the annotations panel. */
-    fun navigateToAnnotation(id: String) {
-        viewModelScope.launch {
-            val annotation = _annotations.value.firstOrNull { it.id == id } ?: return@launch
-            val locator = cfiStringToLocator(annotation.cfi) ?: return@launch
-            _annotationNavigationChannel.trySend(locator)
-            _annotationsPanelVisible.value = false
-        }
-    }
+    fun navigateToAnnotation(id: String) = annotationSession.navigateToAnnotation(id)
 
     /** Rename a bookmark; delegates to BookmarksController which calls scheduleAnnotationSync. */
     fun renameBookmark(id: String, title: String) = bookmarks.renameBookmark(id, title)
 
     /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
     fun deleteAnnotation(id: String) {
-        viewModelScope.launch {
-            annotationStore.delete(id)
-            scheduleAnnotationSync()
-            if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
-        }
+        viewModelScope.launch { annotationSession.deleteAnnotation(id) }
     }
 
     /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
     fun updateHighlightNote(id: String, note: String?) {
-        viewModelScope.launch {
-            annotationStore.updateNote(id, note?.takeIf { it.isNotBlank() })
-            scheduleAnnotationSync()
-        }
+        viewModelScope.launch { annotationSession.updateHighlightNote(id, note) }
+    }
+
+    /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when
+     *  sync is not configured or the ABS namespace hasn't been resolved (Storyteller-only, offline
+     *  backfill failure). [annotationServerId] and [annotationNamespace] are set together on book
+     *  open, so checking the namespace also guarantees the serverId is present.
+     *
+     *  Still needed by createHighlight and toggleBookmark which are publication-dependent and stay in VM. */
+    private fun scheduleAnnotationSync() {
+        val sid = annotationServerId ?: return
+        val ns = annotationNamespace ?: return
+        annotationSyncController.scheduleDebounce(sid, ns, itemId)
     }
 
     // Reconstruct a persisted highlight into a renderable Readium locator. The CFI start re-anchors
     // the within-chapter position; the text snippet lets Readium's decorator locate the range.
+    // Called as the highlightRenderResolver injected into annotationSession.bind().
     private suspend fun annotationToRender(a: Annotation): HighlightRender? {
         val pub = publication ?: return null
         val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return null
@@ -1428,17 +1394,10 @@ class EpubReaderViewModel @Inject constructor(
         // Stop any in-flight Auto-Scroll so the next book open starts idle, not auto-scrolling
         // mid-session into someone else's text.
         formatting.onBookClosed()
-        // Push any pending annotation edits to the WebDAV sync target (#76). Use progressFlushScope
-        // so the PATCH survives viewModelScope cancellation at teardown. Skip when the namespace
-        // wasn't resolved this session — there's nowhere to push to. Use [annotationServerId] for
-        // symmetry with the syncOnOpen call at book-open: same identity on both ends of the
-        // bracket means the controller's debounce key (serverId, itemId) matches and any pending
-        // scheduled push is cancelled rather than racing the explicit close-flush.
-        val sidForSync = annotationServerId
-        val nsForSync = annotationNamespace
-        if (sidForSync != null && nsForSync != null) {
-            progressFlushScope.flush { annotationSyncController.syncOnClose(sidForSync, nsForSync, itemId) }
-        }
+        // Push any pending annotation edits to the WebDAV sync target (#76). Delegated to
+        // annotationSession which uses progressFlushScope so the PATCH survives viewModelScope
+        // cancellation at teardown.
+        annotationSession.onBookClosed()
         // Release this book to the durable sweep again (ADR 0030).
         readerServerId?.let { sid ->
             openReconcileTargets.markClosed(sid, itemId)
@@ -1466,30 +1425,25 @@ class EpubReaderViewModel @Inject constructor(
     val tocVisible: StateFlow<Boolean> = _tocVisible
 
     fun openToc() {
-        _annotationsPanelVisible.value = false
+        annotationSession.closeAnnotationsPanel()
         _tocVisible.value = true
     }
     fun closeToc() { _tocVisible.value = false }
 
-    private val _annotationsPanelVisible = MutableStateFlow(false)
-    val annotationsPanelVisible: StateFlow<Boolean> = _annotationsPanelVisible
+    val annotationsPanelVisible: StateFlow<Boolean> = annotationSession.annotationsPanelVisible
 
-    private val _annotations = MutableStateFlow<List<com.riffle.core.domain.Annotation>>(emptyList())
-    val annotations: StateFlow<List<com.riffle.core.domain.Annotation>> = _annotations
+    val annotations: StateFlow<List<com.riffle.core.domain.Annotation>> = annotationSession.annotations
 
-    // CONFLATED is intentional: navigateToAnnotation closes the panel before sending, so a second
-    // navigation tap cannot occur before the first is consumed. If that ever changes, switch to BUFFERED.
-    private val _annotationNavigationChannel = Channel<Locator>(Channel.CONFLATED)
-    val annotationNavigationEvents: Flow<Locator> = _annotationNavigationChannel.receiveAsFlow()
+    val annotationNavigationEvents: Flow<Locator> = annotationSession.annotationNavigationEvents
+
+    val syncBanner = annotationSession.syncBanner
 
     fun openAnnotationsPanel() {
         _tocVisible.value = false
-        _annotationsPanelVisible.value = true
+        annotationSession.openAnnotationsPanel()
     }
 
-    fun closeAnnotationsPanel() {
-        _annotationsPanelVisible.value = false
-    }
+    fun closeAnnotationsPanel() = annotationSession.closeAnnotationsPanel()
 
     val tocEntries: StateFlow<List<TocEntry>> = state
         .map { (it as? ReaderState.Ready)?.publication?.tableOfContents?.toTocEntries() ?: emptyList() }
