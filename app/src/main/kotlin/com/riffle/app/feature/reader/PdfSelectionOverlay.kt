@@ -20,8 +20,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.withTimeout
 import com.github.barteksc.pdfviewer.PDFView
 import com.riffle.core.domain.HighlightColor
 import kotlinx.coroutines.CoroutineScope
@@ -125,21 +129,63 @@ fun PdfSelectionOverlay(
                     // so we forward tap → onSingleTap (chrome toggle). Drags
                     // (scroll/zoom) don't fire any of these callbacks; those
                     // events propagate through to PDFView normally.
-                    detectTapGestures(
-                        onTap = {
-                            // If a popup is showing, dismiss it on outside-tap
-                            // rather than toggling chrome — matches Android's
-                            // standard "tap outside dismisses popup" pattern.
-                            if (viewModel.pendingSelection.value != null) {
-                                viewModel.discardPendingSelection()
-                            } else {
-                                onSingleTap()
+                    // Custom long-press detection with a generous slop (24dp)
+                    // because Compose's stock `detectTapGestures` uses
+                    // ViewConfiguration.touchSlop (~8dp) for cancellation —
+                    // tight enough that natural finger jitter during a 500ms
+                    // press often cancels onLongPress before it fires, giving
+                    // the user the experience of "long-press doesn't work."
+                    // We tolerate up to ~24dp of jitter, the same threshold
+                    // Android's stock OnLongClickListener uses internally.
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startPos = down.position
+                        val longPressMs = 500L
+                        val slopPx = 24.dp.toPx()
+                        val slopSqPx = slopPx * slopPx
+                        var movedTooFar = false
+                        var released = false
+                        try {
+                            withTimeout(longPressMs) {
+                                while (true) {
+                                    val ev = awaitPointerEvent()
+                                    val change = ev.changes.firstOrNull { it.id == down.id }
+                                        ?: continue
+                                    if (!change.pressed) {
+                                        released = true
+                                        return@withTimeout
+                                    }
+                                    val dx = change.position.x - startPos.x
+                                    val dy = change.position.y - startPos.y
+                                    if (dx * dx + dy * dy > slopSqPx) {
+                                        movedTooFar = true
+                                        return@withTimeout
+                                    }
+                                }
                             }
-                        },
-                        onLongPress = { offset ->
-                            handleLongPressAt(pdfView, offset.x, offset.y, viewModel)
-                        },
-                    )
+                        } catch (_: PointerEventTimeoutCancellationException) {
+                            // Hit the timeout while still pressed within slop — long press!
+                        }
+                        when {
+                            released -> {
+                                // Short tap.
+                                if (viewModel.pendingSelection.value != null) {
+                                    viewModel.discardPendingSelection()
+                                } else {
+                                    onSingleTap()
+                                }
+                            }
+                            movedTooFar -> {
+                                // User dragged — likely a scroll. Don't fire
+                                // anything; events propagate to PDFView for
+                                // its own scroll handling.
+                            }
+                            else -> {
+                                // 500ms held within slop — fire long-press.
+                                handleLongPressAt(pdfView, startPos.x, startPos.y, viewModel)
+                            }
+                        }
+                    }
                 },
         ) {
             // Touch scrollTick + annotationCount so this scope recomposes

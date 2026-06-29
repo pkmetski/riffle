@@ -170,10 +170,21 @@ class PdfReaderViewModel @Inject constructor(
     /**
      * Try to start a pending selection at the given screen-space tap.
      * Returns true if a word was resolved at the touch; false (and emits
-     * nothing) if the touch missed text — caller can show a no-op or
-     * silently skip. Uses a TIGHT tolerance (PDF user-space points): we
-     * specifically do NOT walk out 40 points to find some distant char —
-     * that produced visually-random highlight placement.
+     * nothing) if the touch missed text.
+     *
+     * Two-stage word resolution to balance hit-rate with placement accuracy:
+     * 1. Try Pdfium's `FPDFText_GetCharIndexAtPos` with a generous tolerance
+     *    (12 PDF points ≈ one line of body text). Misses are rare at this
+     *    width even when the user taps in the space between letters.
+     * 2. **Sanity-check the result.** If a char was found, verify that its
+     *    bounding box is within ~20 PDF points of the touch. The 40-point
+     *    fallback we removed earlier could pick a char anywhere on the
+     *    page when the touch was on whitespace; this verification rejects
+     *    such ghost results so a touch on a figure / equation / margin
+     *    silently does nothing instead of highlighting a random word.
+     *
+     * Tolerance and proximity values are in PDF user-space points. Typical
+     * 12pt body text ≈ 8pt tall × 3–7pt wide per char.
      */
     fun beginPendingSelection(
         pageIndex: Int,
@@ -183,9 +194,32 @@ class PdfReaderViewModel @Inject constructor(
     ): Boolean {
         val (_, textPage) = ensurePagePtrs(pageIndex) ?: return false
         val resolver = PdfTextResolver(PdfiumTextApiSource)
-        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 6.0, tolY = 6.0)
+        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 12.0, tolY = 12.0)
             ?: return false
+        // Proximity check: the resolved word's quads must include a point
+        // within MAX_PROXIMITY of the touch in BOTH axes. Pdfium can return
+        // a charIndex from far away even with a moderate tolerance — for
+        // example if the touch is in a margin or table gutter — and we'd
+        // otherwise highlight that distant word with no visual connection
+        // to the touched position.
         val quads = resolver.quadsForRange(textPage, word)
+        val maxProximity = 20.0
+        val withinProximity = quads.any { q ->
+            val left = minOf(q.left.toDouble(), q.right.toDouble()) - maxProximity
+            val right = maxOf(q.left.toDouble(), q.right.toDouble()) + maxProximity
+            val top = maxOf(q.top.toDouble(), q.bottom.toDouble()) + maxProximity   // PDF Y-up
+            val bottom = minOf(q.top.toDouble(), q.bottom.toDouble()) - maxProximity
+            xPoints in left..right && yPoints in bottom..top
+        }
+        if (!withinProximity) {
+            android.util.Log.i(
+                "RifflePdfSel",
+                "beginPending: rejecting word at " +
+                    "[${word.start.value},${word.endExclusive.value}) — quads too far " +
+                    "from touch (${xPoints},${yPoints})",
+            )
+            return false
+        }
         val snippet = resolver.extractSnippet(textPage, word)
         android.util.Log.i(
             "RifflePdfSel",
