@@ -324,7 +324,7 @@ class AnnotationSessionTest {
         val store = FakeAnnotationStore()
         val syncOps = FakeSyncOps()
         val targetLocator = buildLocator()
-        val anno = fakeAnnotation(id = "b1", type = "bookmark", cfi = "epubcfi(/6/4!/4/2)")
+        val anno = fakeAnnotation(id = "b1", type = com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK, cfi = "epubcfi(/6/4!/4/2)")
         store.allAnnotations.value = listOf(anno)
         val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
 

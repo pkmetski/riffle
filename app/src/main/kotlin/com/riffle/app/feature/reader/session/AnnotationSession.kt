@@ -4,6 +4,7 @@ import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
@@ -286,8 +287,11 @@ class AnnotationSession @AssistedInject constructor(
             val annotation = _annotations.value.firstOrNull { it.id == id } ?: return@launch
             val resolver = cfiLocatorResolverFn ?: return@launch
             val locator = resolver(annotation.cfi) ?: return@launch
+            // Annotation.type uses the database-layer constants from AnnotationEntity. A typo
+            // matching a lowercased literal here silently flipped every annotation to
+            // isBookmark=false, which inverted the continuous-mode landing.
             _annotationNavigationChannel.trySend(
-                AnnotationNavigationEvent(locator, isBookmark = annotation.type == "bookmark"),
+                AnnotationNavigationEvent(locator, isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK),
             )
             _annotationsPanelVisible.value = false
         }
