@@ -548,4 +548,60 @@ class ContinuousPositionTrackerTest {
         assertEquals(3, w.totalChapters)
         assertEquals(1, w.targetWindowIndex)
     }
+
+    // ── anchorLandingScrollY ────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `anchorLandingScrollY with alignToTop places anchor at viewport top`() {
+        // Chapter at scroll y=5000, anchor 300 px into the chapter, 1080-px viewport. A TOC tap
+        // or page-bookmark target should put the anchor flush at scrollY=5300 — the anchor at
+        // viewport top.
+        val y = ContinuousPositionTracker.anchorLandingScrollY(
+            slotTop = 5000,
+            anchorOffsetWithinSlot = 300,
+            viewportHeight = 1080,
+            alignToTop = true,
+        )
+        assertEquals(5300, y)
+    }
+
+    @Test
+    fun `anchorLandingScrollY without alignToTop centres the anchor in the viewport`() {
+        // Same chapter / anchor, but a highlight tap should pull the viewport so the anchor sits
+        // at the midpoint: scrollY = anchorAbsoluteY - viewportHeight/2 = 5300 - 540 = 4760.
+        val y = ContinuousPositionTracker.anchorLandingScrollY(
+            slotTop = 5000,
+            anchorOffsetWithinSlot = 300,
+            viewportHeight = 1080,
+            alignToTop = false,
+        )
+        assertEquals(4760, y)
+    }
+
+    @Test
+    fun `anchorLandingScrollY clamps the midpoint target at scrollY=0 when content is too near the start`() {
+        // Chapter near the book start (slot.top=100), anchor 50 px in. The midpoint target would
+        // be 150 - 540 = -390; the viewport can't scroll above zero, so clamp. The anchor still
+        // lands above the midpoint, just as close as the available space allows.
+        val y = ContinuousPositionTracker.anchorLandingScrollY(
+            slotTop = 100,
+            anchorOffsetWithinSlot = 50,
+            viewportHeight = 1080,
+            alignToTop = false,
+        )
+        assertEquals(0, y)
+    }
+
+    @Test
+    fun `anchorLandingScrollY with alignToTop clamps at scrollY=0 when the anchor is above the viewport`() {
+        // Defensive: a near-zero anchor with alignToTop should still never produce a negative
+        // scrollY. (Both branches share the coerceAtLeast(0) tail; this pins it explicitly.)
+        val y = ContinuousPositionTracker.anchorLandingScrollY(
+            slotTop = 0,
+            anchorOffsetWithinSlot = 0,
+            viewportHeight = 1080,
+            alignToTop = true,
+        )
+        assertEquals(0, y)
+    }
 }

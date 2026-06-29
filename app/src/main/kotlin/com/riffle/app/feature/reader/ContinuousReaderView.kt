@@ -664,18 +664,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                         return@post
                     }
                     val y = when {
-                        // When the anchor (annotation decoration or element-id) resolved, place
-                        // it at the viewport top for alignToTop targets (TOC / page-bookmark) and
-                        // at the viewport midpoint for everything else (highlight / note search
-                        // result). Mirrors the same alignToTop split that scrollToLoadedChapter
-                        // applies — without this branch the openWindowAt path always landed the
-                        // anchor at the very top, leaving search-result highlights glued there.
-                        // The coerceAtLeast(0) clamp keeps near-chapter-start anchors usable
-                        // (the viewport can't scroll above scrollY=0).
-                        offsetWithinTargetPx != null && alignToTop ->
-                            (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
+                        // The anchor (annotation decoration or element-id) resolved — share the
+                        // single landing rule with scrollToLoadedChapter so search-result and
+                        // annotations-list paths agree on where alignToTop places things.
                         offsetWithinTargetPx != null ->
-                            (slot.top + offsetWithinTargetPx - height / 2).coerceAtLeast(0)
+                            ContinuousPositionTracker.anchorLandingScrollY(
+                                slot.top, offsetWithinTargetPx, height, alignToTop,
+                            )
                         alignToTop -> (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                         else -> ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
@@ -841,13 +836,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         if (fragment.isNotEmpty() && wvIndex >= 0) {
             webViews[wvIndex].anchorOffsetTopDevicePx(fragment) { anchorOffset ->
                 val offset = anchorOffset ?: (progression * slot.height).toInt()
-                // alignToTop puts the anchor at the viewport top (chapter-heading / page-bookmark
-                // landing); !alignToTop puts the anchor at the viewport midpoint (highlight / note
-                // landing) — half a viewport up, mirroring what scrollYForProgression does for the
-                // anchorless branch below. Without this branch, every CFI carrying a DOM-element
-                // fragment landed at the top, ignoring alignToTop and gluing highlighted text to
-                // the very top of the viewport with no reading context above it.
-                go(if (alignToTop) slot.top + offset else slot.top + offset - height / 2)
+                go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, offset, height, alignToTop))
             }
         } else {
             // Top-align a chapter start; centre a mid-chapter target (inverse of locatorAt).
