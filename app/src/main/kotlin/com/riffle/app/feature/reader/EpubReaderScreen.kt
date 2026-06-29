@@ -48,6 +48,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
+import com.riffle.app.feature.reader.presenter.NavigationOptions
+import com.riffle.app.feature.reader.presenter.NavigationTarget
 import com.riffle.app.feature.reader.presenter.PageDirection
 import com.riffle.app.feature.reader.presenter.ReadaloudFollowResult
 import com.riffle.app.feature.reader.presenter.ReaderPresenter
@@ -1571,73 +1573,58 @@ private fun EpubNavigatorView(
     // can be off-grid (the "page slightly turned to next" bug on book open). The at-rest backstop
     // [SETTLE_SNAP_INSTALL_JS] doesn't rescue it: it arms on a scroll event, and Readium's programmatic
     // initial landing never fires one.
-    val serverLocatorTarget: NavigationTarget = remember(isContinuous, readiumPresenter) {
-        if (isContinuous) ContinuousNavigationTarget { continuousViewRef.value }
-        else ReadiumNavigationTarget { locator ->
+    // All four nav pipelines below route through the same seam: presenter.navigateTo(target, opts).
+    // The screen owns the cover-and-wait-for-fragment policy because that's UI state (the
+    // `navigating` cover overlay). The seam owns whether snap / animation / vertical-vs-paginated
+    // applies — vertical's snap=true is a no-op since column pagination doesn't apply to scroll
+    // mode, so we don't fork the call sites on orientation.
+
+    /** Wait for the renderer to be ready, then drive the seam under the screen-owned cover. */
+    val navigateWithCover: suspend (NavigationTarget, NavigationOptions, String) -> Unit = nav@{ target, opts, href ->
+        if (!isContinuous) {
+            // Paginated/vertical wait for the EpubNavigatorFragment — same race the TOC handler dodges.
+            // Continuous mode's view is created synchronously on first composition, so no wait needed.
             snapshotFlow { fragmentRef.value }.filterNotNull().first()
-            readiumPresenter?.navigateToLocator(locator, landAtStartWhenNoTarget = false)
         }
-    }
-
-    LaunchedEffect(serverLocatorEvents, isContinuous) {
-        serverLocatorEvents.collect { serverLocatorTarget.navigateTo(it) }
-    }
-
-    // Navigate to a within-chapter [locator] and snap the page to the grid where go() landed
-    // (landAtStartWhenNoTarget=false — don't yank to the chapter top), covering only a cross-resource
-    // trip with the load mask. Shared by the search-hit and return-card routes: both carry an
-    // occurrence/position-specific progression with no #fragment, so the snap must round THAT page to
-    // the grid rather than column 0 (the default), which would lose the hit / the saved position.
-    // Used ONLY for Horizontal (paged) mode; vertical mode uses go() directly without column snapping.
-    val goAndSnapWithCover: suspend (Locator) -> Unit = goAndSnapWithCover@{ locator ->
-        // Wait for the EpubNavigatorFragment to be created — same race the TOC handler dodges
-        // (see [onNavigationEvents] LaunchedEffect's snapshotFlow wait). A `?: return` here would
-        // silently drop the snap when this fires before the fragment is created — which is the
-        // openAtCfi-from-library path: openBook emits the annotation-nav event before the AndroidView
-        // factory has built the fragment, so the column-snap never ran and the page rested off-grid.
-        snapshotFlow { fragmentRef.value }.filterNotNull().first()
-        val cover = locator.href.toString().substringBefore('#') !=
-            currentHrefHolder[0]?.substringBefore('#')
+        val cover = href.substringBefore('#') != currentHrefHolder[0]?.substringBefore('#')
         navigating = cover
         try {
-            readiumPresenter?.navigateToLocator(locator, landAtStartWhenNoTarget = false)
+            readerPresenter.navigateTo(target, opts)
             if (cover) delay(NAV_COVER_SETTLE_MS)
         } finally {
             navigating = false
         }
     }
 
-    // Navigate in vertical (scroll) mode: use Readium's go() without column snapping.
-    // Vertical mode uses native scroll, not column pagination, so the snap call is a no-op there.
-    val goInScrollMode: suspend (Locator) -> Unit = goInScrollMode@{ locator ->
-        // Same wait-for-fragment as [goAndSnapWithCover] above.
-        snapshotFlow { fragmentRef.value }.filterNotNull().first()
-        val cover = locator.href.toString().substringBefore('#') !=
-            currentHrefHolder[0]?.substringBefore('#')
-        navigating = cover
-        try {
-            readiumPresenter?.navigateToLocator(locator, snap = false)
-            if (cover) delay(NAV_COVER_SETTLE_MS)
-        } finally {
-            navigating = false
+    LaunchedEffect(serverLocatorEvents) {
+        // Background server-progress sync: honour the locator's progression (no chapter-top yank),
+        // no cover — a flash mid-reading would be jarring.
+        serverLocatorEvents.collect { locator ->
+            if (!isContinuous) snapshotFlow { fragmentRef.value }.filterNotNull().first()
+            readerPresenter.navigateTo(
+                NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
+                NavigationOptions(landAtStartWhenNoTarget = false),
+            )
         }
     }
 
-    val navigationTarget: NavigationTarget = remember(isContinuous, formattingPrefs.orientation) {
-        when {
-            isContinuous -> ContinuousNavigationTarget { continuousViewRef.value }
-            formattingPrefs.orientation == ReaderOrientation.Horizontal -> ReadiumNavigationTarget(goAndSnapWithCover)
-            else -> ReadiumNavigationTarget(goInScrollMode)  // Vertical mode
+    LaunchedEffect(returnNavEvents) {
+        returnNavEvents.collect { locator ->
+            navigateWithCover(
+                NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
+                NavigationOptions(landAtStartWhenNoTarget = false),
+                locator.href.toString(),
+            )
         }
     }
 
-    LaunchedEffect(returnNavEvents, isContinuous) {
-        returnNavEvents.collect { navigationTarget.navigateTo(it) }
-    }
-
-    LaunchedEffect(searchNavigationEvents, isContinuous) {
+    LaunchedEffect(searchNavigationEvents) {
         searchNavigationEvents.collect { locator ->
-            navigationTarget.navigateTo(locator)
+            navigateWithCover(
+                NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
+                NavigationOptions(landAtStartWhenNoTarget = false),
+                locator.href.toString(),
+            )
             val text = locator.text.highlight?.take(40) ?: ""
             if (text.isNotBlank()) {
                 highlightRenderer.highlightSearchMatch(
@@ -1648,11 +1635,17 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(annotationNavigationEvents, isContinuous) {
-        // Bookmark locators carry CFI-derived progressions measured at content top (not the
-        // viewport midpoint that locatorAt uses), so pass alignToTop=true for continuous mode.
-        // ReadiumNavigationTarget ignores this flag — Readium handles alignment internally.
-        annotationNavigationEvents.collect { navigationTarget.navigateTo(it, alignToTop = true) }
+    LaunchedEffect(annotationNavigationEvents) {
+        annotationNavigationEvents.collect { locator ->
+            // Bookmark locators carry CFI-derived progressions measured at content top (not the
+            // viewport midpoint that locatorAt uses), so alignToTop=true for continuous mode.
+            // Readium ignores it — it handles column alignment internally.
+            navigateWithCover(
+                NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
+                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = true),
+                locator.href.toString(),
+            )
+        }
     }
 
     // Resolve "top of the current page" when readaloud reopens on a different page: ask the WebView
@@ -1859,7 +1852,7 @@ private fun EpubNavigatorView(
     // Sync the Readium fragment to the continuous reader's position when the user switches
     // FROM Continuous to a Readium-driven mode. In continuous mode the fragment is held alive
     // for its HTTP server only — invisible, height=0 — and TOC/scroll navigation steers
-    // ContinuousReaderView via [ContinuousNavigationTarget], leaving the fragment parked at
+    // ContinuousReaderView via ContinuousPresenter, leaving the fragment parked at
     // wherever the book first opened. Without this, mode-switching showed the user the original
     // book-open chapter instead of the chapter they were actually reading in continuous mode.
     //

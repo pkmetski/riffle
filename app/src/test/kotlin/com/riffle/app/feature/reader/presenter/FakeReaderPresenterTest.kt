@@ -79,9 +79,9 @@ class FakeReaderPresenterTest {
         presenter.navigateTo(NavigationTarget.ToLocatorJson("""{"href":"ch01.xhtml"}"""))
 
         assertEquals(3, presenter.recordedNavigations.size)
-        assertEquals(NavigationTarget.ToHref("ch03.xhtml", fragment = "sec2"), presenter.recordedNavigations[0])
-        assertEquals(NavigationTarget.ToProgression("ch03.xhtml", 0.42f), presenter.recordedNavigations[1])
-        assertTrue(presenter.recordedNavigations[2] is NavigationTarget.ToLocatorJson)
+        assertEquals(NavigationTarget.ToHref("ch03.xhtml", fragment = "sec2"), presenter.recordedNavigations[0].first)
+        assertEquals(NavigationTarget.ToProgression("ch03.xhtml", 0.42f), presenter.recordedNavigations[1].first)
+        assertTrue(presenter.recordedNavigations[2].first is NavigationTarget.ToLocatorJson)
     }
 
     @Test

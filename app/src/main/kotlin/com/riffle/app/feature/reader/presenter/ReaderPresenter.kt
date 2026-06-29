@@ -47,7 +47,7 @@ internal interface ReaderPresenter {
     // ----- Commands the view-model issues ----------------------------------------------------
 
     /** Navigate to a Locator JSON, an href + optional fragment, or a progression within a href. */
-    suspend fun navigateTo(target: NavigationTarget)
+    suspend fun navigateTo(target: NavigationTarget, options: NavigationOptions = NavigationOptions())
 
     /**
      * Apply (or re-apply) typography for the current rendering preferences. Idempotent on the
@@ -182,6 +182,30 @@ internal sealed class AnnotationTapEvent {
 }
 
 // =================== Command payloads ========================================================
+
+/**
+ * Per-navigation policy options. Defaults match a tap-from-TOC (snap to the landing column, land
+ * at the chapter top when no anchor, animate the page turn). Override per call-site:
+ *
+ * - **Server-progress resume / annotation jump**: [landAtStartWhenNoTarget] = `false` — don't yank
+ *   to the chapter top; honour the locator's progression.
+ * - **Readaloud `play-from-here`**: [snap] = `false`, [animated] = `false` — the locator already
+ *   names the precise sentence column; snap would round it off.
+ * - **Annotation jump in continuous mode**: [alignToTop] = `true` — bookmark progressions are
+ *   content-top-relative, not viewport-midpoint (the inverse [locatorAt] uses).
+ *
+ * Honoured by:
+ * - [ReadiumPresenter]: [snap], [landAtStartWhenNoTarget], [animated]. [alignToTop] is irrelevant
+ *   (Readium handles column alignment internally).
+ * - [ContinuousPresenter]: [alignToTop]. The other flags do not apply (no column grid, no
+ *   Readium-go animation control).
+ */
+internal data class NavigationOptions(
+    val snap: Boolean = true,
+    val landAtStartWhenNoTarget: Boolean = true,
+    val animated: Boolean = true,
+    val alignToTop: Boolean = false,
+)
 
 internal sealed class NavigationTarget {
     /** Resume to a previously persisted Readium Locator (verbatim JSON). */

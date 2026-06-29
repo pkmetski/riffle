@@ -91,14 +91,14 @@ internal class ContinuousPresenter : ReaderPresenter {
 
     // ----- ReaderPresenter commands ---------------------------------------------------------
 
-    override suspend fun navigateTo(target: NavigationTarget) {
+    override suspend fun navigateTo(target: NavigationTarget, options: NavigationOptions) {
         val view = view ?: return
         when (target) {
             is NavigationTarget.ToHref -> view.navigateTo(href = target.href, progression = 0f, alignToTop = true)
             is NavigationTarget.ToProgression -> view.navigateTo(
                 href = target.href,
                 progression = target.progression,
-                alignToTop = false,
+                alignToTop = options.alignToTop,
             )
             is NavigationTarget.ToLocatorJson -> {
                 // Reader-side Locator JSON is `{href, locations: {progression, fragments[]}}` —
@@ -114,7 +114,7 @@ internal class ContinuousPresenter : ReaderPresenter {
                     ?.optString(0)
                     ?.takeIf { it.isNotEmpty() }
                 val fullHref = if (anchor != null) "$href#$anchor" else href
-                view.navigateTo(fullHref, progression, alignToTop = false)
+                view.navigateTo(fullHref, progression, alignToTop = options.alignToTop)
             }
         }
     }

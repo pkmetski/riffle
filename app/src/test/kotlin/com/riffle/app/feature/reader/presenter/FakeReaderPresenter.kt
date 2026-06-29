@@ -29,7 +29,7 @@ internal class FakeReaderPresenter : ReaderPresenter {
     override val selectionEvents: SharedFlow<SelectionEvent> = _selectionEvents
     override val annotationTapEvents: SharedFlow<AnnotationTapEvent> = _annotationTapEvents
 
-    val recordedNavigations: MutableList<NavigationTarget> = mutableListOf()
+    val recordedNavigations: MutableList<Pair<NavigationTarget, NavigationOptions>> = mutableListOf()
     val recordedTypography: MutableList<FormattingPreferences> = mutableListOf()
     val recordedPagesBy: MutableList<PageDirection> = mutableListOf()
     val recordedFollowReadaloud: MutableList<String> = mutableListOf()
@@ -41,8 +41,8 @@ internal class FakeReaderPresenter : ReaderPresenter {
     private var lastPosition: ReaderPosition? = null
     private var generation: Long = 0L
 
-    override suspend fun navigateTo(target: NavigationTarget) {
-        recordedNavigations += target
+    override suspend fun navigateTo(target: NavigationTarget, options: NavigationOptions) {
+        recordedNavigations += target to options
     }
 
     override suspend fun applyTypography(prefs: FormattingPreferences) {

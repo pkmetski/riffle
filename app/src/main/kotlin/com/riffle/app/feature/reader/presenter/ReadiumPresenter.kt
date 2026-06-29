@@ -158,14 +158,14 @@ internal class ReadiumPresenter(
 
     // ----- ReaderPresenter commands ---------------------------------------------------------
 
-    override suspend fun navigateTo(target: NavigationTarget) {
+    override suspend fun navigateTo(target: NavigationTarget, options: NavigationOptions) {
         val fragment = fragment ?: return
         val locator = target.toLocator(publication) ?: return
-        // The Readium-typed convenience overloads ([navigateToLocator], [navigateToLink]) own
-        // the column-snap dance. This abstract entry point — used by future orchestrators that
-        // only know the abstract [NavigationTarget] shape — issues a plain go(); the snap
-        // backstop on PaginationListener.onPageLoaded rounds the page if needed.
-        fragment.go(locator, animated = true)
+        if (options.snap) {
+            ColumnSnap.goAndSnap(fragment, locator, options.landAtStartWhenNoTarget)
+        } else {
+            fragment.go(locator, animated = options.animated)
+        }
     }
 
     override suspend fun applyTypography(prefs: FormattingPreferences) {

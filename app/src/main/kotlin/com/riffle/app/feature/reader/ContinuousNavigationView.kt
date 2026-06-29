@@ -4,9 +4,9 @@ import com.riffle.core.domain.FormattingPreferences
 
 /**
  * Narrow interface over [ContinuousReaderView] for the
- * [com.riffle.app.feature.reader.presenter.ContinuousPresenter] (and the legacy
- * [ContinuousNavigationTarget]). Extracted so the presenter can be JVM-tested without
- * instantiating the Android View. Keep it minimal — only what the presenter actually needs.
+ * [com.riffle.app.feature.reader.presenter.ContinuousPresenter]. Extracted so the presenter can be
+ * JVM-tested without instantiating the Android View. Keep it minimal — only what the presenter
+ * actually needs.
  */
 internal interface ContinuousNavigationView {
     fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false)
