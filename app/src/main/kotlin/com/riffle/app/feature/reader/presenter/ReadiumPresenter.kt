@@ -79,8 +79,17 @@ internal class ReadiumPresenter(
         this.isFixedLayout = isFixedLayout
     }
 
-    /** Bind a freshly-created fragment. Starts forwarding its `currentLocator` to [positionEvents]. */
+    /**
+     * Bind a freshly-created fragment. Starts forwarding its `currentLocator` to [positionEvents].
+     *
+     * Idempotent: calling `attach` again with the same fragment instance returns without churning
+     * the position collection. This matters because the screen now has two attach call-sites — the
+     * AndroidView factory's one-shot and a `LaunchedEffect(readiumPresenter, fragmentRef.value)`
+     * that re-attaches whenever either changes — and on a cold open in paginated mode both fire
+     * back-to-back with the same `(presenter, fragment)` pair.
+     */
     fun attach(fragment: EpubNavigatorFragment) {
+        if (this.fragment === fragment) return
         detach()
         this.fragment = fragment
         positionJob = scope.launch {

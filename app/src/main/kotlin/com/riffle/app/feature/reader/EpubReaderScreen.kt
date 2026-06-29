@@ -1668,14 +1668,17 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenderer, searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applySearch(searchResults, currentSearchIndex)
     }
 
     // ---- Readaloud synced highlight --------------------------------------------------------
     // Superset keys cover both Readium (pageLoadGeneration, reflowGeneration re-apply on
     // reflow/rotation) and Continuous (sentenceQuotes re-applies when quotes build asynchronously).
-    LaunchedEffect(activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
+    // The [highlightRenderer] key picks up an orientation flip: the same rationale as the
+    // persisted-highlight effects below — the renderer is recreated Readium↔Continuous and the
+    // fresh instance has to receive the current sentence immediately, not on the next reflow tick.
+    LaunchedEffect(highlightRenderer, activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
         highlightRenderer.applyReadaloud(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
     }
 
