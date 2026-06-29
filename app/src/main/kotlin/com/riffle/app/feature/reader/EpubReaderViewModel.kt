@@ -27,6 +27,7 @@ import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.app.feature.reader.session.FormattingSession
+import com.riffle.app.feature.reader.session.PositionOrchestrator
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadaloudAudioRepository
@@ -161,6 +162,7 @@ class EpubReaderViewModel @Inject constructor(
     private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
     private val wakeLockControllerFactory: com.riffle.app.feature.reader.controllers.WakeLockController.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
+    private val positionOrchestratorFactory: PositionOrchestrator.Factory,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -181,6 +183,10 @@ class EpubReaderViewModel @Inject constructor(
     // Search execution, debounce, result navigation. Bound to the Publication once the book opens.
     private val search: com.riffle.app.feature.reader.controllers.SearchController =
         searchControllerFactory.create(viewModelScope)
+
+    // Position orchestrator — owns the canonical reading-position stream and all hot-path state
+    // (lastLocator, serverLocatorChannel, pendingServerJumpStamp, suppressNextServerLocator, etc.).
+    private val position: PositionOrchestrator = positionOrchestratorFactory.create(viewModelScope)
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
@@ -232,23 +238,16 @@ class EpubReaderViewModel @Inject constructor(
         updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
     )
 
-    private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
-    val serverLocatorEvents: Flow<Locator> = _serverLocatorChannel.receiveAsFlow()
+    // ---- PositionOrchestrator delegations ---------------------------------------------------
 
-    /**
-     * True when this reader was opened with an explicit [openAtCfi] (e.g. a library annotation tap or
-     * a search-result jump). The first server-locator event from [progressSyncController] would
-     * otherwise stomp that explicit intent — racing with the initial landing and yielding
-     * non-deterministic positions across repeated opens (sometimes the annotation focuses, sometimes
-     * the reader jumps to the server's last-read position). Set in [openBook] before the sync starts,
-     * consumed (and cleared) by the [_serverLocatorChannel] collector below.
-     */
-    @Volatile private var suppressNextServerLocator: Boolean = false
+    val serverLocatorEvents: Flow<Locator> = position.serverLocatorEvents
+    val currentLocatorHref: StateFlow<String?> = position.currentLocatorHref
+    val currentLocatorProgression: StateFlow<Float?> = position.currentLocatorProgression
+    val currentLocatorTotalProgression: StateFlow<Float?> = position.currentLocatorTotalProgression
+    val latestLocator: Locator? get() = position.snapshotLastLocator()
 
-    private var lastLocator: Locator? = null
-    val latestLocator: Locator? get() = lastLocator
-    // A StateFlow mirror of lastLocator so controllers (BookmarksController) can observe it reactively.
-    private val _currentLocatorState = MutableStateFlow<Locator?>(null)
+    // -----------------------------------------------------------------------------------------
+
     private var publication: Publication? = null
     private var epubFile: File? = null
     @Volatile private var epubZip: ZipFile? = null
@@ -271,34 +270,11 @@ class EpubReaderViewModel @Inject constructor(
     // True after the navigator emits its first locator (the restored position on open).
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
-    private var initialLocatorSeen = false
-    // Set to the winning server timestamp when the cycle drives a remote-win jump; consumed by the
-    // jump's resulting onPositionChanged. That emission persists the CFI (so a reopen lands on the
-    // synced page) but keeps this server timestamp instead of stamping `now` — the jump is not a
-    // genuine local edit, and stamping `now` would make it read back next cycle as a newer LOCAL
-    // change, bouncing the reader and pushing the audiobook back over a newer server position.
-    private var pendingServerJumpStamp: Long? = null
-
     // Snapshot of the reading position taken when a FootnotePopup is shown; the popup's link-tap path
     // (see EpubReaderScreen + captureFootnotePopupLinkOrigin) promotes this into the pending field
     // before the external browser launches. Capturing here — not at link-tap — avoids reading a
     // [lastLocator] that the popup's overlay layout has already nudged off the user's page.
     private var footnotePopupOriginLocator: Locator? = null
-
-    // The locator to restore on [onReaderResumed]. Readium's WebView (all three modes) consistently
-    // resets to the chapter top across the backgrounding round-trip (originally observed via a
-    // FootnotePopup URL tap launching an external browser, but the same applies to any
-    // home-button / app-switcher backgrounding). Armed in [onReaderClosed] from [lastLocator]; the
-    // footnote-popup URL-tap path pre-arms it earlier via [captureFootnotePopupLinkOrigin] so the
-    // pre-popup origin (not the popup-nudged lastLocator) is what restores. [onReaderResumed]
-    // re-emits this through the same channel server-driven jumps use.
-    private var pendingReturnLocator: Locator? = null
-    // How many remaining onPositionChanged → chapter-top emissions to suppress while restoring after a
-    // background return. Readium's post-resume column-snap can re-emit progression=0 several times
-    // after our restore navigateTo; each spurious emission is re-overridden by re-emitting the
-    // captured origin. Cleared on the first emission that lands at (or past) the captured origin, or by
-    // any user-driven navigation.
-    private var returnRestoreAttempts = 0
 
     // Hold the screen on whenever EITHER the global preference says to OR Auto-Scroll is running
     // (ADR 0037 — a sleeping screen would visibly break a hands-free session).
@@ -523,11 +499,8 @@ class EpubReaderViewModel @Inject constructor(
                 // An explicit openAtCfi (annotation tap / search hit) takes precedence over server
                 // sync on first open — otherwise ABS's last-read position races in and yanks the
                 // reader away from the annotation to wherever the user was reading last.
-                if (suppressNextServerLocator) {
-                    suppressNextServerLocator = false
-                    return@collect
-                }
-                _serverLocatorChannel.trySend(locator)
+                // Suppress/emit logic delegated to the orchestrator.
+                position.requestServerJumpWithSuppressCheck(locator)
             }
         }
         viewModelScope.launch {
@@ -675,7 +648,7 @@ class EpubReaderViewModel @Inject constructor(
                 bookmarks.bind(
                     serverId = activeServer.id,
                     itemId = itemId,
-                    currentLocator = _currentLocatorState,
+                    currentLocator = position.currentLocator,
                 )
                 observeAnnotationsForPanel(activeServer.id)
                 // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
@@ -741,6 +714,17 @@ class EpubReaderViewModel @Inject constructor(
                 publication = pub
                 // Bind the search controller to the new publication so it can execute queries.
                 search.bind(pub)
+                // Bind the position orchestrator so it can save positions for this book.
+                // Note: readerSyncServerId is resolved in the parallel init coroutine; fall back to
+                // a direct server lookup here since openBook runs before that coroutine completes.
+                val bindServerId = serverRepository.getActive()?.id ?: ""
+                position.bindBook(
+                    itemId = itemId,
+                    serverId = bindServerId,
+                    positionSaveCoordinator = positionSaveCoordinator,
+                    readingPositionStore = readingPositionStore,
+                    spinePositionCounts = spinePositionCounts,
+                )
                 // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's
                 // translation fix (< 2.6.x) may still hold a raw ABS `epubcfi(...)` — convert
                 // those on open so legacy progress isn't lost (one-time healing; new rows are
@@ -752,7 +736,7 @@ class EpubReaderViewModel @Inject constructor(
                 // must not stomp the explicit nav intent (annotation tap / search hit). Drop the
                 // first server-locator that follows; subsequent syncs (peer / live progress) still
                 // apply normally.
-                if (openAtLocator != null) suppressNextServerLocator = true
+                if (openAtLocator != null) position.markSuppressNextServerLocator()
                 // Bind openAtCfi to its source annotation (if any) so continuous mode can scroll to
                 // the DOM mark for that annotation — a precise post-reflow Y — instead of guessing
                 // from char-fraction × measured-WebView-height (which lands short of the highlight
@@ -841,7 +825,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private fun syncCurrentPosition() {
-        val locator = lastLocator ?: return
+        val locator = position.snapshotLastLocator() ?: return
         viewModelScope.launch {
             if (readerSync != null) runReaderSyncCycle(locator)
             else progressSyncController.sync(itemId, locator.toPayload())
@@ -864,7 +848,7 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun runReaderSyncCycle(locator: Locator?) {
         val coordinator = readerSync ?: return
         val serverId = readerSyncServerId ?: return
-        val locJson = (locator ?: lastLocator)?.toJSON()?.toString()
+        val locJson = (locator ?: position.snapshotLastLocator())?.toJSON()?.toString()
         if (locJson != null) {
             val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
@@ -875,20 +859,22 @@ class EpubReaderViewModel @Inject constructor(
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->
                     runCatching { Locator.fromJSON(JSONObject(json)) }.getOrNull()?.let { loc ->
-                        _serverLocatorChannel.trySend(loc)
+                        position.requestServerJump(loc)
                         // A server sync (e.g. a newer audiobook listen) moved the reader. Make the synced
                         // position the reader's position for EVERY readaloud-start input, not just the
                         // persisted resume row: the tracked locator, and the in-memory close/resume state
                         // the planner reads (both seeded at book-open, before this sync). Without this, a
                         // later "start readaloud" resumes the STALE pre-sync sentence and jumps the reader
                         // (and the synced ebook+audiobook) back to the old position — the erase.
-                        lastLocator = loc
+                        // Update the in-memory snapshot so subsequent sync cycles use the jumped position;
+                        // the real onPositionChanged from Readium (below) will handle persistence.
+                        position.updateLastLocatorSnapshot(loc)
                         closeLocator = null
                         resumeFragmentRef = null
                         // The jump's own onPositionChanged must keep this adopted server time, not
                         // stamp `now` — else our own sync-move reads back next cycle as a newer local
                         // edit and bounces / pushes the audiobook back. Consumed by that emission.
-                        pendingServerJumpStamp = result.canonicalLastUpdate
+                        position.setPendingServerJumpStamp(result.canonicalLastUpdate)
                         // The exact narrated sentence at the synced position, so a following "start
                         // readaloud" begins there (not the page top). The column-snap shifts the reader's
                         // progression off the synced point, so the planner's page check can't be relied on
@@ -925,7 +911,7 @@ class EpubReaderViewModel @Inject constructor(
         // Local audiobook position at the sentence (SMIL), from the full coordinator or the
         // bundle-SMIL-only follow (ADR 0031), mirroring the just-saved reading row's state.
         val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
-        val seconds = readerSync?.audioSecondsForFragment(fragmentRef, lastLocator?.toJSON()?.toString())
+        val seconds = readerSync?.audioSecondsForFragment(fragmentRef, position.snapshotLastLocator()?.toJSON()?.toString())
             ?: audiobookFollow?.secondsForFragment(fragmentRef)
             ?: return
         val snap = readingSyncStore.snapshot(serverId, itemId)
@@ -984,7 +970,7 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun pushAudiobookFromReadingPosition(fragment: String?) {
         val serverId = readerSyncServerId ?: return
         val coordinator = readerSync
-        val locJson = lastLocator?.toJSON()?.toString()
+        val locJson = position.snapshotLastLocator()?.toJSON()?.toString()
         val stamp = runCatching {
             when {
                 coordinator != null ->
@@ -1003,7 +989,7 @@ class EpubReaderViewModel @Inject constructor(
     fun showFootnotePopup(content: FootnoteContent) {
         // Snapshot the user's reading position before the popup is mounted: this is the value we want
         // to restore them to after they tap an external URL inside the popup and return.
-        footnotePopupOriginLocator = lastLocator
+        footnotePopupOriginLocator = position.snapshotLastLocator()
         _footnotePopup.value = FootnotePopupState(content)
     }
 
@@ -1016,7 +1002,7 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Snapshot the popup's origin position before the URL tap launches the external browser. */
     fun captureFootnotePopupLinkOrigin() {
-        pendingReturnLocator = footnotePopupOriginLocator ?: lastLocator
+        position.forceSetReturnAnchor(footnotePopupOriginLocator ?: position.snapshotLastLocator())
     }
 
     // Return-to-position: when tapping an internal link (an in-document cross-reference like "Figure
@@ -1051,54 +1037,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onPositionChanged(locator: Locator) {
-        // Defensive re-restore: Readium's post-resume column-snap can emit a chapter-top position
-        // AFTER our [onReaderResumed] navigateTo, sometimes more than once — including a delayed
-        // clobber that arrives AFTER a first emission has already landed at the captured origin.
-        // Stay armed (within the attempt budget) as long as we're parked at-or-near the origin;
-        // only disarm when the user clearly navigates AWAY (different href, or progression past
-        // origin). An emission AT origin means this round took, not that future emissions can't
-        // re-clobber us, so don't clear pending on equality.
-        returnRestoreAttempts.let { remaining ->
-            if (remaining > 0) {
-                val pending = pendingReturnLocator
-                if (pending != null) {
-                    val originHref = pending.href.toString()
-                    val originProg = pending.locations.progression ?: 0.0
-                    val incomingHref = locator.href.toString()
-                    val incomingProg = locator.locations.progression ?: 0.0
-                    when {
-                        incomingHref == originHref && incomingProg < originProg - 0.01 -> {
-                            // Spurious chapter-top emission while we're still restoring — re-fire.
-                            returnRestoreAttempts = remaining - 1
-                            _serverLocatorChannel.trySend(pending)
-                        }
-                        incomingHref != originHref || incomingProg > originProg + 0.01 -> {
-                            // User navigated away — stop watching.
-                            returnRestoreAttempts = 0
-                            pendingReturnLocator = null
-                        }
-                        // else: incoming ≈ origin — restore took this round; stay armed in case
-                        // a delayed column-snap re-clobbers before the budget is exhausted.
-                    }
-                } else {
-                    returnRestoreAttempts = 0
-                }
-            }
-        }
-        lastLocator = locator
-        _currentLocatorState.value = locator
-        _currentLocatorHref.value = locator.href.toString()
-        val cp = locator.locations.progression?.toFloat()
-        _currentLocatorProgression.value = cp
-        // Prefer totalProgression from the locator (Readium sets it in paginated/vertical modes).
-        // In continuous mode the locator is built by buildContinuousLocator which derives it from
-        // the spine's per-resource position counts; if counts are empty at scroll time the field
-        // is absent. Fall back to an inline computation so the value is always populated when
-        // position counts are already available.
-        val (spineHrefs, counts) = spinePositionCounts.value
-        val tp = locator.locations.totalProgression?.toFloat()
-            ?: cp?.let { computeTotalProgression(locator.href.toString(), it, spineHrefs, counts) }
-        tp?.let { _currentLocatorTotalProgression.value = it }
+        // Readaloud "park" check (Task 8 code — remains in VM until ReadaloudSession is extracted):
         // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
         // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
         if (parkedFragmentRef != null) {
@@ -1110,27 +1049,15 @@ class EpubReaderViewModel @Inject constructor(
                 parkedProgression = null
             }
         }
-        if (!initialLocatorSeen) {
-            initialLocatorSeen = true
-            return
-        }
-        // If this emission is the reader settling onto a position the cycle jumped it to (a remote
-        // win), persist the CFI but restore the server timestamp the cycle adopted — see
-        // pendingServerJumpStamp. A genuine user navigation leaves the flag null and stamps `now`.
-        val serverJumpStamp = pendingServerJumpStamp
-        pendingServerJumpStamp = null
-        viewModelScope.launch {
-            positionSaveCoordinator.onChanged(locator.toJSON().toString())
-            if (serverJumpStamp != null) {
-                readerSyncServerId?.let { readingPositionStore.updateLocalTimestamp(it, itemId, serverJumpStamp) }
-            }
-        }
+        // All hot-path position state is managed by PositionOrchestrator.
+        val (spineHrefs, counts) = spinePositionCounts.value
+        position.onPositionChanged(locator, spineHrefs = spineHrefs, spineCounts = counts)
     }
 
     fun onReaderResumed() {
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
-        initialLocatorSeen = false
+        position.resetInitialLocatorSeen()
         sessionStartProgression = currentLocatorTotalProgression.value
         sessionStartMs = System.currentTimeMillis()
         if (_state.value is ReaderState.Ready) {
@@ -1149,13 +1076,12 @@ class EpubReaderViewModel @Inject constructor(
         // modes) consistently resets to the chapter top across the backgrounding round-trip —
         // originally observed via a FootnotePopup URL tap that backgrounded the activity for the
         // external browser, but the same applies to any home-button / app-switcher backgrounding.
-        // [onReaderClosed] captures [lastLocator] into [pendingReturnLocator] on every ON_STOP so this
-        // re-emit can fire for both paths. Leave the pending field populated and arm the
-        // [returnRestoreAttempts] watcher so [onPositionChanged] can re-fire if Readium's column-snap
-        // clobbers our first attempt with a chapter-top emission.
-        pendingReturnLocator?.let { origin ->
-            returnRestoreAttempts = 5
-            _serverLocatorChannel.trySend(origin)
+        // [onReaderClosed] sets the return anchor via position.setReturnAnchor() on every ON_STOP so
+        // this re-emit can fire for both paths. Leave the pending field populated (armReturnRestore
+        // does this) and arm the returnRestoreAttempts watcher so [onPositionChanged] can re-fire if
+        // Readium's column-snap clobbers our first attempt with a chapter-top emission.
+        position.peekReturnAnchor()?.let { origin ->
+            position.armReturnRestore(origin)
         }
     }
 
@@ -1170,17 +1096,17 @@ class EpubReaderViewModel @Inject constructor(
         storytellerSyncJob?.cancel()
         // Arm the resume-restore for the next ON_START. The footnote-popup URL-tap path may have
         // pre-armed this with the pre-popup origin (see captureFootnotePopupLinkOrigin); don't
-        // overwrite that with the popup-nudged lastLocator. See [pendingReturnLocator].
-        if (pendingReturnLocator == null) pendingReturnLocator = lastLocator
+        // overwrite that with the popup-nudged lastLocator. setReturnAnchor honours this contract.
+        position.setReturnAnchor(position.snapshotLastLocator())
         if (closeSyncDone) return
         closeSyncDone = true
         // Leaving the book without first pressing X: persist the sentence narrating now so re-entry
         // resumes there. (Pressing X already persisted via closeReadaloud, which closes the player.)
         // Below the closeSyncDone guard so the ON_STOP + onDispose pair doesn't double-write.
         if (_readaloudOpen.value) {
-            persistReadaloudResumePosition(lastLocator, playerCoordinator.activeFragmentRef.value)
+            persistReadaloudResumePosition(position.snapshotLastLocator(), playerCoordinator.activeFragmentRef.value)
         }
-        val locator = lastLocator ?: return
+        val locator = position.snapshotLastLocator() ?: return
         // Stays on viewModelScope: runReaderSyncCycle mutates reader state (lastLocator,
         // pendingServerJumpStamp, …) and posts the inbound-jump channel, which must run on the main
         // thread while the screen is alive — it is not safe to relocate to a background flush scope.
@@ -1353,7 +1279,7 @@ class EpubReaderViewModel @Inject constructor(
     fun toggleBookmark() {
         val serverId = annotationServerId ?: return
         viewModelScope.launch {
-            val locator = lastLocator ?: return@launch
+            val locator = position.snapshotLastLocator() ?: return@launch
             val href = locator.href.toString()
             val hrefNorm = normalizeEpubHref(href)
             val prog = locator.locations.progression ?: 0.0
@@ -1530,26 +1456,11 @@ class EpubReaderViewModel @Inject constructor(
         playerCoordinator.dispose()
     }
 
-    private val _currentLocatorHref = MutableStateFlow<String?>(null)
-    val currentLocatorHref: StateFlow<String?> = _currentLocatorHref
-
-    private val _currentLocatorProgression = MutableStateFlow<Float?>(null)
-    val currentLocatorProgression: StateFlow<Float?> = _currentLocatorProgression
-
     /**
      * True when one of this item's bookmarks falls on the reader's current page.
      * Delegated to [BookmarksController] which does the reactive combination.
      */
     val isCurrentPageBookmarked: StateFlow<Boolean> = bookmarks.isCurrentPageBookmarked
-
-    // Whole-book progress (0..1) for the reading "% read" label — the same coordinate persisted as
-    // ebookProgress and shown in book details. Distinct from railCursorPosition, which is a
-    // chapter-weighted fraction over TOC segments only and so diverges from the stored progress.
-    // Updated only when the navigator emits a non-null totalProgression: a null (positions not yet
-    // computed) holds the last real value rather than falling back to the within-chapter progression.
-    // Null before the first Readium locator arrives so callers can distinguish "unknown" from 0%.
-    private val _currentLocatorTotalProgression = MutableStateFlow<Float?>(null)
-    val currentLocatorTotalProgression: StateFlow<Float?> = _currentLocatorTotalProgression
 
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
@@ -1611,25 +1522,6 @@ class EpubReaderViewModel @Inject constructor(
         weightSegmentsByChapterLength(base, spineHrefs, counts)
     }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    // Back-fill totalProgression when spine position counts arrive after the first position event.
-    // In continuous mode the initial scroll may fire before positions load, leaving
-    // _currentLocatorTotalProgression null. When counts become non-empty, recompute from the
-    // last known href + within-resource progression so time-remaining and rail cursor update
-    // immediately. Placed after spinePositionCounts declaration so the Dispatchers.Main.immediate
-    // coroutine start does not access the field while it is still null during class initialization.
-    init {
-        viewModelScope.launch {
-            spinePositionCounts.collect { (spineHrefs, counts) ->
-                if (counts.isEmpty() || _currentLocatorTotalProgression.value != null) return@collect
-                val href = _currentLocatorHref.value ?: return@collect
-                val cp = _currentLocatorProgression.value ?: return@collect
-                computeTotalProgression(href, cp, spineHrefs, counts)?.let {
-                    _currentLocatorTotalProgression.value = it
-                }
-            }
-        }
-    }
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
@@ -1876,12 +1768,12 @@ class EpubReaderViewModel @Inject constructor(
         // the top of the current page (different page) instead of restarting the chapter. Capture
         // before close() — it nulls the active fragment.
         resumeFragmentRef = playerCoordinator.activeFragmentRef.value
-        closeLocator = lastLocator
+        closeLocator = position.snapshotLastLocator()
         // Park on the stopped sentence so the audiobook isn't re-derived from the page top until the
         // user navigates off this page (ADR 0031). Keyed by the reader page we're parked on.
         parkedFragmentRef = resumeFragmentRef
-        parkedLocatorHref = lastLocator?.href?.toString()
-        parkedProgression = lastLocator?.locations?.progression
+        parkedLocatorHref = position.snapshotLastLocator()?.href?.toString()
+        parkedProgression = position.snapshotLastLocator()?.locations?.progression
         // Persist the same stopped position so it survives leaving the book / process death, not just
         // an in-session reopen. Capture before close() nulls the active fragment.
         persistReadaloudResumePosition(closeLocator, resumeFragmentRef)
@@ -1946,8 +1838,8 @@ class EpubReaderViewModel @Inject constructor(
             // this page (ADR 0031).
             if (pausedFragment != null) {
                 parkedFragmentRef = pausedFragment
-                parkedLocatorHref = lastLocator?.href?.toString()
-                parkedProgression = lastLocator?.locations?.progression
+                parkedLocatorHref = position.snapshotLastLocator()?.href?.toString()
+                parkedProgression = position.snapshotLastLocator()?.locations?.progression
             }
             // Flush scope (see closeReadaloud): a pause is often immediately followed by leaving the
             // book, which would cancel a viewModelScope-launched PATCH before it reaches ABS.
@@ -2289,20 +2181,21 @@ class EpubReaderViewModel @Inject constructor(
         // Falls back to the reading position's chapter only when nothing narrated anchors it (e.g. front
         // matter); resolveStartClip declines rather than restarting the book.
         readerSync?.let { coordinator ->
+            val lastLoc = position.snapshotLastLocator()
             val pending = pendingStartFragmentRef?.takeIf { p ->
-                lastLocator?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
+                lastLoc?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
             }
             val startFragment = localAudioStartFragment
                 ?: pending
                 ?: resumeFragmentRef
-                ?: lastLocator?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
+                ?: lastLoc?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
             pendingStartFragmentRef = null
             closeLocator = null
             resumeFragmentRef = null
             if (startFragment != null) {
                 playerCoordinator.playFromHere(startFragment)
             } else {
-                lastLocator?.href?.let { playerCoordinator.playFromReaderPosition(it.toString(), null) }
+                lastLoc?.href?.let { playerCoordinator.playFromReaderPosition(it.toString(), null) }
             }
             return
         }
@@ -2325,7 +2218,7 @@ class EpubReaderViewModel @Inject constructor(
         val resume = resumeFragmentRef
         closeLocator = null
         resumeFragmentRef = null
-        val loc = lastLocator
+        val loc = position.snapshotLastLocator()
         val plan = ReadaloudResumePlanner.plan(
             isScroll = effectiveFormattingPreferences.value.orientation != ReaderOrientation.Horizontal,
             closeHref = closed?.href?.toString(),
@@ -2452,7 +2345,7 @@ class EpubReaderViewModel @Inject constructor(
         storytellerSyncJob = viewModelScope.launch {
             while (true) {
                 delay(SYNC_INTERVAL_MS)
-                val locator = lastLocator ?: continue
+                val locator = position.snapshotLastLocator() ?: continue
                 when (val outcome = storytellerSyncController.runCycle(itemId, locator.toJSON().toString())) {
                     is StorytellerSyncOutcome.PulledRemote -> {
                         // The stored canonical position is the Readium locator JSON — deserialize and
@@ -2460,7 +2353,7 @@ class EpubReaderViewModel @Inject constructor(
                         // already wires to fragment.go()).
                         try {
                             val pulled = Locator.fromJSON(JSONObject(outcome.locatorJson))
-                            if (pulled != null) _serverLocatorChannel.trySend(pulled)
+                            if (pulled != null) position.requestServerJump(pulled)
                         } catch (_: Exception) { /* malformed remote locator — ignore */ }
                     }
                     StorytellerSyncOutcome.PushedLocal,
