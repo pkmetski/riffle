@@ -41,14 +41,23 @@ jobs:
         id: ver
         run: |
           NAME="${GITHUB_REF_NAME#v}"
-          if ! [[ "$NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH" >&2
+          if ! [[ "$NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH[-SUFFIX]" >&2
             exit 1
           fi
-          IFS=. read -r MAJ MIN PAT <<<"$NAME"
+          # Strip any pre-release suffix to compute versionCode.
+          # versionName keeps the full string (e.g. "2.6.0-rc1") so users see the suffix.
+          # versionCode is derived from MAJOR.MINOR.PATCH only — a pre-release and its stable
+          # share the same code. Sideloaded reinstall over the same key works; F-Droid is
+          # gated separately (the changelog step below skips pre-releases).
+          CORE="${NAME%%-*}"
+          IFS=. read -r MAJ MIN PAT <<<"$CORE"
           CODE=$((10#$MAJ * 10000 + 10#$MIN * 100 + 10#$PAT))
+          PRERELEASE=false
+          if [[ "$NAME" == *-* ]]; then PRERELEASE=true; fi
           echo "name=$NAME" >>"$GITHUB_OUTPUT"
           echo "code=$CODE" >>"$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >>"$GITHUB_OUTPUT"
 
       - name: Decode keystore
         env:
@@ -74,6 +83,7 @@ jobs:
           "$APKSIGNER" verify --verbose "$APK"
 
       - name: Write F-Droid changelog
+        if: steps.ver.outputs.prerelease == 'false'
         env:
           NAME: ${{ steps.ver.outputs.name }}
           CODE: ${{ steps.ver.outputs.code }}
@@ -83,6 +93,7 @@ jobs:
           echo "Release v$NAME — see https://github.com/${{ github.repository }}/releases/tag/v$NAME" > "$DIR/$CODE.txt"
 
       - name: Open changelog PR against main
+        if: steps.ver.outputs.prerelease == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NAME: ${{ steps.ver.outputs.name }}
@@ -112,6 +123,7 @@ jobs:
         with:
           files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
+          prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
 
       - name: Cleanup keystore
         if: always()
