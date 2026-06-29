@@ -884,7 +884,7 @@ private fun ReadingProgressLabels(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .padding(horizontal = 14.dp, vertical = 2.dp)
             .testTag("reading_progress_labels"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
