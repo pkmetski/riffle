@@ -201,6 +201,34 @@ class BookmarksControllerTest {
     }
 
     @Test
+    fun `continuous mode uses live viewportFraction over the conservative fallback`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        val orientation = MutableStateFlow(com.riffle.core.domain.ReaderOrientation.Continuous)
+        val viewportFraction = MutableStateFlow<Float?>(null)
+        controller.bind("srv", "item1", currentLocator, orientation, viewportFraction)
+
+        // Bookmark at chapter-progression 0.5 (midpoint when saved).
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
+
+        // Tiny viewport (~10% of chapter). Match window is 5% (half-viewport). A 12% offset misses.
+        viewportFraction.value = 0.10f
+        currentLocator.value = buildLocator("ch1.xhtml", 0.62)
+        assertFalse(
+            "10% viewport means match must be within 5% — 0.12 away should miss",
+            controller.isCurrentPageBookmarked.value,
+        )
+
+        // Wide viewport (~60% of chapter, short chapter). Match window is 30%. Same 12% offset hits.
+        viewportFraction.value = 0.60f
+        currentLocator.value = buildLocator("ch1.xhtml", 0.62)
+        assertTrue(
+            "60% viewport widens the match to 30% — 0.12 away must hit",
+            controller.isCurrentPageBookmarked.value,
+        )
+    }
+
+    @Test
     fun `orientation flip toggles eps without rebinding`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)

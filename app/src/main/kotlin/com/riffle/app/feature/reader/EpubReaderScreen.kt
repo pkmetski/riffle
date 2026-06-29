@@ -397,6 +397,7 @@ fun EpubReaderScreen(
                             viewModel.onPositionChanged(locator)
                             viewModel.dismissFootnotePopup()
                         },
+                        onContinuousViewportFraction = viewModel::onContinuousViewportFraction,
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         searchNavigationEvents = viewModel.searchNavigationEvents,
@@ -1063,6 +1064,7 @@ private fun EpubNavigatorView(
     spinePositions: Pair<List<String>, List<Int>>,
     formattingPrefsProvider: () -> FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
+    onContinuousViewportFraction: (Float) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
@@ -1244,6 +1246,7 @@ private fun EpubNavigatorView(
             sentenceQuotesProvider = { currentSentenceQuotes },
             sentenceChaptersProvider = { currentSentenceChapters },
             onPlayFromHere = { ref -> currentOnPlayFromHere(ref) },
+            onViewportFraction = onContinuousViewportFraction,
         )
     }
 

@@ -87,6 +87,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
 
     /**
+     * Called on every scroll change alongside [onRawPosition] with the visible viewport size as
+     * a fraction of the current chapter slot's height (`viewportHeight / slot.height`). The
+     * page-bookmark indicator uses this to decide whether the bookmark anchor falls inside the
+     * visible viewport — see `BookmarksController.isCurrentPageBookmarked`. Always in `(0f, 1f]`
+     * for an attached, measured slot; 0f if the slot has no measured height yet.
+     */
+    var onViewportFraction: ((fraction: Float) -> Unit)? = null
+
+    /**
      * Called on main thread when the user taps a chapter without scrolling.
      * Wire to the reader's chrome toggle so top/bottom bars show/hide on tap.
      */
@@ -1223,8 +1232,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         if (shiftInProgress) return
         val window = buildWindow()
         if (window.isEmpty()) return
+        val midY = scrollY + height / 2
+        val slot = window.lastOrNull { midY >= it.top } ?: window.first()
         val (href, progression) = ContinuousPositionTracker.locatorAt(scrollY, height, window)
         onRawPosition?.invoke(href, progression)
+        val slotHeight = slot.height
+        val fraction = if (slotHeight > 0) (height.toFloat() / slotHeight).coerceIn(0f, 1f) else 0f
+        onViewportFraction?.invoke(fraction)
 
         // Defer window shifts off the scroll callback. A shift's compensating scrollBy() would
         // otherwise run re-entrantly inside NestedScrollView.computeScroll() (this callback fires

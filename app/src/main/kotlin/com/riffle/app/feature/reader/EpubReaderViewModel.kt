@@ -276,6 +276,21 @@ class EpubReaderViewModel @Inject constructor(
     val currentLocatorTotalProgression: StateFlow<Float?> = position.currentLocatorTotalProgression
     val latestLocator: Locator? get() = position.snapshotLastLocator()
 
+    /**
+     * Continuous-mode viewport size as a fraction of the active chapter slot's pixel height. Used
+     * by [BookmarksController] to size its match window: in continuous mode the locator emits the
+     * viewport-midpoint progression, so the bookmark anchor falls inside the visible viewport iff
+     * `|bookmark.progression - midpoint| < viewportFraction/2`. The screen forwards every scroll
+     * update from [ContinuousReaderView.onViewportFraction] here. `null` in paginated and vertical
+     * modes (the BookmarksController falls back to a tight content-top eps there).
+     */
+    private val _continuousViewportFraction = MutableStateFlow<Float?>(null)
+    val continuousViewportFraction: StateFlow<Float?> = _continuousViewportFraction
+
+    fun onContinuousViewportFraction(fraction: Float) {
+        _continuousViewportFraction.value = fraction
+    }
+
     // -----------------------------------------------------------------------------------------
 
     private var publication: Publication? = null
@@ -688,6 +703,7 @@ class EpubReaderViewModel @Inject constructor(
                         currentOrientation = formatting.formattingPreferences
                             .map { it.orientation }
                             .stateIn(viewModelScope, SharingStarted.Eagerly, formatting.formattingPreferences.value.orientation),
+                        continuousViewportFraction = continuousViewportFraction,
                     )
                     // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
                     // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
@@ -1077,19 +1093,8 @@ class EpubReaderViewModel @Inject constructor(
             val href = locator.href.toString()
             val hrefNorm = normalizeEpubHref(href)
             val prog = locator.locations.progression ?: 0.0
-            // Bookmarks need a coordinate system that's consistent across modes for both the
-            // toggle "is this page already bookmarked?" check AND the page-bookmark ribbon
-            // (BookmarksController.isCurrentPageBookmarked). The locator's own progression is
-            // CONTENT-TOP in Readium modes but VIEWPORT-MIDPOINT in continuous (locatorAt
-            // convention), which created an asymmetry: a bookmark created at midpoint M and then
-            // navigated to via the annotations list landed at content-top M (alignToTop=true),
-            // leaving the new midpoint half a viewport past M and outside the ribbon's match
-            // window. Re-derive a content-top progression from the just-built CFI so storage is
-            // always content-top regardless of the current rendering mode.
-            val cfi = locator.toPayload().ebookLocation
-            val contentTopProgression = cfiStringToLocator(cfi)?.locations?.progression ?: prog
             val existing = bookmarks.bookmarkPositions.value.firstOrNull { bm ->
-                bm.chapterHref == hrefNorm && kotlin.math.abs(bm.progression - contentTopProgression) < BOOKMARK_PAGE_EPS
+                bm.chapterHref == hrefNorm && kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS
             }
             if (existing != null) {
                 annotationStore.delete(existing.id)
@@ -1109,10 +1114,6 @@ class EpubReaderViewModel @Inject constructor(
                     val pct = ((totalProg ?: prog) * 100).roundToInt().coerceIn(0, 100)
                     "${pct}%"
                 }
-                // `cfi` is recomputed instead of reused from the contentTopProgression derivation
-                // above so the CFI text in storage stays exactly what locator.toPayload() emits —
-                // the resolver round-trip is only used to derive a content-top progression value
-                // for matching, not to mutate the CFI itself.
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
                 annotationStore.createBookmark(
@@ -1122,7 +1123,7 @@ class EpubReaderViewModel @Inject constructor(
                     textSnippet = snippet,
                     chapterHref = href,
                     spineIndex = spineIdx,
-                    progression = contentTopProgression,
+                    progression = prog,
                     bookmarkTitle = title,
                 )
                 scheduleAnnotationSync()

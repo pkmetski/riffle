@@ -41,6 +41,7 @@ internal class ContinuousReaderCoordinator(
     private val sentenceQuotesProvider: () -> Map<String, SentenceQuote>,
     private val sentenceChaptersProvider: () -> Map<String, String>,
     private val onPlayFromHere: (String) -> Unit,
+    private val onViewportFraction: (Float) -> Unit = {},
 ) {
     private var view: ContinuousReaderView? = null
 
@@ -84,6 +85,8 @@ internal class ContinuousReaderCoordinator(
                 )
             }
         }
+
+        view.onViewportFraction = { fraction -> onViewportFraction(fraction) }
 
         view.onTap = { onTap() }
 

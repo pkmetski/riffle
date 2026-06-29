@@ -51,34 +51,37 @@ class BookmarksController @AssistedInject constructor(
 
     private val _currentLocator = MutableStateFlow<Locator?>(null)
     private val _currentOrientation = MutableStateFlow(ReaderOrientation.Horizontal)
+    private val _continuousViewportFraction = MutableStateFlow<Float?>(null)
 
     /**
-     * True when one of this item's bookmarks falls on the reader's current page.
+     * True when one of this item's bookmarks falls inside the reader's currently visible viewport.
      *
-     * Bookmark `progression` is stored in content-top semantics (the chapter-relative position
-     * of the bookmark's CFI element, derived in `EpubReaderViewModel.toggleBookmark`). Readium
-     * paginated and vertical modes emit `locator.locations.progression` in the same content-top
-     * frame, so a tight ±5% window matches the current page exactly.
-     *
-     * Continuous mode emits the locator's progression at the VIEWPORT MIDPOINT
-     * (`ContinuousPositionTracker.locatorAt`), which sits roughly `viewportFraction/2` past the
-     * stored content-top progression. A 5% window would miss a bookmark whose anchor is at the
-     * top of the viewport — the case the user actually expects to register as "this page is
-     * bookmarked". Widen the window to `BOOKMARK_VIEWPORT_EPS` (≈25%) in continuous so the
-     * indicator activates whenever the bookmark anchor is within the visible viewport. The wider
-     * window has a small false-positive cost when two bookmarks land within ~25% of one chapter,
-     * which we accept — the trade-off favours the navigation/save symmetry the user sees.
+     * Bookmark `progression` is whatever the locator emitted at save-time:
+     *  - **Readium (paginated + vertical):** content-top progression. Bookmark anchor and
+     *    current locator share the same frame, so a tight ±5% window is the correct match.
+     *  - **Continuous:** viewport-midpoint progression (`ContinuousPositionTracker.locatorAt`).
+     *    Bookmark anchor pixel y = `M_save * slot.height`; the anchor is visible iff
+     *    `top_progression ≤ M_save ≤ bottom_progression`. Equivalently (rearranging),
+     *    `|midpoint_now - M_save| < viewportFraction/2`. We use the live `viewportFraction`
+     *    plumbed in from `ContinuousReaderView` so the window is the *actual* visible range,
+     *    not a fixed guess that's too tight for short chapters and too loose for long ones.
+     *    Falls back to a conservative [BOOKMARK_VIEWPORT_EPS] when the fraction hasn't arrived
+     *    yet (no scroll events since open).
      */
     val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
         _bookmarkPositions,
         _currentLocator,
         _currentOrientation,
-    ) { positions, locator, orientation ->
+        _continuousViewportFraction,
+    ) { positions, locator, orientation, viewportFraction ->
         val href = locator?.href?.toString() ?: return@combine false
         val prog = locator.locations.progression
         val hrefNorm = normalizeEpubHref(href)
-        val eps = if (orientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
-        else BOOKMARK_PAGE_EPS
+        val eps = when {
+            orientation != ReaderOrientation.Continuous -> BOOKMARK_PAGE_EPS
+            viewportFraction != null -> (viewportFraction / 2.0).coerceAtLeast(BOOKMARK_PAGE_EPS)
+            else -> BOOKMARK_VIEWPORT_EPS
+        }
         positions.any { bm ->
             bm.chapterHref == hrefNorm &&
                 (prog == null || kotlin.math.abs(bm.progression - prog) < eps)
@@ -88,12 +91,16 @@ class BookmarksController @AssistedInject constructor(
     private var observeJob: Job? = null
     private var locatorJob: Job? = null
     private var orientationJob: Job? = null
+    private var viewportFractionJob: Job? = null
 
     /**
      * Bind to a specific book. Cancels any previous observation and starts fresh.
-     * [currentLocator] is the live VM locator StateFlow so [isCurrentPageBookmarked] stays reactive.
-     * [currentOrientation] selects the eps window — see [isCurrentPageBookmarked] for the
-     * continuous-mode rationale.
+     *
+     * [currentLocator] — the live VM locator so [isCurrentPageBookmarked] stays reactive.
+     * [currentOrientation] — selects the match-window strategy (see [isCurrentPageBookmarked]).
+     * [continuousViewportFraction] — viewport size as a fraction of the chapter slot's pixel
+     *   height; emits `null` until the user first scrolls, and `null` in non-continuous modes.
+     *   The match-window in continuous is derived from this fraction.
      */
     fun bind(
         serverId: String,
@@ -103,13 +110,16 @@ class BookmarksController @AssistedInject constructor(
         // about the continuous-mode widened eps still compile; the production VM passes a real
         // flow tracking the user's chosen orientation.
         currentOrientation: StateFlow<ReaderOrientation> = MutableStateFlow(ReaderOrientation.Horizontal),
+        continuousViewportFraction: StateFlow<Float?> = MutableStateFlow(null),
     ) {
         observeJob?.cancel()
         locatorJob?.cancel()
         orientationJob?.cancel()
+        viewportFractionJob?.cancel()
         _bookmarkPositions.value = emptyList()
         _currentLocator.value = null
         _currentOrientation.value = currentOrientation.value
+        _continuousViewportFraction.value = continuousViewportFraction.value
 
         observeJob = scope.launch {
             annotationStore.observeBookmarks(serverId, itemId).collect { annotations ->
@@ -132,6 +142,11 @@ class BookmarksController @AssistedInject constructor(
                 _currentOrientation.value = orientation
             }
         }
+        viewportFractionJob = scope.launch {
+            continuousViewportFraction.collect { fraction ->
+                _continuousViewportFraction.value = fraction
+            }
+        }
     }
 
     /** Rename a bookmark; schedules annotation sync. */
@@ -147,10 +162,11 @@ class BookmarksController @AssistedInject constructor(
         // content-top progression and the bookmark stores the same, so a tight match is correct.
         internal const val BOOKMARK_PAGE_EPS = 0.05
 
-        // ±25% within-chapter window for continuous mode, where the locator's progression sits at
-        // the viewport midpoint while the bookmark stores its CFI's content-top progression. The
-        // widened window catches bookmarks anchored anywhere in the current viewport without
-        // chasing exact midpoint equality — see [isCurrentPageBookmarked] for the full rationale.
+        // Conservative fallback when the live continuous-mode viewport fraction hasn't been
+        // emitted yet (cold open, no scroll events). 25% is wide enough to catch typical viewports
+        // (~20–40% of chapter height) without being so wide it lights bookmarks halfway across
+        // a chapter. The match window is replaced by `viewportFraction / 2` as soon as the
+        // ContinuousReaderView produces its first onViewportFraction emission.
         internal const val BOOKMARK_VIEWPORT_EPS = 0.25
     }
 }
