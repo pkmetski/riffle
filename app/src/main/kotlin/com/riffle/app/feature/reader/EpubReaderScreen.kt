@@ -1921,25 +1921,22 @@ private fun EpubNavigatorView(
     var pullForward by remember { mutableStateOf(true) }
     var pullProgress by remember { mutableFloatStateOf(0f) }
 
-    // Poll WebView scroll boundaries so ScrollBoundaryNavigationContainer can decide
-    // synchronously inside ACTION_MOVE whether the user is wedged against a chapter end.
-    // Readium's locator progression value is unreliable for this — it keeps emitting during
-    // touch even when scroll position hasn't moved, which broke the previous staleness check.
+    // Poll scroll boundaries so ScrollBoundaryNavigationContainer can decide synchronously inside
+    // ACTION_MOVE whether the user is wedged against a chapter end. Readium's locator progression
+    // value is unreliable for this — it keeps emitting during touch even when scroll position
+    // hasn't moved, which broke the previous staleness check. The seam owns the WebView query so
+    // the screen stays free of inline JS strings; the loop lifecycle stays here because polling is
+    // a UI concern, not a renderer concern.
     LaunchedEffect(fragmentRef.value, currentFormattingPrefs.orientation) {
-        val fragment = fragmentRef.value ?: return@LaunchedEffect
         if (currentFormattingPrefs.orientation != ReaderOrientation.Vertical) return@LaunchedEffect
+        if (fragmentRef.value == null) return@LaunchedEffect
         while (true) {
             val container = containerRef.value
             if (container != null) {
                 withContext(Dispatchers.Main) {
-                    val atBottom = fragment.evaluateJavascript(
-                        "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
-                    )?.trim('"') == "true"
-                    val atTop = fragment.evaluateJavascript(
-                        "(window.scrollY <= 4).toString()"
-                    )?.trim('"') == "true"
-                    container.atForwardBoundary = atBottom
-                    container.atBackwardBoundary = atTop
+                    val boundary = readerPresenter.scrollBoundary()
+                    container.atForwardBoundary = boundary.atForwardBoundary
+                    container.atBackwardBoundary = boundary.atBackwardBoundary
 
                     // No pill at the book's ends: a pull-down on the very first chapter or a
                     // pull-up on the very last has nowhere to go, so don't arm the gesture.

@@ -69,6 +69,9 @@ internal class FakeReaderPresenter : ReaderPresenter {
         recordedSnapReadaloud += text to columnIndex
     }
 
+    var scrollBoundaryResult: ScrollBoundary = ScrollBoundary.None
+    override suspend fun scrollBoundary(): ScrollBoundary = scrollBoundaryResult
+
     // ----- Event drivers (for tests) -------------------------------------------------------
 
     suspend fun emitPosition(position: ReaderPosition) {

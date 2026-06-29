@@ -139,4 +139,10 @@ internal class ContinuousPresenter : ReaderPresenter {
     override suspend fun measureReadaloudColumns(text: String): List<Double> = emptyList()
 
     override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) = Unit
+
+    // Continuous mode's chapter boundaries are tracked internally by ContinuousReaderView (window
+    // shifting, infinite-scroll math), so the screen's ScrollBoundaryNavigationContainer is bypassed
+    // entirely in this mode. The seam returns None so the (vertical-only) boundary-poll loop in
+    // EpubReaderScreen is harmless if it ever runs in continuous mode.
+    override suspend fun scrollBoundary(): ScrollBoundary = ScrollBoundary.None
 }

@@ -87,6 +87,27 @@ internal interface ReaderPresenter {
      * [measureReadaloudColumns]. No-op in vertical / continuous.
      */
     suspend fun snapReadaloudColumn(text: String, columnIndex: Int)
+
+    /**
+     * Current native-scroll boundary state for the rendered content. Used by the vertical-mode
+     * chapter-boundary gesture (ADR 0014) and by volume-key navigation to decide whether the
+     * next page-step should turn the chapter or scroll within it.
+     *
+     * Paginated mode (column pagination, no native scroll) always reports `(false, false)`.
+     * Continuous mode owns its own boundary handling inside `ContinuousReaderView`; this
+     * snapshot is informational only there.
+     */
+    suspend fun scrollBoundary(): ScrollBoundary
+}
+
+/** Snapshot of native-scroll boundary state — both flags are independent. */
+internal data class ScrollBoundary(
+    val atForwardBoundary: Boolean,
+    val atBackwardBoundary: Boolean,
+) {
+    companion object {
+        val None = ScrollBoundary(atForwardBoundary = false, atBackwardBoundary = false)
+    }
 }
 
 /** Outcome of [ReaderPresenter.followReadaloudSentence]. */

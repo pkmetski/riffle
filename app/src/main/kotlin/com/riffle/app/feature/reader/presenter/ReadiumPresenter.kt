@@ -267,6 +267,23 @@ internal class ReadiumPresenter(
         ColumnSnap.snapNarratedColumn(fragment, text, columnIndex)
     }
 
+    override suspend fun scrollBoundary(): ScrollBoundary {
+        // Two JS calls instead of one combined return: the second is a no-op when the first
+        // already moved scrollY (it hasn't here — we're reading state, not writing), and keeping
+        // them separate makes the failure mode obvious if either ever returns malformed JSON.
+        // Memory: `reference_test_avd_chrome55_webview` — these JS calls work on real devices and
+        // current emulators (post-API-25); the only known issue is API-25's Chrome 55 WebView,
+        // which the project has aged past.
+        val fragment = fragment ?: return ScrollBoundary.None
+        val atForward = fragment.evaluateJavascript(
+            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
+        )?.trim('"') == "true"
+        val atBackward = fragment.evaluateJavascript(
+            "(window.scrollY <= 4).toString()"
+        )?.trim('"') == "true"
+        return ScrollBoundary(atForwardBoundary = atForward, atBackwardBoundary = atBackward)
+    }
+
     // ----- internals ------------------------------------------------------------------------
 
     private fun publishPosition(position: ReaderPosition) {
