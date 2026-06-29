@@ -43,24 +43,34 @@ fun pdfOutlineToTocEntries(outline: List<PdfOutlineNode>): List<TocEntry> =
     }
 
 /**
- * Flatten a (possibly nested) PDF outline into the flat
- * [PdfTocEntry] list the rail builder consumes. Walk is pre-order; nested
- * sub-sections become peer rail segments. Per the rail design (matches
- * EPUB), all entries appear on the rail, not just top-level — same
- * granularity the TOC drawer shows.
+ * Project the outline to the entries the chapter-navigation rail consumes.
+ *
+ * PDFs often have deeply-nested outlines — a typical textbook can have
+ * 80+ entries when sub-sections are included, which makes the rail
+ * visually useless: the ChapterNavigationRail draws a 2.5 dp gap between
+ * segments, so 80 segments consume more horizontal pixels in gaps than in
+ * actual ticks (96 × 2.5 dp ≈ 720 px out of a 1080 px rail). The rail
+ * collapses to a few wide bars while most segments shrink below the visible
+ * threshold.
+ *
+ * Instead, the rail uses only the **top-level outline nodes** — the
+ * book's "real chapters" — at most a couple dozen entries. The TOC drawer
+ * still shows the full tree (via [pdfOutlineToTocEntries]) so the user can
+ * jump to any sub-section. If the top-level layer is empty (an outline
+ * with only a single hidden grouping node), descend one level and use
+ * those — better than rendering nothing.
  */
 fun pdfOutlineToFlatRailEntries(outline: List<PdfOutlineNode>): List<PdfTocEntry> {
-    val out = ArrayList<PdfTocEntry>()
-    fun visit(nodes: List<PdfOutlineNode>) {
-        for (node in nodes) {
-            if (node.title.isNotBlank()) {
-                out += PdfTocEntry(title = node.title, pageIndex = node.pageIndex)
-            }
-            visit(node.children)
-        }
-    }
-    visit(outline)
-    return out
+    val topLevel = outline
+        .filter { it.title.isNotBlank() }
+        .map { PdfTocEntry(title = it.title, pageIndex = it.pageIndex) }
+    if (topLevel.isNotEmpty()) return topLevel
+    // Fallback: every top-level node is anonymous (Acrobat sometimes wraps
+    // the whole outline in a single anonymous root). Descend.
+    return outline
+        .flatMap { it.children }
+        .filter { it.title.isNotBlank() }
+        .map { PdfTocEntry(title = it.title, pageIndex = it.pageIndex) }
 }
 
 /**

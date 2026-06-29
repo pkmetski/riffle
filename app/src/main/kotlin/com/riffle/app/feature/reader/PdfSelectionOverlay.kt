@@ -61,6 +61,7 @@ fun PdfSelectionOverlay(
     modifier: Modifier = Modifier,
 ) {
     val annotations by viewModel.annotations.collectAsState()
+    val annotationCount = annotations.size  // explicit subscription
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val pdfView = getPdfView()
 
@@ -132,15 +133,26 @@ fun PdfSelectionOverlay(
                     )
                 },
         ) {
-            // Touch scrollTick so this scope recomposes when PDFView scrolls.
+            // Touch scrollTick + annotationCount so this scope recomposes
+            // when PDFView scrolls OR new highlights land.
             @Suppress("UNUSED_EXPRESSION") scrollTick
+            @Suppress("UNUSED_EXPRESSION") annotationCount
+            android.util.Log.v(
+                "RifflePdfSel",
+                "draw scope reached: annotationCount=$annotationCount " +
+                    "scrollTick=$scrollTick currentPage=${pdfView.currentPage}",
+            )
             val totalPages = pdfPageCount(pdfView)
             val active = pdfView.currentPage
-            // Walk current page ± 1 (mid-scroll the viewport can show 2 pages).
-            for (p in (active - 1)..(active + 1)) {
+            // Walk a wider page window (active ± 3) so highlights remain
+            // painted when the user partially scrolls past the page they
+            // landed on. PDFView's currentPage reflects the "most visible"
+            // page but other pages in the visible viewport must also paint.
+            var drawn = 0
+            for (p in (active - 3)..(active + 3)) {
                 if (p < 0 || p >= totalPages) continue
                 val dims = viewModel.pdfPageDimensionsPoints(p) ?: continue
-                for ((_, pdfQuads) in viewModel.highlightsForPage(p)) {
+                for ((id, pdfQuads) in viewModel.highlightsForPage(p)) {
                     for (pdfRect in pdfQuads) {
                         val screenRect = PdfPageCoordinates.pdfRectToScreen(
                             pdfView = pdfView,
@@ -154,24 +166,28 @@ fun PdfSelectionOverlay(
                         val h = (screenRect.bottom - screenRect.top).coerceAtLeast(1f)
                         val wDp = with(density) { w.toDp() }
                         val hDp = with(density) { h.toDp() }
+                        android.util.Log.v(
+                            "RifflePdfSel",
+                            "draw highlight $id p=$p pdfRect=$pdfRect → screen=$screenRect ($wDp x $hDp)",
+                        )
+                        drawn++
                         Box(
                             modifier = Modifier
                                 .offset {
                                     IntOffset(screenRect.left.toInt(), screenRect.top.toInt())
                                 }
                                 .size(wDp, hDp)
-                                // graphicsLayer{} forces this Box onto its
-                                // own GPU layer so it composites ABOVE the
-                                // AndroidView's hardware-accelerated drawing.
-                                // Same trick CornerBookmarkIndicator uses.
-                                // (Applied per-highlight rather than on the
-                                // parent — a fillMaxSize graphicsLayer blanks
-                                // the whole PDFView.)
                                 .graphicsLayer { }
                                 .background(fillColor),
                         )
                     }
                 }
+            }
+            if (drawn == 0) {
+                android.util.Log.v(
+                    "RifflePdfSel",
+                    "draw scope: no highlights drawn for active=$active",
+                )
             }
         }
     }

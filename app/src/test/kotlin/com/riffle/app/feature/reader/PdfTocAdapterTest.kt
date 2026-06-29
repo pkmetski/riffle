@@ -46,7 +46,12 @@ class PdfTocAdapterTest {
     }
 
     @Test
-    fun `flat rail entries flatten nested outline pre-order`() {
+    fun `rail entries are top-level only — nested sub-sections do not become rail ticks`() {
+        // Densely-nested PDF outlines (e.g. textbook with 80+ sub-section entries)
+        // make the rail visually useless: ChapterNavigationRail's 2.5dp gap between
+        // segments eats more pixels than the segments themselves. The rail uses
+        // only top-level nodes; the drawer (pdfOutlineToTocEntries) still shows
+        // the full tree.
         val outline = listOf(
             PdfOutlineNode(
                 "Part I", pageIndex = 5,
@@ -64,10 +69,28 @@ class PdfTocAdapterTest {
         assertEquals(
             listOf(
                 PdfTocEntry("Part I", 5),
-                PdfTocEntry("Ch 1", 6),
-                PdfTocEntry("Ch 2", 20),
-                PdfTocEntry("Ch 2.1", 25),
                 PdfTocEntry("Part II", 100),
+            ),
+            flat,
+        )
+    }
+
+    @Test
+    fun `rail falls back to children when all top-level nodes are anonymous`() {
+        val outline = listOf(
+            PdfOutlineNode(
+                "", pageIndex = 0,
+                children = listOf(
+                    PdfOutlineNode("Real chapter 1", 10),
+                    PdfOutlineNode("Real chapter 2", 50),
+                ),
+            ),
+        )
+        val flat = pdfOutlineToFlatRailEntries(outline)
+        assertEquals(
+            listOf(
+                PdfTocEntry("Real chapter 1", 10),
+                PdfTocEntry("Real chapter 2", 50),
             ),
             flat,
         )

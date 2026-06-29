@@ -158,10 +158,27 @@ class PdfReaderViewModel @Inject constructor(
         yPoints: Double,
         color: String = "yellow",
     ): Annotation? {
-        val serverId = annotationServerId ?: return null
-        val (_, textPage) = ensurePagePtrs(pageIndex) ?: return null
+        val serverId = annotationServerId ?: return null.also {
+            android.util.Log.w("RifflePdfSel", "createHighlight: no annotationServerId")
+        }
+        val (_, textPage) = ensurePagePtrs(pageIndex) ?: return null.also {
+            android.util.Log.w("RifflePdfSel", "createHighlight: ensurePagePtrs failed for page $pageIndex")
+        }
+        val charCount = PdfiumTextApiSource.countChars(textPage)
+        val charAt = PdfiumTextApiSource.getCharIndexAtPos(textPage, xPoints, yPoints, 4.0, 4.0)
+        android.util.Log.i(
+            "RifflePdfSel",
+            "createHighlight: page=$pageIndex pos=($xPoints,$yPoints) " +
+                "charCount=$charCount charAt=$charAt",
+        )
+        if (charAt < 0) {
+            // Try with much wider tolerance — some PDFs have sparse text positioning
+            val charAt2 = PdfiumTextApiSource.getCharIndexAtPos(textPage, xPoints, yPoints, 40.0, 40.0)
+            android.util.Log.i("RifflePdfSel", "  retry with tol=40 → charAt=$charAt2")
+        }
         val resolver = PdfTextResolver(PdfiumTextApiSource)
         val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 4.0, tolY = 4.0)
+            ?: resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 40.0, tolY = 40.0)
             ?: return null
         val quads = resolver.quadsForRange(textPage, word)
         val snippet = resolver.extractSnippet(textPage, word)
@@ -373,15 +390,42 @@ class PdfReaderViewModel @Inject constructor(
         tocLinks = flatLinks
 
         // Build the page-shaped outline by resolving each Link to its page index.
+        // Pdfium's adapter encodes the page in two places, depending on PDF
+        // outline shape: (a) the Locator's locations.position (1-based page),
+        // (b) the Link.href as a `#page=N` fragment when the outline anchors
+        // to a named-destination or page-fit. We try both; fall back to 0.
+        fun pageOfLink(link: Link): Int {
+            val locPos = publication.locatorFromLink(link)?.locations?.position
+            if (locPos != null && locPos > 0) return locPos - 1
+            // Parse `#page=N` fragment, 1-based per PDF Open Parameters / IETF
+            // draft. Pdfium's adapter sets href to "<resource>#page=N" for
+            // outline entries that map to a page-display destination.
+            val href = link.href.toString()
+            val frag = href.substringAfter('#', "")
+            val pageParam = frag.split('&').firstOrNull { it.startsWith("page=") }
+                ?.removePrefix("page=")
+                ?.toIntOrNull()
+            if (pageParam != null && pageParam > 0) return pageParam - 1
+            return 0
+        }
         fun mapTree(links: List<Link>): List<PdfOutlineNode> = links.map { link ->
-            val page = publication.locatorFromLink(link)?.locations?.position ?: 1
+            val pageIndex = pageOfLink(link)
+            android.util.Log.v(
+                "RifflePdfRail",
+                "TOC link title=\"${link.title}\" href=${link.href} → pageIndex=$pageIndex",
+            )
             PdfOutlineNode(
                 title = link.title.orEmpty(),
-                pageIndex = (page - 1).coerceAtLeast(0),
+                pageIndex = pageIndex,
                 children = mapTree(link.children),
             )
         }
         val outline = mapTree(publication.tableOfContents)
+        android.util.Log.i(
+            "RifflePdfRail",
+            "Built TOC outline: ${outline.size} top-level, " +
+                "${pdfOutlineToFlatRailEntries(outline).size} flat",
+        )
 
         totalPages = publication.metadata.numberOfPages ?: 0
         _toc.value = pdfOutlineToTocEntries(outline)
