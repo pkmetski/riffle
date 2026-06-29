@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.session
 
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
+import com.riffle.app.feature.reader.AudiobookFollow
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
@@ -15,12 +16,16 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.ListeningPreferencesStore
+import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SyncPositionStore
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,9 +40,14 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import android.net.FakeUri
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.util.AbsoluteUrl
+import org.readium.r2.shared.util.mediatype.MediaType
 
 /**
  * Tests for the leaf controls extracted into [ReadaloudSession] in sub-task 8.1.
@@ -120,6 +130,30 @@ class ReadaloudSessionTest {
             Job()
         }
         return scope to flushes
+    }
+
+    // ── Locator construction helper ────────────────────────────────────────────────────
+
+    /**
+     * Allocates a [Locator] whose [Locator.href] `toString()` returns [urlString].
+     * Uses Unsafe + [FakeUri] because [AbsoluteUrl] has a private constructor backed by
+     * `android.net.Uri` — same pattern as NavigationTargetTest / ContinuousHighlightRendererTest.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun makeLocator(urlString: String, progression: Double? = null): Locator {
+        val unsafe = Class.forName("sun.misc.Unsafe")
+            .getDeclaredField("theUnsafe")
+            .also { it.isAccessible = true }
+            .get(null) as sun.misc.Unsafe
+        val hrefInstance = unsafe.allocateInstance(AbsoluteUrl::class.java) as AbsoluteUrl
+        AbsoluteUrl::class.java.getDeclaredField("uri")
+            .also { it.isAccessible = true }
+            .set(hrefInstance, FakeUri(urlString))
+        return Locator(
+            href = hrefInstance,
+            mediaType = MediaType.XHTML,
+            locations = Locator.Locations(progression = progression),
+        )
     }
 
     // ── Session factory helper ─────────────────────────────────────────────────────────
@@ -274,6 +308,214 @@ class ReadaloudSessionTest {
 
             assertEquals("previousChapter must be called once", 1, fakePlayer.prevChapterCalled)
             assertEquals("nextChapter must be called once", 1, fakePlayer.nextChapterCalled)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    // ── Sub-task 8.2 tests ────────────────────────────────────────────────────────────
+
+    /**
+     * Fake [SyncPositionStore] that records the last [mirror] call for assertion.
+     */
+    private class FakeAudioSyncStore : SyncPositionStore<Double> {
+        data class MirrorCall(
+            val serverId: String, val itemId: String, val position: Double,
+            val localUpdatedAt: Long, val lastSyncedAt: Long,
+        )
+        val mirrorCalls = mutableListOf<MirrorCall>()
+
+        override suspend fun snapshot(serverId: String, itemId: String): PositionSnapshot<Double> =
+            PositionSnapshot(position = null, localUpdatedAt = 10L, lastSyncedAt = 5L)
+
+        override suspend fun mirror(
+            serverId: String, itemId: String, position: Double,
+            localUpdatedAt: Long, lastSyncedAt: Long,
+        ) { mirrorCalls.add(MirrorCall(serverId, itemId, position, localUpdatedAt, lastSyncedAt)) }
+
+        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+    }
+
+    /**
+     * Fake [SyncPositionStore] for the reading (String) sync store that returns a fixed snapshot.
+     */
+    private class FakeReadingSyncStore(
+        private val localUpdatedAt: Long = 10L,
+        private val lastSyncedAt: Long = 5L,
+    ) : SyncPositionStore<String> {
+        override suspend fun snapshot(serverId: String, itemId: String): PositionSnapshot<String> =
+            PositionSnapshot(position = null, localUpdatedAt = localUpdatedAt, lastSyncedAt = lastSyncedAt)
+
+        override suspend fun mirror(serverId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {}
+        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+    }
+
+    /**
+     * Fake [EpubRepository] that records [saveReadingPosition] calls.
+     */
+    private class FakeEpubRepository : EpubRepository {
+        val savedPositions = mutableListOf<Pair<String, String>>()
+        override suspend fun saveReadingPosition(itemId: String, cfi: String) {
+            savedPositions.add(itemId to cfi)
+        }
+        override suspend fun openEpub(item: com.riffle.core.domain.LibraryItem) =
+            error("not needed in test")
+        override suspend fun downloadEpub(item: com.riffle.core.domain.LibraryItem, onProgress: (Long, Long) -> Unit) =
+            error("not needed in test")
+        override suspend fun removeDownload(serverId: String, itemId: String) {}
+        override fun isDownloaded(serverId: String, itemId: String) = false
+        override fun isCached(serverId: String, itemId: String) = false
+    }
+
+    private fun makeSessionWithStores(
+        scope: CoroutineScope,
+        playerController: FakePlayerController = FakePlayerController(),
+        fakeAudioSyncStore: FakeAudioSyncStore = FakeAudioSyncStore(),
+        fakeReadingSyncStore: FakeReadingSyncStore = FakeReadingSyncStore(),
+        fakeEpubRepository: FakeEpubRepository = FakeEpubRepository(),
+        fakeReadingPositionStore: ReadingPositionStore = mockk(relaxed = true),
+        snapshotLocator: () -> Locator? = { null },
+    ): ReadaloudSession {
+        return ReadaloudSession(
+            scope = scope,
+            snapshotLocator = snapshotLocator,
+            playerCoordinator = playerController,
+            readaloudAudioRepository = mockk(relaxed = true),
+            streamingSessionFactory = mockk(relaxed = true),
+            storytellerSyncController = mockk(relaxed = true),
+            audioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            audioIdentityResolver = mockk(relaxed = true),
+            readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
+                every { it.preferences } returns flowOf(
+                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                )
+            },
+            readaloudResumeStore = mockk(relaxed = true),
+            sidecarStore = mockk(relaxed = true),
+            readingPositionStore = fakeReadingPositionStore,
+            readingSyncStore = fakeReadingSyncStore,
+            audioSyncStore = fakeAudioSyncStore,
+            epubRepository = fakeEpubRepository,
+            progressFlushScope = mockk(relaxed = true),
+            audiobookHandoffState = AudiobookHandoffState(),
+            connectivityObserver = mockk<ConnectivityObserver>().also {
+                every { it.isOnline } returns MutableStateFlow(true)
+            },
+            nowPlayingStore = NowPlayingStore(),
+        )
+    }
+
+    @Test
+    fun `mirrorReadingToAudiobook writes to audioSyncStore using audiobookFollow seconds (no double-count)`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakeAudioSyncStore = FakeAudioSyncStore()
+            val fakeReadingSyncStore = FakeReadingSyncStore(localUpdatedAt = 42L, lastSyncedAt = 7L)
+
+            // Fake AudiobookFollow returns a fixed seconds value for any fragment
+            val fakeFollow = mockk<AudiobookFollow>()
+            every { fakeFollow.audioItemId } returns "audiobook-item-99"
+            every { fakeFollow.secondsForFragment(any()) } returns 123.45
+
+            val session = makeSessionWithStores(
+                scope = sessionScope,
+                fakeAudioSyncStore = fakeAudioSyncStore,
+                fakeReadingSyncStore = fakeReadingSyncStore,
+            )
+            session.readerSyncServerId = "srv1"
+            session.itemId = "ebook-item-1"
+            // No full coordinator: audiobookFollow path only
+            session.readerSyncProvider = { null }
+            session.audiobookFollowProvider = { fakeFollow }
+            // Park a fragment so ReadaloudAudioAnchor routes to fragmentSeconds (parkedFragment != null
+            // branch) rather than the pageSeconds fallback (which would return null with no coordinator).
+            session.parkedFragmentRef = "chapter01.html#s10"
+
+            session.mirrorReadingToAudiobook("{}")
+
+            // The seconds value must come from audiobookFollow.secondsForFragment, NOT from
+            // currentPosition/1000.0 + startOffsetSec. The fake returns exactly 123.45.
+            assertEquals("audioSyncStore must be called once", 1, fakeAudioSyncStore.mirrorCalls.size)
+            val call = fakeAudioSyncStore.mirrorCalls.first()
+            assertEquals("srv1", call.serverId)
+            assertEquals("audiobook-item-99", call.itemId)
+            assertEquals(
+                "seconds must equal audiobookFollow.secondsForFragment result (no double-count)",
+                123.45, call.position, 0.001,
+            )
+            assertEquals("localUpdatedAt propagated from reading snap", 42L, call.localUpdatedAt)
+            assertEquals("lastSyncedAt propagated from reading snap", 7L, call.lastSyncedAt)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `flushReadaloudPositionToStores persists to epubRepository and audioSyncStore`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakeAudioSyncStore = FakeAudioSyncStore()
+            val fakeReadingSyncStore = FakeReadingSyncStore(localUpdatedAt = 20L, lastSyncedAt = 3L)
+            val fakeEpubRepo = FakeEpubRepository()
+
+            val fakeFollow = mockk<AudiobookFollow>()
+            every { fakeFollow.audioItemId } returns "audio-456"
+            every { fakeFollow.secondsForFragment(any()) } returns 77.7
+
+            val session = makeSessionWithStores(
+                scope = sessionScope,
+                fakeAudioSyncStore = fakeAudioSyncStore,
+                fakeReadingSyncStore = fakeReadingSyncStore,
+                fakeEpubRepository = fakeEpubRepo,
+            )
+            session.readerSyncServerId = "srv2"
+            session.itemId = "ebook-789"
+            session.readerSyncProvider = { null }
+            session.audiobookFollowProvider = { fakeFollow }
+
+            session.flushReadaloudPositionToStores("chapter01.html#spanId")
+
+            // 1) Sentence-precise ebook position must be persisted
+            assertEquals("epubRepository.saveReadingPosition called once", 1, fakeEpubRepo.savedPositions.size)
+            assertEquals("correct itemId", "ebook-789", fakeEpubRepo.savedPositions.first().first)
+
+            // 2) Audio mirror must be written
+            assertEquals("audioSyncStore.mirror called once", 1, fakeAudioSyncStore.mirrorCalls.size)
+            val mirrorCall = fakeAudioSyncStore.mirrorCalls.first()
+            assertEquals("srv2", mirrorCall.serverId)
+            assertEquals("audio-456", mirrorCall.itemId)
+            assertEquals(77.7, mirrorCall.position, 0.001)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `onPositionBeforeForward clears park state when moved off the parked page`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(
+                scope = sessionScope,
+                playerController = FakePlayerController(),
+            )
+            // Seed park state — parked on chapter01 with href stored as the full toString value
+            val parkedLocator = makeLocator("chapter01.html", progression = 0.5)
+            session.parkedFragmentRef = "chapter01.html#s42"
+            session.parkedLocatorHref = parkedLocator.href.toString()
+            session.parkedProgression = 0.5
+
+            // Build a locator on a DIFFERENT chapter — href.toString() != parkedLocatorHref
+            val differentHrefLocator = makeLocator("chapter02.html", progression = 0.0)
+            session.onPositionBeforeForward(differentHrefLocator)
+
+            assertNull("parkedFragmentRef must be null after navigating away", session.parkedFragmentRef)
+            assertNull("parkedLocatorHref must be null after navigating away", session.parkedLocatorHref)
+            assertNull("parkedProgression must be null after navigating away", session.parkedProgression)
         } finally {
             sessionScope.cancel()
         }

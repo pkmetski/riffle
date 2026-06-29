@@ -1,7 +1,10 @@
 package com.riffle.app.feature.reader.session
 
 import com.riffle.app.feature.audiobook.AudiobookHandoffState
+import com.riffle.app.feature.reader.AudiobookFollow
 import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.app.feature.reader.ReadaloudAudioAnchor
+import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
@@ -169,6 +172,15 @@ class ReadaloudSession @AssistedInject constructor(
     internal var audioSettingsIdentity: AudioIdentity = AudioIdentity("", "")
     internal var initialSpeed: Float = AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
 
+    // --- Book identity (set from bind() in sub-task 8.2/8.5; empty until first bind) ---
+    internal var itemId: String = ""
+    internal var readerSyncServerId: String? = null
+
+    // --- Sync / audiobook-follow providers (Option B seam — set once after construction) ---
+    // Returning the VM's live vars avoids the need for setters that 8.5 will remove.
+    var readerSyncProvider: () -> ReaderSyncCoordinator? = { null }
+    var audiobookFollowProvider: () -> AudiobookFollow? = { null }
+
     // --- Park state (set on pause/close; cleared on navigation) ---
     internal var parkedFragmentRef: String? = null
     internal var parkedLocatorHref: String? = null
@@ -270,26 +282,77 @@ class ReadaloudSession @AssistedInject constructor(
     /**
      * Called before PositionOrchestrator.onPositionChanged when the reader position changes.
      * Clears park state when the reader navigates off the parked page (ADR 0031).
-     * Filled in sub-task 8.2.
      */
-    fun onPositionBeforeForward(locator: Locator): Unit =
-        TODO("filled in by sub-task 8.2")
+    fun onPositionBeforeForward(locator: Locator) {
+        if (parkedFragmentRef != null) {
+            val movedOffPage = locator.href.toString() != parkedLocatorHref ||
+                kotlin.math.abs(
+                    (locator.locations.progression ?: 0.0) - (parkedProgression ?: 0.0)
+                ) > PARK_PAGE_EPS
+            if (movedOffPage) {
+                parkedFragmentRef = null
+                parkedLocatorHref = null
+                parkedProgression = null
+            }
+        }
+    }
 
     /**
-     * Called from positionSaveCoordinator.savePosition to mirror the ebook CFI onto the linked
-     * audiobook position store (dual-write, ADR 0030).
-     * Filled in sub-task 8.2.
+     * Dual-write the counterpart audiobook position locally (ADR 0030). For a matched book, reading
+     * is the same activity as listening, so the just-saved reading position is also persisted into
+     * the audiobook store — translated through the bundle's SMIL into the audio second, keyed by the
+     * audiobook's own ABS item id, and stamped with the reading row's current dirty state.
+     * No-op unless matched with an audiobook target and the position is translatable.
+     *
+     * SAFEGUARD (memory reference_audiobook_position_double_count): the seconds value must come from
+     * ReadaloudAudioAnchor.audiobookSeconds / audiobookFollow.secondsForFragment, never from
+     * adding startOffsetSec to currentPosition. See mirrorReadingToAudiobook for the canonical
+     * call site.
      */
-    fun mirrorReadingToAudiobook(cfi: String): Unit =
-        TODO("filled in by sub-task 8.2")
+    suspend fun mirrorReadingToAudiobook(canonicalJson: String) {
+        val serverId = readerSyncServerId ?: return
+        val readerSync = readerSyncProvider()
+        val audiobookFollow = audiobookFollowProvider()
+        val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
+        val seconds = ReadaloudAudioAnchor.audiobookSeconds(
+            activeFragment = playerCoordinator.activeFragmentRef.value,
+            readaloudOpen = _readaloudOpen.value,
+            parkedFragment = parkedFragmentRef,
+            fragmentSeconds = { f ->
+                readerSync?.audioSecondsForFragment(f, fallbackCanonicalJson = null)
+                    ?: audiobookFollow?.secondsForFragment(f)
+            },
+            pageSeconds = { readerSync?.audioSecondsForCanonical(canonicalJson) },
+        ) ?: return
+        val snap = readingSyncStore.snapshot(serverId, itemId)
+        audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
+    }
 
     /**
-     * Called from positionSaveCoordinator.savePosition and reconcile cycle to push the translated
-     * audiobook second computed from the current reading position.
-     * Filled in sub-task 8.2.
+     * Responsive audiobook-follow: PATCH only the matched ABS audiobook's currentTime, keyed by the
+     * exact narrated fragment or the current reading position through the bundle SMIL (ADR 0031).
+     * No-op when the book isn't a matched-reconciliation book.
+     *
+     * NOTE: [fragment] must be captured BEFORE the player is torn down — after teardown the live
+     * activeFragmentRef is null and a silent fall-back to the page top would be sent to the server.
      */
-    suspend fun pushAudiobookFromReadingPosition(fragmentRef: String?): Unit =
-        TODO("filled in by sub-task 8.2")
+    suspend fun pushAudiobookFromReadingPosition(fragment: String?) {
+        val serverId = readerSyncServerId ?: return
+        val coordinator = readerSyncProvider()
+        val locJson = snapshotLocator()?.toJSON()?.toString()
+        val stamp = runCatching {
+            when {
+                coordinator != null ->
+                    if (fragment != null) coordinator.pushAudiobookForFragment(fragment, locJson)
+                    else locJson?.let { coordinator.pushAudiobookProgress(it) }
+                fragment != null -> audiobookFollowProvider()?.pushFragment(fragment)
+                else -> null
+            }
+        }.getOrNull() ?: return
+        if (stamp > readingPositionStore.loadLocalUpdatedAt(serverId, itemId)) {
+            readingPositionStore.updateLocalTimestamp(serverId, itemId, stamp)
+        }
+    }
 
     /**
      * Persists the readaloud resume position so the next session continues from this sentence.
@@ -299,11 +362,30 @@ class ReadaloudSession @AssistedInject constructor(
         TODO("filled in by sub-task 8.2")
 
     /**
-     * Flush the readaloud position to local stores (room + sync table) for a given fragment.
-     * Filled in sub-task 8.2.
+     * Flush the full readaloud position into local stores on close/pause (ADR 0031): persist the
+     * sentence-precise ebook reading position and the local audiobook position (SMIL seconds).
+     * Matched-only; no-op without a coordinator or a resolvable sentence.
+     *
+     * SAFEGUARD (ProgressFlushScope): callers that fire on pause/close must wrap this call inside
+     * [progressFlushScope.flush], not viewModelScope.launch, so the write survives teardown.
      */
-    suspend fun flushReadaloudPositionToStores(fragmentRef: String?): Unit =
-        TODO("filled in by sub-task 8.2")
+    suspend fun flushReadaloudPositionToStores(fragmentRef: String?) {
+        val serverId = readerSyncServerId ?: return
+        if (fragmentRef == null) return
+        val sid = fragmentRef.substringAfter('#', "")
+        val sentenceJson = com.riffle.app.feature.reader.readaloudLocatorJson(
+            fragmentRef, _sentenceQuotes.value[sid]
+        ).toString()
+        epubRepository.saveReadingPosition(itemId, sentenceJson)
+        val readerSync = readerSyncProvider()
+        val audiobookFollow = audiobookFollowProvider()
+        val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
+        val seconds = readerSync?.audioSecondsForFragment(fragmentRef, snapshotLocator()?.toJSON()?.toString())
+            ?: audiobookFollow?.secondsForFragment(fragmentRef)
+            ?: return
+        val snap = readingSyncStore.snapshot(serverId, itemId)
+        audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
+    }
 
     /**
      * Opens (or re-opens) the readaloud player for the current book.
@@ -419,6 +501,13 @@ class ReadaloudSession @AssistedInject constructor(
     companion object {
         /** Debounce window for persisting a playback-speed change. */
         internal const val SPEED_SAVE_DEBOUNCE_MS = 400L
+
+        /**
+         * A reading-position progression change beyond this (or any href change) counts as
+         * navigating off the page readaloud was parked on; smaller deltas are settle jitter on
+         * the same page (ADR 0031).
+         */
+        internal const val PARK_PAGE_EPS = 0.001
     }
 }
 
