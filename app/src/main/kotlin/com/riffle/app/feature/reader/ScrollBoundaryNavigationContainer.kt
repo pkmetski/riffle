@@ -37,6 +37,8 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     private var lastNavigationMs = 0L
     private var lastVolumeNavMs = 0L
     private var lastTouchY = 0f
+    private var downX = 0f
+    private var downY = 0f
     private var lastMoveTimeMs = 0L
     private var pullDirection = 0 // 1 = forward pull, -1 = backward pull, 0 = inactive
     private var pullDistancePx = 0f
@@ -126,16 +128,18 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     lastTouchY = ev.y
+                    downX = ev.x
+                    downY = ev.y
                     resetPull()
                 }
-                MotionEvent.ACTION_MOVE -> handlePullMove(ev.y)
+                MotionEvent.ACTION_MOVE -> handlePullMove(ev.x, ev.y)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> resetPull()
             }
         }
         return super.dispatchTouchEvent(ev)
     }
 
-    private fun handlePullMove(y: Float) {
+    private fun handlePullMove(x: Float, y: Float) {
         val dy = y - lastTouchY
         lastTouchY = y
         val now = SystemClock.elapsedRealtime()
@@ -159,7 +163,13 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
             resetPull(); return
         }
 
-        // Start a new pull only when finger moves in the correct direction at a boundary.
+        // Start a new pull only when finger moves in the correct direction at a boundary AND
+        // the gesture is predominantly vertical. A horizontal swipe has tiny y jitter that
+        // easily passes MOVEMENT_SLOP_PX, which previously armed the pull on left/right swipes
+        // at a boundary — only up/down pulls should trigger chapter navigation in scroll mode.
+        val totalDx = x - downX
+        val totalDy = y - downY
+        if (pullDirection == 0 && abs(totalDx) >= abs(totalDy)) return
         if (pullDirection == 0) {
             when {
                 dy < -MOVEMENT_SLOP_PX && atForwardBoundary && canNavigateForward -> {
