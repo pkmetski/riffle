@@ -165,6 +165,7 @@ class EpubReaderViewModel @Inject constructor(
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
+    private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -189,6 +190,14 @@ class EpubReaderViewModel @Inject constructor(
     // Position orchestrator — owns the canonical reading-position stream and all hot-path state
     // (lastLocator, serverLocatorChannel, pendingServerJumpStamp, suppressNextServerLocator, etc.).
     private val position: PositionOrchestrator = positionOrchestratorFactory.create(viewModelScope)
+
+    // Readaloud session — owns readaloud state and leaf controls. Full extraction happens across
+    // sub-tasks 8.1–8.5; each sub-task lifts more logic here from the VM.
+    private val readaloud: com.riffle.app.feature.reader.session.ReadaloudSession =
+        readaloudSessionFactory.create(
+            scope = viewModelScope,
+            snapshotLocator = { position.snapshotLastLocator() },
+        )
 
     // Annotation session — owns highlight/annotation state, panel visibility, navigation channel,
     // sync lifecycle (syncOnOpen, live-pull loop, syncOnClose). Publication-dependent operations
@@ -572,6 +581,9 @@ class EpubReaderViewModel @Inject constructor(
             }
             initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
                 ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
+            // Mirror the resolved speed into the readaloud session so setSpeed delegations (sub-task
+            // 8.1) and ensureOpened (via readaloud.initialSpeed) see the same value.
+            readaloud.initialSpeed = initialSpeed
 
             // Restore the readaloud resume position persisted when the book was last left, so the
             // first Play this session continues where narration stopped (same page) or starts at the
@@ -872,7 +884,7 @@ class EpubReaderViewModel @Inject constructor(
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
             // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
             // regress it to the page top (ADR 0031). Outbound resumes once the user navigates off the page.
-            val pushAudio = parkedFragmentRef == null
+            val pushAudio = readaloud.parkedFragmentRef == null
             val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt, pushAudio) }.getOrNull()
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->
@@ -958,7 +970,7 @@ class EpubReaderViewModel @Inject constructor(
         val seconds = ReadaloudAudioAnchor.audiobookSeconds(
             activeFragment = playerCoordinator.activeFragmentRef.value,
             readaloudOpen = _readaloudOpen.value,
-            parkedFragment = parkedFragmentRef,
+            parkedFragment = readaloud.parkedFragmentRef,
             fragmentSeconds = { f ->
                 readerSync?.audioSecondsForFragment(f, fallbackCanonicalJson = null)
                     ?: audiobookFollow?.secondsForFragment(f)
@@ -1058,13 +1070,13 @@ class EpubReaderViewModel @Inject constructor(
         // Readaloud "park" check (Task 8 code — remains in VM until ReadaloudSession is extracted):
         // Leaving the page readaloud stopped on ends the "park": the position is now genuine reading,
         // so reading→audiobook resumes its normal page-top tracking (ADR 0031).
-        if (parkedFragmentRef != null) {
-            val movedOffPage = locator.href.toString() != parkedLocatorHref ||
-                kotlin.math.abs((locator.locations.progression ?: 0.0) - (parkedProgression ?: 0.0)) > PARK_PAGE_EPS
+        if (readaloud.parkedFragmentRef != null) {
+            val movedOffPage = locator.href.toString() != readaloud.parkedLocatorHref ||
+                kotlin.math.abs((locator.locations.progression ?: 0.0) - (readaloud.parkedProgression ?: 0.0)) > PARK_PAGE_EPS
             if (movedOffPage) {
-                parkedFragmentRef = null
-                parkedLocatorHref = null
-                parkedProgression = null
+                readaloud.parkedFragmentRef = null
+                readaloud.parkedLocatorHref = null
+                readaloud.parkedProgression = null
             }
         }
         // All hot-path position state is managed by PositionOrchestrator.
@@ -1726,9 +1738,9 @@ class EpubReaderViewModel @Inject constructor(
         closeLocator = position.snapshotLastLocator()
         // Park on the stopped sentence so the audiobook isn't re-derived from the page top until the
         // user navigates off this page (ADR 0031). Keyed by the reader page we're parked on.
-        parkedFragmentRef = resumeFragmentRef
-        parkedLocatorHref = position.snapshotLastLocator()?.href?.toString()
-        parkedProgression = position.snapshotLastLocator()?.locations?.progression
+        readaloud.parkedFragmentRef = resumeFragmentRef
+        readaloud.parkedLocatorHref = position.snapshotLastLocator()?.href?.toString()
+        readaloud.parkedProgression = position.snapshotLastLocator()?.locations?.progression
         // Persist the same stopped position so it survives leaving the book / process death, not just
         // an in-session reopen. Capture before close() nulls the active fragment.
         persistReadaloudResumePosition(closeLocator, resumeFragmentRef)
@@ -1781,69 +1793,17 @@ class EpubReaderViewModel @Inject constructor(
         null
     }
 
-    fun togglePlayPause() {
-        if (playbackState.value.isPlaying) {
-            // Record the audiobook position on pause too (the follow loop is gated on isPlaying, which
-            // is about to go false), derived from the reading position via the bundle.
-            val pausedFragment = playerCoordinator.activeFragmentRef.value
-            playerCoordinator.pause()
-            // Park on the paused sentence too (same reasoning as closeReadaloud): otherwise the 30s
-            // reconcile cycle, gated on parkedFragmentRef, would push the page-top audio position and
-            // regress the audiobook below where playback paused. Cleared on the first navigation off
-            // this page (ADR 0031).
-            if (pausedFragment != null) {
-                parkedFragmentRef = pausedFragment
-                parkedLocatorHref = position.snapshotLastLocator()?.href?.toString()
-                parkedProgression = position.snapshotLastLocator()?.locations?.progression
-            }
-            // Flush scope (see closeReadaloud): a pause is often immediately followed by leaving the
-            // book, which would cancel a viewModelScope-launched PATCH before it reaches ABS.
-            if (pausedFragment != null) progressFlushScope.flush {
-                // Local-first, then PATCH — same race fix as closeReadaloud (ADR 0031).
-                flushReadaloudPositionToStores(pausedFragment)
-                pushAudiobookFromReadingPosition(pausedFragment)
-            }
-        } else {
-            onPlayTapped()
-        }
-    }
+    fun togglePlayPause() = readaloud.togglePlayPause()
 
-    private var speedSaveJob: Job? = null
-    // The speed whose persistence is still pending behind the debounce, so close can flush it
-    // (null once written).
-    private var pendingSpeed: Float? = null
-
-    fun setSpeed(speed: Float) {
-        // Apply to the live player immediately; persist debounced so a granular scrub/slide (which
-        // fires many intermediate values) only writes the settled speed, not every 0.05 step.
-        playerCoordinator.setSpeed(speed)
-        // Keep the value ensureOpened() reapplies on reopen in sync with the live speed. closeReadaloud
-        // resets readaloudPrepared, so an in-session reopen re-runs ensureOpened and would otherwise
-        // restore the stale book-open speed — losing the change the user just made.
-        initialSpeed = speed
-        pendingSpeed = speed
-        speedSaveJob?.cancel()
-        speedSaveJob = viewModelScope.launch {
-            delay(SPEED_SAVE_DEBOUNCE_MS)
-            if (audioSettingsIdentity.serverId.isEmpty()) return@launch
-            audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
-            pendingSpeed = null
-        }
-    }
+    fun setSpeed(speed: Float) = readaloud.setSpeed(speed)
 
     /** Persist a debounced-but-not-yet-written speed immediately, so the value a user picks just
      * before dismissing the player isn't lost inside the debounce window. */
-    private fun flushPendingSpeed() {
-        val speed = pendingSpeed ?: return
-        speedSaveJob?.cancel()
-        pendingSpeed = null
-        if (audioSettingsIdentity.serverId.isEmpty()) return
-        progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
-    }
+    private fun flushPendingSpeed() = readaloud.flushPendingSpeed()
 
-    fun rewind() = playerCoordinator.skipBy(-rewindIntervalSec.value)
+    fun rewind() = readaloud.rewind()
 
-    fun forward() = playerCoordinator.skipBy(skipIntervalSec.value)
+    fun forward() = readaloud.forward()
 
     /**
      * Swipe-up handoff to the single large player: capture the current listen second, release the
@@ -1879,9 +1839,9 @@ class EpubReaderViewModel @Inject constructor(
     /** Discard any pre-warm state if the drag was abandoned. */
     fun cancelHandoffHint() = Unit
 
-    fun previousChapter() = playerCoordinator.previousChapter()
+    fun previousChapter() = readaloud.previousChapter()
 
-    fun nextChapter() = playerCoordinator.nextChapter()
+    fun nextChapter() = readaloud.nextChapter()
 
     /**
      * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when
@@ -2080,17 +2040,10 @@ class EpubReaderViewModel @Inject constructor(
     private var closeLocator: Locator? = null
     private var resumeFragmentRef: String? = null
 
-    // "Parked" on the sentence readaloud last stopped on (set on close, while the reader stays on that
-    // page). While parked, reading→audiobook uses THIS sentence — not the page-top — so a debounced
-    // reading-save or a reconcile cycle firing after close can't regress the audiobook below where
-    // readaloud stopped (ADR 0031). Cleared on the first genuine navigation off the parked page.
-    private var parkedFragmentRef: String? = null
-    private var parkedLocatorHref: String? = null
-    private var parkedProgression: Double? = null
-
     // The exact narrated sentence a server sync placed the reader at (set in runReaderSyncCycle on an
     // inbound jump). The next "start readaloud" begins here so it matches the synced audiobook
     // position precisely, instead of the page top. Ignored once the reader leaves that chapter.
+    // NOTE: accessed via readaloud.pendingStartFragmentRef after sub-task 8.1.
     private var pendingStartFragmentRef: String? = null
 
     private suspend fun ensurePreparedAndPlay(bundle: File?) {
@@ -2237,7 +2190,7 @@ class EpubReaderViewModel @Inject constructor(
             }
             // Apply the persisted per-book speed to the freshly-prepared session. Use the coordinator
             // directly (not the VM's setSpeed) so restoring the saved value doesn't re-save it.
-            playerCoordinator.setSpeed(initialSpeed)
+            playerCoordinator.setSpeed(readaloud.initialSpeed)
             readaloudPrepared = true
         }
         return track
