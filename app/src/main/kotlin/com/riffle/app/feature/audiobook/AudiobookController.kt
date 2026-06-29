@@ -20,8 +20,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -63,6 +66,9 @@ open class AudiobookController @Inject constructor(
 
     private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
     open val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+
+    private val _playbackEnded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    open val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
     private var timerJob: Job? = null
 
     private var controller: MediaController? = null
@@ -81,6 +87,10 @@ open class AudiobookController @Inject constructor(
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
                 Log.d(HANDOFF, "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
+            }
+            if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
+                && player.playbackState == Player.STATE_ENDED) {
+                _playbackEnded.tryEmit(Unit)
             }
             maybeStart(player)
             pushState()
