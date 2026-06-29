@@ -96,7 +96,46 @@ class PdfTextResolver(
      */
     fun quadsForRange(pagePtr: Long, range: CharRange): List<RectF> {
         if (range.isEmpty) return emptyList()
-        return source.rectsForRange(pagePtr, range.start.value, range.length)
+        val raw = source.rectsForRange(pagePtr, range.start.value, range.length)
+        return mergeContiguousLineQuads(raw)
+    }
+
+    /**
+     * Combine per-character rects that share a line baseline into a single
+     * span. Pdfium's FPDFText_CountRects sometimes returns one rect per
+     * character for short or narrow words, which visually fragments the
+     * highlight into disconnected boxes. We group by Y-band (rects whose
+     * vertical centers are within 2 PDF points of each other) and union
+     * each group into a single rect spanning the leftmost-left to
+     * rightmost-right.
+     *
+     * Multi-line selections naturally produce rects in distinct Y-bands,
+     * so this preserves one quad per visible line.
+     */
+    private fun mergeContiguousLineQuads(quads: List<RectF>): List<RectF> {
+        if (quads.size <= 1) return quads
+        val lineTolerance = 2f
+        // Group by line band (use the midpoint of top/bottom as the key).
+        // PDF Y grows up; in the rect top > bottom, so midpoint = (top + bottom) / 2.
+        val sorted = quads.sortedByDescending { (it.top + it.bottom) / 2f }
+        val groups = mutableListOf<MutableList<RectF>>()
+        for (q in sorted) {
+            val qMid = (q.top + q.bottom) / 2f
+            val last = groups.lastOrNull()
+            val lastMid = last?.firstOrNull()?.let { (it.top + it.bottom) / 2f }
+            if (last != null && lastMid != null && kotlin.math.abs(qMid - lastMid) <= lineTolerance) {
+                last += q
+            } else {
+                groups += mutableListOf(q)
+            }
+        }
+        return groups.map { group ->
+            val left = group.minOf { it.left }
+            val right = group.maxOf { it.right }
+            val top = group.maxOf { it.top }          // higher Y in PDF
+            val bottom = group.minOf { it.bottom }    // lower Y in PDF
+            RectF(left, top, right, bottom)
+        }
     }
 
     /**

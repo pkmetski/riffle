@@ -107,7 +107,11 @@ fun PdfSelectionOverlay(
     // above the AndroidView sibling in declaration order.
     if (pdfView != null) {
         val density = LocalDensity.current
-        val fillColor = Color(0xFFFFEB3B).copy(alpha = 0.45f)
+        // Yellow at 0.6 alpha — visible on white PDF pages without obscuring
+        // the text underneath. EPUB highlights use ~0.4 against the WebView
+        // background, but PDF page bitmaps are flatter (printed white), so
+        // a higher alpha reads as the same visual weight.
+        val fillColor = Color(0xFFFFEB3B).copy(alpha = 0.6f)
         Box(
             modifier = modifier
                 .fillMaxSize()
