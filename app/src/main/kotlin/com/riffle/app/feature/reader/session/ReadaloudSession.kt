@@ -4,41 +4,53 @@ import com.riffle.app.feature.audiobook.AudiobookHandoffState
 import com.riffle.app.feature.reader.AudiobookFollow
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.ReadaloudAudioAnchor
+import com.riffle.app.feature.reader.ReadaloudStartAnchor
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
+import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingStore
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
+import com.riffle.core.data.StorytellerSyncOutcome
+import com.riffle.core.domain.AudioDownloadResult
 import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
+import com.riffle.core.domain.ReadaloudResumePlanner
+import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
+import com.riffle.core.domain.ReadaloudStartPlan
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.SyncPositionStore
+import com.riffle.core.domain.resolveEpubHref
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import org.readium.r2.shared.publication.Locator
 import java.io.File
 
@@ -100,13 +112,13 @@ class ReadaloudSession @AssistedInject constructor(
 
     // ---- State surface --------------------------------------------------------------------------
 
-    private val _readaloudAvailable = MutableStateFlow(false)
+    internal val _readaloudAvailable = MutableStateFlow(false)
     val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
 
-    private val _readaloudVisible = MutableStateFlow(false)
+    internal val _readaloudVisible = MutableStateFlow(false)
     val readaloudVisible: StateFlow<Boolean> = _readaloudVisible
 
-    private val _readaloudOpen = MutableStateFlow(false)
+    internal val _readaloudOpen = MutableStateFlow(false)
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
 
     /** The ABS audiobook item to switch to when the mini player is swiped up. */
@@ -142,7 +154,7 @@ class ReadaloudSession @AssistedInject constructor(
     val downloadPromptBytes: StateFlow<Long?> = _downloadPromptBytes
 
     /** Non-null when play can't start — reason shown in-bar. */
-    private val _readaloudBarMessage = MutableStateFlow<String?>(null)
+    internal val _readaloudBarMessage = MutableStateFlow<String?>(null)
     val readaloudBarMessage: StateFlow<String?> = _readaloudBarMessage
 
     /** True while a download is running. */
@@ -175,6 +187,18 @@ class ReadaloudSession @AssistedInject constructor(
     // --- Book identity (set from bind() in sub-task 8.2/8.5; empty until first bind) ---
     internal var itemId: String = ""
     internal var readerSyncServerId: String? = null
+
+    // --- Audio-source identity (bundle key) — set by VM init coroutine via property setters ---
+    internal var audioBookId: String = ""
+    internal var audioServerId: String = ""
+    // True when the active server is a Storyteller server; drives availability and sync behaviour.
+    internal var isStorytellerServer: Boolean = false
+    // The reader's active server id, keys readaloud resume position (both seed-on-open and save-on-close).
+    internal var readerServerId: String? = null
+
+    // --- Effective formatting preferences provider (needed by ensurePreparedAndPlay resume planner) ---
+    // Injected as a lambda so the session doesn't take a hard dep on FormattingSession.
+    var effectiveFormattingPreferencesProvider: () -> FormattingPreferences = { FormattingPreferences() }
 
     // --- Sync / audiobook-follow providers (Option B seam — set once after construction) ---
     // Returning the VM's live vars avoids the need for setters that 8.5 will remove.
@@ -355,11 +379,17 @@ class ReadaloudSession @AssistedInject constructor(
     }
 
     /**
-     * Persists the readaloud resume position so the next session continues from this sentence.
-     * Filled in sub-task 8.5.
+     * Saves where narration stopped for this book, keyed by the reader's (serverId, itemId). Skips
+     * when there is no reader page to resume to. Overwrites any previous row so the position persists
+     * indefinitely until the next stop — it is not cleared when consumed on resume.
+     * Lifted in sub-task 8.3; called by closeReadaloud() and by the VM's persistReadaloudResumePosition.
      */
-    suspend fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?): Unit =
-        TODO("filled in by sub-task 8.5")
+    suspend fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?) {
+        val href = locator?.href?.toString() ?: return
+        val serverId = readerServerId ?: return
+        val progression = locator.locations.progression
+        readaloudResumeStore.save(serverId, itemId, ReadaloudResumePosition(href, progression, fragmentRef))
+    }
 
     /**
      * Flush the full readaloud position into local stores on close/pause (ADR 0031): persist the
@@ -389,47 +419,203 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Opens (or re-opens) the readaloud player for the current book.
-     * Filled in sub-task 8.3.
+     * Pressing the reader's readaloud control plays immediately via [onPlayTapped].
      */
-    fun openReadaloud(): Unit = TODO("filled in by sub-task 8.3")
+    fun openReadaloud() {
+        if (!_readaloudAvailable.value) return
+        openReadaloudSession()
+        // Pressing the reader's readaloud control plays immediately — no separate Play tap.
+        onPlayTapped()
+    }
+
+    /**
+     * Opens the readaloud session (shows the player, starts the sync loop) WITHOUT auto-playing.
+     * "Play from here" uses this instead of [openReadaloud]: it drives its own seek to the selected
+     * sentence, and routing through [onPlayTapped]'s resume planner would fire a SECOND, competing
+     * seek — to the saved resume position or the page-top fallback — that races the selection seek.
+     */
+    private fun openReadaloudSession() {
+        _readaloudOpen.value = true
+        startStorytellerSync()
+    }
 
     /**
      * Closes the readaloud player, recording park / close state and flushing the position.
-     * Filled in sub-task 8.3.
+     *
+     * SAFEGUARD (ProgressFlushScope): the position flush uses [progressFlushScope], not [scope],
+     * so the write survives teardown when closing readaloud is followed immediately by leaving the
+     * book (reference_progress_flush_scope_teardown.md).
      */
-    fun closeReadaloud(): Unit = TODO("filled in by sub-task 8.3")
+    fun closeReadaloud() {
+        _readaloudOpen.value = false
+        _downloadPromptBytes.value = null
+        _readaloudBarMessage.value = null
+        // Persist any speed change still sitting in the debounce window before the session goes away.
+        flushPendingSpeed()
+        storytellerSyncJob?.cancel()
+        storytellerSyncJob = null
+        // Remember where we stopped before tearing the session down: the sentence narrating now and
+        // the reader page it sits on. Reopening uses these to resume in place (same page) or start at
+        // the top of the current page (different page) instead of restarting the chapter. Capture
+        // before close() — it nulls the active fragment.
+        resumeFragmentRef = playerCoordinator.activeFragmentRef.value
+        closeLocator = snapshotLocator()
+        // Park on the stopped sentence so the audiobook isn't re-derived from the page top until the
+        // user navigates off this page (ADR 0031). Keyed by the reader page we're parked on.
+        parkedFragmentRef = resumeFragmentRef
+        parkedLocatorHref = snapshotLocator()?.href?.toString()
+        parkedProgression = snapshotLocator()?.locations?.progression
+        // Persist the same stopped position so it survives leaving the book / process death.
+        val capturedCloseLocator = closeLocator
+        val capturedResumeRef = resumeFragmentRef
+        scope.launch { persistReadaloudResumePosition(capturedCloseLocator, capturedResumeRef) }
+        val hadFragment = resumeFragmentRef != null
+        pendingStartFragmentRef = null
+        readaloudPrepared = false
+        readaloudStarted = false
+        playerCoordinator.close()
+        // Use the fragment captured above — close() has nulled the live one.
+        // On the flush scope, not scope: closing readaloud is routinely followed by leaving the book
+        // at once, which cancels scope and would abort this PATCH mid-write.
+        if (hadFragment) progressFlushScope.flush {
+            flushReadaloudPositionToStores(resumeFragmentRef)
+            pushAudiobookFromReadingPosition(resumeFragmentRef)
+        }
+    }
 
     /**
-     * Called when the user taps Play (the first entry point to streaming/bundle resolution).
-     * Filled in sub-task 8.3.
+     * Play tapped. If a local bundle is present we prepare (if needed) and play. Otherwise: when
+     * online, probe the download size and surface the confirm dialog; when offline, surface the
+     * "connect to download" message in the bar.
      */
-    fun onPlayTapped(): Unit = TODO("filled in by sub-task 8.3")
+    fun onPlayTapped() {
+        _readaloudBarMessage.value = null
+        scope.launch {
+            // Bundle precedence (ADR 0028): a downloaded bundle is complete and local — prefer it.
+            val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+            if (bundle != null) {
+                ensurePreparedAndPlay(bundle)
+                return@launch
+            }
+            // Streaming (ADR 0028): build from the sidecar prepared ahead of time when the book opened.
+            if (ensureStreamingSession() != null) {
+                ensurePreparedAndPlay(bundle = null)
+                return@launch
+            }
+            // No bundle and no streaming session yet. For a matched book the sidecar may still be preparing.
+            if (audioBookId != itemId) {
+                when (sidecarStore.stateOf(audioServerId, audioBookId)) {
+                    ReadaloudSidecarStore.State.Preparing -> {
+                        _readaloudBarMessage.value = PREPARING_MESSAGE
+                        autoPlayWhenPrepared = true
+                        preparingTimeoutJob?.cancel()
+                        preparingTimeoutJob = scope.launch {
+                            delay(PREPARING_SLOW_TIMEOUT_MS)
+                            if (autoPlayWhenPrepared) {
+                                _readaloudBarMessage.value =
+                                    "Taking longer than usual — download it from the book's details to listen offline"
+                            }
+                        }
+                    }
+                    else -> {
+                        _readaloudBarMessage.value =
+                            "Couldn't stream readaloud — download it from the book's details to listen"
+                    }
+                }
+                return@launch
+            }
+            if (!connectivityObserver.isOnline.value) {
+                _readaloudBarMessage.value = "Connect to download readaloud audio"
+                return@launch
+            }
+            // probeSizeBytes may return null (can't probe) — fall back to a zero-sized prompt.
+            _downloadPromptBytes.value = readaloudAudioRepository.probeSizeBytes(audioServerId, audioBookId) ?: 0L
+        }
+    }
 
     /**
-     * Begins narration from a specific absolute second (e.g. audiobook→readaloud handoff).
-     * Filled in sub-task 8.3.
+     * Audiobook→readaloud handoff: open readaloud and start narrating from [globalSec] on the
+     * readaloud timeline. Falls back to the normal play path when no bundle is on disk.
      */
-    suspend fun startReadaloudAtSecond(globalSec: Double): Unit =
-        TODO("filled in by sub-task 8.3")
+    fun startReadaloudAtSecond(globalSec: Double) {
+        if (!_readaloudAvailable.value) return
+        val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+        if (bundle == null) {
+            openReadaloud()
+            return
+        }
+        if (!_readaloudOpen.value) openReadaloudSession()
+        readaloudPrepared = false
+        scope.launch {
+            preWarmTrackJob?.join()  // wait for background SMIL parse to finish before ensureTrack
+            ensureOpened(bundle) ?: return@launch
+            readaloudStarted = true
+            resumeFragmentRef = null
+            closeLocator = null
+            playerCoordinator.playFromSecond(globalSec)
+        }
+    }
 
-    /**
-     * Plays from the sentence under the user's text selection ("Play from here").
-     * Filled in sub-task 8.3.
-     */
-    fun playFromHere(fragmentRef: String): Unit = TODO("filled in by sub-task 8.3")
+    /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
+    fun playFromHere(fragmentRef: String) {
+        scope.launch {
+            val streaming = ensureStreamingSession() != null
+            val bundle = if (streaming) null else readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+            if (!streaming && bundle == null) {
+                // No source yet — route through the normal play path so the user is told to download first.
+                if (!_readaloudOpen.value) openReadaloud() else onPlayTapped()
+                return@launch
+            }
+            // Open the session WITHOUT onPlayTapped()'s resume autoplay.
+            if (!_readaloudOpen.value) openReadaloudSession()
+            ensureOpened(bundle) ?: return@launch
+            readaloudStarted = true
+            resumeFragmentRef = null
+            closeLocator = null
+            // Re-key the ref onto the bundle chapter the selection sits in (ADR 0031 play-from-here).
+            val seekRef = readerSyncProvider()?.bundleFragmentRefForSelection(fragmentRef) ?: fragmentRef
+            playerCoordinator.playFromHere(seekRef)
+        }
+    }
 
     /**
      * Confirms the download prompt and begins downloading the bundle.
-     * Filled in sub-task 8.3.
+     * [wifiOnly]: if true and the current network is metered, refuses to start and surfaces message.
      */
-    fun confirmDownloadAudio(): Unit = TODO("filled in by sub-task 8.3")
+    fun confirmDownloadAudio(wifiOnly: Boolean) {
+        _downloadPromptBytes.value = null
+        if (wifiOnly && connectivityObserver.isMetered()) {
+            _readaloudBarMessage.value = "Connect to download readaloud audio"
+            return
+        }
+        scope.launch {
+            _downloadProgress.value = 0f
+            val result = readaloudAudioRepository.downloadAudio(audioServerId, audioBookId) { downloaded, total ->
+                if (total > 0) _downloadProgress.value = downloaded.toFloat() / total.toFloat()
+            }
+            _downloadProgress.value = null
+            when (result) {
+                AudioDownloadResult.Success -> {
+                    _readaloudVisible.value = true
+                    _readaloudAvailable.value = true
+                    readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { ensurePreparedAndPlay(it) }
+                }
+                AudioDownloadResult.NoBundle -> Unit
+                is AudioDownloadResult.NetworkError ->
+                    _readaloudBarMessage.value = "Connect to download readaloud audio"
+            }
+        }
+    }
 
     /**
-     * Called when the WebView resolves the page-top sentence for a given chapter href.
-     * Filled in sub-task 8.3.
+     * Called when the WebView resolves the first sentence visible on [href]'s current page
+     * ([fragmentId]), or null when none could be located. Starts narration there — chapter top when
+     * the id is null. Ignored if the player was closed during the (async) probe round-trip.
      */
-    fun onPageTopResolved(href: String, fragmentRef: String?): Unit =
-        TODO("filled in by sub-task 8.3")
+    fun onPageTopResolved(href: String, fragmentId: String?) {
+        if (!_readaloudOpen.value) return
+        playerCoordinator.playFromReaderPosition(href, fragmentId)
+    }
 
     /**
      * Swipe-up handoff to the single large audiobook player.
@@ -494,11 +680,206 @@ class ReadaloudSession @AssistedInject constructor(
      */
     fun onBookClosed(): Unit = TODO("filled in by sub-task 8.5")
 
-    // ---- Private helpers (stubs for later sub-tasks) -------------------------------------------
+    // ---- Private helpers lifted in sub-task 8.3 ------------------------------------------------
+
+    private suspend fun ensurePreparedAndPlay(bundle: File?) {
+        ensureOpened(bundle) ?: return
+        // Record the active readaloud so a media-notification tap reopens this book's reader.
+        nowPlayingStore.set(NowPlaying.Readaloud(itemId))
+        if (readaloudStarted) {
+            // Resume after a pause: rewind by the configured amount then play.
+            val rewindSec = rewindOnResumeSec.value
+            if (rewindSec > 0) playerCoordinator.skipBy(-rewindSec)
+            playerCoordinator.play()
+            return
+        }
+        readaloudStarted = true
+
+        // Reconcile the readaloud start against the LOCAL audiobook position (ADR 0031).
+        val localAudioStartFragment: String? = run {
+            val sid = readerSyncServerId ?: return@run null
+            val readerSync = readerSyncProvider()
+            val audiobookFollow = audiobookFollowProvider()
+            val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return@run null
+            val audioSnap = audioSyncStore.snapshot(sid, audioItemId)
+            ReadaloudStartAnchor.fromLocalAudio(
+                audioSeconds = audioSnap.position,
+                audioUpdatedAt = audioSnap.localUpdatedAt,
+                readingUpdatedAt = readingSyncStore.snapshot(sid, itemId).localUpdatedAt,
+                fragmentForAudioSeconds = { s -> readerSync?.fragmentForAudioSeconds(s) ?: audiobookFollow?.fragmentForAudioSeconds(s) },
+            )
+        }
+
+        // Matched book: readaloud starts at the reconciled reading position.
+        readerSyncProvider()?.let { coordinator ->
+            val lastLoc = snapshotLocator()
+            val pending = pendingStartFragmentRef?.takeIf { p ->
+                lastLoc?.href?.let { resolveEpubHref(it.toString()) } == resolveEpubHref(p.substringBefore('#'))
+            }
+            val startFragment = localAudioStartFragment
+                ?: pending
+                ?: resumeFragmentRef
+                ?: lastLoc?.toJSON()?.toString()?.let { coordinator.fragmentForCanonical(it) }
+            pendingStartFragmentRef = null
+            closeLocator = null
+            resumeFragmentRef = null
+            if (startFragment != null) {
+                playerCoordinator.playFromHere(startFragment)
+            } else {
+                lastLoc?.href?.let { playerCoordinator.playFromReaderPosition(it.toString(), null) }
+            }
+            return
+        }
+
+        // Matched book without the full coordinator (no cross-EPUB index): local listen seeds start.
+        if (localAudioStartFragment != null) {
+            pendingStartFragmentRef = null
+            closeLocator = null
+            resumeFragmentRef = null
+            playerCoordinator.playFromHere(localAudioStartFragment)
+            return
+        }
+
+        // Storyteller-only readaloud: page-top probe for first play / reopen-elsewhere.
+        val closed = closeLocator
+        val resume = resumeFragmentRef
+        closeLocator = null
+        resumeFragmentRef = null
+        val loc = snapshotLocator()
+        val plan = ReadaloudResumePlanner.plan(
+            isScroll = effectiveFormattingPreferencesProvider().orientation != ReaderOrientation.Horizontal,
+            closeHref = closed?.href?.toString(),
+            closeProgression = closed?.locations?.progression,
+            resumeFragmentRef = resume,
+            currentHref = loc?.href?.toString(),
+            currentProgression = loc?.locations?.progression,
+        )
+        when (plan) {
+            ReadaloudStartPlan.FromReaderPosition ->
+                // First play of this session: start at the first FULL sentence visible on the reader's
+                // current page via the page-top probe. For the streaming path where quotes are still
+                // building, skip the probe and call playFromReaderPosition directly.
+                if (loc != null) {
+                    if (_sentenceQuotes.value.isNotEmpty()) {
+                        _pageTopProbeChannel.trySend(loc.href.toString())
+                    } else {
+                        playerCoordinator.playFromReaderPosition(loc.href.toString(), null)
+                    }
+                } else {
+                    playerCoordinator.play()
+                }
+            is ReadaloudStartPlan.Resume -> playerCoordinator.playFromHere(plan.fragmentRef)
+            is ReadaloudStartPlan.PageTop -> _pageTopProbeChannel.trySend(plan.href)
+        }
+    }
+
+    private suspend fun ensureOpened(bundle: File?): ReadaloudTrack? {
+        val track = ensureTrack(bundle) ?: return null
+        if (!readaloudPrepared) {
+            val session = streamingSession
+            if (session != null) {
+                playerCoordinator.openStreaming(session.streaming, track)
+            } else {
+                playerCoordinator.open(audioBookId, bundle!!, track)
+            }
+            playerCoordinator.setSpeed(initialSpeed)
+            readaloudPrepared = true
+        }
+        return track
+    }
+
+    internal suspend fun ensureTrack(bundle: File?): ReadaloudTrack? {
+        readaloudTrack?.let { return it }
+        val session = streamingSession
+        val track: ReadaloudTrack
+        if (session != null) {
+            track = session.track
+            quoteBundle = session.sidecarFile
+        } else {
+            val b = bundle ?: return null
+            track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
+            quoteBundle = b
+        }
+        readaloudTrack = track
+        return track
+    }
+
+    private suspend fun ensureStreamingSession(): ReadaloudStreamingSessionFactory.Session? {
+        streamingSession?.let { return it }
+        val cached = sidecarStore.cachedFile(audioServerId, audioBookId)
+        if (cached == null) return null
+        if (streamingBuilding) return null
+        streamingBuilding = true
+        try {
+            streamingSession = runCatching {
+                streamingSessionFactory.tryBuild(audioServerId, audioBookId)
+            }.getOrNull()
+        } finally {
+            streamingBuilding = false
+        }
+        return streamingSession
+    }
+
+    /**
+     * Extracts per-sentence text quotes from the Storyteller bundle for text-anchored highlights.
+     * One-shot: [quotesBuildStarted] prevents double-launch on rapid pause→resume.
+     */
+    internal fun buildSentenceQuotes(bundle: File) {
+        if (quotesBuildStarted) return
+        quotesBuildStarted = true
+        scope.launch(Dispatchers.IO) {
+            try {
+                val chapters = com.riffle.core.domain.EpubContentExtractor.extract(bundle)?.chapters
+                    ?: return@launch
+                _sentenceQuotes.value = com.riffle.core.domain.ReadaloudTextQuotes.build(chapters)
+                _sentenceChapters.value = com.riffle.core.domain.ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
+            } catch (e: Throwable) {
+                android.util.Log.e("RIFFLE_RA", "buildSentenceQuotes failed", e)
+            }
+        }
+    }
+
+    private fun startStorytellerSync() {
+        if (!isStorytellerServer) return
+        // A matched book runs the canonical reconciliation cycle; don't also run the standalone Storyteller loop.
+        if (readerSyncProvider() != null) return
+        if (storytellerSyncJob?.isActive == true) return
+        storytellerSyncJob = scope.launch {
+            while (true) {
+                delay(SYNC_INTERVAL_MS)
+                val locator = snapshotLocator() ?: continue
+                when (val outcome = storytellerSyncController.runCycle(itemId, locator.toJSON().toString())) {
+                    is StorytellerSyncOutcome.PulledRemote -> {
+                        try {
+                            val pulled = Locator.fromJSON(JSONObject(outcome.locatorJson))
+                            if (pulled != null) storytellerServerLocatorCallback?.invoke(pulled)
+                        } catch (_: Exception) { /* malformed remote locator — ignore */ }
+                    }
+                    StorytellerSyncOutcome.PushedLocal,
+                    StorytellerSyncOutcome.InSync,
+                    StorytellerSyncOutcome.Offline -> Unit
+                }
+            }
+        }
+    }
+
+    /**
+     * Callback invoked when Storyteller sync pulls a remote locator — routes it to the
+     * PositionOrchestrator in the VM. Set once after construction.
+     */
+    var storytellerServerLocatorCallback: ((Locator) -> Unit)? = null
+
+    // Interval prefs (rewind on resume — needed by ensurePreparedAndPlay)
+    private val rewindOnResumeSec: StateFlow<Double> = listeningPreferencesStore.rewindOnResumeSeconds
+        .map { it.toDouble() }
+        .stateIn(scope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
 
     @Volatile private var readaloudTrack: ReadaloudTrack? = null
 
     companion object {
+        internal const val SYNC_INTERVAL_MS = 30_000L
+        internal const val PREPARING_MESSAGE = "Preparing narration…"
+        internal const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
         /** Debounce window for persisting a playback-speed change. */
         internal const val SPEED_SAVE_DEBOUNCE_MS = 400L
 

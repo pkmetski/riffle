@@ -64,13 +64,13 @@ class PlayerCoordinator @Inject constructor(
     }
 
     /** Connects the controller to [bundleFile] and queues [track]'s audio. */
-    suspend fun open(itemId: String, bundleFile: File, track: ReadaloudTrack) {
+    override suspend fun open(itemId: String, bundleFile: File, track: ReadaloudTrack) {
         this.track = track
         controller.prepare(bundleFile, track)
     }
 
     /** Streaming counterpart of [open] (ADR 0028): audio streams from ABS, same [track] machinery. */
-    internal suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
+    override suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
         this.track = track
         controller.prepareStreaming(streaming, track)
     }
@@ -83,7 +83,7 @@ class PlayerCoordinator @Inject constructor(
      * rarely lands on a SMIL boundary) starts on the page the user is reading rather than silently
      * restarting the whole book.
      */
-    fun playFromHere(fragmentRef: String) {
+    override fun playFromHere(fragmentRef: String) {
         val href = fragmentRef.substringBefore('#')
         val fragmentId = fragmentRef.substringAfter('#', "").ifEmpty { null }
         playFromReaderPosition(href, fragmentId)
@@ -97,25 +97,25 @@ class PlayerCoordinator @Inject constructor(
      * reader's auto-follow would then drag the reading position back to the start, erasing progress.
      * Not starting is strictly safer than restarting the book.
      */
-    fun playFromReaderPosition(href: String, fragmentId: String?) {
+    override fun playFromReaderPosition(href: String, fragmentId: String?) {
         val clip = track?.resolveStartClip(href, fragmentId) ?: return
         controller.playFromFragment(clip.textFragmentRef)
     }
 
-    fun play() = controller.play()
+    override fun play() = controller.play()
 
     override fun pause() = controller.pause()
 
     override fun setSpeed(speed: Float) = controller.setSpeed(speed)
 
     /** Seeks to [globalSec] and starts playing — the audiobook→readaloud handoff entry point. */
-    fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)
+    override fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)
 
     /**
      * Releases the shared player to the audiobook player WITHOUT stopping it (swipe-up to the player),
      * and clears the synced highlight. The audiobook takes over the same session and keeps playing.
      */
-    fun releaseForHandoff() {
+    override fun releaseForHandoff() {
         track = null
         controller.releaseForHandoff()
         _activeFragmentRef.value = null
@@ -135,7 +135,7 @@ class PlayerCoordinator @Inject constructor(
     override fun nextChapter() = controller.nextChapter()
 
     /** Stops playback and tears the session down — the active fragment clears, so does the highlight. */
-    fun close() {
+    override fun close() {
         track = null
         controller.stop()
         _activeFragmentRef.value = null
