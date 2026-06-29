@@ -1068,7 +1068,7 @@ private fun EpubNavigatorView(
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
-    annotationNavigationEvents: Flow<Locator>,
+    annotationNavigationEvents: Flow<com.riffle.app.feature.reader.session.AnnotationSession.AnnotationNavigationEvent>,
     searchResults: List<Locator>,
     currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
@@ -1654,14 +1654,19 @@ private fun EpubNavigatorView(
     }
 
     LaunchedEffect(annotationNavigationEvents) {
-        annotationNavigationEvents.collect { locator ->
-            // Bookmark locators carry CFI-derived progressions measured at content top (not the
-            // viewport midpoint that locatorAt uses), so alignToTop=true for continuous mode.
-            // Readium ignores it — it handles column alignment internally.
+        annotationNavigationEvents.collect { event ->
+            // Continuous-mode landing splits by annotation type. A page-level bookmark lands
+            // with `alignToTop=true` so the chapter heading sits at the viewport top — matching
+            // the page-bookmark ribbon's "this page contains the bookmark" semantics. A
+            // highlight / note lands with `alignToTop=false`, putting the highlighted text at
+            // the viewport midpoint with reading context above it, mirroring how Readium places
+            // annotation navigation in paginated and vertical modes. Readium adapters ignore
+            // `alignToTop` — Readium owns column / page alignment internally — so this only
+            // affects continuous mode.
             navigateWithCover(
-                NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
-                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = true),
-                locator.href.toString(),
+                NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
+                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = event.isBookmark),
+                event.locator.href.toString(),
             )
         }
     }

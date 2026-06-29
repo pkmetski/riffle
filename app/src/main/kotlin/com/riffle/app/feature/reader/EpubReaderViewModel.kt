@@ -1262,7 +1262,7 @@ class EpubReaderViewModel @Inject constructor(
 
     val annotations: StateFlow<List<com.riffle.core.domain.Annotation>> = annotationSession.annotations
 
-    val annotationNavigationEvents: Flow<Locator> = annotationSession.annotationNavigationEvents
+    val annotationNavigationEvents: Flow<AnnotationSession.AnnotationNavigationEvent> = annotationSession.annotationNavigationEvents
 
     val syncBanner = annotationSession.syncBanner
 
