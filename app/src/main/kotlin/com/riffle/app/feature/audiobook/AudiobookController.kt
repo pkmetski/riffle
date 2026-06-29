@@ -67,7 +67,11 @@ open class AudiobookController @Inject constructor(
     private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
     open val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
 
-    private val _playbackEnded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    // replay=1 so a STATE_ENDED that fires while no collector is attached — e.g. across an Activity
+    // recreation (rotation, theme change) right at end-of-book — is still delivered to the next
+    // collector. The VM acts on it by stopping the controller (releasing the session), so a re-emit
+    // after that point can't re-trigger; idempotent.
+    private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     open val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
     private var timerJob: Job? = null
 
@@ -254,6 +258,9 @@ open class AudiobookController @Inject constructor(
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
+        // Drop any cached end-of-book event so the next book opened on this singleton controller
+        // doesn't inherit the previous book's Finished signal at first-subscribe.
+        _playbackEnded.resetReplayCache()
         controller?.run {
             stop()
             clearMediaItems()

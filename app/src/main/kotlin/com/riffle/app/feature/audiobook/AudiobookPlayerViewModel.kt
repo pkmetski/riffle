@@ -674,15 +674,14 @@ class AudiobookPlayerViewModel(
         // We can't rely solely on onCleared() to tear the player down: by the time the screen pops
         // and the VM is cleared, the player has been sitting in STATE_ENDED with media items still
         // in the queue, and the [AudioPlayerService] foreground notification stays put for the user
-        // to see. Flush final progress, clear the MediaSession queue, and release the controller
-        // here — that drops the foreground notification right away. onCleared() still runs its own
-        // teardown shortly after; the second calls are safe no-ops (controller is already null).
+        // to see. Tear down here so the foreground notification drops right away; onCleared() runs
+        // the same teardown shortly after, idempotently (controller is already null on the second
+        // pass).
         viewModelScope.launch {
             controller.playbackEnded.collect {
-                pushProgressOnStop()
                 flushPendingSpeed()
-                controller.stop()
-                nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
+                pushProgressAndStopPlayer()
+                clearAudiobookNowPlaying()
                 _events.tryEmit(AudiobookPlayerEvent.Finished)
             }
         }
@@ -1008,6 +1007,21 @@ class AudiobookPlayerViewModel(
         viewModelScope.launch { audiobookRepository.saveProgress(serverId, itemId, pos, dur) }
     }
 
+    /**
+     * Flush the just-ended position to ABS / the local position store, then tear down the
+     * MediaSession queue and release the [AudiobookController] (which dismisses the foreground
+     * notification). Idempotent: the controller's own stop() guards against a re-stop after release.
+     */
+    private fun pushProgressAndStopPlayer() {
+        pushProgressOnStop()
+        controller.stop()
+    }
+
+    /** Clear THIS book from the now-playing store so the mini-bar doesn't linger after the session ends. */
+    private fun clearAudiobookNowPlaying() {
+        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
+    }
+
     override fun onCleared() {
         followJob?.cancel()
         // Release this book to the durable sweep again (ADR 0030).
@@ -1022,12 +1036,9 @@ class AudiobookPlayerViewModel(
         flushPendingSpeed()
         // On a readaloud handoff the progress was already pushed and the handle released without
         // stopping the shared player (readaloud now owns it) — stopping here would pause readaloud.
-        if (!handingOffToReadaloud) {
-            pushProgressOnStop()
-            controller.stop()
-        }
+        if (!handingOffToReadaloud) pushProgressAndStopPlayer()
         // Leaving the player stops playback (no mini-bar), so this session is no longer playing.
-        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
+        clearAudiobookNowPlaying()
         super.onCleared()
     }
 
