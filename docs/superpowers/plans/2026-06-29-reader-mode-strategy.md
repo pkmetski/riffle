@@ -133,9 +133,23 @@ Each slice is one commit and is independently mergeable. The PR aggregates them.
 - **Body:** Summary table of branches collapsed per slice, plus before/after `grep` counts. Test plan: `make harness-test`, `make harness-test-tablet`, manual AVD verification across the three modes.
 - Mention contradiction risk for ADR 0014 (chapter-boundary gesture) and ADR 0006 (immersive tap) — both should be unaffected; verify explicitly.
 
+## Outcome
+
+All slices shipped:
+
+- **Slice 2a** — `ContinuousPresenter.navigateTo(ToLocatorJson)` implemented; `ContinuousNavigationView` widened; JVM-testable.
+- **Slice 4** — Readaloud sentence snap behind `presenter.followReadaloudSentence` / `measureReadaloudColumns` / `snapReadaloudColumn`.
+- **Slice 5** — Scroll-boundary query behind `presenter.scrollBoundary()`.
+- **Slice 3** — Volume-nav unified; one decision (vertical-with-container vs everything else) instead of three.
+- **Slice 2b** — Screen-side `NavigationTarget` interface + `ContinuousNavigationTarget` + `ReadiumNavigationTarget` deleted. All four nav pipelines route through `readerPresenter.navigateTo(target, NavigationOptions(...))`.
+- **Slice 6** — `ReaderModeForkGuardTest` pins the post-refactor branch count (27); legitimate Compose-lifecycle forks documented with `// MODE-FORK:` comments.
+
+Branch count in `EpubReaderScreen.kt`: **36 → 27**. The remaining 27 are intentional UI-lifecycle decisions (Compose `remember` keys, fragment recreation, cover-overlay state, the two concrete presenter handles, the two highlight-renderer pipelines).
+
 ## Out of scope (per issue #320)
 
 - Three-peer progress sync changes.
 - Continuous-mode position pipeline rework.
 - ViewModel restructuring beyond what the seam requires.
 - Readaloud highlight color / decoration style work.
+- TOC navigation (`coordinator.onTocNavigation` vs `readiumPresenter.navigateToLink`) — deferred; deserves its own slice.

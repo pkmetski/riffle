@@ -1115,6 +1115,10 @@ private fun EpubNavigatorView(
     // rendering and the rest of the reader. Step 2 routes decoration application through it; the
     // remaining concerns (typography, navigation, page-load + position events) cut over in later
     // steps. Continuous mode bypasses the presenter until step 5 introduces ContinuousPresenter.
+    // MODE-FORK: Concrete presenter selection. Each adapter wraps a fundamentally different
+    // renderer (Readium fragment vs custom NestedScrollView), so the two concrete handles are kept
+    // for the few call sites that drive Readium-specific commands (fragment attach, navigateToLink,
+    // updateLayoutContext). Mode-agnostic call sites use `readerPresenter` below.
     val readiumPresenter: ReadiumPresenter? = remember(state.publication, isContinuous, coroutineScope) {
         if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication)
     }
@@ -1145,6 +1149,10 @@ private fun EpubNavigatorView(
         presenter.attach(fragment)
     }
 
+    // MODE-FORK: Highlight rendering pipeline. ContinuousHighlightRenderer drives custom JS
+    // injection per ChapterWebView; ReadiumHighlightRenderer drives DecorableNavigator on the
+    // attached fragment. The two pipelines are inherently different — the seam HighlightRenderer
+    // type already abstracts the call sites, this `remember` only picks which concrete instance.
     val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
         if (isContinuous) {
             ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
