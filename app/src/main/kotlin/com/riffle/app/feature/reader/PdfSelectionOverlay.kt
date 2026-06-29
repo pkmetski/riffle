@@ -168,11 +168,19 @@ fun PdfSelectionOverlay(
                         }
                         when {
                             released -> {
-                                // Short tap.
+                                // Short tap. The selection overlay sits above
+                                // PDFView, so Readium's DirectionalNavigationAdapter
+                                // never sees edge taps — partition the tap zone
+                                // ourselves and forward edges to page navigation.
                                 if (viewModel.pendingSelection.value != null) {
                                     viewModel.discardPendingSelection()
                                 } else {
-                                    onSingleTap()
+                                    val viewWidth = size.width.toFloat()
+                                    when (PdfTapZoneClassifier.classify(startPos.x, viewWidth)) {
+                                        PdfTapZone.LeftEdge -> viewModel.requestPageNav(forward = false)
+                                        PdfTapZone.RightEdge -> viewModel.requestPageNav(forward = true)
+                                        PdfTapZone.Center -> onSingleTap()
+                                    }
                                 }
                             }
                             movedTooFar -> {

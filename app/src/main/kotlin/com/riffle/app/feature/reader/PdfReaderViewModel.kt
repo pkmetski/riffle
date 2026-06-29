@@ -567,6 +567,18 @@ class PdfReaderViewModel @Inject constructor(
         closeAnnotationsPanel()
     }
 
+    /**
+     * Edge-tap page navigation. The selection overlay sits above PDFView and
+     * owns tap detection, so Readium's DirectionalNavigationAdapter never sees
+     * edge taps. The overlay calls this to drive the page flip through the same
+     * channel volume-key navigation already uses.
+     */
+    fun requestPageNav(forward: Boolean) {
+        volumeNavigationController.emit(
+            if (forward) VolumeNavEvent.Forward else VolumeNavEvent.Backward
+        )
+    }
+
     fun toggleBookmark() {
         val serverId = annotationServerId ?: return
         val locator = lastLocator ?: return
