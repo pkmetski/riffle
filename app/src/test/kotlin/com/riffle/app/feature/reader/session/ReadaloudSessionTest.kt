@@ -22,6 +22,7 @@ import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
+import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SyncPositionStore
@@ -149,6 +150,20 @@ class ReadaloudSessionTest {
             Job()
         }
         return scope to flushes
+    }
+
+    /**
+     * Hand-rolled fake for [ReadaloudResumeStore] that records every [save] call.
+     * Used to assert that [closeReadaloud] persists the resume position on teardown.
+     */
+    private class FakeReadaloudResumeStore : ReadaloudResumeStore {
+        data class SaveCall(val serverId: String, val itemId: String, val position: ReadaloudResumePosition)
+        val savedCalls = mutableListOf<SaveCall>()
+        override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {
+            savedCalls.add(SaveCall(serverId, itemId, position))
+        }
+        override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(serverId: String, itemId: String) {}
     }
 
     // ── Locator construction helper ────────────────────────────────────────────────────
@@ -547,6 +562,7 @@ class ReadaloudSessionTest {
         playerController: FakePlayerController = FakePlayerController(),
         audioRepository: ReadaloudAudioRepository = mockk(relaxed = true),
         progressFlushScope: ProgressFlushScope = mockk(relaxed = true),
+        readaloudResumeStore: ReadaloudResumeStore = mockk(relaxed = true),
         snapshotLocator: () -> Locator? = { null },
     ): ReadaloudSession {
         return ReadaloudSession(
@@ -564,7 +580,7 @@ class ReadaloudSessionTest {
                     com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
                 )
             },
-            readaloudResumeStore = mockk(relaxed = true),
+            readaloudResumeStore = readaloudResumeStore,
             sidecarStore = mockk(relaxed = true),
             readingPositionStore = mockk(relaxed = true),
             readingSyncStore = mockk(relaxed = true),
@@ -681,25 +697,84 @@ class ReadaloudSessionTest {
     fun `closeReadaloud flushes resume position via progressFlushScope not session scope`() = runTest {
         val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
         try {
+            val fakeResumeStore = FakeReadaloudResumeStore()
             val (fakeFlushScope, fakeFlushes) = makeFakeFlushScope()
+            val snapshotLocator = makeLocator("c01.html", progression = 0.5)
             val fakePlayer = FakePlayerController(isPlaying = false, activeFragment = "c01.html#s7")
             val session = makeSessionForOpenClose(
                 scope = sessionScope,
                 playerController = fakePlayer,
                 progressFlushScope = fakeFlushScope,
+                readaloudResumeStore = fakeResumeStore,
+                snapshotLocator = { snapshotLocator },
             )
             session._readaloudOpen.value = true
-            session.readerSyncServerId = "srv1"
+            session.readerServerId = "srv1"
             session.itemId = "book1"
 
             session.closeReadaloud()
 
             assertEquals("readaloudOpen must be false after close", false, session.readaloudOpen.value)
-            // The fragment captured before close() was "c01.html#s7"
+            // The resume position write must be inside the progressFlushScope.flush block (not
+            // scope.launch) — proven by: (a) flush was called, and (b) executing the captured
+            // block actually writes to the store.
             assertEquals(
-                "progressFlushScope.flush must be called for position write (teardown safeguard)",
+                "progressFlushScope.flush must be called once",
                 1, fakeFlushes.size,
             )
+            // Execute the captured flush block to prove it contains the resume-position write.
+            fakeFlushes.first().block()
+            assertEquals(
+                "readaloudResumeStore.save must be called after flush block executes",
+                1, fakeResumeStore.savedCalls.size,
+            )
+            val saved = fakeResumeStore.savedCalls.first()
+            assertEquals("saved serverId must match readerServerId", "srv1", saved.serverId)
+            assertEquals("saved itemId must match session itemId", "book1", saved.itemId)
+            assertEquals("saved href must come from snapshotLocator", "c01.html", saved.position.href)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `closeReadaloud resume position write is inside flush block not scope launch`() = runTest {
+        // Proves the fix: if scope.launch were used instead of progressFlushScope.flush, the
+        // store write would appear without any flush call (the launch would fire immediately on
+        // UnconfinedTestDispatcher). Here we verify the write ONLY happens inside the flush block.
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakeResumeStore = FakeReadaloudResumeStore()
+            val (fakeFlushScope, fakeFlushes) = makeFakeFlushScope()
+            val snapshotLocator = makeLocator("ch02.html", progression = 0.3)
+            val fakePlayer = FakePlayerController(isPlaying = false, activeFragment = "ch02.html#s3")
+            val session = makeSessionForOpenClose(
+                scope = sessionScope,
+                playerController = fakePlayer,
+                progressFlushScope = fakeFlushScope,
+                readaloudResumeStore = fakeResumeStore,
+                snapshotLocator = { snapshotLocator },
+            )
+            session._readaloudOpen.value = true
+            session.readerServerId = "srv2"
+            session.itemId = "book2"
+
+            session.closeReadaloud()
+
+            // Before executing the flush block: store must NOT have been written yet.
+            // If scope.launch were used (the bug), the store would already be written here
+            // because UnconfinedTestDispatcher runs launches eagerly.
+            assertEquals(
+                "store must not be written before flush block executes (proves write is inside flush)",
+                0, fakeResumeStore.savedCalls.size,
+            )
+            // Now execute the flush block — only then should the store be written.
+            fakeFlushes.first().block()
+            assertEquals(
+                "store must be written after flush block executes",
+                1, fakeResumeStore.savedCalls.size,
+            )
+            assertEquals("ch02.html", fakeResumeStore.savedCalls.first().position.href)
         } finally {
             sessionScope.cancel()
         }

@@ -468,7 +468,6 @@ class ReadaloudSession @AssistedInject constructor(
         // Persist the same stopped position so it survives leaving the book / process death.
         val capturedCloseLocator = closeLocator
         val capturedResumeRef = resumeFragmentRef
-        scope.launch { persistReadaloudResumePosition(capturedCloseLocator, capturedResumeRef) }
         val hadFragment = resumeFragmentRef != null
         pendingStartFragmentRef = null
         readaloudPrepared = false
@@ -477,9 +476,15 @@ class ReadaloudSession @AssistedInject constructor(
         // Use the fragment captured above — close() has nulled the live one.
         // On the flush scope, not scope: closing readaloud is routinely followed by leaving the book
         // at once, which cancels scope and would abort this PATCH mid-write.
-        if (hadFragment) progressFlushScope.flush {
-            flushReadaloudPositionToStores(resumeFragmentRef)
-            pushAudiobookFromReadingPosition(resumeFragmentRef)
+        progressFlushScope.flush {
+            // Resume-position persisted on the flush scope so it survives scope cancellation
+            // when the user leaves the book immediately after closing readaloud
+            // (reference_progress_flush_scope_teardown.md).
+            persistReadaloudResumePosition(capturedCloseLocator, capturedResumeRef)
+            if (hadFragment) {
+                flushReadaloudPositionToStores(resumeFragmentRef)
+                pushAudiobookFromReadingPosition(resumeFragmentRef)
+            }
         }
     }
 
