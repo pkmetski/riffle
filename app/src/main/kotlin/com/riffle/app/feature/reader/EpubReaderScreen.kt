@@ -1124,6 +1124,19 @@ private fun EpubNavigatorView(
         }
     }
 
+    // The Readium fragment lives inside an AndroidView that stays mounted across every orientation
+    // (the factory only runs once — see the "In Continuous mode the fragment is kept alive only to
+    // maintain the HTTP server" comment around line 2014). So the factory's one-shot
+    // `readiumPresenter?.attach(fragment)` only ever attaches the FIRST presenter — which is null
+    // when the book opens in Continuous mode, and goes stale on any later isContinuous flip that
+    // rebuilds the presenter. Re-attach here whenever a fresh presenter meets the existing
+    // fragment, so decoration applies and currentLocator forwarding land on a live navigator.
+    LaunchedEffect(readiumPresenter, fragmentRef.value) {
+        val presenter = readiumPresenter ?: return@LaunchedEffect
+        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        presenter.attach(fragment)
+    }
+
     val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
         if (isContinuous) {
             ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
@@ -1668,16 +1681,20 @@ private fun EpubNavigatorView(
 
     // ---- Persisted highlights (annotations + note glyphs) ----------------------------------
     // Superset keys: continuous re-keys on activeFragmentRef's base href when a new chapter
-    // enters the sliding window; Readium re-applies on reflow/pageLoad events. Note: the
-    // initial bootstrap for continuous mode happens in the LaunchedEffect(continuousView)
-    // block below (around line 2110) — when the AndroidView factory binds the ref, this effect
-    // alone wouldn't re-fire (none of its keys change on orientation flip) and the new
-    // ContinuousHighlightRenderer would never be invoked, leaving annotations un-rendered.
-    LaunchedEffect(highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
+    // enters the sliding window; Readium re-applies on reflow/pageLoad events. The
+    // [highlightRenderer] key catches an orientation flip mid-session: the renderer is
+    // recreated (Readium ↔ Continuous) but none of the other keys necessarily change at that
+    // moment, so without keying on the renderer the fresh instance would never be invoked
+    // and the previously-applied highlights would stay invisible until the book is reopened.
+    // (Continuous mode also has a bootstrap inside LaunchedEffect(continuousView) below,
+    // because the ContinuousReaderView ref binds during AndroidView's layout phase and is
+    // worth applying to as soon as the ref is non-null — a slot the highlightRenderer key
+    // alone doesn't cover.)
+    LaunchedEffect(highlightRenderer, highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
         highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
     }
 
-    LaunchedEffect(highlightRenders, reflowGeneration, pageLoadGeneration.value) {
+    LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applyNoteGlyphs(highlightRenders)
     }
 
