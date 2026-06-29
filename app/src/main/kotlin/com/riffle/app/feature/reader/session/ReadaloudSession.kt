@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -100,6 +101,44 @@ class ReadaloudSession @AssistedInject constructor(
         ): ReadaloudSession
     }
 
+    // ---- Observers launched at construction time -----------------------------------------------
+
+    init {
+        // Build the sentence-quote map when audio starts playing (isPlaying false→true transition).
+        // One-shot: quotesBuildStarted prevents double-launch on rapid pause→resume.
+        // This is the backstop for the matched-ABS case where the bundle may be downloaded later
+        // in the session; the VM's init coroutine also calls buildSentenceQuotes eagerly at book-open.
+        scope.launch {
+            playbackState
+                .map { it.isPlaying }
+                .distinctUntilChanged()
+                .collect { isPlaying ->
+                    if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
+                    // Notify the VM of the playing state so it can update ReaderStateHolder.
+                    onAudioPlayingChanged?.invoke(isPlaying)
+                }
+        }
+        // Audiobook-follow push loop: while readaloud narrates a sentence, push the audiobook
+        // position derived from the current reading position (which tracks the audio) through the
+        // bundle SMIL, on a tight cadence so it reaches the server promptly (ADR 0031).
+        // Writes only the audiobook item, from a page-derived position — never the ebook.
+        scope.launch {
+            while (true) {
+                delay(AUDIO_PUSH_INTERVAL_MS)
+                val playingFragment = playerCoordinator.activeFragmentRef.value
+                if (playerCoordinator.state.value.isPlaying && playingFragment != null) {
+                    pushAudiobookFromReadingPosition(playingFragment)
+                }
+            }
+        }
+    }
+
+    /**
+     * Callback invoked on every isPlaying state change so the VM can update [ReaderStateHolder].
+     * Set once after construction by the VM.
+     */
+    var onAudioPlayingChanged: ((Boolean) -> Unit)? = null
+
     // ---- Interval prefs (needed by rewind/forward before bind()) --------------------------------
 
     private val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
@@ -122,7 +161,7 @@ class ReadaloudSession @AssistedInject constructor(
     val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
 
     /** The ABS audiobook item to switch to when the mini player is swiped up. */
-    private val _audiobookItemId = MutableStateFlow<String?>(null)
+    internal val _audiobookItemId = MutableStateFlow<String?>(null)
     val audiobookItemId: StateFlow<String?> = _audiobookItemId
 
     /** Pass-through delegation from PlayerCoordinator. */
@@ -624,15 +663,32 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Swipe-up handoff to the single large audiobook player.
-     * Filled in sub-task 8.4.
+     *
+     * Captures the current listen second, releases the shared player to the audiobook WITHOUT
+     * stopping it (so the audiobook keeps playing through the switch), and returns the second to
+     * hand off. The reader stays in the Compose Navigation back stack (stacking model, not swap),
+     * so onCleared is NOT called here — no guard needed.
      */
-    fun prepareAudiobookHandoff(): Double = TODO("filled in by sub-task 8.4")
+    fun prepareAudiobookHandoff(): Double {
+        val sec = playbackState.value.positionGlobalSec
+        val abId = _audiobookItemId.value
+        playerCoordinator.releaseForHandoff()
+        if (abId != null) audiobookHandoffState.signal(abId, sec)
+        return sec
+    }
 
     /**
-     * Called when the audiobook overlay is dismissed without a handoff.
-     * Filled in sub-task 8.4.
+     * Called when the audiobook overlay is dismissed (back button) without a readaloud handoff.
+     * Resets [readaloudPrepared] so the next play re-prepares the media session with the
+     * readaloud's audio items (the audiobook replaced them during playback).
+     * Also signals the pre-warmed [AudiobookPlayerViewModel] to pause its controller so audiobook
+     * audio stops while the reader is visible.
      */
-    fun onAudiobookOverlayDismissed(): Unit = TODO("filled in by sub-task 8.4")
+    fun onAudiobookOverlayDismissed() {
+        readaloudPrepared = false
+        val abId = _audiobookItemId.value
+        if (abId != null) audiobookHandoffState.dismiss(abId)
+    }
 
     /** Called when the user starts dragging up (reserved for future pre-warm). */
     fun hintAudiobookHandoff(): Unit = Unit
@@ -844,6 +900,66 @@ class ReadaloudSession @AssistedInject constructor(
         }
     }
 
+    /**
+     * Starts observing the sidecar store for [audioServerId]/[audioBookId] and reacts to
+     * [ReadaloudSidecarStore.State.Ready] / [ReadaloudSidecarStore.State.Failed].
+     *
+     * Called by the VM's init coroutine for matched ABS books where no bundle is on disk (ADR 0028).
+     * Moving the observer here folds the VM's inline `viewModelScope.launch { sidecarStore.states… }`
+     * into the session so the session is the sole writer of `_readaloudBarMessage` (8.4 task D).
+     */
+    fun startSidecarObserver() {
+        scope.launch {
+            sidecarStore.states.collect { byKey ->
+                when (byKey[sidecarStore.key(audioServerId, audioBookId)]) {
+                    ReadaloudSidecarStore.State.Ready -> {
+                        // The sidecar stands in for the bundle for the synced-highlight text quotes
+                        // (ADR 0028): build them the moment it's cached, through the SAME
+                        // buildSentenceQuotes path the on-disk bundle uses below.
+                        sidecarStore.cachedFile(audioServerId, audioBookId)?.let { sidecar ->
+                            quoteBundle = sidecar
+                            buildSentenceQuotes(sidecar)
+                        }
+                        if (autoPlayWhenPrepared) {
+                            preparingTimeoutJob?.cancel()
+                            preparingTimeoutJob = null
+                            autoPlayWhenPrepared = false
+                            if (_readaloudBarMessage.value == PREPARING_MESSAGE) {
+                                _readaloudBarMessage.value = null
+                            }
+                            onPlayTapped()
+                        }
+                    }
+                    ReadaloudSidecarStore.State.Failed -> {
+                        if (autoPlayWhenPrepared) {
+                            preparingTimeoutJob?.cancel()
+                            preparingTimeoutJob = null
+                            autoPlayWhenPrepared = false
+                            _readaloudBarMessage.value =
+                                "Couldn't stream readaloud — download it from the book's details to listen"
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    /**
+     * Pre-warms the SMIL track parse so the first audiobook→readaloud swipe-down skips the
+     * ~1.5s [ReadaloudAudioRepository.readTrack] cost (parses every .smil in the bundle).
+     * Stores the result in [readaloudTrack] via [ensureTrack]; [startReadaloudAtSecond] joins the
+     * job before calling [ensureOpened] so the track is available synchronously.
+     *
+     * Replaces the `readaloud.preWarmTrackJob = viewModelScope.launch { ... }` pattern where the VM
+     * launched on its own scope and stored the job via an internal field. The session now owns both.
+     */
+    fun launchPreWarmTrack(bundle: java.io.File) {
+        preWarmTrackJob = scope.launch {
+            ensureTrack(bundle)
+        }
+    }
+
     private fun startStorytellerSync() {
         if (!isStorytellerServer) return
         // A matched book runs the canonical reconciliation cycle; don't also run the standalone Storyteller loop.
@@ -887,6 +1003,8 @@ class ReadaloudSession @AssistedInject constructor(
         internal const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
         /** Debounce window for persisting a playback-speed change. */
         internal const val SPEED_SAVE_DEBOUNCE_MS = 400L
+        /** Cadence for pushing the audiobook position derived from the narrated reading position (ADR 0031). */
+        internal const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 
         /**
          * A reading-position progression change beyond this (or any href change) counts as

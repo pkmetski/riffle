@@ -780,6 +780,133 @@ class ReadaloudSessionTest {
         }
     }
 
+    // ── Sub-task 8.4 tests ────────────────────────────────────────────────────────────
+
+    @Test
+    fun `prepareAudiobookHandoff returns current audio position and signals audiobookHandoffState`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val positionSec = 42.5
+            val abItemId = "audiobook-item-88"
+            val fakePlayer = FakePlayerController(
+                isPlaying = true,
+                activeFragment = "ch01.html#s3",
+            )
+            // Manually set the positionGlobalSec on the player's state
+            fakePlayer.state.let { stateFlow ->
+                (stateFlow as MutableStateFlow).value =
+                    stateFlow.value.copy(positionGlobalSec = positionSec)
+            }
+            val handoffState = AudiobookHandoffState()
+            val session = ReadaloudSession(
+                scope = sessionScope,
+                snapshotLocator = { null },
+                playerCoordinator = fakePlayer,
+                readaloudAudioRepository = mockk(relaxed = true),
+                streamingSessionFactory = mockk(relaxed = true),
+                storytellerSyncController = mockk(relaxed = true),
+                audioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(),
+                listeningPreferencesStore = FakeListeningPreferencesStore(),
+                audioIdentityResolver = mockk(relaxed = true),
+                readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
+                    every { it.preferences } returns flowOf(
+                        com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                    )
+                },
+                readaloudResumeStore = mockk(relaxed = true),
+                sidecarStore = mockk(relaxed = true),
+                readingPositionStore = mockk(relaxed = true),
+                readingSyncStore = mockk(relaxed = true),
+                audioSyncStore = mockk(relaxed = true),
+                epubRepository = mockk(relaxed = true),
+                progressFlushScope = mockk(relaxed = true),
+                audiobookHandoffState = handoffState,
+                connectivityObserver = mockk<ConnectivityObserver>().also {
+                    every { it.isOnline } returns MutableStateFlow(true)
+                },
+                nowPlayingStore = NowPlayingStore(),
+            )
+            // Wire up the audiobook item id that will be signalled
+            session._audiobookItemId.value = abItemId
+
+            val returnedSec = session.prepareAudiobookHandoff()
+
+            assertEquals(
+                "prepareAudiobookHandoff must return the current positionGlobalSec",
+                positionSec, returnedSec, 0.001,
+            )
+            assertEquals(
+                "releaseForHandoff must be called once",
+                1, fakePlayer.releaseForHandoffCalled,
+            )
+            // The handoff state must have been signalled with the audiobook id and sec
+            val pending = handoffState.pendingHandoff.value
+            assertEquals("audiobookHandoffState must be signalled with abItemId", abItemId, pending?.itemId)
+            assertEquals("audiobookHandoffState must carry positionSec", positionSec, pending?.atSec ?: 0.0, 0.001)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `sentence-quote build is triggered when playbackState isPlaying transitions to true`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakePlayer = FakePlayerController(isPlaying = false)
+            val session = makeSession(
+                scope = sessionScope,
+                playerController = fakePlayer,
+            )
+            // Provide a fake (empty) bundle file so buildSentenceQuotes can be triggered
+            val bundle = java.io.File.createTempFile("bundle", ".zip")
+            bundle.deleteOnExit()
+            session.quoteBundle = bundle
+            // quotesBuildStarted starts false
+            assertEquals("quotesBuildStarted must start false", false, session.quotesBuildStarted)
+
+            // Trigger isPlaying → true
+            (fakePlayer.state as MutableStateFlow).value =
+                fakePlayer.state.value.copy(isPlaying = true)
+
+            // Give the launched coroutine a chance to run (UnconfinedTestDispatcher runs eagerly)
+            assertEquals(
+                "quotesBuildStarted must be true after isPlaying transitions to true",
+                true, session.quotesBuildStarted,
+            )
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `persistReadaloudResumePosition writes to readaloudResumeStore via the store API`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakeResumeStore = FakeReadaloudResumeStore()
+            val session = makeSessionForOpenClose(
+                scope = sessionScope,
+                readaloudResumeStore = fakeResumeStore,
+            )
+            session.readerServerId = "srv-persist"
+            session.itemId = "item-xyz"
+
+            val locator = makeLocator("chapter03.html", progression = 0.75)
+            val fragmentRef = "chapter03.html#s12"
+
+            session.persistReadaloudResumePosition(locator, fragmentRef)
+
+            assertEquals("readaloudResumeStore.save must be called once", 1, fakeResumeStore.savedCalls.size)
+            val saved = fakeResumeStore.savedCalls.first()
+            assertEquals("saved serverId", "srv-persist", saved.serverId)
+            assertEquals("saved itemId", "item-xyz", saved.itemId)
+            assertEquals("saved href", "chapter03.html", saved.position.href)
+            assertEquals("saved progression", 0.75, saved.position.progression ?: 0.0, 0.001)
+            assertEquals("saved fragmentRef", fragmentRef, saved.position.fragmentRef)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
     @Test
     fun `onPositionBeforeForward clears park state when moved off the parked page`() = runTest {
         val sessionScope = CoroutineScope(UnconfinedTestDispatcher())

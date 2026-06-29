@@ -95,7 +95,6 @@ private const val PARK_PAGE_EPS = 0.001
 private const val BOOKMARK_PAGE_EPS = 0.05   // ±5% within-chapter progression window
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
-private const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 // Debounce window for persisting a playback-speed change, so a granular scrub/slide settles to a
 // single write rather than one per intermediate 0.05× value.
 private const val SPEED_SAVE_DEBOUNCE_MS = 400L
@@ -489,6 +488,9 @@ class EpubReaderViewModel @Inject constructor(
         // Wire the stable itemId into the session (done here because itemId is declared after
         // readaloud in the class body; the also{} block would read it uninitialized).
         readaloud.itemId = itemId
+        // Propagate isPlaying changes from the session to ReaderStateHolder (volume-key routing).
+        // The sentence-quote build on isPlaying is now handled by the session's own init observer.
+        readaloud.onAudioPlayingChanged = { isPlaying -> readerStateHolder.isAudioPlaying = isPlaying }
         viewModelScope.launch {
             // Sequential: formatting prefs must be available before openBook() so the
             // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
@@ -553,16 +555,15 @@ class EpubReaderViewModel @Inject constructor(
                     }
                     ?.absLibraryItemId
             }
+            // Mirror the resolved audiobook id into the session so prepareAudiobookHandoff()
+            // can read it without crossing back into the VM (sub-task 8.4).
+            readaloud._audiobookItemId.value = _audiobookItemId.value
             android.util.Log.d("RIFFLE_HANDOFF", "RA.audiobookItemId resolved=${_audiobookItemId.value} (overlay can now mount)")
             // Pre-warm the SMIL track parse so the first audiobook→readaloud swipe-down skips
             // the ~1.5 s MediaOverlayReader.readTrack() cost (parses every .smil in the bundle).
-            // Stored in the session (preWarmTrackJob) so startReadaloudAtSecond() can join() it.
-            readaloud.preWarmTrackJob = viewModelScope.launch {
-                readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
-                    android.util.Log.d("RIFFLE_HANDOFF", "RA.preWarmTrack start")
-                    readaloud.ensureTrack(bundle)
-                    android.util.Log.d("RIFFLE_HANDOFF", "RA.preWarmTrack done")
-                }
+            // Delegated to the session (sub-task 8.4 task E) so the session owns the job.
+            readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
+                readaloud.launchPreWarmTrack(bundle)
             }
             // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
             activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
@@ -607,40 +608,8 @@ class EpubReaderViewModel @Inject constructor(
             // /synced fetch blocking playback. A Play tapped before it's ready arms [autoPlayWhenPrepared].
             if (link != null && !bundlePresent) {
                 sidecarStore.prepare(audioServerId, audioBookId)
-                viewModelScope.launch {
-                    sidecarStore.states.collect { byKey ->
-                        when (byKey[sidecarStore.key(audioServerId, audioBookId)]) {
-                            ReadaloudSidecarStore.State.Ready -> {
-                                // The sidecar stands in for the bundle for the synced-highlight text quotes
-                                // (ADR 0028): build them the moment it's cached, through the SAME
-                                // buildSentenceQuotes path the on-disk bundle uses below.
-                                sidecarStore.cachedFile(audioServerId, audioBookId)?.let { sidecar ->
-                                    readaloud.quoteBundle = sidecar
-                                    readaloud.buildSentenceQuotes(sidecar)
-                                }
-                                if (readaloud.autoPlayWhenPrepared) {
-                                    readaloud.preparingTimeoutJob?.cancel()
-                                    readaloud.preparingTimeoutJob = null
-                                    readaloud.autoPlayWhenPrepared = false
-                                    if (readaloud._readaloudBarMessage.value == com.riffle.app.feature.reader.session.ReadaloudSession.PREPARING_MESSAGE) {
-                                        readaloud._readaloudBarMessage.value = null
-                                    }
-                                    readaloud.onPlayTapped()
-                                }
-                            }
-                            ReadaloudSidecarStore.State.Failed -> {
-                                if (readaloud.autoPlayWhenPrepared) {
-                                    readaloud.preparingTimeoutJob?.cancel()
-                                    readaloud.preparingTimeoutJob = null
-                                    readaloud.autoPlayWhenPrepared = false
-                                    readaloud._readaloudBarMessage.value =
-                                        "Couldn't stream readaloud — download it from the book's details to listen"
-                                }
-                            }
-                            else -> Unit
-                        }
-                    }
-                }
+                // The sidecar-ready observer now lives entirely in the session (sub-task 8.4 task D).
+                readaloud.startSidecarObserver()
             }
 
             // Build the sentence-quote map eagerly once the readaloud bundle is known to be on disk, so
@@ -693,32 +662,9 @@ class EpubReaderViewModel @Inject constructor(
                 )
             }
         }
-        // Build the sentence-quote map only after audio is actually playing (see ensureTrack): the
-        // parse reads the whole bundle, so doing it during audio startup risks starving ExoPlayer on
-        // a large book. buildSentenceQuotes is one-shot (quotesBuildStarted), so re-emissions are cheap.
-        viewModelScope.launch {
-            playbackState
-                .map { it.isPlaying }
-                .distinctUntilChanged()
-                .collect { isPlaying ->
-                    // Hand the volume keys to system volume while audio plays; revert on pause/stop.
-                    readerStateHolder.isAudioPlaying = isPlaying
-                    if (isPlaying) readaloud.quoteBundle?.let { readaloud.buildSentenceQuotes(it) }
-                }
-        }
-        // Audiobook-follow: while readaloud narrates a sentence, push the audiobook position derived
-        // from the current reading position (which tracks the audio) through the bundle's SMIL, on a
-        // tight cadence decoupled from the 30s ebook reconcile so it reaches the server promptly.
-        // Writes only the audiobook item, from a page-derived position — never the ebook.
-        viewModelScope.launch {
-            while (true) {
-                delay(AUDIO_PUSH_INTERVAL_MS)
-                val playingFragment = playerCoordinator.activeFragmentRef.value
-                if (playerCoordinator.state.value.isPlaying && playingFragment != null) {
-                    pushAudiobookFromReadingPosition(playingFragment)
-                }
-            }
-        }
+        // NOTE: The sentence-quote build on isPlaying and the audiobook-follow push loop are now
+        // owned by ReadaloudSession's own init block (sub-task 8.4). The isPlaying→ReaderStateHolder
+        // bridge is wired above via readaloud.onAudioPlayingChanged.
     }
 
     private suspend fun openBook() {
@@ -1643,39 +1589,17 @@ class EpubReaderViewModel @Inject constructor(
 
     fun forward() = readaloud.forward()
 
-    /**
-     * Swipe-up handoff to the single large player: capture the current listen second, release the
-     * shared player to the audiobook WITHOUT stopping it (so the audiobook keeps playing through the
-     * switch), and return the second to hand off. The reader stays in the Compose Navigation back
-     * stack (stacking model, not swap), so onCleared is NOT called here — no guard needed.
-     */
-    fun prepareAudiobookHandoff(): Double {
-        val sec = playbackState.value.positionGlobalSec
-        val abId = _audiobookItemId.value
-        android.util.Log.d("RIFFLE_HANDOFF", "RA.prepareAudiobookHandoff sec=$sec abId=$abId")
-        playerCoordinator.releaseForHandoff()
-        if (abId != null) audiobookHandoffState.signal(abId, sec)
-        return sec
-    }
+    /** Delegates to [ReadaloudSession.prepareAudiobookHandoff] (lifted in sub-task 8.4). */
+    fun prepareAudiobookHandoff(): Double = readaloud.prepareAudiobookHandoff()
 
-    /**
-     * Called when the audiobook overlay is dismissed (back button) without a readaloud handoff.
-     * Resets [readaloudPrepared] so the next play re-prepares the media session with the
-     * readaloud's audio items (the audiobook replaced them during playback).
-     * Also signals the pre-warmed [AudiobookPlayerViewModel] to pause its controller so audiobook
-     * audio stops while the reader is visible.
-     */
-    fun onAudiobookOverlayDismissed() {
-        readaloud.readaloudPrepared = false
-        val abId = _audiobookItemId.value
-        if (abId != null) audiobookHandoffState.dismiss(abId)
-    }
+    /** Delegates to [ReadaloudSession.onAudiobookOverlayDismissed] (lifted in sub-task 8.4). */
+    fun onAudiobookOverlayDismissed() = readaloud.onAudiobookOverlayDismissed()
 
     /** Called when the user starts dragging up (before the threshold) — reserved for future pre-warm. */
-    fun hintAudiobookHandoff() = Unit
+    fun hintAudiobookHandoff() = readaloud.hintAudiobookHandoff()
 
     /** Discard any pre-warm state if the drag was abandoned. */
-    fun cancelHandoffHint() = Unit
+    fun cancelHandoffHint() = readaloud.cancelHandoffHint()
 
     fun previousChapter() = readaloud.previousChapter()
 
