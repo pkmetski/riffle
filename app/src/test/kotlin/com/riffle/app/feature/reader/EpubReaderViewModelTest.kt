@@ -1187,20 +1187,25 @@ class ReadaloudSpeedPersistenceTest {
 
 class BookmarkIndicatorTest {
 
-    // Extracted pure logic: given a list of BookmarkPositions and a current locator,
-    // derive whether the current page is bookmarked.
+    // Extracted pure logic: given a list of BookmarkPositions, a current locator, and the active
+    // reading mode, derive whether the current page is bookmarked. The mode-aware eps mirrors
+    // [com.riffle.app.feature.reader.controllers.BookmarksController.isCurrentPageBookmarked]:
+    // continuous mode emits midpoint progression and stores content-top, so the indicator widens
+    // the match window to cover a viewport overlap; paginated/vertical keep a tight 5% match.
     private data class BookmarkPosition(val id: String, val chapterHref: String, val progression: Double)
 
     private fun isCurrentPageBookmarked(
         positions: List<BookmarkPosition>,
         href: String?,
         progression: Float?,
+        continuous: Boolean = false,
     ): Boolean {
         if (href == null) return false
         val hrefNorm = normalizeEpubHref(href)
+        val eps = if (continuous) 0.25 else 0.05
         return positions.any { bm ->
             bm.chapterHref == hrefNorm &&
-                (progression == null || kotlin.math.abs(bm.progression - progression) < 0.05)
+                (progression == null || kotlin.math.abs(bm.progression - progression) < eps)
         }
     }
 
@@ -1265,5 +1270,32 @@ class BookmarkIndicatorTest {
         val bm = BookmarkPosition("id", "OEBPS/ch1.xhtml", 0.30)
         val currentSessionHref = "http://localhost:58901/OEBPS/ch1.xhtml"
         assertTrue(isCurrentPageBookmarked(listOf(bm), currentSessionHref, 0.31f))
+    }
+
+    @Test
+    fun `continuous-mode widened eps catches bookmark across the viewport-midpoint gap`() {
+        // Save: continuous-mode user is at midpoint M=0.5 of a chapter; toggleBookmark stores the
+        // CFI's content-top progression (~0.5). After navigating to the bookmark via the list, the
+        // content-top lands at the viewport top so the new midpoint is M + viewportFraction/2,
+        // commonly +0.15 for a viewport ~30% of chapter height. The 5% paginated eps would miss
+        // this; the 25% continuous eps catches it.
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.50)
+        assertTrue(
+            "indicator should activate when midpoint sits ~0.15 past the bookmark's content-top",
+            isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.65f, continuous = true),
+        )
+        // Confirm the same point would NOT match in paginated mode (different coordinate system).
+        assertFalse(
+            "paginated mode keeps the tight 5% window",
+            isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.65f, continuous = false),
+        )
+    }
+
+    @Test
+    fun `continuous-mode widened eps still rejects bookmarks outside a viewport`() {
+        // A bookmark a full chapter-quarter away from the current midpoint is genuinely off-page;
+        // the widened eps shouldn't be so wide that adjacent bookmarks light spuriously.
+        val bm = BookmarkPosition("id", "ch1.xhtml", 0.10)
+        assertFalse(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.70f, continuous = true))
     }
 }
