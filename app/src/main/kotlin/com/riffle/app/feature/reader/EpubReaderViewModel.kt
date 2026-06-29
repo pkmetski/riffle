@@ -682,7 +682,6 @@ class EpubReaderViewModel @Inject constructor(
                     serverId = activeServer.id,
                     namespace = namespace ?: "",
                     itemId = itemId,
-                    currentLocator = position.currentLocator,
                     highlightRenderResolver = { a -> annotationToRender(a) },
                     cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
                 )
@@ -1105,6 +1104,8 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isAudioPlaying = false
         syncJob?.cancel()
         storytellerSyncJob?.cancel()
+        // Cancel the annotation live-pull loop while the reader is backgrounded; onReaderResumed() restarts it.
+        annotationSession.onReaderClosed()
         // Arm the resume-restore for the next ON_START. The footnote-popup URL-tap path may have
         // pre-armed this with the pre-popup origin (see captureFootnotePopupLinkOrigin); don't
         // overwrite that with the popup-nudged lastLocator. setReturnAnchor honours this contract.

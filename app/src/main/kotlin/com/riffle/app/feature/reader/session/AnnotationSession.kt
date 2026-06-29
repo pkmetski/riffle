@@ -165,7 +165,6 @@ class AnnotationSession @AssistedInject constructor(
         serverId: String,
         namespace: String,
         itemId: String,
-        currentLocator: StateFlow<Locator?>,
         highlightRenderResolver: suspend (Annotation) -> EpubReaderViewModel.HighlightRender?,
         cfiLocatorResolver: suspend (String) -> Locator?,
     ) {
@@ -288,6 +287,18 @@ class AnnotationSession @AssistedInject constructor(
     }
 
     // ---- Lifecycle --------------------------------------------------------------------------
+
+    /**
+     * Cancel the live-sync polling loop when the reader is backgrounded. The complementary
+     * [onReaderResumed] restarts it. Together they form the lifecycle gate the original VM
+     * implemented as "STARTED gating" — preserves the same network/battery behaviour.
+     *
+     * No-op if [bind] has not been called for a synced book.
+     */
+    fun onReaderClosed() {
+        annotationLiveSyncJob?.cancel()
+        annotationLiveSyncJob = null
+    }
 
     /**
      * Called when the reader is resumed from background. Re-arms the live-pull loop so peer

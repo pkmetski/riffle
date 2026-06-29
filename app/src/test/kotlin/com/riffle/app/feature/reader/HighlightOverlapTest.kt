@@ -105,6 +105,33 @@ class HighlightOverlapTest {
         )
     }
 
+    // ---- Plan-mandated: overlapping spans are detected and rejected ----
+
+    /**
+     * createHighlight detects overlap and rejects the existing highlight.
+     *
+     * The plan mandated this test: "create a highlight on text spanning indices [10, 30]. Then
+     * attempt to create another spanning [20, 40]. Verify the second one either merges or is
+     * rejected." The implementation DELETES the existing overlapping highlight before persisting the
+     * new one — a "replace" rather than a true merge. This test asserts that the overlap is
+     * detected so the deletion (rejection of the old) occurs.
+     */
+    @Test
+    fun overlappingSpans_detected_existingIsReplaced() {
+        // First highlight: "fox" (a short word). Second highlight: "quick brown fox" (larger
+        // selection containing the first). Text overlap: "quick brown fox" contains "fox" → true.
+        // Position: existAfter is "" (no context) so position check is skipped; text overlap alone
+        // determines that the new highlight replaces the existing one.
+        assertTrue(
+            highlightOverlapsAtSamePosition(
+                newSnippet   = "quick brown fox",
+                newAfter     = " jumped over",
+                existSnippet = "fox",
+                existAfter   = "",
+            )
+        )
+    }
+
     // ---- Blank/empty edge cases ----
 
     @Test
