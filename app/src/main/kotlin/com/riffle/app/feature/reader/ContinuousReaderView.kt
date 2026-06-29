@@ -759,7 +759,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
-    fun updatePreferences(prefs: FormattingPreferences) {
+    override fun updatePreferences(prefs: FormattingPreferences) {
         if (prefs == formattingPrefs) return
         formattingPrefs = prefs
         val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(prefs)
@@ -834,7 +834,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Scroll one viewport-page forward/backward (wired to the volume keys). */
-    fun scrollByPage(forward: Boolean) {
+    override fun scrollByPage(forward: Boolean) {
         val delta = ContinuousPositionTracker.pageScrollDelta(height)
         clearLandingHold()
         smoothScrollBy(0, if (forward) delta else -delta)

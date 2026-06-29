@@ -1,9 +1,10 @@
 package com.riffle.app.feature.reader.presenter
 
-import com.riffle.app.feature.reader.ContinuousReaderView
+import com.riffle.app.feature.reader.ContinuousNavigationView
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import org.json.JSONObject
 
 /**
  * The continuous-mode adapter for [ReaderPresenter]. Wraps a [ContinuousReaderView] (custom
@@ -35,11 +36,11 @@ internal class ContinuousPresenter : ReaderPresenter {
     override val selectionEvents: SharedFlow<SelectionEvent> = _selectionEvents
     override val annotationTapEvents: SharedFlow<AnnotationTapEvent> = _annotationTapEvents
 
-    @Volatile private var view: ContinuousReaderView? = null
+    @Volatile private var view: ContinuousNavigationView? = null
     private var lastPosition: ReaderPosition? = null
 
-    /** Bind a freshly-created [ContinuousReaderView]. Idempotent. */
-    fun attach(view: ContinuousReaderView) {
+    /** Bind a freshly-created continuous view. Idempotent. */
+    fun attach(view: ContinuousNavigationView) {
         this.view = view
     }
 
@@ -100,11 +101,20 @@ internal class ContinuousPresenter : ReaderPresenter {
                 alignToTop = false,
             )
             is NavigationTarget.ToLocatorJson -> {
-                // Continuous-mode resume reads (href, progression) out of the Locator JSON.
-                // ContinuousReaderCoordinator owns the parse + landing today (it has the spine
-                // hrefs + chapter counts the math needs); routing resume through here would
-                // require relocating that machinery to the presenter, which is the job of the
-                // view-model split, not this seam.
+                // Reader-side Locator JSON is `{href, locations: {progression, fragments[]}}` —
+                // ContinuousReaderView.navigateTo wants (href[#anchor], progression, alignToTop),
+                // so parse those three fields directly. Going through Readium's Locator.fromJSON
+                // here would pull android.net.Uri into a unit-testable path for no payoff.
+                val parsed = runCatching { JSONObject(target.locatorJson) }.getOrNull() ?: return
+                val href = parsed.optString("href").takeIf { it.isNotEmpty() } ?: return
+                val locations = parsed.optJSONObject("locations")
+                val progression = locations?.optDouble("progression", 0.0)?.toFloat() ?: 0f
+                val anchor = locations?.optJSONArray("fragments")
+                    ?.takeIf { it.length() > 0 }
+                    ?.optString(0)
+                    ?.takeIf { it.isNotEmpty() }
+                val fullHref = if (anchor != null) "$href#$anchor" else href
+                view.navigateTo(fullHref, progression, alignToTop = false)
             }
         }
     }

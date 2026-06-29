@@ -23,6 +23,8 @@ class NavigationTargetTest {
         override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
             calls.add(NavCall(href, progression, alignToTop))
         }
+        override fun scrollByPage(forward: Boolean) = Unit
+        override fun updatePreferences(prefs: com.riffle.core.domain.FormattingPreferences) = Unit
     }
 
     @Before
