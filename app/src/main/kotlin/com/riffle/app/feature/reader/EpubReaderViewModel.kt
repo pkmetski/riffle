@@ -1116,6 +1116,10 @@ class EpubReaderViewModel @Inject constructor(
                 }
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
+                android.util.Log.d(
+                    "DEBUG-bkmrk",
+                    "create: href=$href prog=$prog cfi=$cfi",
+                )
                 annotationStore.createBookmark(
                     serverId = serverId,
                     itemId = itemId,

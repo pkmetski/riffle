@@ -82,10 +82,17 @@ class BookmarksController @AssistedInject constructor(
             viewportFraction != null -> (viewportFraction / 2.0).coerceAtLeast(BOOKMARK_PAGE_EPS)
             else -> BOOKMARK_VIEWPORT_EPS
         }
-        positions.any { bm ->
+        val matched = positions.any { bm ->
             bm.chapterHref == hrefNorm &&
                 (prog == null || kotlin.math.abs(bm.progression - prog) < eps)
         }
+        val first = positions.firstOrNull { it.chapterHref == hrefNorm }
+        android.util.Log.d(
+            "DEBUG-bkmrk",
+            "match: matched=$matched orient=$orientation cur.prog=$prog vf=$viewportFraction eps=$eps " +
+                "bm.prog=${first?.progression} diff=${if (first != null && prog != null) kotlin.math.abs(first.progression - prog) else null} href=$href",
+        )
+        matched
     }.stateIn(scope, SharingStarted.Eagerly, false)
 
     private var observeJob: Job? = null
