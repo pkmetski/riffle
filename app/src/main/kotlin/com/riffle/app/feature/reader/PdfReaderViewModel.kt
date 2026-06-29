@@ -194,21 +194,29 @@ class PdfReaderViewModel @Inject constructor(
     ): Boolean {
         val (_, textPage) = ensurePagePtrs(pageIndex) ?: return false
         val resolver = PdfTextResolver(PdfiumTextApiSource)
-        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 12.0, tolY = 12.0)
+        // Asymmetric tolerance: 12 PDF points horizontally (typical char is
+        // 3–7 pt wide; we need slack for taps between letters), TIGHT 3
+        // points vertically. A wider Y tolerance pulls characters from the
+        // line above or below — exactly the "between the lines" bug — so
+        // we never accept a char Pdfium found more than 3 pt vertically
+        // away from the touch.
+        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 12.0, tolY = 3.0)
             ?: return false
-        // Proximity check: the resolved word's quads must include a point
-        // within MAX_PROXIMITY of the touch in BOTH axes. Pdfium can return
-        // a charIndex from far away even with a moderate tolerance — for
-        // example if the touch is in a margin or table gutter — and we'd
-        // otherwise highlight that distant word with no visual connection
-        // to the touched position.
+        // Proximity sanity check. Pdfium's xTolerance/yTolerance interprets
+        // the SEARCH RADIUS, but it may still return a char whose box does
+        // not strictly contain the search rect — particularly for sparse-
+        // metric fonts. So after resolution we verify each quad explicitly:
+        //  - X: touch must be within 10 pt of [left, right]
+        //  - Y: touch must be within 2 pt of [bottom, top]  (very tight —
+        //       any larger and inter-line whitespace passes for "on a line")
         val quads = resolver.quadsForRange(textPage, word)
-        val maxProximity = 20.0
+        val xSlop = 10.0
+        val ySlop = 2.0
         val withinProximity = quads.any { q ->
-            val left = minOf(q.left.toDouble(), q.right.toDouble()) - maxProximity
-            val right = maxOf(q.left.toDouble(), q.right.toDouble()) + maxProximity
-            val top = maxOf(q.top.toDouble(), q.bottom.toDouble()) + maxProximity   // PDF Y-up
-            val bottom = minOf(q.top.toDouble(), q.bottom.toDouble()) - maxProximity
+            val left = minOf(q.left.toDouble(), q.right.toDouble()) - xSlop
+            val right = maxOf(q.left.toDouble(), q.right.toDouble()) + xSlop
+            val top = maxOf(q.top.toDouble(), q.bottom.toDouble()) + ySlop   // PDF Y-up
+            val bottom = minOf(q.top.toDouble(), q.bottom.toDouble()) - ySlop
             xPoints in left..right && yPoints in bottom..top
         }
         if (!withinProximity) {
