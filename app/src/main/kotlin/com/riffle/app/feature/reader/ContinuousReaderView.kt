@@ -664,7 +664,18 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                         return@post
                     }
                     val y = when {
-                        offsetWithinTargetPx != null -> (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
+                        // When the anchor (annotation decoration or element-id) resolved, place
+                        // it at the viewport top for alignToTop targets (TOC / page-bookmark) and
+                        // at the viewport midpoint for everything else (highlight / note search
+                        // result). Mirrors the same alignToTop split that scrollToLoadedChapter
+                        // applies — without this branch the openWindowAt path always landed the
+                        // anchor at the very top, leaving search-result highlights glued there.
+                        // The coerceAtLeast(0) clamp keeps near-chapter-start anchors usable
+                        // (the viewport can't scroll above scrollY=0).
+                        offsetWithinTargetPx != null && alignToTop ->
+                            (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
+                        offsetWithinTargetPx != null ->
+                            (slot.top + offsetWithinTargetPx - height / 2).coerceAtLeast(0)
                         alignToTop -> (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                         else -> ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
