@@ -25,9 +25,9 @@ import javax.inject.Inject
 class PlayerCoordinator @Inject constructor(
     private val controller: ReadaloudController,
     private val audioRepository: ReadaloudAudioRepository,
-) {
+) : PlayerController {
     /** Mirrors the controller's playback state so the screen has a single thing to observe. */
-    val state: StateFlow<ReadaloudController.PlaybackState> = controller.state
+    override val state: StateFlow<ReadaloudController.PlaybackState> = controller.state
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -35,7 +35,7 @@ class PlayerCoordinator @Inject constructor(
 
     private val _activeFragmentRef = MutableStateFlow<String?>(null)
     /** The text fragment currently narrated, or null when nothing is playing/prepared. */
-    val activeFragmentRef: StateFlow<String?> = _activeFragmentRef.asStateFlow()
+    override val activeFragmentRef: StateFlow<String?> = _activeFragmentRef.asStateFlow()
 
     private val _narrationProgress = MutableStateFlow<NarrationProgress?>(null)
     /**
@@ -44,7 +44,7 @@ class PlayerCoordinator @Inject constructor(
      * within-sentence signal available — the reader uses it to turn the page when a sentence spans more
      * than one paginated column (see NarratedColumnProgression).
      */
-    val narrationProgress: StateFlow<NarrationProgress?> = _narrationProgress.asStateFlow()
+    override val narrationProgress: StateFlow<NarrationProgress?> = _narrationProgress.asStateFlow()
 
     init {
         scope.launch {
@@ -64,13 +64,13 @@ class PlayerCoordinator @Inject constructor(
     }
 
     /** Connects the controller to [bundleFile] and queues [track]'s audio. */
-    suspend fun open(itemId: String, bundleFile: File, track: ReadaloudTrack) {
+    override suspend fun open(itemId: String, bundleFile: File, track: ReadaloudTrack) {
         this.track = track
         controller.prepare(bundleFile, track)
     }
 
     /** Streaming counterpart of [open] (ADR 0028): audio streams from ABS, same [track] machinery. */
-    internal suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
+    override suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
         this.track = track
         controller.prepareStreaming(streaming, track)
     }
@@ -83,7 +83,7 @@ class PlayerCoordinator @Inject constructor(
      * rarely lands on a SMIL boundary) starts on the page the user is reading rather than silently
      * restarting the whole book.
      */
-    fun playFromHere(fragmentRef: String) {
+    override fun playFromHere(fragmentRef: String) {
         val href = fragmentRef.substringBefore('#')
         val fragmentId = fragmentRef.substringAfter('#', "").ifEmpty { null }
         playFromReaderPosition(href, fragmentId)
@@ -97,32 +97,32 @@ class PlayerCoordinator @Inject constructor(
      * reader's auto-follow would then drag the reading position back to the start, erasing progress.
      * Not starting is strictly safer than restarting the book.
      */
-    fun playFromReaderPosition(href: String, fragmentId: String?) {
+    override fun playFromReaderPosition(href: String, fragmentId: String?) {
         val clip = track?.resolveStartClip(href, fragmentId) ?: return
         controller.playFromFragment(clip.textFragmentRef)
     }
 
-    fun play() = controller.play()
+    override fun play() = controller.play()
 
-    fun pause() = controller.pause()
+    override fun pause() = controller.pause()
 
-    fun setSpeed(speed: Float) = controller.setSpeed(speed)
+    override fun setSpeed(speed: Float) = controller.setSpeed(speed)
 
     /** Seeks to [globalSec] and starts playing — the audiobook→readaloud handoff entry point. */
-    fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)
+    override fun playFromSecond(globalSec: Double) = controller.playFromSecond(globalSec)
 
     /**
      * Releases the shared player to the audiobook player WITHOUT stopping it (swipe-up to the player),
      * and clears the synced highlight. The audiobook takes over the same session and keeps playing.
      */
-    fun releaseForHandoff() {
+    override fun releaseForHandoff() {
         track = null
         controller.releaseForHandoff()
         _activeFragmentRef.value = null
         _narrationProgress.value = null
     }
 
-    fun skipBy(deltaSec: Double) = controller.skipBy(deltaSec)
+    override fun skipBy(deltaSec: Double) = controller.skipBy(deltaSec)
 
     /** Pre-resolves [globalSec] during a swipe drag so [playFromSecond] skips SMIL computation. */
     fun preWarmSeek(globalSec: Double) = controller.preWarmSeek(globalSec)
@@ -130,12 +130,12 @@ class PlayerCoordinator @Inject constructor(
     /** Discards the pre-warmed seek target when a drag is abandoned. */
     fun cancelPreWarm() = controller.cancelPreWarm()
 
-    fun previousChapter() = controller.previousChapter()
+    override fun previousChapter() = controller.previousChapter()
 
-    fun nextChapter() = controller.nextChapter()
+    override fun nextChapter() = controller.nextChapter()
 
     /** Stops playback and tears the session down — the active fragment clears, so does the highlight. */
-    fun close() {
+    override fun close() {
         track = null
         controller.stop()
         _activeFragmentRef.value = null
