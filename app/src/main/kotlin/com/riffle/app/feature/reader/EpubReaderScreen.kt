@@ -1652,15 +1652,12 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(annotationNavigationEvents) {
         annotationNavigationEvents.collect { locator ->
-            // Land at the viewport midpoint (alignToTop=false) so the bookmark/page-indicator
-            // ribbon — which compares against `locatorAt`'s midpoint progression with a ±5%
-            // window — activates on arrival. alignToTop=true previously placed the CFI-derived
-            // content-top at the viewport top, leaving the midpoint half a viewport past the
-            // saved bookmark midpoint and outside the ribbon's match window. Readium ignores
-            // alignToTop — it handles column alignment internally.
+            // Bookmark locators carry CFI-derived progressions measured at content top (not the
+            // viewport midpoint that locatorAt uses), so alignToTop=true for continuous mode.
+            // Readium ignores it — it handles column alignment internally.
             navigateWithCover(
                 NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
-                NavigationOptions(landAtStartWhenNoTarget = false),
+                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = true),
                 locator.href.toString(),
             )
         }
