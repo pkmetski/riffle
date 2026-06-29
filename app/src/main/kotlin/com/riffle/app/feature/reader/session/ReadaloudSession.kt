@@ -356,10 +356,10 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Persists the readaloud resume position so the next session continues from this sentence.
-     * Filled in sub-task 8.2.
+     * Filled in sub-task 8.5.
      */
     suspend fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?): Unit =
-        TODO("filled in by sub-task 8.2")
+        TODO("filled in by sub-task 8.5")
 
     /**
      * Flush the full readaloud position into local stores on close/pause (ADR 0031): persist the
@@ -485,7 +485,7 @@ class ReadaloudSession @AssistedInject constructor(
         readerSyncProvider: () -> com.riffle.app.feature.reader.ReaderSyncCoordinator?,
         audiobookFollowProvider: () -> com.riffle.app.feature.reader.AudiobookFollow?,
         readerSyncServerIdProvider: () -> String?,
-    ): Unit = TODO("filled in by sub-task 8.2")
+    ): Unit = TODO("filled in by sub-task 8.5")
 
     /**
      * Called when the book is being closed (onCleared / navigating away). Flushes any pending
