@@ -79,6 +79,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
          *  stale scrollY (NestedScrollView's mScroller resumes ~50ms after the land scrollTo and
          *  drives the viewport off-target by hundreds of pixels). Cleared early on user touch. */
         private const val LANDING_HOLD_MS = 600L
+
+        /**
+         * Minimum delta on the viewport-fraction value before [handleScrollChange] re-emits
+         * through [onViewportFraction]. 0.005 = half a percent of chapter height — well below any
+         * eps the bookmark-indicator derives from it (paginated/vertical 5%, continuous ≈ vf/2 +
+         * 5%), and well above the noise from sliding-window slot.height churn.
+         */
+        private const val FRACTION_EMIT_EPS = 0.005f
     }
 
     data class ChapterEntry(val link: Link, val url: String)
@@ -94,6 +102,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * for an attached, measured slot; 0f if the slot has no measured height yet.
      */
     var onViewportFraction: ((fraction: Float) -> Unit)? = null
+
+    /** Last emitted viewport fraction; used to throttle [onViewportFraction] — see [handleScrollChange]. */
+    @Volatile private var lastEmittedViewportFraction: Float? = null
 
     /**
      * Called on main thread when the user taps a chapter without scrolling.
@@ -1244,7 +1255,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         onRawPosition?.invoke(href, progression)
         val slotHeight = slot.height
         val fraction = if (slotHeight > 0) (height.toFloat() / slotHeight).coerceIn(0f, 1f) else 0f
-        onViewportFraction?.invoke(fraction)
+        // The viewport fraction only feeds the bookmark-indicator match window — sub-percent
+        // deltas don't change the eps it derives. Sliding-window remeasures shift slot.height by
+        // a few pixels constantly; emitting every tick floods the downstream StateFlow with
+        // numerically-distinct floats, triggering recomposition in BookmarksController and the
+        // chrome-reveal LaunchedEffects. Skip emissions inside FRACTION_EMIT_EPS; emit on any
+        // change ≥ that threshold (or when the previous value was the initial null).
+        if (lastEmittedViewportFraction == null ||
+            kotlin.math.abs(fraction - (lastEmittedViewportFraction ?: 0f)) >= FRACTION_EMIT_EPS) {
+            lastEmittedViewportFraction = fraction
+            onViewportFraction?.invoke(fraction)
+        }
 
         // Defer window shifts off the scroll callback. A shift's compensating scrollBy() would
         // otherwise run re-entrantly inside NestedScrollView.computeScroll() (this callback fires
