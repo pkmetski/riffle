@@ -1817,40 +1817,26 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(volumeNavEvents, isContinuous) {
+    LaunchedEffect(volumeNavEvents) {
         volumeNavEvents.collect { event ->
-            if (isContinuous) {
-                continuousPresenter?.pageBy(
-                    if (event == VolumeNavEvent.Forward) PageDirection.Forward else PageDirection.Backward,
-                )
-                return@collect
-            }
-            val fragment = fragmentRef.value ?: return@collect
+            val direction = if (event == VolumeNavEvent.Forward) PageDirection.Forward else PageDirection.Backward
             val container = containerRef.value
-            if (currentFormattingPrefs.orientation != ReaderOrientation.Horizontal && container != null) {
-                when (event) {
-                    VolumeNavEvent.Forward -> {
-                        val atBottom = fragment.evaluateJavascript(
-                            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
-                        )?.trim('"') == "true"
-                        container.handleVolumeScroll(forward = true, atBoundary = atBottom) { js ->
-                            launch { fragment.evaluateJavascript(js) }
-                        }
-                    }
-                    VolumeNavEvent.Backward -> {
-                        val atTop = fragment.evaluateJavascript(
-                            "(window.scrollY <= 4).toString()"
-                        )?.trim('"') == "true"
-                        container.handleVolumeScroll(forward = false, atBoundary = atTop) { js ->
-                            launch { fragment.evaluateJavascript(js) }
-                        }
-                    }
+            // Vertical (scroll) mode is the only path that uses ScrollBoundaryNavigationContainer's
+            // smooth in-page scroll: a volume press scrolls a viewport within the chapter unless
+            // the user is at the boundary, in which case the container drives a cross-resource
+            // turn via its installed JS evaluator. Paginated + continuous fall through to the
+            // mode-agnostic presenter.pageBy(); ContinuousPresenter and ReadiumPresenter own the
+            // mode-specific turn semantics.
+            if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
+                val fragment = fragmentRef.value ?: return@collect
+                val boundary = readerPresenter.scrollBoundary()
+                val atBoundary = if (direction == PageDirection.Forward) boundary.atForwardBoundary
+                else boundary.atBackwardBoundary
+                container.handleVolumeScroll(forward = direction == PageDirection.Forward, atBoundary = atBoundary) { js ->
+                    launch { fragment.evaluateJavascript(js) }
                 }
             } else {
-                when (event) {
-                    VolumeNavEvent.Forward -> readiumPresenter?.pageBy(PageDirection.Forward)
-                    VolumeNavEvent.Backward -> readiumPresenter?.pageBy(PageDirection.Backward)
-                }
+                readerPresenter.pageBy(direction)
             }
         }
     }
