@@ -18,8 +18,11 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -99,6 +102,12 @@ internal fun buildAudiobookFacts(durationSec: Double, genres: List<String>): Str
     }
     // "Audiobook" alone is just the medium label with no real facts — not worth a line.
     return if (parts.size > 1) parts.joinToString(" · ") else null
+}
+
+/** One-shot UI events emitted by the [AudiobookPlayerViewModel] — collected by the screen. */
+sealed interface AudiobookPlayerEvent {
+    /** Playback finished naturally (last track ended); the screen should close the player. */
+    data object Finished : AudiobookPlayerEvent
 }
 
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
@@ -358,6 +367,9 @@ class AudiobookPlayerViewModel(
     private val rewindOnResumeSec: StateFlow<Double> = listeningPreferencesStore.rewindOnResumeSeconds
         .map { it.toDouble() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningPreferencesStore.DEFAULT_REWIND_ON_RESUME_SECONDS.toDouble())
+
+    private val _events = MutableSharedFlow<AudiobookPlayerEvent>(extraBufferCapacity = 1)
+    val events: SharedFlow<AudiobookPlayerEvent> = _events.asSharedFlow()
 
     val uiState: StateFlow<AudiobookPlayerUiState> =
         combine(meta, controller.state, controller.sleepTimer) { m, playback, timer ->
@@ -654,6 +666,24 @@ class AudiobookPlayerViewModel(
                     followJob = null
                     controller.pause()
                 }
+        }
+
+        // End-of-book: when the player reports STATE_ENDED (last track played through), close the
+        // android-level player immediately and tell the screen to pop back to the detail view.
+        //
+        // We can't rely solely on onCleared() to tear the player down: by the time the screen pops
+        // and the VM is cleared, the player has been sitting in STATE_ENDED with media items still
+        // in the queue, and the [AudioPlayerService] foreground notification stays put for the user
+        // to see. Tear down here so the foreground notification drops right away; onCleared() runs
+        // the same teardown shortly after, idempotently (controller is already null on the second
+        // pass).
+        viewModelScope.launch {
+            controller.playbackEnded.collect {
+                flushPendingSpeed()
+                pushProgressAndStopPlayer()
+                clearAudiobookNowPlaying()
+                _events.tryEmit(AudiobookPlayerEvent.Finished)
+            }
         }
 
         // End-of-chapter sleep timer: fire when chapter index advances while EoC mode is active.
@@ -977,6 +1007,21 @@ class AudiobookPlayerViewModel(
         viewModelScope.launch { audiobookRepository.saveProgress(serverId, itemId, pos, dur) }
     }
 
+    /**
+     * Flush the just-ended position to ABS / the local position store, then tear down the
+     * MediaSession queue and release the [AudiobookController] (which dismisses the foreground
+     * notification). Idempotent: the controller's own stop() guards against a re-stop after release.
+     */
+    private fun pushProgressAndStopPlayer() {
+        pushProgressOnStop()
+        controller.stop()
+    }
+
+    /** Clear THIS book from the now-playing store so the mini-bar doesn't linger after the session ends. */
+    private fun clearAudiobookNowPlaying() {
+        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
+    }
+
     override fun onCleared() {
         followJob?.cancel()
         // Release this book to the durable sweep again (ADR 0030).
@@ -991,12 +1036,9 @@ class AudiobookPlayerViewModel(
         flushPendingSpeed()
         // On a readaloud handoff the progress was already pushed and the handle released without
         // stopping the shared player (readaloud now owns it) — stopping here would pause readaloud.
-        if (!handingOffToReadaloud) {
-            pushProgressOnStop()
-            controller.stop()
-        }
+        if (!handingOffToReadaloud) pushProgressAndStopPlayer()
         // Leaving the player stops playback (no mini-bar), so this session is no longer playing.
-        nowPlayingStore.clearIf { it is com.riffle.app.playback.NowPlaying.Audiobook && it.itemId == itemId }
+        clearAudiobookNowPlaying()
         super.onCleared()
     }
 

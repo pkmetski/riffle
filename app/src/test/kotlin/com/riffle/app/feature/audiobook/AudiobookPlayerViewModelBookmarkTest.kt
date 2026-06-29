@@ -52,6 +52,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -93,6 +97,9 @@ class AudiobookPlayerViewModelBookmarkTest {
         val seeks = mutableListOf<Double>()
         var preparedStartAtSec: Double? = null
         override val state = MutableStateFlow(PlaybackState())
+        private val ended = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        override val playbackEnded: kotlinx.coroutines.flow.SharedFlow<Unit> = ended.asSharedFlow()
+        fun emitEnded() { ended.tryEmit(Unit) }
         override suspend fun prepare(
             trackUrls: List<String>,
             spans: List<com.riffle.core.domain.AudiobookTrackSpan>,
@@ -251,6 +258,24 @@ class AudiobookPlayerViewModelBookmarkTest {
         runCurrent()
 
         assertEquals(listOf(123.0), controller.seeks)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `controller playbackEnded emits a Finished UI event so the screen can close the player`() = runTest(testDispatcher) {
+        val controller = FakeController(position = 0.0)
+        val vm = buildViewModel(controller, FakeBookmarkStore())
+        runCurrent()
+
+        val collected = mutableListOf<AudiobookPlayerEvent>()
+        val job = launch { vm.events.take(1).toList(collected) }
+        runCurrent()
+
+        controller.emitEnded()
+        runCurrent()
+        job.join()
+
+        assertEquals(listOf(AudiobookPlayerEvent.Finished), collected)
         vm.clearForTest()
     }
 

@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -132,6 +133,17 @@ fun AudiobookPlayerScreen(
     viewModel: AudiobookPlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // When the book ends naturally (last track played through to STATE_ENDED), close the player —
+    // pop back to the audiobook detail view. The VM's onCleared() then stops the MediaSession, which
+    // clears the foreground notification.
+    val latestOnNavigateBack = rememberUpdatedState(onNavigateBack)
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                AudiobookPlayerEvent.Finished -> latestOnNavigateBack.value()
+            }
+        }
+    }
     // Any short (Compact-height) window — i.e. a phone in landscape — is too short for the vertical
     // layout (the square cover pushes the controls off-screen), so split into cover+details / controls.
     val twoColumn = windowSizeClass.heightSizeClass == WindowHeightSizeClass.Compact

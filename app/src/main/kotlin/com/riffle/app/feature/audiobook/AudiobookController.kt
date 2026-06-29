@@ -20,8 +20,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -63,6 +66,13 @@ open class AudiobookController @Inject constructor(
 
     private val _sleepTimer = MutableStateFlow<SleepTimerMode>(SleepTimerMode.None)
     open val sleepTimer: StateFlow<SleepTimerMode> = _sleepTimer.asStateFlow()
+
+    // replay=1 so a STATE_ENDED that fires while no collector is attached — e.g. across an Activity
+    // recreation (rotation, theme change) right at end-of-book — is still delivered to the next
+    // collector. The VM acts on it by stopping the controller (releasing the session), so a re-emit
+    // after that point can't re-trigger; idempotent.
+    private val _playbackEnded = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
+    open val playbackEnded: SharedFlow<Unit> = _playbackEnded.asSharedFlow()
     private var timerJob: Job? = null
 
     private var controller: MediaController? = null
@@ -81,6 +91,10 @@ open class AudiobookController @Inject constructor(
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
                 Log.d(HANDOFF, "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
+            }
+            if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
+                && player.playbackState == Player.STATE_ENDED) {
+                _playbackEnded.tryEmit(Unit)
             }
             maybeStart(player)
             pushState()
@@ -244,6 +258,9 @@ open class AudiobookController @Inject constructor(
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
+        // Drop any cached end-of-book event so the next book opened on this singleton controller
+        // doesn't inherit the previous book's Finished signal at first-subscribe.
+        _playbackEnded.resetReplayCache()
         controller?.run {
             stop()
             clearMediaItems()
