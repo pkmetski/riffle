@@ -18,10 +18,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import com.github.barteksc.pdfviewer.PDFView
+import com.riffle.core.domain.HighlightColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -62,6 +64,7 @@ fun PdfSelectionOverlay(
 ) {
     val annotations by viewModel.annotations.collectAsState()
     val annotationCount = annotations.size  // explicit subscription
+    val pending by viewModel.pendingSelection.collectAsState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val pdfView = getPdfView()
 
@@ -124,15 +127,17 @@ fun PdfSelectionOverlay(
                     // events propagate through to PDFView normally.
                     detectTapGestures(
                         onTap = {
-                            android.util.Log.i("RifflePdfSel", "onTap → chrome toggle")
-                            onSingleTap()
+                            // If a popup is showing, dismiss it on outside-tap
+                            // rather than toggling chrome — matches Android's
+                            // standard "tap outside dismisses popup" pattern.
+                            if (viewModel.pendingSelection.value != null) {
+                                viewModel.discardPendingSelection()
+                            } else {
+                                onSingleTap()
+                            }
                         },
                         onLongPress = { offset ->
-                            android.util.Log.i(
-                                "RifflePdfSel",
-                                "onLongPress at (${offset.x}, ${offset.y})",
-                            )
-                            handleLongPressAt(pdfView, offset.x, offset.y, viewModel, scope)
+                            handleLongPressAt(pdfView, offset.x, offset.y, viewModel)
                         },
                     )
                 },
@@ -141,22 +146,20 @@ fun PdfSelectionOverlay(
             // when PDFView scrolls OR new highlights land.
             @Suppress("UNUSED_EXPRESSION") scrollTick
             @Suppress("UNUSED_EXPRESSION") annotationCount
-            android.util.Log.v(
-                "RifflePdfSel",
-                "draw scope reached: annotationCount=$annotationCount " +
-                    "scrollTick=$scrollTick currentPage=${pdfView.currentPage}",
-            )
             val totalPages = pdfPageCount(pdfView)
             val active = pdfView.currentPage
-            // Walk a wider page window (active ± 3) so highlights remain
-            // painted when the user partially scrolls past the page they
-            // landed on. PDFView's currentPage reflects the "most visible"
-            // page but other pages in the visible viewport must also paint.
-            var drawn = 0
+
+            // Paint committed (persisted) highlights, using each row's saved color.
             for (p in (active - 3)..(active + 3)) {
                 if (p < 0 || p >= totalPages) continue
                 val dims = viewModel.pdfPageDimensionsPoints(p) ?: continue
                 for ((id, pdfQuads) in viewModel.highlightsForPage(p)) {
+                    val annotationColor = viewModel.annotations.value
+                        .firstOrNull { it.id == id }
+                        ?.color
+                        ?.let { HighlightColor.fromToken(it) }
+                        ?: HighlightColor.entries.first()
+                    val color = Color(annotationColor.argb).copy(alpha = 0.55f)
                     for (pdfRect in pdfQuads) {
                         val screenRect = PdfPageCoordinates.pdfRectToScreen(
                             pdfView = pdfView,
@@ -166,51 +169,97 @@ fun PdfSelectionOverlay(
                             pageHeightPoints = dims.second,
                             pageCount = totalPages,
                         ) ?: continue
-                        val w = (screenRect.right - screenRect.left).coerceAtLeast(1f)
-                        val h = (screenRect.bottom - screenRect.top).coerceAtLeast(1f)
-                        val wDp = with(density) { w.toDp() }
-                        val hDp = with(density) { h.toDp() }
-                        android.util.Log.v(
-                            "RifflePdfSel",
-                            "draw highlight $id p=$p pdfRect=$pdfRect → screen=$screenRect ($wDp x $hDp)",
-                        )
-                        drawn++
-                        Box(
-                            modifier = Modifier
-                                .offset {
-                                    IntOffset(screenRect.left.toInt(), screenRect.top.toInt())
-                                }
-                                .size(wDp, hDp)
-                                .graphicsLayer { }
-                                .background(fillColor),
-                        )
+                        renderQuadBox(screenRect, color, density)
                     }
                 }
             }
-            if (drawn == 0) {
-                android.util.Log.v(
-                    "RifflePdfSel",
-                    "draw scope: no highlights drawn for active=$active",
-                )
+
+            // Paint the pending (uncommitted) selection — a transient yellow
+            // hint shown while the action-popup is up. Dismissing the popup
+            // clears the pending state and this draw branch goes away.
+            val pendingSnapshot = pending
+            if (pendingSnapshot != null) {
+                val dims = viewModel.pdfPageDimensionsPoints(pendingSnapshot.pageIndex)
+                if (dims != null) {
+                    for (pdfRect in pendingSnapshot.quads) {
+                        val screenRect = PdfPageCoordinates.pdfRectToScreen(
+                            pdfView = pdfView,
+                            pageIndex = pendingSnapshot.pageIndex,
+                            pdfRect = pdfRect,
+                            pageWidthPoints = dims.first,
+                            pageHeightPoints = dims.second,
+                            pageCount = totalPages,
+                        ) ?: continue
+                        renderQuadBox(screenRect, fillColor, density)
+                    }
+                }
             }
         }
+
+        // The action popup is anchored to the word's screen-space rect. Picking
+        // a color commits the highlight; tapping outside / pressing back
+        // discards. The note flow is deferred — onOpenNoteEditor commits with
+        // the default color for now (future patch will add a notes editor).
+        val pendingSnapshot = pending
+        if (pendingSnapshot != null) {
+            HighlightActionsPopup(
+                anchorRect = pendingSnapshot.anchorRect,
+                selected = null,
+                note = null,
+                onPick = { color -> viewModel.commitPendingSelection(color) },
+                onDelete = { viewModel.discardPendingSelection() },
+                onOpenNoteEditor = {
+                    // For v1, treat "Add note" as commit-with-default-color.
+                    // Future patch: open a separate notes editor sheet.
+                    viewModel.commitPendingSelection(HighlightColor.entries.first())
+                },
+                onDismiss = { viewModel.discardPendingSelection() },
+            )
+        }
     }
+}
+
+@Composable
+private fun renderQuadBox(
+    screenRect: android.graphics.RectF,
+    color: Color,
+    density: androidx.compose.ui.unit.Density,
+) {
+    val w = (screenRect.right - screenRect.left).coerceAtLeast(1f)
+    val h = (screenRect.bottom - screenRect.top).coerceAtLeast(1f)
+    val wDp = with(density) { w.toDp() }
+    val hDp = with(density) { h.toDp() }
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(screenRect.left.toInt(), screenRect.top.toInt()) }
+            .size(wDp, hDp)
+            .graphicsLayer { }
+            .background(color),
+    )
 }
 
 private fun pdfPageCount(pdfView: PDFView): Int = runCatching { pdfView.pageCount }.getOrElse { 0 }
 
 /**
- * Forwards a PDFView long-press event to the ViewModel: resolves the event's
- * (x,y) screen coords to a (page, PDF point), opens the page's text page, and
- * persists a yellow highlight on the word under the press. Idempotent if the
- * touch missed any text (returns silently).
+ * Forwards a long-press to the ViewModel: resolves the touch point to a
+ * (page, PDF point), uses [PdfReaderViewModel.beginPendingSelection] to
+ * attempt to snap to the word at that point. Iff a word resolves, the
+ * ViewModel transitions into pendingSelection state and the overlay
+ * recomposes to show the [HighlightActionsPopup]. If no word hits (touch
+ * on whitespace, figure, equation), the long-press is silently ignored —
+ * we do NOT widen the tolerance and pick a random nearby char, because
+ * that produced visually-arbitrary highlight placement.
+ *
+ * The anchor rect for the popup is computed from the resolved word's
+ * first quad mapped back to screen coords, so the popup hovers next to
+ * the highlighted word rather than at the raw touch point (which may be
+ * slightly off-letter).
  */
 private fun handleLongPressAt(
     pdfView: PDFView,
     touchX: Float,
     touchY: Float,
     viewModel: PdfReaderViewModel,
-    scope: CoroutineScope,
 ) {
     val totalPages = pdfPageCount(pdfView)
     val point = PdfPageCoordinates.screenToPdf(
@@ -220,19 +269,27 @@ private fun handleLongPressAt(
         getPageWidthPoints = { i -> viewModel.pdfPageDimensionsPoints(i)?.first ?: 0.0 },
         getPageHeightPoints = { i -> viewModel.pdfPageDimensionsPoints(i)?.second ?: 0.0 },
         pageCount = totalPages,
+    ) ?: return
+    // Compute a tentative anchor near the touch — pre-resolution, since we
+    // don't have the word's quad yet. ViewModel will use this as the popup
+    // anchor; the popup positions itself near (not exactly at) this rect.
+    val tentativeAnchor = IntRect(
+        left = (touchX - 24).toInt(),
+        top = (touchY - 24).toInt(),
+        right = (touchX + 24).toInt(),
+        bottom = (touchY + 24).toInt(),
     )
-    android.util.Log.i("RifflePdfSel", "screenToPdf → $point")
-    if (point == null) return
-    scope.launch {
-        val a = viewModel.createHighlightAtPdfPoint(
-            pageIndex = point.pageIndex,
-            xPoints = point.xPoints,
-            yPoints = point.yPoints,
-        )
-        android.util.Log.i("RifflePdfSel", "createHighlightAtPdfPoint → ${a?.id}")
-        // Force a redraw so the new quad lands on screen immediately
-        // (without this, PDFView would only repaint on next scroll/zoom).
-        pdfView.invalidate()
-    }
+    val started = viewModel.beginPendingSelection(
+        pageIndex = point.pageIndex,
+        xPoints = point.xPoints,
+        yPoints = point.yPoints,
+        anchorOnScreen = tentativeAnchor,
+    )
+    android.util.Log.i(
+        "RifflePdfSel",
+        "long-press → beginPendingSelection ($started) at PDF page=${point.pageIndex} " +
+            "x=${point.xPoints} y=${point.yPoints}",
+    )
+    pdfView.invalidate()
 }
 

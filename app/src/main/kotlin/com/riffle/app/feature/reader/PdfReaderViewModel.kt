@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
@@ -147,65 +148,97 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     /**
-     * Find the word at the given PDF user-space point and persist a highlight
-     * for it. Returns the created annotation, or null if the touch missed
-     * any text. The actual quads/charRange are persisted in the locator JSON
-     * so the overlay can render them.
+     * In-progress selection produced by a long-press but not yet committed
+     * as a highlight. While non-null, [PdfSelectionOverlay] paints the quads
+     * as a transient yellow overlay AND shows [HighlightActionsPopup] for
+     * the user to pick a color / add a note. Choosing a color commits;
+     * dismissing the popup discards.
      */
-    suspend fun createHighlightAtPdfPoint(
+    data class PendingSelection(
+        val pageIndex: Int,
+        val charStart: Int,
+        val charEnd: Int,
+        val quads: List<android.graphics.RectF>,
+        val snippet: PdfTextResolver.AnnotationSnippet,
+        /** Screen-space rect bounding the first quad — anchor for the popup. */
+        val anchorRect: androidx.compose.ui.unit.IntRect,
+    )
+
+    private val _pendingSelection = MutableStateFlow<PendingSelection?>(null)
+    val pendingSelection: StateFlow<PendingSelection?> = _pendingSelection
+
+    /**
+     * Try to start a pending selection at the given screen-space tap.
+     * Returns true if a word was resolved at the touch; false (and emits
+     * nothing) if the touch missed text — caller can show a no-op or
+     * silently skip. Uses a TIGHT tolerance (PDF user-space points): we
+     * specifically do NOT walk out 40 points to find some distant char —
+     * that produced visually-random highlight placement.
+     */
+    fun beginPendingSelection(
         pageIndex: Int,
         xPoints: Double,
         yPoints: Double,
-        color: String = "yellow",
-    ): Annotation? {
-        val serverId = annotationServerId ?: return null.also {
-            android.util.Log.w("RifflePdfSel", "createHighlight: no annotationServerId")
-        }
-        val (_, textPage) = ensurePagePtrs(pageIndex) ?: return null.also {
-            android.util.Log.w("RifflePdfSel", "createHighlight: ensurePagePtrs failed for page $pageIndex")
-        }
-        val charCount = PdfiumTextApiSource.countChars(textPage)
-        val charAt = PdfiumTextApiSource.getCharIndexAtPos(textPage, xPoints, yPoints, 4.0, 4.0)
-        android.util.Log.i(
-            "RifflePdfSel",
-            "createHighlight: page=$pageIndex pos=($xPoints,$yPoints) " +
-                "charCount=$charCount charAt=$charAt",
-        )
-        if (charAt < 0) {
-            // Try with much wider tolerance — some PDFs have sparse text positioning
-            val charAt2 = PdfiumTextApiSource.getCharIndexAtPos(textPage, xPoints, yPoints, 40.0, 40.0)
-            android.util.Log.i("RifflePdfSel", "  retry with tol=40 → charAt=$charAt2")
-        }
+        anchorOnScreen: androidx.compose.ui.unit.IntRect,
+    ): Boolean {
+        val (_, textPage) = ensurePagePtrs(pageIndex) ?: return false
         val resolver = PdfTextResolver(PdfiumTextApiSource)
-        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 4.0, tolY = 4.0)
-            ?: resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 40.0, tolY = 40.0)
-            ?: return null
+        val word = resolver.wordAtPoint(textPage, xPoints, yPoints, tolX = 6.0, tolY = 6.0)
+            ?: return false
         val quads = resolver.quadsForRange(textPage, word)
         val snippet = resolver.extractSnippet(textPage, word)
-        val (pdfW, pdfH) = pdfPageDimensionsPoints(pageIndex) ?: return null
-        val position = pageIndex + 1
-        val totalProg = if (totalPages > 0) pageIndex.toDouble() / totalPages else 0.0
-        val pageHref = lastLocator?.href?.toString() ?: pdfFilePath.orEmpty()
-        val locatorJson = buildPdfHighlightLocatorJson(
-            href = pageHref,
-            position = position,
-            totalProgression = totalProg,
+        android.util.Log.i(
+            "RifflePdfSel",
+            "beginPending: page=$pageIndex range=[${word.start.value},${word.endExclusive.value}) " +
+                "snippet=\"${snippet.highlight}\"",
+        )
+        _pendingSelection.value = PendingSelection(
+            pageIndex = pageIndex,
             charStart = word.start.value,
             charEnd = word.endExclusive.value,
             quads = quads,
+            snippet = snippet,
+            anchorRect = anchorOnScreen,
         )
-        return annotationStore.createHighlight(
-            serverId = serverId,
-            itemId = itemId,
-            cfi = locatorJson,
-            textSnippet = snippet.highlight,
-            textBefore = snippet.before,
-            textAfter = snippet.after,
-            chapterHref = pageHref,
-            color = color,
-            spineIndex = 0,
-            progression = totalProg,
-        )
+        return true
+    }
+
+    /** Commit the pending selection as a persisted highlight with the chosen color. */
+    fun commitPendingSelection(color: HighlightColor) {
+        val pending = _pendingSelection.value ?: return
+        val serverId = annotationServerId ?: return
+        viewModelScope.launch {
+            val (pdfW, pdfH) = pdfPageDimensionsPoints(pending.pageIndex) ?: return@launch
+            val position = pending.pageIndex + 1
+            val totalProg = if (totalPages > 0) pending.pageIndex.toDouble() / totalPages else 0.0
+            val pageHref = lastLocator?.href?.toString() ?: pdfFilePath.orEmpty()
+            val locatorJson = buildPdfHighlightLocatorJson(
+                href = pageHref,
+                position = position,
+                totalProgression = totalProg,
+                charStart = pending.charStart,
+                charEnd = pending.charEnd,
+                quads = pending.quads,
+            )
+            annotationStore.createHighlight(
+                serverId = serverId,
+                itemId = itemId,
+                cfi = locatorJson,
+                textSnippet = pending.snippet.highlight,
+                textBefore = pending.snippet.before,
+                textAfter = pending.snippet.after,
+                chapterHref = pageHref,
+                color = color.token,
+                spineIndex = 0,
+                progression = totalProg,
+            )
+            _pendingSelection.value = null
+        }
+    }
+
+    /** Discard the pending selection without persisting. */
+    fun discardPendingSelection() {
+        _pendingSelection.value = null
     }
 
     private fun buildPdfHighlightLocatorJson(
