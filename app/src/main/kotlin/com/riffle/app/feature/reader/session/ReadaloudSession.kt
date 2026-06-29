@@ -9,6 +9,7 @@ import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.readaloud.PlayerController
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory
+import com.riffle.app.feature.reader.readaloudControlState
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingStore
 import com.riffle.core.data.ReadaloudSidecarStore
@@ -716,8 +717,14 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Binds the session to a specific open book. Must be called before [openReadaloud].
-     * The actual implementation moves here in sub-task 8.2; for now it's a stub.
-     * Filled in sub-task 8.2.
+     *
+     * Consolidates all per-book readaloud wiring that was previously scattered across the VM's
+     * init coroutine. After bind() returns, the session is fully operational: availability flags
+     * are set, providers are wired, and background per-book work (pre-warm, sidecar observer,
+     * sentence-quote build, resume-position seed) has been launched.
+     *
+     * Option α: called from inside openBook()'s suspending body, BEFORE position.bindBook(),
+     * so the session is ready before any position events arrive.
      */
     fun bind(
         serverId: String,
@@ -727,19 +734,121 @@ class ReadaloudSession @AssistedInject constructor(
         audioServerId: String,
         audioSettingsIdentity: AudioIdentity,
         audiobookItemId: String?,
-        effectiveFormattingPreferencesFlow: kotlinx.coroutines.flow.StateFlow<com.riffle.core.domain.FormattingPreferences>,
+        effectiveFormattingPreferencesFlow: StateFlow<FormattingPreferences>,
         currentLocatorFlow: StateFlow<Locator?>,
-        readerSyncProvider: () -> com.riffle.app.feature.reader.ReaderSyncCoordinator?,
-        audiobookFollowProvider: () -> com.riffle.app.feature.reader.AudiobookFollow?,
+        readerSyncProvider: () -> ReaderSyncCoordinator?,
+        audiobookFollowProvider: () -> AudiobookFollow?,
         readerSyncServerIdProvider: () -> String?,
-    ): Unit = TODO("filled in by sub-task 8.5")
+    ) {
+        // --- Store per-book identity ---------------------------------------------------------
+        this.itemId = itemId
+        this.readerServerId = serverId
+        // readerSyncServerId is derived from the VM's readerSyncServerId (same server as serverId
+        // for the ebook side). Wire it now so mirrorReadingToAudiobook is non-null immediately.
+        this.readerSyncServerId = serverId
+        this.isStorytellerServer = isStorytellerServer
+        this.audioBookId = audioBookId
+        this.audioServerId = audioServerId
+        this.audioSettingsIdentity = audioSettingsIdentity
+        _audiobookItemId.value = audiobookItemId
+
+        // --- Wire providers -----------------------------------------------------------------
+        this.readerSyncProvider = readerSyncProvider
+        this.audiobookFollowProvider = audiobookFollowProvider
+        this.effectiveFormattingPreferencesProvider = { effectiveFormattingPreferencesFlow.value }
+
+        // --- Compute and set availability flags ---------------------------------------------
+        val isMatchedAbs = audioBookId != itemId
+        val bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId)
+        val control = readaloudControlState(
+            isStoryteller = isStorytellerServer,
+            isMatchedAbs = isMatchedAbs,
+            bundlePresent = bundlePresent,
+        )
+        _readaloudVisible.value = control.visible
+        _readaloudAvailable.value = control.enabled
+
+        // --- Seed close/resume state from persisted resume store ----------------------------
+        // Restores where narration stopped last session so the first Play resumes in place.
+        // Uses the ebook reader's serverId (readerServerId) to key the lookup.
+        scope.launch {
+            readaloudResumeStore.load(serverId, itemId)?.let { saved ->
+                closeLocator = saved.toCloseLocator()
+                resumeFragmentRef = saved.fragmentRef
+            }
+        }
+
+        // --- Pre-warm the SMIL track parse --------------------------------------------------
+        // Delegated to the session (sub-task 8.4 task E) so the session owns the job.
+        readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
+            launchPreWarmTrack(bundle)
+        }
+
+        // --- Sidecar observer for matched ABS books without a downloaded bundle -------------
+        if (isMatchedAbs && !bundlePresent) {
+            sidecarStore.prepare(audioServerId, audioBookId)
+            startSidecarObserver()
+        }
+
+        // --- Eagerly build sentence quotes if the bundle is already on disk -----------------
+        if (control.enabled) {
+            readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
+                quoteBundle = bundle
+                buildSentenceQuotes(bundle)
+            }
+        }
+    }
 
     /**
-     * Called when the book is being closed (onCleared / navigating away). Flushes any pending
-     * speed write and performs close-side readaloud teardown.
-     * Filled in sub-task 8.5.
+     * Reconstructs the minimal reader [Locator] the resume planner reads — href + column progression —
+     * from a persisted [ReadaloudResumePosition]. Private helper used by [bind].
      */
-    fun onBookClosed(): Unit = TODO("filled in by sub-task 8.5")
+    private fun ReadaloudResumePosition.toCloseLocator(): Locator? = try {
+        val locations = org.json.JSONObject().also { obj -> progression?.let { obj.put("progression", it) } }
+        Locator.fromJSON(
+            org.json.JSONObject()
+                .put("href", href)
+                .put("type", "application/xhtml+xml")
+                .put("locations", locations)
+        )
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * Called when the book is being closed (onCleared / navigating away). Cancels all session-owned
+     * background jobs, clears transient playback state, and resets to closed defaults. The VM's
+     * onCleared() calls this after its own teardown.
+     */
+    fun onBookClosed() {
+        // Cancel all background jobs owned by the session.
+        storytellerSyncJob?.cancel()
+        storytellerSyncJob = null
+        preWarmTrackJob?.cancel()
+        preWarmTrackJob = null
+        speedSaveJob?.cancel()
+        speedSaveJob = null
+        preparingTimeoutJob?.cancel()
+        preparingTimeoutJob = null
+        // Reset transient playback and prep state so a re-bind on next book open starts clean.
+        readaloudPrepared = false
+        readaloudStarted = false
+        autoPlayWhenPrepared = false
+        streamingSession = null
+        streamingBuilding = false
+        quoteBundle = null
+        quotesBuildStarted = false
+        readaloudTrack = null
+        parkedFragmentRef = null
+        parkedLocatorHref = null
+        parkedProgression = null
+        closeLocator = null
+        resumeFragmentRef = null
+        pendingStartFragmentRef = null
+        _readaloudOpen.value = false
+        _downloadPromptBytes.value = null
+        _readaloudBarMessage.value = null
+    }
 
     // ---- Private helpers lifted in sub-task 8.3 ------------------------------------------------
 

@@ -34,6 +34,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -928,6 +930,178 @@ class ReadaloudSessionTest {
             assertNull("parkedFragmentRef must be null after navigating away", session.parkedFragmentRef)
             assertNull("parkedLocatorHref must be null after navigating away", session.parkedLocatorHref)
             assertNull("parkedProgression must be null after navigating away", session.parkedProgression)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    // ── Sub-task 8.5 tests ────────────────────────────────────────────────────────────
+
+    /**
+     * Helper factory for bind() tests that need a bundle file for pre-warm / availability checks.
+     */
+    private fun makeSessionForBind(
+        scope: CoroutineScope,
+        playerController: FakePlayerController = FakePlayerController(),
+        audioRepository: ReadaloudAudioRepository = mockk(relaxed = true),
+        readaloudResumeStore: ReadaloudResumeStore = mockk(relaxed = true),
+        snapshotLocator: () -> Locator? = { null },
+    ): ReadaloudSession = ReadaloudSession(
+        scope = scope,
+        snapshotLocator = snapshotLocator,
+        playerCoordinator = playerController,
+        readaloudAudioRepository = audioRepository,
+        streamingSessionFactory = mockk(relaxed = true),
+        storytellerSyncController = mockk(relaxed = true),
+        audioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(),
+        listeningPreferencesStore = FakeListeningPreferencesStore(),
+        audioIdentityResolver = mockk(relaxed = true),
+        readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
+            every { it.preferences } returns flowOf(
+                com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+            )
+        },
+        readaloudResumeStore = readaloudResumeStore,
+        sidecarStore = mockk<ReadaloudSidecarStore>(relaxed = true).also {
+            // sidecarStore.states must return a real Flow so startSidecarObserver can collect it.
+            every { it.states } returns MutableStateFlow(emptyMap<String, ReadaloudSidecarStore.State>())
+        },
+        readingPositionStore = mockk(relaxed = true),
+        readingSyncStore = mockk(relaxed = true),
+        audioSyncStore = mockk(relaxed = true),
+        epubRepository = mockk(relaxed = true),
+        progressFlushScope = mockk(relaxed = true),
+        audiobookHandoffState = AudiobookHandoffState(),
+        connectivityObserver = mockk<ConnectivityObserver>().also {
+            every { it.isOnline } returns MutableStateFlow(true)
+        },
+        nowPlayingStore = NowPlayingStore(),
+    )
+
+    @Test
+    fun `bind consolidates per-book state into session fields`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val fakeRepo = FakeReadaloudAudioRepository(bundleFileVal = null)
+            val session = makeSessionForBind(scope = sessionScope, audioRepository = fakeRepo)
+
+            val formattingPrefsFlow = MutableStateFlow(com.riffle.core.domain.FormattingPreferences())
+            val currentLocatorFlow = MutableStateFlow<Locator?>(null)
+            val expectedIdentity = com.riffle.core.domain.AudioIdentity("srv-audio", "ab-123")
+
+            session.bind(
+                serverId = "srv-reader",
+                itemId = "ebook-abc",
+                isStorytellerServer = true,
+                audioBookId = "styteller-book-99",
+                audioServerId = "srv-st",
+                audioSettingsIdentity = expectedIdentity,
+                audiobookItemId = "abs-audiobook-777",
+                effectiveFormattingPreferencesFlow = formattingPrefsFlow,
+                currentLocatorFlow = currentLocatorFlow,
+                readerSyncProvider = { null },
+                audiobookFollowProvider = { null },
+                readerSyncServerIdProvider = { "srv-reader" },
+            )
+
+            assertEquals("itemId must be stored", "ebook-abc", session.itemId)
+            assertEquals("readerServerId must be stored", "srv-reader", session.readerServerId)
+            assertEquals("readerSyncServerId must be stored", "srv-reader", session.readerSyncServerId)
+            assertEquals("isStorytellerServer must be stored", true, session.isStorytellerServer)
+            assertEquals("audioBookId must be stored", "styteller-book-99", session.audioBookId)
+            assertEquals("audioServerId must be stored", "srv-st", session.audioServerId)
+            assertEquals("audioSettingsIdentity must be stored", expectedIdentity, session.audioSettingsIdentity)
+            assertEquals("audiobookItemId must be stored", "abs-audiobook-777", session.audiobookItemId.value)
+            // Storyteller server → readaloud is always available and visible
+            assertTrue("readaloudAvailable must be true for Storyteller", session.readaloudAvailable.value)
+            assertTrue("readaloudVisible must be true for Storyteller", session.readaloudVisible.value)
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `bind launches preWarmTrackJob when bundle is present on disk`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val bundle = java.io.File.createTempFile("bundle", ".zip")
+            bundle.deleteOnExit()
+            // Use a Storyteller server (always available) so the pre-warm path is reached
+            val fakeRepo = FakeReadaloudAudioRepository(bundleFileVal = bundle)
+            val session = makeSessionForBind(scope = sessionScope, audioRepository = fakeRepo)
+
+            // Before bind: preWarmTrackJob is null
+            assertNull("preWarmTrackJob must be null before bind", session.preWarmTrackJob)
+
+            val formattingPrefsFlow = MutableStateFlow(com.riffle.core.domain.FormattingPreferences())
+            val currentLocatorFlow = MutableStateFlow<Locator?>(null)
+            session.bind(
+                serverId = "srv1",
+                itemId = "book1",
+                isStorytellerServer = true,
+                audioBookId = "book1",
+                audioServerId = "srv1",
+                audioSettingsIdentity = com.riffle.core.domain.AudioIdentity("srv1", "book1"),
+                audiobookItemId = null,
+                effectiveFormattingPreferencesFlow = formattingPrefsFlow,
+                currentLocatorFlow = currentLocatorFlow,
+                readerSyncProvider = { null },
+                audiobookFollowProvider = { null },
+                readerSyncServerIdProvider = { "srv1" },
+            )
+
+            // After bind: preWarmTrackJob must be non-null (launched by launchPreWarmTrack)
+            assertTrue(
+                "preWarmTrackJob must be non-null after bind when bundle is present",
+                session.preWarmTrackJob != null,
+            )
+        } finally {
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `onBookClosed cancels all session-owned background jobs`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val session = makeSession(scope = sessionScope, playerController = FakePlayerController())
+
+            // Seed the internally-accessible background jobs so we can verify they're cancelled.
+            val stubJob1 = sessionScope.launch { delay(Long.MAX_VALUE) }
+            val stubJob2 = sessionScope.launch { delay(Long.MAX_VALUE) }
+            val stubJob4 = sessionScope.launch { delay(Long.MAX_VALUE) }
+            session.storytellerSyncJob = stubJob1
+            session.preWarmTrackJob = stubJob2
+            session.preparingTimeoutJob = stubJob4
+            // Seed transient playback state to verify it's cleared on close
+            session.readaloudPrepared = true
+            session.readaloudStarted = true
+            session.parkedFragmentRef = "c01.html#s5"
+            session.closeLocator = makeLocator("c01.html", progression = 0.5)
+            session.resumeFragmentRef = "c01.html#s5"
+            session.pendingStartFragmentRef = "c01.html#s10"
+
+            // Verify jobs are active before close
+            assertTrue("storytellerSyncJob must be active before close", stubJob1.isActive)
+            assertTrue("preWarmTrackJob must be active before close", stubJob2.isActive)
+            assertTrue("preparingTimeoutJob must be active before close", stubJob4.isActive)
+
+            session.onBookClosed()
+
+            // All jobs must be cancelled and nulled
+            assertTrue("storytellerSyncJob must be cancelled", stubJob1.isCancelled)
+            assertTrue("preWarmTrackJob must be cancelled", stubJob2.isCancelled)
+            assertTrue("preparingTimeoutJob must be cancelled", stubJob4.isCancelled)
+            assertNull("storytellerSyncJob must be null after close", session.storytellerSyncJob)
+            assertNull("preWarmTrackJob must be null after close", session.preWarmTrackJob)
+            assertNull("preparingTimeoutJob must be null after close", session.preparingTimeoutJob)
+            // Transient state must be cleared
+            assertEquals("readaloudPrepared must be false after close", false, session.readaloudPrepared)
+            assertEquals("readaloudStarted must be false after close", false, session.readaloudStarted)
+            assertNull("parkedFragmentRef must be null after close", session.parkedFragmentRef)
+            assertNull("closeLocator must be null after close", session.closeLocator)
+            assertNull("resumeFragmentRef must be null after close", session.resumeFragmentRef)
+            assertNull("pendingStartFragmentRef must be null after close", session.pendingStartFragmentRef)
         } finally {
             sessionScope.cancel()
         }

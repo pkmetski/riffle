@@ -33,14 +33,11 @@ import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.ReadaloudResumePlanner
-import com.riffle.core.domain.ReadaloudStartPlan
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
@@ -385,6 +382,10 @@ class EpubReaderViewModel @Inject constructor(
     // be downloaded on demand); ABS books qualify only when a synced bundle is already present.
     private var isStorytellerServer = false
 
+    // The reader's active Server id, resolved inside openBook(). Keys the reconcile-targets cleanup
+    // in onCleared(). The session also holds this; kept here so onCleared() doesn't need a session accessor.
+    private var readerServerId: String? = null
+
     // ---- Annotations (ADR 0024 / 0025) -------------------------------------------------------
 
     // The ABS server hosting this item; annotations key on it together with itemId. Resolved once
@@ -424,43 +425,18 @@ class EpubReaderViewModel @Inject constructor(
 
     fun dismissHighlightActions() = annotationSession.dismissHighlightActions()
 
-    // -----------------------------------------------------------------------------------------
+    // ---- Readaloud state delegations (state now lives in the session) -----------------------
 
-    private val _readaloudAvailable = MutableStateFlow(false)
-    val readaloudAvailable: StateFlow<Boolean> = _readaloudAvailable
+    val readaloudAvailable: StateFlow<Boolean> get() = readaloud.readaloudAvailable
 
-    private val _readaloudVisible = MutableStateFlow(false)
-    val readaloudVisible: StateFlow<Boolean> = _readaloudVisible
+    val readaloudVisible: StateFlow<Boolean> get() = readaloud.readaloudVisible
 
-    // The id under which the synced bundle is stored. For a matched ABS book this is the linked
-    // Storyteller book id; for a Storyteller book (or unmatched ABS) it is the opened itemId.
-    private var audioBookId: String = itemId
-    // The Server the bundle lives on, paired with [audioBookId] to key the file store (ADR 0025).
-    // For a matched ABS book this is the linked Storyteller Server; otherwise the active Server.
-    private var audioServerId: String = ""
+    val readaloudOpen: StateFlow<Boolean> get() = readaloud.readaloudOpen
 
-    // The audio-settings key (ADR 0028) — the linked audiobook's id when present, else the Storyteller
-    // readaloud id. Distinct from audioBookId/audioServerId, which still locate the readaloud *bundle*.
-    private var audioSettingsIdentity: AudioIdentity = AudioIdentity("", itemId)
-    // The per-book speed to apply when the player is prepared; the fixed 1x default until loaded.
-    private var initialSpeed: Float = AudioPlaybackPreferencesStore.DEFAULT_PLAYBACK_SPEED
-
-    // The reader's active Server id, resolved once on open. Keys the readaloud resume position (reader
-    // space, like the reading position) for both the seed-on-open load and the save-on-close — using
-    // one captured id keeps the two symmetric and avoids a per-close getActive() DB read.
-    private var readerServerId: String? = null
-
-    // Whether the bottom mini-player / sheet is showing.
-    private val _readaloudOpen = MutableStateFlow(false)
-    val readaloudOpen: StateFlow<Boolean> = _readaloudOpen
+    val audiobookItemId: StateFlow<String?> get() = readaloud.audiobookItemId
 
     // Mirrors the controller's playback state for the mini-player controls.
     val playbackState: StateFlow<ReadaloudController.PlaybackState> = playerCoordinator.state
-
-    // The ABS audiobook item to switch to when the mini player is swiped up (the single large player).
-    // Resolved in init from this title's readaloud link; null when there's no audiobook to switch to.
-    private val _audiobookItemId = MutableStateFlow<String?>(null)
-    val audiobookItemId: StateFlow<String?> = _audiobookItemId
 
     // The text fragment currently narrated — drives the synced highlight. Null clears it.
     val activeFragmentRef: StateFlow<String?> = playerCoordinator.activeFragmentRef
@@ -485,12 +461,11 @@ class EpubReaderViewModel @Inject constructor(
     val downloadProgress: StateFlow<Float?> get() = readaloud.downloadProgress
 
     init {
-        // Wire the stable itemId into the session (done here because itemId is declared after
-        // readaloud in the class body; the also{} block would read it uninitialized).
-        readaloud.itemId = itemId
         // Propagate isPlaying changes from the session to ReaderStateHolder (volume-key routing).
         // The sentence-quote build on isPlaying is now handled by the session's own init observer.
         readaloud.onAudioPlayingChanged = { isPlaying -> readerStateHolder.isAudioPlaying = isPlaying }
+        // Wire the Storyteller pulled-locator callback once — position is constructed by this point.
+        readaloud.storytellerServerLocatorCallback = { locator -> position.requestServerJump(locator) }
         viewModelScope.launch {
             // Sequential: formatting prefs must be available before openBook() so the
             // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
@@ -520,151 +495,11 @@ class EpubReaderViewModel @Inject constructor(
                 position.requestServerJumpWithSuppressCheck(locator)
             }
         }
-        viewModelScope.launch {
-            // Active-server type decides Readaloud availability: every Storyteller book qualifies,
-            // while ABS books qualify only when a synced bundle has already been downloaded.
-            val activeServer = serverRepository.getActive()
-            isStorytellerServer = activeServer?.serverType == ServerType.STORYTELLER
-            readaloud.isStorytellerServer = isStorytellerServer
-
-            // Matched ABS book → key the bundle by the linked Storyteller book id (the bundle
-            // is stored under that id, not the ABS item id). Storyteller side keeps itemId.
-            val link = if (!isStorytellerServer && activeServer != null) {
-                readaloudLinkRepository.findByAbsItem(activeServer.id, itemId)
-            } else {
-                null
-            }
-            audioBookId = link?.storytellerBookId ?: itemId
-            audioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
-            readerServerId = activeServer?.id
-            // Mirror audio-source identity into the session.
-            readaloud.audioBookId = audioBookId
-            readaloud.audioServerId = audioServerId
-            readaloud.readerServerId = readerServerId
-            // Wire the formatting prefs provider now that formatting is set up.
-            readaloud.effectiveFormattingPreferencesProvider = { effectiveFormattingPreferences.value }
-            // Wire the Storyteller pulled-locator callback.
-            readaloud.storytellerServerLocatorCallback = { locator -> position.requestServerJump(locator) }
-            // The audiobook to switch to on swipe-up: among this readaloud's ABS targets, the listenable
-            // one (the audiobook in a split library), or this same item if it's a combined ebook+audio.
-            _audiobookItemId.value = link?.let { l ->
-                readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
-                    .firstOrNull { t ->
-                        t.absLibraryItemId != itemId &&
-                            libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
-                    }
-                    ?.absLibraryItemId
-            }
-            // Mirror the resolved audiobook id into the session so prepareAudiobookHandoff()
-            // can read it without crossing back into the VM (sub-task 8.4).
-            readaloud._audiobookItemId.value = _audiobookItemId.value
-            android.util.Log.d("RIFFLE_HANDOFF", "RA.audiobookItemId resolved=${_audiobookItemId.value} (overlay can now mount)")
-            // Pre-warm the SMIL track parse so the first audiobook→readaloud swipe-down skips
-            // the ~1.5 s MediaOverlayReader.readTrack() cost (parses every .smil in the bundle).
-            // Delegated to the session (sub-task 8.4 task E) so the session owns the job.
-            readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
-                readaloud.launchPreWarmTrack(bundle)
-            }
-            // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
-            activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
-
-            // Resolve the audio-settings key and load the saved speed (ADR 0028). With a link, the
-            // resolver prefers the linked audiobook's id; without one, settings key on this ABS item.
-            audioSettingsIdentity = if (link != null) {
-                audioIdentityResolver.resolveForStorytellerBook(link.storytellerServerId, link.storytellerBookId)
-            } else {
-                AudioIdentity(activeServer?.id ?: "", itemId)
-            }
-            initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
-                ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
-            // Mirror the resolved speed into the readaloud session so setSpeed delegations (sub-task
-            // 8.1) and ensureOpened (via readaloud.initialSpeed) see the same value.
-            readaloud.initialSpeed = initialSpeed
-
-            // Restore the readaloud resume position persisted when the book was last left, so the
-            // first Play this session continues where narration stopped (same page) or starts at the
-            // top of the current page (different page) — the same decision an in-session reopen makes.
-            // Keyed by the reader's (serverId, itemId); seeding closeLocator makes the planner treat
-            // this as a reopen rather than a first-ever play.
-            readerServerId?.let { serverId ->
-                readaloudResumeStore.load(serverId, itemId)?.let { saved ->
-                    readaloud.closeLocator = saved.toCloseLocator()
-                    readaloud.resumeFragmentRef = saved.fragmentRef
-                }
-            }
-
-            val bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId)
-            val control = readaloudControlState(
-                isStoryteller = isStorytellerServer,
-                isMatchedAbs = link != null,
-                bundlePresent = bundlePresent,
-            )
-            _readaloudVisible.value = control.visible
-            _readaloudAvailable.value = control.enabled
-
-            // Streaming prep (ADR 0028): the moment a matched book is opened, start fetching its sidecar in
-            // the background (unless a full bundle is already downloaded — that supersedes streaming). By the
-            // time the user taps Play the sidecar is cached, so the streaming session builds without the slow
-            // /synced fetch blocking playback. A Play tapped before it's ready arms [autoPlayWhenPrepared].
-            if (link != null && !bundlePresent) {
-                sidecarStore.prepare(audioServerId, audioBookId)
-                // The sidecar-ready observer now lives entirely in the session (sub-task 8.4 task D).
-                readaloud.startSidecarObserver()
-            }
-
-            // Build the sentence-quote map eagerly once the readaloud bundle is known to be on disk, so
-            // the selection→sentence resolution ("Play from here") and the page-top start probe have it
-            // ready before the user can act. It was previously deferred until isPlaying to avoid starving
-            // ExoPlayer's audio-start I/O — but at book-open no audio is playing yet, so there's no
-            // contention, and a first "Play from here" (before any playback) would otherwise see an empty
-            // map and fall back to the chapter start. The isPlaying trigger stays as a backstop for the
-            // matched-ABS case where the bundle is downloaded later in the session.
-            if (control.enabled) {
-                readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
-                    readaloud.quoteBundle = bundle
-                    readaloud.buildSentenceQuotes(bundle)
-                }
-            }
-
-            // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
-            // readaloud from the audiobook's position so narration continues where listening stopped.
-            // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
-            if (startReadaloudAtSec >= 0.0 && control.enabled) {
-                startReadaloudAtSecond(startReadaloudAtSec)
-            }
-
-            // Annotations are ABS-side only (ADR 0024): available on a non-Storyteller server.
-            if (!isStorytellerServer && activeServer != null) {
-                annotationServerId = activeServer.id
-                // Bind the bookmarks controller so it can observe bookmarks and track the current
-                // locator for page-bookmark detection.
-                bookmarks.bind(
-                    serverId = activeServer.id,
-                    itemId = itemId,
-                    currentLocator = position.currentLocator,
-                )
-                // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
-                // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
-                // means we can't sync this session (offline or non-ABS or backfill failed) — the
-                // local DB stays as the source of truth and sync resumes on the next open.
-                val namespace = serverRepository.ensureAbsUserId(activeServer.id)
-                annotationNamespace = namespace
-                // Bind the annotation session: starts observation, syncOnOpen, and live-pull loop.
-                // Observation always starts (shows local highlights). A blank namespace means the
-                // ABS user id wasn't resolved this session — syncOnOpen/scheduleSync/startLiveSync
-                // lambdas delegate to AnnotationSyncController which self-guards via targetProvider.
-                annotationSession.bind(
-                    serverId = activeServer.id,
-                    namespace = namespace ?: "",
-                    itemId = itemId,
-                    highlightRenderResolver = { a -> annotationToRender(a) },
-                    cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
-                )
-            }
-        }
         // NOTE: The sentence-quote build on isPlaying and the audiobook-follow push loop are now
         // owned by ReadaloudSession's own init block (sub-task 8.4). The isPlaying→ReaderStateHolder
         // bridge is wired above via readaloud.onAudioPlayingChanged.
+        // NOTE: Server resolution + readaloud.bind() + annotation bind() are all done inside
+        // openBook() (Option α), so they run sequentially in a single suspending coroutine.
     }
 
     private suspend fun openBook() {
@@ -684,13 +519,74 @@ class EpubReaderViewModel @Inject constructor(
                 publication = pub
                 // Bind the search controller to the new publication so it can execute queries.
                 search.bind(pub)
+
+                // ── Option α: resolve active-server + readaloud link sequentially in openBook ──
+                // Active-server type decides Readaloud availability: every Storyteller book qualifies,
+                // while ABS books qualify only when a synced bundle has already been downloaded.
+                val activeServer = serverRepository.getActive()
+                isStorytellerServer = activeServer?.serverType == ServerType.STORYTELLER
+
+                // Matched ABS book → key the bundle by the linked Storyteller book id (the bundle
+                // is stored under that id, not the ABS item id). Storyteller side keeps itemId.
+                val link = if (!isStorytellerServer && activeServer != null) {
+                    readaloudLinkRepository.findByAbsItem(activeServer.id, itemId)
+                } else {
+                    null
+                }
+                val resolvedAudioBookId = link?.storytellerBookId ?: itemId
+                val resolvedAudioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
+                val resolvedReaderServerId = activeServer?.id
+
+                // The audiobook to switch to on swipe-up: among this readaloud's ABS targets, the listenable
+                // one (the audiobook in a split library), or this same item if it's a combined ebook+audio.
+                val resolvedAudiobookItemId = link?.let { l ->
+                    readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
+                        .firstOrNull { t ->
+                            t.absLibraryItemId != itemId &&
+                                libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
+                        }
+                        ?.absLibraryItemId
+                }
+                android.util.Log.d("RIFFLE_HANDOFF", "RA.audiobookItemId resolved=$resolvedAudiobookItemId (overlay can now mount)")
+
+                // Resolve the audio-settings key and load the saved speed (ADR 0028). With a link,
+                // the resolver prefers the linked audiobook's id; without one, settings key on this ABS item.
+                val resolvedAudioSettingsIdentity = if (link != null) {
+                    audioIdentityResolver.resolveForStorytellerBook(link.storytellerServerId, link.storytellerBookId)
+                } else {
+                    AudioIdentity(activeServer?.id ?: "", itemId)
+                }
+                val resolvedInitialSpeed = audioPlaybackPreferencesStore.load(resolvedAudioSettingsIdentity)
+                    ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
+
+                // Mirror the resolved speed into the session.
+                readaloud.initialSpeed = resolvedInitialSpeed
+                // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
+                activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
+
+                // ── Bind the readaloud session — must happen before position.bindBook() ────────
+                // All per-book readaloud wiring is consolidated here (Option α). After this call,
+                // availability flags are set and background work (pre-warm, sidecar, quotes) is launched.
+                readaloud.bind(
+                    serverId = resolvedReaderServerId ?: "",
+                    itemId = itemId,
+                    isStorytellerServer = isStorytellerServer,
+                    audioBookId = resolvedAudioBookId,
+                    audioServerId = resolvedAudioServerId,
+                    audioSettingsIdentity = resolvedAudioSettingsIdentity,
+                    audiobookItemId = resolvedAudiobookItemId,
+                    effectiveFormattingPreferencesFlow = formatting.effectiveFormattingPreferences,
+                    currentLocatorFlow = position.currentLocator,
+                    readerSyncProvider = { readerSync },
+                    audiobookFollowProvider = { audiobookFollow },
+                    readerSyncServerIdProvider = { readerSyncServerId },
+                )
+
                 // Bind the position orchestrator so it can save positions for this book.
-                // Note: readerSyncServerId is resolved in the parallel init coroutine; fall back to
-                // a direct server lookup here since openBook runs before that coroutine completes.
-                val bindServerId = serverRepository.getActive()?.id ?: ""
+                // readerSyncServerId is now resolved above (Option α); use it directly.
                 position.bindBook(
                     itemId = itemId,
-                    serverId = bindServerId,
+                    serverId = resolvedReaderServerId ?: "",
                     positionSaveCoordinator = positionSaveCoordinator,
                     readingPositionStore = readingPositionStore,
                     spinePositionCounts = spinePositionCounts,
@@ -711,10 +607,9 @@ class EpubReaderViewModel @Inject constructor(
                 // the DOM mark for that annotation — a precise post-reflow Y — instead of guessing
                 // from char-fraction × measured-WebView-height (which lands short of the highlight
                 // when the chapter's text-density differs from char-density).
-                val activeServerForAnno = serverRepository.getActive()?.id
                 val openAtCfiNonBlank = openAtCfi?.takeIf { it.isNotBlank() }
-                val initialFocusAnnotationId = if (openAtLocator != null && activeServerForAnno != null && openAtCfiNonBlank != null) {
-                    runCatching { annotationStore.findByItemAndCfi(activeServerForAnno, itemId, openAtCfiNonBlank) }
+                val initialFocusAnnotationId = if (openAtLocator != null && resolvedReaderServerId != null && openAtCfiNonBlank != null) {
+                    runCatching { annotationStore.findByItemAndCfi(resolvedReaderServerId, itemId, openAtCfiNonBlank) }
                         .getOrNull()?.id
                 } else null
                 val locator = openAtLocator
@@ -757,9 +652,11 @@ class EpubReaderViewModel @Inject constructor(
                 // A matched book with cached prerequisites runs the reconciliation cycle instead of
                 // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
                 readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
-                readerSyncServerId = serverRepository.getActive()?.id
-                // Mirror into the session so the lifted functions can read them (sub-task 8.2).
-                readaloud.itemId = itemId
+                // readerSyncServerId and readerServerId are the active server resolved earlier via Option α.
+                readerSyncServerId = resolvedReaderServerId
+                readerServerId = resolvedReaderServerId
+                // Update the session's readerSyncServerId now that readerSync is resolved.
+                // (bind() set it to resolvedReaderServerId already; this keeps them in sync.)
                 readaloud.readerSyncServerId = readerSyncServerId
                 // When the full coordinator can't be built (no cross-EPUB index yet), fall back to the
                 // bundle-SMIL-only audiobook follow so readaloud still syncs to the audiobook (ADR 0031).
@@ -770,6 +667,42 @@ class EpubReaderViewModel @Inject constructor(
                 // must skip that (possibly split-library) item too while the reader is open (ADR 0030).
                 readerSyncServerId?.let { sid ->
                     (readerSync?.audioItemId ?: audiobookFollow?.audioItemId)?.let { openReconcileTargets.markOpen(sid, it) }
+                }
+
+                // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
+                // readaloud from the audiobook's position so narration continues where listening stopped.
+                // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
+                if (startReadaloudAtSec >= 0.0 && readaloud.readaloudAvailable.value) {
+                    startReadaloudAtSecond(startReadaloudAtSec)
+                }
+
+                // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
+                if (!isStorytellerServer && activeServer != null) {
+                    annotationServerId = activeServer.id
+                    // Bind the bookmarks controller so it can observe bookmarks and track the current
+                    // locator for page-bookmark detection.
+                    bookmarks.bind(
+                        serverId = activeServer.id,
+                        itemId = itemId,
+                        currentLocator = position.currentLocator,
+                    )
+                    // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
+                    // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
+                    // means we can't sync this session (offline or non-ABS or backfill failed) — the
+                    // local DB stays as the source of truth and sync resumes on the next open.
+                    val namespace = serverRepository.ensureAbsUserId(activeServer.id)
+                    annotationNamespace = namespace
+                    // Bind the annotation session: starts observation, syncOnOpen, and live-pull loop.
+                    // Observation always starts (shows local highlights). A blank namespace means the
+                    // ABS user id wasn't resolved this session — syncOnOpen/scheduleSync/startLiveSync
+                    // lambdas delegate to AnnotationSyncController which self-guards via targetProvider.
+                    annotationSession.bind(
+                        serverId = activeServer.id,
+                        namespace = namespace ?: "",
+                        itemId = itemId,
+                        highlightRenderResolver = { a -> annotationToRender(a) },
+                        cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
+                    )
                 }
 
                 // Sync immediately while localUpdatedAt is still the genuine stored value —
@@ -974,6 +907,8 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
         syncJob?.cancel()
+        // Cancel the Storyteller sync loop while the reader is backgrounded; reopening restarts it
+        // when the readaloud player is re-opened. Owned by the session; cancel via method.
         readaloud.storytellerSyncJob?.cancel()
         // Cancel the annotation live-pull loop while the reader is backgrounded; onReaderResumed() restarts it.
         annotationSession.onReaderClosed()
@@ -986,7 +921,7 @@ class EpubReaderViewModel @Inject constructor(
         // Leaving the book without first pressing X: persist the sentence narrating now so re-entry
         // resumes there. (Pressing X already persisted via closeReadaloud, which closes the player.)
         // Below the closeSyncDone guard so the ON_STOP + onDispose pair doesn't double-write.
-        if (_readaloudOpen.value) {
+        if (readaloud.readaloudOpen.value) {
             persistReadaloudResumePosition(position.snapshotLastLocator(), playerCoordinator.activeFragmentRef.value)
         }
         val locator = position.snapshotLastLocator() ?: return
@@ -1270,6 +1205,8 @@ class EpubReaderViewModel @Inject constructor(
         // annotationSession which uses progressFlushScope so the PATCH survives viewModelScope
         // cancellation at teardown.
         annotationSession.onBookClosed()
+        // Tear down all readaloud session background jobs (pre-warm, sidecar obs, sync, speed debounce).
+        readaloud.onBookClosed()
         // Release this book to the durable sweep again (ADR 0030).
         readerServerId?.let { sid ->
             openReconcileTargets.markClosed(sid, itemId)
@@ -1562,19 +1499,6 @@ class EpubReaderViewModel @Inject constructor(
 
     private fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?) {
         viewModelScope.launch { readaloud.persistReadaloudResumePosition(locator, fragmentRef) }
-    }
-
-    /** Rebuilds the minimal reader [Locator] the resume planner reads — href + column progression. */
-    private fun ReadaloudResumePosition.toCloseLocator(): Locator? = try {
-        val locations = JSONObject().also { obj -> progression?.let { obj.put("progression", it) } }
-        Locator.fromJSON(
-            JSONObject()
-                .put("href", href)
-                .put("type", "application/xhtml+xml")
-                .put("locations", locations)
-        )
-    } catch (_: Exception) {
-        null
     }
 
     fun togglePlayPause() = readaloud.togglePlayPause()
