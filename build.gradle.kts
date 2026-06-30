@@ -48,9 +48,116 @@ tasks.register("checkRiffleLogTags") {
     }
 }
 
+// Enforces that direct `System.currentTimeMillis()` / `System.nanoTime()` and `Dispatchers.IO/Main/Default`
+// calls route through the Clock + DispatcherProvider seams (#338). Existing sites are grandfathered via
+// the allowlist below; new sites — anywhere else — fail the build. Drop entries as bulk-sweep follow-up
+// PRs migrate each file.
+tasks.register("checkRiffleInfraSeams") {
+    group = "verification"
+    description = "Fails if Clock / DispatcherProvider are bypassed (System.currentTimeMillis / Dispatchers.[IMD]) outside the allowlist."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val clockPattern = Regex("""\bSystem\.(currentTimeMillis|nanoTime)\(\)""")
+        // Match Dispatchers.IO / .Main / .Main.immediate / .Default — but not Dispatchers.Unconfined and
+        // not type references like `kotlinx.coroutines.Dispatchers` inside KDoc/imports. Word-boundary
+        // before `Dispatchers` excludes nothing real and keeps regex simple.
+        val dispatcherPattern = Regex("""\bDispatchers\.(IO|Main|Default)\b""")
+
+        // Files allowed to mention the literals — seams + grandfathered sites pending follow-up PRs.
+        val allowlist = setOf(
+            // Seam interfaces + impls.
+            "core/domain/src/main/kotlin/com/riffle/core/domain/Clock.kt",
+            "core/domain/src/main/kotlin/com/riffle/core/domain/DispatcherProvider.kt",
+            "core/domain/src/main/kotlin/com/riffle/core/domain/SystemClock.kt",
+            "core/domain/src/main/kotlin/com/riffle/core/domain/DefaultDispatcherProvider.kt",
+            // ---- Grandfathered — Clock sweep follow-up.
+            "core/data/src/main/kotlin/com/riffle/core/data/AnnotationStoreImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/LibraryRepositoryImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/ReadaloudResumeStoreImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/TimestampedPositionStore.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/library/LibraryItemsViewModel.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/server/AddServerViewModel.kt",
+            // ---- Grandfathered — DispatcherProvider sweep follow-up (core/network).
+            "core/network/src/main/kotlin/com/riffle/core/network/AbsApiClient.kt",
+            "core/network/src/main/kotlin/com/riffle/core/network/AudiobookBundleApi.kt",
+            "core/network/src/main/kotlin/com/riffle/core/network/GitHubReleaseApi.kt",
+            "core/network/src/main/kotlin/com/riffle/core/network/StorytellerApiClient.kt",
+            "core/network/src/main/kotlin/com/riffle/core/network/StorytellerBundleApi.kt",
+            "core/network/src/main/kotlin/com/riffle/core/network/StorytellerPositionApi.kt",
+            // ---- Grandfathered — DispatcherProvider sweep follow-up (core/data).
+            "core/data/src/main/kotlin/com/riffle/core/data/AppUpdateRepositoryImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/AudiobookBundleDownloader.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/AudiobookDownloadRepositoryImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/KeystoreTokenStorage.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/LocalStoreImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/LocalStoreMigrator.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/ReadaloudAudioRepositoryImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/ServerFilesCleanerImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/StorytellerSidecarFetcher.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/di/DataModule.kt",
+            // ---- Grandfathered — DispatcherProvider sweep follow-up (app/feature).
+            "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookController.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/navigation/HomeScreen.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/navigation/HomeViewModel.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/autoscroll/AutoScrollController.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/controllers/SearchController.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/presenter/ReadiumPresenter.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/PlayerCoordinator.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/ReadaloudController.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/ReadaloudStreamingSessionFactory.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/StreamingAudioDownloader.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/session/ReadaloudSession.kt",
+        )
+
+        val scanRoots = listOf(
+            layout.projectDirectory.dir("app/src/main").asFile,
+            layout.projectDirectory.dir("core").asFile,
+        ).filter { it.exists() }
+
+        val offenders = mutableListOf<String>()
+        scanRoots
+            .flatMap { it.walkTopDown().toList() }
+            .filter { it.isFile && it.extension == "kt" }
+            // Only enforce on production source — tests legitimately reference the literals in fakes.
+            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") }
+            .forEach { f ->
+                val rel = f.relativeTo(layout.projectDirectory.asFile).path
+                if (rel in allowlist) return@forEach
+                f.useLines { lines ->
+                    lines.forEachIndexed { idx, line ->
+                        // Skip comment-only lines so doc-comments mentioning the literals don't trip.
+                        val trimmed = line.trimStart()
+                        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return@forEachIndexed
+                        if (clockPattern.containsMatchIn(line)) {
+                            offenders += "$rel:${idx + 1} — System.currentTimeMillis/nanoTime: route through Clock"
+                        }
+                        if (dispatcherPattern.containsMatchIn(line)) {
+                            offenders += "$rel:${idx + 1} — Dispatchers.[IMD]: route through DispatcherProvider"
+                        }
+                    }
+                }
+            }
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Direct time/dispatcher access bypasses the Clock + DispatcherProvider seams (#338).\n" +
+                    "Inject `Clock` and use `clock.nowMs()` / `clock.nowNs()` instead of `System.currentTimeMillis()` / `System.nanoTime()`.\n" +
+                    "Inject `DispatcherProvider` and use `dispatchers.io` / `.main` / `.default` instead of `Dispatchers.IO` / `.Main` / `.Default`.\n" +
+                    offenders.joinToString("\n"),
+            )
+        }
+    }
+}
+
 // Make it part of the normal `./gradlew check` run.
 allprojects {
     tasks.matching { it.name == "check" }.configureEach {
         dependsOn(rootProject.tasks.named("checkRiffleLogTags"))
+        dependsOn(rootProject.tasks.named("checkRiffleInfraSeams"))
     }
 }

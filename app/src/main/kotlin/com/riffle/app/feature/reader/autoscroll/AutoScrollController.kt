@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader.autoscroll
 
+import com.riffle.core.domain.Clock
+import com.riffle.core.domain.SystemClock
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
@@ -35,8 +37,9 @@ import javax.inject.Singleton
 @Singleton
 open class AutoScrollController internal constructor(
     dispatcher: CoroutineDispatcher,
+    private var clock: Clock = SystemClock,
 ) {
-    @Inject constructor() : this(Dispatchers.Main.immediate)
+    @Inject constructor() : this(Dispatchers.Main.immediate, SystemClock)
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _state = MutableStateFlow<AutoScrollState>(AutoScrollState.Idle)
@@ -53,7 +56,6 @@ open class AutoScrollController internal constructor(
     // [setLayoutContext] so the live pace stays correct when the user bumps font size or rotates.
     private var layoutContext: () -> LayoutContext =
         { LayoutContext(wordsPerLine = 9f, lineHeightPx = 66f) }
-    private var now: () -> Long = { System.nanoTime() }
 
     private val accumulator = ScrollDeltaAccumulator()
     private var tickerJob: Job? = null
@@ -66,8 +68,8 @@ open class AutoScrollController internal constructor(
         layoutContext = supplier
     }
 
-    internal fun setClock(clock: () -> Long) {
-        now = clock
+    internal fun setClock(clock: Clock) {
+        this.clock = clock
     }
 
     fun dispatch(event: AutoScrollEvent) {
@@ -85,10 +87,10 @@ open class AutoScrollController internal constructor(
     private fun startTicker() {
         accumulator.reset()
         tickerJob = scope.launch {
-            var lastNanos = now()
+            var lastNanos = clock.nowNs()
             while (isActive) {
                 delay(FRAME_INTERVAL_MS)
-                val n = now()
+                val n = clock.nowNs()
                 val dtSec = ((n - lastNanos).coerceAtLeast(0L)) / 1_000_000_000f
                 lastNanos = n
                 val speed = _state.value.speedOrNull ?: continue

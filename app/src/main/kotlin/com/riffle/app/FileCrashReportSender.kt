@@ -1,6 +1,8 @@
 package com.riffle.app
 
 import android.content.Context
+import com.riffle.core.domain.Clock
+import com.riffle.core.domain.SystemClock
 import org.acra.ReportField
 import org.acra.config.CoreConfiguration
 import org.acra.data.CrashReportData
@@ -16,12 +18,15 @@ import java.io.File
  * files; ACRA's LimiterConfiguration also bounds the upstream queue, but this is a
  * second guard so a flapping bug can't fill the disk between launches.
  */
-class FileCrashReportSender(private val reportDir: File) : ReportSender {
+class FileCrashReportSender(
+    private val reportDir: File,
+    private val clock: Clock = SystemClock,
+) : ReportSender {
 
     override fun send(context: Context, errorContent: CrashReportData) {
         if (!reportDir.exists()) reportDir.mkdirs()
         val content = buildContent(errorContent)
-        val name = "${System.currentTimeMillis()}-${"%08x".format(content.hashCode())}.txt"
+        val name = "${clock.nowMs()}-${"%08x".format(content.hashCode())}.txt"
         File(reportDir, name).writeText(content)
         pruneToMax()
     }

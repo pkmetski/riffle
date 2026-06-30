@@ -9,7 +9,9 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.core.domain.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
@@ -42,10 +44,11 @@ open class ReadaloudController @Inject constructor(
     @ApplicationContext private val context: Context?,
     applicationScope: ApplicationScope?,
     private val logger: Logger,
+    private val clock: Clock,
 ) {
     // Test seam: subclasses that override the pre-warm methods need no real Context (only consulted in
     // [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without Robolectric.
-    protected constructor() : this(null, null, RecordingLogger())
+    protected constructor() : this(null, null, RecordingLogger(), SystemClock)
     data class PlaybackState(
         val connected: Boolean = false,
         val isPlaying: Boolean = false,
@@ -104,10 +107,10 @@ open class ReadaloudController @Inject constructor(
         logger.d(LogChannel.Handoff) { "RA.prepare start (controller already connected=${controller != null})" }
         this.track = track
         SharedBundle.current = bundle
-        val t0 = System.currentTimeMillis()
+        val t0 = clock.nowMs()
         SharedBundle.streaming = null
         val c = ensureConnected() ?: return
-        logger.d(LogChannel.Handoff) { "RA.prepare ensureConnected +${System.currentTimeMillis() - t0}ms" }
+        logger.d(LogChannel.Handoff) { "RA.prepare ensureConnected +${clock.nowMs() - t0}ms" }
 
         audioIndex.clear()
         val items = ArrayList<MediaItem>()
@@ -120,7 +123,7 @@ open class ReadaloudController @Inject constructor(
         }
         c.setMediaItems(items)
         c.prepare()
-        logger.d(LogChannel.Handoff) { "RA.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms" }
+        logger.d(LogChannel.Handoff) { "RA.prepare setMediaItems+prepare +${clock.nowMs() - t0}ms" }
         pushState()
     }
 
