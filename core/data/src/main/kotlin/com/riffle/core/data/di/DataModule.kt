@@ -51,6 +51,7 @@ import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
@@ -448,18 +449,18 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideGitHubReleaseApi(okHttpClient: OkHttpClient): com.riffle.core.network.GitHubReleaseApi =
-            com.riffle.core.network.GitHubReleaseApi(okHttpClient)
+        fun provideGitHubReleaseApi(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): com.riffle.core.network.GitHubReleaseApi =
+            com.riffle.core.network.GitHubReleaseApi(okHttpClient, dispatchers)
 
         @Provides
         @Singleton
-        fun provideAbsApiClient(okHttpClient: OkHttpClient): AbsApiClient =
-            AbsApiClient(okHttpClient)
+        fun provideAbsApiClient(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): AbsApiClient =
+            AbsApiClient(okHttpClient, dispatchers)
 
         @Provides
         @Singleton
-        fun provideStorytellerApiClient(okHttpClient: OkHttpClient): StorytellerApiClient =
-            StorytellerApiClient(okHttpClient)
+        fun provideStorytellerApiClient(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): StorytellerApiClient =
+            StorytellerApiClient(okHttpClient, dispatchers)
 
         @Provides
         @Singleton
@@ -516,8 +517,8 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient): StorytellerBundleApiImpl =
-            StorytellerBundleApiImpl(okHttpClient)
+        fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): StorytellerBundleApiImpl =
+            StorytellerBundleApiImpl(okHttpClient, dispatchers)
 
         @Provides
         @Singleton
@@ -546,8 +547,8 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
-            AudiobookBundleApiImpl(okHttpClient)
+        fun provideAudiobookBundleApi(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): AudiobookBundleApiImpl =
+            AudiobookBundleApiImpl(okHttpClient, dispatchers)
 
         @Provides
         @Singleton
@@ -566,8 +567,8 @@ abstract class DataModule {
 
         @Provides
         @Singleton
-        fun provideStorytellerPositionApi(okHttpClient: OkHttpClient): StorytellerPositionApi =
-            StorytellerPositionApiImpl(okHttpClient)
+        fun provideStorytellerPositionApi(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): StorytellerPositionApi =
+            StorytellerPositionApiImpl(okHttpClient, dispatchers)
 
         @Provides
         @Singleton

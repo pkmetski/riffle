@@ -1,7 +1,7 @@
 package com.riffle.core.network
 
 import com.riffle.core.domain.InsecureConnectionType
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import java.io.IOException
@@ -46,7 +46,7 @@ object OkHttpClassifier {
      * `NetworkResult` variant. Block authors throw `HttpException` for non-success codes and
      * `IOException("Empty response body")` for missing bodies.
      */
-    suspend fun <T> classify(block: suspend () -> T): NetworkResult<T> = withContext(Dispatchers.IO) {
+    suspend fun <T> classify(io: CoroutineDispatcher, block: suspend () -> T): NetworkResult<T> = withContext(io) {
         try {
             NetworkResult.Success(block())
         } catch (e: HttpException) {

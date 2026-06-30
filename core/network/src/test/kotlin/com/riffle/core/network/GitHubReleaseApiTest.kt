@@ -1,5 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -22,7 +24,7 @@ class GitHubReleaseApiTest {
     fun setUp() {
         server = MockWebServer().also { it.start() }
         val baseUrl = server.url("/").toString().trimEnd('/')
-        api = GitHubReleaseApi(OkHttpClient(), apiBaseUrl = baseUrl)
+        api = GitHubReleaseApi(OkHttpClient(), DefaultDispatcherProvider, apiBaseUrl = baseUrl)
     }
 
     @After

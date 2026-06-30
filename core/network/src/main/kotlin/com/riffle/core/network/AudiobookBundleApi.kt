@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -39,6 +39,7 @@ fun interface AudiobookBundleApi {
 
 class AudiobookBundleApiImpl(
     private val client: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
 ) : AudiobookBundleApi {
 
     private val bundleClient: OkHttpClient = client.newBuilder()
@@ -53,7 +54,7 @@ class AudiobookBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
         fromByte: Long,
-    ): NetworkResult<AudiobookBundleStream> = withContext(Dispatchers.IO) {
+    ): NetworkResult<AudiobookBundleStream> = withContext(dispatchers.io) {
         val effectiveClient = if (insecureAllowed) bundleClient.trustAllCerts() else bundleClient
         val builder = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")

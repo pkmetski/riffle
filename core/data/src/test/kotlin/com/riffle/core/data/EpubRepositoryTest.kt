@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.network.NetworkResult
 
 import com.riffle.core.domain.EbookFormat
@@ -55,7 +57,7 @@ class EpubRepositoryTest {
         downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".epub")
         positionStore = FakePositionStore()
         repo = EpubRepositoryImpl(
-            api = AbsApiClient(OkHttpClient()),
+            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,

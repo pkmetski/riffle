@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
@@ -36,7 +38,7 @@ class ReadingSessionIntegrationTest {
     fun tearDown() = server.shutdown()
 
     private fun buildRepo() = ReadingSessionRepositoryImpl(
-        api = AbsApiClient(OkHttpClient()),
+        api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
         serverRepository = object : ServerRepository {
             val activeServer = Server(
                 id = "server-1",

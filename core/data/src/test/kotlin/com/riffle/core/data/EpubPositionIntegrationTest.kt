@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
 import com.riffle.core.domain.EbookFormat
@@ -60,7 +62,7 @@ class EpubPositionIntegrationTest {
     }
 
     private fun buildRepo(): EpubRepositoryImpl = EpubRepositoryImpl(
-        api = AbsApiClient(OkHttpClient()),
+        api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
         cacheStore = cacheStore,
         downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub"),
         positionStore = ReadingPositionStoreImpl(sharedPositionDao),

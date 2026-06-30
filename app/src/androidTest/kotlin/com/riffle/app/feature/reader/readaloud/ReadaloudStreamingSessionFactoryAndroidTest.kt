@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader.readaloud
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -156,7 +158,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
 
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
-        val fetcher = StorytellerSidecarFetcher(StorytellerBundleApiImpl(OkHttpClient()))
+        val fetcher = StorytellerSidecarFetcher(StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider))
         val sidecarScope = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
         )
@@ -173,8 +175,8 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         return ReadaloudStreamingSessionFactory(
             context = ctx,
             audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
-            absApi = AbsApiClient(OkHttpClient()),
-            storytellerApi = StorytellerApiClient(OkHttpClient()),
+            absApi = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            storytellerApi = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider),
             sidecarStore = sidecarStore,
             serverRepository = repo,
             tokenStorage = StubTokenStorage,

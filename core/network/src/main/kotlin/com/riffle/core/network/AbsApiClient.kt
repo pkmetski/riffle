@@ -1,6 +1,7 @@
 package com.riffle.core.network
 
 import com.riffle.core.domain.AudiobookFingerprint
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
@@ -41,7 +42,10 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
-class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi, AbsBookmarkApi {
+class AbsApiClient(
+    private val httpClient: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
+) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi, AbsBookmarkApi {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -51,7 +55,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkLoginUser> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkLoginUser> = OkHttpClassifier.classify(dispatchers.io) {
         val client = client(insecureAllowed)
         val body = json.encodeToString(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
         val request = Request.Builder().url("$baseUrl/login").post(body).build()
@@ -74,7 +78,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkLibrary>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkLibrary>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/libraries", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         json.decodeFromString<AbsLibrariesResponse>(raw).libraries.map { dto ->
@@ -91,7 +95,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Map<String, NetworkUserMediaProgress>> = OkHttpClassifier.classify {
+    ): NetworkResult<Map<String, NetworkUserMediaProgress>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/me", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         val parsed = json.decodeFromString<AbsMeResponse>(raw)
@@ -116,7 +120,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkLibraryItem>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkLibraryItem>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/libraries/$libraryId/items", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
@@ -153,7 +157,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkSeries>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkSeries>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/libraries/$libraryId/series?limit=500", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         val parsed = json.decodeFromString<AbsSeriesResponse>(raw)
@@ -191,7 +195,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkCollection>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkCollection>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/libraries/$libraryId/collections?limit=500", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         json.decodeFromString<AbsCollectionsResponse>(raw).results.map { it.toNetworkCollection() }
@@ -242,7 +246,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         token: String,
         insecureAllowed: Boolean,
         buildRequest: Request.Builder.() -> Unit,
-    ): NetworkResult<NetworkCollection?> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkCollection?> = OkHttpClassifier.classify(dispatchers.io) {
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
@@ -259,7 +263,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkPlaylist>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkPlaylist>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/libraries/$libraryId/playlists?limit=500", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         json.decodeFromString<AbsPlaylistsResponse>(raw).results.map { it.toNetworkPlaylist() }
@@ -312,7 +316,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         token: String,
         insecureAllowed: Boolean,
         buildRequest: Request.Builder.() -> Unit,
-    ): NetworkResult<NetworkPlaylist?> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkPlaylist?> = OkHttpClassifier.classify(dispatchers.io) {
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
@@ -329,7 +333,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<String> = OkHttpClassifier.classify {
+    ): NetworkResult<String> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/items/$itemId", token, insecureAllowed).requireSuccessful()
         val raw = response.requireBody()
         json.decodeFromString<AbsItemResponse>(raw).media.ebookFile?.ino?.takeIf { it.isNotEmpty() }
@@ -341,7 +345,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify {
+    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify(dispatchers.io) {
         get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed).use { response ->
             response.requireSuccessful()
             val raw = response.requireBody()
@@ -355,7 +359,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkAbsAudioTrack>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkAbsAudioTrack>> = OkHttpClassifier.classify(dispatchers.io) {
         get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed).use { response ->
             response.requireSuccessful()
             val raw = response.requireBody()
@@ -370,7 +374,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         fileIno: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<ResponseBody> = OkHttpClassifier.classify {
+    ): NetworkResult<ResponseBody> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/items/$itemId/ebook/$fileIno", token, insecureAllowed)
         val body = response.body ?: throw IOException("Empty response body")
         if (!response.isSuccessful) {
@@ -385,7 +389,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<AbsItemDetailResponse> = OkHttpClassifier.classify {
+    ): NetworkResult<AbsItemDetailResponse> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/items/$itemId", token, insecureAllowed).requireSuccessful()
         json.decodeFromString<AbsItemDetailResponse>(response.requireBody())
     }
@@ -396,7 +400,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         payload: NetworkEbookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Long> = OkHttpClassifier.classify {
+    ): NetworkResult<Long> = OkHttpClassifier.classify(dispatchers.io) {
         val body = json.encodeToString(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress, payload.isFinished))
             .toRequestBody(jsonMediaType)
         val request = Request.Builder()
@@ -416,7 +420,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         payload: NetworkAudiobookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Long> = OkHttpClassifier.classify {
+    ): NetworkResult<Long> = OkHttpClassifier.classify(dispatchers.io) {
         val progress = if (payload.duration > 0.0) (payload.currentTime / payload.duration).coerceIn(0.0, 1.0) else 0.0
         val body = json.encodeToString(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress))
             .toRequestBody(jsonMediaType)
@@ -436,7 +440,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkServerProgress> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkServerProgress> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/me/progress/$libraryItemId", token, insecureAllowed)
         // A 404 means "no progress record yet" — synthesize an empty record so callers don't
         // have to special-case `ServerError(404)`.
@@ -462,7 +466,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         deviceId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkPlaybackSession> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkPlaybackSession> = OkHttpClassifier.classify(dispatchers.io) {
         val payload = AbsPlayRequest(
             deviceInfo = AbsPlayDeviceInfo(deviceId = deviceId),
             // The MIME types Media3/ExoPlayer plays directly; ABS transcodes only if none match.
@@ -509,7 +513,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
     ): String? {
         // `/status` is unauthenticated and returns `{ serverVersion, app, isInit, ... }`.
         // The previously-targeted `/api/server-info` does not exist on ABS (404 even with auth).
-        val result = OkHttpClassifier.classify {
+        val result = OkHttpClassifier.classify(dispatchers.io) {
             val response = client(insecureAllowed).newCall(
                 Request.Builder().url("$baseUrl/status").get().build()
             ).execute().requireSuccessful()
@@ -523,7 +527,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         token: String,
         insecureAllowed: Boolean,
     ): String? {
-        val result = OkHttpClassifier.classify {
+        val result = OkHttpClassifier.classify(dispatchers.io) {
             val response = get(baseUrl, "/api/me", token, insecureAllowed).requireSuccessful()
             json.decodeFromString<AbsMeResponse>(response.requireBody()).id.takeIf { it.isNotBlank() }
         }
@@ -537,7 +541,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify(dispatchers.io) {
         val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/me/item/$itemId/bookmark")
@@ -554,7 +558,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify(dispatchers.io) {
         val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/me/item/$itemId/bookmark")
@@ -576,7 +580,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         timeSec: Int,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify(dispatchers.io) {
         val request = Request.Builder()
             .url("$baseUrl/api/me/item/$itemId/bookmark/$timeSec")
             .addHeader("Authorization", "Bearer $token")
@@ -599,7 +603,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkAbsBookmark>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkAbsBookmark>> = OkHttpClassifier.classify(dispatchers.io) {
         val response = get(baseUrl, "/api/me", token, insecureAllowed).requireSuccessful()
         val raw = response.requireBody()
         // `/api/me` carries many fields; `json` is configured with ignoreUnknownKeys so the

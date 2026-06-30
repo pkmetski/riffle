@@ -1,5 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -30,7 +32,7 @@ class AudiobookBundleApiTest {
     @Before
     fun setUp() {
         server = MockWebServer().also { it.start() }
-        api = AudiobookBundleApiImpl(OkHttpClient())
+        api = AudiobookBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider)
     }
 
     @After
@@ -86,7 +88,7 @@ class AudiobookBundleApiTest {
                 override fun connectionReleased(call: Call, connection: Connection) { released.incrementAndGet() }
             })
             .build()
-        val leakApi: AudiobookBundleApi = AudiobookBundleApiImpl(countingClient)
+        val leakApi: AudiobookBundleApi = AudiobookBundleApiImpl(countingClient, DefaultDispatcherProvider)
 
         server.enqueue(
             MockResponse()

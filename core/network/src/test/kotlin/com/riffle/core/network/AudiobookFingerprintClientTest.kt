@@ -1,5 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -26,7 +28,7 @@ class AudiobookFingerprintClientTest {
                    "manifest":{"readingOrder":[{"duration":39214.464}]}}}""",
             ),
         )
-        val client = StorytellerApiClient(OkHttpClient())
+        val client = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider)
         val result = client.getAudiobookFingerprint(baseUrl(), 42L, "tok", false)
 
         assertTrue(result is NetworkResult.Success)
@@ -37,7 +39,7 @@ class AudiobookFingerprintClientTest {
     @Test
     fun `storyteller with no audiobook returns NoAudiobook`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"title":"x"}"""))
-        val result = StorytellerApiClient(OkHttpClient()).getAudiobookFingerprint(baseUrl(), 1L, "tok", false)
+        val result = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider).getAudiobookFingerprint(baseUrl(), 1L, "tok", false)
         assertTrue(result is NetworkResult.Success && result.value == null)
     }
 
@@ -50,7 +52,7 @@ class AudiobookFingerprintClientTest {
                    {"index":2,"duration":1721.0,"metadata":{"size":200}}]}}""",
             ),
         )
-        val result = AbsApiClient(OkHttpClient()).getAudiobookFingerprint(baseUrl(), "abc", "tok", false)
+        val result = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider).getAudiobookFingerprint(baseUrl(), "abc", "tok", false)
 
         assertTrue(result is NetworkResult.Success)
         assertEquals(listOf(2204.0, 1721.0), (result as NetworkResult.Success).value!!.trackDurationsSec)
@@ -65,7 +67,7 @@ class AudiobookFingerprintClientTest {
                    {"ino":"7963985","index":1,"duration":39214.464}]}}""",
             ),
         )
-        val result = AbsApiClient(OkHttpClient()).getAudiobookTracks(baseUrl(), "abc", "tok", false)
+        val result = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider).getAudiobookTracks(baseUrl(), "abc", "tok", false)
         assertTrue(result is NetworkResult.Success)
         assertEquals("7963985", (result as NetworkResult.Success).value.single().ino)
     }

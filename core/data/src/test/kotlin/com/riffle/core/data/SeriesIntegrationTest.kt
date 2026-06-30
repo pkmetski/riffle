@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
@@ -141,7 +143,7 @@ class SeriesIntegrationTest {
     private fun makeRepo(seriesDao: FakeSeriesDao = FakeSeriesDao()): LibraryRepositoryImpl {
         val itemDao = FakeLibraryItemDao()
         return LibraryRepositoryImpl(
-            api = AbsApiClient(OkHttpClient()),
+            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
             libraryDao = FakeLibraryDao(),
             libraryItemDao = itemDao,
             seriesDao = seriesDao,
