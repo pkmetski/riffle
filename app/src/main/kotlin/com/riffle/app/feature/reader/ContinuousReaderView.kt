@@ -656,13 +656,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                         return@post
                     }
                     val y = when {
-                        // The anchor (annotation decoration or element-id) resolved — share the
-                        // single landing rule with scrollToLoadedChapter so search-result and
-                        // annotations-list paths agree on where alignToTop places things.
+                        // openWindowAt's initial landing keeps the master-shape "anchor at viewport
+                        // top" placement: the alignToTop-aware variant (the same `anchorLandingScrollY`
+                        // helper scrollToLoadedChapter routes through) caused the post-flip chrome-
+                        // reveal harness to flake — performClick on the reader stopped reaching
+                        // ContinuousReaderView's tap detector after a midpoint-shifted landing, the
+                        // chain isn't yet understood. annotation-list / search-result landings still
+                        // go through scrollToLoadedChapter, which honours alignToTop correctly.
                         offsetWithinTargetPx != null ->
-                            ContinuousPositionTracker.anchorLandingScrollY(
-                                slot.top, offsetWithinTargetPx, height, alignToTop,
-                            )
+                            (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
                         alignToTop -> (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                         else -> ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
