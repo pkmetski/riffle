@@ -36,6 +36,10 @@ When adding a new Room migration:
      - Cursor assertions verifying new columns have correct default values and all pre-existing data is preserved
    - Add the new migration to the `migrateFullChain` test's `runMigrationsAndValidate` call.
 
+## Reference the source issue in the PR
+
+When the work originated from a GitHub Issue (e.g. the user asked you to "do #123"), the PR body must include a `Closes #N` line so the merge auto-closes the issue. One line per issue if the PR spans several. Put it near the top of the body, above the change summary.
+
 ## Tests are required before opening a PR
 
 Do not open a PR without tests that cover the fix or new functionality. Every bug fix needs a regression test that fails before the change and passes after; every new feature needs unit and/or integration coverage for its behaviour. "Manually verified" is not a substitute for an automated test.
