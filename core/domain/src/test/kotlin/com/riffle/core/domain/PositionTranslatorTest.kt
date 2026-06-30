@@ -132,4 +132,63 @@ class PositionTranslatorTest {
         val p = translator.canonicalBookProgress(canonical)
         assertTrue("expected ~0.25, got $p", p in 0.2f..0.3f)
     }
+
+    // ── Non-identity cross-EPUB scaling ───────────────────────────────────────
+    // The primary fixture uses 100/100 char counts so abs↔storyteller collapses to identity.
+    // These tests pin the actual scaling behaviour when the two EPUBs disagree on chapter length.
+
+    @Test fun `storytellerToAbsProgression scales by char-count ratio when chapters differ in length`() {
+        val skewed = DefaultPositionTranslator(
+            smilClips = emptyList(),
+            crossEpubIndex = CrossEpubIndex(listOf(
+                ChapterCharMap(absChars = 100, storytellerChars = 200),
+            )),
+        )
+        // Storyteller mid-chapter (0.5 of 200 chars = char 100) is char 100/100 of the ABS chapter.
+        val result = skewed.storytellerToAbsProgression(ChapterProgression(0, 0.5))!!
+        assertEquals(1.0, result.progression, 0.001)
+    }
+
+    @Test fun `absToStorytellerProgression is the inverse of storytellerToAbsProgression`() {
+        val skewed = DefaultPositionTranslator(
+            smilClips = emptyList(),
+            crossEpubIndex = CrossEpubIndex(listOf(
+                ChapterCharMap(absChars = 200, storytellerChars = 100),
+            )),
+        )
+        val result = skewed.absToStorytellerProgression(ChapterProgression(0, 0.5))!!
+        assertEquals(1.0, result.progression, 0.001)
+    }
+
+    @Test fun `absBookProgression weights chapters by their absChars not equally`() {
+        val weighted = DefaultPositionTranslator(
+            smilClips = emptyList(),
+            crossEpubIndex = CrossEpubIndex(listOf(
+                ChapterCharMap(absChars = 100, storytellerChars = 100),
+                ChapterCharMap(absChars = 300, storytellerChars = 300), // long middle chapter
+                ChapterCharMap(absChars = 100, storytellerChars = 100),
+            )),
+        )
+        // Mid-chapter-2 sits 100 + 150 = 250 chars in, out of 500 total = 0.5 of the book.
+        // With equal weighting it would be (1 + 0.5) / 3 ≈ 0.5 by coincidence — pick a
+        // progression that distinguishes: chapter-2 start = 100/500 = 0.2 (NOT 1/3 = 0.333).
+        val atChapterTwoStart = weighted.absBookProgression(ChapterProgression(1, 0.0))!!
+        assertEquals(0.2, atChapterTwoStart, 0.001)
+    }
+
+    // ── Duplicate normalised spine hrefs ──────────────────────────────────────
+
+    @Test fun `duplicate normalised spine hrefs resolve to the first occurrence`() {
+        // A malformed EPUB whose spine lists the same chapter href twice — the canonical
+        // position must land on the FIRST entry the reader displays, not the silent later one.
+        val twoEntries = DefaultPositionTranslator(
+            smilClips = emptyList(),
+            absSpineHrefs = listOf("c0.xhtml", "c1.xhtml", "c0.xhtml"),
+            absChapterHtml = { listOf(ch0Html, ch1Html, null).getOrNull(it) },
+        )
+        val canonical = twoEntries.absCfiToCanonical("epubcfi(/6/2!/4/2/1:0)")
+        // step 2 → spine index 0 — should resolve and read chapter 0's html, not skip to index 2.
+        assertNotNull(canonical)
+        assertEquals("c0.xhtml", CanonicalReaderPosition(canonical!!).href)
+    }
 }

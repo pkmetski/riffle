@@ -134,7 +134,7 @@ open class ReaderSyncFactory @Inject constructor(
         val targets = resolveAbsTargets(itemId, linkedMedia)
         val audioTarget = targets.audio ?: return null
         // For the streaming path (ADR 0028) the sidecar stands in for the full bundle: it carries the
-        // SMIL clips and chapter HTML needed by CanonicalPositionTranslator and ReadaloudTextQuotes, so
+        // SMIL clips and chapter HTML needed by DefaultPositionTranslator and ReadaloudTextQuotes, so
         // AudiobookFollow can be built without a downloaded bundle. createIfApplicable() still requires
         // the full bundle (for cross-EPUB index checksums), so the coordinator stays on the sidecar-only
         // path until the bundle is downloaded.

@@ -134,11 +134,18 @@ class DefaultPositionTranslator(
         absoluteClips.associate { resolveEpubHref(it.textFragmentRef) to it.clipBeginSec }
 
     // Memoised normalized-href → spine-index lookups for both EPUBs — continuous-mode scroll
-    // hits these per frame, so a list scan per call adds up.
-    private val absIndexByHref: Map<String, Int> =
-        absSpineHrefs.withIndex().associate { (i, h) -> normalizeEpubHref(h) to i }
-    private val storytellerIndexByHref: Map<String, Int> =
-        storytellerSpineHrefs.withIndex().associate { (i, h) -> normalizeEpubHref(h) to i }
+    // hits these per frame, so a list scan per call adds up. On duplicate normalised hrefs
+    // (a malformed EPUB whose spine lists the same resource twice) keep the FIRST occurrence,
+    // matching the deleted bridge's `indexOfFirst` semantics — picking the later index would
+    // route locators to a different chapter than the reader displays.
+    private val absIndexByHref: Map<String, Int> = firstIndexByHref(absSpineHrefs)
+    private val storytellerIndexByHref: Map<String, Int> = firstIndexByHref(storytellerSpineHrefs)
+
+    private fun firstIndexByHref(hrefs: List<String>): Map<String, Int> {
+        val out = HashMap<String, Int>(hrefs.size)
+        hrefs.forEachIndexed { i, h -> out.putIfAbsent(normalizeEpubHref(h), i) }
+        return out
+    }
 
     // ── SMIL-only ──────────────────────────────────────────────────────────────
 
