@@ -5,8 +5,6 @@ import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * The sole [BundleAudiobookSource] implementation, and the only audiobook/library code that knows the
@@ -15,30 +13,14 @@ import kotlinx.coroutines.launch
  * then maps the bundle's Media Overlay track to an [AudiobookSession] ([buildBundleAudiobookSession]).
  *
  * [isAvailableOffline] must be synchronous (it backs the library's offline filter), so the suspend
- * link lookup is replaced on that path by a [linksByAbsItem] snapshot kept fresh from
- * [ReadaloudLinkRepository.observeAll] on the [applicationScope] — the same self-managed background
- * pattern as [CrossEpubIndexBuilderService]. The snapshot reads `emptyMap` until that collector's
- * first emission; in production the application-lifetime scope starts well before any library query,
- * so a downloaded bundle is reflected by the time the offline filter runs.
+ * link lookup is replaced on that path by an [OfflineAvailabilitySnapshot] — keyed on the ABS
+ * `(serverId, itemId)` pair — kept fresh from the link repository's Flow on the survivable scope.
  */
 class StorytellerBundleAudiobookSource(
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val readaloudAudioRepository: ReadaloudAudioRepository,
-    // Must outlive this singleton (application-lifetime); it owns the snapshot collector below.
-    applicationScope: CoroutineScope,
+    private val linksByAbsItem: OfflineAvailabilitySnapshot<String, ReadaloudLink>,
 ) : BundleAudiobookSource {
-
-    // ABS (serverId, itemId) -> link, so isAvailableOffline is a synchronous lookup.
-    @Volatile
-    private var linksByAbsItem: Map<String, ReadaloudLink> = emptyMap()
-
-    init {
-        applicationScope.launch {
-            readaloudLinkRepository.observeAll().collect { links ->
-                linksByAbsItem = links.associateBy { absKey(it.absServerId, it.absLibraryItemId) }
-            }
-        }
-    }
 
     override suspend fun localSession(serverId: String, itemId: String): AudiobookSession? {
         val link = readaloudLinkRepository.findByAbsItem(serverId, itemId) ?: return null
@@ -50,11 +32,21 @@ class StorytellerBundleAudiobookSource(
     }
 
     override fun isAvailableOffline(serverId: String, itemId: String): Boolean {
-        val link = linksByAbsItem[absKey(serverId, itemId)] ?: return false
+        val link = linksByAbsItem[absItemKey(serverId, itemId)] ?: return false
         return readaloudAudioRepository.isAudioAvailable(link.storytellerServerId, link.storytellerBookId)
     }
-
-    // NUL separator: it can't occur in an ABS server or item id, so the key can't collide across
-    // different (serverId, itemId) splits the way a "/" join could.
-    private fun absKey(serverId: String, itemId: String) = "$serverId\u0000$itemId"
 }
+
+// NUL separator: it can't occur in an ABS server or item id, so the key can't collide across
+// different (serverId, itemId) splits the way a "/" join could. Shared between the source's
+// read-side lookup and the snapshot's write-side map builder so both stay in sync.
+private val ABS_KEY_SEPARATOR: Char = Char(0)
+
+internal fun absItemKey(serverId: String, itemId: String) = "$serverId$ABS_KEY_SEPARATOR$itemId"
+
+/**
+ * Builds the [ReadaloudLink] map keyed by the ABS `(serverId, itemId)` pair — the read-side key the
+ * [StorytellerBundleAudiobookSource.isAvailableOffline] check uses.
+ */
+fun readaloudLinksByAbsItemKey(links: List<ReadaloudLink>): Map<String, ReadaloudLink> =
+    links.associateBy { absItemKey(it.absServerId, it.absLibraryItemId) }
