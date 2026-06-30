@@ -13,6 +13,8 @@ import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
+import com.riffle.core.domain.Clock
+import com.riffle.core.domain.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
@@ -50,11 +52,12 @@ open class AudiobookController @Inject constructor(
     @ApplicationContext private val context: Context?,
     applicationScope: ApplicationScope?,
     private val logger: Logger,
+    private val clock: Clock,
 ) {
     // Test seam: a subclass that overrides every member the player touches needs no real Context (it's
     // only consulted in [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable
     // without Robolectric.
-    protected constructor() : this(null, null, RecordingLogger())
+    protected constructor() : this(null, null, RecordingLogger(), SystemClock)
 
     data class PlaybackState(
         val connected: Boolean = false,
@@ -127,7 +130,7 @@ open class AudiobookController @Inject constructor(
         coverUri: String? = null,
     ) {
         logger.d(LogChannel.Handoff) { "AB.prepare start (controller already connected=${controller != null})" }
-        val t0 = System.currentTimeMillis()
+        val t0 = clock.nowMs()
         this.spans = spans
         this.durationSec = durationSec
         SharedAudiobookContext.spans = spans
@@ -138,7 +141,7 @@ open class AudiobookController @Inject constructor(
         ownsSharedBundle = localZipFile != null
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
-        logger.d(LogChannel.Handoff) { "AB.prepare ensureConnected +${System.currentTimeMillis() - t0}ms" }
+        logger.d(LogChannel.Handoff) { "AB.prepare ensureConnected +${clock.nowMs() - t0}ms" }
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
             .build()
@@ -151,7 +154,7 @@ open class AudiobookController @Inject constructor(
         val start = AudiobookTracks.startPositionFor(startAtSec, durationSec, spans)
         c.setMediaItems(items, start.trackIndex, start.offsetMs)
         c.prepare()
-        logger.d(LogChannel.Handoff) { "AB.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms" }
+        logger.d(LogChannel.Handoff) { "AB.prepare setMediaItems+prepare +${clock.nowMs() - t0}ms" }
         prepared = true
         // If the user pressed play before preparation finished, honour it now — but only once the
         // player is ready (see [ResumePlaybackGate]); otherwise the listener starts it on STATE_READY.

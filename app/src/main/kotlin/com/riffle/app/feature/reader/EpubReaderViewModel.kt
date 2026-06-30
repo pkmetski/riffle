@@ -18,6 +18,7 @@ import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
@@ -172,6 +173,7 @@ class EpubReaderViewModel @Inject constructor(
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
     private val logger: Logger,
+    private val clock: Clock,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -901,7 +903,7 @@ class EpubReaderViewModel @Inject constructor(
         closeSyncDone = false
         position.resetInitialLocatorSeen()
         sessionStartProgression = currentLocatorTotalProgression.value
-        sessionStartMs = System.currentTimeMillis()
+        sessionStartMs = clock.nowMs()
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             startPeriodicSync()
@@ -1352,7 +1354,7 @@ class EpubReaderViewModel @Inject constructor(
     private fun flushReadingSession() {
         val startProg = sessionStartProgression ?: return
         sessionStartProgression = null
-        val timeDeltaSec = (System.currentTimeMillis() - sessionStartMs) / 1000.0
+        val timeDeltaSec = (clock.nowMs() - sessionStartMs) / 1000.0
         val totalProg = currentLocatorTotalProgression.value ?: return
         val progressDelta = totalProg - startProg
         val totalPos = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight }

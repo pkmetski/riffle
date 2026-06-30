@@ -7,7 +7,11 @@ import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.app.feature.reader.SystemTimeProvider
 import com.riffle.app.feature.reader.TimeProvider
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.Clock
+import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookCfiTranslatorFactory
+import com.riffle.core.domain.SystemClock
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -15,7 +19,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.readium.adapter.pdfium.document.PdfiumDocumentFactory
 import org.readium.r2.shared.util.asset.AssetRetriever
@@ -49,12 +52,22 @@ object AppModule {
     @Provides
     @Singleton
     @DownloadScope
-    fun provideDownloadScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    fun provideDownloadScope(dispatchers: DispatcherProvider): CoroutineScope =
+        CoroutineScope(SupervisorJob() + dispatchers.io)
 
     @Provides
     @Singleton
     @ApplicationCoroutineScope
-    fun provideApplicationCoroutineScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    fun provideApplicationCoroutineScope(dispatchers: DispatcherProvider): CoroutineScope =
+        CoroutineScope(SupervisorJob() + dispatchers.io)
+
+    @Provides
+    @Singleton
+    fun provideClock(): Clock = SystemClock
+
+    @Provides
+    @Singleton
+    fun provideDispatcherProvider(): DispatcherProvider = DefaultDispatcherProvider
 
     @Provides
     @Singleton
