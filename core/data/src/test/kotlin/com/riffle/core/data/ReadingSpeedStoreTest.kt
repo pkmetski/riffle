@@ -25,7 +25,7 @@ class ReadingSpeedStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = ReadingSpeedStoreImpl(
+    private fun buildStore() = ReadingSpeedStore(
         PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("reading_speed.preferences_pb") },
@@ -53,7 +53,7 @@ class ReadingSpeedStoreTest {
         val file = tmp.newFile("reading_speed_round_trip.preferences_pb")
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
-            ReadingSpeedStoreImpl(
+            ReadingSpeedStore(
                 PreferenceDataStoreFactory.create(
                     scope = writeScope,
                     produceFile = { file },
@@ -63,7 +63,7 @@ class ReadingSpeedStoreTest {
         writeScope.cancel()
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
-        val store2 = ReadingSpeedStoreImpl(
+        val store2 = ReadingSpeedStore(
             PreferenceDataStoreFactory.create(
                 scope = readScope,
                 produceFile = { file },

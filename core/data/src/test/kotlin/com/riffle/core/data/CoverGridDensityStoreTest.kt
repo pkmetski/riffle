@@ -24,7 +24,7 @@ class CoverGridDensityStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = CoverGridDensityStoreImpl(
+    private fun buildStore() = CoverGridDensityStore(
         PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("cover_grid_density.preferences_pb") },
@@ -51,7 +51,7 @@ class CoverGridDensityStoreTest {
         // must be fully cancelled before a second instance reads.
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
-            CoverGridDensityStoreImpl(
+            CoverGridDensityStore(
                 PreferenceDataStoreFactory.create(
                     scope = writeScope,
                     produceFile = { file },
@@ -61,7 +61,7 @@ class CoverGridDensityStoreTest {
         writeScope.cancel()
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
-        val store2 = CoverGridDensityStoreImpl(
+        val store2 = CoverGridDensityStore(
             PreferenceDataStoreFactory.create(
                 scope = readScope,
                 produceFile = { file },

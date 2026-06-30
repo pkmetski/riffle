@@ -24,7 +24,7 @@ class WakeLockPreferencesStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = WakeLockPreferencesStoreImpl(
+    private fun buildStore() = WakeLockPreferencesStore(
         PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("wake_lock_prefs.preferences_pb") },
@@ -59,7 +59,7 @@ class WakeLockPreferencesStoreTest {
         // instances on the same file, so the write scope must be fully cancelled first.
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
-            WakeLockPreferencesStoreImpl(
+            WakeLockPreferencesStore(
                 PreferenceDataStoreFactory.create(
                     scope = writeScope,
                     produceFile = { file },
@@ -69,7 +69,7 @@ class WakeLockPreferencesStoreTest {
         writeScope.cancel()
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
-        val store2 = WakeLockPreferencesStoreImpl(
+        val store2 = WakeLockPreferencesStore(
             PreferenceDataStoreFactory.create(
                 scope = readScope,
                 produceFile = { file },

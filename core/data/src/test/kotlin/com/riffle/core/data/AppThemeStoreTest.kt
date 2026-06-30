@@ -25,7 +25,7 @@ class AppThemeStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = AppThemeStoreImpl(
+    private fun buildStore() = AppThemeStore(
         PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("app_theme_prefs.preferences_pb") },
@@ -58,7 +58,7 @@ class AppThemeStoreTest {
 
         val writeScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
         runBlocking {
-            val store = AppThemeStoreImpl(
+            val store = AppThemeStore(
                 PreferenceDataStoreFactory.create(scope = writeScope, produceFile = { file })
             )
             store.setAppTheme(AppTheme.Dark)
@@ -66,7 +66,7 @@ class AppThemeStoreTest {
         writeScope.cancel()
 
         val readScope = CoroutineScope(UnconfinedTestDispatcher() + Job())
-        val store2 = AppThemeStoreImpl(
+        val store2 = AppThemeStore(
             PreferenceDataStoreFactory.create(scope = readScope, produceFile = { file })
         )
         assertEquals(AppTheme.Dark, runBlocking { store2.appTheme.first() })
