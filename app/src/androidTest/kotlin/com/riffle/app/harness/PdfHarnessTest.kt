@@ -15,6 +15,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
+import com.riffle.app.feature.reader.VolumeNavEvent
+import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilOnPdfPage
@@ -44,6 +46,7 @@ class PdfHarnessTest {
 
     @Inject lateinit var database: RiffleDatabase
     @PdfCacheStore @Inject lateinit var pdfCacheStore: LocalStore
+    @Inject lateinit var volumeNavigationController: VolumeNavigationController
 
     private val stubServer = StubAbsServer()
 
@@ -81,10 +84,18 @@ class PdfHarnessTest {
         composeTestRule.assertNoErrorState()
         composeTestRule.waitUntilPdfLoaded()
 
+        // Drive page advance through the production VolumeNavigationController, which
+        // reaches the same PdfiumNavigatorFragment.goForward() path a real swipe ultimately
+        // does. The previous synthetic swipeLeft() couldn't reliably hit PDFView's fling
+        // velocity threshold on the CI emulator and never advanced the page.
+        // Emit on the UI thread — PdfiumNavigatorFragment.goForward() touches the View
+        // hierarchy synchronously from the SharedFlow collector, and MutableSharedFlow's
+        // collector resumes on the emitting thread when it happens to share the dispatcher;
+        // emitting from the instrumentation thread would surface as a CalledFromWrongThread.
         repeat(2) {
-            composeTestRule
-                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                .performTouchInput { click(centerRight) }
+            composeTestRule.runOnUiThread {
+                volumeNavigationController.emit(VolumeNavEvent.Forward)
+            }
             composeTestRule.waitForIdle()
         }
 

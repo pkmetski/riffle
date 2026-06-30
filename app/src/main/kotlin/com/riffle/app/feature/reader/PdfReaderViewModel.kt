@@ -4,13 +4,17 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.Annotation
+import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfOpenResult
-import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.TocEntry
+import com.riffle.core.domain.WakeLockPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -22,10 +26,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.AbsoluteUrl
@@ -49,6 +55,8 @@ class PdfReaderViewModel @Inject constructor(
     private val readingSessionRepository: ReadingSessionRepository,
     private val volumeNavigationController: VolumeNavigationController,
     private val readerStateHolder: ReaderStateHolder,
+    private val annotationStore: AnnotationStore,
+    private val serverRepository: ServerRepository,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -84,6 +92,83 @@ class PdfReaderViewModel @Inject constructor(
     private var closeSyncDone = false
     private var initialLocatorSeen = false
 
+    // Cached at book-open so navigateToEntry can resolve a TocEntry click back to
+    // the original Readium Link without re-walking the publication. Index-aligned
+    // with the flattened TOC tree we expose to the drawer.
+    private var publication: Publication? = null
+    private var tocLinks: List<Link> = emptyList()
+    private var totalPages: Int = 0
+
+    // Text-selection + highlight pipelines have been removed pending the MuPDF
+    // renderer swap (see docs/superpowers/plans/2026-06-29-mupdf-renderer-swap.md).
+    // Bookmarks and the annotations panel still work — they don't depend on
+    // text resolution.
+
+    // ---- TOC / chapter rail state ----------------------------------------
+
+    private val _toc = MutableStateFlow<List<TocEntry>>(emptyList())
+    val toc: StateFlow<List<TocEntry>> = _toc
+
+    private val _railSegments = MutableStateFlow<List<RailSegment>>(emptyList())
+    val railSegments: StateFlow<List<RailSegment>> = _railSegments
+
+    private val _currentPage = MutableStateFlow<Int?>(null)
+    val currentPage: StateFlow<Int?> = _currentPage
+
+    /** 0-based page index, or 0 when no page reported yet. */
+    private val currentPageIndex: Int get() = (_currentPage.value ?: 1).coerceAtLeast(1) - 1
+
+    val activeRailSegmentIndex: StateFlow<Int> = combine(_railSegments, _currentPage) { segs, page ->
+        if (segs.isEmpty()) 0
+        else findActivePdfSegmentIndex(segs, ((page ?: 1) - 1).coerceAtLeast(0))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val railCursorPosition: StateFlow<Float> = combine(_railSegments, _currentPage) { segs, page ->
+        if (segs.isEmpty() || totalPages <= 0) 0f
+        else {
+            val zeroPage = ((page ?: 1) - 1).coerceAtLeast(0)
+            val active = findActivePdfSegmentIndex(segs, zeroPage)
+            val withinSeg = pdfProgressionWithinActiveSegment(
+                segments = segs,
+                activeIndex = active,
+                currentPageIndex = zeroPage,
+                intraPageOffset = 0f,
+                totalPages = totalPages,
+            )
+            // ChapterNavigationRail's cursorPosition is 0..1 across the whole rail, not within
+            // the active segment. Map the within-segment fraction to its weighted slot on the rail
+            // (same conversion EPUB uses) so early short chapters don't fill most of the bar.
+            weightedRailCursorPosition(active, segs, withinSeg)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    // ---- Drawer / panel visibility ---------------------------------------
+
+    private val _tocVisible = MutableStateFlow(false)
+    val tocVisible: StateFlow<Boolean> = _tocVisible
+
+    private val _annotationsPanelVisible = MutableStateFlow(false)
+    val annotationsPanelVisible: StateFlow<Boolean> = _annotationsPanelVisible
+
+    fun openToc() { _tocVisible.value = true }
+    fun closeToc() { _tocVisible.value = false }
+    fun openAnnotationsPanel() { _annotationsPanelVisible.value = true }
+    fun closeAnnotationsPanel() { _annotationsPanelVisible.value = false }
+
+    // ---- Annotations -----------------------------------------------------
+
+    private var annotationServerId: String? = null
+
+    private val _annotations = MutableStateFlow<List<Annotation>>(emptyList())
+    val annotations: StateFlow<List<Annotation>> = _annotations
+
+    private val _bookmarks = MutableStateFlow<List<Annotation>>(emptyList())
+
+    val currentPageBookmarked: StateFlow<Boolean> = combine(_bookmarks, _currentPage) { bookmarks, page ->
+        val p = page ?: return@combine false
+        bookmarks.any { pdfLocatorPosition(it.cfi) == p }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     init {
         viewModelScope.launch { openBook() }
         viewModelScope.launch {
@@ -106,6 +191,10 @@ class PdfReaderViewModel @Inject constructor(
                     _state.value = ReaderState.Error("Failed to open PDF: ${it.message}")
                     return
                 }
+                this.publication = publication
+                buildTocAndRail(publication)
+                annotationServerId = serverRepository.getActive()?.id
+                startObservingAnnotations()
                 val locator = result.lastPosition
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { Locator.fromJSON(JSONObject(it)) }
@@ -119,6 +208,185 @@ class PdfReaderViewModel @Inject constructor(
             }
             is PdfOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
             PdfOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
+        }
+    }
+
+    private fun buildTocAndRail(publication: Publication) {
+        // Readium's PDF adapter exposes the outline through Publication.tableOfContents
+        // as a Link tree (title + href + children). For each Link, Publication
+        // resolves a Locator whose position is the 1-based page number; we convert to
+        // the 0-based pageIndex our adapters use.
+        val flatLinks = mutableListOf<Link>()
+        fun collect(links: List<Link>) {
+            for (link in links) { flatLinks += link; collect(link.children) }
+        }
+        collect(publication.tableOfContents)
+        tocLinks = flatLinks
+
+        // Build the page-shaped outline by resolving each Link to its page index.
+        // Pdfium's adapter encodes the page in two places, depending on PDF
+        // outline shape: (a) the Locator's locations.position (1-based page),
+        // (b) the Link.href as a `#page=N` fragment when the outline anchors
+        // to a named-destination or page-fit. We try both; fall back to 0.
+        fun pageOfLink(link: Link): Int {
+            val locPos = publication.locatorFromLink(link)?.locations?.position
+            if (locPos != null && locPos > 0) return locPos - 1
+            // Parse `#page=N` fragment, 1-based per PDF Open Parameters / IETF
+            // draft. Pdfium's adapter sets href to "<resource>#page=N" for
+            // outline entries that map to a page-display destination.
+            val href = link.href.toString()
+            val frag = href.substringAfter('#', "")
+            val pageParam = frag.split('&').firstOrNull { it.startsWith("page=") }
+                ?.removePrefix("page=")
+                ?.toIntOrNull()
+            if (pageParam != null && pageParam > 0) return pageParam - 1
+            return 0
+        }
+        fun mapTree(links: List<Link>): List<PdfOutlineNode> = links.map { link ->
+            val pageIndex = pageOfLink(link)
+            android.util.Log.v(
+                "RifflePdfRail",
+                "TOC link title=\"${link.title}\" href=${link.href} → pageIndex=$pageIndex",
+            )
+            PdfOutlineNode(
+                title = link.title.orEmpty(),
+                pageIndex = pageIndex,
+                children = mapTree(link.children),
+            )
+        }
+        val outline = mapTree(publication.tableOfContents)
+        android.util.Log.i(
+            "RifflePdfRail",
+            "Built TOC outline: ${outline.size} top-level, " +
+                "${pdfOutlineToFlatRailEntries(outline).size} flat",
+        )
+
+        totalPages = publication.metadata.numberOfPages ?: 0
+        _toc.value = pdfOutlineToTocEntries(outline)
+        _railSegments.value = buildPdfRailSegments(
+            pdfTocEntries = pdfOutlineToFlatRailEntries(outline),
+            totalPages = totalPages,
+        )
+    }
+
+    private fun startObservingAnnotations() {
+        val serverId = annotationServerId ?: return
+        viewModelScope.launch {
+            annotationStore.observeAnnotations(serverId, itemId).collect { rows ->
+                _annotations.value = rows
+            }
+        }
+        viewModelScope.launch {
+            annotationStore.observeBookmarks(serverId, itemId).collect { rows ->
+                _bookmarks.value = rows
+            }
+        }
+    }
+
+    fun navigateToEntry(entry: TocEntry) {
+        val locator = pageLocator(entry.href) ?: return
+        _serverLocatorChannel.trySend(locator)
+        closeToc()
+    }
+
+    fun navigateToSegment(segment: RailSegment) {
+        val locator = pageLocator(segment.href) ?: return
+        _serverLocatorChannel.trySend(locator)
+    }
+
+    /**
+     * Build a Locator targeting the given synthetic `page=N` href (0-based page
+     * index, as emitted by [pdfSegmentHref]). Synthesized directly from the
+     * first reading-order resource + a 1-based position — we don't reverse-look
+     * up the original TOC Link because some outline entries resolve their page
+     * via an `#page=N` href fragment rather than a Locator position, which
+     * would make the reverse lookup fail and the navigation silently no-op.
+     */
+    private fun pageLocator(href: String): Locator? {
+        val pageIndex = href.removePrefix("page=").toIntOrNull() ?: return null
+        val pub = publication ?: return null
+        val resourceHref = pub.readingOrder.firstOrNull()?.url() ?: return null
+        return Locator(
+            href = resourceHref,
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.PDF,
+            locations = Locator.Locations(position = pageIndex + 1),
+        )
+    }
+
+    fun navigateToAnnotation(id: String) {
+        val annotation = _annotations.value.firstOrNull { it.id == id } ?: return
+        val position = pdfLocatorPosition(annotation.cfi) ?: return
+        val locator = Locator.fromJSON(JSONObject(annotation.cfi)) ?: run {
+            // Fallback: synthesize a Locator from the page position alone if the
+            // stored Locator JSON is malformed.
+            val pub = publication ?: return
+            val href = pub.metadata.title.orEmpty()
+            Locator(
+                href = pub.readingOrder.firstOrNull()?.url() ?: return,
+                mediaType = org.readium.r2.shared.util.mediatype.MediaType.PDF,
+                locations = Locator.Locations(position = position),
+            ).also { /* href is best-effort */ }
+        }
+        _serverLocatorChannel.trySend(locator)
+        closeAnnotationsPanel()
+    }
+
+    fun toggleBookmark() {
+        val serverId = annotationServerId ?: return
+        val locator = lastLocator ?: return
+        val position = locator.locations.position ?: return
+        viewModelScope.launch {
+            val existing = _bookmarks.value.firstOrNull { pdfLocatorPosition(it.cfi) == position }
+            if (existing != null) {
+                annotationStore.delete(existing.id)
+            } else {
+                val pageHref = locator.href.toString()
+                val totalProg = locator.locations.totalProgression?.toDouble()
+                    ?: if (totalPages > 0) (position - 1).toDouble() / totalPages.toDouble() else 0.0
+                val locatorJson = buildPdfLocatorJson(pageHref, position, totalProg)
+                annotationStore.createBookmark(
+                    serverId = serverId,
+                    itemId = itemId,
+                    cfi = locatorJson,
+                    textSnippet = "",
+                    chapterHref = pageHref,
+                    spineIndex = 0,
+                    progression = totalProg,
+                    bookmarkTitle = "Page $position",
+                )
+            }
+        }
+    }
+
+    fun deleteAnnotation(id: String) {
+        viewModelScope.launch { annotationStore.delete(id) }
+    }
+
+    fun renameBookmark(id: String, title: String) {
+        viewModelScope.launch { annotationStore.renameBookmark(id, title) }
+    }
+
+    private fun buildPdfLocatorJson(href: String, position: Int, totalProgression: Double): String {
+        val root = JSONObject()
+            .put("href", href)
+            .put("type", "application/pdf")
+            .put(
+                "locations", JSONObject()
+                    .put("position", position)
+                    .put("totalProgression", totalProgression),
+            )
+        return root.toString()
+    }
+
+    /** Best-effort: return the 1-based page position from a Riffle PDF Locator JSON, or null. */
+    private fun pdfLocatorPosition(cfi: String): Int? {
+        if (!cfi.startsWith("{")) return null
+        return try {
+            JSONObject(cfi).optJSONObject("locations")?.let { loc ->
+                if (loc.has("position")) loc.getInt("position") else null
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -173,9 +441,6 @@ class PdfReaderViewModel @Inject constructor(
             is Try.Failure -> Result.failure(Exception(r.value.message))
         }
     }
-
-    private val _currentPage = MutableStateFlow<Int?>(null)
-    val currentPage: StateFlow<Int?> = _currentPage
 
     fun onPageChanged(locator: Locator) {
         lastLocator = locator

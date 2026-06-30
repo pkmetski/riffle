@@ -25,6 +25,7 @@ fun ChapterNavigationRail(
     readerTheme: ReaderTheme,
     onSegmentClick: (RailSegment) -> Unit,
     modifier: Modifier = Modifier,
+    railHeight: androidx.compose.ui.unit.Dp = 4.dp,
 ) {
     if (segments.isEmpty()) return
 
@@ -43,7 +44,7 @@ fun ChapterNavigationRail(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(4.dp)
+            .height(railHeight)
             .testTag("chapter_navigation_rail")
             .semantics { contentDescription = "Active rail segment: $activeTitle" }
             .pointerInput(segments) {

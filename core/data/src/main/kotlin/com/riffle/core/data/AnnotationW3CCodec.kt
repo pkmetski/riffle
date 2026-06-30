@@ -3,11 +3,14 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.W3CAnnotation
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -89,14 +92,27 @@ object AnnotationW3CCodec {
             else -> "commenting"
         }
 
-        // Build the target selector array with FragmentSelector and TextQuoteSelector
+        // Detect PDF rows. PDF locators are stored as Readium Locator JSON in
+        // the `cfi` column (a historical-name field name; see the design spec
+        // docs/superpowers/specs/2026-06-28-pdf-toc-and-annotations-design.md).
+        // EPUB rows hold a raw epubcfi(...) string.
+        val pdfLocator: JsonObject? = parsePdfLocator(entity.cfi)
+
+        // Build the target selector array with format-specific selectors plus
+        // a TextQuoteSelector for cross-device re-anchoring (same shape both
+        // formats, so the receiving device can verify the annotation is
+        // landing on the same text even when the source file was rebuilt).
         val selectorArray = buildJsonArray {
-            // FragmentSelector: EPUB CFI
-            add(buildJsonObject {
-                put("type", "FragmentSelector")
-                put("conformsTo", "http://idpf.org/epub/linking/cfi/epub-cfi.html")
-                put("value", entity.cfi)
-            })
+            if (pdfLocator != null) {
+                add(buildPdfFragmentSelector(pdfLocator))
+            } else {
+                // FragmentSelector: EPUB CFI
+                add(buildJsonObject {
+                    put("type", "FragmentSelector")
+                    put("conformsTo", "http://idpf.org/epub/linking/cfi/epub-cfi.html")
+                    put("value", entity.cfi)
+                })
+            }
             // TextQuoteSelector: text context for re-anchoring
             add(buildJsonObject {
                 put("type", "TextQuoteSelector")
@@ -106,9 +122,12 @@ object AnnotationW3CCodec {
             })
         }
 
-        // Build the target object
+        // Build the target object. Source scheme distinguishes book types so
+        // a single annotations folder can host mixed EPUB+PDF rows for items
+        // that might one day carry both (e.g. matched ABS items).
         val targetObject = buildJsonObject {
-            put("source", "epub://item-${entity.itemId}")
+            val sourceScheme = if (pdfLocator != null) "pdf" else "epub"
+            put("source", "$sourceScheme://item-${entity.itemId}")
             put("selector", selectorArray)
         }
 
@@ -238,13 +257,25 @@ object AnnotationW3CCodec {
             var chapterHref = ""
 
             target?.let {
-                chapterHref = it["source"]?.jsonPrimitive?.content?.removePrefix("epub://item-") ?: ""
+                val src = it["source"]?.jsonPrimitive?.content ?: ""
+                chapterHref = src.removePrefix("epub://item-").removePrefix("pdf://item-")
                 val selectors = it["selector"]?.jsonArray ?: emptyList()
                 for (selector in selectors) {
                     val selectorObj = selector.jsonObject
                     when (selectorObj["type"]?.jsonPrimitive?.content) {
                         "FragmentSelector" -> {
-                            cfi = selectorObj["value"]?.jsonPrimitive?.content ?: ""
+                            val conformsTo = selectorObj["conformsTo"]?.jsonPrimitive?.content ?: ""
+                            cfi = if (conformsTo == PDF_FRAGMENT_CONFORMS_TO) {
+                                // PDF: reassemble Locator JSON from FragmentSelector +
+                                // RefinedBy DataPositionSelector + riffle:quads.
+                                reassemblePdfLocator(
+                                    fragmentSelector = selectorObj,
+                                    chapterHref = chapterHref,
+                                )
+                            } else {
+                                // EPUB: raw epubcfi(...) string.
+                                selectorObj["value"]?.jsonPrimitive?.content ?: ""
+                            }
                         }
                         "TextQuoteSelector" -> {
                             textSnippet = selectorObj["exact"]?.jsonPrimitive?.content ?: ""
@@ -325,4 +356,96 @@ object AnnotationW3CCodec {
         updatedAt = 0L,
         createdAt = 0L,
     )
+
+    // ---- PDF locator support -------------------------------------------------
+
+    /**
+     * IANA / IETF identifier for the PDF Open Parameters fragment syntax
+     * (RFC 3778, used for `#page=N` style URL fragments). We use this as the
+     * `conformsTo` on a FragmentSelector to mark a row as PDF-locatored.
+     */
+    private const val PDF_FRAGMENT_CONFORMS_TO = "http://tools.ietf.org/rfc/rfc3778"
+
+    /**
+     * Parses [cfi] as a Readium Locator JSON object, returning it if and only
+     * if it's well-formed JSON whose `type` is `application/pdf`. EPUB rows
+     * hold raw `epubcfi(...)` strings which fail JSON parsing; this returns
+     * null for them and the encoder falls through to the EPUB branch.
+     */
+    private fun parsePdfLocator(cfi: String): JsonObject? {
+        if (!cfi.startsWith("{")) return null
+        return try {
+            val root = json.parseToJsonElement(cfi) as? JsonObject ?: return null
+            if (root["type"]?.jsonPrimitive?.content == "application/pdf") root else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Build a W3C FragmentSelector for a PDF row. The selector encodes the
+     * page number as a PDF Open Parameters fragment (`#page=N`, RFC 3778).
+     * The character range is carried in a nested RefinedBy DataPositionSelector
+     * (W3C Annotation Model §4.2.6). Persisted highlight quads — derived data
+     * we don't want to recompute on every render — ride along as a Riffle-
+     * namespaced property on the DataPositionSelector; third-party annotation
+     * tools that don't know `riffle:quads` simply ignore it.
+     */
+    private fun buildPdfFragmentSelector(loc: JsonObject): JsonObject {
+        val locations = loc["locations"] as? JsonObject
+        val page = locations?.get("position")?.jsonPrimitive?.intOrNull ?: 1
+        val other = locations?.get("otherLocations") as? JsonObject
+        val charStart = other?.get("charStart")?.jsonPrimitive?.intOrNull
+        val charEnd = other?.get("charEnd")?.jsonPrimitive?.intOrNull
+        val quads = other?.get("quads") as? JsonArray
+        return buildJsonObject {
+            put("type", "FragmentSelector")
+            put("conformsTo", PDF_FRAGMENT_CONFORMS_TO)
+            put("value", "page=$page")
+            if (charStart != null && charEnd != null) {
+                put("refinedBy", buildJsonObject {
+                    put("type", "DataPositionSelector")
+                    put("start", JsonPrimitive(charStart))
+                    put("end", JsonPrimitive(charEnd))
+                    if (quads != null) put("riffle:quads", quads)
+                })
+            }
+        }
+    }
+
+    /**
+     * Inverse of [buildPdfFragmentSelector]: read a PDF FragmentSelector and
+     * its RefinedBy DataPositionSelector, return the corresponding Readium
+     * Locator JSON string (the same shape callers will hand to
+     * `Locator.fromJSON` later). Tolerant: missing char range / quads results
+     * in a valid bookmark-shaped locator (no `otherLocations`).
+     */
+    private fun reassemblePdfLocator(
+        fragmentSelector: JsonObject,
+        chapterHref: String,
+    ): String {
+        val value = fragmentSelector["value"]?.jsonPrimitive?.content ?: ""
+        // `page=N` — bare integer follows the equals sign.
+        val page = value.removePrefix("page=").toIntOrNull() ?: 1
+        val refinedBy = fragmentSelector["refinedBy"] as? JsonObject
+        val charStart = refinedBy?.get("start")?.jsonPrimitive?.intOrNull
+        val charEnd = refinedBy?.get("end")?.jsonPrimitive?.intOrNull
+        val quads = refinedBy?.get("riffle:quads") as? JsonArray
+
+        val locator = buildJsonObject {
+            put("href", chapterHref)
+            put("type", "application/pdf")
+            put("locations", buildJsonObject {
+                put("position", JsonPrimitive(page))
+                if (charStart != null && charEnd != null) {
+                    put("otherLocations", buildJsonObject {
+                        put("charStart", JsonPrimitive(charStart))
+                        put("charEnd", JsonPrimitive(charEnd))
+                        if (quads != null) put("quads", quads as JsonElement)
+                    })
+                }
+            })
+        }
+        return locator.toString()
+    }
 }
