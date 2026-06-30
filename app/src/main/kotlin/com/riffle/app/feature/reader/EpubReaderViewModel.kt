@@ -41,6 +41,7 @@ import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
@@ -52,7 +53,6 @@ import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
-import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.TocEntry
@@ -61,9 +61,7 @@ import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,7 +92,6 @@ import java.io.File
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
-private const val SYNC_INTERVAL_MS = 30_000L
 // A reading-position progression change beyond this (or any href change) counts as navigating off the
 // page readaloud was parked on; smaller deltas are settle jitter on the same page (ADR 0031).
 private const val PARK_PAGE_EPS = 0.001
@@ -269,6 +266,12 @@ class EpubReaderViewModel @Inject constructor(
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
 
+    private val readingSessionCoordinator = ReadingSessionCoordinator(
+        clock = clock,
+        readingSpeedStore = readingSpeedStore,
+        scope = viewModelScope,
+    )
+
     private val positionSaveCoordinator = PositionSaveCoordinator<String>(
         savePosition = { cfi ->
             epubRepository.saveReadingPosition(itemId, cfi)
@@ -293,7 +296,6 @@ class EpubReaderViewModel @Inject constructor(
     private var epubFile: File? = null
     @Volatile private var epubZip: ZipFile? = null
     private val chapterHtmlCache = mutableMapOf<Int, String>()
-    private var syncJob: Job? = null
     private var closeSyncDone = false
     // Non-null once a matched book's reconciliation prerequisites are cached: the unified cycle then
     // replaces the single-peer ABS/Storyteller paths. [readerSyncServerId] is the active server
@@ -735,21 +737,21 @@ class EpubReaderViewModel @Inject constructor(
                     progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
                 }
 
-                startPeriodicSync()
+                // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the
+                // first onReaderResumed; the lifecycle handler below resets the baseline once the
+                // reader is actually visible).
+                startReadingSession(initialTotalProgression = null)
             }
             is EpubOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
             EpubOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
         }
     }
 
-    private fun startPeriodicSync() {
-        syncJob?.cancel()
-        syncJob = viewModelScope.launch {
-            while (true) {
-                delay(SYNC_INTERVAL_MS)
-                syncCurrentPosition()
-            }
-        }
+    private fun startReadingSession(initialTotalProgression: Float?) {
+        readingSessionCoordinator.onResumed(
+            initialTotalProgression = initialTotalProgression,
+            onTick = { syncCurrentPosition() },
+        )
     }
 
     private fun syncCurrentPosition() {
@@ -902,11 +904,13 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
         position.resetInitialLocatorSeen()
-        sessionStartProgression = currentLocatorTotalProgression.value
-        sessionStartMs = clock.nowMs()
+        // Arm the speed-tracker baseline unconditionally — pre-refactor set sessionStart{Progression,Ms}
+        // on every resume regardless of state, so a session that resumes while still loading and closes
+        // before [ReaderState.Ready] still contributes its time delta. The heartbeat ticks here too;
+        // they are safe no-ops until a locator exists ([syncCurrentPosition] early-returns on null).
+        startReadingSession(initialTotalProgression = currentLocatorTotalProgression.value)
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
-            startPeriodicSync()
             // Re-arm the per-book annotation live-pull loop alongside position sync.
             annotationSession.onReaderResumed()
         }
@@ -924,11 +928,13 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onReaderClosed() {
-        flushReadingSession()
+        readingSessionCoordinator.onClosed(
+            currentTotalProgression = currentLocatorTotalProgression.value,
+            totalPositions = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight },
+        )
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
-        syncJob?.cancel()
         // Cancel the Storyteller sync loop while the reader is backgrounded; reopening restarts it
         // when the readaloud player is re-opened. Owned by the session; cancel via method.
         readaloud.cancelStorytellerSync()
@@ -1346,25 +1352,9 @@ class EpubReaderViewModel @Inject constructor(
         weightedRailCursorPosition(i, segments, withinSeg)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
-    // ---- Reading speed tracking & time-remaining estimates -----------------------------------
-
-    private var sessionStartProgression: Float? = null
-    private var sessionStartMs: Long = 0L
-
-    private fun flushReadingSession() {
-        val startProg = sessionStartProgression ?: return
-        sessionStartProgression = null
-        val timeDeltaSec = (clock.nowMs() - sessionStartMs) / 1000.0
-        val totalProg = currentLocatorTotalProgression.value ?: return
-        val progressDelta = totalProg - startProg
-        val totalPos = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight }
-        if (totalPos == 0f) return
-        viewModelScope.launch {
-            val prior = readingSpeedStore.speedSecPerPosition.first()
-            val updated = ReadingSpeedTracker.recordSession(progressDelta, timeDeltaSec, totalPos, prior)
-            if (updated != null) readingSpeedStore.updateSpeed(updated)
-        }
-    }
+    // ---- Time-remaining estimates -------------------------------------------------------------
+    // Reading-speed tracking now lives in [readingSessionCoordinator]; the time-remaining
+    // computations below still read [readingSpeedStore] for the persisted speed.
 
     private data class PositionSnapshot(
         val totalProgression: Float?,
