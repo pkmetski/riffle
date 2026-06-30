@@ -115,8 +115,14 @@ internal class DefaultRendererBridge(
         fragment?.evaluateJavascript(firstVisibleSentenceJs(highlights))
             ?.trim('"')?.toIntOrNull()
 
-    override suspend fun scrollByPx(delta: Int): Boolean {
-        val raw = fragment?.evaluateJavascript(
+    override suspend fun scrollByPx(delta: Int): Boolean? {
+        // Return a plain integer (1 = moved, 0 = stuck). Returning a JSON object and parsing it
+        // as a string is a trap: evaluateJavascript JSON-encodes the JS return value, so a
+        // JSON-stringified object comes back as a doubly-encoded string ('"{\"moved\":true}"').
+        // Null (here AND from evaluateJavascript) means "page gone" — the caller distinguishes
+        // that from "stuck at end" so it doesn't fire end-of-book signals on a transient swap.
+        val frag = fragment ?: return null
+        val raw = frag.evaluateJavascript(
             """
             (function(){
               var before = window.scrollY;
@@ -124,7 +130,7 @@ internal class DefaultRendererBridge(
               return window.scrollY !== before ? 1 : 0;
             })()
             """.trimIndent(),
-        ) ?: return false
+        ) ?: return null
         return raw.trim().trim('"') == "1"
     }
 

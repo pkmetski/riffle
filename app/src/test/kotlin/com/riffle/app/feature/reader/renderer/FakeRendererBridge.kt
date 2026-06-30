@@ -17,7 +17,7 @@ internal class FakeRendererBridge(
     private val firstVisibleSentenceResult: Int? = null,
     private val landedAtEndResult: Boolean = false,
     private val snapToElementMoved: Boolean = false,
-    private val scrollByPxResult: Boolean = true,
+    private val scrollByPxResult: Boolean? = true,
     private val scrollBoundaryResult: Pair<Boolean, Boolean> = Pair(false, false),
 ) : RendererBridge {
 
@@ -91,7 +91,7 @@ internal class FakeRendererBridge(
         return firstVisibleSentenceResult
     }
 
-    override suspend fun scrollByPx(delta: Int): Boolean {
+    override suspend fun scrollByPx(delta: Int): Boolean? {
         calls += "scrollByPx($delta)"
         return scrollByPxResult
     }

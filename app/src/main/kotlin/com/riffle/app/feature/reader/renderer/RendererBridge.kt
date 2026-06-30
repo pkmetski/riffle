@@ -114,8 +114,12 @@ internal interface RendererBridge {
 
     // ── Vertical (scroll) mode ──────────────────────────────────────────────────────────────
 
-    /** `window.scrollBy(0, delta)`. Returns true iff scrollY actually changed. */
-    suspend fun scrollByPx(delta: Int): Boolean
+    /**
+     * `window.scrollBy(0, delta)`. Returns true iff scrollY changed, false iff it didn't move
+     * (e.g. parked at the document boundary), or null when the WebView is gone — callers should
+     * skip the iteration in the null case rather than treat it as "stuck at end".
+     */
+    suspend fun scrollByPx(delta: Int): Boolean?
 
     /**
      * Read whether the live document is at its forward / backward scroll boundary. The result is

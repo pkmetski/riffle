@@ -2304,7 +2304,11 @@ private fun EpubNavigatorView(
                 // natural backpressure-driven batching (no need to accumulate manually before the
                 // call — the accumulator inside the controller only emits whole pixels).
                 autoScrollDeltas.collect { flushed ->
-                    val moved = rendererBridge.scrollByPx(flushed)
+                    // null = the WebView is gone mid-tick (chapter swap, fragment recreate): skip
+                    // the iteration, the next delta will arrive once the fragment is back. The
+                    // original direct-evaluateJavascript path used `?: return@collect` here for
+                    // the same reason — must NOT treat it as "stuck at end" and fire end-of-book.
+                    val moved = rendererBridge.scrollByPx(flushed) ?: return@collect
                     if (moved) return@collect
                     // Stuck at the bottom of this chapter. Vertical mode stops auto-scroll
                     // rather than auto-advancing — the user's eye is mid-viewport when scrollY
