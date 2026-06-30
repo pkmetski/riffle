@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.app.testing.TestApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -23,7 +24,7 @@ class ProgressFlushScopeTest {
     // case where the in-flight ABS PATCH was being cancelled mid-network-write.
     @Test
     fun `a flush completes even when the caller's scope is cancelled immediately after submitting`() = runTest {
-        val flusher = ProgressFlushScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()))
+        val flusher = ProgressFlushScope(TestApplicationScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob())))
         var completed = false
 
         // Model the screen's viewModelScope: the user submits a close flush from it, then leaves the

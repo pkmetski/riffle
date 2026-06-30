@@ -11,6 +11,7 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.Library
@@ -27,8 +28,6 @@ import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkSeriesResult
 import com.riffle.core.network.NetworkUserProgressResult
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -50,11 +49,12 @@ class LibraryRepositoryImpl @Inject constructor(
     private val readingSessionRepository: ReadingSessionRepository,
     private val readaloudMatchingService: ReadaloudMatchingService,
     private val storytellerReadaloudSyncer: StorytellerReadaloudSyncer,
+    applicationScope: ApplicationScope,
 ) : LibraryRepository {
 
     // Used to fire syncStale/reconcileLinks without blocking refreshLibraryItems.
     // coroutineScope { launch {} } waits for all children, so background work needs its own scope.
-    private val backgroundScope = CoroutineScope(SupervisorJob())
+    private val backgroundScope = applicationScope.coroutineScope
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeLibraries(): Flow<List<Library>> =

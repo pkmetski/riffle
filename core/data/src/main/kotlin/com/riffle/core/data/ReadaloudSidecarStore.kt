@@ -1,14 +1,13 @@
 package com.riffle.core.data
 
 import android.content.Context
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,12 +56,13 @@ class ReadaloudSidecarStore private constructor(
         fetcher: StorytellerSidecarFetcher,
         serverRepository: ServerRepository,
         tokenStorage: TokenStorage,
+        applicationScope: ApplicationScope,
     ) : this(
         cacheRootDir = { context.cacheDir },
         fetcher = fetcher,
         serverRepository = serverRepository,
         tokenStorage = tokenStorage,
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        scope = applicationScope.coroutineScope,
     )
 
     internal constructor(

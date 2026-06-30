@@ -5,10 +5,9 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ConnectivityObserver
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +20,13 @@ import javax.inject.Singleton
 @Singleton
 class ConnectivityObserverImpl @Inject constructor(
     @ApplicationContext context: Context,
+    applicationScope: ApplicationScope,
 ) : ConnectivityObserver {
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-    private val scope = CoroutineScope(SupervisorJob())
+    private val scope = applicationScope.coroutineScope
 
     override val isOnline: StateFlow<Boolean> = callbackFlow {
         // Online-state is derived from callback events rather than re-queried on each transition.

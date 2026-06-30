@@ -12,6 +12,7 @@ import androidx.media3.session.SessionToken
 import com.riffle.app.feature.reader.readaloud.AudioPlayerService
 import com.riffle.app.feature.reader.readaloud.ReadaloudController.Companion.HANDOFF
 import com.riffle.app.feature.reader.readaloud.SharedBundle
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -46,11 +47,12 @@ import kotlin.coroutines.resume
 @Singleton
 open class AudiobookController @Inject constructor(
     @ApplicationContext private val context: Context?,
+    applicationScope: ApplicationScope?,
 ) {
     // Test seam: a subclass that overrides every member the player touches needs no real Context (it's
     // only consulted in [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable
     // without Robolectric.
-    protected constructor() : this(null)
+    protected constructor() : this(null, null)
 
     data class PlaybackState(
         val connected: Boolean = false,
@@ -60,7 +62,13 @@ open class AudiobookController @Inject constructor(
         val durationSec: Double = 0.0,
     )
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Main.immediate is required for Media3 MediaController calls; the survivable Job tree comes from
+    // ApplicationScope so we don't allocate a sibling SupervisorJob. In tests, subclasses override every
+    // method that launches on this scope, so [applicationScope] is permitted to be null — the fallback
+    // mirrors the production SupervisorJob semantics so a future partial-override test fake doesn't get
+    // surprised by sibling-cancel behaviour.
+    private val scope: CoroutineScope = applicationScope?.scopeOn(Dispatchers.Main.immediate)
+        ?: CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlaybackState())
     open val state: StateFlow<PlaybackState> = _state.asStateFlow()
 

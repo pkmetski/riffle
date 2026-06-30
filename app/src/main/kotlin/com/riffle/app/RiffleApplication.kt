@@ -6,15 +6,12 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import com.riffle.core.data.LocalStoreMigrator
+import com.riffle.core.domain.ApplicationScope
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import org.acra.ReportField
@@ -32,6 +29,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         fun localStoreMigrator(): LocalStoreMigrator
         fun connectivityObserver(): com.riffle.core.domain.ConnectivityObserver
         fun appUpdateRepository(): com.riffle.core.domain.AppUpdateRepository
+        fun applicationScope(): ApplicationScope
     }
 
     override fun attachBaseContext(base: Context) {
@@ -67,17 +65,20 @@ class RiffleApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
+        val applicationScope = entryPoint.applicationScope()
+
         // One-time relocation of legacy flat cache/download files into per-Server dirs (ADR 0025).
         // Idempotent and best-effort; runs off the main thread and never blocks startup.
-        val migrator = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).localStoreMigrator()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        val migrator = entryPoint.localStoreMigrator()
+        applicationScope.launchSurvivable {
             runCatching { migrator.migrate() }
         }
 
         // Reclaim any update APK left behind by a previous self-update: a successful install restarts
         // the app before the download flow can delete it, so we sweep the update cache on launch.
-        val appUpdate = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).appUpdateRepository()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        val appUpdate = entryPoint.appUpdateRepository()
+        applicationScope.launchSurvivable {
             runCatching { appUpdate.sweepStaleApks() }
         }
 
@@ -93,8 +94,8 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         // Flush promptly when connectivity returns mid-session (offline edits made while the app kept
         // running would otherwise wait for the periodic sweep). Skip the initial value; sweep on each
         // false→true transition.
-        val connectivity = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java).connectivityObserver()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        val connectivity = entryPoint.connectivityObserver()
+        applicationScope.launchSurvivable {
             var wasOnline = connectivity.isOnline.value
             connectivity.isOnline.collect { online ->
                 if (online && !wasOnline) {

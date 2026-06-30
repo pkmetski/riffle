@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.CrossEpubBuildInputs
 import com.riffle.core.domain.CrossEpubIndexBuildOutcome
 import com.riffle.core.domain.CrossEpubIndexService
@@ -16,9 +17,6 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkEpubDownloadResult
 import com.riffle.core.network.NetworkItemEbookInoResult
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Collections
@@ -52,6 +50,7 @@ class CrossEpubIndexBuilderService(
     private val store: CrossEpubIndexStore,
     private val sidecarStore: ReadaloudSidecarStore,
     private val clock: () -> Long,
+    applicationScope: ApplicationScope,
 ) : CrossEpubIndexBuildTrigger {
     @Inject constructor(
         serverRepository: ServerRepository,
@@ -61,9 +60,10 @@ class CrossEpubIndexBuilderService(
         @EpubDownloadsStore downloadsStore: LocalStore,
         store: CrossEpubIndexStore,
         sidecarStore: ReadaloudSidecarStore,
-    ) : this(serverRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis)
+        applicationScope: ApplicationScope,
+    ) : this(serverRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis, applicationScope)
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = applicationScope.coroutineScope
     private val inFlight = Collections.synchronizedSet(mutableSetOf<Pair<String, String>>())
 
     private val service = CrossEpubIndexService(

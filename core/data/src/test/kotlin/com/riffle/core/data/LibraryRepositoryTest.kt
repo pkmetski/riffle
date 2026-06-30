@@ -207,6 +207,7 @@ class LibraryRepositoryTest {
         api, libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, fakeTokenStorage, readingSessionRepository, readaloudMatchingService,
         storytellerReadaloudSyncer,
+        com.riffle.core.data.testing.TestApplicationScope(),
     )
 
     private fun noopMatchingService(itemDao: FakeLibraryItemDao): ReadaloudMatchingService =
