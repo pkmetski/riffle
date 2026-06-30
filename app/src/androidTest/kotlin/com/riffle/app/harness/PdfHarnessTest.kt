@@ -88,8 +88,14 @@ class PdfHarnessTest {
         // reaches the same PdfiumNavigatorFragment.goForward() path a real swipe ultimately
         // does. The previous synthetic swipeLeft() couldn't reliably hit PDFView's fling
         // velocity threshold on the CI emulator and never advanced the page.
+        // Emit on the UI thread — PdfiumNavigatorFragment.goForward() touches the View
+        // hierarchy synchronously from the SharedFlow collector, and MutableSharedFlow's
+        // collector resumes on the emitting thread when it happens to share the dispatcher;
+        // emitting from the instrumentation thread would surface as a CalledFromWrongThread.
         repeat(2) {
-            volumeNavigationController.emit(VolumeNavEvent.Forward)
+            composeTestRule.runOnUiThread {
+                volumeNavigationController.emit(VolumeNavEvent.Forward)
+            }
             composeTestRule.waitForIdle()
         }
 
