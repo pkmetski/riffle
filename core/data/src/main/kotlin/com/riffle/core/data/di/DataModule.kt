@@ -383,6 +383,10 @@ abstract class DataModule {
 
     @Binds
     @Singleton
+    abstract fun bindDirtyAnnotationLedger(impl: com.riffle.core.data.RoomDirtyAnnotationLedger): com.riffle.core.data.DirtyAnnotationLedger
+
+    @Binds
+    @Singleton
     abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.AbsProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
 
     @Binds
@@ -414,7 +418,7 @@ abstract class DataModule {
             ledger: com.riffle.core.data.DirtyProgressLedger,
             resolver: com.riffle.core.data.ServerTokenResolver,
             remoteFactory: com.riffle.core.data.ProgressRemoteFactory,
-            locks: com.riffle.core.data.ProgressSyncLocks,
+            locks: com.riffle.core.data.ReconcileLocks,
             openTargets: com.riffle.core.data.OpenReconcileTargets,
             ebookStore: ReadingPositionStoreImpl,
             audioStore: AudiobookPositionStoreImpl,
@@ -817,6 +821,8 @@ abstract class DataModule {
             sweepEnqueuer: com.riffle.core.domain.AnnotationSweepEnqueuer,
             serverRepository: ServerRepository,
             libraryItemDao: com.riffle.core.database.LibraryItemDao,
+            locks: com.riffle.core.data.ReconcileLocks,
+            sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
         ): com.riffle.core.data.AnnotationSyncController =
             com.riffle.core.data.AnnotationSyncController(
                 targetProvider = { holder.current() },
@@ -833,6 +839,8 @@ abstract class DataModule {
                 bookTitleProvider = { sid, itemId ->
                     libraryItemDao.getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
                 },
+                locks = locks,
+                sentinelWriter = sentinelWriter,
             )
 
         @Provides
@@ -845,6 +853,9 @@ abstract class DataModule {
             serverRepository: ServerRepository,
             statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
             libraryItemDao: com.riffle.core.database.LibraryItemDao,
+            dirtyLedger: com.riffle.core.data.DirtyAnnotationLedger,
+            locks: com.riffle.core.data.ReconcileLocks,
+            sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
         ): com.riffle.core.data.AnnotationSweep =
             com.riffle.core.data.AnnotationSweep(
                 targetProvider = { holder.current() },
@@ -856,6 +867,9 @@ abstract class DataModule {
                 bookTitleProvider = { sid, itemId ->
                     libraryItemDao.getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
                 },
+                dirtyLedger = dirtyLedger,
+                locks = locks,
+                sentinelWriter = sentinelWriter,
             )
 
         @Provides

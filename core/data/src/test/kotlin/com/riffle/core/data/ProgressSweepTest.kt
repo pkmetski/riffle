@@ -96,7 +96,7 @@ class ProgressSweepTest {
     ) = ProgressSweep(
         ledger, resolver,
         ProgressReconciler(ebookStore), ProgressReconciler(audioStore),
-        factory, ProgressSyncLocks(), openTargets,
+        factory, ReconcileLocks(), openTargets,
         object : DirtyBookmarkLedger {
             override suspend fun serversWithDirty() = emptyList<String>()
             override suspend fun dirtyItems(serverId: String) = emptyList<String>()
