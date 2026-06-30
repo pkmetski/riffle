@@ -1,22 +1,17 @@
 package com.riffle.app.testing
 
-import com.riffle.core.domain.AudiobookDownloadRepository
-import com.riffle.core.domain.AudiobookDownloadResult
-import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.ReadaloudLinkReconciler
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.StorytellerReadaloudCacheSyncer
-import com.riffle.core.domain.usecase.DownloadAudiobook
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraries
 import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
-import com.riffle.core.domain.usecase.RemoveAudiobookDownload
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 
 /**
@@ -100,26 +95,6 @@ class NoopRefreshCollections(
 ) : RefreshCollections(NoopLibraryRefresher) {
     var calls = 0
     override suspend fun invoke(libraryId: String): LibraryRefreshResult { calls++; return result }
-}
-
-private object NoopAudiobookDownloadRepository : AudiobookDownloadRepository {
-    override fun isDownloaded(serverId: String, itemId: String) = false
-    override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
-    override suspend fun download(serverId: String, itemId: String, onProgress: (Long, Long) -> Unit) =
-        AudiobookDownloadResult.Success
-    override suspend fun remove(serverId: String, itemId: String): Long = 0L
-}
-
-class NoopDownloadAudiobook : DownloadAudiobook(NoopAudiobookDownloadRepository) {
-    override suspend fun invoke(
-        serverId: String,
-        itemId: String,
-        onProgress: (Long, Long) -> Unit,
-    ): AudiobookDownloadResult = AudiobookDownloadResult.Success
-}
-
-class NoopRemoveAudiobookDownload : RemoveAudiobookDownload(NoopAudiobookDownloadRepository) {
-    override suspend fun invoke(serverId: String, itemId: String): Long = 0L
 }
 
 private object NoopReadaloudLinkRepository : com.riffle.core.domain.ReadaloudLinkRepository {
