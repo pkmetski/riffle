@@ -11,7 +11,7 @@ import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryOrderPreferencesStore
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
@@ -82,7 +82,7 @@ class NavigationDrawerViewModelTest {
         override suspend fun getServerVersion(serverId: String): String? = fakeVersions[serverId]
     }
 
-    private fun fakeLibraryRepo(): LibraryRepository = object : LibraryRepository {
+    private fun fakeLibraryRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -101,12 +101,6 @@ class NavigationDrawerViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
@@ -149,7 +143,7 @@ class NavigationDrawerViewModelTest {
 
     private fun makeVm() = NavigationDrawerViewModel(
         serverRepository = fakeServerRepo(),
-        libraryRepository = fakeLibraryRepo(),
+        libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
         lastOpenedLibraryStore = fakeLastOpenedStore(),

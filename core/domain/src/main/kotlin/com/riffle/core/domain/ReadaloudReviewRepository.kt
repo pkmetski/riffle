@@ -3,8 +3,9 @@ package com.riffle.core.domain
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Backs the Readaloud-matches review queue (ADR 0021). Reads the auto-matcher's persisted
- * verdicts and the user's sticky decisions, and applies the per-candidate / per-book actions.
+ * Read-only surface over the auto-matcher's persisted verdicts (links + pending candidates) plus
+ * the user's sticky decisions (dismissals). Action mutations live on
+ * [ReadaloudReviewMutator] / [com.riffle.core.domain.usecase.ReadaloudReviewActions].
  */
 interface ReadaloudReviewRepository {
 
@@ -18,45 +19,6 @@ interface ReadaloudReviewRepository {
      * Servers so existing links can be inspected or unlinked.
      */
     fun observeReview(storytellerServerId: String, absServerId: String? = null): Flow<ReadaloudReview>
-
-    /** Confirm a candidate: create a sticky `userConfirmed` link and clear the book's candidates. */
-    suspend fun confirmCandidate(
-        storytellerServerId: String,
-        storytellerBookId: String,
-        absServerId: String,
-        absLibraryItemId: String,
-    )
-
-    /** Dismiss one candidate so this exact pair never re-surfaces in Pending Review. */
-    suspend fun dismissCandidate(
-        storytellerServerId: String,
-        storytellerBookId: String,
-        absServerId: String,
-        absLibraryItemId: String,
-    )
-
-    /** "No match — don't ask again": the book moves to Unmatched and stays there. */
-    suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String)
-
-    /**
-     * Unlink a Confirmed readaloud — removes **every** ABS row paired with it so the book returns
-     * to Unmatched in one action (a readaloud can be linked to several ABS items at once).
-     */
-    suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String)
-
-    /** Unlink a single ABS item from a readaloud, leaving any other links intact (used by the picker). */
-    suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String)
-
-    /**
-     * Manually pair an Unmatched readaloud to an ABS item the user chose from the picker. Creates a
-     * sticky `userConfirmed` link and clears any prior "don't ask again" / candidate state.
-     */
-    suspend fun pairManually(
-        storytellerServerId: String,
-        storytellerBookId: String,
-        absServerId: String,
-        absLibraryItemId: String,
-    )
 
     /**
      * Search ABS Library Items on a single ABS Server by title/author. [absServerId] scopes
@@ -73,4 +35,51 @@ interface ReadaloudReviewRepository {
         query: String,
         filter: AbsFormatFilter = AbsFormatFilter.ANY,
     ): List<AbsPickerItem>
+}
+
+/**
+ * Low-level mutator over the readaloud-link / candidate / dismissal tables. Implementations are
+ * pure DAO wrappers — no audio-settings rekey, no clock; that choreography lives in
+ * [com.riffle.core.domain.usecase.ReadaloudReviewActions].
+ */
+interface ReadaloudReviewMutator {
+
+    /** Insert or update a user-confirmed link from a Storyteller book to an ABS item. */
+    suspend fun createUserConfirmedLink(
+        storytellerServerId: String,
+        storytellerBookId: String,
+        absServerId: String,
+        absLibraryItemId: String,
+    )
+
+    /** Drop every pending candidate for this Storyteller book. */
+    suspend fun deleteCandidatesForBook(storytellerServerId: String, storytellerBookId: String)
+
+    /** Sticky "this specific candidate is wrong, don't ask again". */
+    suspend fun upsertCandidateDismissal(
+        storytellerServerId: String,
+        storytellerBookId: String,
+        absServerId: String,
+        absLibraryItemId: String,
+    )
+
+    /** Drop one pending candidate (called after dismissing it). */
+    suspend fun deleteCandidate(
+        storytellerServerId: String,
+        storytellerBookId: String,
+        absServerId: String,
+        absLibraryItemId: String,
+    )
+
+    /** Sticky "this book has no readaloud match, don't ask again". */
+    suspend fun upsertBookDismissal(storytellerServerId: String, storytellerBookId: String)
+
+    /** Drop a prior book-level dismissal (manual pairing overrides it). */
+    suspend fun clearBookDismissal(storytellerServerId: String, storytellerBookId: String)
+
+    /** Remove every link for this Storyteller book (returns the book to Unmatched). */
+    suspend fun deleteLinksForStorytellerBook(storytellerServerId: String, storytellerBookId: String)
+
+    /** Remove one ABS item's link. */
+    suspend fun deleteLinkForAbsItem(absServerId: String, absLibraryItemId: String)
 }

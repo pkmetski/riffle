@@ -40,7 +40,7 @@ open class ReadaloudMatchingService(
     private val readaloudCandidateDao: ReadaloudCandidateDao,
     private val readaloudDismissalDao: ReadaloudDismissalDao,
     private val clock: () -> Long = System::currentTimeMillis,
-) {
+) : com.riffle.core.domain.ReadaloudLinkReconciler {
     @Inject constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
@@ -48,7 +48,7 @@ open class ReadaloudMatchingService(
         readaloudDismissalDao: ReadaloudDismissalDao,
     ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
 
-    open suspend fun reconcileLinks() {
+    override suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
         val absItems = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
 

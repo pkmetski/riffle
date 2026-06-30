@@ -30,7 +30,7 @@ import com.riffle.core.domain.CrossEpubIndex
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
@@ -153,7 +153,8 @@ class AudiobookPlayerViewModelBookmarkTest {
             audiobookRepository = repo,
             audiobookDownloadRepository = NoDownloadRepo,
             bundleAudiobookSource = NoBundleSource,
-            libraryRepository = FakeLibraryRepository(),
+            libraryObserver = FakeLibraryRepository(),
+            updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
             serverRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
@@ -538,7 +539,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         override fun isAvailableOffline(serverId: String, itemId: String) = false
     }
 
-    private inner class FakeLibraryRepository : LibraryRepository {
+    private inner class FakeLibraryRepository : LibraryObserver {
         private val item = LibraryItem(
             id = itemId,
             libraryId = "lib",
@@ -555,7 +556,6 @@ class AudiobookPlayerViewModelBookmarkTest {
         )
         override suspend fun getItem(itemId: String): LibraryItem = item
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem = item
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override fun observeItem(itemId: String) = throw NotImplementedError()
         override fun observeLibraries() = throw NotImplementedError()
         override fun observeLibraries(serverId: String) = throw NotImplementedError()
@@ -572,11 +572,6 @@ class AudiobookPlayerViewModelBookmarkTest {
         override fun observeCollectionItems(collectionId: String) = throw NotImplementedError()
         override suspend fun getLibrary(libraryId: String) = throw NotImplementedError()
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun refreshLibraries() = throw NotImplementedError()
-        override suspend fun refreshLibraryItems(libraryId: String) = throw NotImplementedError()
-        override suspend fun refreshSeries(libraryId: String) = throw NotImplementedError()
-        override suspend fun refreshCollections(libraryId: String) = throw NotImplementedError()
     }
 
     private inner class FakeServerRepository : ServerRepository {
@@ -745,10 +740,9 @@ class AudiobookPlayerViewModelBookmarkTest {
         override suspend fun getServerVersion(serverId: String): String? = null
     }
 
-    private object StubLibrary : LibraryRepository {
+    private object StubLibrary : LibraryObserver {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = null
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
         override fun observeItem(itemId: String) = throw NotImplementedError()
         override fun observeLibraries() = throw NotImplementedError()
         override fun observeLibraries(serverId: String) = throw NotImplementedError()
@@ -765,11 +759,6 @@ class AudiobookPlayerViewModelBookmarkTest {
         override fun observeCollectionItems(collectionId: String) = throw NotImplementedError()
         override suspend fun getLibrary(libraryId: String) = throw NotImplementedError()
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun refreshLibraries() = throw NotImplementedError()
-        override suspend fun refreshLibraryItems(libraryId: String) = throw NotImplementedError()
-        override suspend fun refreshSeries(libraryId: String) = throw NotImplementedError()
-        override suspend fun refreshCollections(libraryId: String) = throw NotImplementedError()
     }
 
     private object StubIndexStore : CrossEpubIndexStore {

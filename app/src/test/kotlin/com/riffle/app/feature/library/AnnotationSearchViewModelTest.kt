@@ -7,8 +7,8 @@ import com.riffle.core.domain.Collection
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PendingServer
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
@@ -45,7 +45,7 @@ class AnnotationSearchViewModelTest {
     private val allItemsFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
     private val annotationsFlow = MutableStateFlow<List<Annotation>>(emptyList())
 
-    private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
+    private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
@@ -64,12 +64,6 @@ class AnnotationSearchViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = null
         override suspend fun getLibrary(libraryId: String): Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
     }
 
     private fun fakeAnnotationStore(): AnnotationStore = object : AnnotationStore {

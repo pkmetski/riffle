@@ -9,7 +9,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
@@ -45,7 +45,7 @@ class LibraryItemDetailViewModelTocTest {
 
     // --- fakes reused from LibraryItemDetailViewModelTest pattern ---
 
-    private fun fakeRepo(item: LibraryItem?): LibraryRepository = object : LibraryRepository {
+    private fun fakeRepo(item: LibraryItem?): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -64,12 +64,6 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
     private class FakeConnectivityObserver : ConnectivityObserver {
@@ -148,12 +142,14 @@ class LibraryItemDetailViewModelTocTest {
         fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = noOpFetchUseCase(),
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to (item?.id ?: "item-1"))),
-        repository = fakeRepo(item),
+        libraryObserver = fakeRepo(item),
+        recordItemOpened = com.riffle.app.testing.NoopRecordItemOpened(),
+        updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
+        markReadAcrossDimensions = com.riffle.app.testing.NoopMarkReadAcrossDimensions(),
         serverRepository = noOpServerRepo,
         tokenStorage = noOpTokenStorage,
         epubRepository = FakeEpubRepo(),
         pdfRepository = FakePdfRepo(),
-        sessionRepository = noOpSessionRepo,
         toReadRepository = noOpToReadRepository,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,

@@ -68,11 +68,11 @@ open class StorytellerReadaloudSyncer(
     private val libraryItemDao: LibraryItemDao,
     private val clock: () -> Long,
     private val ttlMillis: Long = STORYTELLER_SYNC_TTL_MILLIS,
-) {
+) : com.riffle.core.domain.StorytellerReadaloudCacheSyncer {
     private val lastSyncedAt = ConcurrentHashMap<String, Long>()
 
     /** Best-effort: fetch+store readalouds for each stale Storyteller server. Never throws. */
-    open suspend fun syncStale() {
+    override suspend fun syncStale() {
         val servers = runCatching { serverRepository.observeAll().first() }.getOrNull().orEmpty()
             .filter { it.serverType == ServerType.STORYTELLER }
         val now = clock()

@@ -12,12 +12,11 @@ import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsCandidate
 import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
-import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
+import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.UnmatchedReadaloud
@@ -28,9 +27,10 @@ import javax.inject.Singleton
 
 /**
  * Reads the auto-matcher's persisted verdicts ([ReadaloudLinkDao], [ReadaloudCandidateDao]) and the
- * user's sticky decisions ([ReadaloudDismissalDao]) to drive the review queue, and applies the
- * per-candidate / per-book actions. ABS titles, authors, library names and covers are resolved
- * lazily from [LibraryItemDao] / [LibraryDao].
+ * user's sticky decisions ([ReadaloudDismissalDao]) to drive the review queue. Pure DAO wrapper —
+ * the cross-cutting audio-settings rekey choreography lives in
+ * [com.riffle.core.domain.usecase.ReadaloudReviewActions]. ABS titles, authors, library names and
+ * covers are resolved lazily from [LibraryItemDao] / [LibraryDao].
  */
 @Singleton
 class ReadaloudReviewRepositoryImpl(
@@ -39,10 +39,8 @@ class ReadaloudReviewRepositoryImpl(
     private val linkDao: ReadaloudLinkDao,
     private val candidateDao: ReadaloudCandidateDao,
     private val dismissalDao: ReadaloudDismissalDao,
-    private val audioIdentityResolver: AudioIdentityResolver,
-    private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
     private val clock: () -> Long,
-) : ReadaloudReviewRepository {
+) : ReadaloudReviewRepository, ReadaloudReviewMutator {
 
     @Inject constructor(
         libraryItemDao: LibraryItemDao,
@@ -50,12 +48,7 @@ class ReadaloudReviewRepositoryImpl(
         linkDao: ReadaloudLinkDao,
         candidateDao: ReadaloudCandidateDao,
         dismissalDao: ReadaloudDismissalDao,
-        audioIdentityResolver: AudioIdentityResolver,
-        audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
-    ) : this(
-        libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao,
-        audioIdentityResolver, audioPlaybackPreferencesStore, System::currentTimeMillis,
-    )
+    ) : this(libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao, System::currentTimeMillis)
 
     override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
         combine(
@@ -174,20 +167,35 @@ class ReadaloudReviewRepositoryImpl(
         return ReadaloudReview(pending = pending, unmatched = unmatched, confirmed = confirmed)
     }
 
-    override suspend fun confirmCandidate(
+    // --- ReadaloudReviewMutator ---
+
+    override suspend fun createUserConfirmedLink(
         storytellerServerId: String,
         storytellerBookId: String,
         absServerId: String,
         absLibraryItemId: String,
     ) {
-        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
-            createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-            // The book is now Confirmed; drop all of its Pending-Review candidates.
-            candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
-        }
+        val now = clock()
+        val existing = linkDao.findByAbsItem(absServerId, absLibraryItemId)
+        linkDao.upsert(
+            ReadaloudLinkEntity(
+                absServerId = absServerId,
+                absLibraryItemId = absLibraryItemId,
+                storytellerServerId = storytellerServerId,
+                storytellerBookId = storytellerBookId,
+                state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                userConfirmed = true,
+                createdAt = existing?.createdAt ?: now,
+                updatedAt = now,
+            )
+        )
     }
 
-    override suspend fun dismissCandidate(
+    override suspend fun deleteCandidatesForBook(storytellerServerId: String, storytellerBookId: String) {
+        candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
+    }
+
+    override suspend fun upsertCandidateDismissal(
         storytellerServerId: String,
         storytellerBookId: String,
         absServerId: String,
@@ -202,10 +210,18 @@ class ReadaloudReviewRepositoryImpl(
                 absLibraryItemId = absLibraryItemId,
             )
         )
+    }
+
+    override suspend fun deleteCandidate(
+        storytellerServerId: String,
+        storytellerBookId: String,
+        absServerId: String,
+        absLibraryItemId: String,
+    ) {
         candidateDao.deleteCandidate(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
     }
 
-    override suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) {
+    override suspend fun upsertBookDismissal(storytellerServerId: String, storytellerBookId: String) {
         dismissalDao.upsert(
             ReadaloudDismissalEntity(
                 storytellerServerId = storytellerServerId,
@@ -213,55 +229,21 @@ class ReadaloudReviewRepositoryImpl(
                 scope = ReadaloudDismissalEntity.SCOPE_BOOK,
             )
         )
-        candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
     }
 
-    override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) {
-        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
-            linkDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
-        }
+    override suspend fun clearBookDismissal(storytellerServerId: String, storytellerBookId: String) {
+        dismissalDao.clearBookDismissal(storytellerServerId, storytellerBookId)
     }
 
-    override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) {
-        val link = linkDao.findByAbsItem(absServerId, absLibraryItemId)
-        if (link == null) {
-            linkDao.deleteByAbsItem(absServerId, absLibraryItemId)
-            return
-        }
-        rekeyAudioSettingsAround(link.storytellerServerId, link.storytellerBookId) {
-            linkDao.deleteByAbsItem(absServerId, absLibraryItemId)
-        }
+    override suspend fun deleteLinksForStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
+        linkDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
     }
 
-    override suspend fun pairManually(
-        storytellerServerId: String,
-        storytellerBookId: String,
-        absServerId: String,
-        absLibraryItemId: String,
-    ) {
-        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
-            createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-            // Manual pairing overrides any prior "don't ask again" and clears stale candidates.
-            dismissalDao.clearBookDismissal(storytellerServerId, storytellerBookId)
-            candidateDao.deleteByStorytellerBook(storytellerServerId, storytellerBookId)
-        }
+    override suspend fun deleteLinkForAbsItem(absServerId: String, absLibraryItemId: String) {
+        linkDao.deleteByAbsItem(absServerId, absLibraryItemId)
     }
 
-    /**
-     * Runs [mutate] (a link/unlink change), then migrates the per-book audio-settings record if the
-     * change moved the readaloud's canonical audio identity (ADR 0028) — e.g. linking an audiobook
-     * moves the saved speed from the Storyteller id onto the audiobook id; unlinking moves it back.
-     */
-    private suspend fun rekeyAudioSettingsAround(
-        storytellerServerId: String,
-        storytellerBookId: String,
-        mutate: suspend () -> Unit,
-    ) {
-        val before = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
-        mutate()
-        val after = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
-        if (before != after) audioPlaybackPreferencesStore.rekey(before, after)
-    }
+    // --- queries ---
 
     override suspend fun searchAbsItems(absServerId: String, query: String, filter: AbsFormatFilter): List<AbsPickerItem> {
         if (absServerId.isEmpty()) return emptyList()
@@ -306,26 +288,4 @@ class ReadaloudReviewRepositoryImpl(
     /** True when this ABS item carries a readable ebook (epub/pdf), i.e. not an audio-only stub. */
     private fun LibraryItemEntity.hasEbook(): Boolean =
         EbookFormat.from(ebookFormat) != EbookFormat.Unsupported
-
-    private suspend fun createUserConfirmedLink(
-        storytellerServerId: String,
-        storytellerBookId: String,
-        absServerId: String,
-        absLibraryItemId: String,
-    ) {
-        val now = clock()
-        val existing = linkDao.findByAbsItem(absServerId, absLibraryItemId)
-        linkDao.upsert(
-            ReadaloudLinkEntity(
-                absServerId = absServerId,
-                absLibraryItemId = absLibraryItemId,
-                storytellerServerId = storytellerServerId,
-                storytellerBookId = storytellerBookId,
-                state = ReadaloudLinkEntity.STATE_CONFIRMED,
-                userConfirmed = true,
-                createdAt = existing?.createdAt ?: now,
-                updatedAt = now,
-            )
-        )
-    }
 }

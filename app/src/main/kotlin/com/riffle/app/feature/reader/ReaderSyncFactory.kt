@@ -9,7 +9,7 @@ import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.ExtractedEpub
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudSidecarCache
@@ -34,7 +34,7 @@ open class ReaderSyncFactory @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val indexStore: CrossEpubIndexStore,
     private val absSessionApi: AbsSessionApi,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
     private val crossEpubIndexBuildTrigger: CrossEpubIndexBuildTrigger,
@@ -52,7 +52,7 @@ open class ReaderSyncFactory @Inject constructor(
         val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
         val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
         val linkedMedia = allLinks.mapNotNull { l ->
-            val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
+            val item = libraryObserver.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
             AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)
@@ -128,7 +128,7 @@ open class ReaderSyncFactory @Inject constructor(
         val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
         val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
         val linkedMedia = allLinks.mapNotNull { l ->
-            val item = libraryRepository.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
+            val item = libraryObserver.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
             AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)

@@ -15,7 +15,7 @@ import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
@@ -95,7 +95,7 @@ class LibraryItemsViewModelTest {
             override suspend fun delete(id: String, now: Long) = error("unused")
         }
 
-    private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
+    private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
@@ -116,12 +116,6 @@ class LibraryItemsViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
     }
 
     private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
@@ -199,7 +193,9 @@ class LibraryItemsViewModelTest {
         epubRepository: EpubRepository = fakeEpubRepo(),
         pdfRepository: PdfRepository = fakePdfRepo(),
         audiobookDownloadRepository: AudiobookDownloadRepository = fakeAudiobookDownloadRepo(),
-        libraryRepository: LibraryRepository = fakeRepo(),
+        libraryRepository: LibraryObserver = fakeRepo(),
+        refreshLibraryItemsUseCase: com.riffle.core.domain.usecase.RefreshLibraryItems =
+            com.riffle.app.testing.NoopRefreshLibraryItems(),
         serverRepository: ServerRepository = fakeServerRepo(),
         tokenStorage: TokenStorage = fakeTokenStorage(),
         toReadRepository: ToReadRepository = FakeToReadRepository(),
@@ -212,11 +208,14 @@ class LibraryItemsViewModelTest {
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
     ) = LibraryItemsViewModel(
-        savedStateHandle,
-        libraryRepository,
-        serverRepository,
-        tokenStorage,
-        LibraryItemOfflineAvailability(
+        savedStateHandle = savedStateHandle,
+        libraryObserver = libraryRepository,
+        refreshLibraryItemsUseCase = refreshLibraryItemsUseCase,
+        refreshSeriesUseCase = com.riffle.app.testing.NoopRefreshSeries(),
+        refreshCollectionsUseCase = com.riffle.app.testing.NoopRefreshCollections(),
+        serverRepository = serverRepository,
+        tokenStorage = tokenStorage,
+        offlineAvailability = LibraryItemOfflineAvailability(
             epubRepository,
             pdfRepository,
             audiobookDownloadRepository,
@@ -225,13 +224,13 @@ class LibraryItemsViewModelTest {
                 override fun isAvailableOffline(serverId: String, itemId: String) = false
             },
         ),
-        connectivityObserver,
-        toReadRepository,
-        readaloudLinkRepository,
-        coverGridDensityStore,
-        annotationStore,
-        audiobookBookmarkStore,
-        object : com.riffle.core.domain.Clock {
+        connectivityObserver = connectivityObserver,
+        toReadRepository = toReadRepository,
+        readaloudLinkRepository = readaloudLinkRepository,
+        coverGridDensityStore = coverGridDensityStore,
+        annotationStore = annotationStore,
+        audiobookBookmarkStore = audiobookBookmarkStore,
+        clock = object : com.riffle.core.domain.Clock {
             override fun nowMs(): Long = 0L
             override fun nowNs(): Long = 0L
         },
@@ -777,45 +776,29 @@ class LibraryItemsViewModelTest {
 
     // --- periodic retry while refresh is failing ---
 
-    private fun countingRepo(
-        refreshResult: () -> LibraryRefreshResult,
-        onRefreshCall: () -> Unit = {},
-    ): LibraryRepository = object : LibraryRepository {
-        override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
-        override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
-        override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = itemsFlow
-        override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
-        override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = finishedFlow
-        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = recentlyAddedFlow
-        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = continueSeriesFlow
-        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
-        override fun observeSeries(libraryId: String): Flow<List<Series>> = seriesFlow
-        override fun observeCollections(libraryId: String): Flow<List<Collection>> = collectionsFlow
-        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
-            seriesItemsBySeriesId.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
-        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
-            collectionItemsByCollectionId.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
-        override suspend fun getItem(itemId: String): LibraryItem? = null
-        override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
-            onRefreshCall(); return refreshResult()
+    private class CountingRefreshLibraryItems(
+        val refreshResult: () -> LibraryRefreshResult,
+        val onCall: () -> Unit = {},
+    ) : com.riffle.core.domain.usecase.RefreshLibraryItems(
+        com.riffle.app.testing.NoopLibraryRefresher,
+        object : com.riffle.core.domain.StorytellerReadaloudCacheSyncer {
+            override suspend fun syncStale() = Unit
+        },
+        object : com.riffle.core.domain.ReadaloudLinkReconciler {
+            override suspend fun reconcileLinks() = Unit
+        },
+        com.riffle.app.testing.TestApplicationScope(kotlinx.coroutines.GlobalScope),
+    ) {
+        override suspend fun invoke(libraryId: String): LibraryRefreshResult {
+            onCall(); return refreshResult()
         }
-        override suspend fun refreshSeries(libraryId: String) = refreshResult()
-        override suspend fun refreshCollections(libraryId: String) = refreshResult()
     }
 
     @Test
     fun `does not poll while refresh keeps succeeding`() = runTest {
         var refreshCount = 0
         val vm = makeViewModel(
-            libraryRepository = countingRepo({ LibraryRefreshResult.Success }) { refreshCount++ },
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({ LibraryRefreshResult.Success }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -831,7 +814,7 @@ class LibraryItemsViewModelTest {
         var refreshCount = 0
         var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
         val vm = makeViewModel(
-            libraryRepository = countingRepo({ result }) { refreshCount++ },
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({ result }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         // advanceUntilIdle() would hang here — once _refreshFailed is true the polling
@@ -856,7 +839,7 @@ class LibraryItemsViewModelTest {
     fun `does not poll while device is offline`() = runTest {
         var refreshCount = 0
         val vm = makeViewModel(
-            libraryRepository = countingRepo({ LibraryRefreshResult.NetworkError(RuntimeException("boom")) }) { refreshCount++ },
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({ LibraryRefreshResult.NetworkError(RuntimeException("boom")) }) { refreshCount++ },
             connectivityObserver = FakeConnectivityObserver(online = false),
         )
         backgroundScope.launch { vm.isOffline.collect {} }
@@ -873,7 +856,7 @@ class LibraryItemsViewModelTest {
         var refreshCount = 0
         var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
         val vm = makeViewModel(
-            libraryRepository = countingRepo({ result }) { refreshCount++ },
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({ result }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         testDispatcher.scheduler.runCurrent()

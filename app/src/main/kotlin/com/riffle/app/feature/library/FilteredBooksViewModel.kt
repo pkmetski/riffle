@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -32,7 +32,7 @@ import javax.inject.Inject
 @HiltViewModel
 class FilteredBooksViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val offlineAvailability: LibraryItemOfflineAvailability,
@@ -51,7 +51,7 @@ class FilteredBooksViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val items: StateFlow<List<LibraryItem>> = combine(
-        libraryRepository.observeLibraryItems(libraryId),
+        libraryObserver.observeLibraryItems(libraryId),
         readaloudLinkRepository.observeLinkedAbsItemIds(),
         connectivityObserver.isOnline,
     ) { all, linkedIds, online ->

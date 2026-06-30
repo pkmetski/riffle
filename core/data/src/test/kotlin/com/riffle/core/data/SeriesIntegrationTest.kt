@@ -150,33 +150,8 @@ class SeriesIntegrationTest {
             collectionDao = FakeCollectionDao(),
             serverRepository = fakeServerRepository,
             tokenStorage = fakeTokenStorage,
-            readingSessionRepository = NoopReadingSessionRepository,
-            readaloudMatchingService = ReadaloudMatchingService(itemDao, NoopReadaloudLinkDao, NoopReadaloudCandidateDao, NoopReadaloudDismissalDao),
-            storytellerReadaloudSyncer = StorytellerReadaloudSyncer(
-                fakeServerRepository, fakeTokenStorage,
-                object : com.riffle.core.network.StorytellerLibraryApi {
-                    override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean): com.riffle.core.network.NetworkResult<Boolean> =
-                        com.riffle.core.network.NetworkResult.Success(true)
-                    override suspend fun listReadalouds(baseUrl: String, token: String, insecureAllowed: Boolean): com.riffle.core.network.NetworkResult<List<com.riffle.core.network.NetworkStorytellerBook>> =
-                        com.riffle.core.network.NetworkResult.Success(emptyList())
-                    override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean): com.riffle.core.network.NetworkResult<com.riffle.core.network.NetworkStorytellerBook> =
-                        com.riffle.core.network.NetworkResult.ServerError(404)
-                    override fun coverUrl(baseUrl: String, bookId: Long) = "$baseUrl/api/books/$bookId/cover"
-                },
-                itemDao, { 0L },
-            ),
             clock = com.riffle.core.domain.TestClock(),
-            applicationScope = com.riffle.core.data.testing.TestApplicationScope(),
         )
-    }
-
-    private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
-        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
-            com.riffle.core.domain.SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
-            com.riffle.core.domain.ProgressSyncCycleResult.InSync
-        override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
-        override suspend fun touchOpenTimestamp(itemId: String) = Unit
     }
 
     // JSON matching a real Audiobookshelf /api/libraries/{id}/series?minified=1 response

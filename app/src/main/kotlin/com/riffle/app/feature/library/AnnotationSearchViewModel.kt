@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,7 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AnnotationSearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    libraryRepository: LibraryRepository,
+    libraryObserver: LibraryObserver,
     annotationStore: AnnotationStore,
     audiobookBookmarkStore: AudiobookBookmarkStore,
     private val serverRepository: ServerRepository,
@@ -40,7 +40,7 @@ class AnnotationSearchViewModel @Inject constructor(
     private val _authToken = MutableStateFlow("")
     val authToken: StateFlow<String> = _authToken.asStateFlow()
 
-    private val libraryItems = libraryRepository.observeLibraryItems(libraryId)
+    private val libraryItems = libraryObserver.observeLibraryItems(libraryId)
 
     val results: StateFlow<List<AnnotationSearchResult>> =
         libraryItems

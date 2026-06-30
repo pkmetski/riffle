@@ -2,6 +2,7 @@ package com.riffle.core.data.di.modules
 
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
+import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerReadaloudSyncer
@@ -47,6 +48,14 @@ abstract class SyncModule {
     @Binds
     @Singleton
     abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.AbsProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
+
+    @Binds
+    @Singleton
+    abstract fun bindReadaloudLinkReconciler(impl: ReadaloudMatchingService): com.riffle.core.domain.ReadaloudLinkReconciler
+
+    @Binds
+    @Singleton
+    abstract fun bindStorytellerReadaloudCacheSyncer(impl: StorytellerReadaloudSyncer): com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 
     companion object {
         // Durable offline progress reconcile (ADR 0030): resolve a serverId to its server+token

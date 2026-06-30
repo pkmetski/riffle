@@ -14,7 +14,8 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
 import com.riffle.core.domain.Clock
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -155,7 +156,8 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
     private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val updateReadingProgressUseCase: UpdateReadingProgress,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val controller: AudiobookController,
@@ -246,7 +248,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     // `library_items` so the detail/library screens reflect listening, without invalidating the library
     // Room flow per tick. Backend (ABS) sync runs outside this coordinator (ADR 0029).
     private val positionSaveCoordinator = com.riffle.app.feature.reader.PositionSaveCoordinator<Double>(
-        updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
+        updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
         savePosition = { pos ->
             if (serverId.isNotEmpty()) {
                 audiobookPositionStore.save(serverId, itemId, pos)
@@ -368,7 +370,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             }
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
             logger.d(LogChannel.Handoff) { "AB.VM init: got server +${clock.nowMs() - t0}ms" }
-            val item = libraryRepository.getItem(itemId)
+            val item = libraryObserver.getItem(itemId)
             logger.d(LogChannel.Handoff) { "AB.VM init: got item +${clock.nowMs() - t0}ms" }
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
             // stream from ABS (connectivity-independent: a local copy always beats streaming).
@@ -479,7 +481,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
                     .firstOrNull { t ->
                         t.absLibraryItemId != itemId &&
-                            libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isReadable == true
+                            libraryObserver.getItem(t.absServerId, t.absLibraryItemId)?.isReadable == true
                     }
                     ?.absLibraryItemId
                     ?: itemId.takeIf { item.isReadable }

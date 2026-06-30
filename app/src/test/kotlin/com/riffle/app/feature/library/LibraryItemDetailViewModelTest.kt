@@ -16,7 +16,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
@@ -71,7 +71,7 @@ class LibraryItemDetailViewModelTest {
     private fun fakeRepo(
         item: LibraryItem? = null,
         itemFlow: MutableStateFlow<LibraryItem?> = MutableStateFlow(item),
-    ): LibraryRepository = object : LibraryRepository {
+    ): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -90,15 +90,9 @@ class LibraryItemDetailViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
-    private fun throwingRepo(): LibraryRepository = object : LibraryRepository {
+    private fun throwingRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -117,12 +111,6 @@ class LibraryItemDetailViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
     private val noOpServerRepo = object : ServerRepository {
@@ -243,7 +231,7 @@ class LibraryItemDetailViewModelTest {
     }
 
     private fun makeVm(
-        repo: LibraryRepository,
+        repo: LibraryObserver,
         itemId: String = "item-1",
         epubRepository: EpubRepository = FakeEpubRepository(),
         pdfRepository: PdfRepository = FakePdfRepository(),
@@ -263,12 +251,19 @@ class LibraryItemDetailViewModelTest {
         },
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
-        repository = repo,
+        libraryObserver = repo,
+        recordItemOpened = com.riffle.app.testing.NoopRecordItemOpened(),
+        updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
+        markReadAcrossDimensions = com.riffle.core.domain.usecase.MarkReadAcrossDimensions(
+            libraryMutator = com.riffle.app.testing.NoopLibraryMutator,
+            readingSessionRepository = sessionRepository,
+            readaloudLinkRepository = readaloudLinkRepository,
+            serverRepository = serverRepository,
+        ),
         serverRepository = serverRepository,
         tokenStorage = noOpTokenStorage,
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
-        sessionRepository = sessionRepository,
         toReadRepository = toReadRepo,
         readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = readaloudAudioRepository,

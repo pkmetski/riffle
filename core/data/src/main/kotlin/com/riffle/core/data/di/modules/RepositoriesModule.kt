@@ -24,7 +24,9 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryMutator
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
@@ -50,7 +52,15 @@ abstract class RepositoriesModule {
 
     @Binds
     @Singleton
-    abstract fun bindLibraryRepository(impl: LibraryRepositoryImpl): LibraryRepository
+    abstract fun bindLibraryObserver(impl: LibraryRepositoryImpl): LibraryObserver
+
+    @Binds
+    @Singleton
+    abstract fun bindLibraryMutator(impl: LibraryRepositoryImpl): LibraryMutator
+
+    @Binds
+    @Singleton
+    abstract fun bindLibraryRefresher(impl: LibraryRepositoryImpl): LibraryRefresher
 
     @Binds
     @Singleton

@@ -2,10 +2,11 @@ package com.riffle.app.feature.navigation
 
 import androidx.lifecycle.ViewModel
 import com.riffle.core.domain.LastOpenedLibraryStore
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.usecase.RefreshLibraries
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -15,7 +16,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val refreshLibraries: RefreshLibraries,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val lastOpenedLibraryStore: LastOpenedLibraryStore,
 ) : ViewModel() {
@@ -31,11 +33,11 @@ class HomeViewModel @Inject constructor(
         if (servers.isEmpty()) return@withContext StartDestination.AddServer
 
         val activeServer = servers.firstOrNull { it.isActive } ?: servers.first()
-        var libraries = libraryRepository.observeLibraries().first()
+        var libraries = libraryObserver.observeLibraries().first()
 
         if (libraries.isEmpty()) {
-            val refreshResult = libraryRepository.refreshLibraries()
-            libraries = libraryRepository.observeLibraries().first()
+            val refreshResult = refreshLibraries()
+            libraries = libraryObserver.observeLibraries().first()
             if (libraries.isEmpty()) {
                 return@withContext when (refreshResult) {
                     LibraryRefreshResult.Success -> StartDestination.AddServer

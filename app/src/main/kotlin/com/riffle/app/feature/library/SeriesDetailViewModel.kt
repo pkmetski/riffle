@@ -10,7 +10,8 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +30,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SeriesDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val refreshSeriesUseCase: RefreshSeries,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val offlineAvailability: LibraryItemOfflineAvailability,
@@ -39,7 +41,7 @@ class SeriesDetailViewModel @Inject constructor(
     val seriesId: String = savedStateHandle.get<String>("seriesId") ?: ""
     private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
-    private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeSeriesItems(seriesId)
+    private val allItems: StateFlow<List<LibraryItem>> = libraryObserver.observeSeriesItems(seriesId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _refreshFailed = MutableStateFlow(false)
@@ -93,7 +95,7 @@ class SeriesDetailViewModel @Inject constructor(
     }
 
     private suspend fun runRefresh() {
-        _refreshFailed.value = libraryRepository.refreshSeries(libraryId) is LibraryRefreshResult.NetworkError
+        _refreshFailed.value = refreshSeriesUseCase(libraryId) is LibraryRefreshResult.NetworkError
     }
 
     private companion object {

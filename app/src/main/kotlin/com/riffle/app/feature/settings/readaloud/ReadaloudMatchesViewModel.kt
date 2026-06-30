@@ -10,6 +10,7 @@ import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
+import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
@@ -34,6 +35,7 @@ import javax.inject.Inject
 class ReadaloudMatchesViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val reviewRepository: ReadaloudReviewRepository,
+    private val reviewActions: ReadaloudReviewActions,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
@@ -116,7 +118,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
 
     fun confirm(book: PendingReadaloud, candidate: AbsCandidate) {
         viewModelScope.launch {
-            reviewRepository.confirmCandidate(
+            reviewActions.confirmCandidate(
                 book.storytellerServerId, book.storytellerBookId,
                 candidate.absServerId, candidate.absLibraryItemId,
             )
@@ -125,7 +127,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
 
     fun dismissCandidate(book: PendingReadaloud, candidate: AbsCandidate) {
         viewModelScope.launch {
-            reviewRepository.dismissCandidate(
+            reviewActions.dismissCandidate(
                 book.storytellerServerId, book.storytellerBookId,
                 candidate.absServerId, candidate.absLibraryItemId,
             )
@@ -134,20 +136,20 @@ class ReadaloudMatchesViewModel @Inject constructor(
 
     fun dismissBook(book: PendingReadaloud) {
         viewModelScope.launch {
-            reviewRepository.dismissBook(book.storytellerServerId, book.storytellerBookId)
+            reviewActions.dismissBook(book.storytellerServerId, book.storytellerBookId)
         }
     }
 
     fun unlinkBook(link: ConfirmedReadaloud) {
         viewModelScope.launch {
-            reviewRepository.unlinkBook(link.storytellerServerId, link.storytellerBookId)
+            reviewActions.unlinkBook(link.storytellerServerId, link.storytellerBookId)
         }
     }
 
     /** Detach a single ABS item from a readaloud (used by the picker's per-row Unlink). */
     fun unlinkAbsItem(item: AbsPickerItem) {
         viewModelScope.launch {
-            reviewRepository.unlinkAbsItem(item.absServerId, item.absLibraryItemId)
+            reviewActions.unlinkAbsItem(item.absServerId, item.absLibraryItemId)
         }
     }
 
@@ -157,7 +159,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
 
     fun pairManually(storytellerBookId: String, item: AbsPickerItem) {
         viewModelScope.launch {
-            reviewRepository.pairManually(
+            reviewActions.pairManually(
                 serverId, storytellerBookId, item.absServerId, item.absLibraryItemId,
             )
         }

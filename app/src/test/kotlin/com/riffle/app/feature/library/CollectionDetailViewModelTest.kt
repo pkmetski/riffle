@@ -15,7 +15,7 @@ import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
@@ -49,39 +49,17 @@ class CollectionDetailViewModelTest {
 
     private val collectionItemsFlow = MutableStateFlow<List<LibraryItem>>(emptyList())
 
-    private fun countingRepo(
-        refreshResult: () -> LibraryRefreshResult,
-        onRefreshCall: () -> Unit = {},
-    ): LibraryRepository = object : LibraryRepository {
-        override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
-        override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeSeries(libraryId: String): Flow<List<Series>> = MutableStateFlow(emptyList())
-        override fun observeCollections(libraryId: String): Flow<List<Collection>> = MutableStateFlow(emptyList())
-        override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
-        override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = collectionItemsFlow
-        override suspend fun getItem(itemId: String): LibraryItem? = null
-        override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
-            onRefreshCall(); return refreshResult()
+    /** Counts how many times [RefreshCollections] is called and what result it returns. */
+    private class CountingRefreshCollections(
+        val refreshResult: () -> LibraryRefreshResult,
+        val onCall: () -> Unit = {},
+    ) : com.riffle.core.domain.usecase.RefreshCollections(com.riffle.app.testing.NoopLibraryRefresher) {
+        override suspend fun invoke(libraryId: String): LibraryRefreshResult {
+            onCall(); return refreshResult()
         }
     }
 
-    private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
+    private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -100,12 +78,6 @@ class CollectionDetailViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
     }
 
     private val noOpServerRepo = object : ServerRepository {
@@ -160,10 +132,13 @@ class CollectionDetailViewModelTest {
     private fun makeVm(
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
         epubRepository: EpubRepository = FakeEpubRepository(),
-        libraryRepository: LibraryRepository = fakeRepo(),
+        libraryObserver: LibraryObserver = fakeRepo(),
+        refreshCollectionsUseCase: com.riffle.core.domain.usecase.RefreshCollections =
+            CountingRefreshCollections({ LibraryRefreshResult.Success }),
     ) = CollectionDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("collectionId" to "col-1", "libraryId" to "lib-1")),
-        libraryRepository = libraryRepository,
+        libraryObserver = libraryObserver,
+        refreshCollectionsUseCase = refreshCollectionsUseCase,
         serverRepository = noOpServerRepo,
         tokenStorage = noOpTokenStorage,
         offlineAvailability = LibraryItemOfflineAvailability(
@@ -221,7 +196,7 @@ class CollectionDetailViewModelTest {
     fun `does not poll while refresh keeps succeeding`() = runTest {
         var refreshCount = 0
         val vm = makeVm(
-            libraryRepository = countingRepo({ LibraryRefreshResult.Success }) { refreshCount++ },
+            refreshCollectionsUseCase = CountingRefreshCollections({ LibraryRefreshResult.Success }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -236,7 +211,7 @@ class CollectionDetailViewModelTest {
         var refreshCount = 0
         var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
         val vm = makeVm(
-            libraryRepository = countingRepo({ result }) { refreshCount++ },
+            refreshCollectionsUseCase = CountingRefreshCollections({ result }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         // advanceUntilIdle() would hang here — once _refreshFailed is true the polling
@@ -263,7 +238,7 @@ class CollectionDetailViewModelTest {
         val connectivity = FakeConnectivityObserver(online = false)
         val vm = makeVm(
             connectivityObserver = connectivity,
-            libraryRepository = countingRepo({ LibraryRefreshResult.NetworkError(RuntimeException("boom")) }) { refreshCount++ },
+            refreshCollectionsUseCase = CountingRefreshCollections({ LibraryRefreshResult.NetworkError(RuntimeException("boom")) }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -279,7 +254,7 @@ class CollectionDetailViewModelTest {
         var refreshCount = 0
         var result: LibraryRefreshResult = LibraryRefreshResult.NetworkError(RuntimeException("boom"))
         val vm = makeVm(
-            libraryRepository = countingRepo({ result }) { refreshCount++ },
+            refreshCollectionsUseCase = CountingRefreshCollections({ result }) { refreshCount++ },
         )
         backgroundScope.launch { vm.isOffline.collect {} }
         testDispatcher.scheduler.runCurrent()
