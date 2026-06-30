@@ -59,6 +59,10 @@ open class ReadaloudController @Inject constructor(
         val chapterCount: Int = 0,
     )
 
+    init {
+        SharedBundle.logger = logger
+    }
+
     // Main.immediate is required for Media3 MediaController calls; the survivable Job tree comes from
     // ApplicationScope. Tests use the protected no-arg constructor and subclasses override every method
     // that launches on this scope, so [applicationScope] is permitted to be null — the fallback mirrors

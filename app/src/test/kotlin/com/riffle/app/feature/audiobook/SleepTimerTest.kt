@@ -43,6 +43,7 @@ import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
@@ -538,6 +539,7 @@ class SleepTimerTest {
         StubLocalStore,
         StubBuildTrigger,
         sidecarCache = { _, _ -> null },
+        logger = RecordingLogger(),
     ) {
         override suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? = null
         override suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? = null

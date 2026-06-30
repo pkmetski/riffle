@@ -1,13 +1,14 @@
 package com.riffle.app.feature.reader.readaloud
 
 import android.net.Uri
-import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipFile
@@ -20,7 +21,7 @@ import java.util.zip.ZipFile
  * Seeks are honoured by reopening the entry and skipping, since zip entry streams are forward-only.
  */
 @OptIn(UnstableApi::class)
-internal class ZipAudioDataSource(private val bundle: File) : BaseDataSource(/* isNetwork = */ false) {
+internal class ZipAudioDataSource(private val bundle: File, private val logger: Logger) : BaseDataSource(/* isNetwork = */ false) {
 
     private var zip: ZipFile? = null
     private var stream: InputStream? = null
@@ -36,12 +37,12 @@ internal class ZipAudioDataSource(private val bundle: File) : BaseDataSource(/* 
         val z = try {
             ZipFile(bundle).also { zip = it }
         } catch (e: Exception) {
-            Log.e(LOG, "open: ZipFile(${bundle.name} size=${bundle.length()}) FAILED for $entryPath", e)
+            logger.e(LogChannel.Readaloud, e) { "open: ZipFile(${bundle.name} size=${bundle.length()}) FAILED for $entryPath" }
             throw e
         }
         val entry = z.getEntry(entryPath)
         if (entry == null) {
-            Log.e(LOG, "open: MISSING entry '$entryPath' in ${bundle.name} (size=${bundle.length()}); likely a truncated bundle")
+            logger.e(LogChannel.Readaloud) { "open: MISSING entry '$entryPath' in ${bundle.name} (size=${bundle.length()}); likely a truncated bundle" }
             throw java.io.IOException("Missing audio entry: $entryPath")
         }
         val full = entry.size
@@ -87,13 +88,11 @@ internal class ZipAudioDataSource(private val bundle: File) : BaseDataSource(/* 
         }
     }
 
-    class Factory(private val bundle: File) : DataSource.Factory {
-        override fun createDataSource(): DataSource = ZipAudioDataSource(bundle)
+    class Factory(private val bundle: File, private val logger: Logger) : DataSource.Factory {
+        override fun createDataSource(): DataSource = ZipAudioDataSource(bundle, logger)
     }
 
     companion object {
-        private const val LOG = "RIFFLE_RA"
-
         /** Builds the playback URI for a zip-internal audio entry path. */
         fun uriFor(entryPath: String): Uri = Uri.parse("zipaudio:///$entryPath")
     }

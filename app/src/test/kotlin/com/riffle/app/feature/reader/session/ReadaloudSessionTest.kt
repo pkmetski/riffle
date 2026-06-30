@@ -26,6 +26,7 @@ import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SyncPositionStore
+import com.riffle.core.logging.RecordingLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -229,6 +230,7 @@ class ReadaloudSessionTest {
                 io.mockk.every { it.isOnline } returns MutableStateFlow(true)
             },
             nowPlayingStore = NowPlayingStore(),
+            logger = RecordingLogger(),
         )
     }
 
@@ -443,6 +445,7 @@ class ReadaloudSessionTest {
                 every { it.isOnline } returns MutableStateFlow(true)
             },
             nowPlayingStore = NowPlayingStore(),
+            logger = RecordingLogger(),
         )
     }
 
@@ -595,6 +598,7 @@ class ReadaloudSessionTest {
                 every { it.isMetered() } returns false
             },
             nowPlayingStore = NowPlayingStore(),
+            logger = RecordingLogger(),
         )
     }
 
@@ -827,6 +831,7 @@ class ReadaloudSessionTest {
                     every { it.isOnline } returns MutableStateFlow(true)
                 },
                 nowPlayingStore = NowPlayingStore(),
+                logger = RecordingLogger(),
             )
             // Wire up the audiobook item id that will be signalled
             session._audiobookItemId.value = abItemId
@@ -976,6 +981,7 @@ class ReadaloudSessionTest {
             every { it.isOnline } returns MutableStateFlow(true)
         },
         nowPlayingStore = NowPlayingStore(),
+        logger = RecordingLogger(),
     )
 
     @Test
