@@ -2,158 +2,32 @@ package com.riffle.app.feature.reader
 
 import java.net.URLDecoder
 import org.json.JSONObject
-import org.readium.r2.navigator.epub.EpubNavigatorFragment
-import org.readium.r2.shared.publication.Link
-import org.readium.r2.shared.publication.Locator
 
 /**
- * The single owner of paginated column-snapping for the EPUB reader. Every place that needs the page to
- * rest flush on the column grid goes through this object — navigation routes (TOC / search / resume),
- * in-document cross-references, the read-aloud follow, and the at-rest backstop — so a NEW navigation
- * route gets correct snapping just by calling [goAndSnap]; it never re-implements the grid math, the
- * reflow-tracking rAF loop, or the `innerWidth == page-snap pitch` assumption.
+ * JS-builder primitives that drive paginated column-snapping in the EPUB reader. The
+ * fragment-driving entry points were moved to
+ * [com.riffle.app.feature.reader.renderer.RendererBridge] in #331 — call sites now go through the
+ * bridge, which is the only place [org.readium.r2.navigator.epub.EpubNavigatorFragment.evaluateJavascript]
+ * is allowed to be invoked.
  *
- * All snapping holds because the reader is sized so `window.innerWidth` equals Readium's page-snap pitch
- * (see ReaderViewportAlignment) — `floor(x / innerWidth) * innerWidth` is therefore exactly a column
- * boundary. The rAF-based operation [goAndSnap] shares `window.__riffleSnapGen` so a later snap
- * supersedes an in-flight one instead of fighting it.
+ * The builders below remain in this file because the unit tests
+ * (`NarratedColumnsResultParserTest`, the various JS-shape tests) target them directly without a
+ * live WebView. Anything new that needs the page to rest flush on the column grid — new nav
+ * route, new readaloud follow rule — adds a JS builder here and a typed method on the bridge.
  *
- * The Kotlin entry points are the API; the `…Js` builders below are the implementation primitives
- * (internal so the script tests can exercise them directly).
+ * All snapping holds because the reader is sized so `window.innerWidth` equals Readium's
+ * page-snap pitch (see ReaderViewportAlignment) — `floor(x / innerWidth) * innerWidth` is
+ * therefore exactly a column boundary. The rAF-based operations share `window.__riffleSnapGen` so
+ * a later snap supersedes an in-flight one instead of fighting it.
  */
 internal object ColumnSnap {
 
-    // ── Fragment-aware API — the only thing call sites touch ────────────────────────────────
-
     /**
-     * Installs the at-rest snap backstop on a freshly loaded page (idempotent). Once horizontal scrolling
-     * settles off-grid in paginated mode it rounds to the nearest column, so the page can never REST
-     * between two pages no matter what moved it. Defers to the rAF trackers via its scroll-idle debounce.
+     * The element id a TOC/search/resume locator points at (its href fragment), or null for a
+     * jump to a resource start. Drives [snapToTargetColumnJs] so the landing snaps to the column
+     * the target itself occupies — robust to where go() landed and to the post-load reflow.
      */
-    suspend fun installBackstop(fragment: EpubNavigatorFragment) {
-        fragment.evaluateJavascript(SETTLE_SNAP_INSTALL_JS)
-    }
-
-    /**
-     * Navigates to [link] and snaps the landing onto the target element's column, tracking it through the
-     * new chapter's async typography reflow. THE entry point for navigation routes — call this instead of
-     * `go()` + a hand-rolled snap, and the route gets correct, drift-proof snapping for free.
-     */
-    suspend fun goAndSnap(fragment: EpubNavigatorFragment, link: Link) {
-        fragment.go(link)
-        fragment.evaluateJavascript(snapToTargetColumnJs(navTargetFragmentId(link.href.toString())))
-    }
-
-    /**
-     * [goAndSnap] for a [Locator] target (search hits, resume/peer-sync positions).
-     *
-     * [landAtStartWhenNoTarget] controls the no-DOM-fragment case: a chapter-level jump (TOC/search) lands
-     * at the chapter top (true, the default), but a background sync (audiobook/peer) whose locator is a
-     * within-chapter progression with no #fragment must instead round to the column grid where go() landed
-     * (false) — otherwise the post-go snap yanks the reader to the chapter top, off the actual synced page.
-     */
-    suspend fun goAndSnap(
-        fragment: EpubNavigatorFragment,
-        locator: Locator,
-        landAtStartWhenNoTarget: Boolean = true,
-    ) {
-        fragment.go(locator)
-        fragment.evaluateJavascript(
-            snapToTargetColumnJs(navTargetFragmentId(locator.href.toString()), landAtStartWhenNoTarget),
-        )
-    }
-
-    /**
-     * Re-pins the current page to its LAST column, tracking the chapter's async typography reflow — for
-     * a backward cross-resource page turn that Readium handled itself (paginated mode), which our nav
-     * handlers never see. Call from `onPageLoaded` when [landedAtEnd] reports the resource was placed at
-     * its end, so the imminent reflow can't strand the page several columns short of the true end.
-     */
-    suspend fun snapToEnd(fragment: EpubNavigatorFragment) {
-        fragment.evaluateJavascript(snapToEndColumnJs())
-    }
-
-    /**
-     * "true" iff the freshly loaded paginated page is resting on its LAST column — i.e. Readium
-     * positioned this resource at its end, which is what a backward cross-resource swipe does. "false"
-     * in scroll mode, for a single-page resource, or anywhere but the last column (a forward turn lands
-     * at column 0; a TOC jump lands at the chapter top). Read at `onPageLoaded`, BEFORE the typography
-     * injection reflows the page, so the check sees Readium's landing position against the base width.
-     */
-    suspend fun landedAtEnd(fragment: EpubNavigatorFragment): Boolean =
-        fragment.evaluateJavascript(LANDED_AT_END_JS)?.trim('"') == "true"
-
-    /**
-     * Snaps the current resource so the column containing [fragmentId] sits flush — for an in-document
-     * cross-reference tap ("Figure 4.1"), where the element is already in this document (no go()).
-     *
-     * Returns true iff the snap actually moved the page to a different column — i.e. the target was
-     * off-screen. A target already on the visible page snaps to the same column (returns false), so the
-     * caller can suppress a "return here" affordance there is nothing to come back from.
-     */
-    suspend fun snapToElementColumn(fragment: EpubNavigatorFragment, fragmentId: String): Boolean =
-        fragment.evaluateJavascript(scrollToColumnJs(fragmentId))?.trim('"') == "moved"
-
-    /**
-     * Follows the narrated sentence [text] to its column on a sentence change. Returns "on" (followed, or
-     * already on-page) or "off" — "off" means the sentence isn't on the current resource, so the caller
-     * go()s to the chapter that holds it.
-     */
-    suspend fun followNarratedSentence(fragment: EpubNavigatorFragment, text: String): String? =
-        fragment.evaluateJavascript(autoFollowSnapJs(text))?.trim('"')
-
-    /**
-     * Measures how the narrated sentence [text] is laid out across paginated columns: the CUMULATIVE
-     * fraction of its rendered width that falls in each column it spans, in reading order (e.g.
-     * `[0.62, 1.0]` for a sentence whose first 62% of width is on the current page and the rest on the
-     * next). Drives [NarratedColumnProgression] so intra-sentence page turns track the narration.
-     *
-     * Empty when the sentence fits a single column, isn't on this resource, or the reader is in scroll
-     * mode (vertical follow handles that) — all of which mean "don't turn within the sentence".
-     */
-    suspend fun measureNarratedColumns(fragment: EpubNavigatorFragment, text: String): List<Double> =
-        parseNarratedColumnsResult(fragment.evaluateJavascript(measureNarratedColumnsJs(text)))
-
-    /**
-     * Parse the raw string [measureNarratedColumnsJs] returned through `evaluateJavascript`.
-     * `evaluateJavascript` wraps a returned string in JSON quotes (the inner JSON number array
-     * has no quotes to escape) and returns `null` when the page is gone. The protocol the JS
-     * defines (see [measureNarratedColumnsJs]):
-     *
-     * - `null` → page gone → `[]`
-     * - `"off"` → sentence not on this resource → `[]`
-     * - `"scroll"` → vertical scroll mode → `[]`
-     * - `"[…]"` → JSON number array of cumulative width fractions (last ≈ 1.0)
-     * - anything else (malformed) → `[]` (defensive — never crash the playback loop)
-     *
-     * Extracted from [measureNarratedColumns] so the contract can be JVM-unit-tested without
-     * a WebView; see `NarratedColumnsResultParserTest`.
-     */
-    internal fun parseNarratedColumnsResult(raw: String?): List<Double> {
-        val trimmed = raw?.trim('"')?.trim() ?: return emptyList()
-        if (trimmed == "off" || trimmed == "scroll" || !trimmed.startsWith("[")) return emptyList()
-        return runCatching {
-            val arr = org.json.JSONArray(trimmed)
-            List(arr.length()) { arr.getDouble(it) }
-        }.getOrDefault(emptyList())
-    }
-
-    /**
-     * Snaps the page to the [columnIndex]-th column the narrated sentence [text] spans (clamped to the
-     * range it actually occupies), landing flush on the column grid. The companion to
-     * [measureNarratedColumns]: the progression decides the index, this performs the turn. Re-locates
-     * the sentence each call so it is robust to a reflow having moved the columns since measurement.
-     */
-    suspend fun snapNarratedColumn(fragment: EpubNavigatorFragment, text: String, columnIndex: Int) {
-        fragment.evaluateJavascript(snapNarratedColumnJs(text, columnIndex))
-    }
-
-    // ── Snapping primitives (JS builders) — implementation, internal for the script tests ────
-
-    // The element id a TOC/search/resume locator points at (its href fragment), or null for a jump to a
-    // resource start. Drives [snapToTargetColumnJs] so the landing snaps to the column the target itself
-    // occupies — robust to where go() landed and to the post-load reflow.
-    private fun navTargetFragmentId(href: String): String? =
+    fun navTargetFragmentId(href: String): String? =
         href.substringAfter('#', "").ifEmpty { null }
             ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }
 
@@ -166,7 +40,7 @@ internal object ColumnSnap {
      * page move (forward OR back) when narration has crossed into another column. Returns "on", or "off"
      * only when the text isn't on the current resource (another chapter) → the caller go()s to load it.
      */
-    internal fun autoFollowSnapJs(text: String): String {
+    fun autoFollowSnapJs(text: String): String {
         // Locate the narrated sentence by its TEXT (Readium strips the media-overlay span ids, so
         // getElementById can't find it). We match the WHOLE sentence, not a short prefix: chapter-opening
         // sentences in some books are recurring datelines — "LOG ENTRY: SOL 38", "LOG ENTRY: SOL 37", … —
@@ -295,10 +169,12 @@ internal object ColumnSnap {
     }
 
     /**
-     * Returns a JSON array of the narrated sentence's cumulative per-column width fractions (last ≈ 1.0),
-     * or the bare strings "off"/"scroll". See [measureNarratedColumns] for the Kotlin-side contract.
+     * Returns a JSON array of the narrated sentence's cumulative per-column width fractions
+     * (last ≈ 1.0), or the bare strings "off"/"scroll". The bridge wraps this into a typed call —
+     * [com.riffle.app.feature.reader.renderer.RendererBridge.measureNarratedColumns] — and parses
+     * the result via [parseNarratedColumnsResult].
      */
-    internal fun measureNarratedColumnsJs(text: String): String =
+    fun measureNarratedColumnsJs(text: String): String =
         """
         (function(){
         ${narratedColumnsPreludeJs(text)}
@@ -309,11 +185,10 @@ internal object ColumnSnap {
         """.trimIndent()
 
     /**
-     * Snaps scrollLeft to the [columnIndex]-th column the narrated sentence occupies (clamped), landing
-     * flush on the grid. Returns "on", or "off"/"scroll" when there's nothing to snap. See
-     * [snapNarratedColumn].
+     * Snaps scrollLeft to the [columnIndex]-th column the narrated sentence occupies (clamped),
+     * landing flush on the grid. Returns "on", or "off"/"scroll" when there's nothing to snap.
      */
-    internal fun snapNarratedColumnJs(text: String, columnIndex: Int): String =
+    fun snapNarratedColumnJs(text: String, columnIndex: Int): String =
         """
         (function(){
         ${narratedColumnsPreludeJs(text)}
@@ -334,7 +209,7 @@ internal object ColumnSnap {
     // `window.__riffleSnapGen` so a later jump supersedes an in-flight end-snap. The first snap runs
     // synchronously (before the first rAF) so a non-reflowing page lands immediately. Vertical (scroll)
     // mode pins scrollTop to the bottom instead; a page that fits the viewport is left untouched.
-    internal fun snapToEndColumnJs(): String =
+    fun snapToEndColumnJs(): String =
         "(function(){var se=document.scrollingElement;if(!se)return;" +
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
             "var lastW=-1,lastH=-1,stable=0,frames=0;" +
@@ -353,8 +228,8 @@ internal object ColumnSnap {
 
     // Reports whether the freshly loaded paginated page is resting on its LAST column — the signature of
     // a backward cross-resource turn (Readium positions the previous resource at its end). Paginated only
-    // (scrollWidth > innerWidth); "false" otherwise. Pairs with [snapToEnd] in onPageLoaded.
-    internal val LANDED_AT_END_JS: String =
+    // (scrollWidth > innerWidth); "false" otherwise. Pairs with the bridge's `snapToEnd` in onPageLoaded.
+    val LANDED_AT_END_JS: String =
         "(function(){var se=document.scrollingElement;if(!se)return 'false';" +
             "var iw=window.innerWidth;if(!(iw>0))return 'false';" +
             "if(!(se.scrollWidth > iw + 4))return 'false';" +
@@ -368,7 +243,7 @@ internal object ColumnSnap {
     //    the element to the top of the viewport; an element already fully on screen isn't moved.
     // Returns 'moved' when the snap changed the visible page (target was off-page → offer a return),
     // 'same' when it was already visible, or 'absent' when the id isn't in this document.
-    internal fun scrollToColumnJs(fragmentId: String): String =
+    fun scrollToColumnJs(fragmentId: String): String =
         "(function(){var el=document.getElementById(${JSONObject.quote(fragmentId)});" +
             "if(!el)return 'absent';" +
             "var se=document.scrollingElement||document.documentElement;" +
@@ -400,7 +275,7 @@ internal object ColumnSnap {
     // could rest off-grid for the entire session — the "page slightly turned to next" book-open bug. The
     // fallback fires once ~200ms after install and only if `__riffleSnapGen` is unchanged (i.e. no
     // navigation snap took over) — so it can't clobber an in-flight [snapToTargetColumnJs] tracker.
-    internal val SETTLE_SNAP_INSTALL_JS: String =
+    val SETTLE_SNAP_INSTALL_JS: String =
         """
         (function(){
           if(window.__riffleSettleSnapInstalled) return;
@@ -440,7 +315,7 @@ internal object ColumnSnap {
     // to column 0 (true, the default); a position-based jump (a background sync that already go()'d to a
     // within-chapter progression) rounds the current scroll to the column grid instead (false), preserving
     // where go() landed rather than yanking to the chapter top.
-    internal fun snapToTargetColumnJs(fragmentId: String?, landAtStartWhenNoTarget: Boolean = true): String {
+    fun snapToTargetColumnJs(fragmentId: String?, landAtStartWhenNoTarget: Boolean = true): String {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
         val noTargetSnap = if (landAtStartWhenNoTarget) "se.scrollLeft=0;" else "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
         return "(function(){var id=$idLiteral;" +
@@ -458,5 +333,25 @@ internal object ColumnSnap {
             "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" + // settled, or ~1.2s safety cap
             "requestAnimationFrame(tick);}" +
             "tick();})()"
+    }
+
+    /**
+     * Parse the raw string [measureNarratedColumnsJs] returned through `evaluateJavascript`.
+     * `evaluateJavascript` wraps a returned string in JSON quotes (the inner JSON number array
+     * has no quotes to escape) and returns `null` when the page is gone. Protocol:
+     *
+     * - `null` → page gone → `[]`
+     * - `"off"` → sentence not on this resource → `[]`
+     * - `"scroll"` → vertical scroll mode → `[]`
+     * - `"[…]"` → JSON number array of cumulative width fractions (last ≈ 1.0)
+     * - anything else (malformed) → `[]` (defensive — never crash the playback loop)
+     */
+    fun parseNarratedColumnsResult(raw: String?): List<Double> {
+        val trimmed = raw?.trim('"')?.trim() ?: return emptyList()
+        if (trimmed == "off" || trimmed == "scroll" || !trimmed.startsWith("[")) return emptyList()
+        return runCatching {
+            val arr = org.json.JSONArray(trimmed)
+            List(arr.length()) { arr.getDouble(it) }
+        }.getOrDefault(emptyList())
     }
 }

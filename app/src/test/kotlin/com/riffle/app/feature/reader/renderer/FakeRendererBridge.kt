@@ -1,0 +1,107 @@
+package com.riffle.app.feature.reader.renderer
+
+import org.readium.r2.shared.publication.Link
+import org.readium.r2.shared.publication.Locator
+
+/**
+ * Recording fake [RendererBridge] for JVM unit tests — every call is appended to [calls] as a
+ * human-readable string. Use to assert that a presenter / view-model drives the bridge in the
+ * expected order without needing a live WebView.
+ */
+internal class FakeRendererBridge(
+    override val capabilities: List<RendererCapability> = emptyList(),
+    private val selectionSentenceResult: String? = null,
+    private val readSelectionSpanResult: String? = null,
+    private val followNarratedResult: String? = null,
+    private val measureColumnsResult: List<Double> = emptyList(),
+    private val firstVisibleSentenceResult: Int? = null,
+    private val landedAtEndResult: Boolean = false,
+    private val snapToElementMoved: Boolean = false,
+    private val scrollByPxResult: Boolean? = true,
+    private val scrollBoundaryResult: Pair<Boolean, Boolean> = Pair(false, false),
+) : RendererBridge {
+
+    val calls: MutableList<String> = mutableListOf()
+
+    override suspend fun installPageCapabilities(): List<CapabilityId> {
+        calls += "installPageCapabilities"
+        return capabilities.map { it.id }
+    }
+
+    override suspend fun applyTypographyOverride() {
+        calls += "applyTypographyOverride"
+    }
+
+    override suspend fun applyReadaloudReserve(reservePx: Int) {
+        calls += "applyReadaloudReserve($reservePx)"
+    }
+
+    override suspend fun installScrollSettleBackstop() {
+        calls += "installScrollSettleBackstop"
+    }
+
+    override suspend fun snapAfterGoTo(link: Link) {
+        calls += "snapAfterGoTo(link=${link.href})"
+    }
+
+    override suspend fun snapAfterGoTo(locator: Locator, landAtStartWhenNoTarget: Boolean) {
+        calls += "snapAfterGoTo(locator=${locator.href}, landAtStart=$landAtStartWhenNoTarget)"
+    }
+
+    override suspend fun snapToEnd() {
+        calls += "snapToEnd"
+    }
+
+    override suspend fun snapToElement(fragmentId: String): Boolean {
+        calls += "snapToElement($fragmentId)"
+        return snapToElementMoved
+    }
+
+    override suspend fun landedAtEnd(): Boolean {
+        calls += "landedAtEnd"
+        return landedAtEndResult
+    }
+
+    override suspend fun followNarratedSentence(text: String): String? {
+        calls += "followNarratedSentence($text)"
+        return followNarratedResult
+    }
+
+    override suspend fun measureNarratedColumns(text: String): List<Double> {
+        calls += "measureNarratedColumns($text)"
+        return measureColumnsResult
+    }
+
+    override suspend fun snapNarratedColumn(text: String, columnIndex: Int) {
+        calls += "snapNarratedColumn($text, $columnIndex)"
+    }
+
+    override suspend fun resolveSelectionSentence(sentences: List<Pair<String, String>>): String? {
+        calls += "resolveSelectionSentence(n=${sentences.size})"
+        return selectionSentenceResult
+    }
+
+    override suspend fun readSelectionSpanId(): String? {
+        calls += "readSelectionSpanId"
+        return readSelectionSpanResult
+    }
+
+    override suspend fun firstVisibleSentenceIndex(highlights: List<String>): Int? {
+        calls += "firstVisibleSentenceIndex(n=${highlights.size})"
+        return firstVisibleSentenceResult
+    }
+
+    override suspend fun scrollByPx(delta: Int): Boolean? {
+        calls += "scrollByPx($delta)"
+        return scrollByPxResult
+    }
+
+    override suspend fun scrollBoundary(): Pair<Boolean, Boolean> {
+        calls += "scrollBoundary"
+        return scrollBoundaryResult
+    }
+
+    override suspend fun evaluateBoundaryScroll(js: String) {
+        calls += "evaluateBoundaryScroll(len=${js.length})"
+    }
+}

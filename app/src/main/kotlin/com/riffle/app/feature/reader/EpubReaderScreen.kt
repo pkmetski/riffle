@@ -1119,8 +1119,23 @@ private fun EpubNavigatorView(
     // renderer (Readium fragment vs custom NestedScrollView), so the two concrete handles are kept
     // for the few call sites that drive Readium-specific commands (fragment attach, navigateToLink,
     // updateLayoutContext). Mode-agnostic call sites use `readerPresenter` below.
+    // Mutable holder for the current reserve so the bridge can read the live value (issue #331:
+    // the bridge installs the readaloud-reserve capability on every page load and needs the
+    // current value at install time).
+    val currentReadaloudReservePxState = remember { mutableStateOf(readaloudReservePx) }
+    currentReadaloudReservePxState.value = readaloudReservePx
+    val rendererBridge: com.riffle.app.feature.reader.renderer.RendererBridge =
+        remember(state.publication, coroutineScope) {
+            // Shared across modes: the bridge short-circuits to a no-op when `fragmentProvider`
+            // returns null (continuous mode keeps the fragment parked at height=0), so it is safe
+            // to construct once per publication and not key on isContinuous.
+            com.riffle.app.feature.reader.renderer.DefaultRendererBridge(
+                fragmentProvider = { fragmentRef.value },
+                readaloudReserveProvider = { currentReadaloudReservePxState.value },
+            )
+        }
     val readiumPresenter: ReadiumPresenter? = remember(state.publication, isContinuous, coroutineScope) {
-        if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication)
+        if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication, rendererBridge)
     }
     val continuousPresenter: ContinuousPresenter? = remember(isContinuous) {
         if (isContinuous) ContinuousPresenter() else null
@@ -1212,7 +1227,6 @@ private fun EpubNavigatorView(
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
     // freshly loaded page re-applies the current value.
-    val currentReadaloudReservePx by rememberUpdatedState(readaloudReservePx)
     val currentPublication by rememberUpdatedState(state.publication)
     // rememberUpdatedState: spinePositions arrives asynchronously (Readium computes positions
     // after publication load). The AndroidView factory captures this reference so the continuous
@@ -1350,14 +1364,12 @@ private fun EpubNavigatorView(
                                 currentSentenceQuotes, currentSentenceChapters, loc.href.toString(),
                             )
                             val byText = if (sentences.isNotEmpty() && nav != null) {
-                                nav.evaluateJavascript(resolveSelectionSentenceJs(sentences))
-                                    ?.trim('"')?.takeIf { it.isNotEmpty() }
+                                rendererBridge.resolveSelectionSentence(sentences)
                             } else {
                                 null
                             }
                             val spanId = byText
-                                ?: nav?.evaluateJavascript("window.__riffleSelSpan || ''")
-                                    ?.trim('"')?.takeIf { it.isNotEmpty() }
+                                ?: nav?.let { rendererBridge.readSelectionSpanId() }
                             val fragId = spanId ?: loc.locations.fragments.firstOrNull()
                             val ref = if (fragId != null) "${loc.href}#$fragId" else loc.href.toString()
                             currentOnPlayFromHere(ref)
@@ -1453,21 +1465,13 @@ private fun EpubNavigatorView(
                     // measure here and only re-snap below if it is still current, otherwise a swipe during
                     // the awaited injections could end-snap a DIFFERENT chapter (a forward overshoot).
                     val hrefAtLoad = currentHrefHolder[0]
-                    val landedAtEnd = ColumnSnap.landedAtEnd(fragment)
-                    fragment.evaluateJavascript(RECT_TO_JSON_POLYFILL_JS)
-                    fragment.evaluateJavascript(SELECTION_SPAN_TRACKER_JS)
-                    fragment.evaluateJavascript(typographyOverrideInjectionJs())
-                    fragment.evaluateJavascript(FootnoteAnchorBridge.INSTALL_SCRIPT)
-                    // Reserve the bottom strip for the readaloud player on this freshly loaded page
-                    // (paginated + readaloud-available only; see ReadaloudReserve.kt). Inject the rule,
-                    // then apply the current value so the page lands already paginated above the strip —
-                    // no reflow when the player is later opened.
-                    fragment.evaluateJavascript(readaloudReserveInjectionJs())
-                    fragment.evaluateJavascript(readaloudReserveApplyJs(currentReadaloudReservePx))
-                    // Install the at-rest column-snap backstop: once scrolling settles off-grid in
-                    // paginated mode it rounds to the nearest column, so the page can never REST between
-                    // two pages no matter what moved it. Idempotent; defers to the rAF trackers.
-                    ColumnSnap.installBackstop(fragment)
+                    val landedAtEnd = rendererBridge.landedAtEnd()
+                    // Install every paged/vertical-mode JS capability in dependency order — rect
+                    // polyfill, selection tracker, typography, footnote bridge, readaloud reserve,
+                    // settle backstop — through the renderer bridge (#331). The capability list is
+                    // declared once in DefaultRendererBridge; adding a new one is a registration,
+                    // not another evaluateJavascript() at this call site.
+                    rendererBridge.installPageCapabilities()
                     // NOTE: do NOT snap to the column grid here for the general case. The typography
                     // injection above reflows the page asynchronously, so a snap at this point rounds a
                     // pre-reflow position and lands close-but-not-exact. The post-go() snap in the
@@ -1477,7 +1481,7 @@ private fun EpubNavigatorView(
                     // Readium's own ViewPager), so there is no post-go snap to keep the end pinned through
                     // the reflow. Re-pin to the last column here; snapToEnd's rAF loop tracks the reflow.
                     if (landedAtEnd && currentHrefHolder[0] == hrefAtLoad) {
-                        ColumnSnap.snapToEnd(fragment)
+                        rendererBridge.snapToEnd()
                     }
                 }
             }
@@ -1490,10 +1494,9 @@ private fun EpubNavigatorView(
     // is a no-op. Unlike the earlier open-gated reserve, there is no top-of-page anchor to capture: the
     // reserve isn't tied to the player opening, so this transition isn't one the user is staring at.
     LaunchedEffect(readaloudReservePx) {
-        val fragment = fragmentRef.value ?: return@LaunchedEffect
+        if (fragmentRef.value == null) return@LaunchedEffect
         withContext(Dispatchers.Main) {
-            fragment.evaluateJavascript(readaloudReserveInjectionJs())
-            fragment.evaluateJavascript(readaloudReserveApplyJs(readaloudReservePx))
+            rendererBridge.applyReadaloudReserve(readaloudReservePx)
         }
     }
 
@@ -1529,8 +1532,11 @@ private fun EpubNavigatorView(
                     // actually off-page (the snap reports whether it changed columns).
                     val origin = currentLatestLocator()
                     coroutineScope.launch(Dispatchers.Main) {
-                        val moved = fragmentRef.value
-                            ?.let { ColumnSnap.snapToElementColumn(it, fragmentId) } ?: false
+                        val moved = if (fragmentRef.value != null) {
+                            rendererBridge.snapToElement(fragmentId)
+                        } else {
+                            false
+                        }
                         if (moved && origin != null) currentOnCaptureReturnTarget(origin)
                     }
                     true
@@ -1673,12 +1679,9 @@ private fun EpubNavigatorView(
     // sentence's text — quotes are in reading order and only this chapter's sentences are in the DOM).
     LaunchedEffect(pageTopProbeRequests) {
         pageTopProbeRequests.collect { href ->
-            val fragment = fragmentRef.value
             val ordered = currentSentenceQuotes.entries.toList()
-            val fragmentId = if (fragment != null && ordered.isNotEmpty()) {
-                val idx = fragment.evaluateJavascript(
-                    firstVisibleSentenceJs(ordered.map { it.value.highlight }),
-                )?.trim('"')?.toIntOrNull()
+            val fragmentId = if (fragmentRef.value != null && ordered.isNotEmpty()) {
+                val idx = rendererBridge.firstVisibleSentenceIndex(ordered.map { it.value.highlight })
                 idx?.let { ordered.getOrNull(it)?.key }
             } else {
                 null
@@ -1841,12 +1844,12 @@ private fun EpubNavigatorView(
             // mode-agnostic presenter.pageBy(); ContinuousPresenter and ReadiumPresenter own the
             // mode-specific turn semantics.
             if (currentFormattingPrefs.orientation == ReaderOrientation.Vertical && container != null) {
-                val fragment = fragmentRef.value ?: return@collect
+                if (fragmentRef.value == null) return@collect
                 val boundary = readerPresenter.scrollBoundary()
                 val atBoundary = if (direction == PageDirection.Forward) boundary.atForwardBoundary
                 else boundary.atBackwardBoundary
                 container.handleVolumeScroll(forward = direction == PageDirection.Forward, atBoundary = atBoundary) { js ->
-                    launch { fragment.evaluateJavascript(js) }
+                    launch { rendererBridge.evaluateBoundaryScroll(js) }
                 }
             } else {
                 readerPresenter.pageBy(direction)
@@ -2295,26 +2298,17 @@ private fun EpubNavigatorView(
         if (formattingPrefs.orientation == ReaderOrientation.Vertical) {
             val verticalFragment = fragmentRef.value
             LaunchedEffect(verticalFragment) {
-                val fragment = verticalFragment ?: return@LaunchedEffect
-                // JS evaluation is suspending: a delta isn't collected until the previous
-                // evaluateJavascript round-trip resolves, so per-delta dispatch already gets
-                // natural backpressure-driven batching (no need to accumulate manually before
-                // the call — the accumulator inside the controller only emits whole pixels).
+                if (verticalFragment == null) return@LaunchedEffect
+                // JS evaluation is suspending inside the renderer bridge: a delta isn't collected
+                // until the previous round-trip resolves, so per-delta dispatch already gets
+                // natural backpressure-driven batching (no need to accumulate manually before the
+                // call — the accumulator inside the controller only emits whole pixels).
                 autoScrollDeltas.collect { flushed ->
-                    // Return a plain integer (1 = moved, 0 = stuck). Returning a JSON object
-                    // and parsing it as a string is a trap: evaluateJavascript JSON-encodes the
-                    // JS return value, so a JSON-stringified object comes back as a doubly-
-                    // encoded string ('"{\"moved\":true}"') whose internal quotes are escaped.
-                    val rawResult = fragment.evaluateJavascript(
-                        """
-                        (function(){
-                          var before = window.scrollY;
-                          window.scrollBy(0, $flushed);
-                          return window.scrollY !== before ? 1 : 0;
-                        })()
-                        """.trimIndent(),
-                    ) ?: return@collect
-                    val moved = rawResult.trim().trim('"') == "1"
+                    // null = the WebView is gone mid-tick (chapter swap, fragment recreate): skip
+                    // the iteration, the next delta will arrive once the fragment is back. The
+                    // original direct-evaluateJavascript path used `?: return@collect` here for
+                    // the same reason — must NOT treat it as "stuck at end" and fire end-of-book.
+                    val moved = rendererBridge.scrollByPx(flushed) ?: return@collect
                     if (moved) return@collect
                     // Stuck at the bottom of this chapter. Vertical mode stops auto-scroll
                     // rather than auto-advancing — the user's eye is mid-viewport when scrollY

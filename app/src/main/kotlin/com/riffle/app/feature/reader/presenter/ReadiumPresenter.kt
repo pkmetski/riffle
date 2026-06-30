@@ -1,8 +1,7 @@
 package com.riffle.app.feature.reader.presenter
 
-import com.riffle.app.feature.reader.ColumnSnap
+import com.riffle.app.feature.reader.renderer.RendererBridge
 import com.riffle.app.feature.reader.toEpubPreferences
-import com.riffle.app.feature.reader.typographyOverrideInjectionJs
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,20 +28,15 @@ import org.readium.r2.shared.util.Url
  * change). All events fired through the feed methods are buffered (extra capacity 64) so
  * producers never suspend.
  *
- * Issue #300 cuts over: decoration application ([applyDecorations]), navigation
- * ([navigateToLocator], [navigateToLink], [pageBy]), typography ([applyTypography] +
- * [updateLayoutContext]). Fragment-listener events (`feedPageLoaded`,
- * `feedInternalLink`, …) exist for future orchestrators; the screen still installs the
- * Readium listeners directly today.
- *
- * @param scope a lifecycle-scoped [CoroutineScope] (usually `viewModelScope`) that owns the
- *   fragment-position collector. It must outlive the adapter.
- * @param publication the open publication, used to parse Locator JSON for [NavigationTarget]s
- *   that arrive as raw JSON (resume from storage).
+ * After #331, every paginated/vertical `evaluateJavascript(` call flows through the supplied
+ * [RendererBridge] — navigation snapping, typography overrides, scroll-boundary probes, the
+ * readaloud follow primitives. The presenter still owns Readium's typed APIs (`submitPreferences`,
+ * `applyDecorations`, `go`, `goForward`/`goBackward`) because those are not JS calls.
  */
 internal class ReadiumPresenter(
     private val scope: CoroutineScope,
     private val publication: Publication,
+    private val bridge: RendererBridge,
 ) : ReaderPresenter {
 
     private val _positionEvents = MutableSharedFlow<PositionUpdate>(replay = 0, extraBufferCapacity = 64)
@@ -107,12 +101,6 @@ internal class ReadiumPresenter(
     }
 
     // ----- Feed methods called by the screen's existing Readium listener objects --------------
-    //
-    // [PaginationListener.onPageLoaded], [EpubNavigatorFragment.Listener.shouldFollowInternalLink],
-    // tap zones, selection, and annotation-tap callbacks forward to these so [pageLoadEvents],
-    // [linkEvents], [tapEvents], [selectionEvents], and [annotationTapEvents] become the
-    // canonical paths for future orchestrators. The screen still installs the listeners and
-    // wires them up; the view-model split is what removes that intermediate.
 
     fun feedPageLoaded() {
         pageLoadCount += 1
@@ -162,7 +150,7 @@ internal class ReadiumPresenter(
         val fragment = fragment ?: return
         val locator = target.toLocator(publication) ?: return
         if (options.snap) {
-            ColumnSnap.goAndSnap(fragment, locator, options.landAtStartWhenNoTarget)
+            bridge.snapAfterGoTo(locator, options.landAtStartWhenNoTarget)
         } else {
             fragment.go(locator, animated = options.animated)
         }
@@ -170,25 +158,19 @@ internal class ReadiumPresenter(
 
     override suspend fun applyTypography(prefs: FormattingPreferences) {
         val fragment = fragment ?: return
-        // Live-update Readium's typography for the attached fragment. The screen previously
-        // called `fragmentRef.value?.submitPreferences(...)` directly; routing through here keeps
-        // the layout context (orientation + fixed-layout flag) on the presenter rather than
-        // forcing every caller to thread it through.
         fragment.submitPreferences(prefs.toEpubPreferences(isLandscape, isFixedLayout))
         // The injected CSS overrides (font family, custom margins) are also re-applied on each
-        // onPageLoaded by PaginationListener; doing it here too means a live preferences change
-        // takes effect immediately without waiting for the next page turn.
-        fragment.evaluateJavascript(typographyOverrideInjectionJs())
+        // onPageLoaded by the bridge's TypographyOverride capability; doing it here too means a
+        // live preferences change takes effect immediately without waiting for the next page turn.
+        bridge.applyTypographyOverride()
     }
 
     override fun snapshotPosition(): ReaderPosition? = lastPosition
 
     /**
      * Apply Readium decorations to the currently attached fragment for a given group. No-op when
-     * no fragment is attached or the fragment is not a [DecorableNavigator] — exactly mirrors the
-     * original screen-level `applyDecorationsBlock` lambda this method replaces.
-     *
-     * Called from [com.riffle.app.feature.reader.ReadiumHighlightRenderer] via the screen's
+     * no fragment is attached or the fragment is not a [DecorableNavigator]. Called from
+     * [com.riffle.app.feature.reader.ReadiumHighlightRenderer] via the screen's
      * `applyDecorationsBlock` lambda.
      */
     suspend fun applyDecorations(decorations: List<Decoration>, group: String) {
@@ -196,26 +178,15 @@ internal class ReadiumPresenter(
         withContext(Dispatchers.Main) { nav.applyDecorations(decorations, group) }
     }
 
-    /**
-     * Stable token that changes whenever the attached fragment changes. Replaces the
-     * `currentNavigatorStamp` lambda the screen passes into the highlight renderer: search-result
-     * settle loops break out when the stamp changes mid-iteration.
-     */
+    /** Stable token that changes whenever the attached fragment changes. */
     fun attachmentStamp(): Any? = fragment
 
     // ----- Readium-typed navigation ---------------------------------------------------------
-    //
-    // The screen still constructs Readium Locator/Link from TOC entries, search results, and
-    // server progress; these convenience overloads keep the type-conversion at the boundary
-    // instead of forcing every caller to round-trip through JSON. They collapse into
-    // [navigateTo] once the view-model owns navigation entirely (out of this issue's scope).
 
     /**
-     * Navigate to [locator] and snap to the column it landed in. Replaces the screen-level
-     * `ColumnSnap.goAndSnap` and `fragment.go` calls. In vertical (scroll) mode the snap JS is a
-     * no-op, so passing `snap = true` is safe for both orientations; pass `snap = false` to skip
-     * the snap entirely when the caller knows the page must not be rounded (e.g. the readaloud
-     * `play-from-here` resume which already lands precisely).
+     * Navigate to [locator] and (optionally) snap to its column. The snap path goes through the
+     * bridge; the no-snap path uses Readium's `go()` directly because the caller knows the page
+     * must not be rounded (e.g. the readaloud `play-from-here` resume which already lands precisely).
      */
     suspend fun navigateToLocator(
         locator: Locator,
@@ -225,19 +196,16 @@ internal class ReadiumPresenter(
     ) {
         val fragment = fragment ?: return
         if (snap) {
-            ColumnSnap.goAndSnap(fragment, locator, landAtStartWhenNoTarget)
+            bridge.snapAfterGoTo(locator, landAtStartWhenNoTarget)
         } else {
             fragment.go(locator, animated = animated)
         }
     }
 
-    /**
-     * Navigate to [link] (TOC tap, internal cross-resource link) and snap to the column it
-     * landed in. Replaces the screen-level `ColumnSnap.goAndSnap(fragment, link)`.
-     */
+    /** Navigate to [link] (TOC tap, internal cross-resource link) and snap to its column. */
     suspend fun navigateToLink(link: Link) {
-        val fragment = fragment ?: return
-        ColumnSnap.goAndSnap(fragment, link)
+        if (fragment == null) return
+        bridge.snapAfterGoTo(link)
     }
 
     override suspend fun pageBy(direction: PageDirection) {
@@ -249,38 +217,24 @@ internal class ReadiumPresenter(
     }
 
     override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult {
-        val fragment = fragment ?: return ReadaloudFollowResult.Unavailable
-        // ColumnSnap's JS protocol returns "off" when the sentence isn't on the rendered resource
-        // (caller then falls back to navigation), null when the WebView is gone, and "scroll" / any
-        // other value when the page successfully snapped or the mode doesn't drive per-column follow.
-        val where = ColumnSnap.followNarratedSentence(fragment, text) ?: return ReadaloudFollowResult.Unavailable
+        if (fragment == null) return ReadaloudFollowResult.Unavailable
+        val where = bridge.followNarratedSentence(text) ?: return ReadaloudFollowResult.Unavailable
         return if (where == "off") ReadaloudFollowResult.OffPage else ReadaloudFollowResult.Snapped
     }
 
     override suspend fun measureReadaloudColumns(text: String): List<Double> {
-        val fragment = fragment ?: return emptyList()
-        return ColumnSnap.measureNarratedColumns(fragment, text)
+        if (fragment == null) return emptyList()
+        return bridge.measureNarratedColumns(text)
     }
 
     override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
-        val fragment = fragment ?: return
-        ColumnSnap.snapNarratedColumn(fragment, text, columnIndex)
+        if (fragment == null) return
+        bridge.snapNarratedColumn(text, columnIndex)
     }
 
     override suspend fun scrollBoundary(): ScrollBoundary {
-        // Two JS calls instead of one combined return: the second is a no-op when the first
-        // already moved scrollY (it hasn't here — we're reading state, not writing), and keeping
-        // them separate makes the failure mode obvious if either ever returns malformed JSON.
-        // Memory: `reference_test_avd_chrome55_webview` — these JS calls work on real devices and
-        // current emulators (post-API-25); the only known issue is API-25's Chrome 55 WebView,
-        // which the project has aged past.
-        val fragment = fragment ?: return ScrollBoundary.None
-        val atForward = fragment.evaluateJavascript(
-            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
-        )?.trim('"') == "true"
-        val atBackward = fragment.evaluateJavascript(
-            "(window.scrollY <= 4).toString()"
-        )?.trim('"') == "true"
+        if (fragment == null) return ScrollBoundary.None
+        val (atForward, atBackward) = bridge.scrollBoundary()
         return ScrollBoundary(atForwardBoundary = atForward, atBackwardBoundary = atBackward)
     }
 
