@@ -43,6 +43,7 @@ class ReadiumPresenterTest {
         val presenter = ReadiumPresenter(
             scope = kotlinx.coroutines.test.TestScope(),
             publication = stubPublication(),
+            bridge = com.riffle.app.feature.reader.renderer.FakeRendererBridge(),
         )
         assertNull(presenter.attachmentStamp())
     }
@@ -55,6 +56,7 @@ class ReadiumPresenterTest {
         val presenter = ReadiumPresenter(
             scope = kotlinx.coroutines.test.TestScope(),
             publication = stubPublication(),
+            bridge = com.riffle.app.feature.reader.renderer.FakeRendererBridge(),
         )
         presenter.applyDecorations(emptyList(), "annotations")
         // No exception means contract preserved.

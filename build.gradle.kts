@@ -145,10 +145,65 @@ tasks.register("checkRiffleInfraSeams") {
     }
 }
 
+// Enforces that paged/vertical EPUB-reader code talks to its WebView through `RendererBridge`
+// (#331), so a NEW JS injection lands as a typed bridge call + capability registration — not as
+// another `evaluateJavascript(` scattered through the screen. Continuous mode owns a separate
+// WebView pipeline (ContinuousReaderView / ChapterWebView / ContinuousScriptInjector /
+// ContinuousStyleInjector) and is explicitly out of scope; the allowlist below carries that
+// boundary.
+tasks.register("checkRendererBridgeUsage") {
+    group = "verification"
+    description = "Fails if `evaluateJavascript(` is called outside the renderer-bridge package (excludes continuous mode)."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val forbidden = Regex("""\bevaluateJavascript\s*\(""")
+        val bridgePackageRoot = layout.projectDirectory.dir(
+            "app/src/main/kotlin/com/riffle/app/feature/reader/renderer",
+        ).asFile.absolutePath
+        // Continuous mode has its own custom WebViews — out of scope per the issue.
+        val continuousAllowlist = setOf(
+            "app/src/main/kotlin/com/riffle/app/feature/reader/ChapterWebView.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/ContinuousReaderView.kt",
+        )
+        val scanRoots = listOf(
+            layout.projectDirectory.dir("app/src/main").asFile,
+        ).filter { it.exists() }
+
+        val offenders = mutableListOf<String>()
+        scanRoots
+            .flatMap { it.walkTopDown().toList() }
+            .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.absolutePath.startsWith(bridgePackageRoot) }
+            .forEach { f ->
+                val rel = f.relativeTo(layout.projectDirectory.asFile).path
+                if (rel in continuousAllowlist) return@forEach
+                f.useLines { lines ->
+                    lines.forEachIndexed { idx, line ->
+                        val trimmed = line.trimStart()
+                        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return@forEachIndexed
+                        if (forbidden.containsMatchIn(line)) {
+                            offenders += "$rel:${idx + 1} — $line"
+                        }
+                    }
+                }
+            }
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "evaluateJavascript( must go through RendererBridge in paged/vertical mode (#331).\n" +
+                    "Add a typed bridge method (and a RendererCapability if it's a per-page install)\n" +
+                    "instead of calling fragment.evaluateJavascript directly:\n" +
+                    offenders.joinToString("\n"),
+            )
+        }
+    }
+}
+
 // Make it part of the normal `./gradlew check` run.
 allprojects {
     tasks.matching { it.name == "check" }.configureEach {
         dependsOn(rootProject.tasks.named("checkRiffleLogTags"))
         dependsOn(rootProject.tasks.named("checkRiffleInfraSeams"))
+        dependsOn(rootProject.tasks.named("checkRendererBridgeUsage"))
     }
 }
