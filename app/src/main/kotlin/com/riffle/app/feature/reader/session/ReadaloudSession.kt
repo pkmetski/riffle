@@ -36,6 +36,8 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.resolveEpubHref
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -92,6 +94,7 @@ class ReadaloudSession @AssistedInject constructor(
     private val audiobookHandoffState: AudiobookHandoffState,
     private val connectivityObserver: ConnectivityObserver,
     private val nowPlayingStore: NowPlayingStore,
+    private val logger: Logger,
 ) {
 
     @AssistedFactory
@@ -1014,7 +1017,7 @@ class ReadaloudSession @AssistedInject constructor(
                 _sentenceQuotes.value = com.riffle.core.domain.ReadaloudTextQuotes.build(chapters)
                 _sentenceChapters.value = com.riffle.core.domain.ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
             } catch (e: Throwable) {
-                android.util.Log.e("RIFFLE_RA", "buildSentenceQuotes failed", e)
+                logger.e(LogChannel.Readaloud, e) { "buildSentenceQuotes failed" }
             }
         }
     }

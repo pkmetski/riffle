@@ -16,6 +16,8 @@ import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import com.riffle.core.network.AbsSessionApi
 import javax.inject.Inject
 
@@ -37,6 +39,7 @@ open class ReaderSyncFactory @Inject constructor(
     @EpubDownloadsStore private val downloadsStore: LocalStore,
     private val crossEpubIndexBuildTrigger: CrossEpubIndexBuildTrigger,
     private val sidecarCache: ReadaloudSidecarCache,
+    private val logger: Logger,
 ) {
     /**
      * @param itemId the ABS Library Item id the reader opened. A book is always read from the ABS
@@ -70,11 +73,10 @@ open class ReaderSyncFactory @Inject constructor(
             // to single-peer. This is the reader-open AND player-open retry path in one place; it also
             // catches a deferred/failed download-time build, an EPUB re-upload (checksum change), or a
             // bundle present from outside the in-app download flow (ADR 0031).
-            android.util.Log.w(
-                "RIFFLE_RA",
+            logger.w(LogChannel.Readaloud) {
                 "cross-EPUB index missing for matched item $itemId (ebook=${ebookLink.absLibraryItemId}); " +
-                    "position sync degraded to single-peer — enqueued a build",
-            )
+                    "position sync degraded to single-peer — enqueued a build"
+            }
             crossEpubIndexBuildTrigger.enqueueBuild(openedLink)
             return null
         }

@@ -6,6 +6,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import com.riffle.core.data.StreamingMediaItem
+import com.riffle.core.logging.Logger
 import java.io.File
 import java.io.IOException
 
@@ -27,6 +28,9 @@ object SharedBundle {
     @Volatile
     var streaming: Streaming? = null
 
+    @Volatile
+    var logger: Logger? = null
+
     /** Streaming state for the active book: how to fetch ABS audio, and the per-segment plan. */
     class Streaming(
         val httpFactory: DataSource.Factory,
@@ -35,7 +39,7 @@ object SharedBundle {
 
     fun dataSourceFactory(): DataSource.Factory = DataSource.Factory {
         ReadaloudDataSource(
-            makeZip = { ZipAudioDataSource(current ?: error("No Readaloud bundle set")) },
+            makeZip = { ZipAudioDataSource(current ?: error("No Readaloud bundle set"), logger ?: error("SharedBundle.logger not set")) },
             makeHttp = { streaming?.httpFactory?.createDataSource() },
         )
     }

@@ -50,6 +50,8 @@ import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.resolveEpubHref
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -163,6 +165,7 @@ class EpubReaderViewModel @Inject constructor(
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
+    private val logger: Logger,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -547,7 +550,7 @@ class EpubReaderViewModel @Inject constructor(
                         }
                         ?.absLibraryItemId
                 }
-                android.util.Log.d("RIFFLE_HANDOFF", "RA.audiobookItemId resolved=$resolvedAudiobookItemId (overlay can now mount)")
+                logger.d(LogChannel.Handoff) { "RA.audiobookItemId resolved=$resolvedAudiobookItemId (overlay can now mount)" }
 
                 // Resolve the audio-settings key and load the saved speed (ADR 0028). With a link,
                 // the resolver prefers the linked audiobook's id; without one, settings key on this ABS item.

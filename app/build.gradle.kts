@@ -127,6 +127,7 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
     implementation(project(":core:database"))
+    implementation(project(":core:logging"))
     // Three-peer reader sync constructs SyncRemotes over the position APIs directly (issue #38).
     implementation(project(":core:network"))
 

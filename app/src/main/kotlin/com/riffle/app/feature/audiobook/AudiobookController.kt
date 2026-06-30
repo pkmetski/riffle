@@ -2,7 +2,6 @@ package com.riffle.app.feature.audiobook
 
 import android.content.ComponentName
 import android.content.Context
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -10,11 +9,13 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.app.feature.reader.readaloud.AudioPlayerService
-import com.riffle.app.feature.reader.readaloud.ReadaloudController.Companion.HANDOFF
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.RecordingLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,11 +49,12 @@ import kotlin.coroutines.resume
 open class AudiobookController @Inject constructor(
     @ApplicationContext private val context: Context?,
     applicationScope: ApplicationScope?,
+    private val logger: Logger,
 ) {
     // Test seam: a subclass that overrides every member the player touches needs no real Context (it's
     // only consulted in [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable
     // without Robolectric.
-    protected constructor() : this(null, null)
+    protected constructor() : this(null, null, RecordingLogger())
 
     data class PlaybackState(
         val connected: Boolean = false,
@@ -98,7 +100,7 @@ open class AudiobookController @Inject constructor(
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
-                Log.d(HANDOFF, "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
+                logger.d(LogChannel.Handoff) { "AB.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}" }
             }
             if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
                 && player.playbackState == Player.STATE_ENDED) {
@@ -108,7 +110,7 @@ open class AudiobookController @Inject constructor(
             pushState()
         }
         override fun onPlayerError(error: PlaybackException) {
-            Log.e(LOG, "playback error code=${error.errorCodeName} src=${controller?.currentMediaItem?.mediaId}", error)
+            logger.e(LogChannel.Audiobook, error) { "playback error code=${error.errorCodeName} src=${controller?.currentMediaItem?.mediaId}" }
         }
     }
 
@@ -124,7 +126,7 @@ open class AudiobookController @Inject constructor(
         localZipFile: File? = null,
         coverUri: String? = null,
     ) {
-        Log.d(HANDOFF, "AB.prepare start (controller already connected=${controller != null})")
+        logger.d(LogChannel.Handoff) { "AB.prepare start (controller already connected=${controller != null})" }
         val t0 = System.currentTimeMillis()
         this.spans = spans
         this.durationSec = durationSec
@@ -136,7 +138,7 @@ open class AudiobookController @Inject constructor(
         ownsSharedBundle = localZipFile != null
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
-        Log.d(HANDOFF, "AB.prepare ensureConnected +${System.currentTimeMillis() - t0}ms")
+        logger.d(LogChannel.Handoff) { "AB.prepare ensureConnected +${System.currentTimeMillis() - t0}ms" }
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
             .build()
@@ -149,7 +151,7 @@ open class AudiobookController @Inject constructor(
         val start = AudiobookTracks.startPositionFor(startAtSec, durationSec, spans)
         c.setMediaItems(items, start.trackIndex, start.offsetMs)
         c.prepare()
-        Log.d(HANDOFF, "AB.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms")
+        logger.d(LogChannel.Handoff) { "AB.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms" }
         prepared = true
         // If the user pressed play before preparation finished, honour it now — but only once the
         // player is ready (see [ResumePlaybackGate]); otherwise the listener starts it on STATE_READY.
@@ -301,7 +303,7 @@ open class AudiobookController @Inject constructor(
      * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
      */
     fun releaseForHandoff() {
-        Log.d(HANDOFF, "AB.releaseForHandoff (T0 — audio pausing)")
+        logger.d(LogChannel.Handoff) { "AB.releaseForHandoff (T0 — audio pausing)" }
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null
@@ -366,6 +368,5 @@ open class AudiobookController @Inject constructor(
         private const val POLL_INTERVAL_MS = 250L
         private const val FADE_STEPS = 50
         private const val FADE_STEP_MS = 100L
-        private const val LOG = "RIFFLE_AB"
     }
 }
