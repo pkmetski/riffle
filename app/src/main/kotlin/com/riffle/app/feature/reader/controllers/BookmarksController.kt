@@ -50,7 +50,16 @@ class BookmarksController @AssistedInject constructor(
     val bookmarkPositions: StateFlow<List<BookmarkPosition>> = _bookmarkPositions
 
     private val _currentLocator = MutableStateFlow<Locator?>(null)
-    private val _currentOrientation = MutableStateFlow(ReaderOrientation.Horizontal)
+
+    /**
+     * Current reader orientation, read non-reactively inside [isCurrentPageBookmarked]'s combine
+     * so the combine stays 2-arg (matches master's shape and avoids the Eagerly-shared
+     * viewModelScope chain that flaked the orientation-flip harness). Mode changes call
+     * [onOrientationChanged] which republishes the locator to force a recompute. `@Volatile`
+     * because the VM updates it from any dispatcher.
+     */
+    @Volatile
+    private var currentOrientation: ReaderOrientation = ReaderOrientation.Horizontal
 
     /**
      * True when one of this item's bookmarks falls inside the reader's currently visible viewport.
@@ -60,25 +69,21 @@ class BookmarksController @AssistedInject constructor(
      *    current locator share the same frame, so a tight ±5% window is the correct match.
      *  - **Continuous:** viewport-midpoint progression (`ContinuousPositionTracker.locatorAt`).
      *    The bookmark anchor is visible iff `|midpoint_now - M_save| <= viewportFraction/2`.
-     *    Without a live viewport-fraction signal, we use a fixed [BOOKMARK_VIEWPORT_EPS] (25%)
-     *    which covers typical viewports (~20–40% of chapter height) with a small slack for
-     *    anchor offsets and float noise. False-positive cost: two bookmarks within 25% of each
-     *    other in the same chapter light at once. Acceptable given the indicator is a boolean.
+     *    Without a live viewport-fraction signal, we use a fixed [BOOKMARK_VIEWPORT_EPS] (33%)
+     *    which covers typical viewports plus short chapters where `vf/2 ≈ 0.30`.
      *
-     * The `<= eps` (not `< eps`) makes the boundary case inclusive — geometrically, when the
-     * bookmark anchor sits exactly at the viewport's top edge, |cur - bm| equals
-     * `viewportFraction / 2` to machine precision, and a strict `<` would silently call that
-     * OFF even though the anchor is visible.
+     * The `<= eps` (not `< eps`) makes the boundary case inclusive — when the bookmark anchor
+     * sits exactly at the viewport's top edge, a strict `<` would silently call that OFF even
+     * though the anchor is visible.
      */
     val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
         _bookmarkPositions,
         _currentLocator,
-        _currentOrientation,
-    ) { positions, locator, orientation ->
+    ) { positions, locator ->
         val href = locator?.href?.toString() ?: return@combine false
         val prog = locator.locations.progression
         val hrefNorm = normalizeEpubHref(href)
-        val eps = if (orientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
+        val eps = if (currentOrientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
         else BOOKMARK_PAGE_EPS
         positions.any { bm ->
             bm.chapterHref == hrefNorm &&
@@ -88,29 +93,21 @@ class BookmarksController @AssistedInject constructor(
 
     private var observeJob: Job? = null
     private var locatorJob: Job? = null
-    private var orientationJob: Job? = null
 
     /**
      * Bind to a specific book. Cancels any previous observation and starts fresh.
      *
      * [currentLocator] — the live VM locator so [isCurrentPageBookmarked] stays reactive.
-     * [currentOrientation] — selects the match-window strategy (see [isCurrentPageBookmarked]).
      */
     fun bind(
         serverId: String,
         itemId: String,
         currentLocator: StateFlow<Locator?>,
-        // Defaults to a Horizontal-only flow so existing call sites (and tests) that don't care
-        // about the continuous-mode widened eps still compile; the production VM passes a real
-        // flow tracking the user's chosen orientation.
-        currentOrientation: StateFlow<ReaderOrientation> = MutableStateFlow(ReaderOrientation.Horizontal),
     ) {
         observeJob?.cancel()
         locatorJob?.cancel()
-        orientationJob?.cancel()
         _bookmarkPositions.value = emptyList()
         _currentLocator.value = null
-        _currentOrientation.value = currentOrientation.value
 
         observeJob = scope.launch {
             annotationStore.observeBookmarks(serverId, itemId).collect { annotations ->
@@ -128,11 +125,22 @@ class BookmarksController @AssistedInject constructor(
                 _currentLocator.value = locator
             }
         }
-        orientationJob = scope.launch {
-            currentOrientation.collect { orientation ->
-                _currentOrientation.value = orientation
-            }
-        }
+    }
+
+    /**
+     * Set the active reader orientation. Re-publishes the current locator so the
+     * [isCurrentPageBookmarked] combine re-evaluates with the new eps. Called from the VM
+     * whenever the user changes orientation; safe to call from any dispatcher.
+     */
+    fun onOrientationChanged(orientation: ReaderOrientation) {
+        if (currentOrientation == orientation) return
+        currentOrientation = orientation
+        // Trigger a recompute by republishing the same locator instance. The combine's identity
+        // check on StateFlow swallows no-op .value = sameRef, so reassign via a fresh "no-op"
+        // emission — use a temporary null transit if non-null, else nothing to recompute.
+        val locator = _currentLocator.value ?: return
+        _currentLocator.value = null
+        _currentLocator.value = locator
     }
 
     /** Rename a bookmark; schedules annotation sync. */

@@ -685,10 +685,18 @@ class EpubReaderViewModel @Inject constructor(
                         serverId = activeServer.id,
                         itemId = itemId,
                         currentLocator = position.currentLocator,
-                        currentOrientation = formatting.formattingPreferences
-                            .map { it.orientation }
-                            .stateIn(viewModelScope, SharingStarted.Eagerly, formatting.formattingPreferences.value.orientation),
                     )
+                    // Push orientation changes into the controller via a setter (instead of
+                    // collecting via combine) so the page-bookmark indicator's match window
+                    // re-sizes on a mid-session flip without dragging a third StateFlow into
+                    // every locator-update recompute.
+                    bookmarks.onOrientationChanged(formatting.formattingPreferences.value.orientation)
+                    viewModelScope.launch {
+                        formatting.formattingPreferences
+                            .map { it.orientation }
+                            .distinctUntilChanged()
+                            .collect { bookmarks.onOrientationChanged(it) }
+                    }
                     // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
                     // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
                     // means we can't sync this session (offline or non-ABS or backfill failed) — the
