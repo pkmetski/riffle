@@ -24,7 +24,7 @@ class ReadaloudPreferencesStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = ReadaloudPreferencesStoreImpl(
+    private fun buildStore() = ReadaloudPreferencesStore(
         PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("readaloud_prefs.preferences_pb") },
@@ -52,7 +52,7 @@ class ReadaloudPreferencesStoreTest {
             produceFile = { tmp.newFile("readaloud_prefs_fallback.preferences_pb") },
         )
         rawStore.edit { it[stringPreferencesKey("highlight_color")] = "NOT_A_COLOR" }
-        val store = ReadaloudPreferencesStoreImpl(rawStore)
+        val store = ReadaloudPreferencesStore(rawStore)
         assertEquals(ReadaloudHighlightColor.BLUE, store.preferences.first().highlightColor)
     }
 }

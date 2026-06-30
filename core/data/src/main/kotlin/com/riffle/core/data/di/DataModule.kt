@@ -41,12 +41,12 @@ import com.riffle.core.data.ServerFilesCleanerImpl
 import com.riffle.core.data.ServerRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
-import com.riffle.core.data.CoverGridDensityStoreImpl
-import com.riffle.core.data.AppThemeStoreImpl
+import com.riffle.core.data.AppThemeStore as createAppThemeStore
+import com.riffle.core.data.CoverGridDensityStore as createCoverGridDensityStore
+import com.riffle.core.data.ReadaloudPreferencesStore as createReadaloudPreferencesStore
+import com.riffle.core.data.ReadingSpeedStore as createReadingSpeedStore
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
-import com.riffle.core.data.ReadingSpeedStoreImpl
-import com.riffle.core.data.WakeLockPreferencesStoreImpl
-import com.riffle.core.data.ReadaloudPreferencesStoreImpl
+import com.riffle.core.data.WakeLockPreferencesStore as createWakeLockPreferencesStore
 import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AnnotationSyncConfigStore
@@ -335,27 +335,11 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindWakeLockPreferencesStore(impl: WakeLockPreferencesStoreImpl): WakeLockPreferencesStore
-
-    @Binds
-    @Singleton
     abstract fun bindListeningPreferencesStore(impl: ListeningPreferencesStoreImpl): ListeningPreferencesStore
 
     @Binds
     @Singleton
     abstract fun bindVolumeKeyPreferencesStore(impl: VolumeKeyPreferencesStoreImpl): VolumeKeyPreferencesStore
-
-    @Binds
-    @Singleton
-    abstract fun bindAppThemeStore(impl: AppThemeStoreImpl): AppThemeStore
-
-    @Binds
-    @Singleton
-    abstract fun bindCoverGridDensityStore(impl: CoverGridDensityStoreImpl): CoverGridDensityStore
-
-    @Binds
-    @Singleton
-    abstract fun bindReadaloudPreferencesStore(impl: ReadaloudPreferencesStoreImpl): ReadaloudPreferencesStore
 
     @Binds
     @Singleton
@@ -384,10 +368,6 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAnnotationSyncConfigStore(impl: AnnotationSyncConfigStoreImpl): AnnotationSyncConfigStore
-
-    @Binds
-    @Singleton
-    abstract fun bindReadingSpeedStore(impl: ReadingSpeedStoreImpl): ReadingSpeedStore
 
     @Binds
     @Singleton
@@ -774,6 +754,37 @@ abstract class DataModule {
         fun provideReadingSpeedDataStore(
             @ApplicationContext context: Context
         ): DataStore<Preferences> = context.readingSpeedDataStore
+
+        // Single-key DataStore<Preferences> wrappers — see PreferenceStoreFactories.kt.
+        @Provides
+        @Singleton
+        fun provideAppThemeStore(
+            @AppThemePreferencesDataStore dataStore: DataStore<Preferences>,
+        ): AppThemeStore = createAppThemeStore(dataStore)
+
+        @Provides
+        @Singleton
+        fun provideCoverGridDensityStore(
+            @CoverGridDensityDataStore dataStore: DataStore<Preferences>,
+        ): CoverGridDensityStore = createCoverGridDensityStore(dataStore)
+
+        @Provides
+        @Singleton
+        fun provideReadingSpeedStore(
+            @ReadingSpeedDataStore dataStore: DataStore<Preferences>,
+        ): ReadingSpeedStore = createReadingSpeedStore(dataStore)
+
+        @Provides
+        @Singleton
+        fun provideWakeLockPreferencesStore(
+            @WakeLockPreferencesDataStore dataStore: DataStore<Preferences>,
+        ): WakeLockPreferencesStore = createWakeLockPreferencesStore(dataStore)
+
+        @Provides
+        @Singleton
+        fun provideReadaloudPreferencesStore(
+            @ReadaloudPreferencesDataStore dataStore: DataStore<Preferences>,
+        ): ReadaloudPreferencesStore = createReadaloudPreferencesStore(dataStore)
 
         @Provides
         @Singleton
