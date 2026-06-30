@@ -8,7 +8,7 @@ package com.riffle.core.domain
  * the open side feeds only into [applicableRemotes], never into the cycle itself.
  *
  * [peerFor] constructs the live [ProgressPeer] for a kind (wiring the network APIs and the
- * [CanonicalPositionTranslator]); it may return `null` when a peer cannot be built this
+ * [DefaultPositionTranslator]); it may return `null` when a peer cannot be built this
  * cycle (e.g. a prerequisite went missing), in which case that target is simply skipped.
  */
 class ProgressSyncStrategy(

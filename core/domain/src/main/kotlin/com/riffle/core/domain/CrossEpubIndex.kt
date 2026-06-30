@@ -27,7 +27,7 @@ data class CrossEpubIndex(
 /**
  * A position within a logical book that is EPUB-file-agnostic: a spine-aligned chapter
  * index plus a [progression] (0..1) through that chapter's readable characters. This is
- * the canonical currency [CanonicalPositionTranslator] converts between coordinate
+ * the canonical currency [DefaultPositionTranslator] converts between coordinate
  * systems; the reader translates it to/from the displayed EPUB's CFI at its boundary.
  */
 data class ChapterProgression(

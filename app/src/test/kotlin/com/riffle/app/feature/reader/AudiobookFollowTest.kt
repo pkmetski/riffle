@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.CanonicalPositionTranslator
+import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.network.AbsSessionApi
@@ -32,7 +32,7 @@ class AudiobookFollowTest {
         "c1.html#s2" to ChapterProgression(0, 0.5),
         "c2.html#s1" to ChapterProgression(1, 0.0),
     )
-    private fun translator() = CanonicalPositionTranslator(clips, fragmentProgressions = fragmentProgressions)
+    private fun translator() = DefaultPositionTranslator(clips, fragmentProgressions = fragmentProgressions)
 
     private class FakeApi(val stamp: Long = 4242L) : AbsSessionApi {
         var sentSeconds: Double? = null

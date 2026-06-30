@@ -1,6 +1,5 @@
-package com.riffle.app.feature.reader
+package com.riffle.core.domain
 
-import com.riffle.core.domain.EpubTextChars
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -11,7 +10,7 @@ import org.jsoup.nodes.TextNode
 // ── Public API ───────────────────────────────────────────────────────────────
 
 
-internal fun extractCfiDocPath(fullCfi: String): String? {
+fun extractCfiDocPath(fullCfi: String): String? {
     if (!fullCfi.startsWith("epubcfi(") || !fullCfi.endsWith(")")) return null
     val inner = fullCfi.removePrefix("epubcfi(").removeSuffix(")")
     val bang = inner.indexOf('!')
@@ -19,7 +18,7 @@ internal fun extractCfiDocPath(fullCfi: String): String? {
     return inner.substring(bang + 1).takeIf { it.isNotEmpty() }
 }
 
-internal fun cfiDocPathToProgression(docPath: String, html: String): Double? {
+fun cfiDocPathToProgression(docPath: String, html: String): Double? {
     val doc = Jsoup.parse(html)
     val htmlEl = doc.child(0)
     val body = doc.body()
@@ -39,7 +38,7 @@ internal fun cfiDocPathToProgression(docPath: String, html: String): Double? {
     return (charsBefore.toDouble() / totalChars).coerceIn(0.0, 1.0)
 }
 
-internal fun progressionToCfiDocPath(progression: Double, html: String): String? {
+fun progressionToCfiDocPath(progression: Double, html: String): String? {
     val doc = Jsoup.parse(html)
     val htmlEl = doc.child(0)
     val body = doc.body()
@@ -54,7 +53,7 @@ internal fun progressionToCfiDocPath(progression: Double, html: String): String?
     return buildCfiDocPath(htmlEl, textNode, offset)
 }
 
-internal fun extractCfiElementIds(docPath: String): List<String> {
+fun extractCfiElementIds(docPath: String): List<String> {
     val parts = docPath.trimStart('/').split('/').filter { it.isNotEmpty() }
     val ids = mutableListOf<String>()
     for (part in parts) {
@@ -68,7 +67,7 @@ internal fun extractCfiElementIds(docPath: String): List<String> {
     return ids.reversed()
 }
 
-internal fun hasElementWithId(html: String, id: String): Boolean =
+fun hasElementWithId(html: String, id: String): Boolean =
     Jsoup.parse(html).getElementById(id) != null
 
 /**
@@ -77,16 +76,16 @@ internal fun hasElementWithId(html: String, id: String): Boolean =
  * Used by continuous-mode navigation to anchor on the exact element rather than a
  * character-count progression approximation.
  */
-internal fun extractAnchorFromCfi(fullCfi: String, html: String): String? {
+fun extractAnchorFromCfi(fullCfi: String, html: String): String? {
     val docPath = extractCfiDocPath(fullCfi) ?: return null
     return extractCfiElementIds(docPath).firstOrNull { hasElementWithId(html, it) }
 }
 
 // ── CFI string parsing ────────────────────────────────────────────────────────
 
-internal data class ParsedCfiDocPath(val steps: List<Int>, val charOffset: Int)
+data class ParsedCfiDocPath(val steps: List<Int>, val charOffset: Int)
 
-internal fun parseCfiDocPath(docPath: String): ParsedCfiDocPath? {
+fun parseCfiDocPath(docPath: String): ParsedCfiDocPath? {
     val parts = docPath.trimStart('/').split('/').filter { it.isNotEmpty() }
     if (parts.isEmpty()) return null
 
@@ -109,7 +108,7 @@ internal fun parseCfiDocPath(docPath: String): ParsedCfiDocPath? {
 // ── DOM walking ───────────────────────────────────────────────────────────────
 
 // even step N → element child at index N/2-1; odd step N → non-blank text node at (N-1)/2
-internal fun walkCfiSteps(root: Element, steps: List<Int>): Node? {
+fun walkCfiSteps(root: Element, steps: List<Int>): Node? {
     var current: Node = root
     for (step in steps) {
         val parent = current as? Element ?: return null
@@ -129,9 +128,9 @@ internal fun walkCfiSteps(root: Element, steps: List<Int>): Node? {
 
 // Single source of truth for the readable-character definition, shared with the
 // cross-EPUB index (ADR 0019) via core/domain.
-internal fun countBodyChars(body: Element): Long = EpubTextChars.countReadableChars(body)
+fun countBodyChars(body: Element): Long = EpubTextChars.countReadableChars(body)
 
-internal fun countCharsBefore(body: Element, target: TextNode, offsetInTarget: Int): Long {
+fun countCharsBefore(body: Element, target: TextNode, offsetInTarget: Int): Long {
     var count = 0L
     var found = false
 
@@ -150,7 +149,7 @@ internal fun countCharsBefore(body: Element, target: TextNode, offsetInTarget: I
 
 // ── Finding node at character position ───────────────────────────────────────
 
-internal fun findNodeAtChar(body: Element, targetChar: Long): Pair<TextNode, Int>? {
+fun findNodeAtChar(body: Element, targetChar: Long): Pair<TextNode, Int>? {
     var remaining = targetChar
 
     fun visit(node: Node): Pair<TextNode, Int>? = when (node) {
@@ -171,7 +170,7 @@ internal fun findNodeAtChar(body: Element, targetChar: Long): Pair<TextNode, Int
 
 // ── CFI path building ─────────────────────────────────────────────────────────
 
-internal fun buildCfiDocPath(htmlEl: Element, textNode: TextNode, offset: Int): String? {
+fun buildCfiDocPath(htmlEl: Element, textNode: TextNode, offset: Int): String? {
     val textParent = textNode.parentNode() as? Element ?: return null
 
     // Odd step for the text node: count non-whitespace text siblings before it

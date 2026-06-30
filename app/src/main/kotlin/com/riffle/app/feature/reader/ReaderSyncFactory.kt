@@ -4,7 +4,7 @@ import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.BookSyncState
-import com.riffle.core.domain.CanonicalPositionTranslator
+import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
@@ -87,14 +87,14 @@ open class ReaderSyncFactory @Inject constructor(
         val fragmentProgressions = StorytellerFragmentIndexBuilder.build(
             storytellerExtract.chapters, storytellerExtract.smilClips,
         )
-        val translator = CanonicalPositionTranslator(storytellerExtract.smilClips, index, fragmentProgressions)
-
-        val bridge = ReaderPositionBridge(
+        val translator = DefaultPositionTranslator(
+            smilClips = storytellerExtract.smilClips,
+            crossEpubIndex = index,
+            fragmentProgressions = fragmentProgressions,
             absSpineHrefs = absExtract.hrefs(),
             absChapterHtml = absExtract.htmlAt(),
             storytellerSpineHrefs = storytellerExtract.hrefs(),
             storytellerChapterHtml = storytellerExtract.htmlAt(),
-            translator = translator,
         )
 
         val absEbookEndpoint = absEndpointFor(ebookLink.absServerId, ebookLink.absLibraryItemId)
@@ -110,7 +110,7 @@ open class ReaderSyncFactory @Inject constructor(
                 hasAbsAudioTarget = absAudioEndpoint != null,
                 prerequisitesCached = true,
             ),
-            bridge = bridge,
+            translator = translator,
             absApi = absSessionApi,
             absEbookEndpoint = absEbookEndpoint,
             absAudioEndpoint = absAudioEndpoint,
@@ -134,7 +134,7 @@ open class ReaderSyncFactory @Inject constructor(
         val targets = resolveAbsTargets(itemId, linkedMedia)
         val audioTarget = targets.audio ?: return null
         // For the streaming path (ADR 0028) the sidecar stands in for the full bundle: it carries the
-        // SMIL clips and chapter HTML needed by CanonicalPositionTranslator and ReadaloudTextQuotes, so
+        // SMIL clips and chapter HTML needed by DefaultPositionTranslator and ReadaloudTextQuotes, so
         // AudiobookFollow can be built without a downloaded bundle. createIfApplicable() still requires
         // the full bundle (for cross-EPUB index checksums), so the coordinator stays on the sidecar-only
         // path until the bundle is downloaded.
@@ -147,7 +147,7 @@ open class ReaderSyncFactory @Inject constructor(
         return AudiobookFollow(
             absApi = absSessionApi,
             endpoint = endpoint,
-            translator = CanonicalPositionTranslator(storytellerExtract.smilClips),
+            translator = DefaultPositionTranslator(smilClips = storytellerExtract.smilClips),
             serverId = audioTarget.absServerId,
             audioItemId = audioTarget.absLibraryItemId,
             // The ebook target + the bundle's sentence quotes let audiobook→ebook resolve index-free,

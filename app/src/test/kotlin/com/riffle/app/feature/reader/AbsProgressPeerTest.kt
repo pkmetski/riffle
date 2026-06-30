@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.CanonicalPositionTranslator
+import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.CanonicalReaderPosition
 import com.riffle.core.domain.ChapterCharMap
 import com.riffle.core.domain.ChapterProgression
@@ -28,18 +28,15 @@ import java.io.IOException
  */
 class AbsProgressPeerTest {
 
-    private val translator = CanonicalPositionTranslator(
-        smilClips = listOf(MediaOverlayClip("f1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0)),
-        index = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
-        fragmentProgressions = mapOf("f1" to ChapterProgression(0, 0.2)),
-    )
     private val absHtml = "<html><body><p>${"x".repeat(100)}</p></body></html>"
-    private val bridge = ReaderPositionBridge(
+    private val translator = DefaultPositionTranslator(
+        smilClips = listOf(MediaOverlayClip("f1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0)),
+        crossEpubIndex = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
+        fragmentProgressions = mapOf("f1" to ChapterProgression(0, 0.2)),
         absSpineHrefs = listOf("c1.xhtml"),
         absChapterHtml = { if (it == 0) absHtml else null },
         storytellerSpineHrefs = listOf("c1.xhtml"),
         storytellerChapterHtml = { if (it == 0) absHtml else null },
-        translator = translator,
     )
     private val ep = AbsSyncEndpoint("http://abs", "t", false, "i", durationSec = 100.0)
 
@@ -80,23 +77,23 @@ class AbsProgressPeerTest {
 
     @Test
     fun `ebook peer Ok when network PATCH succeeds and stamp comes back`() = runTest {
-        val peer = AbsEbookProgressPeer(OkAbs(stamp = 1234L), ep, bridge)
+        val peer = AbsEbookProgressPeer(OkAbs(stamp = 1234L), ep, translator)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.5)))
         assertEquals(WriteResult.Ok(1234L), result)
     }
 
     @Test
     fun `ebook peer Skipped when canonical can't be translated to a CFI (deliberate no-op)`() = runTest {
-        // href not in the spine → bridge.canonicalToAbsCfi returns null → Skipped (not Failed): the
+        // href not in the spine → translator.canonicalToAbsCfi returns null → Skipped (not Failed): the
         // peer made no network attempt; the row is not dirty, the cycle will retry next pass.
-        val peer = AbsEbookProgressPeer(OkAbs(stamp = 1234L), ep, bridge)
+        val peer = AbsEbookProgressPeer(OkAbs(stamp = 1234L), ep, translator)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("nonexistent.xhtml", 0.5)))
         assertEquals(WriteResult.Skipped, result)
     }
 
     @Test
     fun `ebook peer Failed when ABS PATCH errors`() = runTest {
-        val peer = AbsEbookProgressPeer(PatchFailAbs(), ep, bridge)
+        val peer = AbsEbookProgressPeer(PatchFailAbs(), ep, translator)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.5)))
         assertTrue("expected Failed, was $result", result is WriteResult.Failed)
     }
@@ -105,14 +102,14 @@ class AbsProgressPeerTest {
     fun `ebook peer Failed when stamp read-back fails (PATCH stored, stamp unknown)`() = runTest {
         // ABS itself returns Success with no stamp; the read-back GET fails. The cycle needs the stamp
         // to break the feedback loop, so report Failed — not Ok with a fake stamp.
-        val peer = AbsEbookProgressPeer(StampReadbackFailAbs(), ep, bridge)
+        val peer = AbsEbookProgressPeer(StampReadbackFailAbs(), ep, translator)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.5)))
         assertTrue("expected Failed, was $result", result is WriteResult.Failed)
     }
 
     @Test
     fun `audiobook peer Ok when SMIL placement + PATCH + stamp succeed`() = runTest {
-        val peer = AbsAudiobookProgressPeer(OkAbs(stamp = 9000L), ep, bridge)
+        val peer = AbsAudiobookProgressPeer(OkAbs(stamp = 9000L), ep, translator)
         // progression 0.2 places inside the SMIL clip f1 (5–10s) — translates to a valid audio second
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.2)))
         assertEquals(WriteResult.Ok(9000L), result)
@@ -120,7 +117,7 @@ class AbsProgressPeerTest {
 
     @Test
     fun `audiobook peer Failed when ABS PATCH errors`() = runTest {
-        val peer = AbsAudiobookProgressPeer(PatchFailAbs(), ep, bridge)
+        val peer = AbsAudiobookProgressPeer(PatchFailAbs(), ep, translator)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.2)))
         assertTrue("expected Failed, was $result", result is WriteResult.Failed)
     }

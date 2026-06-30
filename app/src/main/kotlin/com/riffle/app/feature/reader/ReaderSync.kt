@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.CanonicalReaderPosition
 import com.riffle.core.domain.LocalCanonical
+import com.riffle.core.domain.PositionTranslator
 import com.riffle.core.domain.ProgressPeer
 import com.riffle.core.domain.ProgressSyncStrategy
 import com.riffle.core.domain.RemoteKind
@@ -44,7 +45,7 @@ internal suspend fun AbsSessionApi.writeAudiobookSeconds(ep: AbsSyncEndpoint, se
 internal class AbsEbookProgressPeer(
     private val api: AbsSessionApi,
     private val ep: AbsSyncEndpoint,
-    private val bridge: ReaderPositionBridge,
+    private val translator: PositionTranslator,
 ) : ProgressPeer {
     override val id = RemoteKind.ABS_EBOOK.name
 
@@ -54,14 +55,14 @@ internal class AbsEbookProgressPeer(
             ?.progress ?: return null
         val cfi = p.ebookLocation.takeIf { it.startsWith("epubcfi(") }
         if (p.lastUpdate <= 0L || cfi == null) return EMPTY_PEER_READ
-        val canonical = bridge.absCfiToCanonical(cfi) ?: return EMPTY_PEER_READ
+        val canonical = translator.absCfiToCanonical(cfi) ?: return EMPTY_PEER_READ
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
     }
 
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
-        val cfi = bridge.canonicalToAbsCfi(canonical.value)
+        val cfi = translator.canonicalToAbsCfi(canonical.value)
             ?: return WriteResult.Skipped // canonical can't be placed in the ABS EPUB this cycle
-        val payload = NetworkEbookProgressPayload(cfi, bridge.canonicalBookProgress(canonical.value))
+        val payload = NetworkEbookProgressPayload(cfi, translator.canonicalBookProgress(canonical.value))
         if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success)
             return WriteResult.Failed("ABS ebook PATCH network error")
         val stamp = api.serverStamp(ep) ?: return WriteResult.Failed("ABS ebook stamp read-back failed")
@@ -74,7 +75,7 @@ internal class AbsEbookProgressPeer(
  * overlay — the exact page↔audio-timestamp mapping. [tryGet] turns the audiobook `currentTime` into a
  * reading position (so a newer listen on another device moves the reader); [tryPatch] turns the
  * winning reading position into an audiobook `currentTime` (so reading advances the audiobook). The
- * SMIL times are made absolute over the concatenated audio files in [CanonicalPositionTranslator], so
+ * SMIL times are made absolute over the concatenated audio files in [PositionTranslator], so
  * `currentTime` matches the ABS audiobook's single-file timeline rather than a per-file offset.
  *
  * The raw audio *clock* is never written here — only positions derived from the canonical reading
@@ -84,7 +85,7 @@ internal class AbsEbookProgressPeer(
 internal class AbsAudiobookProgressPeer(
     private val api: AbsSessionApi,
     private val ep: AbsSyncEndpoint,
-    private val bridge: ReaderPositionBridge,
+    private val translator: PositionTranslator,
 ) : ProgressPeer {
     override val id = RemoteKind.ABS_AUDIO.name
 
@@ -92,12 +93,12 @@ internal class AbsAudiobookProgressPeer(
         val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
             ?.progress ?: return null
         if (p.lastUpdate <= 0L || p.currentTime <= 0.0) return EMPTY_PEER_READ // no audiobook position yet
-        val canonical = bridge.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_PEER_READ
+        val canonical = translator.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_PEER_READ
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)
     }
 
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
-        val seconds = bridge.canonicalToAudioSeconds(canonical.value)
+        val seconds = translator.canonicalToAudioSeconds(canonical.value)
             ?: return WriteResult.Skipped // canonical can't be placed on the audio timeline this cycle
         val stamp = api.writeAudiobookSeconds(ep, seconds)
             ?: return WriteResult.Failed("ABS audiobook PATCH or stamp read-back failed")
@@ -143,7 +144,7 @@ data class AudioLedCycleResult(val jumpToAudioSec: Double?, val canonicalLastUpd
 
 class ReaderSyncCoordinator(
     private val state: BookSyncState,
-    private val bridge: ReaderPositionBridge,
+    private val translator: PositionTranslator,
     private val absApi: AbsSessionApi,
     // The ABS ebook and audiobook remotes target their own matched Library Item: one combined item
     // (same endpoint) or two separate items when a library splits ebooks and audiobooks (ADR 0019).
@@ -158,9 +159,9 @@ class ReaderSyncCoordinator(
     suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long, pushAudio: Boolean = true): ReaderSyncCycleResult {
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
-                RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookProgressPeer(absApi, it, bridge) }
+                RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookProgressPeer(absApi, it, translator) }
                 RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let {
-                    val peer = AbsAudiobookProgressPeer(absApi, it, bridge)
+                    val peer = AbsAudiobookProgressPeer(absApi, it, translator)
                     if (pushAudio) peer else InboundOnlyPeer(peer)
                 }
                 // Bookmarks are not a position peer — they reconcile via the sweep, not this cycle.
@@ -188,17 +189,17 @@ class ReaderSyncCoordinator(
      * unchanged, no jump.
      */
     suspend fun runAudioLedCycle(currentAudioSec: Double, localUpdatedAt: Long): AudioLedCycleResult {
-        val localCanonical = bridge.audioSecondsToCanonical(currentAudioSec)
+        val localCanonical = translator.audioSecondsToCanonical(currentAudioSec)
             ?: return AudioLedCycleResult(jumpToAudioSec = null, canonicalLastUpdate = localUpdatedAt)
         val result = runCycle(localCanonical, localUpdatedAt)
-        val jumpAudio = result.jumpLocatorJson?.let { bridge.canonicalToAudioSeconds(it) }
+        val jumpAudio = result.jumpLocatorJson?.let { translator.canonicalToAudioSeconds(it) }
         return AudioLedCycleResult(jumpToAudioSec = jumpAudio, canonicalLastUpdate = result.canonicalLastUpdate)
     }
 
     /** The narrated fragment a canonical reading position falls in, so readaloud can start exactly
      *  where a server-sync jump placed the reader rather than at the page top. */
     fun fragmentForCanonical(canonicalLocatorJson: String): String? =
-        bridge.canonicalToFragmentRef(canonicalLocatorJson)
+        translator.canonicalToFragmentRef(canonicalLocatorJson)
 
     /** Whether this matched book carries an audiobook ABS record (the dual-write sibling, ADR 0030). */
     val hasAudioTarget: Boolean get() = absAudioEndpoint != null
@@ -213,23 +214,23 @@ class ReaderSyncCoordinator(
     /** The audiobook second a reading position maps to (bundle SMIL) — the value the cycle already
      *  pushes to ABS_AUDIO; the dual-write persists it locally too. `null` if untranslatable. */
     fun audioSecondsForCanonical(canonicalLocatorJson: String): Double? =
-        bridge.canonicalToAudioSeconds(canonicalLocatorJson)
+        translator.canonicalToAudioSeconds(canonicalLocatorJson)
 
     /** The audiobook second the **narrated sentence** maps to (bundle SMIL, sentence-precise), falling
      *  back to the page-derived position. Used to persist the local audiobook position on readaloud
      *  close/pause (ADR 0031). `null` if neither can be translated. */
     fun audioSecondsForFragment(fragmentRef: String, fallbackCanonicalJson: String?): Double? =
-        bridge.audioSecondsForFragment(fragmentRef)
-            ?: fallbackCanonicalJson?.let { bridge.canonicalToAudioSeconds(it) }
+        translator.audioSecondsForFragment(fragmentRef)
+            ?: fallbackCanonicalJson?.let { translator.canonicalToAudioSeconds(it) }
 
     /** The narrated sentence an absolute audio second falls in (bundle SMIL, index-free) — seeds the
      *  readaloud start from a local listen position (ADR 0031). */
-    fun fragmentForAudioSeconds(seconds: Double): String? = bridge.fragmentForAudioSeconds(seconds)
+    fun fragmentForAudioSeconds(seconds: Double): String? = translator.fragmentForAudioSeconds(seconds)
 
     /** The reading-position locator JSON an audiobook second maps to (bundle SMIL) — the counterpart
      *  for the audiobook player's dual-write onto the reading store. `null` if untranslatable. */
     fun canonicalForAudioSeconds(seconds: Double): String? =
-        bridge.audioSecondsToCanonical(seconds)
+        translator.audioSecondsToCanonical(seconds)
 
     /**
      * The readaloud resume anchor (reader href + column progression + narrated sentence) an audiobook
@@ -238,13 +239,13 @@ class ReaderSyncCoordinator(
      * the seconds can't be translated (prerequisites mid-cache).
      */
     fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {
-        val canonicalJson = bridge.audioSecondsToCanonical(seconds) ?: return null
+        val canonicalJson = translator.audioSecondsToCanonical(seconds) ?: return null
         val pos = CanonicalReaderPosition(canonicalJson)
         val href = pos.href ?: return null
         return com.riffle.core.domain.ReadaloudResumePosition(
             href = href,
             progression = pos.chapterProgression,
-            fragmentRef = bridge.canonicalToFragmentRef(canonicalJson),
+            fragmentRef = translator.canonicalToFragmentRef(canonicalJson),
         )
     }
 
@@ -257,13 +258,13 @@ class ReaderSyncCoordinator(
      */
     fun bundleFragmentRefForSelection(displayedRef: String): String? {
         val spanId = displayedRef.substringAfter('#', "").takeIf { it.isNotEmpty() } ?: return null
-        val bundleHref = bridge.displayedHrefToBundleHref(displayedRef.substringBefore('#')) ?: return null
+        val bundleHref = translator.displayedHrefToBundleHref(displayedRef.substringBefore('#')) ?: return null
         return "$bundleHref#$spanId"
     }
 
     /**
      * Responsive update of the matched ABS audiobook's `currentTime` from the current **reading
-     * position**, translated through the bundle's SMIL ([ReaderPositionBridge.canonicalToAudioSeconds],
+     * position**, translated through the bundle's SMIL ([PositionTranslator.canonicalToAudioSeconds],
      * absolute over the concatenated audio files). Used by the audiobook-follow loop while readaloud
      * plays (the page tracks the audio) so the audiobook reaches the server between reconcile cycles.
      * Writes ONLY the audiobook item, from a page-derived position — never the raw audio clock — so it
@@ -275,7 +276,7 @@ class ReaderSyncCoordinator(
      * loop without dropping inbound audiobook sync. ABS's PATCH carries no timestamp, so we GET it back.
      */
     suspend fun pushAudiobookProgress(canonicalLocatorJson: String): Long? =
-        pushAudiobookAtSeconds(bridge.canonicalToAudioSeconds(canonicalLocatorJson))
+        pushAudiobookAtSeconds(translator.canonicalToAudioSeconds(canonicalLocatorJson))
 
     /**
      * Responsive audiobook update from the **exact narrated sentence** (the player's active fragment),
@@ -284,8 +285,8 @@ class ReaderSyncCoordinator(
      * when the fragment can't be placed.
      */
     suspend fun pushAudiobookForFragment(fragmentRef: String, fallbackCanonicalJson: String?): Long? {
-        val seconds = bridge.audioSecondsForFragment(fragmentRef)
-            ?: fallbackCanonicalJson?.let { bridge.canonicalToAudioSeconds(it) }
+        val seconds = translator.audioSecondsForFragment(fragmentRef)
+            ?: fallbackCanonicalJson?.let { translator.canonicalToAudioSeconds(it) }
         return pushAudiobookAtSeconds(seconds)
     }
 
@@ -308,7 +309,7 @@ class ReaderSyncCoordinator(
 class AudiobookFollow(
     private val absApi: AbsSessionApi,
     private val endpoint: AbsSyncEndpoint,
-    private val translator: com.riffle.core.domain.CanonicalPositionTranslator,
+    private val translator: PositionTranslator,
     val serverId: String,
     val audioItemId: String,
     val ebookItemId: String? = null,

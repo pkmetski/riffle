@@ -110,7 +110,7 @@ class ReadaloudTrackTest {
     // href, so resolveStartClip can't use the exact match — and a plain bare-id match returns the
     // EARLIEST clip carrying that id, jumping "Play from here" to an identically-id'd sentence in an
     // earlier chapter ("play-from-here reset my progress"). Given the reader's chapter (the caller maps
-    // the ABS href to the bundle href via ReaderPositionBridge), it must resolve to THAT chapter's clip.
+    // the ABS href to the bundle href via PositionTranslator), it must resolve to THAT chapter's clip.
     private val collidingIdClips = listOf(
         MediaOverlayClip("OEBPS/text/part0003.xhtml#s5", "a.mp3", 0.0, 2.0),    // earlier chapter (e.g. SOL 34)
         MediaOverlayClip("OEBPS/text/part0050.xhtml#s5", "z.mp3", 900.0, 903.0), // the chapter the reader is on
