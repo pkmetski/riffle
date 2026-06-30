@@ -2,7 +2,6 @@ package com.riffle.app.feature.reader.readaloud
 
 import android.content.ComponentName
 import android.content.Context
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -11,6 +10,9 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudTrack
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.RecordingLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,10 +41,11 @@ import kotlin.coroutines.resume
 open class ReadaloudController @Inject constructor(
     @ApplicationContext private val context: Context?,
     applicationScope: ApplicationScope?,
+    private val logger: Logger,
 ) {
     // Test seam: subclasses that override the pre-warm methods need no real Context (only consulted in
     // [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without Robolectric.
-    protected constructor() : this(null, null)
+    protected constructor() : this(null, null, RecordingLogger())
     data class PlaybackState(
         val connected: Boolean = false,
         val isPlaying: Boolean = false,
@@ -78,7 +81,7 @@ open class ReadaloudController @Inject constructor(
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
-                Log.d(HANDOFF, "RA.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}")
+                logger.d(LogChannel.Handoff) { "RA.onPlaybackStateChanged state=${player.playbackState} isPlaying=${player.isPlaying}" }
             }
             pushState()
         }
@@ -88,19 +91,19 @@ open class ReadaloudController @Inject constructor(
         // looked like "the highlight shows but there's no sound": the small media-overlay track still
         // parses, but playback never starts. Logged so the cause is greppable in a bug report.
         override fun onPlayerError(error: PlaybackException) {
-            Log.e(LOG, "playback error code=${error.errorCodeName} src=${controller?.currentMediaItem?.mediaId}", error)
+            logger.e(LogChannel.Readaloud, error) { "playback error code=${error.errorCodeName} src=${controller?.currentMediaItem?.mediaId}" }
         }
     }
 
     /** Connects (if needed), points the service at [bundle], and queues [track]'s audio files. */
     suspend fun prepare(bundle: File, track: ReadaloudTrack) {
-        Log.d(HANDOFF, "RA.prepare start (controller already connected=${controller != null})")
+        logger.d(LogChannel.Handoff) { "RA.prepare start (controller already connected=${controller != null})" }
         this.track = track
         SharedBundle.current = bundle
         val t0 = System.currentTimeMillis()
         SharedBundle.streaming = null
         val c = ensureConnected() ?: return
-        Log.d(HANDOFF, "RA.prepare ensureConnected +${System.currentTimeMillis() - t0}ms")
+        logger.d(LogChannel.Handoff) { "RA.prepare ensureConnected +${System.currentTimeMillis() - t0}ms" }
 
         audioIndex.clear()
         val items = ArrayList<MediaItem>()
@@ -113,7 +116,7 @@ open class ReadaloudController @Inject constructor(
         }
         c.setMediaItems(items)
         c.prepare()
-        Log.d(HANDOFF, "RA.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms")
+        logger.d(LogChannel.Handoff) { "RA.prepare setMediaItems+prepare +${System.currentTimeMillis() - t0}ms" }
         pushState()
     }
 
@@ -141,7 +144,7 @@ open class ReadaloudController @Inject constructor(
     }
 
     fun play() {
-        Log.d(HANDOFF, "RA.play called")
+        logger.d(LogChannel.Handoff) { "RA.play called" }
         controller?.play()
         startPolling()
     }
@@ -179,7 +182,7 @@ open class ReadaloudController @Inject constructor(
      * Keeps [track] so [preWarmSeek] can still resolve a position if the user drags back.
      */
     fun releaseForHandoff() {
-        Log.d(HANDOFF, "RA.releaseForHandoff (T0 — audio pausing)")
+        logger.d(LogChannel.Handoff) { "RA.releaseForHandoff (T0 — audio pausing)" }
         pollJob?.cancel()
         pollJob = null
         controller?.run {
@@ -222,7 +225,7 @@ open class ReadaloudController @Inject constructor(
 
     /** Seeks to [globalSec] on the concatenated timeline and starts playing (audiobook→readaloud handoff). */
     fun playFromSecond(globalSec: Double) {
-        Log.d(HANDOFF, "RA.playFromSecond (preWarmed=${preWarmedPosition != null})")
+        logger.d(LogChannel.Handoff) { "RA.playFromSecond (preWarmed=${preWarmedPosition != null})" }
         val target = preWarmedPosition ?: track?.seekTarget(globalSec) ?: return
         preWarmedPosition = null
         seekToAudio(target.audioSrc, target.positionSec)
@@ -316,7 +319,5 @@ open class ReadaloudController @Inject constructor(
         const val FORWARD_SEC = 30.0
         private const val NEAR_START_SEC = 3.0
         private const val POLL_INTERVAL_MS = 250L
-        private const val LOG = "RIFFLE_RA"
-        internal const val HANDOFF = "RIFFLE_HANDOFF"
     }
 }
