@@ -1,5 +1,6 @@
 package com.riffle.core.domain
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 
@@ -36,4 +37,14 @@ interface ApplicationScope {
      * terminal write before navigating, without losing the write if the user backs out mid-await.
      */
     suspend fun <T> withSurvivable(block: suspend CoroutineScope.() -> T): T
+
+    /**
+     * Survivable [CoroutineScope] whose dispatcher is [dispatcher] but whose [Job] is the same
+     * SupervisorJob as [coroutineScope] — for components that need a specific dispatcher (e.g.
+     * Media3 controllers require [kotlinx.coroutines.Dispatchers.Main.immediate]) but should still
+     * sit inside the app's survivable job tree. Use instead of `CoroutineScope(SupervisorJob() +
+     * dispatcher)`, which would allocate a sibling root job outside this seam.
+     */
+    fun scopeOn(dispatcher: CoroutineDispatcher): CoroutineScope =
+        CoroutineScope(coroutineScope.coroutineContext + dispatcher)
 }

@@ -19,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,10 +64,11 @@ open class AudiobookController @Inject constructor(
 
     // Main.immediate is required for Media3 MediaController calls; the survivable Job tree comes from
     // ApplicationScope so we don't allocate a sibling SupervisorJob. In tests, subclasses override every
-    // method that launches on this scope, so [applicationScope] is permitted to be null.
-    private val scope: CoroutineScope = applicationScope?.let {
-        CoroutineScope(it.coroutineScope.coroutineContext + Dispatchers.Main.immediate)
-    } ?: CoroutineScope(Dispatchers.Main.immediate)
+    // method that launches on this scope, so [applicationScope] is permitted to be null — the fallback
+    // mirrors the production SupervisorJob semantics so a future partial-override test fake doesn't get
+    // surprised by sibling-cancel behaviour.
+    private val scope: CoroutineScope = applicationScope?.scopeOn(Dispatchers.Main.immediate)
+        ?: CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlaybackState())
     open val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
