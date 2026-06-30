@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
@@ -36,6 +35,29 @@ class AnnotationSweep(
     private val bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
     private val nowIso: () -> String = { Instant.now().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
+    /**
+     * Enumerates the dirty (serverId, itemId) pairs to push (#321). Defaults to a thin wrapper
+     * over [annotationDao]; production wiring (DI) supplies the [RoomDirtyAnnotationLedger]
+     * binding explicitly.
+     */
+    private val dirtyLedger: DirtyAnnotationLedger =
+        DirtyAnnotationLedger { annotationDao.dirtyServerItems() },
+    /**
+     * Per-book mutex shared with [AnnotationSyncController] (#321). Held across the per-book
+     * read-then-write so the sweep and a live push cannot interleave on the same device file.
+     * Defaults to a fresh instance for tests; production wiring (DI) supplies the singleton.
+     */
+    private val locks: ReconcileLocks = ReconcileLocks(),
+    /**
+     * Shared sentinel-writer (#321). Defaults to one built from this sweep's own deps so existing
+     * tests don't have to construct one; production wiring injects the singleton.
+     */
+    private val sentinelWriter: DeviceMetaSentinelWriter = DeviceMetaSentinelWriter(
+        deviceIdStore,
+        deviceLabelResolver,
+        { sid -> serverRepository.getById(sid)?.username },
+        nowIso,
+    ),
 ) {
     /**
      * Runs one push cycle. Returns the [CycleOutcome] reported to the status store, or `null` when
@@ -53,14 +75,19 @@ class AnnotationSweep(
         val sentinelTargets = mutableSetOf<Pair<String, String>>()
         val outcome: CycleOutcome = try {
             val deviceId = deviceIdStore.getOrCreate()
-            for ((serverId, itemId) in annotationDao.dirtyServerItems()) {
+            for ((serverId, itemId) in dirtyLedger.dirtyServerItems()) {
                 val namespace = serverRepository.ensureAbsUserId(serverId) ?: continue
                 val bookTitle = bookTitleProvider(serverId, itemId)
-                pushBook(target, serverId, namespace, itemId, deviceId, bookTitle)
+                // Hold the per-book lock across the read-then-write so the live
+                // [AnnotationSyncController] cannot interleave on the same device file
+                // (#321, ADR 0036).
+                locks.withAnnotationLock(serverId, itemId) {
+                    pushBook(target, serverId, namespace, itemId, deviceId, bookTitle)
+                }
                 sentinelTargets += serverId to namespace
             }
             for ((serverId, namespace) in sentinelTargets) {
-                writeDeviceMetaQuietly(target, deviceId, namespace, serverId)
+                sentinelWriter.writeQuietly(target, namespace, serverId)
             }
             CycleOutcome.Success(clock())
         } catch (e: Exception) {
@@ -68,31 +95,6 @@ class AnnotationSweep(
         }
         statusStore.report(outcome)
         return outcome
-    }
-
-    /**
-     * Best-effort write of this device's metadata sentinel under [namespace]. See
-     * [AnnotationSyncController.writeDeviceMetaQuietly] for the rationale; same swallow behaviour.
-     */
-    private suspend fun writeDeviceMetaQuietly(
-        target: AnnotationSyncTarget,
-        deviceId: String,
-        namespace: String,
-        serverId: String,
-    ) {
-        try {
-            val body = AnnotationDeviceMetaCodec.encode(
-                AnnotationDeviceMeta(
-                    deviceId = deviceId,
-                    label = deviceLabelResolver.resolveLabel(deviceId),
-                    lastSyncedAt = nowIso(),
-                    username = serverRepository.getById(serverId)?.username,
-                )
-            )
-            target.writeDeviceMeta(namespace, deviceId, body)
-        } catch (_: Exception) {
-            // Swallowed — see [AnnotationSyncController.writeDeviceMetaQuietly].
-        }
     }
 
     private suspend fun pushBook(

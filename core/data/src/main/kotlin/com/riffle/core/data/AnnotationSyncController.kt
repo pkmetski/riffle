@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -64,6 +63,22 @@ class AnnotationSyncController(
     private val bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
     private val nowIso: () -> String = { Instant.now().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
+    /**
+     * Per-book mutex shared with [AnnotationSweep] (#321). Held across read-then-write so the
+     * sweep and a live push cannot interleave on the same device file. Defaults to a fresh
+     * instance for tests; production wiring (DI) supplies the process-wide singleton.
+     */
+    private val locks: ReconcileLocks = ReconcileLocks(),
+    /**
+     * Shared sentinel-writer (#321). Defaults to one built from this controller's own deps so
+     * existing tests don't have to construct one; production wiring injects the singleton.
+     */
+    private val sentinelWriter: DeviceMetaSentinelWriter = DeviceMetaSentinelWriter(
+        deviceIdStore,
+        deviceLabelResolver,
+        usernameProvider,
+        nowIso,
+    ),
 ) {
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
@@ -94,33 +109,6 @@ class AnnotationSyncController(
             return
         }
         runMergeFromListing(target, serverId, namespace, itemId, filenames)
-    }
-
-    /**
-     * Best-effort write of this device's metadata sentinel under [namespace]. Called at the end
-     * of every successful sync cycle so peers see "Last synced …" advance on pull-only cycles too.
-     * Failure is swallowed — the next cycle will rewrite, and we don't want a transient WebDAV
-     * blip on the sentinel to flip a successful merge/push to Failed.
-     */
-    private suspend fun writeDeviceMetaQuietly(
-        target: AnnotationSyncTarget,
-        namespace: String,
-        serverId: String,
-    ) {
-        try {
-            val deviceId = deviceIdStore.getOrCreate()
-            val body = AnnotationDeviceMetaCodec.encode(
-                AnnotationDeviceMeta(
-                    deviceId = deviceId,
-                    label = deviceLabelResolver.resolveLabel(deviceId),
-                    lastSyncedAt = nowIso(),
-                    username = usernameProvider(serverId),
-                )
-            )
-            target.writeDeviceMeta(namespace, deviceId, body)
-        } catch (_: Exception) {
-            // Best-effort. See kdoc.
-        }
     }
 
     /**
@@ -199,7 +187,7 @@ class AnnotationSyncController(
                 annotationDao.upsert(entity)
             }
             statusStore.report(CycleOutcome.Success(clock()))
-            writeDeviceMetaQuietly(target, namespace, serverId)
+            sentinelWriter.writeQuietly(target, namespace, serverId)
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
         }
@@ -255,7 +243,7 @@ class AnnotationSyncController(
                     // Success so the status badge can recover from a prior Failed.* state without
                     // forcing a no-op merge that would only re-read our own file.
                     statusStore.report(CycleOutcome.Success(clock()))
-                    writeDeviceMetaQuietly(target, namespace, serverId)
+                    sentinelWriter.writeQuietly(target, namespace, serverId)
                 }
             }
         }
@@ -301,40 +289,58 @@ class AnnotationSyncController(
     private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
 
-        try {
-            // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
-            // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
-            // the newer tombstone over any older live copy of the same id.
-            val localEntities = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-            // Don't overwrite this device's existing remote file with an empty list when local has
-            // nothing — that erases the cloud copy of annotations on transient local-empty states
-            // (cleared data, mid-migration). We only push when there's at least one row (live or
-            // tombstoned) to record. Genuine "user deleted everything" still propagates because
-            // each delete leaves a tombstone in this list.
-            if (localEntities.isEmpty()) return
-
-            val deviceId = deviceIdStore.getOrCreate()
-            val jsonStrings = localEntities.map { entity ->
-                AnnotationW3CCodec.annotationEntityToW3C(entity)
+        val pushed = try {
+            // Hold the per-book annotation lock across the read-then-write so the durable
+            // [AnnotationSweep] cannot interleave on the same device file (#321, ADR 0036).
+            locks.withAnnotationLock(serverId, itemId) {
+                pushPendingLocked(target, serverId, namespace, itemId)
             }
-            // Embed the file header at position 0 of the array. Old readers already drop entries
-            // with no `id`, so the header is invisible to merge. Device-scoped metadata
-            // (label, lastSyncedAt, username) lives in the per-device sentinel — see
-            // [AnnotationDeviceMeta] — so this header carries only the book-scoped bookTitle.
-            val header = AnnotationFileHeader(
-                deviceId = deviceId,
-                bookTitle = bookTitleProvider(serverId, itemId),
-            )
-            val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
-            val filename = "annotations-$deviceId.jsonld"
-            target.write(namespace, itemId, filename, jsonArray)
-            val now = clock()
-            annotationDao.markSynced(localEntities.map { it.id }, now)
-            statusStore.report(CycleOutcome.Success(now))
-            writeDeviceMetaQuietly(target, namespace, serverId)
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
             sweepEnqueuer.enqueue()
+            return
         }
+        // Sentinel writes a different file than the annotations payload, so it doesn't need the
+        // per-book lock — keep it out to avoid serializing an extra remote round-trip against the
+        // sweep's reconcile path.
+        if (pushed) sentinelWriter.writeQuietly(target, namespace, serverId)
+    }
+
+    private suspend fun pushPendingLocked(
+        target: AnnotationSyncTarget,
+        serverId: String,
+        namespace: String,
+        itemId: String,
+    ): Boolean {
+        // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
+        // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
+        // the newer tombstone over any older live copy of the same id.
+        val localEntities = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+        // Don't overwrite this device's existing remote file with an empty list when local has
+        // nothing — that erases the cloud copy of annotations on transient local-empty states
+        // (cleared data, mid-migration). We only push when there's at least one row (live or
+        // tombstoned) to record. Genuine "user deleted everything" still propagates because
+        // each delete leaves a tombstone in this list.
+        if (localEntities.isEmpty()) return false
+
+        val deviceId = deviceIdStore.getOrCreate()
+        val jsonStrings = localEntities.map { entity ->
+            AnnotationW3CCodec.annotationEntityToW3C(entity)
+        }
+        // Embed the file header at position 0 of the array. Old readers already drop entries
+        // with no `id`, so the header is invisible to merge. Device-scoped metadata
+        // (label, lastSyncedAt, username) lives in the per-device sentinel — see
+        // [AnnotationDeviceMeta] — so this header carries only the book-scoped bookTitle.
+        val header = AnnotationFileHeader(
+            deviceId = deviceId,
+            bookTitle = bookTitleProvider(serverId, itemId),
+        )
+        val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
+        val filename = "annotations-$deviceId.jsonld"
+        target.write(namespace, itemId, filename, jsonArray)
+        val now = clock()
+        annotationDao.markSynced(localEntities.map { it.id }, now)
+        statusStore.report(CycleOutcome.Success(now))
+        return true
     }
 }

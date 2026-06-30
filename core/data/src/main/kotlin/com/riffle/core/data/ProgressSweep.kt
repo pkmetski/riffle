@@ -51,7 +51,7 @@ class ProgressSweep(
     private val ebookReconciler: ProgressReconciler<String>,
     private val audioReconciler: ProgressReconciler<Double>,
     private val remoteFactory: ProgressRemoteFactory,
-    private val locks: ProgressSyncLocks,
+    private val locks: ReconcileLocks,
     private val openTargets: OpenReconcileTargets,
     private val bookmarkLedger: DirtyBookmarkLedger,
     private val bookmarkReconcile: BookmarkReconcile,

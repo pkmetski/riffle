@@ -69,7 +69,7 @@ class ProgressSweepBookmarkTest {
     ) = ProgressSweep(
         positionLedger, resolver,
         ProgressReconciler(NoopStore<String>()), ProgressReconciler(NoopStore<Double>()),
-        NoopFactory(), ProgressSyncLocks(), openTargets,
+        NoopFactory(), ReconcileLocks(), openTargets,
         bookmarkLedger, bookmarkReconcile,
     )
 
