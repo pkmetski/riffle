@@ -140,22 +140,23 @@ fun LibraryItemsScreen(
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val filteredUngroupedItems by viewModel.filteredUngroupedItems.collectAsState()
-    val inProgress by viewModel.filteredInProgress.collectAsState()
-    val continueSeries by viewModel.continueSeriesItems.collectAsState()
-    val allBooks by viewModel.filteredAllBooks.collectAsState()
-    val finished by viewModel.filteredFinished.collectAsState()
-    val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
-    val series by viewModel.filteredSeries.collectAsState()
-    val collections by viewModel.filteredCollections.collectAsState()
-    val toReadItems by viewModel.toReadItems.collectAsState()
+    val projection by viewModel.projection.collectAsState()
+    val filteredUngroupedItems = projection.ungrouped
+    val inProgress = projection.inProgress
+    val continueSeries = projection.continueSeries
+    val allBooks = projection.allBooks
+    val finished = projection.finished
+    val recentlyAdded = projection.recentlyAdded
+    val series = projection.series
+    val collections = projection.collections
+    val toReadItems = projection.toRead
+    val annotationResults = projection.annotations
+    val audiobookBookmarkResults = projection.audiobookBookmarks
     val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
-    val annotationResults by viewModel.filteredAnnotations.collectAsState()
-    val audiobookBookmarkResults by viewModel.filteredAudiobookBookmarks.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
