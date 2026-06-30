@@ -203,6 +203,14 @@ fun EpubReaderScreen(
         if (state is ReaderState.Error) immersiveState.show()
     }
 
+    // Push the reader viewport width to the VM so Auto-Scroll can compute words-per-line from
+    // the actual on-screen column. Re-fires on rotation / configuration changes.
+    val configuration = LocalConfiguration.current
+    val displayDensity = context.resources.displayMetrics.density
+    LaunchedEffect(configuration.screenWidthDp, displayDensity) {
+        viewModel.setReaderViewportWidthPx((configuration.screenWidthDp * displayDensity).toInt())
+    }
+
     // Close reading session when screen is disposed (navigation away)
     DisposableEffect(viewModel) {
         onDispose { viewModel.onReaderClosed() }

@@ -349,6 +349,8 @@ class EpubReaderViewModel @Inject constructor(
 
     fun resumeAutoScrollIfPaused() = formatting.resumeAutoScrollIfPaused()
 
+    fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
+
     // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
 
     val volumeKeyNavigationEnabled = volumeKeyDispatcher.volumeKeyNavigationEnabled

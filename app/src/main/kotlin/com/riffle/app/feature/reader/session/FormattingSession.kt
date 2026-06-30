@@ -12,7 +12,7 @@ import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
-import com.riffle.core.domain.autoscroll.LayoutContext
+import com.riffle.core.domain.autoscroll.layoutContextFor
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -100,12 +100,27 @@ class FormattingSession @AssistedInject constructor(
     // using application.resources.displayMetrics.density.
     @Volatile private var deviceDensity: Float = 1f
 
+    // Reader viewport width in device pixels. The screen pushes it via [setViewportWidthPx]
+    // whenever the configuration width or density changes (orientation, foldable resize).
+    // Until set, wordsPerLine collapses to zero and pxPerSecond returns zero, so the controller
+    // simply doesn't advance — safer than guessing a width.
+    @Volatile private var viewportWidthPx: Int = 0
+
     /**
      * Provides the device pixel density so the Auto-Scroll layout context produces correct
      * device-pixel line heights. Call once from the VM init block.
      */
     fun setDeviceDensity(density: Float) {
         deviceDensity = density
+    }
+
+    /**
+     * Provides the reader viewport width in device pixels so the Auto-Scroll layout context can
+     * compute words-per-line from the actual on-screen column. Call whenever the configuration
+     * width or density changes.
+     */
+    fun setViewportWidthPx(px: Int) {
+        viewportWidthPx = px
     }
 
     init {
@@ -135,22 +150,16 @@ class FormattingSession @AssistedInject constructor(
                     )
                 }
         }
-        // Auto-Scroll layout context (line height in device pixels) follows the effective font
-        // size. Without this the px-per-second pace defaults to a CSS-px estimate and ends up
-        // ~3× too slow on a typical xxhdpi screen. Body text ~22 CSS px line height at default
-        // font size; scaled by user font multiplier and the device density.
-        scope.launch {
-            _formattingPreferences
-                .map { it.fontSize }
-                .distinctUntilChanged()
-                .collect { fontSize ->
-                    autoScrollController.setLayoutContext {
-                        LayoutContext(
-                            wordsPerLine = 9f,
-                            lineHeightPx = 22f * fontSize * deviceDensity,
-                        )
-                    }
-                }
+        // Auto-Scroll layout context is recomputed lazily on every tick from the live formatting
+        // preferences (font size, line spacing, margins, font family) and the latest viewport.
+        // The supplier captures `this`, so updates to `_formattingPreferences`, `deviceDensity`,
+        // and `viewportWidthPx` flow through without re-installing it.
+        autoScrollController.setLayoutContext {
+            layoutContextFor(
+                prefs = _formattingPreferences.value,
+                viewportWidthPx = viewportWidthPx,
+                deviceDensity = deviceDensity,
+            )
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037).
         // Driven externally via onPlaybackStateChanged(isPlaying).
