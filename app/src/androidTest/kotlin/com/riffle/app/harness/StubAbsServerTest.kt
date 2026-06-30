@@ -1,5 +1,7 @@
 package com.riffle.app.harness
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.network.NetworkResult
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -23,7 +25,7 @@ class StubAbsServerTest {
     fun setUp() {
         stub = StubAbsServer()
         stub.start()
-        client = AbsApiClient(OkHttpClient())
+        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
     }
 
     @After

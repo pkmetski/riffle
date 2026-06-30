@@ -80,13 +80,6 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/library/LibraryItemsViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/server/AddServerViewModel.kt",
-            // ---- Grandfathered — DispatcherProvider sweep follow-up (core/network).
-            "core/network/src/main/kotlin/com/riffle/core/network/AbsApiClient.kt",
-            "core/network/src/main/kotlin/com/riffle/core/network/AudiobookBundleApi.kt",
-            "core/network/src/main/kotlin/com/riffle/core/network/GitHubReleaseApi.kt",
-            "core/network/src/main/kotlin/com/riffle/core/network/StorytellerApiClient.kt",
-            "core/network/src/main/kotlin/com/riffle/core/network/StorytellerBundleApi.kt",
-            "core/network/src/main/kotlin/com/riffle/core/network/StorytellerPositionApi.kt",
             // ---- Grandfathered — DispatcherProvider sweep follow-up (core/data).
             "core/data/src/main/kotlin/com/riffle/core/data/AppUpdateRepositoryImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/AudiobookBundleDownloader.kt",

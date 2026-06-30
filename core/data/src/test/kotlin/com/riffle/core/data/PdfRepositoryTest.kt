@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.PdfDownloadResult
@@ -48,7 +50,7 @@ class PdfRepositoryTest {
         downloadsStore = LocalStoreImpl(tmp.newFolder("pdf-downloads"), ".pdf")
         positionStore = FakePdfPositionStore()
         repo = PdfRepositoryImpl(
-            api = AbsApiClient(OkHttpClient()),
+            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,

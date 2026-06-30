@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.PendingServer
@@ -47,7 +49,7 @@ class ProgressSyncIntegrationTest {
     }
 
     private fun buildRepo() = ReadingSessionRepositoryImpl(
-        api = AbsApiClient(OkHttpClient()),
+        api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
         serverRepository = object : ServerRepository {
             val activeServer = Server(
                 id = "server-1",

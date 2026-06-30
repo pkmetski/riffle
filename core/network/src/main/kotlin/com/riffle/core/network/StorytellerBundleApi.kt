@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -36,6 +36,7 @@ fun interface StorytellerBundleProbeApi {
 
 class StorytellerBundleApiImpl(
     private val client: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
     // Overridable so tests can assert the bounded-timeout fallback without waiting the full window.
     private val sidecarCallTimeoutSeconds: Long = SIDECAR_CALL_TIMEOUT_SECONDS,
     private val sidecarStreamTimeoutSeconds: Long = SIDECAR_STREAM_TIMEOUT_SECONDS,
@@ -82,7 +83,7 @@ class StorytellerBundleApiImpl(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<StorytellerBundleStream> = withContext(Dispatchers.IO) {
+    ): NetworkResult<StorytellerBundleStream> = withContext(dispatchers.io) {
         val effectiveClient = if (insecureAllowed) chosenClient.trustAllCerts() else chosenClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
@@ -116,7 +117,7 @@ class StorytellerBundleApiImpl(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Long> = withContext(Dispatchers.IO) {
+    ): NetworkResult<Long> = withContext(dispatchers.io) {
         val effectiveClient = if (insecureAllowed) sidecarClient.trustAllCerts() else sidecarClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")

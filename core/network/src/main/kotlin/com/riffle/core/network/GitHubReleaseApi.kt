@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -16,6 +16,7 @@ import java.io.IOException
  */
 class GitHubReleaseApi(
     private val httpClient: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
     /** Overridable so tests can point at a local MockWebServer; defaults to the public GitHub API. */
     private val apiBaseUrl: String = "https://api.github.com",
 ) {
@@ -27,7 +28,7 @@ class GitHubReleaseApi(
      * Releases that exist but haven't finished their APK build yet are skipped so an in-flight release
      * doesn't stall the updater.
      */
-    suspend fun latestRelease(repo: String): GitHubReleaseResult = withContext(Dispatchers.IO) {
+    suspend fun latestRelease(repo: String): GitHubReleaseResult = withContext(dispatchers.io) {
         val request = Request.Builder()
             .url("$apiBaseUrl/repos/$repo/releases?per_page=10")
             .header("Accept", "application/vnd.github+json")
@@ -66,7 +67,7 @@ class GitHubReleaseApi(
      * failure [dest] is deleted, so a truncated APK is never handed to the installer.
      */
     suspend fun download(url: String, dest: File, onProgress: (percent: Int) -> Unit): Boolean =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             val request = Request.Builder().url(url).get().build()
             try {
                 httpClient.newCall(request).execute().use { response ->

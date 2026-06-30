@@ -1,5 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.DefaultDispatcherProvider
+
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -19,7 +21,7 @@ class AbsBookmarkApiTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        client = AbsApiClient(OkHttpClient())
+        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
     }
 
     @After

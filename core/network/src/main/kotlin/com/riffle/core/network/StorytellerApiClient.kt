@@ -1,6 +1,7 @@
 package com.riffle.core.network
 
 import com.riffle.core.domain.AudiobookFingerprint
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.model.StorytellerBookResponse
 import com.riffle.core.network.model.StorytellerLoginResponse
 import com.riffle.core.network.model.StorytellerV2BookResponse
@@ -16,6 +17,7 @@ import javax.net.ssl.X509TrustManager
 
 class StorytellerApiClient(
     private val httpClient: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
 ) : StorytellerApi, StorytellerLibraryApi {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
@@ -25,7 +27,7 @@ class StorytellerApiClient(
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<String> = OkHttpClassifier.classify {
+    ): NetworkResult<String> = OkHttpClassifier.classify(dispatchers.io) {
         val client = client(insecureAllowed)
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -50,7 +52,7 @@ class StorytellerApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Boolean> = OkHttpClassifier.classify {
+    ): NetworkResult<Boolean> = OkHttpClassifier.classify(dispatchers.io) {
         val request = Request.Builder()
             .url("$baseUrl/api/validate")
             .addHeader("Authorization", "Bearer $token")
@@ -69,7 +71,7 @@ class StorytellerApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkStorytellerBook>> = OkHttpClassifier.classify {
+    ): NetworkResult<List<NetworkStorytellerBook>> = OkHttpClassifier.classify(dispatchers.io) {
         // ?synced=true: server-side filter to completed readalouds only (ADR 0020).
         val request = Request.Builder()
             .url("$baseUrl/api/books?synced=true")
@@ -88,7 +90,7 @@ class StorytellerApiClient(
         bookId: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkStorytellerBook> = OkHttpClassifier.classify {
+    ): NetworkResult<NetworkStorytellerBook> = OkHttpClassifier.classify(dispatchers.io) {
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId")
             .addHeader("Authorization", "Bearer $token")
@@ -114,7 +116,7 @@ class StorytellerApiClient(
         bookId: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify {
+    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify(dispatchers.io) {
         val request = Request.Builder()
             .url("$baseUrl/api/v2/books/$bookId")
             .addHeader("Authorization", "Bearer $token")

@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -42,6 +42,7 @@ interface StorytellerPositionApi {
 
 class StorytellerPositionApiImpl(
     private val client: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
 ) : StorytellerPositionApi {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -51,7 +52,7 @@ class StorytellerPositionApiImpl(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<StorytellerPosition?> = withContext(Dispatchers.IO) {
+    ): NetworkResult<StorytellerPosition?> = withContext(dispatchers.io) {
         val http = if (insecureAllowed) client.trustAllCerts() else client
         val request = Request.Builder()
             .url("$baseUrl/api/v2/books/$bookId/positions")
@@ -86,7 +87,7 @@ class StorytellerPositionApiImpl(
         timestampMillis: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Unit> = withContext(Dispatchers.IO) {
+    ): NetworkResult<Unit> = withContext(dispatchers.io) {
         val http = if (insecureAllowed) client.trustAllCerts() else client
         val payload = buildJsonObject {
             put("locator", json.parseToJsonElement(locatorJson))
