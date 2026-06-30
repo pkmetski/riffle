@@ -6,19 +6,20 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ProgressSyncController
+import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.WakeLockPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,8 +42,6 @@ import org.readium.r2.streamer.PublicationOpener
 import java.io.File
 import javax.inject.Inject
 
-private const val PDF_SYNC_INTERVAL_MS = 30_000L
-
 @HiltViewModel
 class PdfReaderViewModel @Inject constructor(
     application: Application,
@@ -57,6 +56,8 @@ class PdfReaderViewModel @Inject constructor(
     private val readerStateHolder: ReaderStateHolder,
     private val annotationStore: AnnotationStore,
     private val serverRepository: ServerRepository,
+    clock: Clock,
+    readingSpeedStore: ReadingSpeedStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -88,9 +89,17 @@ class PdfReaderViewModel @Inject constructor(
 
     private var lastLocator: Locator? = null
     val latestLocator: Locator? get() = lastLocator
-    private var syncJob: Job? = null
     private var closeSyncDone = false
     private var initialLocatorSeen = false
+
+    // PDF heartbeat-sync only — speed-tracking stays opt-out (PDF "position" units don't share
+    // semantics with EPUB's locator positions, so we leave the speed-store untouched by passing
+    // null initialTotalProgression on resume; the coordinator suppresses its speed write).
+    private val readingSessionCoordinator = ReadingSessionCoordinator(
+        clock = clock,
+        readingSpeedStore = readingSpeedStore,
+        scope = viewModelScope,
+    )
 
     // Cached at book-open so navigateToEntry can resolve a TocEntry click back to
     // the original Readium Link without re-walking the publication. Index-aligned
@@ -204,7 +213,10 @@ class PdfReaderViewModel @Inject constructor(
                     initialLocator = locator,
                 )
                 progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
-                startPeriodicSync()
+                readingSessionCoordinator.onResumed(
+                    initialTotalProgression = null,
+                    onTick = { syncCurrentPosition() },
+                )
             }
             is PdfOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
             PdfOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
@@ -390,16 +402,6 @@ class PdfReaderViewModel @Inject constructor(
         }
     }
 
-    private fun startPeriodicSync() {
-        syncJob?.cancel()
-        syncJob = viewModelScope.launch {
-            while (true) {
-                delay(PDF_SYNC_INTERVAL_MS)
-                syncCurrentPosition()
-            }
-        }
-    }
-
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
         progressSyncController.sync(itemId, locator.toPayload())
@@ -411,14 +413,17 @@ class PdfReaderViewModel @Inject constructor(
         initialLocatorSeen = false
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
-            startPeriodicSync()
+            readingSessionCoordinator.onResumed(
+                initialTotalProgression = null,
+                onTick = { syncCurrentPosition() },
+            )
         }
     }
 
     fun onReaderClosed() {
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
-        syncJob?.cancel()
+        readingSessionCoordinator.onClosed(currentTotalProgression = null, totalPositions = 0f)
         if (closeSyncDone) return
         closeSyncDone = true
         val locator = lastLocator ?: return

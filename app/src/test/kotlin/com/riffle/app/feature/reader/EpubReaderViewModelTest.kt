@@ -33,9 +33,9 @@ import org.junit.Test
 
 // EpubReaderViewModel is an AndroidViewModel with Readium dependencies that rely on
 // android.net.Uri, which cannot be used in JVM unit tests without Robolectric.
-// These tests verify the `while (true) { delay(SYNC_INTERVAL_MS); sync() }` pattern
-// from EpubReaderViewModel.startPeriodicSync() using virtual time, replacing the
-// 35-second real-time harness test sessionUpdateSentAfterReading.
+// These tests verify the `while (true) { delay(SYNC_INTERVAL_MS); sync() }` pattern that
+// drives the periodic position sync (now lifted to ReadingSessionCoordinator) using virtual
+// time, replacing the 35-second real-time harness test sessionUpdateSentAfterReading.
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class EpubReaderViewModelTest {
 
