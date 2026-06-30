@@ -23,3 +23,34 @@ fun resolveEpubHref(href: String, base: String = ""): String {
     val resolved = segments.joinToString("/")
     return if (fragment != null) "$resolved#$fragment" else resolved
 }
+
+/**
+ * Extracts the EPUB-internal resource path from any URL variant:
+ *  - file:///path/to/book.epub!/OEBPS/chapter1.xhtml  → OEBPS/chapter1.xhtml
+ *  - http://localhost:PORT/OEBPS/chapter1.xhtml        → OEBPS/chapter1.xhtml
+ *  - OEBPS/chapter1.xhtml (already relative)          → OEBPS/chapter1.xhtml
+ */
+fun normalizeEpubHref(raw: String): String {
+    val bang = raw.lastIndexOf('!')
+    return if (bang >= 0) {
+        raw.substring(bang + 1).trimStart('/')
+    } else {
+        try {
+            java.net.URI(raw).path?.trimStart('/') ?: raw
+        } catch (_: Exception) {
+            raw
+        }
+    }
+}
+
+/**
+ * Extracts the 0-based spine index from an EPUB CFI string.
+ * EPUB CFI format: epubcfi(/6/{step}!/...) where step = (spineIndex + 1) * 2.
+ * Returns null if the CFI is null, empty, doesn't match the pattern, or the step is invalid.
+ */
+fun epubCfiToSpineIndex(cfi: String): Int? {
+    val match = Regex("""epubcfi\(/6/(\d+)""").find(cfi) ?: return null
+    val step = match.groupValues[1].toIntOrNull() ?: return null
+    if (step < 2 || step % 2 != 0) return null
+    return step / 2 - 1
+}

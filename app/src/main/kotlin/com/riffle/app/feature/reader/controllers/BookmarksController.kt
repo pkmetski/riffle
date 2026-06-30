@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.controllers
 
-import com.riffle.app.feature.reader.normalizeEpubHref
+import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.ReaderOrientation

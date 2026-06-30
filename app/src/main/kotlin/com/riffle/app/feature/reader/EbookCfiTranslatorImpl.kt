@@ -1,6 +1,11 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.epubCfiToSpineIndex
+import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.domain.EbookCfiTranslator
+import com.riffle.core.domain.cfiDocPathToProgression
+import com.riffle.core.domain.extractCfiDocPath
+import com.riffle.core.domain.progressionToCfiDocPath
 import org.json.JSONObject
 import java.io.File
 import java.util.zip.ZipFile

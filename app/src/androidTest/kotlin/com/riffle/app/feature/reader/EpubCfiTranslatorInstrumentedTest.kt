@@ -1,6 +1,11 @@
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.core.domain.cfiDocPathToProgression
+import com.riffle.core.domain.extractCfiDocPath
+import com.riffle.core.domain.extractCfiElementIds
+import com.riffle.core.domain.hasElementWithId
+import com.riffle.core.domain.progressionToCfiDocPath
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

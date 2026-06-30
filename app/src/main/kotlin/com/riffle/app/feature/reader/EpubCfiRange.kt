@@ -1,5 +1,10 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.buildCfiDocPath
+import com.riffle.core.domain.cfiDocPathToProgression
+import com.riffle.core.domain.countBodyChars
+import com.riffle.core.domain.extractCfiDocPath
+import com.riffle.core.domain.findNodeAtChar
 import org.jsoup.Jsoup
 
 // Builds an EPUB CFI *range* for a highlight (ADR 0024). Reuses the char-count positioning model

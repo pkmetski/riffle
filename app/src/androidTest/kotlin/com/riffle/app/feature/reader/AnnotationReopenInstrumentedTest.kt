@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.epubCfiToSpineIndex
+import com.riffle.core.domain.normalizeEpubHref
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry

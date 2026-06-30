@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.cfiDocPathToProgression
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

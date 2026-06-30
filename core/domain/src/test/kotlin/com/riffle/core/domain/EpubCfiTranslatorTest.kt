@@ -1,4 +1,4 @@
-package com.riffle.app.feature.reader
+package com.riffle.core.domain
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals

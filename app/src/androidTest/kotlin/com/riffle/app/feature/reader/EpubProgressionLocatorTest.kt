@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.core.domain.cfiDocPathToProgression
+import com.riffle.core.domain.extractCfiDocPath
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest

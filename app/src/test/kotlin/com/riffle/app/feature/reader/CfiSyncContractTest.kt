@@ -1,5 +1,9 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.epubCfiToSpineIndex
+import com.riffle.core.domain.cfiDocPathToProgression
+import com.riffle.core.domain.extractCfiDocPath
+import com.riffle.core.domain.progressionToCfiDocPath
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

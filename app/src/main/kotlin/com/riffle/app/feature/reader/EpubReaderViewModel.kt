@@ -2,6 +2,8 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.epubCfiToSpineIndex
+import com.riffle.core.domain.normalizeEpubHref
 import android.app.Application
 import androidx.compose.ui.unit.IntRect
 import androidx.lifecycle.AndroidViewModel
@@ -22,6 +24,10 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.EpubOpenResult
+import com.riffle.core.domain.cfiDocPathToProgression
+import com.riffle.core.domain.extractAnchorFromCfi
+import com.riffle.core.domain.extractCfiDocPath
+import com.riffle.core.domain.progressionToCfiDocPath
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.EpubRepository

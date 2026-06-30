@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.epubCfiToSpineIndex
+import com.riffle.core.domain.normalizeEpubHref
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

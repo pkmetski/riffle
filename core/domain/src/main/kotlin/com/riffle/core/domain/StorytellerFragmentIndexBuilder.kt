@@ -8,7 +8,7 @@ data class EpubChapterHtml(
 
 /**
  * Resolves the Storyteller EPUB's SMIL fragment references (`href#id`) to canonical
- * [ChapterProgression]s, so [CanonicalPositionTranslator] can bridge audio time to a
+ * [ChapterProgression]s, so [DefaultPositionTranslator] can bridge audio time to a
  * reader position. Pure given the spine HTML and the parsed SMIL clips; fragments whose
  * chapter or element cannot be located are dropped (a missing anchor degrades a single
  * conversion, never the whole map).

@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.domain.BookSyncState
-import com.riffle.core.domain.CanonicalPositionTranslator
+import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.ChapterCharMap
 import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.domain.CrossEpubIndex
@@ -36,21 +36,18 @@ class ReaderSyncCoordinatorTest {
     // Identity cross-EPUB index → Storyteller and ABS progressions coincide. The SMIL maps both ways:
     // clip f1 (5–10s) narrates progression 0.2, clip f9 (90–100s) narrates progression 0.9. Single
     // audio file, so absolute == per-file here (the multi-file offsetting is tested in the translator).
-    private val translator = CanonicalPositionTranslator(
+    private val absHtml = "<html><body><p>${"x".repeat(100)}</p></body></html>"
+    private val translator = DefaultPositionTranslator(
         smilClips = listOf(
             MediaOverlayClip("f1", "a.mp3", clipBeginSec = 5.0, clipEndSec = 10.0),
             MediaOverlayClip("f9", "a.mp3", clipBeginSec = 90.0, clipEndSec = 100.0),
         ),
-        index = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
+        crossEpubIndex = CrossEpubIndex(listOf(ChapterCharMap(absChars = 100, storytellerChars = 100))),
         fragmentProgressions = mapOf("f1" to ChapterProgression(0, 0.2), "f9" to ChapterProgression(0, 0.9)),
-    )
-    private val absHtml = "<html><body><p>${"x".repeat(100)}</p></body></html>"
-    private val bridge = ReaderPositionBridge(
         absSpineHrefs = listOf("c1.xhtml"),
         absChapterHtml = { if (it == 0) absHtml else null },
         storytellerSpineHrefs = listOf("c1.xhtml"),
         storytellerChapterHtml = { if (it == 0) absHtml else null },
-        translator = translator,
     )
 
     private val state = BookSyncState(
@@ -95,7 +92,7 @@ class ReaderSyncCoordinatorTest {
     }
 
     private fun coordinator(abs: FakeAbs, ebookEp: AbsSyncEndpoint = absEp, audioEp: AbsSyncEndpoint? = absEp) =
-        ReaderSyncCoordinator(state, bridge, abs, ebookEp, audioEp)
+        ReaderSyncCoordinator(state, translator, abs, ebookEp, audioEp)
 
     // ── reading-only / cross-device ebook ────────────────────────────────────────────
 
