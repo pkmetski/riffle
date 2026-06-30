@@ -284,28 +284,33 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     fun navigateToEntry(entry: TocEntry) {
-        // entry.href is the synthetic page=N token PdfTocAdapter emitted; map back
-        // to the 1-based Readium position and hand a synthetic Locator to the
-        // navigator, which will jump via PdfiumNavigatorFragment.go(locator).
-        val pageIndex = entry.href.removePrefix("page=").toIntOrNull() ?: return
-        val pub = publication ?: return
-        // Find the matching Link so the navigator gets a proper href.
-        val link = tocLinks.firstOrNull { l ->
-            (pub.locatorFromLink(l)?.locations?.position ?: 1) - 1 == pageIndex
-        } ?: return
-        val locator = pub.locatorFromLink(link) ?: return
+        val locator = pageLocator(entry.href) ?: return
         _serverLocatorChannel.trySend(locator)
         closeToc()
     }
 
     fun navigateToSegment(segment: RailSegment) {
-        val pageIndex = segment.href.removePrefix("page=").toIntOrNull() ?: return
-        val pub = publication ?: return
-        val link = tocLinks.firstOrNull { l ->
-            (pub.locatorFromLink(l)?.locations?.position ?: 1) - 1 == pageIndex
-        } ?: return
-        val locator = pub.locatorFromLink(link) ?: return
+        val locator = pageLocator(segment.href) ?: return
         _serverLocatorChannel.trySend(locator)
+    }
+
+    /**
+     * Build a Locator targeting the given synthetic `page=N` href (0-based page
+     * index, as emitted by [pdfSegmentHref]). Synthesized directly from the
+     * first reading-order resource + a 1-based position — we don't reverse-look
+     * up the original TOC Link because some outline entries resolve their page
+     * via an `#page=N` href fragment rather than a Locator position, which
+     * would make the reverse lookup fail and the navigation silently no-op.
+     */
+    private fun pageLocator(href: String): Locator? {
+        val pageIndex = href.removePrefix("page=").toIntOrNull() ?: return null
+        val pub = publication ?: return null
+        val resourceHref = pub.readingOrder.firstOrNull()?.url() ?: return null
+        return Locator(
+            href = resourceHref,
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.PDF,
+            locations = Locator.Locations(position = pageIndex + 1),
+        )
     }
 
     fun navigateToAnnotation(id: String) {
