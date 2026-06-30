@@ -171,13 +171,24 @@ class LibraryItemsViewModel @Inject constructor(
         _notStartedFilterActive.value = !_notStartedFilterActive.value
     }
 
+    // Share the VM's already-stateIn'd source flows with the engine so we don't open a second
+    // set of Room cursors for the same observe* calls. libraryRepository is still passed through
+    // for the per-group offline filter, which needs to observe each series'/collection's items.
     private val filterEngine = LibraryFilterEngine(
         libraryRepository = libraryRepository,
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
-        toReadRepository = toReadRepository,
         offlineAvailability = offlineAvailability,
-        libraryId = libraryId,
+        seriesSource = series,
+        collectionsSource = collections,
+        ungroupedSource = ungroupedItems,
+        inProgressSource = inProgress,
+        finishedSource = finished,
+        recentlyAddedSource = recentlyAdded,
+        continueSeriesSource = continueSeriesBase,
+        allBooksSource = allBooks,
+        allItemsSource = allItems,
+        toReadIdsSource = toReadItemIds,
         isOffline = isOffline,
         searchQuery = searchQuery,
         notStartedFilterActive = _notStartedFilterActive,

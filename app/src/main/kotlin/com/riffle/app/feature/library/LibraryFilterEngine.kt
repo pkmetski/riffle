@@ -1,6 +1,5 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.Collection
@@ -45,29 +44,34 @@ data class LibraryProjection(
     }
 }
 
+/**
+ * Combines a library's source flows + UI filters into a single [LibraryProjection].
+ *
+ * Source flows are passed in (not observed from the repository here) so that the ViewModel's
+ * existing `stateIn(WhileSubscribed)` caches are reused instead of duplicating Room cursors.
+ * [libraryRepository] is only kept for the per-group offline filter, which needs to observe each
+ * series'/collection's items to decide whether to drop empty groups when offline.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryFilterEngine(
     private val libraryRepository: LibraryRepository,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
-    private val toReadRepository: ToReadRepository,
     private val offlineAvailability: LibraryItemOfflineAvailability,
-    private val libraryId: String,
-    private val isOffline: Flow<Boolean>,
-    private val searchQuery: Flow<String>,
-    private val notStartedFilterActive: Flow<Boolean>,
+    seriesSource: Flow<List<Series>>,
+    collectionsSource: Flow<List<Collection>>,
+    ungroupedSource: Flow<List<LibraryItem>>,
+    inProgressSource: Flow<List<LibraryItem>>,
+    finishedSource: Flow<List<LibraryItem>>,
+    recentlyAddedSource: Flow<List<LibraryItem>>,
+    continueSeriesSource: Flow<List<LibraryItem>>,
+    allBooksSource: Flow<List<LibraryItem>>,
+    allItemsSource: Flow<List<LibraryItem>>,
+    toReadIdsSource: Flow<Set<String>>,
+    isOffline: Flow<Boolean>,
+    searchQuery: Flow<String>,
+    notStartedFilterActive: Flow<Boolean>,
 ) {
-
-    private val seriesSource: Flow<List<Series>> = libraryRepository.observeSeries(libraryId)
-    private val collectionsSource: Flow<List<Collection>> = libraryRepository.observeCollections(libraryId)
-    private val ungroupedSource: Flow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
-    private val inProgressSource: Flow<List<LibraryItem>> = libraryRepository.observeInProgressItems(libraryId)
-    private val finishedSource: Flow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
-    private val recentlyAddedSource: Flow<List<LibraryItem>> = libraryRepository.observeRecentlyAddedItems(libraryId)
-    private val continueSeriesSource: Flow<List<LibraryItem>> = libraryRepository.observeContinueSeriesItems(libraryId)
-    private val allBooksSource: Flow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
-    private val allItemsSource: Flow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
-    private val toReadIdsSource: Flow<Set<String>> = toReadRepository.observeToReadItemIds(libraryId)
 
     private val seriesProjection: Flow<List<Series>> =
         combine(seriesSource, searchQuery, isOffline) { list, query, offline ->

@@ -1,6 +1,5 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookDownloadRepository
@@ -105,15 +104,6 @@ class LibraryFilterEngineTest {
         override suspend fun delete(id: String, now: Long) = error("unused")
     }
 
-    private class FakeToReadRepository(initial: Set<String> = emptySet()) : ToReadRepository {
-        val ids = MutableStateFlow(initial)
-        override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = ids
-        override suspend fun refresh(libraryId: String): Boolean = true
-        override suspend fun isInToRead(libraryItemId: String, libraryId: String): Boolean = libraryItemId in ids.value
-        override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean { ids.value = ids.value + libraryItemId; return true }
-        override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean { ids.value = ids.value - libraryItemId; return true }
-    }
-
     private fun epubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : EpubRepository {
         override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
@@ -141,28 +131,39 @@ class LibraryFilterEngineTest {
 
     private fun makeEngine(
         epubRepository: EpubRepository = epubRepoWithDownloads(emptySet()),
-        toReadRepository: ToReadRepository = FakeToReadRepository(),
+        toReadIds: Set<String> = emptySet(),
         annotationStore: AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: AudiobookBookmarkStore = fakeBookmarkStore(),
-    ): LibraryFilterEngine = LibraryFilterEngine(
-        libraryRepository = fakeRepo(),
-        annotationStore = annotationStore,
-        audiobookBookmarkStore = audiobookBookmarkStore,
-        toReadRepository = toReadRepository,
-        offlineAvailability = LibraryItemOfflineAvailability(
-            epubRepository,
-            fakePdfRepo(),
-            fakeAudiobookDownloadRepo(),
-            object : BundleAudiobookSource {
-                override suspend fun localSession(serverId: String, itemId: String) = null
-                override fun isAvailableOffline(serverId: String, itemId: String) = false
-            },
-        ),
-        libraryId = "lib-1",
-        isOffline = isOfflineFlow,
-        searchQuery = searchQueryFlow,
-        notStartedFilterActive = notStartedFilterFlow,
-    )
+    ): LibraryFilterEngine {
+        toReadIdsFlow.value = toReadIds
+        return LibraryFilterEngine(
+            libraryRepository = fakeRepo(),
+            annotationStore = annotationStore,
+            audiobookBookmarkStore = audiobookBookmarkStore,
+            offlineAvailability = LibraryItemOfflineAvailability(
+                epubRepository,
+                fakePdfRepo(),
+                fakeAudiobookDownloadRepo(),
+                object : BundleAudiobookSource {
+                    override suspend fun localSession(serverId: String, itemId: String) = null
+                    override fun isAvailableOffline(serverId: String, itemId: String) = false
+                },
+            ),
+            seriesSource = seriesFlow,
+            collectionsSource = collectionsFlow,
+            ungroupedSource = ungroupedFlow,
+            inProgressSource = inProgressFlow,
+            finishedSource = finishedFlow,
+            recentlyAddedSource = recentlyAddedFlow,
+            continueSeriesSource = continueSeriesFlow,
+            allBooksSource = allBooksFlow,
+            allItemsSource = allItemsFlow,
+            toReadIdsSource = toReadIdsFlow,
+            isOffline = isOfflineFlow,
+            searchQuery = searchQueryFlow,
+            notStartedFilterActive = notStartedFilterFlow,
+        )
+    }
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
     private fun collection(name: String) = Collection("id-$name", "lib-1", name, 1)
@@ -338,7 +339,7 @@ class LibraryFilterEngineTest {
     fun `toRead intersects ids with allBooks then offline-filters`() = runTest {
         val engine = makeEngine(
             epubRepository = epubRepoWithDownloads(setOf("id-Dune")),
-            toReadRepository = FakeToReadRepository(setOf("id-Dune", "id-Foundation")),
+            toReadIds = setOf("id-Dune", "id-Foundation"),
         )
         allBooksFlow.value = listOf(item("Dune"), item("Foundation"), item("Other"))
         isOfflineFlow.value = true
