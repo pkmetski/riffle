@@ -32,9 +32,10 @@ fun LibrarySectionScreen(
     onNavigateBack: () -> Unit,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
-    val inProgress by viewModel.filteredInProgress.collectAsState()
-    val finished by viewModel.filteredFinished.collectAsState()
-    val recentlyAdded by viewModel.filteredRecentlyAdded.collectAsState()
+    val projection by viewModel.projection.collectAsState()
+    val inProgress = projection.inProgress
+    val finished = projection.finished
+    val recentlyAdded = projection.recentlyAdded
 
     Scaffold(
         topBar = {

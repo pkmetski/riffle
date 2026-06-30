@@ -244,30 +244,30 @@ class LibraryItemsViewModelTest {
     @Test
     fun `empty query returns all series`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredSeries.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(series("Mistborn"), series("Stormlight")), vm.filteredSeries.value)
+        assertEquals(listOf(series("Mistborn"), series("Stormlight")), vm.projection.value.series)
     }
 
     @Test
     fun `empty query returns all collections`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredCollections.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(collection("Fantasy"), collection("Sci-Fi")), vm.filteredCollections.value)
+        assertEquals(listOf(collection("Fantasy"), collection("Sci-Fi")), vm.projection.value.collections)
     }
 
     @Test
     fun `empty query returns all ungrouped items`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         itemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(
             listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov")),
-            vm.filteredUngroupedItems.value,
+            vm.projection.value.ungrouped,
         )
     }
 
@@ -276,21 +276,21 @@ class LibraryItemsViewModelTest {
     @Test
     fun `query filters series by name`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredSeries.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight Archive"))
         vm.onSearchQueryChange("storm")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(series("Stormlight Archive")), vm.filteredSeries.value)
+        assertEquals(listOf(series("Stormlight Archive")), vm.projection.value.series)
     }
 
     @Test
     fun `series filtering is case-insensitive`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredSeries.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("The Wheel of Time"))
         vm.onSearchQueryChange("WHEEL")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(series("The Wheel of Time")), vm.filteredSeries.value)
+        assertEquals(listOf(series("The Wheel of Time")), vm.projection.value.series)
     }
 
     // --- collection filtering ---
@@ -298,11 +298,11 @@ class LibraryItemsViewModelTest {
     @Test
     fun `query filters collections by name`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredCollections.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
         vm.onSearchQueryChange("sci")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(collection("Sci-Fi")), vm.filteredCollections.value)
+        assertEquals(listOf(collection("Sci-Fi")), vm.projection.value.collections)
     }
 
     // --- item filtering ---
@@ -310,32 +310,32 @@ class LibraryItemsViewModelTest {
     @Test
     fun `query filters items by title`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         allItemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         vm.onSearchQueryChange("dun")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredUngroupedItems.value)
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.projection.value.ungrouped)
     }
 
     @Test
     fun `query filters items by author`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         allItemsFlow.value = listOf(item("Mistborn", "Brandon Sanderson"), item("Dune", "Frank Herbert"))
         vm.onSearchQueryChange("sand")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(item("Mistborn", "Brandon Sanderson")), vm.filteredUngroupedItems.value)
+        assertEquals(listOf(item("Mistborn", "Brandon Sanderson")), vm.projection.value.ungrouped)
     }
 
     @Test
     fun `query finds books that belong to series by title`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         // allItemsFlow contains items in series; itemsFlow (ungrouped) does not
         allItemsFlow.value = listOf(item("The Final Empire", "Brandon Sanderson"), item("Dune", "Frank Herbert"))
         vm.onSearchQueryChange("final empire")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(item("The Final Empire", "Brandon Sanderson")), vm.filteredUngroupedItems.value)
+        assertEquals(listOf(item("The Final Empire", "Brandon Sanderson")), vm.projection.value.ungrouped)
     }
 
     // --- no match ---
@@ -344,18 +344,18 @@ class LibraryItemsViewModelTest {
     fun `query with no match empties all filtered lists`() = runTest {
         val vm = makeViewModel()
         backgroundScope.launch {
-            vm.filteredSeries.collect {}
-            vm.filteredCollections.collect {}
-            vm.filteredUngroupedItems.collect {}
+            vm.projection.collect {}
+            vm.projection.collect {}
+            vm.projection.collect {}
         }
         seriesFlow.value = listOf(series("Mistborn"))
         collectionsFlow.value = listOf(collection("Fantasy"))
         allItemsFlow.value = listOf(item("Dune", "Frank Herbert"))
         vm.onSearchQueryChange("zzznomatch")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(emptyList<Series>(), vm.filteredSeries.value)
-        assertEquals(emptyList<Collection>(), vm.filteredCollections.value)
-        assertEquals(emptyList<LibraryItem>(), vm.filteredUngroupedItems.value)
+        assertEquals(emptyList<Series>(), vm.projection.value.series)
+        assertEquals(emptyList<Collection>(), vm.projection.value.collections)
+        assertEquals(emptyList<LibraryItem>(), vm.projection.value.ungrouped)
     }
 
     // --- query state ---
@@ -374,11 +374,11 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredInProgress emits items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredInProgress.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         val expected = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         inProgressFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.filteredInProgress.value)
+        assertEquals(expected, vm.projection.value.inProgress)
     }
 
     // --- C2: filteredFinished flow ---
@@ -386,11 +386,11 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredFinished emits items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredFinished.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         val expected = listOf(item("1984", "George Orwell"))
         finishedFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.filteredFinished.value)
+        assertEquals(expected, vm.projection.value.finished)
     }
 
     // --- C3: filteredAllBooks flow ---
@@ -398,11 +398,11 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredAllBooks emits all items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         val expected = listOf(item("Dune", "Frank Herbert"), item("1984", "George Orwell"), item("Foundation", "Isaac Asimov"))
         allBooksFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.filteredAllBooks.value)
+        assertEquals(expected, vm.projection.value.allBooks)
     }
 
     // --- C4: series and collections unchanged ---
@@ -504,11 +504,11 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
         )
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
         itemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredUngroupedItems.value)
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.projection.value.ungrouped)
         assertEquals(true, vm.isOffline.value)
     }
 
@@ -523,11 +523,11 @@ class LibraryItemsViewModelTest {
             epubRepository = fakeEpubRepoWithDownloads(emptySet()),
             audiobookDownloadRepository = fakeAudiobookDownloadRepo(setOf("id-The Martian")),
         )
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
         itemsFlow.value = listOf(audiobook, item("Foundation", "Isaac Asimov"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(audiobook), vm.filteredUngroupedItems.value)
+        assertEquals(listOf(audiobook), vm.projection.value.ungrouped)
     }
 
     @Test
@@ -536,10 +536,10 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = true),
             epubRepository = fakeEpubRepoWithDownloads(emptySet()),
         )
-        backgroundScope.launch { vm.filteredUngroupedItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         itemsFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(2, vm.filteredUngroupedItems.value.size)
+        assertEquals(2, vm.projection.value.ungrouped.size)
         assertEquals(false, vm.isOffline.value)
     }
 
@@ -562,14 +562,14 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(emptySet()),
         )
-        backgroundScope.launch { vm.filteredCollections.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
         collectionItemsByCollectionId.getOrPut("id-Fantasy") { MutableStateFlow(emptyList()) }.value =
             listOf(item("Mistborn", "Brandon Sanderson"))
         collectionItemsByCollectionId.getOrPut("id-Sci-Fi") { MutableStateFlow(emptyList()) }.value =
             listOf(item("Dune", "Frank Herbert"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(emptyList<Collection>(), vm.filteredCollections.value)
+        assertEquals(emptyList<Collection>(), vm.projection.value.collections)
     }
 
     @Test
@@ -578,14 +578,14 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(setOf("id-Mistborn")),
         )
-        backgroundScope.launch { vm.filteredCollections.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         collectionsFlow.value = listOf(collection("Fantasy"), collection("Sci-Fi"))
         collectionItemsByCollectionId.getOrPut("id-Fantasy") { MutableStateFlow(emptyList()) }.value =
             listOf(item("Mistborn", "Brandon Sanderson"))
         collectionItemsByCollectionId.getOrPut("id-Sci-Fi") { MutableStateFlow(emptyList()) }.value =
             listOf(item("Dune", "Frank Herbert"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(collection("Fantasy")), vm.filteredCollections.value)
+        assertEquals(listOf(collection("Fantasy")), vm.projection.value.collections)
     }
 
     @Test
@@ -594,14 +594,14 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(emptySet()),
         )
-        backgroundScope.launch { vm.filteredSeries.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
         seriesItemsBySeriesId.getOrPut("id-Mistborn") { MutableStateFlow(emptyList()) }.value =
             listOf(item("The Final Empire", "Brandon Sanderson"))
         seriesItemsBySeriesId.getOrPut("id-Stormlight") { MutableStateFlow(emptyList()) }.value =
             listOf(item("The Way of Kings", "Brandon Sanderson"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(emptyList<Series>(), vm.filteredSeries.value)
+        assertEquals(emptyList<Series>(), vm.projection.value.series)
     }
 
     @Test
@@ -610,14 +610,14 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(setOf("id-The Way of Kings")),
         )
-        backgroundScope.launch { vm.filteredSeries.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         seriesFlow.value = listOf(series("Mistborn"), series("Stormlight"))
         seriesItemsBySeriesId.getOrPut("id-Mistborn") { MutableStateFlow(emptyList()) }.value =
             listOf(item("The Final Empire", "Brandon Sanderson"))
         seriesItemsBySeriesId.getOrPut("id-Stormlight") { MutableStateFlow(emptyList()) }.value =
             listOf(item("The Way of Kings", "Brandon Sanderson"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(series("Stormlight")), vm.filteredSeries.value)
+        assertEquals(listOf(series("Stormlight")), vm.projection.value.series)
     }
 
     // --- isLoading sequencing (flickering regression guard) ---
@@ -682,20 +682,20 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredRecentlyAdded emits items from repository when online`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         val expected = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         recentlyAddedFlow.value = expected
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.filteredRecentlyAdded.value)
+        assertEquals(expected, vm.projection.value.recentlyAdded)
     }
 
     @Test
     fun `filteredRecentlyAdded is capped at 50 items`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         recentlyAddedFlow.value = (1..60).map { i -> item("Book $i", "Author") }
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(50, vm.filteredRecentlyAdded.value.size)
+        assertEquals(50, vm.projection.value.recentlyAdded.size)
     }
 
     @Test
@@ -704,11 +704,11 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
         )
-        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
         recentlyAddedFlow.value = listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.filteredRecentlyAdded.value)
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.projection.value.recentlyAdded)
     }
 
     // --- toReadItems ---
@@ -717,7 +717,7 @@ class LibraryItemsViewModelTest {
     fun `toReadItems is the intersection of toReadItemIds and allBooks when online`() = runTest {
         val toRead = FakeToReadRepository(initial = setOf("id-Dune", "id-Foundation"))
         val vm = makeViewModel(toReadRepository = toRead)
-        backgroundScope.launch { vm.toReadItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         allBooksFlow.value = listOf(
             item("Dune", "Frank Herbert"),
             item("Foundation", "Isaac Asimov"),
@@ -726,7 +726,7 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(
             listOf(item("Dune", "Frank Herbert"), item("Foundation", "Isaac Asimov")),
-            vm.toReadItems.value,
+            vm.projection.value.toRead,
         )
     }
 
@@ -738,13 +738,13 @@ class LibraryItemsViewModelTest {
             epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
             toReadRepository = toRead,
         )
-        backgroundScope.launch { vm.toReadItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         allBooksFlow.value = listOf(
             item("Dune", "Frank Herbert"),
             item("Foundation", "Isaac Asimov"),
         )
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.toReadItems.value)
+        assertEquals(listOf(item("Dune", "Frank Herbert")), vm.projection.value.toRead)
     }
 
     @Test
@@ -893,11 +893,11 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(downloadedIds),
         )
-        backgroundScope.launch { vm.filteredRecentlyAdded.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
         recentlyAddedFlow.value = (1..60).map { i -> item("Book $i", "Author") }
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(50, vm.filteredRecentlyAdded.value.size)
+        assertEquals(50, vm.projection.value.recentlyAdded.size)
     }
 
     // --- notStartedFilterActive ---
@@ -932,7 +932,7 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredAllBooks shows only zero-progress items when notStartedFilterActive`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.notStartedFilterActive.collect {} }
         allBooksFlow.value = listOf(
             LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub),
@@ -943,14 +943,14 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(
             listOf(LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub)),
-            vm.filteredAllBooks.value,
+            vm.projection.value.allBooks,
         )
     }
 
     @Test
     fun `filteredAllBooks shows all items when notStartedFilter is toggled back off`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         val all = listOf(
             LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub),
             LibraryItem("id-Martian", "lib-1", "The Martian", "Weir", null, 0.42f, false, false, EbookFormat.Epub),
@@ -959,7 +959,7 @@ class LibraryItemsViewModelTest {
         vm.toggleNotStartedFilter()
         vm.toggleNotStartedFilter()
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(all, vm.filteredAllBooks.value)
+        assertEquals(all, vm.projection.value.allBooks)
     }
 
     @Test
@@ -968,7 +968,7 @@ class LibraryItemsViewModelTest {
             connectivityObserver = FakeConnectivityObserver(online = false),
             epubRepository = fakeEpubRepoWithDownloads(setOf("id-Dune")),
         )
-        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         backgroundScope.launch { vm.isOffline.collect {} }
         allBooksFlow.value = listOf(
             // not started AND downloaded — should appear
@@ -982,14 +982,14 @@ class LibraryItemsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(
             listOf(LibraryItem("id-Dune", "lib-1", "Dune", "Herbert", null, 0f, false, false, EbookFormat.Epub)),
-            vm.filteredAllBooks.value,
+            vm.projection.value.allBooks,
         )
     }
 
     @Test
     fun `filteredAllBooks includes zero-progress audiobook-only items when notStartedFilterActive`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredAllBooks.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         val audiobook = LibraryItem(
             "id-Audiobook", "lib-1", "Project Hail Mary", "Weir", null, 0f, false, false,
             EbookFormat.Unsupported, hasAudio = true,
@@ -1000,7 +1000,7 @@ class LibraryItemsViewModelTest {
         )
         vm.toggleNotStartedFilter()
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(audiobook), vm.filteredAllBooks.value)
+        assertEquals(listOf(audiobook), vm.projection.value.allBooks)
     }
 
     // --- searchQuery persistence (issue #60) ---
@@ -1029,13 +1029,13 @@ class LibraryItemsViewModelTest {
     @Test
     fun `continueSeriesItems reflects repository emissions`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.continueSeriesItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
 
         val nextBook = item("Abaddon's Gate", "James S. A. Corey")
         continueSeriesFlow.value = listOf(nextBook)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf(nextBook), vm.continueSeriesItems.value)
+        assertEquals(listOf(nextBook), vm.projection.value.continueSeries)
     }
 
     @Test
@@ -1047,12 +1047,12 @@ class LibraryItemsViewModelTest {
             override fun isCached(serverId: String, itemId: String): Boolean = itemId == availableItem.id
         }
         val vm = makeViewModel(connectivityObserver = connectivity, epubRepository = epubRepo)
-        backgroundScope.launch { vm.continueSeriesItems.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
 
         continueSeriesFlow.value = listOf(availableItem, unavailableItem)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf(availableItem), vm.continueSeriesItems.value)
+        assertEquals(listOf(availableItem), vm.projection.value.continueSeries)
     }
 
     // --- filteredAnnotations ---
@@ -1099,7 +1099,7 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredAnnotations matches query scoped to library items`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredAnnotations.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         allItemsFlow.value = listOf(itemWithServerId("b1", "Children of Dune", "srv1"))
         annotationsFlow.value = listOf(
             annotation(id = "a1", serverId = "srv1", itemId = "b1", textSnippet = "conscience is flexible"),
@@ -1108,7 +1108,7 @@ class LibraryItemsViewModelTest {
         )
         vm.onSearchQueryChange("conscience")
 
-        val results = vm.filteredAnnotations.first { it.isNotEmpty() }
+        val results = vm.projection.first { it.annotations.isNotEmpty() }.annotations
         assertEquals(listOf("a1"), results.map { it.annotation.id })
         assertEquals("Children of Dune", results.single().bookTitle)
     }
@@ -1116,13 +1116,13 @@ class LibraryItemsViewModelTest {
     @Test
     fun `filteredAnnotations returns empty list when query is blank`() = runTest {
         val vm = makeViewModel()
-        backgroundScope.launch { vm.filteredAnnotations.collect {} }
+        backgroundScope.launch { vm.projection.collect {} }
         allItemsFlow.value = listOf(itemWithServerId("b1", "Dune", "srv1"))
         annotationsFlow.value = listOf(
             annotation(id = "a1", serverId = "srv1", itemId = "b1", textSnippet = "spice"),
         )
         // No query set — blank by default
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(emptyList<AnnotationSearchResult>(), vm.filteredAnnotations.value)
+        assertEquals(emptyList<AnnotationSearchResult>(), vm.projection.value.annotations)
     }
 }

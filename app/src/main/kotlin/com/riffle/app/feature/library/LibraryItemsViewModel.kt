@@ -24,7 +24,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -165,78 +164,6 @@ class LibraryItemsViewModel @Inject constructor(
         !online || refreshFailed
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    val filteredSeries: StateFlow<List<Series>> = combine(series, searchQuery, isOffline) { list, query, offline ->
-        Triple(list, query, offline)
-    }.flatMapLatest { (list, query, offline) ->
-        val queryFiltered = if (query.isEmpty()) list else list.filter { it.name.contains(query, ignoreCase = true) }
-        filterSeriesOffline(queryFiltered, offline)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val filteredCollections: StateFlow<List<Collection>> = combine(collections, searchQuery, isOffline) { list, query, offline ->
-        Triple(list, query, offline)
-    }.flatMapLatest { (list, query, offline) ->
-        val queryFiltered = if (query.isEmpty()) list else list.filter { it.name.contains(query, ignoreCase = true) }
-        filterCollectionsOffline(queryFiltered, offline)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // When a query is active, search all items (including those in series/collections) so that
-    // books are findable by title/author regardless of grouping.
-    // When offline, only items available locally (downloaded or cached) are shown.
-    val filteredUngroupedItems: StateFlow<List<LibraryItem>> = combine(ungroupedItems, allItems, searchQuery, isOffline) { ungrouped, all, query, offline ->
-        val base = if (query.isEmpty()) ungrouped
-            else all.filter { it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true) }
-        if (offline) base.filter { offlineAvailability.isAvailableOffline(it) } else base
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // Annotation search results, scoped to this library's items and matched on note text,
-    // highlighted snippet, or bookmark title. Independent of the Books section (a book is never
-    // promoted here because its annotations matched). Empty when the query is blank.
-    val filteredAnnotations: StateFlow<List<AnnotationSearchResult>> =
-        combine(allItems, searchQuery) { items, query -> items to query }
-            .flatMapLatest { (items, query) ->
-                val serverId = items.firstOrNull()?.serverId
-                if (query.isBlank() || serverId.isNullOrEmpty()) {
-                    flowOf(emptyList())
-                } else {
-                    annotationStore.observeAnnotationsForServer(serverId)
-                        .map { annotations -> searchAnnotations(annotations, items, query) }
-                }
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // Audiobook bookmark search results, scoped to this library's items and matched on title.
-    // Shares the same Annotations section in the UI. Empty when the query is blank.
-    val filteredAudiobookBookmarks: StateFlow<List<AudiobookBookmarkSearchResult>> =
-        combine(allItems, searchQuery) { items, query -> items to query }
-            .flatMapLatest { (items, query) ->
-                val serverId = items.firstOrNull()?.serverId
-                if (query.isBlank() || serverId.isNullOrEmpty()) {
-                    flowOf(emptyList())
-                } else {
-                    audiobookBookmarkStore.observeForServer(serverId)
-                        .map { bookmarks -> searchAudiobookBookmarks(bookmarks, items, query) }
-                }
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val filteredInProgress: StateFlow<List<LibraryItem>> = combine(inProgress, isOffline) { items, offline ->
-        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val filteredFinished: StateFlow<List<LibraryItem>> = combine(finished, isOffline) { items, offline ->
-        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val filteredRecentlyAdded: StateFlow<List<LibraryItem>> = combine(recentlyAdded, isOffline) { items, offline ->
-        val filtered = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-        filtered.take(50)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val continueSeriesItems: StateFlow<List<LibraryItem>> = combine(continueSeriesBase, isOffline) { items, offline ->
-        val filtered = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-        filtered.take(20)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     private val _notStartedFilterActive = MutableStateFlow(false)
     val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
 
@@ -244,20 +171,31 @@ class LibraryItemsViewModel @Inject constructor(
         _notStartedFilterActive.value = !_notStartedFilterActive.value
     }
 
-    val filteredAllBooks: StateFlow<List<LibraryItem>> = combine(
-        allBooks,
-        isOffline,
-        _notStartedFilterActive,
-    ) { items, offline, notStartedOnly ->
-        val afterOffline = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-        if (notStartedOnly) afterOffline.filter { it.readingProgress == 0f } else afterOffline
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    // Share the VM's already-stateIn'd source flows with the engine so we don't open a second
+    // set of Room cursors for the same observe* calls. libraryRepository is still passed through
+    // for the per-group offline filter, which needs to observe each series'/collection's items.
+    private val filterEngine = LibraryFilterEngine(
+        libraryRepository = libraryRepository,
+        annotationStore = annotationStore,
+        audiobookBookmarkStore = audiobookBookmarkStore,
+        offlineAvailability = offlineAvailability,
+        seriesSource = series,
+        collectionsSource = collections,
+        ungroupedSource = ungroupedItems,
+        inProgressSource = inProgress,
+        finishedSource = finished,
+        recentlyAddedSource = recentlyAdded,
+        continueSeriesSource = continueSeriesBase,
+        allBooksSource = allBooks,
+        allItemsSource = allItems,
+        toReadIdsSource = toReadItemIds,
+        isOffline = isOffline,
+        searchQuery = searchQuery,
+        notStartedFilterActive = _notStartedFilterActive,
+    )
 
-    val toReadItems: StateFlow<List<LibraryItem>> = combine(toReadItemIds, allBooks, isOffline) { ids, all, offline ->
-        val byId = all.associateBy { it.id }
-        val items = ids.mapNotNull { byId[it] }
-        if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val projection: StateFlow<LibraryProjection> = filterEngine.projection
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryProjection.Empty)
 
     var authToken: String by mutableStateOf("")
         private set
@@ -343,24 +281,6 @@ class LibraryItemsViewModel @Inject constructor(
         toReadDeferred.await()
         _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
         lastRefreshCompletedAt = System.currentTimeMillis()
-    }
-
-    private fun filterCollectionsOffline(collections: List<Collection>, offline: Boolean): Flow<List<Collection>> {
-        if (!offline || collections.isEmpty()) return flowOf(collections)
-        return combine(collections.map { col -> libraryRepository.observeCollectionItems(col.id) }) { itemArrays ->
-            collections.zip(itemArrays.toList())
-                .filter { (_, items) -> items.any { offlineAvailability.isAvailableOffline(it) } }
-                .map { (col, _) -> col }
-        }
-    }
-
-    private fun filterSeriesOffline(series: List<Series>, offline: Boolean): Flow<List<Series>> {
-        if (!offline || series.isEmpty()) return flowOf(series)
-        return combine(series.map { s -> libraryRepository.observeSeriesItems(s.id) }) { itemArrays ->
-            series.zip(itemArrays.toList())
-                .filter { (_, items) -> items.any { offlineAvailability.isAvailableOffline(it) } }
-                .map { (s, _) -> s }
-        }
     }
 
     private companion object {
