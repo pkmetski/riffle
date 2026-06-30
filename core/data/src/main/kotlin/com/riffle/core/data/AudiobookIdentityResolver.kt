@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.AudiobookIdentity
 import com.riffle.core.domain.AudiobookIdentityResult
-import com.riffle.core.network.NetworkAudiobookFingerprintResult
+import com.riffle.core.network.NetworkResult
 
 /**
  * Resolves the two fetched fingerprints into an [AudiobookIdentityResult] (ADR 0028). A fetch
@@ -12,8 +12,8 @@ import com.riffle.core.network.NetworkAudiobookFingerprintResult
  */
 object AudiobookIdentityResolver {
     fun resolve(
-        storyteller: NetworkAudiobookFingerprintResult,
-        abs: NetworkAudiobookFingerprintResult,
+        storyteller: NetworkResult<AudiobookFingerprint?>,
+        abs: NetworkResult<AudiobookFingerprint?>,
     ): AudiobookIdentityResult {
         val storytellerFp = storyteller.fingerprintOr { return it }
         val absFp = abs.fingerprintOr { return it }
@@ -25,11 +25,10 @@ object AudiobookIdentityResolver {
     }
 
     /** Either the fingerprint, or an early-return verdict for the non-success cases. */
-    private inline fun NetworkAudiobookFingerprintResult.fingerprintOr(
+    private inline fun NetworkResult<AudiobookFingerprint?>.fingerprintOr(
         onNonSuccess: (AudiobookIdentityResult) -> Nothing,
     ): AudiobookFingerprint = when (this) {
-        is NetworkAudiobookFingerprintResult.Success -> fingerprint
-        NetworkAudiobookFingerprintResult.NoAudiobook -> onNonSuccess(AudiobookIdentityResult.NO_AUDIOBOOK)
-        is NetworkAudiobookFingerprintResult.NetworkError -> onNonSuccess(AudiobookIdentityResult.UNKNOWN)
+        is NetworkResult.Success -> value ?: onNonSuccess(AudiobookIdentityResult.NO_AUDIOBOOK)
+        else -> onNonSuccess(AudiobookIdentityResult.UNKNOWN)
     }
 }

@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkStorytellerBundleResult
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerBundleApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,29 +41,25 @@ open class StorytellerSidecarFetcher(
         insecureAllowed: Boolean,
     ): FetchResult = withContext(Dispatchers.IO) {
         // Fast path: stream the prefix, stop at the first audio entry (~1 MB transferred).
-        when (val r = bundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)) {
-            is NetworkStorytellerBundleResult.NetworkError -> return@withContext FetchResult.NetworkError
-            is NetworkStorytellerBundleResult.Success -> {
-                val streaming = r.body.use { body ->
-                    runCatching { ReadaloudSidecarReader.readStreaming(body.byteStream()) }.getOrNull()
-                }
-                if (streaming != null) return@withContext FetchResult.Success(streaming)
-            }
+        val fastPath = bundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)
+        if (fastPath !is NetworkResult.Success) return@withContext FetchResult.NetworkError
+        val streaming = fastPath.value.body.use { body ->
+            runCatching { ReadaloudSidecarReader.readStreaming(body.byteStream()) }.getOrNull()
         }
+        if (streaming != null) return@withContext FetchResult.Success(streaming)
 
         // Fast path returned null — SMIL may be after audio in this bundle's zip ordering.
         // Download the full bundle to a temp file and confirm with ZipFile random access.
         val tempFile = File.createTempFile("sidecar_$bookId", ".tmp", tempDir())
         try {
-            when (val r = fullBundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)) {
-                is NetworkStorytellerBundleResult.NetworkError -> FetchResult.NetworkError
-                is NetworkStorytellerBundleResult.Success -> {
-                    r.body.use { body ->
-                        tempFile.outputStream().use { out -> body.byteStream().copyTo(out) }
-                    }
-                    val bytes = ReadaloudSidecarReader.readFromFile(tempFile)
-                    if (bytes != null) FetchResult.Success(bytes) else FetchResult.NotAligned
+            val full = fullBundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)
+            if (full !is NetworkResult.Success) FetchResult.NetworkError
+            else {
+                full.value.body.use { body ->
+                    tempFile.outputStream().use { out -> body.byteStream().copyTo(out) }
                 }
+                val bytes = ReadaloudSidecarReader.readFromFile(tempFile)
+                if (bytes != null) FetchResult.Success(bytes) else FetchResult.NotAligned
             }
         } catch (e: IOException) {
             FetchResult.NetworkError

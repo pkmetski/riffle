@@ -5,7 +5,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.StorytellerPositionReconciler
 import com.riffle.core.domain.StorytellerPositionReconciler.Decision
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.NetworkStorytellerPositionResult
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerPositionApi
 
 sealed interface StorytellerSyncOutcome {
@@ -34,11 +34,9 @@ class StorytellerPositionSyncController(
         val token = tokenStorage.getToken(server.id) ?: return StorytellerSyncOutcome.Offline
         val localUpdatedAt = positionStore.loadLocalUpdatedAt(server.id, itemId)
 
-        val remote = when (val r = api.getPosition(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
-            is NetworkStorytellerPositionResult.Success -> r.locatorJson to r.timestampMillis
-            is NetworkStorytellerPositionResult.NoPosition -> null to 0L
-            is NetworkStorytellerPositionResult.NetworkError -> return StorytellerSyncOutcome.Offline
-        }
+        val getRes = api.getPosition(server.url.value, itemId, token, server.insecureConnectionAllowed)
+        if (getRes !is NetworkResult.Success) return StorytellerSyncOutcome.Offline
+        val remote: Pair<String?, Long> = getRes.value?.let { it.locatorJson to it.timestampMillis } ?: (null to 0L)
 
         return when (val d = StorytellerPositionReconciler.reconcile(localLocatorJson, localUpdatedAt, remote.first, remote.second)) {
             is Decision.PullRemote -> {

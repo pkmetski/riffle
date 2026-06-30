@@ -29,8 +29,8 @@ class AudiobookFingerprintClientTest {
         val client = StorytellerApiClient(OkHttpClient())
         val result = client.getAudiobookFingerprint(baseUrl(), 42L, "tok", false)
 
-        assertTrue(result is NetworkAudiobookFingerprintResult.Success)
-        assertEquals(313_869_927L, (result as NetworkAudiobookFingerprintResult.Success).fingerprint.fileSizeBytes)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(313_869_927L, (result as NetworkResult.Success).value!!.fileSizeBytes)
         assertEquals("/api/v2/books/42", server.takeRequest().path)
     }
 
@@ -38,7 +38,7 @@ class AudiobookFingerprintClientTest {
     fun `storyteller with no audiobook returns NoAudiobook`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"title":"x"}"""))
         val result = StorytellerApiClient(OkHttpClient()).getAudiobookFingerprint(baseUrl(), 1L, "tok", false)
-        assertTrue(result is NetworkAudiobookFingerprintResult.NoAudiobook)
+        assertTrue(result is NetworkResult.Success && result.value == null)
     }
 
     @Test
@@ -52,8 +52,8 @@ class AudiobookFingerprintClientTest {
         )
         val result = AbsApiClient(OkHttpClient()).getAudiobookFingerprint(baseUrl(), "abc", "tok", false)
 
-        assertTrue(result is NetworkAudiobookFingerprintResult.Success)
-        assertEquals(listOf(2204.0, 1721.0), (result as NetworkAudiobookFingerprintResult.Success).fingerprint.trackDurationsSec)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(listOf(2204.0, 1721.0), (result as NetworkResult.Success).value!!.trackDurationsSec)
         assertEquals("/api/items/abc?expanded=1", server.takeRequest().path)
     }
 
@@ -66,7 +66,7 @@ class AudiobookFingerprintClientTest {
             ),
         )
         val result = AbsApiClient(OkHttpClient()).getAudiobookTracks(baseUrl(), "abc", "tok", false)
-        assertTrue(result is NetworkAudiobookTracksResult.Success)
-        assertEquals("7963985", (result as NetworkAudiobookTracksResult.Success).tracks.single().ino)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals("7963985", (result as NetworkResult.Success).value.single().ino)
     }
 }

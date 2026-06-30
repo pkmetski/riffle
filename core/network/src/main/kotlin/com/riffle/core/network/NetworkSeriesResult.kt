@@ -29,8 +29,3 @@ data class NetworkSeries(
 ) {
     val bookCount: Int get() = items.size
 }
-
-sealed class NetworkSeriesResult {
-    data class Success(val series: List<NetworkSeries>) : NetworkSeriesResult()
-    data class NetworkError(val cause: Throwable) : NetworkSeriesResult()
-}

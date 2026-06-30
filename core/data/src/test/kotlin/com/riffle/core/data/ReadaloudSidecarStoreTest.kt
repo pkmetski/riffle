@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.PendingServer
@@ -8,7 +10,6 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.NetworkStorytellerBundleResult
 import com.riffle.core.network.StorytellerBundleApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow

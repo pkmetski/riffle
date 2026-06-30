@@ -1,8 +1,9 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.AudiobookIdentityResult
-import com.riffle.core.network.NetworkAudiobookFingerprintResult
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -14,7 +15,8 @@ class AudiobookIdentityResolverTest {
 
     private val martian = AudiobookFingerprint(313_869_927, 39_214.464, listOf(39_214.464))
 
-    private fun ok(fp: AudiobookFingerprint) = NetworkAudiobookFingerprintResult.Success(fp)
+    private fun ok(fp: AudiobookFingerprint): NetworkResult<AudiobookFingerprint?> = NetworkResult.Success(fp)
+    private val noAudiobook: NetworkResult<AudiobookFingerprint?> = NetworkResult.Success(null)
 
     @Test
     fun `matching fingerprints verify`() {
@@ -31,7 +33,7 @@ class AudiobookIdentityResolverTest {
     fun `no audiobook on either side resolves to NO_AUDIOBOOK`() {
         assertEquals(
             AudiobookIdentityResult.NO_AUDIOBOOK,
-            AudiobookIdentityResolver.resolve(NetworkAudiobookFingerprintResult.NoAudiobook, ok(martian)),
+            AudiobookIdentityResolver.resolve(noAudiobook, ok(martian)),
         )
     }
 
@@ -39,7 +41,7 @@ class AudiobookIdentityResolverTest {
     fun `a fetch error resolves to UNKNOWN, never a false verify`() {
         assertEquals(
             AudiobookIdentityResult.UNKNOWN,
-            AudiobookIdentityResolver.resolve(ok(martian), NetworkAudiobookFingerprintResult.NetworkError(RuntimeException())),
+            AudiobookIdentityResolver.resolve(ok(martian), NetworkResult.Offline(RuntimeException())),
         )
     }
 }

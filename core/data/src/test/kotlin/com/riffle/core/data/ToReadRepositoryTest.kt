@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.EbookFormat
@@ -9,13 +11,8 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkLibrariesResult
 import com.riffle.core.network.NetworkLibraryItem
-import com.riffle.core.network.NetworkLibraryItemsResult
 import com.riffle.core.network.NetworkPlaylist
-import com.riffle.core.network.NetworkPlaylistResult
-import com.riffle.core.network.NetworkPlaylistWriteResult
-import com.riffle.core.network.NetworkSeriesResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -64,8 +61,8 @@ class ToReadRepositoryTest {
     @Test
     fun `refresh returns false on network error and leaves cache untouched`() = runTest {
         val api = object : FakeAbsApi() {
-            override suspend fun getPlaylists(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkPlaylistResult =
-                NetworkPlaylistResult.NetworkError(IOException("HTTP 500"))
+            override suspend fun getPlaylists(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkPlaylist>> =
+                NetworkResult.Offline(IOException("HTTP 500"))
         }
         val repo = makeRepo(api)
         assertFalse(repo.refresh("lib-1"))
@@ -136,7 +133,7 @@ class ToReadRepositoryTest {
             override suspend fun addBookToPlaylist(
                 baseUrl: String, playlistId: String, libraryItemId: String,
                 token: String, insecureAllowed: Boolean,
-            ): NetworkPlaylistWriteResult = NetworkPlaylistWriteResult.NetworkError(IOException("HTTP 500"))
+            ): NetworkResult<NetworkPlaylist?> = NetworkResult.Offline(IOException("HTTP 500"))
         }
         val repo = makeRepo(api)
         repo.refresh("lib-1")
@@ -150,7 +147,7 @@ class ToReadRepositoryTest {
             override suspend fun createPlaylist(
                 baseUrl: String, libraryId: String, name: String, initialBookId: String?,
                 token: String, insecureAllowed: Boolean,
-            ): NetworkPlaylistWriteResult = NetworkPlaylistWriteResult.NetworkError(IOException("HTTP 500"))
+            ): NetworkResult<NetworkPlaylist?> = NetworkResult.Offline(IOException("HTTP 500"))
         }
         val repo = makeRepo(api)
         repo.refresh("lib-1")
@@ -205,7 +202,7 @@ class ToReadRepositoryTest {
             override suspend fun removeBookFromPlaylist(
                 baseUrl: String, playlistId: String, libraryItemId: String,
                 token: String, insecureAllowed: Boolean,
-            ): NetworkPlaylistWriteResult = NetworkPlaylistWriteResult.NetworkError(IOException("HTTP 500"))
+            ): NetworkResult<NetworkPlaylist?> = NetworkResult.Offline(IOException("HTTP 500"))
         }
         val repo = makeRepo(api)
         repo.refresh("lib-1")
@@ -250,42 +247,42 @@ private open class FakeAbsApi(
     val addCalls = mutableListOf<Pair<String, String>>()
     val removeCalls = mutableListOf<Pair<String, String>>()
 
-    override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkLibrariesResult =
-        NetworkLibrariesResult.Success(emptyList())
+    override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkLibrary>> =
+        NetworkResult.Success(emptyList())
 
-    override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkLibraryItemsResult =
-        NetworkLibraryItemsResult.Success(emptyList())
+    override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkLibraryItem>> =
+        NetworkResult.Success(emptyList())
 
-    override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkSeriesResult =
-        NetworkSeriesResult.Success(emptyList())
+    override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkSeries>> =
+        NetworkResult.Success(emptyList())
 
-    override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean) =
-        com.riffle.core.network.NetworkCollectionResult.Success(emptyList())
+    override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkCollection>> =
+        NetworkResult.Success(emptyList())
 
-    override suspend fun getPlaylists(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkPlaylistResult =
-        NetworkPlaylistResult.Success(playlistsByLibrary[libraryId].orEmpty())
+    override suspend fun getPlaylists(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkPlaylist>> =
+        NetworkResult.Success(playlistsByLibrary[libraryId].orEmpty())
 
     override suspend fun createPlaylist(
         baseUrl: String, libraryId: String, name: String, initialBookId: String?,
         token: String, insecureAllowed: Boolean,
-    ): NetworkPlaylistWriteResult {
+    ): NetworkResult<NetworkPlaylist?> {
         createCalls += Triple(libraryId, name, initialBookId)
-        return NetworkPlaylistWriteResult.Success(NetworkPlaylist("pl-new", libraryId, name, emptyList(), emptySet()))
+        return NetworkResult.Success(NetworkPlaylist("pl-new", libraryId, name, emptyList(), emptySet()))
     }
 
     override suspend fun addBookToPlaylist(
         baseUrl: String, playlistId: String, libraryItemId: String,
         token: String, insecureAllowed: Boolean,
-    ): NetworkPlaylistWriteResult {
+    ): NetworkResult<NetworkPlaylist?> {
         addCalls += playlistId to libraryItemId
-        return NetworkPlaylistWriteResult.Success(null)
+        return NetworkResult.Success(null)
     }
 
     override suspend fun removeBookFromPlaylist(
         baseUrl: String, playlistId: String, libraryItemId: String,
         token: String, insecureAllowed: Boolean,
-    ): NetworkPlaylistWriteResult {
+    ): NetworkResult<NetworkPlaylist?> {
         removeCalls += playlistId to libraryItemId
-        return NetworkPlaylistWriteResult.Success(null)
+        return NetworkResult.Success(null)
     }
 }

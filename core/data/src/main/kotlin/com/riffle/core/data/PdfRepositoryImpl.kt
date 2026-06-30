@@ -9,8 +9,8 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkEpubDownloadResult
-import com.riffle.core.network.NetworkItemEbookInoResult
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.errorAsThrowable
 import java.io.File
 
 class PdfRepositoryImpl(
@@ -35,17 +35,12 @@ class PdfRepositoryImpl(
             val token = tokenStorage.getToken(activeServer.id)
                 ?: return PdfOpenResult.NetworkError(IllegalStateException("No token for server"))
             val ino = item.ebookFileIno ?: run {
-                when (val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
-                    is NetworkItemEbookInoResult.Success -> r.ino
-                    is NetworkItemEbookInoResult.NetworkError -> return PdfOpenResult.NetworkError(r.cause)
-                }
+                val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)
+                if (r is NetworkResult.Success) r.value else return PdfOpenResult.NetworkError(r.errorAsThrowable())
             }
-            when (val result = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)) {
-                is NetworkEpubDownloadResult.Success -> result.body.use { body ->
-                    cacheStore.save(activeServer.id, item.id, body.byteStream())
-                }
-                is NetworkEpubDownloadResult.NetworkError -> return PdfOpenResult.NetworkError(result.cause)
-            }
+            val result = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)
+            if (result !is NetworkResult.Success) return PdfOpenResult.NetworkError(result.errorAsThrowable())
+            result.value.use { body -> cacheStore.save(activeServer.id, item.id, body.byteStream()) }
         }
         val lastPosition = positionStore.load(activeServer.id, item.id)
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = lastPosition)
@@ -70,21 +65,16 @@ class PdfRepositoryImpl(
         val token = tokenStorage.getToken(server.id)
             ?: return PdfDownloadResult.NetworkError(IllegalStateException("No token for server"))
         val ino = item.ebookFileIno ?: run {
-            when (val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
-                is NetworkItemEbookInoResult.Success -> r.ino
-                is NetworkItemEbookInoResult.NetworkError -> return PdfDownloadResult.NetworkError(r.cause)
-            }
+            val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)
+            if (r is NetworkResult.Success) r.value else return PdfDownloadResult.NetworkError(r.errorAsThrowable())
         }
-        return when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
-            is NetworkEpubDownloadResult.Success -> {
-                result.body.use { body ->
-                    val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
-                    downloadsStore.save(item.serverId, item.id, stream)
-                }
-                PdfDownloadResult.Success
-            }
-            is NetworkEpubDownloadResult.NetworkError -> PdfDownloadResult.NetworkError(result.cause)
+        val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)
+        if (result !is NetworkResult.Success) return PdfDownloadResult.NetworkError(result.errorAsThrowable())
+        result.value.use { body ->
+            val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
+            downloadsStore.save(item.serverId, item.id, stream)
         }
+        return PdfDownloadResult.Success
     }
 
     override suspend fun removeDownload(serverId: String, itemId: String) {

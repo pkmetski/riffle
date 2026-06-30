@@ -54,8 +54,8 @@ class AbsApiClientPlaylistsTest {
         assertEquals("/api/libraries/lib-1/playlists?limit=500", recorded.path)
         assertEquals("Bearer tok", recorded.getHeader("Authorization"))
 
-        assertTrue(result is NetworkPlaylistResult.Success)
-        val playlists = (result as NetworkPlaylistResult.Success).playlists
+        assertTrue(result is NetworkResult.Success)
+        val playlists = (result as NetworkResult.Success).value
         assertEquals(1, playlists.size)
         assertEquals("pl-1", playlists[0].id)
         assertEquals("To Read", playlists[0].name)
@@ -81,8 +81,8 @@ class AbsApiClientPlaylistsTest {
 
         val result = client.getPlaylists(baseUrl(), "lib-1", "tok", false)
 
-        assertTrue(result is NetworkPlaylistResult.Success)
-        val pl = (result as NetworkPlaylistResult.Success).playlists.single()
+        assertTrue(result is NetworkResult.Success)
+        val pl = (result as NetworkResult.Success).value.single()
         assertEquals(setOf("item-1", "item-2"), pl.bookIds)
         assertEquals(listOf("item-1"), pl.items.map { it.id })
         assertEquals(2, pl.bookCount)
@@ -113,8 +113,8 @@ class AbsApiClientPlaylistsTest {
             body
         )
 
-        assertTrue(result is NetworkPlaylistWriteResult.Success)
-        val playlist = (result as NetworkPlaylistWriteResult.Success).playlist
+        assertTrue(result is NetworkResult.Success)
+        val playlist = (result as NetworkResult.Success).value
         assertNotNull(playlist)
         assertEquals("pl-1", playlist!!.id)
         assertEquals(1, playlist.items.size)
@@ -138,8 +138,8 @@ class AbsApiClientPlaylistsTest {
             """{"libraryId":"lib-1","name":"To Read","items":[]}""",
             body
         )
-        assertTrue(result is NetworkPlaylistWriteResult.Success)
-        val playlist = (result as NetworkPlaylistWriteResult.Success).playlist
+        assertTrue(result is NetworkResult.Success)
+        val playlist = (result as NetworkResult.Success).value
         assertNotNull(playlist)
         assertTrue(playlist!!.items.isEmpty())
     }
@@ -165,8 +165,8 @@ class AbsApiClientPlaylistsTest {
         assertEquals("Bearer tok", recorded.getHeader("Authorization"))
         assertEquals("""{"libraryItemId":"item-1"}""", recorded.body.readUtf8())
 
-        assertTrue(result is NetworkPlaylistWriteResult.Success)
-        val playlist = (result as NetworkPlaylistWriteResult.Success).playlist
+        assertTrue(result is NetworkResult.Success)
+        val playlist = (result as NetworkResult.Success).value
         assertNotNull(playlist)
         assertEquals("pl-1", playlist!!.id)
     }
@@ -186,6 +186,6 @@ class AbsApiClientPlaylistsTest {
         assertEquals("/api/playlists/pl-1/item/item-1", recorded.path)
         assertEquals("Bearer tok", recorded.getHeader("Authorization"))
 
-        assertTrue(result is NetworkPlaylistWriteResult.Success)
+        assertTrue(result is NetworkResult.Success)
     }
 }

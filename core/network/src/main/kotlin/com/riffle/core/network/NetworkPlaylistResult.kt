@@ -9,8 +9,3 @@ data class NetworkPlaylist(
 ) {
     val bookCount: Int get() = bookIds.size
 }
-
-sealed class NetworkPlaylistResult {
-    data class Success(val playlists: List<NetworkPlaylist>) : NetworkPlaylistResult()
-    data class NetworkError(val cause: Throwable) : NetworkPlaylistResult()
-}

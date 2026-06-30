@@ -4,8 +4,8 @@ import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookChapterCacheRepository
-import com.riffle.core.network.AbsItemDetailResult
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.NetworkResult
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -30,10 +30,7 @@ class AudiobookChapterCacheRepositoryImpl @Inject constructor(
         insecureAllowed: Boolean,
     ): List<AudiobookChapter> {
         val result = api.getItemDetail(baseUrl, itemId, token, insecureAllowed)
-        val response = when (result) {
-            is AbsItemDetailResult.Success -> result.detail
-            is AbsItemDetailResult.NetworkError -> return emptyList()
-        }
+        val response = (result as? NetworkResult.Success)?.value ?: return emptyList()
         val chapters = response.media.chapters.mapIndexed { index, dto ->
             AudiobookChapter(
                 index = index,

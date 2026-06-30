@@ -6,8 +6,7 @@ import com.riffle.core.domain.RemoteProgress
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
-import com.riffle.core.network.NetworkSyncSessionResult
+import com.riffle.core.network.NetworkResult
 
 /**
  * The ABS ebook media-progress record as one reconcilable target (ADR 0030). Position is stored
@@ -32,26 +31,21 @@ class AbsEbookProgressRemote(
 
     override suspend fun get(): RemoteProgress<String>? {
         val t = translator ?: return null
-        return when (val r = api.getProgress(baseUrl, itemId, token, insecureAllowed)) {
-            is NetworkGetProgressResult.Success -> {
-                val raw = r.progress.ebookLocation
-                // ABS returns blank when the book has never been opened; skip translation so the
-                // reconciler can still compare timestamps and push local progress if it's newer.
-                val locatorJson = if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
-                RemoteProgress(locatorJson, r.progress.lastUpdate)
-            }
-            is NetworkGetProgressResult.NetworkError -> null
-        }
+        val r = api.getProgress(baseUrl, itemId, token, insecureAllowed)
+        if (r !is NetworkResult.Success) return null
+        val raw = r.value.ebookLocation
+        // ABS returns blank when the book has never been opened; skip translation so the
+        // reconciler can still compare timestamps and push local progress if it's newer.
+        val locatorJson = if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
+        return RemoteProgress(locatorJson, r.value.lastUpdate)
     }
 
     override suspend fun patch(position: String): Long? {
         val t = translator ?: return null
         val cfi = t.locatorJsonToCfi(position) ?: return null
         val payload = NetworkEbookProgressPayload(ebookLocation = cfi, ebookProgress = readingProgress())
-        return when (val r = api.syncEbookProgress(baseUrl, itemId, payload, token, insecureAllowed)) {
-            is NetworkSyncSessionResult.Success -> r.lastUpdate
-            is NetworkSyncSessionResult.NetworkError -> null
-        }
+        val r = api.syncEbookProgress(baseUrl, itemId, payload, token, insecureAllowed)
+        return (r as? NetworkResult.Success)?.value
     }
 }
 
@@ -69,17 +63,15 @@ class AbsAudioProgressRemote(
     private val duration: suspend () -> Double,
 ) : ProgressRemote<Double> {
 
-    override suspend fun get(): RemoteProgress<Double>? =
-        when (val r = api.getProgress(baseUrl, itemId, token, insecureAllowed)) {
-            is NetworkGetProgressResult.Success -> RemoteProgress(r.progress.currentTime, r.progress.lastUpdate)
-            is NetworkGetProgressResult.NetworkError -> null
-        }
+    override suspend fun get(): RemoteProgress<Double>? {
+        val r = api.getProgress(baseUrl, itemId, token, insecureAllowed)
+        if (r !is NetworkResult.Success) return null
+        return RemoteProgress(r.value.currentTime, r.value.lastUpdate)
+    }
 
     override suspend fun patch(position: Double): Long? {
         val payload = NetworkAudiobookProgressPayload(currentTime = position, duration = duration())
-        return when (val r = api.syncAudiobookProgress(baseUrl, itemId, payload, token, insecureAllowed)) {
-            is NetworkSyncSessionResult.Success -> r.lastUpdate
-            is NetworkSyncSessionResult.NetworkError -> null
-        }
+        val r = api.syncAudiobookProgress(baseUrl, itemId, payload, token, insecureAllowed)
+        return (r as? NetworkResult.Success)?.value
     }
 }

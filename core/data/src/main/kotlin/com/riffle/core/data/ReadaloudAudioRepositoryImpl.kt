@@ -6,7 +6,7 @@ import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.NetworkStorytellerBundleSizeResult
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerBundleProbeApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,10 +49,8 @@ open class ReadaloudAudioRepositoryImpl(
     override suspend fun probeSizeBytes(serverId: String, itemId: String): Long? {
         val server = serverRepository.getById(serverId) ?: return null
         val token = tokenStorage.getToken(server.id) ?: return null
-        return when (val r = bundleProbe.probeBundleSize(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
-            is NetworkStorytellerBundleSizeResult.Success -> r.sizeBytes
-            is NetworkStorytellerBundleSizeResult.NetworkError -> null
-        }
+        val r = bundleProbe.probeBundleSize(server.url.value, itemId, token, server.insecureConnectionAllowed)
+        return (r as? NetworkResult.Success)?.value
     }
 
     override suspend fun downloadAudio(

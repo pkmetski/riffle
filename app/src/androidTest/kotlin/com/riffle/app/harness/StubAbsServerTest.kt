@@ -1,9 +1,9 @@
 package com.riffle.app.harness
 
+import com.riffle.core.network.NetworkResult
+
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.network.AbsApiClient
-import com.riffle.core.network.NetworkLibrariesResult
-import com.riffle.core.network.NetworkLoginResult
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -32,17 +32,17 @@ class StubAbsServerTest {
     @Test
     fun stubServerStartsAndServesSuccessfulLoginResponse() = runTest {
         val result = client.login(stub.baseUrl, "testuser", "testpass", false)
-        assertTrue(result is NetworkLoginResult.Success)
-        val success = result as NetworkLoginResult.Success
-        assertEquals(StubAbsServer.TEST_USER_ID, success.userId)
-        assertEquals(StubAbsServer.TEST_TOKEN, success.token)
+        assertTrue(result is NetworkResult.Success)
+        val success = result as NetworkResult.Success
+        assertEquals(StubAbsServer.TEST_USER_ID, success.value.userId)
+        assertEquals(StubAbsServer.TEST_TOKEN, success.value.token)
     }
 
     @Test
     fun stubServerServesLibraryListWithOneBookLibrary() = runTest {
         val result = client.getLibraries(stub.baseUrl, StubAbsServer.TEST_TOKEN, false)
-        assertTrue(result is NetworkLibrariesResult.Success)
-        val libraries = (result as NetworkLibrariesResult.Success).libraries
+        assertTrue(result is NetworkResult.Success)
+        val libraries = (result as NetworkResult.Success).value
         assertEquals(1, libraries.size)
         assertEquals(StubAbsServer.TEST_LIBRARY_ID, libraries[0].id)
         assertEquals("book", libraries[0].mediaType)

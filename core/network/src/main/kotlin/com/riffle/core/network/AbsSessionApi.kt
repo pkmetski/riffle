@@ -24,37 +24,30 @@ data class NetworkServerProgress(
     val lastUpdate: Long,
 )
 
-sealed class NetworkSyncSessionResult {
-    data class Success(val lastUpdate: Long) : NetworkSyncSessionResult()
-    data class NetworkError(val cause: Throwable) : NetworkSyncSessionResult()
-}
-
-sealed class NetworkGetProgressResult {
-    data class Success(val progress: NetworkServerProgress) : NetworkGetProgressResult()
-    data class NetworkError(val cause: Throwable) : NetworkGetProgressResult()
-}
-
 interface AbsSessionApi {
+    /** PATCH the ebook dimension of the shared media-progress record. Returns the new `lastUpdate`. */
     suspend fun syncEbookProgress(
         baseUrl: String,
         libraryItemId: String,
         payload: NetworkEbookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkSyncSessionResult
+    ): NetworkResult<Long>
 
+    /** PATCH the audiobook dimension of the shared media-progress record. Returns the new `lastUpdate`. */
     suspend fun syncAudiobookProgress(
         baseUrl: String,
         libraryItemId: String,
         payload: NetworkAudiobookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkSyncSessionResult
+    ): NetworkResult<Long>
 
+    /** GET the shared media-progress record. A 404 is mapped to an empty record at `lastUpdate=0`. */
     suspend fun getProgress(
         baseUrl: String,
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkGetProgressResult
+    ): NetworkResult<NetworkServerProgress>
 }

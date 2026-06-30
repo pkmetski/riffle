@@ -54,8 +54,8 @@ class StorytellerBundleApiTest {
         val recorded = server.takeRequest()
         assertEquals("/api/books/42/synced", recorded.path)
         assertEquals("Bearer tkn", recorded.getHeader("Authorization"))
-        assertTrue(result is NetworkStorytellerBundleResult.Success)
-        val readBytes = (result as NetworkStorytellerBundleResult.Success).body.use { it.bytes() }
+        assertTrue(result is NetworkResult.Success)
+        val readBytes = (result as NetworkResult.Success).value.body.use { it.bytes() }
         assertEquals(bytes.toList(), readBytes.toList())
     }
 
@@ -69,7 +69,7 @@ class StorytellerBundleApiTest {
             insecureAllowed = false,
         )
 
-        assertTrue(result is NetworkStorytellerBundleResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 
     @Test fun downloadBundle_cancelledDuringSlowHeaderWait_doesNotLeakConnection() = runBlocking {
@@ -131,8 +131,8 @@ class StorytellerBundleApiTest {
         assertEquals("HEAD", recorded.method)
         assertEquals("/api/books/42/synced", recorded.path)
         assertEquals("Bearer tkn", recorded.getHeader("Authorization"))
-        assertTrue("Expected Success but got $result", result is NetworkStorytellerBundleSizeResult.Success)
-        assertEquals(315_074_677L, (result as NetworkStorytellerBundleSizeResult.Success).sizeBytes)
+        assertTrue("Expected Success but got $result", result is NetworkResult.Success)
+        assertEquals(315_074_677L, (result as NetworkResult.Success).value)
     }
 
     @Test fun probeBundleSize_nonSuccess_returnsNetworkError() = runTest {
@@ -145,7 +145,7 @@ class StorytellerBundleApiTest {
             insecureAllowed = false,
         )
 
-        assertTrue(result is NetworkStorytellerBundleSizeResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 
     @Test fun probeBundleSize_slowSynced_failsFast_doesNotHang() = runBlocking {
@@ -169,7 +169,7 @@ class StorytellerBundleApiTest {
         )
         val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
-        assertTrue("Expected NetworkError on a slow probe but got $result", result is NetworkStorytellerBundleSizeResult.NetworkError)
+        assertTrue("Expected NetworkError on a slow probe but got $result", result is NetworkResult.Offline)
         assertTrue("Probe should have failed fast (~1s), took ${elapsedMs}ms", elapsedMs < 5_000)
     }
 
@@ -191,7 +191,7 @@ class StorytellerBundleApiTest {
         )
         val elapsedMs = (System.nanoTime() - start) / 1_000_000
 
-        assertTrue("Expected NetworkError on a wedged /synced but got $result", result is NetworkStorytellerBundleResult.NetworkError)
+        assertTrue("Expected NetworkError on a wedged /synced but got $result", result is NetworkResult.Offline)
         assertTrue("streamSidecar must give up at its callTimeout (~1s), took ${elapsedMs}ms", elapsedMs < 5_000)
     }
 }

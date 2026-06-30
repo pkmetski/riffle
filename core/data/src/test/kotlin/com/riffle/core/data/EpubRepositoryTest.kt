@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
@@ -12,8 +14,6 @@ import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
-import com.riffle.core.network.NetworkStorytellerBundleResult
-import com.riffle.core.network.NetworkStorytellerBundleSizeResult
 import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleProbeApi
 import kotlinx.coroutines.flow.Flow

@@ -3,8 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkPlaylistResult
-import com.riffle.core.network.NetworkPlaylistWriteResult
+import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -34,8 +33,8 @@ class ToReadRepositoryImpl @Inject constructor(
     override suspend fun refresh(libraryId: String): Boolean {
         val session = resolveSession() ?: return false
         val result = api.getPlaylists(session.baseUrl, libraryId, session.token, session.insecureAllowed)
-        if (result !is NetworkPlaylistResult.Success) return false
-        val match = result.playlists.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
+        if (result !is NetworkResult.Success) return false
+        val match = result.value.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
         val snapshot = ToReadSnapshot(
             playlistId = match?.id,
             itemIds = match?.bookIds ?: emptySet(),
@@ -58,8 +57,8 @@ class ToReadRepositoryImpl @Inject constructor(
                 session.baseUrl, libraryId, TO_READ_PLAYLIST_NAME, libraryItemId,
                 session.token, session.insecureAllowed,
             )
-            if (r is NetworkPlaylistWriteResult.Success) {
-                val newId = r.playlist?.id
+            if (r is NetworkResult.Success) {
+                val newId = r.value?.id
                 if (newId != null) {
                     cache.value = cache.value + (libraryId to ToReadSnapshot(newId, before.itemIds + libraryItemId))
                 }
@@ -69,7 +68,7 @@ class ToReadRepositoryImpl @Inject constructor(
             val r = api.addBookToPlaylist(
                 session.baseUrl, playlistId, libraryItemId, session.token, session.insecureAllowed,
             )
-            r is NetworkPlaylistWriteResult.Success
+            r is NetworkResult.Success
         }
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
@@ -92,7 +91,7 @@ class ToReadRepositoryImpl @Inject constructor(
         val r = api.removeBookFromPlaylist(
             session.baseUrl, playlistId, libraryItemId, session.token, session.insecureAllowed,
         )
-        val ok = r is NetworkPlaylistWriteResult.Success
+        val ok = r is NetworkResult.Success
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
     }

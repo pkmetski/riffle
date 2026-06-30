@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
@@ -14,9 +16,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -55,7 +55,7 @@ class MarkUnreadServerResetTest {
         override suspend fun syncEbookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload,
             token: String, insecureAllowed: Boolean,
-        ): NetworkSyncSessionResult {
+        ): NetworkResult<Long> {
             val r = rec(libraryItemId)
             r.ebookLocation = payload.ebookLocation
             r.ebookProgress = payload.ebookProgress
@@ -65,25 +65,25 @@ class MarkUnreadServerResetTest {
                 null -> {}
             }
             r.lastUpdate = ++clock
-            return NetworkSyncSessionResult.Success(r.lastUpdate)
+            return NetworkResult.Success(r.lastUpdate)
         }
 
         override suspend fun syncAudiobookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload,
             token: String, insecureAllowed: Boolean,
-        ): NetworkSyncSessionResult {
+        ): NetworkResult<Long> {
             val r = rec(libraryItemId)
             r.currentTime = payload.currentTime
             r.duration = payload.duration
             r.lastUpdate = ++clock
-            return NetworkSyncSessionResult.Success(r.lastUpdate)
+            return NetworkResult.Success(r.lastUpdate)
         }
 
         override suspend fun getProgress(
             baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-        ): NetworkGetProgressResult {
-            val r = records[libraryItemId] ?: return NetworkGetProgressResult.Success(NetworkServerProgress("", lastUpdate = 0L))
-            return NetworkGetProgressResult.Success(
+        ): NetworkResult<NetworkServerProgress> {
+            val r = records[libraryItemId] ?: return NetworkResult.Success(NetworkServerProgress("", lastUpdate = 0L))
+            return NetworkResult.Success(
                 NetworkServerProgress(r.ebookLocation, r.ebookProgress, r.currentTime, r.duration, r.lastUpdate)
             )
         }
@@ -142,7 +142,7 @@ class MarkUnreadServerResetTest {
         assertEquals(false, r.isFinished)
         // The audiobook reconcile peer returns EMPTY when currentTime <= 0 — i.e. no inbound position,
         // so local (start) wins and the reader does not jump back.
-        val server = (api.getProgress("", "audio-1", "tok", false) as NetworkGetProgressResult.Success).progress
+        val server = (api.getProgress("", "audio-1", "tok", false) as NetworkResult.Success<NetworkServerProgress>).value
         assertEquals(0.0, server.currentTime, 1e-9)
     }
 

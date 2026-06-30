@@ -3,8 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsBookmarkListResult
-import com.riffle.core.network.AbsBookmarkResult
+import com.riffle.core.network.NetworkResult
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -51,29 +50,26 @@ class AudiobookBookmarkReconciler(
             val ifStamp = row.localUpdatedAt
             if (row.deleted) {
                 val res = api.deleteBookmark(baseUrl, itemId, row.positionSec.roundToInt(), token, insecureAllowed)
-                if (res is AbsBookmarkResult.Success) {
+                if (res is NetworkResult.Success) {
                     dao.hardDeleteIfUnchanged(row.id, ifLocalUpdatedAt = ifStamp)
                 }
-                // NetworkError -> leave the tombstone (retries next sweep).
+                // Any error -> leave the tombstone (retries next sweep).
             } else {
                 val res = if (row.lastSyncedAt == 0L) {
                     api.createBookmark(baseUrl, itemId, row.positionSec.roundToInt(), row.title, token, insecureAllowed)
                 } else {
                     api.updateBookmark(baseUrl, itemId, row.positionSec.roundToInt(), row.title, token, insecureAllowed)
                 }
-                if (res is AbsBookmarkResult.Success) {
+                if (res is NetworkResult.Success) {
                     dao.confirmPushedIfUnchanged(row.id, serverStamp = now(), ifLocalUpdatedAt = ifStamp)
                 }
-                // NetworkError -> leave dirty.
+                // Any error -> leave dirty.
             }
         }
 
         // --- PULL: only if we can read the server. ---
         val listResult = api.listBookmarks(baseUrl, token, insecureAllowed)
-        val serverBookmarks = when (listResult) {
-            is AbsBookmarkListResult.Success -> listResult.bookmarks
-            is AbsBookmarkListResult.NetworkError -> return
-        }
+        val serverBookmarks = (listResult as? NetworkResult.Success)?.value ?: return
 
         val serverForItem = serverBookmarks.filter { it.libraryItemId == itemId }
         val serverTimes = serverForItem.map { it.timeSec }.toSet()

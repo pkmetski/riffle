@@ -45,8 +45,8 @@ class AbsBookmarkApiTest {
         assertTrue(body.contains("\"time\":123"))
         assertTrue(body.contains("\"title\":\"x\""))
 
-        assertTrue(result is AbsBookmarkResult.Success)
-        val bookmark = (result as AbsBookmarkResult.Success).bookmark
+        assertTrue(result is NetworkResult.Success)
+        val bookmark = (result as NetworkResult.Success).value
         assertEquals("ITEM", bookmark.libraryItemId)
         assertEquals(123, bookmark.timeSec)
         assertEquals("x", bookmark.title)
@@ -66,8 +66,8 @@ class AbsBookmarkApiTest {
         assertEquals("PATCH", req.method)
         assertEquals("/api/me/item/ITEM/bookmark", req.path)
 
-        assertTrue(result is AbsBookmarkResult.Success)
-        val bookmark = (result as AbsBookmarkResult.Success).bookmark
+        assertTrue(result is NetworkResult.Success)
+        val bookmark = (result as NetworkResult.Success).value
         assertEquals(123, bookmark.timeSec)
         assertEquals("x", bookmark.title)
     }
@@ -85,8 +85,8 @@ class AbsBookmarkApiTest {
         assertEquals("DELETE", req.method)
         assertEquals("/api/me/item/ITEM/bookmark/123", req.path)
 
-        assertTrue(result is AbsBookmarkResult.Success)
-        val bookmark = (result as AbsBookmarkResult.Success).bookmark
+        assertTrue(result is NetworkResult.Success)
+        val bookmark = (result as NetworkResult.Success).value
         assertEquals("ITEM", bookmark.libraryItemId)
         assertEquals(123, bookmark.timeSec)
     }
@@ -100,8 +100,8 @@ class AbsBookmarkApiTest {
         assertEquals("DELETE", req.method)
         assertEquals("/api/me/item/ITEM/bookmark/123", req.path)
 
-        assertTrue(result is AbsBookmarkResult.Success)
-        val bookmark = (result as AbsBookmarkResult.Success).bookmark
+        assertTrue(result is NetworkResult.Success)
+        val bookmark = (result as NetworkResult.Success).value
         assertEquals("ITEM", bookmark.libraryItemId)
         assertEquals(123, bookmark.timeSec)
     }
@@ -122,8 +122,8 @@ class AbsBookmarkApiTest {
         assertEquals("GET", req.method)
         assertEquals("/api/me", req.path)
 
-        assertTrue(result is AbsBookmarkListResult.Success)
-        val bookmarks = (result as AbsBookmarkListResult.Success).bookmarks
+        assertTrue(result is NetworkResult.Success)
+        val bookmarks = (result as NetworkResult.Success).value
         assertEquals(2, bookmarks.size)
         assertEquals(5, bookmarks[0].timeSec)
         assertEquals("a", bookmarks[0].title)
@@ -141,14 +141,14 @@ class AbsBookmarkApiTest {
         )
         val result = client.listBookmarks(baseUrl(), "tok", false)
 
-        assertTrue(result is AbsBookmarkListResult.Success)
-        assertTrue((result as AbsBookmarkListResult.Success).bookmarks.isEmpty())
+        assertTrue(result is NetworkResult.Success)
+        assertTrue((result as NetworkResult.Success).value.isEmpty())
     }
 
     @Test
     fun `createBookmark returns NetworkError on non-2xx`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("error"))
         val result = client.createBookmark(baseUrl(), "ITEM", 123, "x", "tok", false)
-        assertTrue(result is AbsBookmarkResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 }

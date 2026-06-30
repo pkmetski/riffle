@@ -1,10 +1,10 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsBookmarkListResult
-import com.riffle.core.network.AbsBookmarkResult
 import com.riffle.core.network.NetworkAbsBookmark
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,14 +73,14 @@ class AudiobookBookmarkReconcilerTest {
     }
 
     private class FakeApi(
-        var listResult: AbsBookmarkListResult = AbsBookmarkListResult.Success(emptyList()),
+        var listResult: NetworkResult<List<NetworkAbsBookmark>> = NetworkResult.Success(emptyList()),
     ) : AbsBookmarkApi {
         data class Call(val kind: String, val itemId: String, val timeSec: Int, val title: String)
 
         val calls = mutableListOf<Call>()
-        var createResult: AbsBookmarkResult = AbsBookmarkResult.Success(NetworkAbsBookmark("", "", 0, 0))
-        var updateResult: AbsBookmarkResult = AbsBookmarkResult.Success(NetworkAbsBookmark("", "", 0, 0))
-        var deleteResult: AbsBookmarkResult = AbsBookmarkResult.Success(NetworkAbsBookmark("", "", 0, 0))
+        var createResult: NetworkResult<NetworkAbsBookmark> = NetworkResult.Success(NetworkAbsBookmark("", "", 0, 0))
+        var updateResult: NetworkResult<NetworkAbsBookmark> = NetworkResult.Success(NetworkAbsBookmark("", "", 0, 0))
+        var deleteResult: NetworkResult<NetworkAbsBookmark> = NetworkResult.Success(NetworkAbsBookmark("", "", 0, 0))
 
         override suspend fun createBookmark(
             baseUrl: String,
@@ -89,7 +89,7 @@ class AudiobookBookmarkReconcilerTest {
             title: String,
             token: String,
             insecureAllowed: Boolean,
-        ): AbsBookmarkResult {
+        ): NetworkResult<NetworkAbsBookmark> {
             calls += Call("create", itemId, timeSec, title)
             return createResult
         }
@@ -101,7 +101,7 @@ class AudiobookBookmarkReconcilerTest {
             title: String,
             token: String,
             insecureAllowed: Boolean,
-        ): AbsBookmarkResult {
+        ): NetworkResult<NetworkAbsBookmark> {
             calls += Call("update", itemId, timeSec, title)
             return updateResult
         }
@@ -112,7 +112,7 @@ class AudiobookBookmarkReconcilerTest {
             timeSec: Int,
             token: String,
             insecureAllowed: Boolean,
-        ): AbsBookmarkResult {
+        ): NetworkResult<NetworkAbsBookmark> {
             calls += Call("delete", itemId, timeSec, "")
             return deleteResult
         }
@@ -121,7 +121,7 @@ class AudiobookBookmarkReconcilerTest {
             baseUrl: String,
             token: String,
             insecureAllowed: Boolean,
-        ): AbsBookmarkListResult = listResult
+        ): NetworkResult<List<NetworkAbsBookmark>> = listResult
     }
 
     private val now = { 1000L }
@@ -145,7 +145,7 @@ class AudiobookBookmarkReconcilerTest {
             ),
         )
         // Server echoes the bookmark back so the pull doesn't remove the now-clean row.
-        val api = FakeApi(listResult = AbsBookmarkListResult.Success(listOf(NetworkAbsBookmark("i1", "Intro", 12, 500L))))
+        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "Intro", 12, 500L))))
         reconciler(dao, api).run()
 
         assertEquals(listOf(FakeApi.Call("create", "i1", 12, "Intro")), api.calls.filter { it.kind == "create" })
@@ -161,7 +161,7 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        val api = FakeApi(listResult = AbsBookmarkListResult.Success(listOf(NetworkAbsBookmark("i1", "New name", 30, 500L))))
+        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "New name", 30, 500L))))
         reconciler(dao, api).run()
 
         assertEquals(listOf(FakeApi.Call("update", "i1", 30, "New name")), api.calls.filter { it.kind == "update" })
@@ -194,7 +194,7 @@ class AudiobookBookmarkReconcilerTest {
             ),
         )
         val api = FakeApi()
-        api.deleteResult = AbsBookmarkResult.NetworkError(RuntimeException("boom"))
+        api.deleteResult = NetworkResult.Offline(RuntimeException("boom"))
         reconciler(dao, api).run()
 
         val row = dao.getById("a")!!
@@ -204,7 +204,7 @@ class AudiobookBookmarkReconcilerTest {
 
     @Test fun pullInsert() = runTest {
         val dao = FakeDao()
-        val api = FakeApi(listResult = AbsBookmarkListResult.Success(listOf(NetworkAbsBookmark("i1", "From server", 77, 1234L))))
+        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "From server", 77, 1234L))))
         reconciler(dao, api).run()
 
         val row = dao.allForItem("s1", "i1").single()
@@ -223,7 +223,7 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 600L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        val api = FakeApi(listResult = AbsBookmarkListResult.Success(emptyList()))
+        val api = FakeApi(listResult = NetworkResult.Success(emptyList<NetworkAbsBookmark>()))
         reconciler(dao, api).run()
 
         assertNull("clean row missing from server must be removed", dao.getById("a"))
@@ -247,12 +247,12 @@ class AudiobookBookmarkReconcilerTest {
         )
         // Server returns the rename's time with a DIFFERENT title; the create's time is absent.
         val api = FakeApi(
-            listResult = AbsBookmarkListResult.Success(listOf(NetworkAbsBookmark("i1", "server title", 50, 500L))),
+            listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "server title", 50, 500L))),
         )
         // Pushes fail (network) so both rows stay DIRTY through the pull — that's the scenario
         // under test: the pull must not clobber pending local intent.
-        api.createResult = AbsBookmarkResult.NetworkError(RuntimeException("down"))
-        api.updateResult = AbsBookmarkResult.NetworkError(RuntimeException("down"))
+        api.createResult = NetworkResult.Offline(RuntimeException("down"))
+        api.updateResult = NetworkResult.Offline(RuntimeException("down"))
         reconciler(dao, api).run()
 
         val createRow = dao.getById("create")
@@ -277,7 +277,7 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 600L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        val api = FakeApi(listResult = AbsBookmarkListResult.NetworkError(RuntimeException("down")))
+        val api = FakeApi(listResult = NetworkResult.Offline(RuntimeException("down")))
         reconciler(dao, api).run()
 
         assertEquals(listOf(FakeApi.Call("create", "i1", 12, "Intro")), api.calls.filter { it.kind == "create" })
@@ -287,7 +287,7 @@ class AudiobookBookmarkReconcilerTest {
     @Test fun crossItemIsolation() = runTest {
         val dao = FakeDao()
         val api = FakeApi(
-            listResult = AbsBookmarkListResult.Success(
+            listResult = NetworkResult.Success(
                 listOf(
                     NetworkAbsBookmark("OTHER", "other item", 10, 1L),
                     NetworkAbsBookmark("i1", "ours", 20, 2L),

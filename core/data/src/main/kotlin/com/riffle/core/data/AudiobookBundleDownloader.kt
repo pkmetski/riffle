@@ -1,7 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.network.AudiobookBundleApi
-import com.riffle.core.network.NetworkAudiobookBundleResult
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.errorAsThrowable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -44,53 +45,51 @@ class AudiobookBundleDownloader(
         val partFile = File(finalFile.parentFile, finalFile.name + ".part")
         val resumeFrom = if (partFile.exists()) partFile.length() else 0L
 
-        when (val r = api.openBundleStream(baseUrl, bookId, token, insecureAllowed, resumeFrom)) {
-            is NetworkAudiobookBundleResult.NetworkError -> Result.NetworkError(r.cause)
-            is NetworkAudiobookBundleResult.Success -> {
-                // If we asked to resume but the server sent a full body (200, not 206), the partial
-                // bytes are not a prefix of this stream — start over to avoid corrupting the file.
-                val appending = r.isPartial && resumeFrom > 0L
-                if (!appending) partFile.delete()
-                var written = if (appending) resumeFrom else 0L
-                val total = if (r.totalBytes > 0) r.totalBytes else -1L
-                try {
-                    r.body.use { body ->
-                        java.io.FileOutputStream(partFile, appending).use { sink ->
-                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                            body.byteStream().use { source ->
-                                while (true) {
-                                    val n = source.read(buffer)
-                                    if (n == -1) break
-                                    sink.write(buffer, 0, n)
-                                    written += n
-                                    // Pass total verbatim — -1 when the server sent no length, so the
-                                    // UI shows an indeterminate spinner rather than a misleading 100%.
-                                    onProgress(written, total)
-                                }
-                            }
+        val r = api.openBundleStream(baseUrl, bookId, token, insecureAllowed, resumeFrom)
+        if (r !is NetworkResult.Success) return@withContext Result.NetworkError(r.errorAsThrowable())
+        val stream = r.value
+        // If we asked to resume but the server sent a full body (200, not 206), the partial
+        // bytes are not a prefix of this stream — start over to avoid corrupting the file.
+        val appending = stream.isPartial && resumeFrom > 0L
+        if (!appending) partFile.delete()
+        var written = if (appending) resumeFrom else 0L
+        val total = if (stream.totalBytes > 0) stream.totalBytes else -1L
+        try {
+            stream.body.use { body ->
+                java.io.FileOutputStream(partFile, appending).use { sink ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    body.byteStream().use { source ->
+                        while (true) {
+                            val n = source.read(buffer)
+                            if (n == -1) break
+                            sink.write(buffer, 0, n)
+                            written += n
+                            // Pass total verbatim — -1 when the server sent no length, so the
+                            // UI shows an indeterminate spinner rather than a misleading 100%.
+                            onProgress(written, total)
                         }
                     }
-                } catch (e: Throwable) {
-                    return@withContext Result.NetworkError(e) // .part preserved for resume
                 }
-                // A stream can end *short* of the advertised length without throwing — a truncating
-                // proxy, a server closing the connection mid-body, or a partial response written when
-                // storage was full. Promoting that .part to the final file would hand the reader/player
-                // a truncated bundle: the small media-overlay track still parses (so the first highlight
-                // shows) but ExoPlayer can't decode the clipped audio → silent readaloud with no
-                // progression. Only finalise a whole body; otherwise keep the .part so the next attempt
-                // resumes the missing tail.
-                if (total > 0 && written < total) {
-                    return@withContext Result.NetworkError(
-                        java.io.IOException("Truncated bundle for $bookId: $written/$total bytes"),
-                    )
-                }
-                if (!partFile.renameTo(finalFile)) {
-                    partFile.copyTo(finalFile, overwrite = true)
-                    partFile.delete()
-                }
-                Result.Success(finalFile)
             }
+        } catch (e: Throwable) {
+            return@withContext Result.NetworkError(e) // .part preserved for resume
         }
+        // A stream can end *short* of the advertised length without throwing — a truncating
+        // proxy, a server closing the connection mid-body, or a partial response written when
+        // storage was full. Promoting that .part to the final file would hand the reader/player
+        // a truncated bundle: the small media-overlay track still parses (so the first highlight
+        // shows) but ExoPlayer can't decode the clipped audio → silent readaloud with no
+        // progression. Only finalise a whole body; otherwise keep the .part so the next attempt
+        // resumes the missing tail.
+        if (total > 0 && written < total) {
+            return@withContext Result.NetworkError(
+                java.io.IOException("Truncated bundle for $bookId: $written/$total bytes"),
+            )
+        }
+        if (!partFile.renameTo(finalFile)) {
+            partFile.copyTo(finalFile, overwrite = true)
+            partFile.delete()
+        }
+        Result.Success(finalFile)
     }
 }

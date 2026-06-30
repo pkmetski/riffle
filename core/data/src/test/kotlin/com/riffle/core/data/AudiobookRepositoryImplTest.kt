@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
@@ -10,10 +12,7 @@ import com.riffle.core.network.NetworkAudioChapter
 import com.riffle.core.network.NetworkAudioTrack
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkPlaybackSession
-import com.riffle.core.network.NetworkPlaybackSessionResult
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
@@ -43,7 +42,7 @@ class AudiobookRepositoryImplTest {
     @Test
     fun `openSession builds absolute tokenised track URLs and maps timeline`() = runTest {
         val playback = FakePlaybackApi(
-            NetworkPlaybackSessionResult.Success(
+            NetworkResult.Success(
                 NetworkPlaybackSession(
                     sessionId = "ps",
                     tracks = listOf(
@@ -79,7 +78,7 @@ class AudiobookRepositoryImplTest {
     @Test
     fun `openSession carries the server lastUpdate from the progress record`() = runTest {
         val playback = FakePlaybackApi(
-            NetworkPlaybackSessionResult.Success(
+            NetworkResult.Success(
                 NetworkPlaybackSession(
                     sessionId = "ps",
                     tracks = listOf(NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg")),
@@ -92,7 +91,7 @@ class AudiobookRepositoryImplTest {
         val session = object : AbsSessionApi by NoopSessionApi {
             override suspend fun getProgress(
                 baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-            ) = NetworkGetProgressResult.Success(
+            ) = NetworkResult.Success(
                 com.riffle.core.network.NetworkServerProgress(
                     ebookLocation = "", ebookProgress = 0f, currentTime = 42.0, duration = 100.0,
                     lastUpdate = 1700000000000L,
@@ -108,7 +107,7 @@ class AudiobookRepositoryImplTest {
     @Test
     fun `openSession defaults serverLastUpdate to zero when the progress read fails`() = runTest {
         val playback = FakePlaybackApi(
-            NetworkPlaybackSessionResult.Success(
+            NetworkResult.Success(
                 NetworkPlaybackSession(
                     sessionId = "ps",
                     tracks = listOf(NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg")),
@@ -126,7 +125,7 @@ class AudiobookRepositoryImplTest {
     @Test
     fun `openSession returns null when the play session has no tracks`() = runTest {
         val playback = FakePlaybackApi(
-            NetworkPlaybackSessionResult.Success(
+            NetworkResult.Success(
                 NetworkPlaybackSession("ps", emptyList(), emptyList(), 0.0, 0.0),
             ),
         )
@@ -135,17 +134,17 @@ class AudiobookRepositoryImplTest {
 
     @Test
     fun `openSession returns null on a network error`() = runTest {
-        val playback = FakePlaybackApi(NetworkPlaybackSessionResult.NetworkError(RuntimeException("boom")))
+        val playback = FakePlaybackApi(NetworkResult.Offline(RuntimeException("boom")))
         assertNull(repo(playback).openSession("srv", "it"))
     }
 
     @Test
     fun `openSession returns null when there is no token`() = runTest {
-        val playback = FakePlaybackApi(NetworkPlaybackSessionResult.NetworkError(RuntimeException("unused")))
+        val playback = FakePlaybackApi(NetworkResult.Offline(RuntimeException("unused")))
         assertNull(repo(playback, token = null).openSession("srv", "it"))
     }
 
-    private class FakePlaybackApi(private val result: NetworkPlaybackSessionResult) : AbsPlaybackApi {
+    private class FakePlaybackApi(private val result: NetworkResult<com.riffle.core.network.NetworkPlaybackSession>) : AbsPlaybackApi {
         override suspend fun openPlaybackSession(
             baseUrl: String, libraryItemId: String, deviceId: String, token: String, insecureAllowed: Boolean,
         ) = result
@@ -175,12 +174,12 @@ class AudiobookRepositoryImplTest {
     private object NoopSessionApi : AbsSessionApi {
         override suspend fun syncEbookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean,
-        ) = NetworkSyncSessionResult.Success(0L)
+        ) = NetworkResult.Success(0L)
         override suspend fun syncAudiobookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean,
-        ) = NetworkSyncSessionResult.Success(0L)
+        ) = NetworkResult.Success(0L)
         override suspend fun getProgress(
             baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-        ) = NetworkGetProgressResult.NetworkError(RuntimeException("unused"))
+        ) = NetworkResult.Offline(RuntimeException("unused"))
     }
 }

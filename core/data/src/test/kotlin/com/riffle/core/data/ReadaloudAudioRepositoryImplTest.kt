@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.LocalStore
@@ -12,7 +14,6 @@ import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.NetworkStorytellerBundleSizeResult
 import com.riffle.core.network.StorytellerBundleProbeApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +41,7 @@ class ReadaloudAudioRepositoryImplTest {
                 targetFileProvider = { _, _ -> File("") },
             ),
             bundleProbe = StorytellerBundleProbeApi { _, _, _, _ ->
-                NetworkStorytellerBundleSizeResult.NetworkError(UnsupportedOperationException())
+                NetworkResult.Offline(UnsupportedOperationException())
             },
             cacheStore = FakeStore(null),
             downloadsStore = FakeStore(bundleFile),

@@ -45,13 +45,13 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        assertTrue(result is NetworkSeriesResult.Success)
-        val success = result as NetworkSeriesResult.Success
-        assertEquals(1, success.series.size)
-        assertEquals("ser-1", success.series[0].id)
-        assertEquals("My Series", success.series[0].name)
-        assertEquals("lib-1", success.series[0].libraryId)
-        assertEquals(1, success.series[0].bookCount)
+        assertTrue(result is NetworkResult.Success)
+        val success = result as NetworkResult.Success
+        assertEquals(1, success.value.size)
+        assertEquals("ser-1", success.value[0].id)
+        assertEquals("My Series", success.value[0].name)
+        assertEquals("lib-1", success.value[0].libraryId)
+        assertEquals(1, success.value[0].bookCount)
     }
 
     @Test
@@ -68,7 +68,7 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val items = (result as NetworkSeriesResult.Success).series[0].items
+        val items = (result as NetworkResult.Success).value[0].items
         assertEquals(2, items.size)
         assertEquals("2", items[0].sequence)
         assertEquals(0.75f, items[0].readingProgress!!, 0.001f)
@@ -99,8 +99,8 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        assertTrue(result is NetworkSeriesResult.Success)
-        val series = (result as NetworkSeriesResult.Success).series
+        assertTrue(result is NetworkResult.Success)
+        val series = (result as NetworkResult.Success).value
         assertEquals(1, series.size)
         assertEquals("lib-1", series[0].libraryId)
     }
@@ -114,8 +114,8 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getSeries(server.url("/").toString().trimEnd('/'), "e77c113d-4383-488d-956f-89c18db431ac", "token", false)
-        assertTrue("Expected Success but got: $result", result is NetworkSeriesResult.Success)
-        val series = (result as NetworkSeriesResult.Success).series
+        assertTrue("Expected Success but got: $result", result is NetworkResult.Success)
+        val series = (result as NetworkResult.Success).value
         assertEquals(1, series.size)
         assertEquals("Discworld", series[0].name)
         assertEquals(1, series[0].bookCount)
@@ -131,7 +131,7 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val item = (result as NetworkSeriesResult.Success).series[0].items[0]
+        val item = (result as NetworkResult.Success).value[0].items[0]
         assertEquals(1762902014957L, item.updatedAt)
     }
 
@@ -143,7 +143,7 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getSeries(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val item = (result as NetworkSeriesResult.Success).series[0].items[0]
+        val item = (result as NetworkResult.Success).value[0].items[0]
         assertNull(item.updatedAt)
     }
 
@@ -151,7 +151,7 @@ class AbsApiClientSeriesCollectionTest {
     fun `getSeries returns NetworkError on unreachable host`() = runTest {
         server.shutdown()
         val result = client.getSeries("http://127.0.0.1:1", "lib-1", "token", false)
-        assertTrue(result is NetworkSeriesResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 
     // ── getCollections ───────────────────────────────────────────────────────
@@ -170,14 +170,14 @@ class AbsApiClientSeriesCollectionTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getCollections(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        assertTrue(result is NetworkCollectionResult.Success)
-        val success = result as NetworkCollectionResult.Success
-        assertEquals(1, success.collections.size)
-        assertEquals("col-1", success.collections[0].id)
-        assertEquals("My Collection", success.collections[0].name)
-        assertEquals(2, success.collections[0].bookCount)
-        assertEquals(EbookFormat.Epub, success.collections[0].items[0].ebookFormat)
-        assertEquals(EbookFormat.Unsupported, success.collections[0].items[1].ebookFormat)
+        assertTrue(result is NetworkResult.Success)
+        val success = result as NetworkResult.Success
+        assertEquals(1, success.value.size)
+        assertEquals("col-1", success.value[0].id)
+        assertEquals("My Collection", success.value[0].name)
+        assertEquals(2, success.value[0].bookCount)
+        assertEquals(EbookFormat.Epub, success.value[0].items[0].ebookFormat)
+        assertEquals(EbookFormat.Unsupported, success.value[0].items[1].ebookFormat)
     }
 
     @Test
@@ -196,6 +196,6 @@ class AbsApiClientSeriesCollectionTest {
     fun `getCollections returns NetworkError on unreachable host`() = runTest {
         server.shutdown()
         val result = client.getCollections("http://127.0.0.1:1", "lib-1", "token", false)
-        assertTrue(result is NetworkCollectionResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 }

@@ -13,9 +13,3 @@ object AbsAudioUrl {
         "${baseUrl.trimEnd('/')}/api/items/$itemId/file/$ino"
 }
 
-/** Result of fetching an ABS audiobook's streamable track list (ADR 0028). */
-sealed class NetworkAudiobookTracksResult {
-    data class Success(val tracks: List<NetworkAbsAudioTrack>) : NetworkAudiobookTracksResult()
-    object NoAudiobook : NetworkAudiobookTracksResult()
-    data class NetworkError(val cause: Throwable) : NetworkAudiobookTracksResult()
-}

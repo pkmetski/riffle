@@ -9,8 +9,8 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkEpubDownloadResult
-import com.riffle.core.network.NetworkItemEbookInoResult
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.errorAsThrowable
 
 class EpubRepositoryImpl(
     private val api: AbsLibraryApi,
@@ -31,17 +31,12 @@ class EpubRepositoryImpl(
             val token = tokenStorage.getToken(activeServer.id)
                 ?: return EpubOpenResult.NetworkError(IllegalStateException("No token for server"))
             val ino = item.ebookFileIno ?: run {
-                when (val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)) {
-                    is NetworkItemEbookInoResult.Success -> r.ino
-                    is NetworkItemEbookInoResult.NetworkError -> return EpubOpenResult.NetworkError(r.cause)
-                }
+                val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)
+                if (r is NetworkResult.Success) r.value else return EpubOpenResult.NetworkError(r.errorAsThrowable())
             }
-            when (val result = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)) {
-                is NetworkEpubDownloadResult.Success -> result.body.use { body ->
-                    cacheStore.save(activeServer.id, item.id, body.byteStream())
-                }
-                is NetworkEpubDownloadResult.NetworkError -> return EpubOpenResult.NetworkError(result.cause)
-            }
+            val download = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)
+            if (download !is NetworkResult.Success) return EpubOpenResult.NetworkError(download.errorAsThrowable())
+            download.value.use { body -> cacheStore.save(activeServer.id, item.id, body.byteStream()) }
         }
         val lastPosition = positionStore.load(activeServer.id, item.id)
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
@@ -66,21 +61,16 @@ class EpubRepositoryImpl(
         val token = tokenStorage.getToken(server.id)
             ?: return EpubDownloadResult.NetworkError(IllegalStateException("No token for server"))
         val ino = item.ebookFileIno ?: run {
-            when (val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)) {
-                is NetworkItemEbookInoResult.Success -> r.ino
-                is NetworkItemEbookInoResult.NetworkError -> return EpubDownloadResult.NetworkError(r.cause)
-            }
+            val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)
+            if (r is NetworkResult.Success) r.value else return EpubDownloadResult.NetworkError(r.errorAsThrowable())
         }
-        return when (val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)) {
-            is NetworkEpubDownloadResult.Success -> {
-                result.body.use { body ->
-                    val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
-                    downloadsStore.save(item.serverId, item.id, stream)
-                }
-                EpubDownloadResult.Success
-            }
-            is NetworkEpubDownloadResult.NetworkError -> EpubDownloadResult.NetworkError(result.cause)
+        val result = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)
+        if (result !is NetworkResult.Success) return EpubDownloadResult.NetworkError(result.errorAsThrowable())
+        result.value.use { body ->
+            val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
+            downloadsStore.save(item.serverId, item.id, stream)
         }
+        return EpubDownloadResult.Success
     }
 
     override suspend fun removeDownload(serverId: String, itemId: String) {

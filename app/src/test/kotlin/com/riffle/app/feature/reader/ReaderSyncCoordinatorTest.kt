@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.DefaultPositionTranslator
@@ -10,9 +12,7 @@ import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -76,18 +76,18 @@ class ReaderSyncCoordinatorTest {
 
         private fun nextStamp(): Long { clock += 1_000; return clock }
 
-        override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean): NetworkSyncSessionResult {
+        override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean): NetworkResult<Long> {
             ebookPatch = payload; ebookPatchItemId = libraryItemId
             progress = progress.copy(ebookLocation = payload.ebookLocation, ebookProgress = payload.ebookProgress, lastUpdate = nextStamp())
-            return NetworkSyncSessionResult.Success(0L) // ABS replies "OK" — no timestamp in the body
+            return NetworkResult.Success(0L) // ABS replies "OK" — no timestamp in the body
         }
-        override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean): NetworkSyncSessionResult {
+        override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean): NetworkResult<Long> {
             audioPatch = payload; audioPatchItemId = libraryItemId
             progress = progress.copy(currentTime = payload.currentTime, duration = payload.duration, lastUpdate = nextStamp())
-            return NetworkSyncSessionResult.Success(0L) // ABS replies "OK" — no timestamp in the body
+            return NetworkResult.Success(0L) // ABS replies "OK" — no timestamp in the body
         }
-        override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkGetProgressResult {
-            getProgressItemIds += libraryItemId; return NetworkGetProgressResult.Success(progress)
+        override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkResult<com.riffle.core.network.NetworkServerProgress> {
+            getProgressItemIds += libraryItemId; return NetworkResult.Success(progress)
         }
     }
 

@@ -20,10 +20,9 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
-import com.riffle.core.network.NetworkLibrariesResult
-import com.riffle.core.network.NetworkLoginResult
-import com.riffle.core.network.NetworkStorytellerLoginResult
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerApi
+import com.riffle.core.network.errorAsThrowable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -68,34 +67,34 @@ class ServerRepositoryImpl @Inject constructor(
     ): AuthenticateResult {
         val loginResult = absApiClient.login(url.value, username, password, insecureAllowed)
         return when (loginResult) {
-            is NetworkLoginResult.WrongCredentials -> AuthenticateResult.WrongCredentials(loginResult.message)
-            is NetworkLoginResult.NetworkError -> AuthenticateResult.NetworkError(loginResult.cause)
-            is NetworkLoginResult.InsecureConnection -> AuthenticateResult.InsecureConnection(loginResult.type)
-            is NetworkLoginResult.Success -> {
-                when (val libs = libraryApi.getLibraries(url.value, loginResult.token, insecureAllowed)) {
-                    is NetworkLibrariesResult.NetworkError -> AuthenticateResult.LibraryFetchFailed(libs.cause)
-                    is NetworkLibrariesResult.Success -> AuthenticateResult.Success(
-                        PendingServer(
-                            url = url,
-                            username = loginResult.username,
-                            userId = loginResult.userId,
-                            token = loginResult.token,
-                            password = password,
-                            insecureConnectionAllowed = insecureAllowed,
-                            libraries = libs.libraries
-                                .filter { it.mediaType == "book" }
-                                .map {
-                                    Library(
-                                        id = it.id,
-                                        name = it.name,
-                                        mediaType = it.mediaType,
-                                        isUnsupported = false,
-                                    )
-                                },
-                        )
+            NetworkResult.Auth -> AuthenticateResult.WrongCredentials("Invalid username or password")
+            is NetworkResult.InsecureConnection -> AuthenticateResult.InsecureConnection(loginResult.type)
+            is NetworkResult.Success -> {
+                val libs = libraryApi.getLibraries(url.value, loginResult.value.token, insecureAllowed)
+                if (libs !is NetworkResult.Success) {
+                    AuthenticateResult.LibraryFetchFailed(libs.errorAsThrowable())
+                } else AuthenticateResult.Success(
+                    PendingServer(
+                        url = url,
+                        username = loginResult.value.username,
+                        userId = loginResult.value.userId,
+                        token = loginResult.value.token,
+                        password = password,
+                        insecureConnectionAllowed = insecureAllowed,
+                        libraries = libs.value
+                            .filter { it.mediaType == "book" }
+                            .map {
+                                Library(
+                                    id = it.id,
+                                    name = it.name,
+                                    mediaType = it.mediaType,
+                                    isUnsupported = false,
+                                )
+                            },
                     )
-                }
+                )
             }
+            else -> AuthenticateResult.NetworkError(loginResult.errorAsThrowable())
         }
     }
 
@@ -105,15 +104,14 @@ class ServerRepositoryImpl @Inject constructor(
         password: String,
         insecureAllowed: Boolean,
     ): AuthenticateResult = when (val result = storytellerApi.login(url.value, username, password, insecureAllowed)) {
-        is NetworkStorytellerLoginResult.WrongCredentials -> AuthenticateResult.WrongCredentials(result.message)
-        is NetworkStorytellerLoginResult.NetworkError -> AuthenticateResult.NetworkError(result.cause)
-        is NetworkStorytellerLoginResult.InsecureConnection -> AuthenticateResult.InsecureConnection(result.type)
-        is NetworkStorytellerLoginResult.Success -> AuthenticateResult.Success(
+        NetworkResult.Auth -> AuthenticateResult.WrongCredentials("Invalid username or password")
+        is NetworkResult.InsecureConnection -> AuthenticateResult.InsecureConnection(result.type)
+        is NetworkResult.Success -> AuthenticateResult.Success(
             PendingServer(
                 url = url,
                 username = username,
                 userId = "", // Storyteller's auth response doesn't expose a user id; identity is the username + token.
-                token = result.token,
+                token = result.value,
                 password = password,
                 insecureConnectionAllowed = insecureAllowed,
                 // Storyteller contributes no browsable Library (ADR 0026) — it is a Settings-only
@@ -123,6 +121,7 @@ class ServerRepositoryImpl @Inject constructor(
                 serverType = ServerType.STORYTELLER,
             )
         )
+        else -> AuthenticateResult.NetworkError(result.errorAsThrowable())
     }
 
     override suspend fun commit(
