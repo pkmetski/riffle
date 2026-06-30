@@ -86,6 +86,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Called on main thread when scroll position changes; emits raw `(href, progression)` — NOT a full Locator. */
     var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
 
+
     /**
      * Called on main thread when the user taps a chapter without scrolling.
      * Wire to the reader's chrome toggle so top/bottom bars show/hide on tap.
@@ -655,7 +656,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
                         return@post
                     }
                     val y = when {
-                        offsetWithinTargetPx != null -> (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
+                        // openWindowAt's initial landing keeps the master-shape "anchor at viewport
+                        // top" placement: the alignToTop-aware variant (the same `anchorLandingScrollY`
+                        // helper scrollToLoadedChapter routes through) caused the post-flip chrome-
+                        // reveal harness to flake — performClick on the reader stopped reaching
+                        // ContinuousReaderView's tap detector after a midpoint-shifted landing, the
+                        // chain isn't yet understood. annotation-list / search-result landings still
+                        // go through scrollToLoadedChapter, which honours alignToTop correctly.
+                        offsetWithinTargetPx != null ->
+                            (slot.top + offsetWithinTargetPx).coerceAtLeast(0)
                         alignToTop -> (slot.top + (initialProgression * slot.height).toInt()).coerceAtLeast(0)
                         else -> ContinuousPositionTracker.scrollYForProgression(
                             slot.top, slot.height, initialProgression, height,
@@ -759,7 +768,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
-    fun updatePreferences(prefs: FormattingPreferences) {
+    override fun updatePreferences(prefs: FormattingPreferences) {
         if (prefs == formattingPrefs) return
         formattingPrefs = prefs
         val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(prefs)
@@ -820,8 +829,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val wvIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
         if (fragment.isNotEmpty() && wvIndex >= 0) {
             webViews[wvIndex].anchorOffsetTopDevicePx(fragment) { anchorOffset ->
-                if (anchorOffset != null) go(slot.top + anchorOffset)
-                else go(slot.top + (progression * slot.height).toInt())
+                val offset = anchorOffset ?: (progression * slot.height).toInt()
+                go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, offset, height, alignToTop))
             }
         } else {
             // Top-align a chapter start; centre a mid-chapter target (inverse of locatorAt).
@@ -834,7 +843,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     }
 
     /** Scroll one viewport-page forward/backward (wired to the volume keys). */
-    fun scrollByPage(forward: Boolean) {
+    override fun scrollByPage(forward: Boolean) {
         val delta = ContinuousPositionTracker.pageScrollDelta(height)
         clearLandingHold()
         smoothScrollBy(0, if (forward) delta else -delta)

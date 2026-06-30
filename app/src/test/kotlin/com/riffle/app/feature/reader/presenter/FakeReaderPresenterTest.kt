@@ -79,9 +79,9 @@ class FakeReaderPresenterTest {
         presenter.navigateTo(NavigationTarget.ToLocatorJson("""{"href":"ch01.xhtml"}"""))
 
         assertEquals(3, presenter.recordedNavigations.size)
-        assertEquals(NavigationTarget.ToHref("ch03.xhtml", fragment = "sec2"), presenter.recordedNavigations[0])
-        assertEquals(NavigationTarget.ToProgression("ch03.xhtml", 0.42f), presenter.recordedNavigations[1])
-        assertTrue(presenter.recordedNavigations[2] is NavigationTarget.ToLocatorJson)
+        assertEquals(NavigationTarget.ToHref("ch03.xhtml", fragment = "sec2"), presenter.recordedNavigations[0].first)
+        assertEquals(NavigationTarget.ToProgression("ch03.xhtml", 0.42f), presenter.recordedNavigations[1].first)
+        assertTrue(presenter.recordedNavigations[2].first is NavigationTarget.ToLocatorJson)
     }
 
     @Test
@@ -90,6 +90,63 @@ class FakeReaderPresenterTest {
         presenter.applyTypography(defaultPrefs)
         presenter.applyTypography(defaultPrefs.copy(fontSize = 1.2f))
         assertEquals(listOf(1.0f, 1.2f), presenter.recordedTypography.map { it.fontSize })
+    }
+
+    @Test
+    fun `navigateTo records the options alongside the target`() = runTest {
+        val presenter = FakeReaderPresenter()
+        presenter.navigateTo(NavigationTarget.ToHref("ch01.xhtml"))
+        presenter.navigateTo(
+            NavigationTarget.ToProgression("ch02.xhtml", 0.5f),
+            NavigationOptions(snap = false, alignToTop = true),
+        )
+
+        assertEquals(2, presenter.recordedNavigations.size)
+        assertEquals(NavigationOptions(), presenter.recordedNavigations[0].second)
+        assertEquals(
+            NavigationOptions(snap = false, alignToTop = true),
+            presenter.recordedNavigations[1].second,
+        )
+    }
+
+    @Test
+    fun `followReadaloudSentence records the text and returns the configured outcome`() = runTest {
+        val presenter = FakeReaderPresenter()
+        // Default is Unavailable — matches vertical/continuous behaviour, the safe default for
+        // orchestrators that haven't pinned a result.
+        assertEquals(ReadaloudFollowResult.Unavailable, presenter.followReadaloudSentence("a"))
+        presenter.followReadaloudResult = ReadaloudFollowResult.OffPage
+        assertEquals(ReadaloudFollowResult.OffPage, presenter.followReadaloudSentence("b"))
+        assertEquals(listOf("a", "b"), presenter.recordedFollowReadaloud)
+    }
+
+    @Test
+    fun `measureReadaloudColumns records the text and returns the configured columns`() = runTest {
+        val presenter = FakeReaderPresenter()
+        assertTrue(presenter.measureReadaloudColumns("a").isEmpty())
+        presenter.measureReadaloudColumnsResult = listOf(0.6, 1.0)
+        assertEquals(listOf(0.6, 1.0), presenter.measureReadaloudColumns("b"))
+        assertEquals(listOf("a", "b"), presenter.recordedMeasureReadaloud)
+    }
+
+    @Test
+    fun `snapReadaloudColumn records text-and-column pairs in order`() = runTest {
+        val presenter = FakeReaderPresenter()
+        presenter.snapReadaloudColumn("one", 0)
+        presenter.snapReadaloudColumn("two", 2)
+        assertEquals(listOf("one" to 0, "two" to 2), presenter.recordedSnapReadaloud)
+    }
+
+    @Test
+    fun `scrollBoundary returns the configured snapshot`() = runTest {
+        val presenter = FakeReaderPresenter()
+        // Default — matches paginated mode and the safe default for tests.
+        assertEquals(ScrollBoundary.None, presenter.scrollBoundary())
+        presenter.scrollBoundaryResult = ScrollBoundary(atForwardBoundary = true, atBackwardBoundary = false)
+        assertEquals(
+            ScrollBoundary(atForwardBoundary = true, atBackwardBoundary = false),
+            presenter.scrollBoundary(),
+        )
     }
 
     @Test

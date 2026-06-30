@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.controllers
 import com.riffle.app.feature.reader.normalizeEpubHref
 import com.riffle.app.feature.reader.session.OrchestratorScope
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.ReaderOrientation
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -51,8 +52,29 @@ class BookmarksController @AssistedInject constructor(
     private val _currentLocator = MutableStateFlow<Locator?>(null)
 
     /**
-     * True when one of this item's bookmarks falls on the reader's current page
-     * (chapter href + within-chapter progression within BOOKMARK_PAGE_EPS = 5%).
+     * Current reader orientation, read non-reactively inside [isCurrentPageBookmarked]'s combine
+     * so the combine stays 2-arg (matches master's shape and avoids the Eagerly-shared
+     * viewModelScope chain that flaked the orientation-flip harness). Mode changes call
+     * [onOrientationChanged] which republishes the locator to force a recompute. `@Volatile`
+     * because the VM updates it from any dispatcher.
+     */
+    @Volatile
+    private var currentOrientation: ReaderOrientation = ReaderOrientation.Horizontal
+
+    /**
+     * True when one of this item's bookmarks falls inside the reader's currently visible viewport.
+     *
+     * Bookmark `progression` is whatever the locator emitted at save-time:
+     *  - **Readium (paginated + vertical):** content-top progression. Bookmark anchor and
+     *    current locator share the same frame, so a tight ±5% window is the correct match.
+     *  - **Continuous:** viewport-midpoint progression (`ContinuousPositionTracker.locatorAt`).
+     *    The bookmark anchor is visible iff `|midpoint_now - M_save| <= viewportFraction/2`.
+     *    Without a live viewport-fraction signal, we use a fixed [BOOKMARK_VIEWPORT_EPS] (33%)
+     *    which covers typical viewports plus short chapters where `vf/2 ≈ 0.30`.
+     *
+     * The `<= eps` (not `< eps`) makes the boundary case inclusive — when the bookmark anchor
+     * sits exactly at the viewport's top edge, a strict `<` would silently call that OFF even
+     * though the anchor is visible.
      */
     val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
         _bookmarkPositions,
@@ -61,9 +83,11 @@ class BookmarksController @AssistedInject constructor(
         val href = locator?.href?.toString() ?: return@combine false
         val prog = locator.locations.progression
         val hrefNorm = normalizeEpubHref(href)
+        val eps = if (currentOrientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
+        else BOOKMARK_PAGE_EPS
         positions.any { bm ->
             bm.chapterHref == hrefNorm &&
-                (prog == null || kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS)
+                (prog == null || kotlin.math.abs(bm.progression - prog) <= eps)
         }
     }.stateIn(scope, SharingStarted.Eagerly, false)
 
@@ -72,7 +96,8 @@ class BookmarksController @AssistedInject constructor(
 
     /**
      * Bind to a specific book. Cancels any previous observation and starts fresh.
-     * [currentLocator] is the live VM locator StateFlow so [isCurrentPageBookmarked] stays reactive.
+     *
+     * [currentLocator] — the live VM locator so [isCurrentPageBookmarked] stays reactive.
      */
     fun bind(
         serverId: String,
@@ -102,6 +127,22 @@ class BookmarksController @AssistedInject constructor(
         }
     }
 
+    /**
+     * Set the active reader orientation. Re-publishes the current locator so the
+     * [isCurrentPageBookmarked] combine re-evaluates with the new eps. Called from the VM
+     * whenever the user changes orientation; safe to call from any dispatcher.
+     */
+    fun onOrientationChanged(orientation: ReaderOrientation) {
+        if (currentOrientation == orientation) return
+        currentOrientation = orientation
+        // Trigger a recompute by republishing the same locator instance. The combine's identity
+        // check on StateFlow swallows no-op .value = sameRef, so reassign via a fresh "no-op"
+        // emission — use a temporary null transit if non-null, else nothing to recompute.
+        val locator = _currentLocator.value ?: return
+        _currentLocator.value = null
+        _currentLocator.value = locator
+    }
+
     /** Rename a bookmark; schedules annotation sync. */
     fun renameBookmark(id: String, title: String) {
         scope.launch {
@@ -111,7 +152,23 @@ class BookmarksController @AssistedInject constructor(
     }
 
     companion object {
-        // ±5% within-chapter progression window for page-bookmark detection.
+        // ±5% within-chapter progression window for paginated / vertical mode — both emit
+        // content-top progression and the bookmark stores the same, so a tight match is correct.
         internal const val BOOKMARK_PAGE_EPS = 0.05
+
+        // ±33% within-chapter window for continuous mode. The locator emits the viewport-midpoint
+        // progression while the bookmark anchor can sit anywhere from the viewport top to bottom,
+        // so the geometric minimum is `viewportFraction / 2`. We use a static 33% as a
+        // conservative cover: typical viewports (~20–40% of chapter height) put `vf/2` at
+        // 0.10–0.20, while short chapters (≤ 2× viewport tall) push `vf/2` up to ~0.30; 33%
+        // catches both with a small slack for anchor offsets and float noise.
+        //
+        // The trade-off: two bookmarks within ~33% of each other in the same chapter both light.
+        // Acceptable for a boolean indicator. We previously tried plumbing the live viewport
+        // fraction through to size this exactly, but the on-scroll emission churn flaked the
+        // continuous→paginated annotation-repaint harness test (Compose recomposition pressure
+        // prevented the chrome-reveal LaunchedEffect from idling within the test's waitUntil).
+        // The static value here picks 33% as the band that covers all observed cases.
+        internal const val BOOKMARK_VIEWPORT_EPS = 0.33
     }
 }

@@ -4,6 +4,7 @@ import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
@@ -105,11 +106,21 @@ class AnnotationSession @AssistedInject constructor(
     val annotations: StateFlow<List<Annotation>> = _annotations
 
     /**
+     * Carries both the resolved locator and a flag for whether the annotation was a page-level
+     * bookmark vs a text-anchored highlight/note. The screen uses [isBookmark] to choose the
+     * continuous-mode landing: bookmarks land at the viewport top (heading visible at top); a
+     * highlight/note lands at the viewport midpoint (with reading context above it, matching
+     * Readium's vertical-mode placement). In Readium modes Readium owns placement, so the flag
+     * is ignored.
+     */
+    data class AnnotationNavigationEvent(val locator: Locator, val isBookmark: Boolean)
+
+    /**
      * CONFLATED: [navigateToAnnotation] closes the panel before sending, so a second navigation
      * tap cannot occur before the first is consumed. Switch to BUFFERED if that invariant changes.
      */
-    private val _annotationNavigationChannel = Channel<Locator>(Channel.CONFLATED)
-    val annotationNavigationEvents: Flow<Locator> = _annotationNavigationChannel.receiveAsFlow()
+    private val _annotationNavigationChannel = Channel<AnnotationNavigationEvent>(Channel.CONFLATED)
+    val annotationNavigationEvents: Flow<AnnotationNavigationEvent> = _annotationNavigationChannel.receiveAsFlow()
 
     /**
      * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
@@ -229,9 +240,11 @@ class AnnotationSession @AssistedInject constructor(
      * Emit a locator directly to the annotation navigation channel. Used by the VM's
      * openBook() path to snap to the initial annotation-nav target (openAtCfi) using the same
      * channel that [navigateToAnnotation] uses — so the screen only needs one subscriber.
+     * The openAtCfi path is highlight/note-shaped (text anchor), so we send `isBookmark = false`
+     * to get the midpoint-landing treatment in continuous mode.
      */
     fun emitAnnotationNavigation(locator: Locator) {
-        _annotationNavigationChannel.trySend(locator)
+        _annotationNavigationChannel.trySend(AnnotationNavigationEvent(locator, isBookmark = false))
     }
 
     /** Recolour an existing highlight; [annotationStore] re-emits → [highlightRenders] re-renders. */
@@ -274,7 +287,12 @@ class AnnotationSession @AssistedInject constructor(
             val annotation = _annotations.value.firstOrNull { it.id == id } ?: return@launch
             val resolver = cfiLocatorResolverFn ?: return@launch
             val locator = resolver(annotation.cfi) ?: return@launch
-            _annotationNavigationChannel.trySend(locator)
+            // Annotation.type uses the database-layer constants from AnnotationEntity. A typo
+            // matching a lowercased literal here silently flipped every annotation to
+            // isBookmark=false, which inverted the continuous-mode landing.
+            _annotationNavigationChannel.trySend(
+                AnnotationNavigationEvent(locator, isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK),
+            )
             _annotationsPanelVisible.value = false
         }
     }

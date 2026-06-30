@@ -46,6 +46,28 @@ internal object ContinuousPositionTracker {
         return y.coerceAtLeast(0)
     }
 
+    /**
+     * Resolve the scrollY that places an anchor (annotation decoration or DOM element with an id)
+     * at the right viewport position for the given landing policy.
+     *
+     * - [alignToTop] = `true` (TOC tap / page-bookmark / chapter-start landing): anchor at the
+     *   viewport top.
+     * - [alignToTop] = `false` (highlight / note tap / search-result open): anchor at the viewport
+     *   midpoint, mirroring [scrollYForProgression]. Subtracts half a viewport from the anchor's
+     *   absolute Y so reading context is preserved above it. Near-chapter-start anchors clamp at
+     *   `scrollY = 0`; the viewport can't scroll above content, and the anchor still lands above
+     *   the midpoint but as close as the available space allows.
+     *
+     * Used by `ContinuousReaderView.scrollToLoadedChapter` and `openWindowAt` to share a single
+     * landing rule — the previous duplicate inlined logic in the two paths was the seam where the
+     * "highlights glued to top" bug slipped in twice.
+     */
+    fun anchorLandingScrollY(slotTop: Int, anchorOffsetWithinSlot: Int, viewportHeight: Int, alignToTop: Boolean): Int {
+        val absoluteY = slotTop + anchorOffsetWithinSlot
+        val target = if (alignToTop) absoluteY else absoluteY - viewportHeight / 2
+        return target.coerceAtLeast(0)
+    }
+
     /** Host that [ChapterWebView] serves all EPUB resources from. */
     const val RESOURCE_HOST = "readium_package"
 

@@ -41,11 +41,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.HighlightColor
-
-private const val TYPE_BOOKMARK = "BOOKMARK"
-private const val TYPE_HIGHLIGHT = "HIGHLIGHT"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,7 +116,7 @@ private fun AnnotationRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-            if (annotation.type == TYPE_BOOKMARK) {
+            if (annotation.type == AnnotationEntity.TYPE_BOOKMARK) {
                 Icon(
                     Icons.Filled.Bookmark,
                     contentDescription = null,
@@ -135,7 +133,7 @@ private fun AnnotationRow(
         }
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            val title = if (annotation.type == TYPE_BOOKMARK) {
+            val title = if (annotation.type == AnnotationEntity.TYPE_BOOKMARK) {
                 annotation.bookmarkTitle.ifBlank { "Bookmark" }
             } else {
                 annotation.textSnippet
@@ -148,7 +146,7 @@ private fun AnnotationRow(
                 overflow = TextOverflow.Ellipsis,
             )
             val note = annotation.note
-            if (annotation.type == TYPE_HIGHLIGHT && !note.isNullOrBlank()) {
+            if (annotation.type == AnnotationEntity.TYPE_HIGHLIGHT && !note.isNullOrBlank()) {
                 Text(
                     text = note.take(60),
                     style = MaterialTheme.typography.labelMedium,
@@ -160,7 +158,7 @@ private fun AnnotationRow(
         }
         Spacer(Modifier.width(16.dp))
         AnnotationOverflow(
-            isBookmark = annotation.type == TYPE_BOOKMARK,
+            isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK,
             onDelete = onDelete,
             onRename = onRename,
         )

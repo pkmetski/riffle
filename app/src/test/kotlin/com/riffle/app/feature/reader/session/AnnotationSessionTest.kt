@@ -299,7 +299,7 @@ class AnnotationSessionTest {
         assertTrue(session.annotationsPanelVisible.value)
 
         // Collect the channel event
-        val received = mutableListOf<Locator>()
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
             session.annotationNavigationEvents.collect { received.add(it) }
         }
@@ -307,8 +307,43 @@ class AnnotationSessionTest {
         session.navigateToAnnotation("a1")
 
         assertEquals(1, received.size)
-        assertEquals(targetLocator, received[0])
+        assertEquals(targetLocator, received[0].locator)
+        // The seeded annotation in this test has type="highlight", so the event must carry
+        // isBookmark=false so the screen lands it at the viewport midpoint in continuous mode.
+        assertFalse(received[0].isBookmark)
         assertFalse(session.annotationsPanelVisible.value)
+
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation tags bookmarks as isBookmark=true so continuous-mode landing differs`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val targetLocator = buildLocator()
+        val anno = fakeAnnotation(id = "b1", type = com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK, cfi = "epubcfi(/6/4!/4/2)")
+        store.allAnnotations.value = listOf(anno)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            serverId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { null },
+            cfiLocatorResolver = { _ -> targetLocator },
+        )
+
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+        session.navigateToAnnotation("b1")
+
+        assertEquals(1, received.size)
+        assertTrue(received[0].isBookmark)
 
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()

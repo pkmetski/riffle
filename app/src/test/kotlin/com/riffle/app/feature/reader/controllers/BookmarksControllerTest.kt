@@ -177,6 +177,49 @@ class BookmarksControllerTest {
     }
 
     @Test
+    fun `continuous indicator uses the widened 33% window after onOrientationChanged`() = runTest {
+        // The continuous-mode eps is BOOKMARK_VIEWPORT_EPS (33%), which absorbs the offset
+        // between the viewport-midpoint progression locatorAt emits and where the bookmark
+        // anchor actually sits inside the visible viewport. 33% covers short chapters where
+        // viewportFraction can hit ~0.6 (so vf/2 ≈ 0.30) — the exact case the user reproduced.
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        controller.bind("srv", "item1", currentLocator)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.0))
+        // The exact logcat snapshot the user reproduced — at heading-at-top in a short chapter
+        // the midpoint sits ~0.2585 past the saved bookmark midpoint. 33% catches it.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.2585)
+        assertTrue(
+            "indicator must be ON when the bookmark anchor is at the viewport top edge",
+            controller.isCurrentPageBookmarked.value,
+        )
+
+        // A bookmark well past the 33% window is genuinely off-page.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.60)
+        assertFalse(controller.isCurrentPageBookmarked.value)
+    }
+
+    @Test
+    fun `onOrientationChanged toggles eps without rebinding`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        controller.bind("srv", "item1", currentLocator)
+        // Start in paginated.
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
+        currentLocator.value = buildLocator("ch1.xhtml", 0.70)
+        // Paginated → tight 5% eps misses by 0.20.
+        assertFalse(controller.isCurrentPageBookmarked.value)
+
+        // Flip to continuous → 33% eps catches.
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+        assertTrue(controller.isCurrentPageBookmarked.value)
+    }
+
+    @Test
     fun `renameBookmark updates store and calls sync`() = runTest {
         var syncCalled = false
         val (controller, store) = makeController(onScheduleSync = { syncCalled = true })

@@ -1,9 +1,10 @@
 package com.riffle.app.feature.reader.presenter
 
-import com.riffle.app.feature.reader.ContinuousReaderView
+import com.riffle.app.feature.reader.ContinuousNavigationView
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import org.json.JSONObject
 
 /**
  * The continuous-mode adapter for [ReaderPresenter]. Wraps a [ContinuousReaderView] (custom
@@ -35,11 +36,11 @@ internal class ContinuousPresenter : ReaderPresenter {
     override val selectionEvents: SharedFlow<SelectionEvent> = _selectionEvents
     override val annotationTapEvents: SharedFlow<AnnotationTapEvent> = _annotationTapEvents
 
-    @Volatile private var view: ContinuousReaderView? = null
+    @Volatile private var view: ContinuousNavigationView? = null
     private var lastPosition: ReaderPosition? = null
 
-    /** Bind a freshly-created [ContinuousReaderView]. Idempotent. */
-    fun attach(view: ContinuousReaderView) {
+    /** Bind a freshly-created continuous view. Idempotent. */
+    fun attach(view: ContinuousNavigationView) {
         this.view = view
     }
 
@@ -90,21 +91,30 @@ internal class ContinuousPresenter : ReaderPresenter {
 
     // ----- ReaderPresenter commands ---------------------------------------------------------
 
-    override suspend fun navigateTo(target: NavigationTarget) {
+    override suspend fun navigateTo(target: NavigationTarget, options: NavigationOptions) {
         val view = view ?: return
         when (target) {
             is NavigationTarget.ToHref -> view.navigateTo(href = target.href, progression = 0f, alignToTop = true)
             is NavigationTarget.ToProgression -> view.navigateTo(
                 href = target.href,
                 progression = target.progression,
-                alignToTop = false,
+                alignToTop = options.alignToTop,
             )
             is NavigationTarget.ToLocatorJson -> {
-                // Continuous-mode resume reads (href, progression) out of the Locator JSON.
-                // ContinuousReaderCoordinator owns the parse + landing today (it has the spine
-                // hrefs + chapter counts the math needs); routing resume through here would
-                // require relocating that machinery to the presenter, which is the job of the
-                // view-model split, not this seam.
+                // Reader-side Locator JSON is `{href, locations: {progression, fragments[]}}` —
+                // ContinuousReaderView.navigateTo wants (href[#anchor], progression, alignToTop),
+                // so parse those three fields directly. Going through Readium's Locator.fromJSON
+                // here would pull android.net.Uri into a unit-testable path for no payoff.
+                val parsed = runCatching { JSONObject(target.locatorJson) }.getOrNull() ?: return
+                val href = parsed.optString("href").takeIf { it.isNotEmpty() } ?: return
+                val locations = parsed.optJSONObject("locations")
+                val progression = locations?.optDouble("progression", 0.0)?.toFloat() ?: 0f
+                val anchor = locations?.optJSONArray("fragments")
+                    ?.takeIf { it.length() > 0 }
+                    ?.optString(0)
+                    ?.takeIf { it.isNotEmpty() }
+                val fullHref = if (anchor != null) "$href#$anchor" else href
+                view.navigateTo(fullHref, progression, alignToTop = options.alignToTop)
             }
         }
     }
@@ -119,4 +129,20 @@ internal class ContinuousPresenter : ReaderPresenter {
         val view = view ?: return
         view.scrollByPage(forward = direction == PageDirection.Forward)
     }
+
+    // Continuous mode runs its readaloud highlight through ContinuousReaderView's own JS injection
+    // pipeline; the paginated column-snap protocol does not apply, so these methods always report
+    // Unavailable and the screen's snap effects short-circuit accordingly.
+    override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult =
+        ReadaloudFollowResult.Unavailable
+
+    override suspend fun measureReadaloudColumns(text: String): List<Double> = emptyList()
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) = Unit
+
+    // Continuous mode's chapter boundaries are tracked internally by ContinuousReaderView (window
+    // shifting, infinite-scroll math), so the screen's ScrollBoundaryNavigationContainer is bypassed
+    // entirely in this mode. The seam returns None so the (vertical-only) boundary-poll loop in
+    // EpubReaderScreen is harmless if it ever runs in continuous mode.
+    override suspend fun scrollBoundary(): ScrollBoundary = ScrollBoundary.None
 }

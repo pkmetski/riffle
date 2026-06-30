@@ -158,14 +158,14 @@ internal class ReadiumPresenter(
 
     // ----- ReaderPresenter commands ---------------------------------------------------------
 
-    override suspend fun navigateTo(target: NavigationTarget) {
+    override suspend fun navigateTo(target: NavigationTarget, options: NavigationOptions) {
         val fragment = fragment ?: return
         val locator = target.toLocator(publication) ?: return
-        // The Readium-typed convenience overloads ([navigateToLocator], [navigateToLink]) own
-        // the column-snap dance. This abstract entry point — used by future orchestrators that
-        // only know the abstract [NavigationTarget] shape — issues a plain go(); the snap
-        // backstop on PaginationListener.onPageLoaded rounds the page if needed.
-        fragment.go(locator, animated = true)
+        if (options.snap) {
+            ColumnSnap.goAndSnap(fragment, locator, options.landAtStartWhenNoTarget)
+        } else {
+            fragment.go(locator, animated = options.animated)
+        }
     }
 
     override suspend fun applyTypography(prefs: FormattingPreferences) {
@@ -246,6 +246,42 @@ internal class ReadiumPresenter(
             PageDirection.Forward -> fragment.goForward(animated = false)
             PageDirection.Backward -> fragment.goBackward(animated = false)
         }
+    }
+
+    override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult {
+        val fragment = fragment ?: return ReadaloudFollowResult.Unavailable
+        // ColumnSnap's JS protocol returns "off" when the sentence isn't on the rendered resource
+        // (caller then falls back to navigation), null when the WebView is gone, and "scroll" / any
+        // other value when the page successfully snapped or the mode doesn't drive per-column follow.
+        val where = ColumnSnap.followNarratedSentence(fragment, text) ?: return ReadaloudFollowResult.Unavailable
+        return if (where == "off") ReadaloudFollowResult.OffPage else ReadaloudFollowResult.Snapped
+    }
+
+    override suspend fun measureReadaloudColumns(text: String): List<Double> {
+        val fragment = fragment ?: return emptyList()
+        return ColumnSnap.measureNarratedColumns(fragment, text)
+    }
+
+    override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
+        val fragment = fragment ?: return
+        ColumnSnap.snapNarratedColumn(fragment, text, columnIndex)
+    }
+
+    override suspend fun scrollBoundary(): ScrollBoundary {
+        // Two JS calls instead of one combined return: the second is a no-op when the first
+        // already moved scrollY (it hasn't here — we're reading state, not writing), and keeping
+        // them separate makes the failure mode obvious if either ever returns malformed JSON.
+        // Memory: `reference_test_avd_chrome55_webview` — these JS calls work on real devices and
+        // current emulators (post-API-25); the only known issue is API-25's Chrome 55 WebView,
+        // which the project has aged past.
+        val fragment = fragment ?: return ScrollBoundary.None
+        val atForward = fragment.evaluateJavascript(
+            "(window.scrollY + window.innerHeight >= document.body.scrollHeight - 4).toString()"
+        )?.trim('"') == "true"
+        val atBackward = fragment.evaluateJavascript(
+            "(window.scrollY <= 4).toString()"
+        )?.trim('"') == "true"
+        return ScrollBoundary(atForwardBoundary = atForward, atBackwardBoundary = atBackward)
     }
 
     // ----- internals ------------------------------------------------------------------------

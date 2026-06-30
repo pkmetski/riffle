@@ -104,6 +104,7 @@ import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.LibraryItem
@@ -394,7 +395,6 @@ private fun SearchResultsContent(
 }
 
 private const val ANNOTATION_PREVIEW_CAP = 5
-private const val ANNOTATION_TYPE_BOOKMARK = "BOOKMARK"
 
 // --- Section grids ---
 
@@ -835,7 +835,7 @@ internal fun AnnotationResultRow(
     onClick: () -> Unit,
 ) {
     val annotation = result.annotation
-    val isBookmark = annotation.type == ANNOTATION_TYPE_BOOKMARK
+    val isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
