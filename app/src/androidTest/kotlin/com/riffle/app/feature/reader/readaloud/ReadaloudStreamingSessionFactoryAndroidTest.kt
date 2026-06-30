@@ -158,7 +158,10 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
 
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
-        val fetcher = StorytellerSidecarFetcher(StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider))
+        val fetcher = StorytellerSidecarFetcher(
+            bundleApi = StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider),
+            dispatchers = DefaultDispatcherProvider,
+        )
         val sidecarScope = kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
         )

@@ -22,8 +22,8 @@ class ServerFilesCleanerImplTest {
         val pdfDir = tmp.newFolder("pdfs")
         val audiobookDir = tmp.newFolder("audiobooks")
 
-        val epubStore = LocalStoreImpl(epubDir, ".epub")
-        val pdfStore = LocalStoreImpl(pdfDir, ".pdf")
+        val epubStore = LocalStoreImpl(epubDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
+        val pdfStore = LocalStoreImpl(pdfDir, ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
 
         // Two servers, each with an EPUB, a PDF, and an audiobook download directory.
         epubStore.save("srv-A", "book-1", bytes(10))
@@ -36,6 +36,7 @@ class ServerFilesCleanerImplTest {
         val cleaner = ServerFilesCleanerImpl(
             stores = listOf(epubStore, pdfStore),
             audiobookDownloadsDir = audiobookDir,
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         cleaner.deleteAllForServer("srv-A")
@@ -55,8 +56,9 @@ class ServerFilesCleanerImplTest {
         val epubDir = tmp.newFolder("epubs")
         val audiobookDir = tmp.newFolder("audiobooks")
         val cleaner = ServerFilesCleanerImpl(
-            stores = listOf(LocalStoreImpl(epubDir, ".epub")),
+            stores = listOf(LocalStoreImpl(epubDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)),
             audiobookDownloadsDir = audiobookDir,
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         cleaner.deleteAllForServer("ghost")

@@ -12,6 +12,7 @@ import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.Library
@@ -46,6 +47,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val readingSessionRepository: ReadingSessionRepository,
     private val readaloudMatchingService: ReadaloudMatchingService,
     private val storytellerReadaloudSyncer: StorytellerReadaloudSyncer,
+    private val clock: Clock,
     applicationScope: ApplicationScope,
 ) : LibraryRepository {
 
@@ -151,7 +153,7 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override suspend fun markItemOpened(itemId: String) {
         val serverId = serverRepository.getActive()?.id ?: return
-        libraryItemDao.updateLastOpenedAt(serverId, itemId, System.currentTimeMillis())
+        libraryItemDao.updateLastOpenedAt(serverId, itemId, clock.nowMs())
         // Best-effort push so other devices see this open via mediaProgress.lastUpdate. Offline
         // failures are intentionally swallowed — the local stamp lifts the server timestamp via
         // max() on the next successful library refresh.

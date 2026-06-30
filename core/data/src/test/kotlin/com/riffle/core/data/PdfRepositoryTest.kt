@@ -46,8 +46,8 @@ class PdfRepositoryTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        cacheStore = LocalStoreImpl(tmp.newFolder("pdf-cache"), ".pdf")
-        downloadsStore = LocalStoreImpl(tmp.newFolder("pdf-downloads"), ".pdf")
+        cacheStore = LocalStoreImpl(tmp.newFolder("pdf-cache"), ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
+        downloadsStore = LocalStoreImpl(tmp.newFolder("pdf-downloads"), ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePdfPositionStore()
         repo = PdfRepositoryImpl(
             api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),

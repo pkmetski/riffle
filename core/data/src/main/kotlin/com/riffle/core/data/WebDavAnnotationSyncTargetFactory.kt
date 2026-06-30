@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.AnnotationSyncConfig
+import com.riffle.core.domain.DispatcherProvider
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -18,6 +19,7 @@ import javax.inject.Inject
  */
 class WebDavAnnotationSyncTargetFactory @Inject constructor(
     sharedClient: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
 ) {
     private val httpClient: OkHttpClient = sharedClient.newBuilder()
         .callTimeout(WEBDAV_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -33,6 +35,7 @@ class WebDavAnnotationSyncTargetFactory @Inject constructor(
             username = config.username,
             password = config.password,
             client = httpClient,
+            dispatchers = dispatchers,
         )
     }
 

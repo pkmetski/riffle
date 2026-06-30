@@ -60,7 +60,7 @@ class SyncPositionStoreTest {
     @Test
     fun `snapshot reflects position, localUpdatedAt and lastSyncedAt`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 300L, 100L) }
-        val snap = ReadingPositionStoreImpl(dao).snapshot("s", "i")
+        val snap = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).snapshot("s", "i")
         assertEquals("cfi", snap.position)
         assertEquals(300L, snap.localUpdatedAt)
         assertEquals(100L, snap.lastSyncedAt)
@@ -68,7 +68,7 @@ class SyncPositionStoreTest {
 
     @Test
     fun `snapshot of a missing row is empty and clean`() = runTest {
-        val snap = ReadingPositionStoreImpl(FakeReadingDao()).snapshot("s", "i")
+        val snap = ReadingPositionStoreImpl(FakeReadingDao(), com.riffle.core.domain.TestClock(System.currentTimeMillis())).snapshot("s", "i")
         assertEquals(null, snap.position)
         assertEquals(0L, snap.localUpdatedAt)
         assertEquals(0L, snap.lastSyncedAt)
@@ -79,7 +79,7 @@ class SyncPositionStoreTest {
     @Test
     fun `acceptServerPosition persists position and clean stamps when unchanged`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "old", 100L, 100L) }
-        val applied = ReadingPositionStoreImpl(dao)
+        val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
             .acceptServerPosition("s", "i", "server", serverStamp = 200L, ifLocalUpdatedAt = 100L)
         assertTrue(applied)
         val row = dao.rows["s" to "i"]!!
@@ -91,7 +91,7 @@ class SyncPositionStoreTest {
     @Test
     fun `acceptServerPosition is refused and writes nothing when localUpdatedAt advanced`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "fresh-local", 150L, 100L) }
-        val applied = ReadingPositionStoreImpl(dao)
+        val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
             .acceptServerPosition("s", "i", "server", serverStamp = 200L, ifLocalUpdatedAt = 100L)
         assertFalse(applied)
         assertEquals("fresh-local", dao.rows["s" to "i"]!!.cfi) // not clobbered
@@ -101,7 +101,7 @@ class SyncPositionStoreTest {
     @Test
     fun `acceptServerPosition creates the row when absent`() = runTest {
         val dao = FakeReadingDao()
-        val applied = ReadingPositionStoreImpl(dao)
+        val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
             .acceptServerPosition("s", "i", "server", serverStamp = 200L, ifLocalUpdatedAt = 0L)
         assertTrue(applied)
         val row = dao.rows["s" to "i"]!!
@@ -115,7 +115,7 @@ class SyncPositionStoreTest {
     @Test
     fun `confirmPushed adopts the server stamp into both timestamps when unchanged`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 300L, 100L) }
-        val applied = ReadingPositionStoreImpl(dao).confirmPushed("s", "i", serverStamp = 305L, ifLocalUpdatedAt = 300L)
+        val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).confirmPushed("s", "i", serverStamp = 305L, ifLocalUpdatedAt = 300L)
         assertTrue(applied)
         val row = dao.rows["s" to "i"]!!
         assertEquals(305L, row.localUpdatedAt)
@@ -126,7 +126,7 @@ class SyncPositionStoreTest {
     @Test
     fun `confirmPushed is refused when localUpdatedAt advanced mid-flight`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 350L, 100L) }
-        val applied = ReadingPositionStoreImpl(dao).confirmPushed("s", "i", serverStamp = 305L, ifLocalUpdatedAt = 300L)
+        val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).confirmPushed("s", "i", serverStamp = 305L, ifLocalUpdatedAt = 300L)
         assertFalse(applied)
         assertEquals(350L, dao.rows["s" to "i"]!!.localUpdatedAt)
         assertEquals(100L, dao.rows["s" to "i"]!!.lastSyncedAt) // still dirty
@@ -137,7 +137,7 @@ class SyncPositionStoreTest {
     @Test
     fun `confirmInSync clears dirty by lifting lastSyncedAt to localUpdatedAt`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 200L, 100L) }
-        val applied = ReadingPositionStoreImpl(dao).confirmInSync("s", "i", ifLocalUpdatedAt = 200L)
+        val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).confirmInSync("s", "i", ifLocalUpdatedAt = 200L)
         assertTrue(applied)
         assertEquals(200L, dao.rows["s" to "i"]!!.lastSyncedAt)
     }
@@ -147,7 +147,7 @@ class SyncPositionStoreTest {
     @Test
     fun `save preserves lastSyncedAt and marks the row dirty`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "old", 100L, 100L) }
-        ReadingPositionStoreImpl(dao).save("s", "i", "new")
+        ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).save("s", "i", "new")
         val row = dao.rows["s" to "i"]!!
         assertEquals("new", row.cfi)
         assertEquals(100L, row.lastSyncedAt) // preserved, NOT reset to 0
@@ -157,7 +157,7 @@ class SyncPositionStoreTest {
     @Test
     fun `updateLocalTimestamp preserves lastSyncedAt`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 100L, 100L) }
-        ReadingPositionStoreImpl(dao).updateLocalTimestamp("s", "i", 250L)
+        ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).updateLocalTimestamp("s", "i", 250L)
         val row = dao.rows["s" to "i"]!!
         assertEquals(250L, row.localUpdatedAt)
         assertEquals(100L, row.lastSyncedAt)
@@ -166,7 +166,7 @@ class SyncPositionStoreTest {
     @Test
     fun `mirror writes the counterpart position with the native row's exact timestamps`() = runTest {
         val dao = FakeReadingDao()
-        ReadingPositionStoreImpl(dao).mirror("s", "i", "counterpart-cfi", localUpdatedAt = 300L, lastSyncedAt = 100L)
+        ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).mirror("s", "i", "counterpart-cfi", localUpdatedAt = 300L, lastSyncedAt = 100L)
         val row = dao.rows["s" to "i"]!!
         assertEquals("counterpart-cfi", row.cfi)
         assertEquals(300L, row.localUpdatedAt)
@@ -212,7 +212,7 @@ class SyncPositionStoreTest {
     @Test
     fun `audio store reconciles over Double seconds`() = runTest {
         val dao = FakeAudioDao().apply { rows["s" to "i"] = AudiobookPositionEntity("s", "i", 10.0, 100L, 100L) }
-        val store = AudiobookPositionStoreImpl(dao)
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
 
         assertEquals(10.0, store.snapshot("s", "i").position!!, 0.0001)
         assertTrue(store.acceptServerPosition("s", "i", 99.0, serverStamp = 200L, ifLocalUpdatedAt = 100L))
@@ -224,7 +224,7 @@ class SyncPositionStoreTest {
     @Test
     fun `audio save preserves lastSyncedAt`() = runTest {
         val dao = FakeAudioDao().apply { rows["s" to "i"] = AudiobookPositionEntity("s", "i", 10.0, 100L, 100L) }
-        AudiobookPositionStoreImpl(dao).save("s", "i", 42.0)
+        AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).save("s", "i", 42.0)
         assertEquals(100L, dao.rows["s" to "i"]!!.lastSyncedAt)
     }
 }

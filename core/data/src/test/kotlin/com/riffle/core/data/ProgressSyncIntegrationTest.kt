@@ -86,6 +86,7 @@ class ProgressSyncIntegrationTest {
             override suspend fun clear(serverId: String, itemId: String) = Unit
         },
         libraryItemDao = FakeLibraryItemDao(),
+            clock = com.riffle.core.domain.TestClock(),
     )
 
     private fun json(code: Int, body: String) = MockResponse()

@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.AudioDownloadResult
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
@@ -8,7 +9,6 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerBundleProbeApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -20,6 +20,7 @@ open class ReadaloudAudioRepositoryImpl(
     private val downloadsStore: LocalStore,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
+    private val dispatchers: DispatcherProvider,
 ) : ReadaloudAudioRepository {
 
     // Process-level cache: keyed by (serverId, itemId, file.lastModified()) so a re-downloaded bundle
@@ -31,7 +32,7 @@ open class ReadaloudAudioRepositoryImpl(
     override fun bundleFile(serverId: String, itemId: String): File? =
         downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
 
-    override suspend fun readTrack(serverId: String, itemId: String): ReadaloudTrack? = withContext(Dispatchers.IO) {
+    override suspend fun readTrack(serverId: String, itemId: String): ReadaloudTrack? = withContext(dispatchers.io) {
         val file = bundleFile(serverId, itemId) ?: return@withContext null
         val key = Triple(serverId, itemId, file.lastModified())
         trackCache[key]?.let { return@withContext it }
@@ -69,7 +70,7 @@ open class ReadaloudAudioRepositoryImpl(
         }
     }
 
-    override suspend fun removeAudio(serverId: String, itemId: String): Long = withContext(Dispatchers.IO) {
+    override suspend fun removeAudio(serverId: String, itemId: String): Long = withContext(dispatchers.io) {
         val freed = (downloadsStore.get(serverId, itemId)?.length() ?: 0L) + (cacheStore.get(serverId, itemId)?.length() ?: 0L)
         downloadsStore.delete(serverId, itemId)
         cacheStore.delete(serverId, itemId)

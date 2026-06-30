@@ -206,6 +206,7 @@ class LibraryRepositoryTest {
         api, libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, fakeTokenStorage, readingSessionRepository, readaloudMatchingService,
         storytellerReadaloudSyncer,
+        com.riffle.core.domain.TestClock(),
         com.riffle.core.data.testing.TestApplicationScope(),
     )
 

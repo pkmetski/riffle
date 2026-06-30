@@ -165,6 +165,7 @@ class SeriesIntegrationTest {
                 },
                 itemDao, { 0L },
             ),
+            clock = com.riffle.core.domain.TestClock(),
             applicationScope = com.riffle.core.data.testing.TestApplicationScope(),
         )
     }

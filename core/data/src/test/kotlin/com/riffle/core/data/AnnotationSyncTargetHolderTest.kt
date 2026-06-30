@@ -25,7 +25,7 @@ import org.junit.Test
 class AnnotationSyncTargetHolderTest {
 
     private val configStore = FakeConfigStore()
-    private val factory = WebDavAnnotationSyncTargetFactory(OkHttpClient())
+    private val factory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider)
     private lateinit var scope: CoroutineScope
 
     @Before

@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerBundleApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -24,6 +24,7 @@ open class StorytellerSidecarFetcher(
     private val bundleApi: StorytellerBundleApi,
     private val fullBundleApi: StorytellerBundleApi = bundleApi,
     private val tempDir: () -> File = { File(System.getProperty("java.io.tmpdir") ?: "/tmp") },
+    private val dispatchers: DispatcherProvider,
 ) {
     sealed interface FetchResult {
         /** Sidecar bytes ready to write to disk. */
@@ -39,7 +40,7 @@ open class StorytellerSidecarFetcher(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): FetchResult = withContext(Dispatchers.IO) {
+    ): FetchResult = withContext(dispatchers.io) {
         // Fast path: stream the prefix, stop at the first audio entry (~1 MB transferred).
         val fastPath = bundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)
         if (fastPath !is NetworkResult.Success) return@withContext FetchResult.NetworkError

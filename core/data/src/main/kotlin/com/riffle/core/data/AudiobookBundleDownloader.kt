@@ -1,9 +1,9 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.AudiobookBundleApi
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.errorAsThrowable
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -23,6 +23,7 @@ class AudiobookBundleDownloader(
     // bundle ids are only unique within a Server (ADR 0025) — it must land where the Downloads store
     // looks it up, i.e. under the serverId subdirectory.
     private val targetFileProvider: (serverId: String, bookId: String) -> File,
+    private val dispatchers: DispatcherProvider,
 ) {
 
     sealed interface Result {
@@ -37,7 +38,7 @@ class AudiobookBundleDownloader(
         token: String,
         insecureAllowed: Boolean,
         onProgress: (downloaded: Long, total: Long) -> Unit,
-    ): Result = withContext(Dispatchers.IO) {
+    ): Result = withContext(dispatchers.io) {
         val finalFile = targetFileProvider(serverId, bookId)
         finalFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
         if (finalFile.exists()) return@withContext Result.Success(finalFile)

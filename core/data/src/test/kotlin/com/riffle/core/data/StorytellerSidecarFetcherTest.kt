@@ -58,6 +58,7 @@ class StorytellerSidecarFetcherTest {
         bundleApi = bundleApi,
         fullBundleApi = fullBundleApi,
         tempDir = { tmp.root },
+        dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
     )
 
     @Test

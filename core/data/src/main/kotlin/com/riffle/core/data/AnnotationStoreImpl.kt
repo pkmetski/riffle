@@ -4,6 +4,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.DeviceIdStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -18,10 +19,10 @@ class AnnotationStoreImpl(
 ) : AnnotationStore {
 
     @Inject
-    constructor(dao: AnnotationDao, deviceIdStore: DeviceIdStore) : this(
+    constructor(dao: AnnotationDao, deviceIdStore: DeviceIdStore, clock: Clock) : this(
         dao = dao,
         deviceIdStore = deviceIdStore,
-        clock = { System.currentTimeMillis() },
+        clock = clock::nowMs,
         idGenerator = { UUID.randomUUID().toString() },
     )
 

@@ -71,7 +71,7 @@ class ReadaloudSidecarStoreTest {
 
     private fun fetcher(block: (attempt: Int) -> ByteArray?): StorytellerSidecarFetcher {
         var attempt = 0
-        return object : StorytellerSidecarFetcher(StorytellerBundleApi { _, _, _, _ ->
+        return object : StorytellerSidecarFetcher(dispatchers = com.riffle.core.domain.DefaultDispatcherProvider, bundleApi = StorytellerBundleApi { _, _, _, _ ->
             error("unreachable in fake")
         }) {
             override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =
@@ -144,7 +144,7 @@ class ReadaloudSidecarStoreTest {
     @Test
     fun `prepare fails immediately without retrying when fetch returns NotAligned`() = testScope.runTest {
         var fetchCount = 0
-        val store = store(object : StorytellerSidecarFetcher(StorytellerBundleApi { _, _, _, _ ->
+        val store = store(object : StorytellerSidecarFetcher(dispatchers = com.riffle.core.domain.DefaultDispatcherProvider, bundleApi = StorytellerBundleApi { _, _, _, _ ->
             error("unreachable in fake")
         }) {
             override suspend fun fetch(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): FetchResult =

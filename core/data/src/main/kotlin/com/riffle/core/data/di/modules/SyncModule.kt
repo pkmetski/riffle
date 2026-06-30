@@ -113,12 +113,13 @@ abstract class SyncModule {
         fun provideAnnotationSyncTargetHolder(
             configStore: AnnotationSyncConfigStore,
             factory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): com.riffle.core.data.AnnotationSyncTargetHolder =
             com.riffle.core.data.AnnotationSyncTargetHolder(
                 configStore = configStore,
                 factory = factory,
                 scope = kotlinx.coroutines.CoroutineScope(
-                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                    kotlinx.coroutines.SupervisorJob() + dispatchers.io,
                 ),
             )
 
@@ -136,6 +137,7 @@ abstract class SyncModule {
             libraryItemDao: LibraryItemDao,
             locks: com.riffle.core.data.ReconcileLocks,
             sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): com.riffle.core.data.AnnotationSyncController =
             com.riffle.core.data.AnnotationSyncController(
                 targetProvider = { holder.current() },
@@ -144,7 +146,7 @@ abstract class SyncModule {
                 deviceIdStore = deviceIdStore,
                 deviceLabelResolver = deviceLabelResolver,
                 scope = kotlinx.coroutines.CoroutineScope(
-                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                    kotlinx.coroutines.SupervisorJob() + dispatchers.io,
                 ),
                 statusStore = statusStore,
                 sweepEnqueuer = sweepEnqueuer,

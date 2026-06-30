@@ -8,7 +8,7 @@ import org.junit.Test
 
 class WebDavAnnotationSyncTargetFactoryTest {
 
-    private val factory = WebDavAnnotationSyncTargetFactory(OkHttpClient())
+    private val factory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider)
 
     @Test
     fun `valid config produces a target`() {

@@ -100,14 +100,14 @@ abstract class LocalStoreModule {
         @Provides
         @Singleton
         @EpubCacheStore
-        fun provideEpubCacheStore(@ApplicationContext context: Context): LocalStore =
-            LocalStoreImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() }, ".epub")
+        fun provideEpubCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() }, ".epub", dispatchers)
 
         @Provides
         @Singleton
         @EpubDownloadsStore
-        fun provideEpubDownloadsStore(@ApplicationContext context: Context): LocalStore =
-            LocalStoreImpl(context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }, ".epub")
+        fun provideEpubDownloadsStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(context.filesDir.resolve("downloads/epubs").also { it.mkdirs() }, ".epub", dispatchers)
 
         @Provides
         @Singleton
@@ -118,14 +118,14 @@ abstract class LocalStoreModule {
         @Provides
         @Singleton
         @PdfCacheStore
-        fun providePdfCacheStore(@ApplicationContext context: Context): LocalStore =
-            LocalStoreImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() }, ".pdf")
+        fun providePdfCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() }, ".pdf", dispatchers)
 
         @Provides
         @Singleton
         @PdfDownloadsStore
-        fun providePdfDownloadsStore(@ApplicationContext context: Context): LocalStore =
-            LocalStoreImpl(context.filesDir.resolve("downloads/pdfs").also { it.mkdirs() }, ".pdf")
+        fun providePdfDownloadsStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(context.filesDir.resolve("downloads/pdfs").also { it.mkdirs() }, ".pdf", dispatchers)
 
         // One-time relocation of legacy flat files into per-Server subdirectories (ADR 0025).
         @Provides
@@ -133,6 +133,7 @@ abstract class LocalStoreModule {
         fun provideLocalStoreMigrator(
             @ApplicationContext context: Context,
             libraryItemDao: LibraryItemDao,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): LocalStoreMigrator =
             LocalStoreMigrator(
                 stores = listOf(
@@ -142,6 +143,7 @@ abstract class LocalStoreModule {
                     context.filesDir.resolve("downloads/pdfs") to ".pdf",
                 ),
                 resolveServerId = { itemId -> libraryItemDao.findServerIdForItem(itemId) },
+                dispatchers = dispatchers,
             )
 
         @Provides
@@ -161,9 +163,11 @@ abstract class LocalStoreModule {
             @PdfCacheStore pdfCacheStore: LocalStore,
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
             @AudiobookDownloadsDir audiobookDownloadsDir: File,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): ServerFilesCleaner = ServerFilesCleanerImpl(
             stores = listOf(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore),
             audiobookDownloadsDir = audiobookDownloadsDir,
+            dispatchers = dispatchers,
         )
     }
 }

@@ -27,7 +27,7 @@ class AudiobookDownloadRepositoryImplTest {
         override suspend fun saveProgress(serverId: String, itemId: String, positionSec: Double, durationSec: Double) = Unit
     }
 
-    private fun repo(root: File) = AudiobookDownloadRepositoryImpl(NoopAudiobookRepository, OkHttpClient(), root)
+    private fun repo(root: File) = AudiobookDownloadRepositoryImpl(NoopAudiobookRepository, OkHttpClient(), root, com.riffle.core.domain.DefaultDispatcherProvider)
 
     /** Write a completed download (track files + manifest) for (srv, it) under [root]. */
     private fun writeDownload(root: File) {

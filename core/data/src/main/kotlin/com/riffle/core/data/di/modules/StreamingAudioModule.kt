@@ -70,6 +70,7 @@ abstract class StreamingAudioModule {
         fun provideStorytellerSidecarFetcher(
             api: StorytellerBundleApiImpl,
             @ApplicationContext context: Context,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): com.riffle.core.data.StorytellerSidecarFetcher =
             // Fast path: bounded streaming GET (sidecarStreamClient, 240 s callTimeout) stops at the
             // first audio entry. Full-download fallback: unbounded downloadBundle client, used only when
@@ -78,6 +79,7 @@ abstract class StreamingAudioModule {
                 bundleApi = { url, bookId, token, insecure -> api.streamSidecar(url, bookId, token, insecure) },
                 fullBundleApi = { url, bookId, token, insecure -> api.downloadBundle(url, bookId, token, insecure) },
                 tempDir = { context.cacheDir },
+                dispatchers = dispatchers,
             )
 
         @Provides
@@ -95,6 +97,7 @@ abstract class StreamingAudioModule {
         fun provideAudiobookBundleDownloader(
             @ApplicationContext context: Context,
             api: AudiobookBundleApiImpl,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): AudiobookBundleDownloader = AudiobookBundleDownloader(
             api = api,
             // Write into the same Downloads EPUB store the reader reads from — the synced bundle is
@@ -103,6 +106,7 @@ abstract class StreamingAudioModule {
             targetFileProvider = { serverId, id ->
                 context.filesDir.resolve("downloads/epubs").resolve(serverId).also { it.mkdirs() }.resolve("$id.epub")
             },
+            dispatchers = dispatchers,
         )
 
         @Provides
@@ -114,6 +118,7 @@ abstract class StreamingAudioModule {
             @EpubDownloadsStore downloadsStore: LocalStore,
             serverRepository: ServerRepository,
             tokenStorage: TokenStorage,
+            dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): ReadaloudAudioRepository = ReadaloudAudioRepositoryImpl(
             downloader = downloader,
             bundleProbe = bundleProbe,
@@ -121,6 +126,7 @@ abstract class StreamingAudioModule {
             downloadsStore = downloadsStore,
             serverRepository = serverRepository,
             tokenStorage = tokenStorage,
+            dispatchers = dispatchers,
         )
 
         @Provides

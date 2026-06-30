@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.ReadingPositionEntity
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SyncPositionStore
@@ -9,7 +10,8 @@ import javax.inject.Inject
 
 class ReadingPositionStoreImpl @Inject constructor(
     private val dao: ReadingPositionDao,
-) : TimestampedPositionStore<String>(), ReadingPositionStore, SyncPositionStore<String> {
+    clock: Clock,
+) : TimestampedPositionStore<String>(clock), ReadingPositionStore, SyncPositionStore<String> {
 
     override suspend fun writePayload(serverId: String, itemId: String, payload: String, updatedAt: Long) {
         // Preserve lastSyncedAt so a local save marks the row dirty (localUpdatedAt > lastSyncedAt)

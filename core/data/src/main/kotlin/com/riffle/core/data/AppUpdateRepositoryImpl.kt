@@ -4,13 +4,13 @@ import android.content.Context
 import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.network.GitHubRelease
 import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.GitHubReleaseResult
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
@@ -21,6 +21,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val releaseApi: GitHubReleaseApi,
     private val installer: ApkInstaller,
+    private val dispatchers: DispatcherProvider,
 ) : AppUpdateRepository {
 
     private val updateDir: File
@@ -47,7 +48,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
             apk.delete()
             send(UpdateDownloadState.Failed("Couldn't download the update"))
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(dispatchers.io)
 
     override fun sweepStaleApks() {
         updateDir.listFiles()?.forEach { it.delete() }

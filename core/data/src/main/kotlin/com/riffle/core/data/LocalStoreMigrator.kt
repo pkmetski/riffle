@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -21,8 +21,9 @@ class LocalStoreMigrator(
     // (store directory, file extension) for each of the four EPUB/PDF cache & downloads stores.
     private val stores: List<Pair<File, String>>,
     private val resolveServerId: suspend (itemId: String) -> String?,
+    private val dispatchers: DispatcherProvider,
 ) {
-    suspend fun migrate() = withContext(Dispatchers.IO) {
+    suspend fun migrate() = withContext(dispatchers.io) {
         for ((dir, extension) in stores) {
             val flatFiles = dir.listFiles()?.filter { it.isFile && it.name.endsWith(extension) } ?: continue
             for (file in flatFiles) {

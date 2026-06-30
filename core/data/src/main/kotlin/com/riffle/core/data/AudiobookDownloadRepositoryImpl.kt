@@ -7,7 +7,7 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.AudiobookTrackSpan
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -43,6 +43,7 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
     private val audiobookRepository: AudiobookRepository,
     private val okHttpClient: OkHttpClient,
     @com.riffle.core.data.di.AudiobookDownloadsDir private val downloadsDir: File,
+    private val dispatchers: DispatcherProvider,
 ) : AudiobookDownloadRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -74,7 +75,7 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         serverId: String,
         itemId: String,
         onProgress: (downloaded: Long, total: Long) -> Unit,
-    ): AudiobookDownloadResult = withContext(Dispatchers.IO) {
+    ): AudiobookDownloadResult = withContext(dispatchers.io) {
         if (isDownloaded(serverId, itemId)) return@withContext AudiobookDownloadResult.Success
         val session = audiobookRepository.openSession(serverId, itemId)
             ?: return@withContext AudiobookDownloadResult.NetworkError(IOException("Could not open play session"))
@@ -130,7 +131,7 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun remove(serverId: String, itemId: String): Long = withContext(Dispatchers.IO) {
+    override suspend fun remove(serverId: String, itemId: String): Long = withContext(dispatchers.io) {
         val dir = itemDir(serverId, itemId)
         val freed = dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
         dir.deleteRecursively()
