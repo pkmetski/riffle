@@ -28,6 +28,7 @@ class LocalStoreMigratorTest {
         val migrator = LocalStoreMigrator(
             stores = listOf(epubDir to ".epub"),
             resolveServerId = { owners[it] },
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         migrator.migrate()
@@ -45,6 +46,7 @@ class LocalStoreMigratorTest {
         val migrator = LocalStoreMigrator(
             stores = listOf(epubDir to ".epub"),
             resolveServerId = { null },
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         migrator.migrate()
@@ -60,6 +62,7 @@ class LocalStoreMigratorTest {
         val migrator = LocalStoreMigrator(
             stores = listOf(epubDir to ".epub"),
             resolveServerId = { "serverA" },
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         migrator.migrate()
@@ -79,6 +82,7 @@ class LocalStoreMigratorTest {
         val migrator = LocalStoreMigrator(
             stores = listOf(epubDir to ".epub"),
             resolveServerId = { resolverCalls++; "serverB" },
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
         migrator.migrate()

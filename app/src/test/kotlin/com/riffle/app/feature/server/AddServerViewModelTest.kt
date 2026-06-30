@@ -158,7 +158,7 @@ class AddServerViewModelTest {
     ): AddServerViewModel = AddServerViewModel(
         repository = repository,
         webdavConfigStore = configStore,
-        webdavTargetFactory = WebDavAnnotationSyncTargetFactory(OkHttpClient()),
+        webdavTargetFactory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider),
         webdavStatusStore = statusStore,
         sweepEnqueuer = AnnotationSweepEnqueuer { },
         storytellerSyncer = io.mockk.mockk(relaxed = true),

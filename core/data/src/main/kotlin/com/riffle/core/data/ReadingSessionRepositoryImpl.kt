@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
@@ -26,6 +27,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     private val audiobookPositionStore: AudiobookPositionStore,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val libraryItemDao: LibraryItemDao,
+    private val clock: Clock,
 ) : ReadingSessionRepository {
 
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult {
@@ -61,7 +63,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             localUpdatedAt > serverProgress.lastUpdate -> {
                 val patchResult = api.syncEbookProgress(server.url.value, itemId, payload.toNetwork(), token, server.insecureConnectionAllowed)
                 if (patchResult is NetworkResult.Success) {
-                    val ts = patchResult.value.takeIf { it > 0L } ?: System.currentTimeMillis()
+                    val ts = patchResult.value.takeIf { it > 0L } ?: clock.nowMs()
                     positionStore.updateLocalTimestamp(server.id, itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
@@ -98,7 +100,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         // Read = keep the saved page; unread = clear it so the reader reopens at the start and the
         // 0 progress isn't contradicted by a stale cfi.
         val ebookLocation = if (finished) (positionStore.load(server.id, itemId) ?: "") else ""
-        val now = System.currentTimeMillis()
+        val now = clock.nowMs()
         if (!finished) {
             // Wipe EVERY local position store that could otherwise restore a stale position the next
             // time the book is opened (and re-save it, resurrecting the progress). The ebook reading

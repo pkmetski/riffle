@@ -2,12 +2,14 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadaloudResumePositionEntity
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import javax.inject.Inject
 
 class ReadaloudResumeStoreImpl @Inject constructor(
     private val dao: ReadaloudResumePositionDao,
+    private val clock: Clock,
 ) : ReadaloudResumeStore {
 
     override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {
@@ -18,7 +20,7 @@ class ReadaloudResumeStoreImpl @Inject constructor(
                 href = position.href,
                 progression = position.progression,
                 fragmentRef = position.fragmentRef,
-                localUpdatedAt = System.currentTimeMillis(),
+                localUpdatedAt = clock.nowMs(),
             )
         )
     }

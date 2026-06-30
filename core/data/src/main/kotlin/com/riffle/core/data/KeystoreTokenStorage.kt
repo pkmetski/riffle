@@ -3,14 +3,15 @@ package com.riffle.core.data
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class KeystoreTokenStorage @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val dispatchers: DispatcherProvider,
 ) : TokenStorage {
 
     private val prefs by lazy {
@@ -33,22 +34,22 @@ class KeystoreTokenStorage @Inject constructor(
     }
 
     override suspend fun saveToken(serverId: String, token: String) =
-        withContext(Dispatchers.IO) { prefs.edit().putString(serverId, token).apply() }
+        withContext(dispatchers.io) { prefs.edit().putString(serverId, token).apply() }
 
     override suspend fun getToken(serverId: String): String? =
-        withContext(Dispatchers.IO) { prefs.getString(serverId, null) }
+        withContext(dispatchers.io) { prefs.getString(serverId, null) }
 
     override suspend fun deleteToken(serverId: String) =
-        withContext(Dispatchers.IO) { prefs.edit().remove(serverId).apply() }
+        withContext(dispatchers.io) { prefs.edit().remove(serverId).apply() }
 
     override suspend fun savePassword(serverId: String, password: String) =
-        withContext(Dispatchers.IO) { prefs.edit().putString(passwordKey(serverId), password).apply() }
+        withContext(dispatchers.io) { prefs.edit().putString(passwordKey(serverId), password).apply() }
 
     override suspend fun getPassword(serverId: String): String? =
-        withContext(Dispatchers.IO) { prefs.getString(passwordKey(serverId), null) }
+        withContext(dispatchers.io) { prefs.getString(passwordKey(serverId), null) }
 
     override suspend fun deletePassword(serverId: String) =
-        withContext(Dispatchers.IO) { prefs.edit().remove(passwordKey(serverId)).apply() }
+        withContext(dispatchers.io) { prefs.edit().remove(passwordKey(serverId)).apply() }
 
     /** Distinct key prefix so passwords never collide with the bare-serverId token keys. */
     private fun passwordKey(serverId: String): String = "password:$serverId"

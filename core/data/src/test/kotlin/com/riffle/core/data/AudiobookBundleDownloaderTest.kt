@@ -60,7 +60,11 @@ class AudiobookBundleDownloaderTest {
     }
 
     private fun downloader(api: AudiobookBundleApi, dir: File) =
-        AudiobookBundleDownloader(api = api, targetFileProvider = { _, id -> File(dir, "$id.epub") })
+        AudiobookBundleDownloader(
+            api = api,
+            targetFileProvider = { _, id -> File(dir, "$id.epub") },
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
+        )
 
     @Test fun freshDownload_writesFullBundle_andReportsProgressToCompletion() = runTest {
         val dir = tmp.newFolder()

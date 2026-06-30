@@ -124,6 +124,7 @@ class ProgressSyncCycleTest {
             audiobookPositionStore = audiobookPositionStore,
             readaloudResumeStore = readaloudResumeStore,
             libraryItemDao = FakeLibraryItemDao(),
+            clock = com.riffle.core.domain.TestClock(initialMs = 5_000L),
         )
 
     private val payload = SessionPayload("epubcfi(/6/4!/4/1:0)", 0.25f)

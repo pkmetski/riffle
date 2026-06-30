@@ -53,8 +53,8 @@ class EpubRepositoryTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub")
-        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".epub")
+        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
+        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePositionStore()
         repo = EpubRepositoryImpl(
             api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),

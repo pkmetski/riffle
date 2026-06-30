@@ -39,6 +39,7 @@ class ReadaloudAudioRepositoryImplTest {
             downloader = AudiobookBundleDownloader(
                 api = { _, _, _, _, _ -> throw UnsupportedOperationException() },
                 targetFileProvider = { _, _ -> File("") },
+                dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
             ),
             bundleProbe = StorytellerBundleProbeApi { _, _, _, _ ->
                 NetworkResult.Offline(UnsupportedOperationException())
@@ -47,6 +48,7 @@ class ReadaloudAudioRepositoryImplTest {
             downloadsStore = FakeStore(bundleFile),
             serverRepository = NoopServerRepository,
             tokenStorage = NoopTokenStorage,
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         ) {
             override fun parseTrack(file: File): ReadaloudTrack? {
                 parseCalls++

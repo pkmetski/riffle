@@ -49,7 +49,7 @@ class AudiobookPositionStoreTest {
     @Test
     fun `save persists the seconds for the given item`() = runTest {
         val dao = FakeAudiobookPositionDao()
-        val store = AudiobookPositionStoreImpl(dao)
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         store.save("server-A", "item-1", 123.5)
         assertEquals(123.5, dao.store["server-A" to "item-1"]?.positionSec ?: 0.0, 0.0001)
     }
@@ -59,46 +59,43 @@ class AudiobookPositionStoreTest {
         val dao = FakeAudiobookPositionDao().also {
             it.seed(AudiobookPositionEntity("server-A", "item-1", 42.0, 1L))
         }
-        val store = AudiobookPositionStoreImpl(dao)
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         assertEquals(42.0, store.load("server-A", "item-1")!!, 0.0001)
     }
 
     @Test
     fun `load returns null for an item with no saved position`() = runTest {
-        val store = AudiobookPositionStoreImpl(FakeAudiobookPositionDao())
+        val store = AudiobookPositionStoreImpl(FakeAudiobookPositionDao(), com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         assertNull(store.load("server-A", "item-new"))
     }
 
     @Test
     fun `save overwrites the previous position for the same server-item`() = runTest {
         val dao = FakeAudiobookPositionDao()
-        val store = AudiobookPositionStoreImpl(dao)
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         store.save("server-A", "item-1", 10.0)
         store.save("server-A", "item-1", 99.0)
         assertEquals(99.0, store.load("server-A", "item-1")!!, 0.0001)
     }
 
     @Test
-    fun `save stamps localUpdatedAt with current time`() = runTest {
+    fun `save stamps localUpdatedAt from the injected clock`() = runTest {
         val dao = FakeAudiobookPositionDao()
-        val store = AudiobookPositionStoreImpl(dao)
-        val before = System.currentTimeMillis()
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(initialMs = 1_700_000_000_000L))
         store.save("server-A", "item-1", 1.0)
-        val after = System.currentTimeMillis()
-        val ts = dao.store["server-A" to "item-1"]?.localUpdatedAt ?: 0L
-        assert(ts in before..after) { "Expected timestamp in [$before..$after] but was $ts" }
+        assertEquals(1_700_000_000_000L, dao.store["server-A" to "item-1"]?.localUpdatedAt)
     }
 
     @Test
     fun `loadLocalUpdatedAt defaults to zero for a missing row`() = runTest {
-        val store = AudiobookPositionStoreImpl(FakeAudiobookPositionDao())
+        val store = AudiobookPositionStoreImpl(FakeAudiobookPositionDao(), com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         assertEquals(0L, store.loadLocalUpdatedAt("server-A", "item-new"))
     }
 
     @Test
     fun `updateLocalTimestamp creates a row when none exists so it is not silently dropped`() = runTest {
         val dao = FakeAudiobookPositionDao()
-        val store = AudiobookPositionStoreImpl(dao)
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         store.updateLocalTimestamp("server-A", "item-1", 555L)
         assertEquals(555L, store.loadLocalUpdatedAt("server-A", "item-1"))
     }
@@ -106,7 +103,7 @@ class AudiobookPositionStoreTest {
     @Test
     fun `positions for the same itemId on different servers are isolated`() = runTest {
         val dao = FakeAudiobookPositionDao()
-        val store = AudiobookPositionStoreImpl(dao)
+        val store = AudiobookPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
         store.save("server-A", "item-1", 10.0)
         store.save("server-B", "item-1", 99.0)
         assertEquals(10.0, store.load("server-A", "item-1")!!, 0.0001)

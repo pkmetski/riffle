@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ServerFilesCleaner
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -15,9 +15,10 @@ import java.io.File
 class ServerFilesCleanerImpl(
     private val stores: List<LocalStore>,
     private val audiobookDownloadsDir: File,
+    private val dispatchers: DispatcherProvider,
 ) : ServerFilesCleaner {
 
-    override suspend fun deleteAllForServer(serverId: String) = withContext(Dispatchers.IO) {
+    override suspend fun deleteAllForServer(serverId: String) = withContext(dispatchers.io) {
         stores.forEach { it.deleteServer(serverId) }
         File(audiobookDownloadsDir, serverId).deleteRecursively()
         Unit

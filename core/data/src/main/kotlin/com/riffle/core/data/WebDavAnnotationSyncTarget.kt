@@ -3,9 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.HttpUrl
@@ -50,13 +50,14 @@ class WebDavAnnotationSyncTarget(
     username: String,
     password: String,
     private val client: OkHttpClient,
+    private val dispatchers: DispatcherProvider,
 ) : AnnotationSyncTarget {
 
     private val basePath: HttpUrl = ensureTrailingSlash(baseUrl)
     private val authHeader: String = Credentials.basic(username, password)
 
     override suspend fun list(namespace: String, itemId: String): List<String> =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             // PROPFIND basePath, then filter to entries whose physical name carries the matching
             // `<namespace>__<itemId>__` prefix; return the logical (post-prefix) filename so the
             // controller sees the unprefixed name unchanged.
@@ -75,7 +76,7 @@ class WebDavAnnotationSyncTarget(
         filename: String,
         content: String,
     ) {
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             // Flat path under basePath. No per-book subdirectories means MKCOL never has to fire on
             // a real push — the only collection that must exist is basePath itself, which the user
             // has already vouched for via Test Connection (and which we MKCOL-create on demand).
@@ -91,7 +92,7 @@ class WebDavAnnotationSyncTarget(
         readFile(deviceMetaUrl(namespace, deviceId))
 
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             putFile(deviceMetaUrl(namespace, deviceId), content, JSON_MEDIA, "write device-meta $deviceId")
         }
     }
@@ -101,7 +102,7 @@ class WebDavAnnotationSyncTarget(
     }
 
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             val all = propfindBaseFilenames()
             val annotationPrefix = "$namespace$NAMESPACE_SEPARATOR"
 
@@ -136,7 +137,7 @@ class WebDavAnnotationSyncTarget(
         }
 
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             val all = propfindBaseFilenames()
             val annotationByNs = mutableMapOf<String, Int>()
             for (physical in all) {
@@ -158,7 +159,7 @@ class WebDavAnnotationSyncTarget(
             }
         }
 
-    override suspend fun forgetNamespace(namespace: String): Int = withContext(Dispatchers.IO) {
+    override suspend fun forgetNamespace(namespace: String): Int = withContext(dispatchers.io) {
         val all = propfindBaseFilenames()
         val prefix = "$namespace$NAMESPACE_SEPARATOR"
         var deleted = 0
@@ -177,7 +178,7 @@ class WebDavAnnotationSyncTarget(
         deleted
     }
 
-    suspend fun testConnection(): TestConnectionResult = withContext(Dispatchers.IO) {
+    suspend fun testConnection(): TestConnectionResult = withContext(dispatchers.io) {
         val request = baseRequest(basePath)
             .header("Depth", "0")
             .header("Content-Type", "application/xml; charset=utf-8")
@@ -217,7 +218,7 @@ class WebDavAnnotationSyncTarget(
         TestConnectionResult.NetworkError(e.message ?: "Network error")
     }
 
-    private suspend fun readFile(url: HttpUrl): String? = withContext(Dispatchers.IO) {
+    private suspend fun readFile(url: HttpUrl): String? = withContext(dispatchers.io) {
         classifyWebDavTransportErrors {
             val request = baseRequest(url).get().build()
             client.newCall(request).execute().use { response ->
@@ -249,7 +250,7 @@ class WebDavAnnotationSyncTarget(
         }
     }
 
-    private suspend fun deleteFile(url: HttpUrl, op: String) = withContext(Dispatchers.IO) {
+    private suspend fun deleteFile(url: HttpUrl, op: String) = withContext(dispatchers.io) {
         classifyWebDavTransportErrors {
             val request = baseRequest(url).delete().build()
             client.newCall(request).execute().use { response ->
@@ -265,7 +266,7 @@ class WebDavAnnotationSyncTarget(
         }
     }
 
-    private suspend fun propfindBaseFilenames(): List<String> = withContext(Dispatchers.IO) {
+    private suspend fun propfindBaseFilenames(): List<String> = withContext(dispatchers.io) {
         classifyWebDavTransportErrors {
             val request = baseRequest(basePath)
                 .header("Depth", "1")

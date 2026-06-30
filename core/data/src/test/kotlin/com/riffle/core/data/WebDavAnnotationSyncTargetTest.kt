@@ -46,6 +46,7 @@ class WebDavAnnotationSyncTargetTest {
             username = username,
             password = password,
             client = client,
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
     }
 
@@ -342,6 +343,7 @@ class WebDavAnnotationSyncTargetTest {
             username = "u",
             password = "p",
             client = client,
+            dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
     }
 

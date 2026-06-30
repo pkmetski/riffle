@@ -25,7 +25,7 @@ class LocalStoreTest {
     fun setUp() {
         storeDir = tmp.newFolder("store")
         otherDir = tmp.newFolder("other")
-        store = LocalStoreImpl(storeDir, ".epub")
+        store = LocalStoreImpl(storeDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
     }
 
     @Test

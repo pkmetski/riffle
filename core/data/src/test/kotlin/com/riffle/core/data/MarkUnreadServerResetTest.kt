@@ -124,6 +124,7 @@ class MarkUnreadServerResetTest {
             override suspend fun clear(serverId: String, itemId: String) = Unit
         },
         libraryItemDao = FakeLibraryItemDao(),
+            clock = com.riffle.core.domain.TestClock(),
     )
 
     // The crux of the phantom: an audiobook item read to the middle. After mark-unread the server's

@@ -52,7 +52,7 @@ class EpubPositionIntegrationTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub")
+        cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         sharedPositionDao = InMemoryReadingPositionDao()
     }
 
@@ -64,8 +64,8 @@ class EpubPositionIntegrationTest {
     private fun buildRepo(): EpubRepositoryImpl = EpubRepositoryImpl(
         api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
         cacheStore = cacheStore,
-        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub"),
-        positionStore = ReadingPositionStoreImpl(sharedPositionDao),
+        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
+        positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
         serverRepository = object : ServerRepository {
             val activeServer = Server(
                 id = "server-1",

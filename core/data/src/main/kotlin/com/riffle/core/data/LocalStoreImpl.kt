@@ -1,15 +1,19 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.StoredItemRef
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 
 // Files live under dir/<serverId>/<itemId><ext> so item ids that collide across Servers
 // (e.g. two Storyteller Servers each emitting "1") never overwrite each other (ADR 0025).
-class LocalStoreImpl(private val dir: File, private val extension: String) : LocalStore {
+class LocalStoreImpl(
+    private val dir: File,
+    private val extension: String,
+    private val dispatchers: DispatcherProvider,
+) : LocalStore {
 
     private fun fileFor(serverId: String, itemId: String): File =
         dir.resolve(serverId).resolve("$itemId$extension")
@@ -18,7 +22,7 @@ class LocalStoreImpl(private val dir: File, private val extension: String) : Loc
         fileFor(serverId, itemId).takeIf { it.exists() }
 
     override suspend fun save(serverId: String, itemId: String, stream: InputStream): File =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             val serverDir = dir.resolve(serverId).also { it.mkdirs() }
             val dest = serverDir.resolve("$itemId$extension")
             val tmp = serverDir.resolve("$itemId$extension.tmp")

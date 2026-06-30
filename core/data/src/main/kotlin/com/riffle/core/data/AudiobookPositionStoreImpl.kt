@@ -3,13 +3,15 @@ package com.riffle.core.data
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.SyncPositionStore
 import javax.inject.Inject
 
 class AudiobookPositionStoreImpl @Inject constructor(
     private val dao: AudiobookPositionDao,
-) : TimestampedPositionStore<Double>(), AudiobookPositionStore, SyncPositionStore<Double> {
+    clock: Clock,
+) : TimestampedPositionStore<Double>(clock), AudiobookPositionStore, SyncPositionStore<Double> {
 
     override suspend fun writePayload(serverId: String, itemId: String, payload: Double, updatedAt: Long) {
         // Preserve lastSyncedAt so a local save marks the row dirty (ADR 0030).

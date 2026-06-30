@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.PositionStore
 
 /**
@@ -17,9 +18,11 @@ import com.riffle.core.domain.PositionStore
  * server position — the "periodic sync overwrites my position" bug. Saving `max(now, existing+1)`
  * preserves user edits as strictly newer than any prior state, regardless of cross-machine clock skew.
  */
-abstract class TimestampedPositionStore<P> : PositionStore<P> {
+abstract class TimestampedPositionStore<P>(
+    private val clock: Clock,
+) : PositionStore<P> {
 
-    protected open fun now(): Long = System.currentTimeMillis()
+    protected open fun now(): Long = clock.nowMs()
 
     protected abstract suspend fun writePayload(serverId: String, itemId: String, payload: P, updatedAt: Long)
     protected abstract suspend fun readPayload(serverId: String, itemId: String): P?
