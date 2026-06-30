@@ -39,7 +39,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class EpubReaderViewModelTest {
 
-    // Must match EpubReaderViewModel.SYNC_INTERVAL_MS
+    // Must match ReadingSessionCoordinator.SYNC_INTERVAL_MS
     private val syncIntervalMs = 30_000L
 
     @Test

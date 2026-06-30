@@ -904,9 +904,13 @@ class EpubReaderViewModel @Inject constructor(
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
         position.resetInitialLocatorSeen()
+        // Arm the speed-tracker baseline unconditionally — pre-refactor set sessionStart{Progression,Ms}
+        // on every resume regardless of state, so a session that resumes while still loading and closes
+        // before [ReaderState.Ready] still contributes its time delta. The heartbeat ticks here too;
+        // they are safe no-ops until a locator exists ([syncCurrentPosition] early-returns on null).
+        startReadingSession(initialTotalProgression = currentLocatorTotalProgression.value)
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
-            startReadingSession(initialTotalProgression = currentLocatorTotalProgression.value)
             // Re-arm the per-book annotation live-pull loop alongside position sync.
             annotationSession.onReaderResumed()
         }
