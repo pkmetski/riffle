@@ -42,6 +42,7 @@ import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
@@ -67,6 +68,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -134,6 +136,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         prefsStore: AudioPlaybackPreferencesStore = FakePrefsStore,
         listeningStore: ListeningPreferencesStore = FakeListeningPreferencesStore,
         positionStore: com.riffle.core.domain.AudiobookPositionStore = FakePositionStore(),
+        logger: RecordingLogger = RecordingLogger(),
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -171,6 +174,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
             now = { fixedNow },
+            logger = logger,
         )
     }
 
@@ -457,6 +461,20 @@ class AudiobookPlayerViewModelBookmarkTest {
 
         // 530 is below the 540 floor, so no backward progress is written.
         assertEquals(emptyList<Double>(), lastAudiobookRepo!!.savedProgress)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `init emits AB-VM-init-start log on the Handoff channel`() = runTest(testDispatcher) {
+        val logger = RecordingLogger()
+        val vm = buildViewModel(FakeController(position = 0.0), FakeBookmarkStore(), logger = logger)
+        runCurrent()
+
+        val messages = logger.records(LogChannel.Handoff).map { it.message }
+        assertTrue(
+            "expected an 'AB.VM init start' Handoff log but got $messages",
+            messages.any { it.startsWith("AB.VM init start itemId=") },
+        )
         vm.clearForTest()
     }
 
