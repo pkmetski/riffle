@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 /**
  * Holds the currently-active [AnnotationSyncTarget], rebuilt on every config change.
  *
- * Provided in [com.riffle.core.data.di.DataModule] against an app-lifetime coroutine scope so
+ * Provided in [com.riffle.core.data.di.modules.SyncModule] against an app-lifetime coroutine scope so
  * that saving a config in Settings is picked up by [AnnotationSyncController] without an app
  * restart.
  *
