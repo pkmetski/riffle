@@ -77,6 +77,12 @@ class MainActivity : FragmentActivity() {
             .stateIn(lifecycleScope, SharingStarted.Eagerly, true)
         invertVolumeKeys = volumeKeyPreferencesStore.invertVolumeKeys
             .stateIn(lifecycleScope, SharingStarted.Eagerly, false)
+        // Seed the coordinator's system-dark flag synchronously from the activity's current
+        // Configuration so the very first composition resolves the correct chrome — the
+        // LaunchedEffect below only fires *after* the first frame and would otherwise let a
+        // dark-OS device render one frame of light chrome.
+        val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        appearanceCoordinator.setSystemDark(nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES)
         // Both system bars are fully transparent at the OS level. The app draws its own
         // scrim under the nav-bar inset area (BottomNavBarScrim, applied globally in
         // setContent below) so the look is identical across gesture-nav devices (where
