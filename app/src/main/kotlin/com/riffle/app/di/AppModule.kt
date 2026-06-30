@@ -4,14 +4,18 @@ package com.riffle.app.di
 
 import android.content.Context
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
-import com.riffle.app.feature.reader.SystemTimeProvider
-import com.riffle.app.feature.reader.TimeProvider
+import com.riffle.core.data.AppearanceCoordinatorImpl
+import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookCfiTranslatorFactory
+import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.SystemClock
+import com.riffle.core.domain.SystemTimeProvider
+import com.riffle.core.domain.TimeProvider
+import com.riffle.core.domain.appearance.AppearanceCoordinator
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -92,7 +96,21 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTimeProvider(impl: SystemTimeProvider): TimeProvider = impl
+    fun provideTimeProvider(): TimeProvider = SystemTimeProvider
+
+    @Provides
+    @Singleton
+    fun provideAppearanceCoordinator(
+        appThemeStore: AppThemeStore,
+        formattingPreferencesStore: FormattingPreferencesStore,
+        timeProvider: TimeProvider,
+        @ApplicationCoroutineScope scope: CoroutineScope,
+    ): AppearanceCoordinator = AppearanceCoordinatorImpl(
+        appThemeStore = appThemeStore,
+        formattingPreferencesStore = formattingPreferencesStore,
+        timeProvider = timeProvider,
+        scope = scope,
+    )
 
     @Provides
     @Singleton

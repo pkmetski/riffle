@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.reader.TimeProvider
 import com.riffle.app.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -8,24 +7,24 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.ThemeSchedule
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.appearance.ChromeTheme
+import com.riffle.core.domain.appearance.ConcreteReaderTheme
+import com.riffle.core.domain.appearance.ResolvedAppearance
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FormattingSessionTest {
@@ -67,47 +66,58 @@ class FormattingSessionTest {
         override suspend fun setRewindOnResumeSeconds(seconds: Int) = Unit
     }
 
-    private class FakeTimeProvider(private var time: LocalTime = LocalTime.of(12, 0)) : TimeProvider {
-        override fun nowLocalTime(): LocalTime = time
-        fun setTime(t: LocalTime) { time = t }
+    /**
+     * Drives the resolved appearance manually so tests can simulate boundary crossings without
+     * spinning the real coordinator's timer. Auto-theme behaviour end-to-end is covered by the
+     * AppearanceCoordinatorImpl test.
+     */
+    private class FakeAppearanceCoordinator(
+        initial: ResolvedAppearance = ResolvedAppearance(
+            appChrome = ChromeTheme.Light,
+            readerTheme = ConcreteReaderTheme.Light,
+            isSystemDark = false,
+        ),
+    ) : AppearanceCoordinator {
+        private val _flow = MutableStateFlow(initial)
+        override val resolved: StateFlow<ResolvedAppearance> = _flow
+        override fun setSystemDark(isDark: Boolean) = Unit
+        fun set(value: ResolvedAppearance) { _flow.value = value }
     }
 
     /**
      * Creates a FormattingSession backed by [UnconfinedTestDispatcher] so coroutines run eagerly.
-     * This avoids the need for advanceUntilIdle() which hangs with while(true) delay loops.
      * The returned [AutoScrollController] must have [AutoScrollController.release] called before the
      * test ends when auto-scroll is started, to prevent its 16ms ticker from blocking runTest cleanup.
      */
     private fun makeEager(
         globalPrefs: FormattingPreferences = FormattingPreferences(),
         bookOverrides: BookFormattingOverrides = BookFormattingOverrides(),
-        time: LocalTime = LocalTime.of(12, 0),
         fakeGlobal: FakeFormattingPreferencesStore = FakeFormattingPreferencesStore(globalPrefs),
         fakeBook: FakeBookFormattingPreferencesStore = FakeBookFormattingPreferencesStore().also {
             it.willReturn(bookOverrides)
         },
-        fakeTime: FakeTimeProvider = FakeTimeProvider(time),
+        fakeAppearance: FakeAppearanceCoordinator = FakeAppearanceCoordinator(),
     ): Bundle {
         val dispatcher = UnconfinedTestDispatcher()
         val autoScrollController = AutoScrollController.forTest(dispatcher)
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
         val session = FormattingSession(
             scope = sessionScope,
-            timeProvider = fakeTime,
             formattingPreferencesStore = fakeGlobal,
             bookFormattingPreferencesStore = fakeBook,
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),
             autoScrollController = autoScrollController,
+            appearanceCoordinator = fakeAppearance,
         )
-        return Bundle(session, fakeGlobal, fakeBook, fakeTime, autoScrollController, sessionScope)
+        return Bundle(session, fakeGlobal, fakeBook, fakeAppearance, autoScrollController, sessionScope)
     }
 
     private data class Bundle(
         val session: FormattingSession,
         val globalStore: FakeFormattingPreferencesStore,
         val bookStore: FakeBookFormattingPreferencesStore,
-        val timeProvider: FakeTimeProvider,
+        val appearance: FakeAppearanceCoordinator,
         val autoScrollController: AutoScrollController,
         val sessionScope: kotlinx.coroutines.CoroutineScope,
     )
@@ -119,7 +129,6 @@ class FormattingSessionTest {
         val (session, _, _, _, _, scope) = makeEager(globalPrefs = global)
         try {
             session.bindToBook("item1")
-            // With UnconfinedTestDispatcher, bindToBook's internal coroutine runs eagerly
             assertEquals(1.5f, session.effectiveFormattingPreferences.value.fontSize)
         } finally {
             scope.cancel()
@@ -149,7 +158,6 @@ class FormattingSessionTest {
             session.bindToBook("item1")
             val newPrefs = FormattingPreferences(fontSize = 1.8f)
             session.updateFormatting("item1", newPrefs)
-            // The store write is launched in a coroutine; with UnconfinedTestDispatcher it runs eagerly
             assertTrue(bookStore.saved.containsKey("item1"))
         } finally {
             scope.cancel()
@@ -172,51 +180,33 @@ class FormattingSessionTest {
         }
     }
 
-    // 5. auto theme switches at the configured boundary tick.
-    // Uses StandardTestDispatcher + advanceTimeBy for virtual-time control.
-    // The scope is cancelled in finally BEFORE runTest's advanceUntilIdle runs,
-    // so the while(true) schedule loop doesn't prevent cleanup.
+    // 5. Auto theme uses the coordinator's resolved reader theme.
     @Test
-    fun `auto theme switches at the configured boundary tick`() = runTest {
-        val schedule = ThemeSchedule(
-            dayStart = LocalTime.of(7, 0),
-            nightStart = LocalTime.of(21, 0),
-            dayTheme = ReaderTheme.Light,
-            nightTheme = ReaderTheme.Dark,
+    fun `auto theme is resolved from appearance coordinator`() = runTest {
+        val global = FormattingPreferences(theme = ReaderTheme.Auto)
+        val appearance = FakeAppearanceCoordinator(
+            initial = ResolvedAppearance(
+                appChrome = ChromeTheme.Light,
+                readerTheme = ConcreteReaderTheme.Light,
+                isSystemDark = false,
+            ),
         )
-        val global = FormattingPreferences(theme = ReaderTheme.Auto, themeSchedule = schedule)
-        val fakeTime = FakeTimeProvider(LocalTime.of(20, 59))
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val autoScrollController = AutoScrollController.forTest(dispatcher)
-        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
-        val session = FormattingSession(
-            scope = sessionScope,
-            timeProvider = fakeTime,
-            formattingPreferencesStore = FakeFormattingPreferencesStore(global),
-            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
-            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
-            listeningPreferencesStore = FakeListeningPreferencesStore(),
-            autoScrollController = autoScrollController,
-        )
+        val (session, _, _, _, _, scope) = makeEager(globalPrefs = global, fakeAppearance = appearance)
         try {
             session.bindToBook("item1")
-            // Advance time enough for init coroutines to start and bindToBook to run.
-            // Keep advances small to avoid over-advancing the schedule loop.
-            advanceTimeBy(500)
-
-            // At 20:59, should be Light (day)
             assertEquals(ReaderTheme.Light, session.effectiveFormattingPreferences.value.theme)
 
-            // Advance fake clock to 21:00 and advance virtual time past the ~60s delay
-            fakeTime.setTime(LocalTime.of(21, 0))
-            advanceTimeBy(61_000)
-
-            // scheduleTicks emitted → combine re-evaluated → effectiveFormattingPreferences = Dark
+            // Simulate the coordinator emitting a boundary tick that flips to night.
+            appearance.set(
+                ResolvedAppearance(
+                    appChrome = ChromeTheme.Light,
+                    readerTheme = ConcreteReaderTheme.Dark,
+                    isSystemDark = false,
+                ),
+            )
             assertEquals(ReaderTheme.Dark, session.effectiveFormattingPreferences.value.theme)
         } finally {
-            // Cancel before runTest's advanceUntilIdle — stops the while(true) loop
-            autoScrollController.release()
-            sessionScope.cancel()
+            scope.cancel()
         }
     }
 
@@ -229,7 +219,6 @@ class FormattingSessionTest {
             assertTrue(autoScrollController.state.value is AutoScrollState.Running)
 
             session.onPlaybackStateChanged(isPlaying = true)
-            // dispatch() is synchronous — state is updated immediately
             assertTrue(autoScrollController.state.value is AutoScrollState.Idle)
         } finally {
             autoScrollController.release()
@@ -263,7 +252,6 @@ class FormattingSessionTest {
         try {
             assertFalse(session.formattingPreferencesReady.value)
             session.bindToBook("item1")
-            // UnconfinedTestDispatcher: bindToBook's coroutine runs synchronously
             assertTrue(session.formattingPreferencesReady.value)
         } finally {
             scope.cancel()
@@ -302,7 +290,7 @@ class FormattingSessionTest {
         }
     }
 
-    // 11. onBookClosed cancels theme schedule subscription
+    // 11. onBookClosed clears formattingPreferencesReady
     @Test
     fun `onBookClosed sets formattingPreferencesReady to false`() = runTest {
         val (session, _, _, _, _, scope) = makeEager()
@@ -325,14 +313,11 @@ class FormattingSessionTest {
         try {
             session.bindToBook("item1")
 
-            // Start auto-scroll — it picks up the current defaultSpeed (250 WPM)
             autoScrollController.dispatch(AutoScrollEvent.Start)
             assertEquals(250, (autoScrollController.state.value as AutoScrollState.Running).speed.wpm)
 
-            // Update WPM — setDefaultSpeed(400) is called eagerly by the collector
             session.updateFormatting("item1", FormattingPreferences(autoScrollWpm = 400))
 
-            // Restart auto-scroll to use the new default speed
             autoScrollController.dispatch(AutoScrollEvent.Stop)
             autoScrollController.dispatch(AutoScrollEvent.Start)
             assertEquals(400, (autoScrollController.state.value as AutoScrollState.Running).speed.wpm)
@@ -347,7 +332,6 @@ class FormattingSessionTest {
     fun `init dispatches AutoScrollEvent Stop to defensively reset singleton AutoScrollController`() = runTest {
         val dispatcher = UnconfinedTestDispatcher()
         val autoScrollController = AutoScrollController.forTest(dispatcher)
-        // Put the controller into Running state before constructing FormattingSession
         autoScrollController.dispatch(AutoScrollEvent.Start)
         assertTrue(autoScrollController.state.value is AutoScrollState.Running)
 
@@ -355,14 +339,13 @@ class FormattingSessionTest {
         try {
             FormattingSession(
                 scope = sessionScope,
-                timeProvider = FakeTimeProvider(),
                 formattingPreferencesStore = FakeFormattingPreferencesStore(),
                 bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
                 wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
                 listeningPreferencesStore = FakeListeningPreferencesStore(),
                 autoScrollController = autoScrollController,
+                appearanceCoordinator = FakeAppearanceCoordinator(),
             )
-            // Construction alone must reset the singleton to Idle
             assertTrue(autoScrollController.state.value is AutoScrollState.Idle)
         } finally {
             autoScrollController.release()
@@ -383,50 +366,6 @@ class FormattingSessionTest {
         } finally {
             autoScrollController.release()
             scope.cancel()
-        }
-    }
-
-    // 15. onBookClosed cancels the theme schedule job (extends test 11)
-    @Test
-    fun `onBookClosed cancels theme schedule job and clears formattingPreferencesReady`() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val schedule = ThemeSchedule(
-            dayStart = LocalTime.of(7, 0),
-            nightStart = LocalTime.of(21, 0),
-            dayTheme = ReaderTheme.Light,
-            nightTheme = ReaderTheme.Dark,
-        )
-        val global = FormattingPreferences(theme = ReaderTheme.Auto, themeSchedule = schedule)
-        val fakeTime = FakeTimeProvider(LocalTime.of(20, 59))
-        val autoScrollController = AutoScrollController.forTest(dispatcher)
-        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
-        val session = FormattingSession(
-            scope = sessionScope,
-            timeProvider = fakeTime,
-            formattingPreferencesStore = FakeFormattingPreferencesStore(global),
-            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
-            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
-            listeningPreferencesStore = FakeListeningPreferencesStore(),
-            autoScrollController = autoScrollController,
-        )
-        try {
-            session.bindToBook("item1")
-            advanceTimeBy(500)
-            assertTrue(session.formattingPreferencesReady.value)
-
-            session.onBookClosed()
-
-            // formattingPreferencesReady must be cleared
-            assertFalse(session.formattingPreferencesReady.value)
-
-            // Theme schedule must be dead: advancing past the next boundary should NOT flip theme
-            fakeTime.setTime(LocalTime.of(21, 0))
-            advanceTimeBy(61_000)
-            // Still Light — the schedule loop was cancelled before the tick could fire
-            assertEquals(ReaderTheme.Light, session.effectiveFormattingPreferences.value.theme)
-        } finally {
-            autoScrollController.release()
-            sessionScope.cancel()
         }
     }
 }

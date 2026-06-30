@@ -37,9 +37,10 @@ import com.riffle.app.navigation.MainScreen
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.ui.BottomNavBarScrim
 import com.riffle.app.ui.theme.RiffleTheme
-import com.riffle.core.domain.AppTheme
-import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
+import com.riffle.core.domain.appearance.AppearanceCoordinator
+import com.riffle.core.domain.appearance.ResolvedAppearance
+import androidx.compose.runtime.LaunchedEffect
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -53,13 +54,12 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var volumeNavigationController: VolumeNavigationController
     @Inject lateinit var readerStateHolder: ReaderStateHolder
     @Inject lateinit var volumeKeyPreferencesStore: VolumeKeyPreferencesStore
-    @Inject lateinit var appThemeStore: AppThemeStore
+    @Inject lateinit var appearanceCoordinator: AppearanceCoordinator
     @Inject lateinit var nowPlayingNavigator: NowPlayingNavigator
     @Inject lateinit var autoScrollController: AutoScrollController
 
     private lateinit var volumeNavEnabled: StateFlow<Boolean>
     private lateinit var invertVolumeKeys: StateFlow<Boolean>
-    private lateinit var appTheme: StateFlow<AppTheme>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (savedInstanceState != null) {
@@ -77,8 +77,6 @@ class MainActivity : FragmentActivity() {
             .stateIn(lifecycleScope, SharingStarted.Eagerly, true)
         invertVolumeKeys = volumeKeyPreferencesStore.invertVolumeKeys
             .stateIn(lifecycleScope, SharingStarted.Eagerly, false)
-        appTheme = appThemeStore.appTheme
-            .stateIn(lifecycleScope, SharingStarted.Eagerly, AppTheme.System)
         // Both system bars are fully transparent at the OS level. The app draws its own
         // scrim under the nav-bar inset area (BottomNavBarScrim, applied globally in
         // setContent below) so the look is identical across gesture-nav devices (where
@@ -96,8 +94,12 @@ class MainActivity : FragmentActivity() {
         }
         handleIntent(intent)
         setContent {
-            val theme by appTheme.collectAsState()
-            val isDark = theme.isDark(isSystemInDarkTheme())
+            // Feed reactive OS dark-mode toggles into the coordinator so its `resolved`
+            // StateFlow stays in step with the system theme without polling.
+            val systemDark = isSystemInDarkTheme()
+            LaunchedEffect(systemDark) { appearanceCoordinator.setSystemDark(systemDark) }
+            val appearance: ResolvedAppearance by appearanceCoordinator.resolved.collectAsState()
+            val isDark = appearance.appChrome.isDark
             // Keep the transparent status-bar icon contrast in step with the chosen chrome theme,
             // overriding the system-driven default from enableEdgeToEdge above (otherwise a forced
             // Dark theme under a Light OS would render dark icons on the dark top app bar).

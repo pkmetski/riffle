@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.app.feature.reader.TimeProvider
 import com.riffle.app.feature.reader.autoscroll.AutoScrollController
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
@@ -9,24 +8,19 @@ import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.autoscroll.LayoutContext
-import com.riffle.core.domain.withResolvedTheme
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -43,12 +37,12 @@ import kotlinx.coroutines.launch
  */
 class FormattingSession @AssistedInject constructor(
     @Assisted private val scope: OrchestratorScope,
-    private val timeProvider: TimeProvider,
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val bookFormattingPreferencesStore: BookFormattingPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val listeningPreferencesStore: ListeningPreferencesStore,
     private val autoScrollController: AutoScrollController,
+    private val appearanceCoordinator: AppearanceCoordinator,
 ) {
 
     @AssistedFactory
@@ -68,19 +62,19 @@ class FormattingSession @AssistedInject constructor(
     // startup fast-path (before effectiveFormattingPreferences's combine→stateIn hop).
     val formattingPreferences: StateFlow<FormattingPreferences> = _formattingPreferences
 
-    // Ticks emitted at each ThemeSchedule boundary so the resolved theme can flip live
-    // during a reading session. Re-armed whenever the schedule changes.
-    private val scheduleTicks = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1).apply {
-        tryEmit(Unit) // prime the combine() below so it emits immediately on collection
-    }
-
-    // The user's pick with `theme` replaced by the resolver's concrete value when the
+    // The user's pick with `theme` replaced by the schedule-resolved concrete value when the
     // pick is Auto. Every downstream consumer (Readium navigator submitPreferences,
-    // chapter rail backdrop, palette) reads this — they stay ignorant of Auto.
+    // chapter rail backdrop, palette) reads this — they stay ignorant of Auto. The
+    // boundary-tick that flips Auto live mid-session is owned by AppearanceCoordinator;
+    // its `resolved` StateFlow re-emits at each day/night crossing, which propagates
+    // through this combine and drives Readium reapplication.
     val effectiveFormattingPreferences: StateFlow<FormattingPreferences> = combine(
         _formattingPreferences,
-        scheduleTicks,
-    ) { prefs, _ -> prefs.withResolvedTheme(timeProvider.nowLocalTime()) }
+        appearanceCoordinator.resolved,
+    ) { prefs, appearance ->
+        if (prefs.theme == ReaderTheme.Auto) prefs.copy(theme = appearance.readerTheme.toReaderTheme())
+        else prefs
+    }
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, FormattingPreferences())
 
@@ -100,7 +94,6 @@ class FormattingSession @AssistedInject constructor(
     val autoScrollScrollDeltas: Flow<Int> = autoScrollController.scrollDeltas
 
     private var bookId: String? = null
-    private var themeScheduleJob: Job? = null
 
     // Device pixel density for accurate layout context. Default = 1f (CSS-px fallback).
     // The VM sets this via [setDeviceDensity] in its init block, after constructing the session,
@@ -161,7 +154,6 @@ class FormattingSession @AssistedInject constructor(
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037).
         // Driven externally via onPlaybackStateChanged(isPlaying).
-        armThemeSchedule()
     }
 
     /**
@@ -177,8 +169,12 @@ class FormattingSession @AssistedInject constructor(
             val effective = overrides.applyTo(global)
             _formattingPreferences.value = effective
             _hasBookOverrides.value = !overrides.isEmpty
-            // Wait until the derived StateFlow actually reflects the loaded value.
-            val targetEffective = effective.withResolvedTheme(timeProvider.nowLocalTime())
+            // Wait until the derived StateFlow actually reflects the loaded value. Mirrors the
+            // combine() above: Auto resolves to the coordinator's current concrete theme.
+            val resolvedReader = appearanceCoordinator.resolved.value.readerTheme.toReaderTheme()
+            val targetEffective = if (effective.theme == ReaderTheme.Auto) {
+                effective.copy(theme = resolvedReader)
+            } else effective
             effectiveFormattingPreferences.first { it == targetEffective }
             _formattingPreferencesReady.value = true
         }
@@ -261,40 +257,9 @@ class FormattingSession @AssistedInject constructor(
         }
     }
 
-    /** Called when the book is closed. Cancels any in-flight theme schedule loop. */
+    /** Called when the book is closed. */
     fun onBookClosed() {
         autoScrollController.dispatch(AutoScrollEvent.Stop)
-        themeScheduleJob?.cancel()
-        themeScheduleJob = null
         _formattingPreferencesReady.value = false
-    }
-
-    // ---- Private -------------------------------------------------------------------------------
-
-    private fun armThemeSchedule() {
-        themeScheduleJob?.cancel()
-        themeScheduleJob = scope.launch {
-            _formattingPreferences
-                .map { it.themeSchedule to (it.theme == ReaderTheme.Auto) }
-                .distinctUntilChanged()
-                .collectLatest { (schedule, autoActive) ->
-                    if (!autoActive) return@collectLatest
-                    // Degenerate schedule (equal day/night times) collapses to always-day —
-                    // no boundary will ever arrive. Park until cancelled.
-                    if (schedule.dayStart == schedule.nightStart) {
-                        awaitCancellation()
-                    }
-                    while (true) {
-                        val now = timeProvider.nowLocalTime()
-                        val next = schedule.nextBoundaryAfter(now)
-                        val nowSec = now.toSecondOfDay().toLong()
-                        val nextSec = next.toSecondOfDay().toLong()
-                        val delayMs = (((nextSec - nowSec + 24 * 3600) % (24 * 3600)) * 1000L)
-                            .coerceAtLeast(1_000L)
-                        delay(delayMs)
-                        scheduleTicks.tryEmit(Unit)
-                    }
-                }
-        }
     }
 }
