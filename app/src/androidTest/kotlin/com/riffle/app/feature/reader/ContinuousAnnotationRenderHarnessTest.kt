@@ -100,17 +100,28 @@ class ContinuousAnnotationRenderHarnessTest {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        Thread.sleep(6_000)
-        val webViews = allWebViews()
+        // Continuous-mode decoration is applied asynchronously per-WebView as each chapter
+        // loads; poll instead of a fixed sleep so a slow CI emulator doesn't flake.
+        val pollDeadline = System.currentTimeMillis() + 20_000
+        var webViews: List<WebView> = emptyList()
+        var totalMarks = 0
+        var perWebView: List<String> = emptyList()
+        while (System.currentTimeMillis() < pollDeadline) {
+            webViews = allWebViews()
+            if (webViews.isNotEmpty()) {
+                perWebView = webViews.map { wv ->
+                    val count = evalJs(wv, "document.querySelectorAll('[data-riffle-ann]').length").trim('"')
+                    val href = evalJs(wv, "(window.location && window.location.pathname) || ''").trim('"').ifBlank { "<none>" }
+                    "[href=$href marks=$count]"
+                }
+                totalMarks = webViews.sumOf { wv ->
+                    evalJs(wv, "document.querySelectorAll('[data-riffle-ann]').length").trim('"').toIntOrNull() ?: 0
+                }
+                if (totalMarks > 0) break
+            }
+            Thread.sleep(500)
+        }
         assertTrue("expected at least one WebView in hierarchy", webViews.isNotEmpty())
-        val perWebView = webViews.map { wv ->
-            val count = evalJs(wv, "document.querySelectorAll('[data-riffle-ann]').length").trim('"')
-            val href = evalJs(wv, "(window.location && window.location.pathname) || ''").trim('"').ifBlank { "<none>" }
-            "[href=$href marks=$count]"
-        }
-        val totalMarks = webViews.sumOf { wv ->
-            evalJs(wv, "document.querySelectorAll('[data-riffle-ann]').length").trim('"').toIntOrNull() ?: 0
-        }
         assertTrue(
             "expected at least one <mark data-riffle-ann> across ${webViews.size} WebViews; got: $perWebView",
             totalMarks > 0,
