@@ -184,6 +184,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             serverRepository = repo,
             tokenStorage = StubTokenStorage,
             linkRepository = ReadaloudLinkRepositoryImpl(db.readaloudLinkDao()),
+            dispatchers = DefaultDispatcherProvider,
         )
     }
 

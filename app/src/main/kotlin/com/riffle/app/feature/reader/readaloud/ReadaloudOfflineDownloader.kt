@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.readaloud
 
 import android.content.Context
+import com.riffle.core.domain.DispatcherProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
@@ -24,6 +25,7 @@ interface ReadaloudOfflineDownloader {
 class ReadaloudOfflineDownloaderImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val factory: ReadaloudStreamingSessionFactory,
+    private val dispatchers: DispatcherProvider,
 ) : ReadaloudOfflineDownloader {
     override suspend fun download(
         storytellerServerId: String,
@@ -37,6 +39,7 @@ class ReadaloudOfflineDownloaderImpl @Inject constructor(
                 context,
                 session.streaming.itemsByMediaId.values.toList(),
                 session.absToken,
+                dispatchers.io,
                 onProgress,
             )
         }.isSuccess

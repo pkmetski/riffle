@@ -20,6 +20,7 @@ import com.riffle.core.domain.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ListeningPreferencesStore
@@ -42,7 +43,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -94,6 +94,7 @@ class ReadaloudSession @AssistedInject constructor(
     private val audiobookHandoffState: AudiobookHandoffState,
     private val connectivityObserver: ConnectivityObserver,
     private val nowPlayingStore: NowPlayingStore,
+    private val dispatchers: DispatcherProvider,
     private val logger: Logger,
 ) {
 
@@ -1010,7 +1011,7 @@ class ReadaloudSession @AssistedInject constructor(
     internal fun buildSentenceQuotes(bundle: File) {
         if (quotesBuildStarted) return
         quotesBuildStarted = true
-        scope.launch(Dispatchers.IO) {
+        scope.launch(dispatchers.io) {
             try {
                 val chapters = com.riffle.core.domain.EpubContentExtractor.extract(bundle)?.chapters
                     ?: return@launch

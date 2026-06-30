@@ -1,6 +1,9 @@
 package com.riffle.app.feature.reader.controllers
 
 import android.net.FakeUri
+import com.riffle.core.domain.DispatcherProvider
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -19,10 +22,18 @@ import org.readium.r2.shared.util.mediatype.MediaType
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchControllerTest {
 
+    private val unconfinedDispatchers = object : DispatcherProvider {
+        private val d: CoroutineDispatcher = Dispatchers.Unconfined
+        override val main = d
+        override val mainImmediate = d
+        override val io = d
+        override val default = d
+    }
+
     private fun makeController(): SearchController {
         val dispatcher = UnconfinedTestDispatcher()
         val scope = kotlinx.coroutines.CoroutineScope(dispatcher)
-        return SearchController(scope = scope)
+        return SearchController(scope = scope, dispatchers = unconfinedDispatchers)
     }
 
     // --- Tests ---
@@ -128,7 +139,7 @@ class SearchControllerTest {
         // Use StandardTestDispatcher so coroutine time is manually controlled.
         val testDispatcher = StandardTestDispatcher(testScheduler)
         val scope = kotlinx.coroutines.CoroutineScope(testDispatcher)
-        val controller = SearchController(scope = scope)
+        val controller = SearchController(scope = scope, dispatchers = unconfinedDispatchers)
 
         // bind(null) starts the debounce coroutine. publication=null means performSearch
         // exits early, but the debounce *fires* and applies the query-length<2 branch,

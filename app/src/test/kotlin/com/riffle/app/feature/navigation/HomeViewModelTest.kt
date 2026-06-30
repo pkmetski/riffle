@@ -3,7 +3,10 @@ package com.riffle.app.feature.navigation
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.Collection
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.PendingServer
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
@@ -103,6 +106,14 @@ class HomeViewModelTest {
         }
     }
 
+    private val unconfinedDispatchers = object : DispatcherProvider {
+        private val d: CoroutineDispatcher = Dispatchers.Unconfined
+        override val main = d
+        override val mainImmediate = d
+        override val io = d
+        override val default = d
+    }
+
     private fun makeVm(
         libraryRepo: LibraryObserver = fakeLibraryRepo(),
         refreshLibraries: com.riffle.core.domain.usecase.RefreshLibraries = FakeRefreshLibraries(),
@@ -112,6 +123,7 @@ class HomeViewModelTest {
         refreshLibraries = refreshLibraries,
         visibilityStore = fakeVisibilityStore(),
         lastOpenedLibraryStore = fakeLastOpenedStore(),
+        dispatchers = unconfinedDispatchers,
     )
 
     @Test

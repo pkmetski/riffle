@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.autoscroll
 
 import com.riffle.core.domain.Clock
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.SystemClock
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
@@ -13,7 +14,6 @@ import com.riffle.core.domain.autoscroll.reduce
 import com.riffle.core.domain.autoscroll.speedOrNull
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -32,14 +32,14 @@ import javax.inject.Singleton
 /**
  * Coordinates an Auto-Scroll session: holds [state], emits pixel scroll deltas via [scrollDeltas],
  * and forwards lifecycle/UI events into the pure [reduce] state machine. Production uses
- * [Dispatchers.Main.immediate]; tests use [forTest] to inject a [StandardTestDispatcher].
+ * `DispatcherProvider.mainImmediate`; tests use [forTest] to inject a [StandardTestDispatcher].
  */
 @Singleton
 open class AutoScrollController internal constructor(
     dispatcher: CoroutineDispatcher,
     private var clock: Clock = SystemClock,
 ) {
-    @Inject constructor() : this(Dispatchers.Main.immediate, SystemClock)
+    @Inject constructor(dispatchers: DispatcherProvider) : this(dispatchers.mainImmediate, SystemClock)
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val _state = MutableStateFlow<AutoScrollState>(AutoScrollState.Idle)

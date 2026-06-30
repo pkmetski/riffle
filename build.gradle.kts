@@ -65,20 +65,6 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/library/LibraryItemsViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/server/AddServerViewModel.kt",
-            // ---- Grandfathered — DispatcherProvider sweep follow-up (app/feature).
-            "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookController.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/navigation/HomeScreen.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/navigation/HomeViewModel.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderViewModel.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/autoscroll/AutoScrollController.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/controllers/SearchController.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/presenter/ReadiumPresenter.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/PlayerCoordinator.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/ReadaloudController.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/ReadaloudStreamingSessionFactory.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/readaloud/StreamingAudioDownloader.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/reader/session/ReadaloudSession.kt",
         )
 
         val scanRoots = listOf(

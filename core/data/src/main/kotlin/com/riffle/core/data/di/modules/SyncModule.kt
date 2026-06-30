@@ -8,6 +8,7 @@ import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -122,7 +123,7 @@ abstract class SyncModule {
         fun provideAnnotationSyncTargetHolder(
             configStore: AnnotationSyncConfigStore,
             factory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
-            dispatchers: com.riffle.core.domain.DispatcherProvider,
+            dispatchers: DispatcherProvider,
         ): com.riffle.core.data.AnnotationSyncTargetHolder =
             com.riffle.core.data.AnnotationSyncTargetHolder(
                 configStore = configStore,
@@ -146,7 +147,7 @@ abstract class SyncModule {
             libraryItemDao: LibraryItemDao,
             locks: com.riffle.core.data.ReconcileLocks,
             sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
-            dispatchers: com.riffle.core.domain.DispatcherProvider,
+            dispatchers: DispatcherProvider,
         ): com.riffle.core.data.AnnotationSyncController =
             com.riffle.core.data.AnnotationSyncController(
                 targetProvider = { holder.current() },

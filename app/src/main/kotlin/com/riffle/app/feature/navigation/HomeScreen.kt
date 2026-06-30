@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -40,7 +39,7 @@ fun HomeScreen(
         // withContext(IO), the Compose test interceptor may resume this continuation
         // on the instrumentation thread. NavController.navigate() calls
         // LifecycleRegistry.setCurrentState() which requires the main thread.
-        withContext(Dispatchers.Main.immediate) {
+        withContext(viewModel.dispatchers.mainImmediate) {
             when (dest) {
                 is HomeViewModel.StartDestination.AddServer -> onNavigateToAddServer()
                 is HomeViewModel.StartDestination.Library -> onNavigateToLibrary(dest.libraryId, dest.libraryName)

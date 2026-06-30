@@ -1,6 +1,7 @@
 package com.riffle.app.feature.navigation
 
 import androidx.lifecycle.ViewModel
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
@@ -8,7 +9,6 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.usecase.RefreshLibraries
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -20,6 +20,7 @@ class HomeViewModel @Inject constructor(
     private val refreshLibraries: RefreshLibraries,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val lastOpenedLibraryStore: LastOpenedLibraryStore,
+    val dispatchers: DispatcherProvider,
 ) : ViewModel() {
 
     sealed class StartDestination {
@@ -28,7 +29,7 @@ class HomeViewModel @Inject constructor(
         data class Library(val libraryId: String, val libraryName: String) : StartDestination()
     }
 
-    suspend fun getStartDestination(): StartDestination = withContext(Dispatchers.IO) {
+    suspend fun getStartDestination(): StartDestination = withContext(dispatchers.io) {
         val servers = serverRepository.observeAll().first()
         if (servers.isEmpty()) return@withContext StartDestination.AddServer
 

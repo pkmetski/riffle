@@ -24,6 +24,7 @@ import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.cfiDocPathToProgression
 import com.riffle.core.domain.extractAnchorFromCfi
@@ -62,7 +63,6 @@ import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -174,6 +174,7 @@ class EpubReaderViewModel @Inject constructor(
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
     private val logger: Logger,
     private val clock: Clock,
+    val dispatchers: DispatcherProvider,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -975,7 +976,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     // Translates via character-count CFIs; see EpubCfiTranslator and ADR 0013.
-    private suspend fun Locator.toPayload(): SessionPayload = withContext(Dispatchers.Default) {
+    private suspend fun Locator.toPayload(): SessionPayload = withContext(dispatchers.default) {
         val readingOrder = publication?.readingOrder ?: emptyList()
         val spineIndex = readingOrder.indexOfFirst { link ->
             normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href.toString())
@@ -1211,7 +1212,7 @@ class EpubReaderViewModel @Inject constructor(
 
     private suspend fun readChapterHtml(spineIndex: Int): String? {
         chapterHtmlCache[spineIndex]?.let { return it }
-        return withContext(Dispatchers.IO) {
+        return withContext(dispatchers.io) {
             val file = epubFile ?: return@withContext null
             val pub = publication ?: return@withContext null
             val link = pub.readingOrder.getOrNull(spineIndex) ?: return@withContext null

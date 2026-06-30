@@ -44,6 +44,7 @@ class ReadiumPresenterTest {
             scope = kotlinx.coroutines.test.TestScope(),
             publication = stubPublication(),
             bridge = com.riffle.app.feature.reader.renderer.FakeRendererBridge(),
+            mainDispatcher = kotlinx.coroutines.test.StandardTestDispatcher(),
         )
         assertNull(presenter.attachmentStamp())
     }
@@ -57,6 +58,7 @@ class ReadiumPresenterTest {
             scope = kotlinx.coroutines.test.TestScope(),
             publication = stubPublication(),
             bridge = com.riffle.app.feature.reader.renderer.FakeRendererBridge(),
+            mainDispatcher = kotlinx.coroutines.test.StandardTestDispatcher(),
         )
         presenter.applyDecorations(emptyList(), "annotations")
         // No exception means contract preserved.
