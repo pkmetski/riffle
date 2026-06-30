@@ -6,6 +6,7 @@ import android.content.Context
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.app.feature.reader.SystemTimeProvider
 import com.riffle.app.feature.reader.TimeProvider
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import dagger.Binds
 import dagger.Module
@@ -34,14 +35,12 @@ import javax.inject.Singleton
 annotation class DownloadScope
 
 /**
- * Application-lifetime [CoroutineScope] for terminal progress writes (the close / pause flush) that
- * must survive the screen's ViewModel being cleared — see `ProgressFlushScope`. Without it, a flush
- * launched on `viewModelScope` is cancelled mid-PATCH when the user leaves the screen right after
- * triggering it.
+ * Backing [CoroutineScope] for [ApplicationScope] — survives the entire process; cancels only on
+ * process death. Tests rebind this qualifier with a `TestScope`-backed scope.
  */
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
-annotation class ProgressFlush
+annotation class ApplicationCoroutineScope
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -54,8 +53,8 @@ object AppModule {
 
     @Provides
     @Singleton
-    @ProgressFlush
-    fun provideProgressFlushScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @ApplicationCoroutineScope
+    fun provideApplicationCoroutineScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Provides
     @Singleton
@@ -104,4 +103,11 @@ object AppModule {
 abstract class AnnotationSyncModule {
     @Binds
     abstract fun bindAnnotationSweepEnqueuer(impl: com.riffle.app.sync.AnnotationSweepEnqueuerImpl): com.riffle.core.domain.AnnotationSweepEnqueuer
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class ApplicationScopeModule {
+    @Binds
+    abstract fun bindApplicationScope(impl: DefaultApplicationScope): ApplicationScope
 }

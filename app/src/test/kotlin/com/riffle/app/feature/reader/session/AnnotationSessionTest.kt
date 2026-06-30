@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.session
 import android.net.FakeUri
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.domain.Annotation
@@ -170,7 +171,7 @@ class AnnotationSessionTest {
         scope: CoroutineScope,
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
         flushScope: ProgressFlushScope = ProgressFlushScope(
-            CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob())
+            TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
         ),
     ) = AnnotationSession(
         scope = scope,
@@ -404,7 +405,7 @@ class AnnotationSessionTest {
         val syncOps = FakeSyncOps()
         // Use a real ProgressFlushScope backed by a test dispatcher
         val flushScope = ProgressFlushScope(
-            CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob())
+            TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
         )
         val session = makeSession(syncOps = syncOps, scope = sessionScope, flushScope = flushScope)
 

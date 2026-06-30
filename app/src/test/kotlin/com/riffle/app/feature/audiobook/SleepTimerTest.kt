@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.reader.AudiobookFollow
 import com.riffle.app.feature.reader.ProgressFlushScope
+import com.riffle.app.testing.TestApplicationScope
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.app.playback.NowPlayingStore
@@ -207,7 +208,7 @@ class SleepTimerTest {
             audioSyncStore = FakeSyncStoreDouble(),
             readaloudResumeStore = FakeResumeStore,
             openReconcileTargets = OpenReconcileTargets(),
-            progressFlushScope = ProgressFlushScope(CoroutineScope(testDispatcher)),
+            progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),

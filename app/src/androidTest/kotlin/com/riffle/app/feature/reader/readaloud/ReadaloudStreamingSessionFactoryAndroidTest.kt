@@ -22,8 +22,10 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
@@ -155,7 +157,19 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
         val fetcher = StorytellerSidecarFetcher(StorytellerBundleApiImpl(OkHttpClient()))
-        sidecarStore = ReadaloudSidecarStore(ctx, fetcher, repo, StubTokenStorage)
+        val sidecarScope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+        )
+        sidecarStore = ReadaloudSidecarStore(
+            ctx, fetcher, repo, StubTokenStorage,
+            object : com.riffle.core.domain.ApplicationScope {
+                override val coroutineScope = sidecarScope
+                override fun launchSurvivable(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) =
+                    sidecarScope.launch(block = block)
+                override suspend fun <T> withSurvivable(block: suspend kotlinx.coroutines.CoroutineScope.() -> T): T =
+                    sidecarScope.async(block = block).await()
+            },
+        )
         return ReadaloudStreamingSessionFactory(
             context = ctx,
             audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),

@@ -9,12 +9,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudTrack
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,10 +37,11 @@ import kotlin.coroutines.resume
 @Singleton
 open class ReadaloudController @Inject constructor(
     @ApplicationContext private val context: Context?,
+    applicationScope: ApplicationScope?,
 ) {
     // Test seam: subclasses that override the pre-warm methods need no real Context (only consulted in
     // [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without Robolectric.
-    protected constructor() : this(null)
+    protected constructor() : this(null, null)
     data class PlaybackState(
         val connected: Boolean = false,
         val isPlaying: Boolean = false,
@@ -54,7 +55,12 @@ open class ReadaloudController @Inject constructor(
         val chapterCount: Int = 0,
     )
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Main.immediate is required for Media3 MediaController calls; the survivable Job tree comes from
+    // ApplicationScope. Tests use the protected no-arg constructor and subclasses override every method
+    // that launches on this scope, so [applicationScope] is permitted to be null.
+    private val scope: CoroutineScope = applicationScope?.let {
+        CoroutineScope(it.coroutineScope.coroutineContext + Dispatchers.Main.immediate)
+    } ?: CoroutineScope(Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 

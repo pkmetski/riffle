@@ -163,6 +163,7 @@ class SeriesIntegrationTest {
                 },
                 itemDao, { 0L },
             ),
+            applicationScope = com.riffle.core.data.testing.TestApplicationScope(),
         )
     }
 

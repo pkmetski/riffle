@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.CanonicalPositionTranslator
 import com.riffle.core.domain.ChapterCharMap
@@ -289,7 +290,7 @@ class ReaderSyncCoordinatorTest {
     fun `closing readaloud flushes the exact narrated sentence to ABS even when the reader is torn down at once`() = runTest {
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
         val coordinator = coordinator(abs)
-        val flusher = ProgressFlushScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()))
+        val flusher = ProgressFlushScope(TestApplicationScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob())))
 
         // closeReadaloud(): fire the precise audiobook push (narrated fragment f9 → 90s) on the flush
         // scope, then the user immediately leaves the book — cancelling the reader's viewModelScope.
@@ -307,7 +308,7 @@ class ReaderSyncCoordinatorTest {
     fun `the audiobook player's stop flush reaches ABS through the survivable scope after onCleared`() = runTest {
         val abs = FakeAbs(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
         val coordinator = coordinator(abs)
-        val flusher = ProgressFlushScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob()))
+        val flusher = ProgressFlushScope(TestApplicationScope(CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob())))
 
         // The audiobook player's pushProgressOnStop runs an audio-led cycle (listen at 90s). On the
         // player's onCleared the viewModelScope is already cancelled, so it must run on the flush scope.
