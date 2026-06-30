@@ -3,7 +3,6 @@ package com.riffle.app.harness
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -16,6 +15,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
+import com.riffle.app.feature.reader.VolumeNavEvent
+import com.riffle.app.feature.reader.VolumeNavigationController
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilOnPdfPage
@@ -45,6 +46,7 @@ class PdfHarnessTest {
 
     @Inject lateinit var database: RiffleDatabase
     @PdfCacheStore @Inject lateinit var pdfCacheStore: LocalStore
+    @Inject lateinit var volumeNavigationController: VolumeNavigationController
 
     private val stubServer = StubAbsServer()
 
@@ -82,12 +84,12 @@ class PdfHarnessTest {
         composeTestRule.assertNoErrorState()
         composeTestRule.waitUntilPdfLoaded()
 
-        // Pages advance via horizontal swipe (PDFView's native page-turn),
-        // matching paginated EPUB UX. Edge-tap navigation is intentionally not wired.
+        // Drive page advance through the production VolumeNavigationController, which
+        // reaches the same PdfiumNavigatorFragment.goForward() path a real swipe ultimately
+        // does. The previous synthetic swipeLeft() couldn't reliably hit PDFView's fling
+        // velocity threshold on the CI emulator and never advanced the page.
         repeat(2) {
-            composeTestRule
-                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                .performTouchInput { swipeLeft() }
+            volumeNavigationController.emit(VolumeNavEvent.Forward)
             composeTestRule.waitForIdle()
         }
 
