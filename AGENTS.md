@@ -71,3 +71,7 @@ Default label vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `r
 ### Domain docs
 
 Single-context repo — one `CONTEXT.md` + `docs/adr/` at the root. See `docs/agents/domain.md`.
+
+### Logger channels
+
+Production log tags are typed in `core/logging/src/main/kotlin/com/riffle/core/logging/LogChannel.kt` (`RIFFLE_RA`, `RIFFLE_AB`, `RIFFLE_HANDOFF`). Add a new channel by adding an enum entry; never introduce a new `Log.d("RIFFLE_*", …)` literal directly. Inject `Logger` (production: `AndroidLogger`; tests: `RecordingLogger`) and call `logger.d(LogChannel.X) { "msg" }`. The `checkRiffleLogTags` gradle task (wired into `check`) fails CI if a literal leaks back in.
