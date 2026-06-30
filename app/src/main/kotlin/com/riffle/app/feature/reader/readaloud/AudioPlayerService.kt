@@ -2,19 +2,15 @@ package com.riffle.app.feature.reader.readaloud
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import com.riffle.app.MainActivity
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.common.Player
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -24,8 +20,13 @@ import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.riffle.app.MainActivity
 import com.riffle.app.R
+import com.riffle.app.feature.audio.MediaItemRestorerRegistry
+import com.riffle.app.feature.audio.MediaSourceRegistry
 import com.riffle.app.feature.audiobook.AbsolutePositionPlayer
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Foreground [MediaSessionService] that plays Readaloud audio. Media3 supplies the media
@@ -33,14 +34,17 @@ import com.riffle.app.feature.audiobook.AbsolutePositionPlayer
  * via the [MediaSession]; [ExoPlayer] manages audio focus (incoming calls / nav voice pause us)
  * and the "becoming noisy" pause-on-unplug behaviour.
  *
- * Two audio sources flow through this one service. **Readaloud** streams out of the synced EPUB
- * bundle on disk via [ZipAudioDataSource] (`zipaudio://`, ADR 0023). An **[Audiobook]** streams its
- * tracks directly over HTTP(S) from ABS (`http(s)://`, with the auth token carried as a `?token=`
- * query param so a plain HTTP data source suffices — ADR 0029). The [resolvingDataSourceFactory]
- * dispatches by URI scheme so both work without a second player or service.
+ * Per-scheme data-source dispatch (HTTP audiobook tracks, on-disk bundle, streamed readaloud
+ * segments) is delegated to [MediaSourceRegistry]; the controller→service Binder hop's URI-strip
+ * is undone by [MediaItemRestorerRegistry]. Both are injected — a new audio source is one
+ * `MediaSourceFactory` + `MediaItemRestorer` entry, no edits here (issue #333).
  */
 @OptIn(UnstableApi::class)
+@AndroidEntryPoint
 class AudioPlayerService : MediaSessionService() {
+
+    @Inject lateinit var mediaSourceRegistry: MediaSourceRegistry
+    @Inject lateinit var mediaItemRestorerRegistry: MediaItemRestorerRegistry
 
     private var mediaSession: MediaSession? = null
 
@@ -65,13 +69,13 @@ class AudioPlayerService : MediaSessionService() {
             // DefaultMediaSourceFactory (not ProgressiveMediaSource.Factory) so the streaming path's
             // per-segment MediaItem.clippingConfiguration is honoured. Bundle items carry no clipping,
             // so their behaviour is unchanged.
-            .setMediaSourceFactory(DefaultMediaSourceFactory(resolvingDataSourceFactory()))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(mediaSourceRegistry.asDataSourceFactory()))
             .build()
         // Wraps ExoPlayer so the OS media controls (notification, lock screen, Bluetooth) see
         // book-absolute position / total duration rather than per-track (per-chapter) values.
         val player = AbsolutePositionPlayer(exoPlayer)
         mediaSession = MediaSession.Builder(this, player)
-            .setCallback(MediaItemUriRestoringCallback)
+            .setCallback(MediaItemUriRestoringCallback(mediaItemRestorerRegistry))
             .setSessionActivity(openRiffleIntent())
             .build()
             .also { session ->
@@ -119,49 +123,20 @@ class AudioPlayerService : MediaSessionService() {
 
     /**
      * Media3 strips a [MediaItem]'s playback URI (`localConfiguration`) when a `MediaController`
-     * sends items across the session Binder — only `mediaId` + metadata survive. Without restoring
-     * the URI here the player receives unplayable items and stays silent. [ReadaloudController] sets
-     * each `mediaId` to the audio resource's zip-entry path, so we rebuild the `zipaudio://` URI
-     * from it (see [ZipAudioDataSource]).
+     * sends items across the session Binder — only `mediaId` + metadata survive. The
+     * [MediaItemRestorerRegistry] rebuilds the URI (and per-segment clipping where applicable) from
+     * the `mediaId` so the player receives playable items instead of staying silent.
      */
-    private object MediaItemUriRestoringCallback : MediaSession.Callback {
+    private class MediaItemUriRestoringCallback(
+        private val restorers: MediaItemRestorerRegistry,
+    ) : MediaSession.Callback {
 
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
-        ): ListenableFuture<MutableList<MediaItem>> {
-            val streaming = SharedBundle.streaming
-            val restored = mediaItems.map { item ->
-                if (item.localConfiguration != null || item.mediaId.isEmpty()) {
-                    return@map item
-                }
-                val streamItem = streaming?.itemsByMediaId?.get(item.mediaId)
-                if (streamItem != null) {
-                    // Streaming: point at the ABS track, clipped to this segment's window.
-                    item.buildUpon()
-                        .setUri(streamItem.url)
-                        .setClippingConfiguration(
-                            MediaItem.ClippingConfiguration.Builder()
-                                .setStartPositionMs(streamItem.clipStartMs)
-                                .setEndPositionMs(streamItem.clipEndMs)
-                                .build(),
-                        )
-                        .build()
-                } else {
-                    // An Audiobook track's mediaId is its full URL — HTTP(S) when streaming, or a
-                    // file:// URL when downloaded for offline (ADR 0029); a Readaloud clip's is the
-                    // zip-entry path.
-                    val uri = if (item.mediaId.startsWith("http") || item.mediaId.startsWith("file")) {
-                        Uri.parse(item.mediaId)
-                    } else {
-                        ZipAudioDataSource.uriFor(item.mediaId)
-                    }
-                    item.buildUpon().setUri(uri).build()
-                }
-            }.toMutableList()
-            return Futures.immediateFuture(restored)
-        }
+        ): ListenableFuture<MutableList<MediaItem>> =
+            Futures.immediateFuture(restorers.restoreAll(mediaItems))
 
         // Advertise the two custom seek commands so controllers can dispatch them.
         // Button ordering is handled by setMediaButtonPreferences() in onCreate() —
@@ -180,7 +155,6 @@ class AudioPlayerService : MediaSessionService() {
                 .build()
         }
 
-        // ── new: dispatch custom button taps to the player ──────────────────────
         override fun onCustomCommand(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -205,51 +179,9 @@ class AudioPlayerService : MediaSessionService() {
         }
     }
 
-    /**
-     * Dispatches by URI scheme: `http`/`https` → a default HTTP data source (ABS audiobook tracks,
-     * ADR 0029); anything else → the [ZipAudioDataSource] for Readaloud bundle audio (ADR 0023).
-     * The concrete delegate is chosen lazily in [SchemeResolvingDataSource.open] from the DataSpec's
-     * scheme, so neither source is built until a URI is known.
-     */
-    private fun resolvingDataSourceFactory(): DataSource.Factory =
-        DataSource.Factory { SchemeResolvingDataSource(DefaultHttpDataSource.Factory(), SharedBundle.dataSourceFactory()) }
-
-    private class SchemeResolvingDataSource(
-        private val http: DataSource.Factory,
-        private val zip: DataSource.Factory,
-    ) : DataSource {
-        private val transferListeners = mutableListOf<androidx.media3.datasource.TransferListener>()
-        private var delegate: DataSource? = null
-
-        override fun addTransferListener(transferListener: androidx.media3.datasource.TransferListener) {
-            transferListeners.add(transferListener)
-        }
-
-        override fun open(dataSpec: androidx.media3.datasource.DataSpec): Long {
-            val source = when (dataSpec.uri.scheme) {
-                "http", "https" -> http.createDataSource() // streamed ABS audiobook tracks
-                "file" -> androidx.media3.datasource.FileDataSource() // downloaded audiobook tracks
-                else -> zip.createDataSource() // Readaloud bundle audio
-            }
-            transferListeners.forEach { source.addTransferListener(it) }
-            delegate = source
-            return source.open(dataSpec)
-        }
-
-        override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
-            delegate?.read(buffer, offset, length) ?: throw IllegalStateException("read before open")
-
-        override fun getUri(): Uri? = delegate?.uri
-
-        override fun close() {
-            delegate?.close()
-            delegate = null
-        }
-    }
-
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
-    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+    override fun onTaskRemoved(rootIntent: Intent?) {
         // If the user swipes the app away while paused, stop the service; if playing, keep going.
         val player = mediaSession?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {

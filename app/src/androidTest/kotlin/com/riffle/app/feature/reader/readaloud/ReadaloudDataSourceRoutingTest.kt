@@ -1,24 +1,24 @@
 package com.riffle.app.feature.reader.readaloud
 
-import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.datasource.DataSpec
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.app.feature.audio.BundleAudioSourceFactory
+import com.riffle.app.feature.audio.MediaSourceRegistry
+import com.riffle.core.logging.RecordingLogger
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * On-device check (ADR 0028) that the shared data source routes by URI scheme: `zipaudio://` reads
- * out of the on-disk bundle (the unchanged bundle path), while an `http` URI with no streaming
- * context fails cleanly rather than misrouting. Validates the dispatch the player now relies on.
+ * On-device check (ADR 0028) that the registry routes by URI scheme: `zipaudio://` reads out of the
+ * on-disk bundle (the unchanged bundle path). Streaming-vs-bundle dispatch is now in
+ * [MediaSourceRegistry] (issue #333); this test guards the bundle path the registry assembles.
  */
 @RunWith(AndroidJUnit4::class)
 class ReadaloudDataSourceRoutingTest {
@@ -40,7 +40,8 @@ class ReadaloudDataSourceRoutingTest {
         SharedBundle.current = bundle
         SharedBundle.streaming = null
 
-        val ds = SharedBundle.dataSourceFactory().createDataSource()
+        val registry = MediaSourceRegistry(listOf(BundleAudioSourceFactory(RecordingLogger())))
+        val ds = registry.asDataSourceFactory().createDataSource()
         ds.open(DataSpec.Builder().setUri(ZipAudioDataSource.uriFor("Audio/x.mp3")).build())
         val out = ByteArrayOutputStream()
         val buf = ByteArray(1024)
@@ -53,18 +54,5 @@ class ReadaloudDataSourceRoutingTest {
         bundle.delete()
 
         assertArrayEquals(audio, out.toByteArray())
-    }
-
-    @Test
-    fun http_uri_without_streaming_context_fails_cleanly() {
-        SharedBundle.current = null
-        SharedBundle.streaming = null
-        val ds = SharedBundle.dataSourceFactory().createDataSource()
-        try {
-            ds.open(DataSpec.Builder().setUri(Uri.parse("http://example/track")).build())
-            fail("expected IOException when no streaming source is set")
-        } catch (e: IOException) {
-            // expected
-        }
     }
 }

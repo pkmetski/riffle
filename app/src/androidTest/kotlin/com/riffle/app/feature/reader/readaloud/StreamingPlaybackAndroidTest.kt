@@ -7,6 +7,10 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.riffle.app.feature.audio.BundleAudioSourceFactory
+import com.riffle.app.feature.audio.HttpAudioSourceFactory
+import com.riffle.app.feature.audio.MediaSourceRegistry
+import com.riffle.core.logging.RecordingLogger
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -69,10 +73,14 @@ class StreamingPlaybackAndroidTest {
     fun streaming_playback_advances_position() {
         val url = server.url("/audio").toString()
         instrumentation.runOnMainSync {
-            // streaming context must be set so the dispatch routes http → the cache/HTTP source.
+            // streaming context still tracked here for parity with prepareStreaming(), even though
+            // the production registry uses bare DefaultHttpDataSource for http/https (issue #333).
             SharedBundle.streaming = SharedBundle.Streaming(StreamingAudioCache.dataSourceFactory(appCtx, "tok"), emptyMap())
+            val registry = MediaSourceRegistry(
+                listOf(HttpAudioSourceFactory(), BundleAudioSourceFactory(RecordingLogger())),
+            )
             val p = ExoPlayer.Builder(appCtx)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(SharedBundle.dataSourceFactory()))
+                .setMediaSourceFactory(DefaultMediaSourceFactory(registry.asDataSourceFactory()))
                 .build()
             p.setMediaItem(
                 MediaItem.Builder()
