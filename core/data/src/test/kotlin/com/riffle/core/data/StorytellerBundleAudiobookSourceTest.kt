@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.data.testing.TestApplicationScope
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLink
@@ -10,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -56,51 +58,75 @@ class StorytellerBundleAudiobookSourceTest {
     )
     private val bundle = File("/tmp/book-1.epub")
 
-    @Test
-    fun `localSession resolves link then bundle then builds a session`() = runTest {
-        val source = StorytellerBundleAudiobookSource(
-            readaloudLinkRepository = FakeLinks(listOf(link)),
-            readaloudAudioRepository = FakeAudio(bundle, track),
-            applicationScope = backgroundScope,
+    private fun snapshotFor(links: FakeLinks, appScope: TestApplicationScope) =
+        OfflineAvailabilitySnapshot(
+            applicationScope = appScope,
+            source = links.observeAll().map(::readaloudLinksByAbsItemKey),
         )
 
-        val session = source.localSession("abs", "item-1")!!
+    @Test
+    fun `localSession resolves link then bundle then builds a session`() = runTest {
+        val appScope = TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val links = FakeLinks(listOf(link))
+        try {
+            val source = StorytellerBundleAudiobookSource(
+                readaloudLinkRepository = links,
+                readaloudAudioRepository = FakeAudio(bundle, track),
+                linksByAbsItem = snapshotFor(links, appScope),
+            )
 
-        assertEquals(listOf("audio/0.mp3"), session.trackUrls)
-        assertEquals(bundle, session.localZipFile)
-        assertEquals(30.0, session.timeline.durationSec, 1e-9)
+            val session = source.localSession("abs", "item-1")!!
+
+            assertEquals(listOf("audio/0.mp3"), session.trackUrls)
+            assertEquals(bundle, session.localZipFile)
+            assertEquals(30.0, session.timeline.durationSec, 1e-9)
+        } finally {
+            appScope.coroutineScope.cancel()
+        }
     }
 
     @Test
     fun `localSession is null with no link, no bundle, or no overlay`() = runTest {
-        assertNull(
-            StorytellerBundleAudiobookSource(FakeLinks(emptyList()), FakeAudio(bundle, track), backgroundScope)
-                .localSession("abs", "item-1"),
-        )
-        assertNull(
-            StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(null, track), backgroundScope)
-                .localSession("abs", "item-1"),
-        )
-        assertNull(
-            StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(bundle, null), backgroundScope)
-                .localSession("abs", "item-1"),
-        )
+        val appScope = TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        try {
+            val noLink = FakeLinks(emptyList())
+            assertNull(
+                StorytellerBundleAudiobookSource(noLink, FakeAudio(bundle, track), snapshotFor(noLink, appScope))
+                    .localSession("abs", "item-1"),
+            )
+            val withLink = FakeLinks(listOf(link))
+            assertNull(
+                StorytellerBundleAudiobookSource(withLink, FakeAudio(null, track), snapshotFor(withLink, appScope))
+                    .localSession("abs", "item-1"),
+            )
+            assertNull(
+                StorytellerBundleAudiobookSource(withLink, FakeAudio(bundle, null), snapshotFor(withLink, appScope))
+                    .localSession("abs", "item-1"),
+            )
+        } finally {
+            appScope.coroutineScope.cancel()
+        }
     }
 
     @Test
     fun `isAvailableOffline reflects the link snapshot and bundle presence`() = runTest {
-        val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+        val appScope = TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
         try {
             // Unconfined → the init collector runs eagerly to the StateFlow's first (current) value, so
             // the snapshot is populated synchronously before these assertions, no scheduler advance needed.
-            val present = StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(bundle, track), scope)
+            val withLink = FakeLinks(listOf(link))
+            val present = StorytellerBundleAudiobookSource(
+                withLink, FakeAudio(bundle, track), snapshotFor(withLink, appScope),
+            )
             assertTrue(present.isAvailableOffline("abs", "item-1"))
             assertFalse(present.isAvailableOffline("abs", "other"))
 
-            val noBundle = StorytellerBundleAudiobookSource(FakeLinks(listOf(link)), FakeAudio(null, track), scope)
+            val noBundle = StorytellerBundleAudiobookSource(
+                withLink, FakeAudio(null, track), snapshotFor(withLink, appScope),
+            )
             assertFalse(noBundle.isAvailableOffline("abs", "item-1"))
         } finally {
-            scope.cancel()
+            appScope.coroutineScope.cancel()
         }
     }
 }

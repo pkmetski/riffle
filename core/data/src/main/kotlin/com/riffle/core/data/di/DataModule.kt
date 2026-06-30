@@ -91,7 +91,10 @@ import com.riffle.core.domain.TocRepository
 import com.riffle.core.data.AudiobookBundleDownloader
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.ReadaloudAudioRepositoryImpl
+import com.riffle.core.data.OfflineAvailabilitySnapshot
 import com.riffle.core.data.StorytellerBundleAudiobookSource
+import com.riffle.core.data.readaloudLinksByAbsItemKey
+import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.TocRepositoryImpl
@@ -116,6 +119,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.map
 import okhttp3.OkHttpClient
 import java.io.File
 import javax.inject.Qualifier
@@ -614,12 +618,14 @@ abstract class DataModule {
         fun provideBundleAudiobookSource(
             readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
             readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
+            applicationScope: ApplicationScope,
         ): com.riffle.core.domain.BundleAudiobookSource =
             StorytellerBundleAudiobookSource(
                 readaloudLinkRepository = readaloudLinkRepository,
                 readaloudAudioRepository = readaloudAudioRepository,
-                applicationScope = kotlinx.coroutines.CoroutineScope(
-                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                linksByAbsItem = OfflineAvailabilitySnapshot(
+                    applicationScope = applicationScope,
+                    source = readaloudLinkRepository.observeAll().map(::readaloudLinksByAbsItemKey),
                 ),
             )
 
