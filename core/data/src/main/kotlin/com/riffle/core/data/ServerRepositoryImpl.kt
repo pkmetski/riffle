@@ -67,7 +67,7 @@ class ServerRepositoryImpl @Inject constructor(
     ): AuthenticateResult {
         val loginResult = absApiClient.login(url.value, username, password, insecureAllowed)
         return when (loginResult) {
-            NetworkResult.Auth -> AuthenticateResult.WrongCredentials("Invalid username or password")
+            NetworkResult.Auth -> AuthenticateResult.WrongCredentials(WRONG_CREDENTIALS_MESSAGE)
             is NetworkResult.InsecureConnection -> AuthenticateResult.InsecureConnection(loginResult.type)
             is NetworkResult.Success -> {
                 val libs = libraryApi.getLibraries(url.value, loginResult.value.token, insecureAllowed)
@@ -104,7 +104,7 @@ class ServerRepositoryImpl @Inject constructor(
         password: String,
         insecureAllowed: Boolean,
     ): AuthenticateResult = when (val result = storytellerApi.login(url.value, username, password, insecureAllowed)) {
-        NetworkResult.Auth -> AuthenticateResult.WrongCredentials("Invalid username or password")
+        NetworkResult.Auth -> AuthenticateResult.WrongCredentials(WRONG_CREDENTIALS_MESSAGE)
         is NetworkResult.InsecureConnection -> AuthenticateResult.InsecureConnection(result.type)
         is NetworkResult.Success -> AuthenticateResult.Success(
             PendingServer(
@@ -215,6 +215,10 @@ class ServerRepositoryImpl @Inject constructor(
         // `library_items` (matcher input; never browsable — ADR 0026). Its mediaType is the shared
         // [READALOUD_MEDIA_TYPE] so consumers can filter it out of browsable surfaces.
         fun readaloudLibraryId(serverId: String): String = "readaloud:$serverId"
+
+        // Surfaced when the network layer maps 401 to [NetworkResult.Auth] — the unified result type
+        // drops the server-provided string, so the user-facing message is owned here.
+        private const val WRONG_CREDENTIALS_MESSAGE = "Invalid username or password"
     }
 
     override suspend fun ensureAbsUserId(serverId: String): String? {

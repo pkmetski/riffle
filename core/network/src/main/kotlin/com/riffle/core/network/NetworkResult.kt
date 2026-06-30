@@ -25,7 +25,20 @@ sealed class NetworkResult<out T> {
 }
 
 /** Thrown by endpoint blocks to signal a non-success HTTP code; the classifier maps 401 → Auth. */
-class HttpException(val code: Int, msg: String? = null) : IOException(msg)
+internal class HttpException(val code: Int, msg: String? = null) : IOException(msg)
+
+/** Throw [HttpException] for non-success codes; closes the body so the connection returns to the pool. */
+internal fun okhttp3.Response.requireSuccessful(): okhttp3.Response {
+    if (!isSuccessful) {
+        body?.close()
+        throw HttpException(code, message)
+    }
+    return this
+}
+
+/** Read the body as a string or fail with `IOException("Empty response body")` for the classifier. */
+internal fun okhttp3.Response.requireBody(): String =
+    body?.string() ?: throw IOException("Empty response body")
 
 object OkHttpClassifier {
     /**

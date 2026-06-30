@@ -63,7 +63,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
                 NetworkLoginUser(userId = parsed.user.id, token = parsed.user.token, username = parsed.user.username)
             }
             // 401 historically surfaced as WrongCredentials; the classifier maps Auth ⇒ wrong creds.
-            else -> throw HttpException(response.code, response.message)
+            else -> {
+                response.body?.close()
+                throw HttpException(response.code, response.message)
+            }
         }
     }
 
@@ -152,7 +155,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkSeries>> = OkHttpClassifier.classify {
         val response = get(baseUrl, "/api/libraries/$libraryId/series?limit=500", token, insecureAllowed)
-        val raw = response.requireBody()
+        val raw = response.requireSuccessful().requireBody()
         val parsed = json.decodeFromString<AbsSeriesResponse>(raw)
         parsed.results.map { dto ->
             NetworkSeries(
@@ -190,7 +193,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkCollection>> = OkHttpClassifier.classify {
         val response = get(baseUrl, "/api/libraries/$libraryId/collections?limit=500", token, insecureAllowed)
-        val raw = response.requireBody()
+        val raw = response.requireSuccessful().requireBody()
         json.decodeFromString<AbsCollectionsResponse>(raw).results.map { it.toNetworkCollection() }
     }
 
@@ -258,7 +261,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkPlaylist>> = OkHttpClassifier.classify {
         val response = get(baseUrl, "/api/libraries/$libraryId/playlists?limit=500", token, insecureAllowed)
-        val raw = response.requireBody()
+        val raw = response.requireSuccessful().requireBody()
         json.decodeFromString<AbsPlaylistsResponse>(raw).results.map { it.toNetworkPlaylist() }
     }
 
@@ -615,17 +618,6 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .build()
         return client(insecureAllowed).newCall(request).execute()
     }
-
-    private fun Response.requireSuccessful(): Response {
-        if (!isSuccessful) {
-            body?.close()
-            throw HttpException(code, message)
-        }
-        return this
-    }
-
-    private fun Response.requireBody(): String =
-        body?.string() ?: throw IOException("Empty response body")
 
     private fun OkHttpClient.trustAllCerts(): OkHttpClient {
         val trustAll = object : X509TrustManager {
