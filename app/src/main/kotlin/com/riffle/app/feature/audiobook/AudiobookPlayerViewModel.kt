@@ -13,6 +13,7 @@ import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -149,7 +150,7 @@ data class AudiobookPlayerUiState(
 )
 
 @HiltViewModel
-class AudiobookPlayerViewModel(
+class AudiobookPlayerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
@@ -181,72 +182,9 @@ class AudiobookPlayerViewModel(
     private val bookmarkStore: AudiobookBookmarkStore,
     private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
     private val audiobookHandoffState: AudiobookHandoffState,
-    // Wall-clock for bookmark stamps (createdAt + dirty); a () -> Long for deterministic tests, the
-    // established clock-injection pattern in this codebase (e.g. ReadaloudMatchingService).
-    private val now: () -> Long = System::currentTimeMillis,
-    private val logger: Logger = com.riffle.core.logging.RecordingLogger(),
+    private val clock: Clock,
+    private val logger: Logger,
 ) : ViewModel() {
-
-    // Hilt entry point: it can't satisfy a `() -> Long` binding, so the injected constructor omits the
-    // clock and delegates to the real one (the established pattern, e.g. ReadaloudMatchingService). The
-    // primary constructor with the `now` default is what tests use for a deterministic clock.
-    @Inject
-    constructor(
-        savedStateHandle: SavedStateHandle,
-        audiobookRepository: AudiobookRepository,
-        audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
-        bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
-        libraryRepository: LibraryRepository,
-        serverRepository: ServerRepository,
-        tokenStorage: TokenStorage,
-        controller: AudiobookController,
-        readaloudController: com.riffle.app.feature.reader.readaloud.ReadaloudController,
-        audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
-        listeningPreferencesStore: ListeningPreferencesStore,
-        audioIdentityResolver: AudioIdentityResolver,
-        readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
-        readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
-        readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
-        nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
-        audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
-        readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
-        audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
-        readaloudResumeStore: com.riffle.core.domain.ReadaloudResumeStore,
-        openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
-        progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
-        bookmarkStore: AudiobookBookmarkStore,
-        connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
-        audiobookHandoffState: AudiobookHandoffState,
-        logger: Logger,
-    ) : this(
-        savedStateHandle,
-        audiobookRepository,
-        audiobookDownloadRepository,
-        bundleAudiobookSource,
-        libraryRepository,
-        serverRepository,
-        tokenStorage,
-        controller,
-        readaloudController,
-        audioPlaybackPreferencesStore,
-        listeningPreferencesStore,
-        audioIdentityResolver,
-        readerSyncFactory,
-        readaloudLinkRepository,
-        readaloudAudioRepository,
-        nowPlayingStore,
-        audiobookPositionStore,
-        readingSyncStore,
-        audioSyncStore,
-        readaloudResumeStore,
-        openReconcileTargets,
-        progressFlushScope,
-        bookmarkStore,
-        connectivityObserver,
-        audiobookHandoffState,
-        System::currentTimeMillis,
-        logger,
-    )
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
 
@@ -403,7 +341,7 @@ class AudiobookPlayerViewModel(
     init {
         viewModelScope.launch {
             try {
-            val t0 = System.currentTimeMillis()
+            val t0 = clock.nowMs()
             logger.d(LogChannel.Handoff) { "AB.VM init start itemId=$itemId startAtSec=$startAtSec" }
             val server = serverRepository.getActive()
             serverId = server?.id ?: ""
@@ -429,20 +367,20 @@ class AudiobookPlayerViewModel(
                 }
             }
             val token = server?.let { tokenStorage.getToken(it.id) } ?: ""
-            logger.d(LogChannel.Handoff) { "AB.VM init: got server +${System.currentTimeMillis() - t0}ms" }
+            logger.d(LogChannel.Handoff) { "AB.VM init: got server +${clock.nowMs() - t0}ms" }
             val item = libraryRepository.getItem(itemId)
-            logger.d(LogChannel.Handoff) { "AB.VM init: got item +${System.currentTimeMillis() - t0}ms" }
+            logger.d(LogChannel.Handoff) { "AB.VM init: got item +${clock.nowMs() - t0}ms" }
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
             // stream from ABS (connectivity-independent: a local copy always beats streaming).
             val session = if (serverId.isEmpty()) null
                 else audiobookDownloadRepository.localSession(serverId, itemId)
-                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: local download session +${System.currentTimeMillis() - t0}ms" } }
+                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: local download session +${clock.nowMs() - t0}ms" } }
                     ?: bundleAudiobookSource.localSession(serverId, itemId)
-                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: bundle session +${System.currentTimeMillis() - t0}ms" } }
+                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: bundle session +${clock.nowMs() - t0}ms" } }
                     ?: audiobookRepository.openSession(serverId, itemId)
-                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: ABS network session +${System.currentTimeMillis() - t0}ms" } }
+                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: ABS network session +${clock.nowMs() - t0}ms" } }
             if (item == null || session == null) {
-                logger.d(LogChannel.Handoff) { "AB.VM init: FAILED (item=${item != null} session=${session != null}) +${System.currentTimeMillis() - t0}ms" }
+                logger.d(LogChannel.Handoff) { "AB.VM init: FAILED (item=${item != null} session=${session != null}) +${clock.nowMs() - t0}ms" }
                 meta.value = meta.value.copy(loading = false, failed = true)
                 return@launch
             }
@@ -502,7 +440,7 @@ class AudiobookPlayerViewModel(
             var resumeStamp = resumeUpdatedAt
             if (startAtSec >= 0.0) {
                 resumeSec = startAtSec.coerceIn(0.0, session.timeline.durationSec)
-                resumeStamp = System.currentTimeMillis()
+                resumeStamp = clock.nowMs()
                 if (serverId.isNotEmpty()) {
                     audiobookPositionStore.save(serverId, itemId, resumeSec)
                     audiobookPositionStore.updateLocalTimestamp(serverId, itemId, resumeStamp)
@@ -587,14 +525,14 @@ class AudiobookPlayerViewModel(
             sessionDeferred.complete(session)
             resolvedCoverUri = item.coverUrl
             resolvedInitialSpeed = initialSpeed
-            logger.d(LogChannel.Handoff) { "AB.VM init: resolvedSession ready +${System.currentTimeMillis() - t0}ms (startAtSec=$startAtSec)" }
+            logger.d(LogChannel.Handoff) { "AB.VM init: resolvedSession ready +${clock.nowMs() - t0}ms (startAtSec=$startAtSec)" }
 
             if (startAtSec == PREWARM_SENTINEL) {
                 // Pre-connect the binder now so the first swipe-up pays ~0 ms instead of the full
                 // MediaController.Builder.buildAsync round-trip (ADR 0032).
-                logger.d(LogChannel.Handoff) { "AB.VM init: warming binder +${System.currentTimeMillis() - t0}ms" }
+                logger.d(LogChannel.Handoff) { "AB.VM init: warming binder +${clock.nowMs() - t0}ms" }
                 controller.warmBinder()
-                logger.d(LogChannel.Handoff) { "AB.VM init: binder warm +${System.currentTimeMillis() - t0}ms" }
+                logger.d(LogChannel.Handoff) { "AB.VM init: binder warm +${clock.nowMs() - t0}ms" }
             } else {
                 // Normal open or readaloud→audiobook handoff via nav arg: prepare and play now.
                 // Resume at the server-recorded position (last-update-wins resume; ADR 0029).
@@ -765,7 +703,7 @@ class AudiobookPlayerViewModel(
                     // inbound-only (local time 0 → local can't win), so a genuinely-newer remote still
                     // pulls in and seeks, but nothing local can erase progress.
                     if (playing && pos >= reconciledResumeSec - SETTLE_EPS_SEC) {
-                        localUpdatedAt = System.currentTimeMillis()
+                        localUpdatedAt = clock.nowMs()
                         reconciledResumeSec = maxOf(reconciledResumeSec, pos)
                         val r = rs.runAudioLedCycle(pos, localUpdatedAt)
                         localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
@@ -846,15 +784,15 @@ class AudiobookPlayerViewModel(
      */
     fun addBookmark(title: String, positionSec: Double) {
         if (serverId.isEmpty()) return
-        viewModelScope.launch { bookmarkStore.add(serverId, itemId, positionSec, title, now()) }
+        viewModelScope.launch { bookmarkStore.add(serverId, itemId, positionSec, title, clock.nowMs()) }
     }
 
     fun renameBookmark(id: String, title: String) {
-        viewModelScope.launch { bookmarkStore.rename(id, title, now()) }
+        viewModelScope.launch { bookmarkStore.rename(id, title, clock.nowMs()) }
     }
 
     fun deleteBookmark(id: String) {
-        viewModelScope.launch { bookmarkStore.delete(id, now()) }
+        viewModelScope.launch { bookmarkStore.delete(id, clock.nowMs()) }
     }
 
     /** Jump the player to a saved bookmark's book-absolute position (genuine user navigation). */
@@ -914,7 +852,7 @@ class AudiobookPlayerViewModel(
             // Backend (ABS) sync — outside the coordinator, like the reader's progress-sync cycle.
             val rs = readerSync
             if (rs != null) {
-                localUpdatedAt = System.currentTimeMillis()
+                localUpdatedAt = clock.nowMs()
                 val r = rs.runAudioLedCycle(pos, localUpdatedAt)
                 localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
             } else {
@@ -969,7 +907,7 @@ class AudiobookPlayerViewModel(
      * pre-warm state and subsequent re-activations after a swipe-down).
      */
     private suspend fun activateFromHandoff(atSec: Double) {
-        val t0 = System.currentTimeMillis()
+        val t0 = clock.nowMs()
         logger.d(LogChannel.Handoff) { "AB.activateFromHandoff start atSec=$atSec resolvedSession=${resolvedSession != null}" }
         val session = resolvedSession ?: run {
             // Init still running — await the bundle-session fetch rather than drop the handoff.
@@ -989,17 +927,17 @@ class AudiobookPlayerViewModel(
             localZipFile = session.localZipFile,
             coverUri = resolvedCoverUri,
         )
-        logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: prepare() done +${System.currentTimeMillis() - t0}ms" }
+        logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: prepare() done +${clock.nowMs() - t0}ms" }
         controller.setSpeed(resolvedInitialSpeed)
         reconciledResumeSec = finalSec
-        localUpdatedAt = System.currentTimeMillis()
+        localUpdatedAt = clock.nowMs()
         if (serverId.isNotEmpty()) {
             audiobookPositionStore.save(serverId, itemId, finalSec)
             audiobookPositionStore.updateLocalTimestamp(serverId, itemId, localUpdatedAt)
         }
         nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
         controller.play()
-        logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: play() called +${System.currentTimeMillis() - t0}ms" }
+        logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: play() called +${clock.nowMs() - t0}ms" }
         attachReaderSync(finalSec, localUpdatedAt)
         startFollowLoop()
     }

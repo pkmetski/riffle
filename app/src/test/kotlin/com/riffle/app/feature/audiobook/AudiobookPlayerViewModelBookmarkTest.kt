@@ -25,6 +25,7 @@ import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
 import com.riffle.core.domain.BundleAudiobookSource
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.CrossEpubIndex
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EbookFormat
@@ -173,7 +174,10 @@ class AudiobookPlayerViewModelBookmarkTest {
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
-            now = { fixedNow },
+            clock = object : Clock {
+                override fun nowMs(): Long = fixedNow
+                override fun nowNs(): Long = fixedNow * 1_000_000L
+            },
             logger = logger,
         )
     }

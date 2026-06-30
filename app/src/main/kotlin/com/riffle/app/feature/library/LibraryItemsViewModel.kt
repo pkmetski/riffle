@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
@@ -57,6 +58,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
+    private val clock: Clock,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -262,7 +264,7 @@ class LibraryItemsViewModel @Inject constructor(
      * redundant network round-trip when the library screen first enters RESUMED state immediately
      * after init (which already launched its own refresh). */
     fun onScreenResumed() {
-        if (System.currentTimeMillis() - lastRefreshCompletedAt > RESUME_REFRESH_DEBOUNCE_MS) {
+        if (clock.nowMs() - lastRefreshCompletedAt > RESUME_REFRESH_DEBOUNCE_MS) {
             refresh()
         }
     }
@@ -280,7 +282,7 @@ class LibraryItemsViewModel @Inject constructor(
         val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
         toReadDeferred.await()
         _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
-        lastRefreshCompletedAt = System.currentTimeMillis()
+        lastRefreshCompletedAt = clock.nowMs()
     }
 
     private companion object {

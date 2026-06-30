@@ -43,6 +43,7 @@ import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.StoredItemRef
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.logging.RecordingLogger
@@ -213,7 +214,11 @@ class SleepTimerTest {
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
-            now = { 0L },
+            clock = object : Clock {
+                override fun nowMs(): Long = 0L
+                override fun nowNs(): Long = 0L
+            },
+            logger = RecordingLogger(),
         )
     }
 

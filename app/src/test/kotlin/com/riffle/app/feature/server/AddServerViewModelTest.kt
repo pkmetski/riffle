@@ -164,6 +164,10 @@ class AddServerViewModelTest {
         storytellerSyncer = io.mockk.mockk(relaxed = true),
         readaloudMatcher = io.mockk.mockk(relaxed = true),
         tokenStorage = tokenStorage,
+        clock = object : com.riffle.core.domain.Clock {
+            override fun nowMs(): Long = 0L
+            override fun nowNs(): Long = 0L
+        },
         savedStateHandle = savedState,
     )
 
