@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
@@ -1193,7 +1194,7 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         NavigationBarItem(
             selected = selectedTab == 1,
             onClick = { onTabSelected(1) },
-            icon = { Icon(Icons.Filled.Bookmark, contentDescription = "To Read") },
+            icon = { Icon(Icons.Filled.Bookmarks, contentDescription = "To Read") },
         )
         NavigationBarItem(
             selected = selectedTab == 2,
