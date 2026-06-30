@@ -1,13 +1,10 @@
 package com.riffle.app.feature.reader.readaloud
 
-import android.content.ComponentName
-import android.content.Context
-import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
+import com.riffle.app.feature.audio.MediaSessionConnector
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.ReadaloudTrack
@@ -15,7 +12,6 @@ import com.riffle.core.domain.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,11 +21,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.resume
 
 /**
  * App-facing handle to the Readaloud [AudioPlayerService]. Connects via a Media3 [MediaController],
@@ -41,13 +35,14 @@ import kotlin.coroutines.resume
  */
 @Singleton
 open class ReadaloudController @Inject constructor(
-    @ApplicationContext private val context: Context?,
+    private val connector: MediaSessionConnector?,
     applicationScope: ApplicationScope?,
     private val logger: Logger,
     private val clock: Clock,
 ) {
-    // Test seam: subclasses that override the pre-warm methods need no real Context (only consulted in
-    // [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without Robolectric.
+    // Test seam: subclasses that override the pre-warm methods need no real connector (only consulted
+    // in [ensureConnected], which fakes never reach). Keeps the controller unit-fakeable without
+    // Robolectric.
     protected constructor() : this(null, null, RecordingLogger(), SystemClock)
     data class PlaybackState(
         val connected: Boolean = false,
@@ -76,8 +71,7 @@ open class ReadaloudController @Inject constructor(
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
-    private var controller: MediaController? = null
-    private var listenerAttached = false
+    private val controller: MediaController? get() = connector?.controller
     private var pollJob: Job? = null
     private var track: ReadaloudTrack? = null
     /** Maps a distinct audio file to its index in the queued playlist. */
@@ -192,11 +186,8 @@ open class ReadaloudController @Inject constructor(
         logger.d(LogChannel.Handoff) { "RA.releaseForHandoff (T0 — audio pausing)" }
         pollJob?.cancel()
         pollJob = null
-        controller?.run {
-            pause()
-            removeListener(listener)
-        }
-        listenerAttached = false
+        controller?.pause()
+        connector?.releaseForHandoff()
         preWarmedPosition = null
         _state.value = PlaybackState()
     }
@@ -253,14 +244,7 @@ open class ReadaloudController @Inject constructor(
     fun stop() {
         pollJob?.cancel()
         pollJob = null
-        controller?.run {
-            stop()
-            clearMediaItems()
-            removeListener(listener)
-            release()
-        }
-        controller = null
-        listenerAttached = false
+        connector?.release()
         track = null
         preWarmedPosition = null
         SharedBundle.current = null
@@ -274,22 +258,8 @@ open class ReadaloudController @Inject constructor(
     }
 
     private suspend fun ensureConnected(): MediaController? {
-        val c = controller ?: run {
-            val ctx = context ?: return null
-            val token = SessionToken(ctx, ComponentName(ctx, AudioPlayerService::class.java))
-            val future = MediaController.Builder(ctx, token).buildAsync()
-            val newC = suspendCancellableCoroutine<MediaController?> { cont ->
-                future.addListener({
-                    cont.resume(runCatching { future.get() }.getOrNull())
-                }, ContextCompat.getMainExecutor(ctx))
-            }
-            controller = newC
-            newC
-        }
-        if (!listenerAttached && c != null) {
-            c.addListener(listener)
-            listenerAttached = true
-        }
+        val c = connector?.ensureConnected() ?: return null
+        connector.attachListener(listener)
         pushState()
         return c
     }
