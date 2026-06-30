@@ -75,7 +75,7 @@ class StreamingPlaybackAndroidTest {
         instrumentation.runOnMainSync {
             // streaming context still tracked here for parity with prepareStreaming(), even though
             // the production registry uses bare DefaultHttpDataSource for http/https (issue #333).
-            SharedBundle.streaming = SharedBundle.Streaming(StreamingAudioCache.dataSourceFactory(appCtx, "tok"), emptyMap())
+            SharedBundle.streaming = SharedBundle.Streaming(emptyMap())
             val registry = MediaSourceRegistry(
                 listOf(HttpAudioSourceFactory(), BundleAudioSourceFactory(RecordingLogger())),
             )

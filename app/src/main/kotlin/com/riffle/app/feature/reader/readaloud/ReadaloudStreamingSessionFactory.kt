@@ -97,8 +97,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
             return@withContext null
         }
 
-        val httpFactory = StreamingAudioCache.dataSourceFactory(context, absToken)
-        Session(setup.track, SharedBundle.Streaming(httpFactory, setup.items.associateBy { it.audioSrc }), sidecarFile, absToken)
+        Session(setup.track, SharedBundle.Streaming(setup.items.associateBy { it.audioSrc }), sidecarFile, absToken)
     }
 
     /**

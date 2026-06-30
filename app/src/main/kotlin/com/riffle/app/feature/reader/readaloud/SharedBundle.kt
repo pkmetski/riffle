@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.readaloud
 
-import androidx.media3.datasource.DataSource
 import com.riffle.core.data.StreamingMediaItem
 import com.riffle.core.logging.Logger
 import java.io.File
@@ -27,9 +26,8 @@ object SharedBundle {
     @Volatile
     var logger: Logger? = null
 
-    /** Streaming state for the active book: how to fetch ABS audio, and the per-segment plan. */
+    /** Per-segment plan for the active book's streamed audio. */
     class Streaming(
-        val httpFactory: DataSource.Factory,
         val itemsByMediaId: Map<String, StreamingMediaItem>,
     )
 }
