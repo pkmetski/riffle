@@ -8,6 +8,7 @@ import com.riffle.core.domain.ServerRepository
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 /**
  * Best-effort writer of this device's per-namespace `AnnotationDeviceMeta` sentinel (#321). The
@@ -54,6 +55,9 @@ class DeviceMetaSentinelWriter(
                 )
             )
             target.writeDeviceMeta(namespace, deviceId, body)
+        } catch (e: CancellationException) {
+            // Never swallow cancellation — structured concurrency needs the unwind.
+            throw e
         } catch (_: Exception) {
             // Best-effort. See class kdoc.
         }

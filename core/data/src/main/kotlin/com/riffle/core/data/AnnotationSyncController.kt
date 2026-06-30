@@ -289,7 +289,7 @@ class AnnotationSyncController(
     private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
 
-        try {
+        val pushed = try {
             // Hold the per-book annotation lock across the read-then-write so the durable
             // [AnnotationSweep] cannot interleave on the same device file (#321, ADR 0036).
             locks.withAnnotationLock(serverId, itemId) {
@@ -298,7 +298,12 @@ class AnnotationSyncController(
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
             sweepEnqueuer.enqueue()
+            return
         }
+        // Sentinel writes a different file than the annotations payload, so it doesn't need the
+        // per-book lock — keep it out to avoid serializing an extra remote round-trip against the
+        // sweep's reconcile path.
+        if (pushed) sentinelWriter.writeQuietly(target, namespace, serverId)
     }
 
     private suspend fun pushPendingLocked(
@@ -306,7 +311,7 @@ class AnnotationSyncController(
         serverId: String,
         namespace: String,
         itemId: String,
-    ) {
+    ): Boolean {
         // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
         // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
         // the newer tombstone over any older live copy of the same id.
@@ -316,7 +321,7 @@ class AnnotationSyncController(
         // (cleared data, mid-migration). We only push when there's at least one row (live or
         // tombstoned) to record. Genuine "user deleted everything" still propagates because
         // each delete leaves a tombstone in this list.
-        if (localEntities.isEmpty()) return
+        if (localEntities.isEmpty()) return false
 
         val deviceId = deviceIdStore.getOrCreate()
         val jsonStrings = localEntities.map { entity ->
@@ -336,6 +341,6 @@ class AnnotationSyncController(
         val now = clock()
         annotationDao.markSynced(localEntities.map { it.id }, now)
         statusStore.report(CycleOutcome.Success(now))
-        sentinelWriter.writeQuietly(target, namespace, serverId)
+        return true
     }
 }
