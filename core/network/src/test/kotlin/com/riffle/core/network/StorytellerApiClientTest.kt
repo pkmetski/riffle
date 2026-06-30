@@ -40,8 +40,8 @@ class StorytellerApiClientTest {
 
         val result = client.login(baseUrl(), "plamen", "secret", false)
 
-        assertTrue(result is NetworkStorytellerLoginResult.Success)
-        assertEquals("tok-abc", (result as NetworkStorytellerLoginResult.Success).token)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals("tok-abc", (result as NetworkResult.Success).value)
         val request = server.takeRequest()
         assertEquals("POST", request.method)
         assertEquals("/api/token", request.path)
@@ -56,14 +56,14 @@ class StorytellerApiClientTest {
     fun `login 400 returns WrongCredentials`() = runTest {
         server.enqueue(MockResponse().setResponseCode(400).setBody("""{"message":"Incorrect username or password"}"""))
         val result = client.login(baseUrl(), "plamen", "wrong", false)
-        assertTrue(result is NetworkStorytellerLoginResult.WrongCredentials)
+        assertTrue(result is NetworkResult.Auth)
     }
 
     @Test
     fun `login unreachable host returns NetworkError`() = runTest {
         server.shutdown()
         val result = client.login("http://127.0.0.1:1", "plamen", "pass", false)
-        assertTrue(result is NetworkStorytellerLoginResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 
     @Test
@@ -72,7 +72,7 @@ class StorytellerApiClientTest {
 
         val result = client.validateToken(baseUrl(), "tok-xyz", false)
 
-        assertTrue(result is NetworkStorytellerValidateResult.Valid)
+        assertTrue(result is NetworkResult.Success && result.value == true)
         val request = server.takeRequest()
         assertEquals("/api/validate", request.path)
         assertEquals("Bearer tok-xyz", request.getHeader("Authorization"))
@@ -82,7 +82,7 @@ class StorytellerApiClientTest {
     fun `validateToken 401 returns Invalid`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
         val result = client.validateToken(baseUrl(), "stale", false)
-        assertTrue(result is NetworkStorytellerValidateResult.Invalid)
+        assertTrue(result is NetworkResult.Success && result.value == false)
     }
 
     @Test
@@ -101,8 +101,8 @@ class StorytellerApiClientTest {
 
         val result = client.listReadalouds(baseUrl(), "tok", false)
 
-        assertTrue(result is NetworkStorytellerBooksResult.Success)
-        val books = (result as NetworkStorytellerBooksResult.Success).books
+        assertTrue(result is NetworkResult.Success)
+        val books = (result as NetworkResult.Success).value
         assertEquals(2, books.size)
         assertEquals(1385738337074647L, books[0].id)
         assertEquals("The Martian: A Novel", books[0].title)
@@ -116,7 +116,7 @@ class StorytellerApiClientTest {
     fun `listReadalouds non-2xx returns NetworkError`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
         val result = client.listReadalouds(baseUrl(), "tok", false)
-        assertTrue(result is NetworkStorytellerBooksResult.NetworkError)
+        assertTrue(result is NetworkResult.ServerError)
     }
 
     @Test
@@ -130,8 +130,8 @@ class StorytellerApiClientTest {
 
         val result = client.getBook(baseUrl(), 42L, "tok", false)
 
-        assertTrue(result is NetworkStorytellerBookResult.Success)
-        val book = (result as NetworkStorytellerBookResult.Success).book
+        assertTrue(result is NetworkResult.Success)
+        val book = (result as NetworkResult.Success).value
         assertEquals(42L, book.id)
         assertEquals("Dune", book.title)
         assertEquals(listOf("Herbert"), book.authors)
@@ -143,8 +143,7 @@ class StorytellerApiClientTest {
     fun `getBook 404 returns NotFound with the requested id`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
         val result = client.getBook(baseUrl(), 99L, "tok", false)
-        assertTrue(result is NetworkStorytellerBookResult.NotFound)
-        assertEquals(99L, (result as NetworkStorytellerBookResult.NotFound).bookId)
+        assertTrue(result is NetworkResult.ServerError && result.code == 404)
     }
 
     @Test

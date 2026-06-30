@@ -1,45 +1,48 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.AudiobookFingerprint
+
 fun interface StorytellerApi {
     suspend fun login(
         baseUrl: String,
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerLoginResult
+    ): NetworkResult<String>
 }
 
 interface StorytellerLibraryApi {
+    /** `true` = valid token, `false` = explicitly invalid (401/403). Other failures bubble up. */
     suspend fun validateToken(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerValidateResult
+    ): NetworkResult<Boolean>
 
     suspend fun listReadalouds(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerBooksResult
+    ): NetworkResult<List<NetworkStorytellerBook>>
 
+    /** A 404 surfaces as `ServerError(404)` — callers detect that to mean "book gone". */
     suspend fun getBook(
         baseUrl: String,
         bookId: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerBookResult
+    ): NetworkResult<NetworkStorytellerBook>
 
     fun coverUrl(baseUrl: String, bookId: Long): String
 
     /**
-     * The ingested-source audiobook fingerprint from `/api/v2/books/{id}` (ADR 0028). Default
-     * returns an error so existing fakes need no change; the real client overrides it.
+     * The ingested-source audiobook fingerprint from `/api/v2/books/{id}` (ADR 0028). Success(null)
+     * means the source carries no audiobook. Default returns Unknown so existing fakes need no change.
      */
     suspend fun getAudiobookFingerprint(
         baseUrl: String,
         bookId: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkAudiobookFingerprintResult =
-        NetworkAudiobookFingerprintResult.NetworkError(NotImplementedError("getAudiobookFingerprint"))
+    ): NetworkResult<AudiobookFingerprint?> = NetworkResult.Unknown(NotImplementedError("getAudiobookFingerprint"))
 }

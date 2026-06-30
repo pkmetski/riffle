@@ -37,11 +37,11 @@ class StorytellerPositionApiTest {
         assertEquals("GET", recorded.method)
         assertEquals("/api/v2/books/42/positions", recorded.path)
         assertEquals("Bearer tkn", recorded.getHeader("Authorization"))
-        assertTrue(result is NetworkStorytellerPositionResult.Success)
-        result as NetworkStorytellerPositionResult.Success
-        assertEquals(1780258583061L, result.timestampMillis)
-        assertTrue("locator json carries the href", result.locatorJson.contains("text/c1.html"))
-        assertTrue("locator json carries the fragment", result.locatorJson.contains("id1-s2"))
+        assertTrue(result is NetworkResult.Success)
+        result as NetworkResult.Success
+        assertEquals(1780258583061L, result.value!!.timestampMillis)
+        assertTrue("locator json carries the href", result.value!!.locatorJson.contains("text/c1.html"))
+        assertTrue("locator json carries the fragment", result.value!!.locatorJson.contains("id1-s2"))
     }
 
     @Test fun getPosition_404_isNoPosition() = runTest {
@@ -49,7 +49,7 @@ class StorytellerPositionApiTest {
 
         val result = api.getPosition(baseUrl(), "42", "tkn", insecureAllowed = false)
 
-        assertTrue(result is NetworkStorytellerPositionResult.NoPosition)
+        assertTrue(result is NetworkResult.Success && result.value == null)
     }
 
     @Test fun getPosition_serverError_isNetworkError() = runTest {
@@ -57,7 +57,7 @@ class StorytellerPositionApiTest {
 
         val result = api.getPosition(baseUrl(), "42", "tkn", insecureAllowed = false)
 
-        assertTrue(result is NetworkStorytellerPositionResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 
     @Test fun putPosition_sendsLocatorAndTimestamp() = runTest {
@@ -77,6 +77,6 @@ class StorytellerPositionApiTest {
         val body = recorded.body.readUtf8()
         assertTrue("body carries locator", body.contains("text/c1.html"))
         assertTrue("body carries timestamp", body.contains("1780258583061"))
-        assertTrue(result is NetworkStorytellerPutResult.Success)
+        assertTrue(result is NetworkResult.Success)
     }
 }

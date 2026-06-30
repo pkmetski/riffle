@@ -104,7 +104,7 @@ class AbsApiClientSessionTest {
             NetworkEbookProgressPayload("cfi", 0.5f),
             "tok", false,
         )
-        assertTrue(result is NetworkSyncSessionResult.Success)
+        assertTrue(result is NetworkResult.Success)
     }
 
     @Test
@@ -115,7 +115,7 @@ class AbsApiClientSessionTest {
             NetworkEbookProgressPayload("cfi", 0.5f),
             "tok", false,
         )
-        assertTrue(result is NetworkSyncSessionResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -126,7 +126,7 @@ class AbsApiClientSessionTest {
             NetworkEbookProgressPayload("cfi", 0f),
             "tok", false,
         )
-        assertTrue(result is NetworkSyncSessionResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -141,8 +141,8 @@ class AbsApiClientSessionTest {
             NetworkEbookProgressPayload("cfi", 0.5f),
             "tok", false,
         )
-        assertTrue(result is NetworkSyncSessionResult.Success)
-        assertEquals(0L, (result as NetworkSyncSessionResult.Success).lastUpdate)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(0L, (result as NetworkResult.Success).value)
     }
 
     @Test
@@ -157,8 +157,8 @@ class AbsApiClientSessionTest {
             NetworkEbookProgressPayload("cfi", 0.5f),
             "tok", false,
         )
-        assertTrue(result is NetworkSyncSessionResult.Success)
-        assertEquals(1779445105751L, (result as NetworkSyncSessionResult.Success).lastUpdate)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(1779445105751L, (result as NetworkResult.Success).value)
     }
 
     @Test
@@ -173,8 +173,8 @@ class AbsApiClientSessionTest {
             NetworkEbookProgressPayload("cfi", 0.5f),
             "tok", false,
         )
-        assertTrue(result is NetworkSyncSessionResult.Success)
-        assertEquals(0L, (result as NetworkSyncSessionResult.Success).lastUpdate)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(0L, (result as NetworkResult.Success).value)
     }
 
     @Test
@@ -185,8 +185,8 @@ class AbsApiClientSessionTest {
                 .setBody("""{"ebookLocation":"epubcfi(/6/160!/4/4[heading_id_2]/1:0)","lastUpdate":1779445105751}""")
         )
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)
-        assertTrue(result is NetworkGetProgressResult.Success)
-        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertTrue(result is NetworkResult.Success)
+        val progress = (result as NetworkResult.Success).value
         assertEquals("epubcfi(/6/160!/4/4[heading_id_2]/1:0)", progress.ebookLocation)
         assertEquals(1779445105751L, progress.lastUpdate)
     }
@@ -218,8 +218,8 @@ class AbsApiClientSessionTest {
                 """.trimIndent())
         )
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)
-        assertTrue(result is NetworkGetProgressResult.Success)
-        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertTrue(result is NetworkResult.Success)
+        val progress = (result as NetworkResult.Success).value
         assertEquals("epubcfi(/6/160!/4/4[heading_id_2]/1:0)", progress.ebookLocation)
         assertEquals(1779445105751L, progress.lastUpdate)
     }
@@ -228,8 +228,8 @@ class AbsApiClientSessionTest {
     fun `getProgress 404 returns Success with lastUpdate zero and empty ebookLocation`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)
-        assertTrue(result is NetworkGetProgressResult.Success)
-        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertTrue(result is NetworkResult.Success)
+        val progress = (result as NetworkResult.Success).value
         assertEquals("", progress.ebookLocation)
         assertEquals(0f, progress.ebookProgress, 0.001f)
         assertEquals(0L, progress.lastUpdate)
@@ -239,7 +239,7 @@ class AbsApiClientSessionTest {
     fun `getProgress non-404 non-2xx returns NetworkError`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)
-        assertTrue(result is NetworkGetProgressResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -250,8 +250,8 @@ class AbsApiClientSessionTest {
                 .setBody("""{"ebookLocation":"epubcfi(/6/4!/4/2/1:5)","ebookProgress":0.42,"lastUpdate":9000}""")
         )
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)
-        assertTrue(result is NetworkGetProgressResult.Success)
-        val progress = (result as NetworkGetProgressResult.Success).progress
+        assertTrue(result is NetworkResult.Success)
+        val progress = (result as NetworkResult.Success).value
         assertEquals(0.42f, progress.ebookProgress, 0.001f)
         assertEquals(9000L, progress.lastUpdate)
     }
@@ -260,6 +260,6 @@ class AbsApiClientSessionTest {
     fun `getProgress returns NetworkError on empty body`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200))
         val result = client.getProgress(baseUrl(), "item-1", "tok", false)
-        assertTrue(result is NetworkGetProgressResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 }

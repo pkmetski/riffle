@@ -39,12 +39,12 @@ class AbsApiClientLibraryTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraries(server.url("/").toString().trimEnd('/'), "token-abc", false)
-        assertTrue(result is NetworkLibrariesResult.Success)
-        val success = result as NetworkLibrariesResult.Success
-        assertEquals(2, success.libraries.size)
-        assertEquals("lib-1", success.libraries[0].id)
-        assertEquals("My Books", success.libraries[0].name)
-        assertEquals("book", success.libraries[0].mediaType)
+        assertTrue(result is NetworkResult.Success)
+        val success = result as NetworkResult.Success
+        assertEquals(2, success.value.size)
+        assertEquals("lib-1", success.value[0].id)
+        assertEquals("My Books", success.value[0].name)
+        assertEquals("book", success.value[0].mediaType)
     }
 
     @Test
@@ -56,9 +56,9 @@ class AbsApiClientLibraryTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraries(server.url("/").toString().trimEnd('/'), "token", false)
-        val success = result as NetworkLibrariesResult.Success
-        assertEquals(false, success.libraries[0].audiobooksOnly)
-        assertEquals(true, success.libraries[1].audiobooksOnly)
+        val success = result as NetworkResult.Success
+        assertEquals(false, success.value[0].audiobooksOnly)
+        assertEquals(true, success.value[1].audiobooksOnly)
     }
 
     @Test
@@ -79,7 +79,7 @@ class AbsApiClientLibraryTest {
     fun `getLibraries returns NetworkError on unreachable host`() = runTest {
         server.shutdown()
         val result = client.getLibraries("http://127.0.0.1:1", "token", false)
-        assertTrue(result is NetworkLibrariesResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -98,12 +98,12 @@ class AbsApiClientLibraryTest {
         val result = client.getLibraryItems(
             server.url("/").toString().trimEnd('/'), "lib-1", "token-abc", false
         )
-        assertTrue(result is NetworkLibraryItemsResult.Success)
-        val success = result as NetworkLibraryItemsResult.Success
-        assertEquals(2, success.items.size)
-        assertEquals(EbookFormat.Epub, success.items[0].ebookFormat)
-        assertEquals(0.42f, success.items[0].readingProgress!!, 0.001f)
-        assertEquals(EbookFormat.Unsupported, success.items[1].ebookFormat)
+        assertTrue(result is NetworkResult.Success)
+        val success = result as NetworkResult.Success
+        assertEquals(2, success.value.size)
+        assertEquals(EbookFormat.Epub, success.value[0].ebookFormat)
+        assertEquals(0.42f, success.value[0].readingProgress!!, 0.001f)
+        assertEquals(EbookFormat.Unsupported, success.value[1].ebookFormat)
     }
 
     @Test
@@ -124,7 +124,7 @@ class AbsApiClientLibraryTest {
         val result = client.getLibraryItems(
             server.url("/").toString().trimEnd('/'), "lib-1", "token-abc", false
         )
-        val items = (result as NetworkLibraryItemsResult.Success).items.associateBy { it.id }
+        val items = (result as NetworkResult.Success).value.associateBy { it.id }
         assertFalse(items.getValue("ebook").hasAudio)
         assertTrue(items.getValue("audio").hasAudio)
         assertTrue(items.getValue("audio-tracks").hasAudio)
@@ -144,8 +144,8 @@ class AbsApiClientLibraryTest {
         val result = client.getLibraryItems(
             server.url("/").toString().trimEnd('/'), "lib-1", "token-abc", false
         )
-        val success = result as NetworkLibraryItemsResult.Success
-        assertNull(success.items[0].readingProgress)
+        val success = result as NetworkResult.Success
+        assertNull(success.value[0].readingProgress)
     }
 
     @Test
@@ -168,7 +168,7 @@ class AbsApiClientLibraryTest {
     fun `getLibraryItems returns NetworkError on unreachable host`() = runTest {
         server.shutdown()
         val result = client.getLibraryItems("http://127.0.0.1:1", "lib-1", "token", false)
-        assertTrue(result is NetworkLibraryItemsResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -184,7 +184,7 @@ class AbsApiClientLibraryTest {
         val result = client.getLibraryItems(
             server.url("/").toString().trimEnd('/'), "lib-gone", "tok", false
         )
-        assertTrue(result is NetworkLibraryItemsResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -196,8 +196,8 @@ class AbsApiClientLibraryTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val success = result as NetworkLibraryItemsResult.Success
-        assertEquals(1708369906982L, success.items[0].addedAt)
+        val success = result as NetworkResult.Success
+        assertEquals(1708369906982L, success.value[0].addedAt)
     }
 
     @Test
@@ -209,8 +209,8 @@ class AbsApiClientLibraryTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val success = result as NetworkLibraryItemsResult.Success
-        assertEquals(1719000000000L, success.items[0].updatedAt)
+        val success = result as NetworkResult.Success
+        assertEquals(1719000000000L, success.value[0].updatedAt)
     }
 
     @Test
@@ -222,8 +222,8 @@ class AbsApiClientLibraryTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val success = result as NetworkLibraryItemsResult.Success
-        assertNull(success.items[0].updatedAt)
+        val success = result as NetworkResult.Success
+        assertNull(success.value[0].updatedAt)
     }
 
     @Test
@@ -235,8 +235,8 @@ class AbsApiClientLibraryTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
-        val success = result as NetworkLibraryItemsResult.Success
-        assertNull(success.items[0].addedAt)
+        val success = result as NetworkResult.Success
+        assertNull(success.value[0].addedAt)
     }
 
     // --- /api/me mediaProgress.lastUpdate (drives cross-device "In Progress" sort) ---
@@ -262,8 +262,8 @@ class AbsApiClientLibraryTest {
 
         val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
 
-        assertTrue(result is NetworkUserProgressResult.Success)
-        val byItemId = (result as NetworkUserProgressResult.Success).byItemId
+        assertTrue(result is NetworkResult.Success)
+        val byItemId = (result as NetworkResult.Success).value
         assertEquals(2, byItemId.size)
         assertEquals(1_780_170_049_396L, byItemId["item-1"]?.lastUpdate)
         assertEquals(0.015625f, byItemId["item-1"]?.ebookProgress)
@@ -289,7 +289,7 @@ class AbsApiClientLibraryTest {
 
         val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
 
-        val byItemId = (result as NetworkUserProgressResult.Success).byItemId
+        val byItemId = (result as NetworkResult.Success).value
         assertEquals(0.42f, byItemId["audio-1"]?.ebookProgress)
     }
 
@@ -304,7 +304,7 @@ class AbsApiClientLibraryTest {
 
         val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
 
-        val byItemId = (result as NetworkUserProgressResult.Success).byItemId
+        val byItemId = (result as NetworkResult.Success).value
         assertNull(byItemId["item-1"]?.lastUpdate)
         assertEquals(0.25f, byItemId["item-1"]?.ebookProgress)
     }

@@ -1,5 +1,7 @@
 package com.riffle.app.feature.audiobook
 
+import com.riffle.core.network.NetworkResult
+
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.reader.AudiobookFollow
@@ -47,8 +49,6 @@ import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -601,20 +601,20 @@ class SleepTimerTest {
             payload: NetworkEbookProgressPayload,
             token: String,
             insecureAllowed: Boolean,
-        ) = NetworkSyncSessionResult.NetworkError(RuntimeException())
+        ) = NetworkResult.Offline(RuntimeException())
         override suspend fun syncAudiobookProgress(
             baseUrl: String,
             libraryItemId: String,
             payload: NetworkAudiobookProgressPayload,
             token: String,
             insecureAllowed: Boolean,
-        ) = NetworkSyncSessionResult.NetworkError(RuntimeException())
+        ) = NetworkResult.Offline(RuntimeException())
         override suspend fun getProgress(
             baseUrl: String,
             libraryItemId: String,
             token: String,
             insecureAllowed: Boolean,
-        ) = NetworkGetProgressResult.NetworkError(RuntimeException())
+        ) = NetworkResult.Offline(RuntimeException())
     }
 
     private object StubLocalStore : LocalStore {

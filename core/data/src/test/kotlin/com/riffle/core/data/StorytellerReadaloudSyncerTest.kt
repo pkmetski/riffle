@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.PendingServer
@@ -9,9 +11,6 @@ import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkStorytellerBook
-import com.riffle.core.network.NetworkStorytellerBookResult
-import com.riffle.core.network.NetworkStorytellerBooksResult
-import com.riffle.core.network.NetworkStorytellerValidateResult
 import com.riffle.core.network.StorytellerLibraryApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -61,31 +60,31 @@ private fun fakeTokens(map: Map<String, String>): TokenStorage = object : TokenS
 }
 
 private class CapturingApi(
-    private val result: (String) -> NetworkStorytellerBooksResult,
+    private val result: (String) -> NetworkResult<List<NetworkStorytellerBook>>,
 ) : StorytellerLibraryApi {
     val calls = mutableListOf<String>()
 
     override suspend fun listReadalouds(
         baseUrl: String, token: String, insecureAllowed: Boolean,
-    ): NetworkStorytellerBooksResult {
+    ): NetworkResult<List<NetworkStorytellerBook>> {
         calls += baseUrl
         return result(baseUrl)
     }
 
-    override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkStorytellerValidateResult =
+    override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Boolean> =
         error("unused")
 
-    override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean): NetworkStorytellerBookResult =
+    override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean): NetworkResult<NetworkStorytellerBook> =
         error("unused")
 
     override fun coverUrl(baseUrl: String, bookId: Long): String = "$baseUrl/api/books/$bookId/cover"
 }
 
 private fun capturingApi(books: List<NetworkStorytellerBook>): CapturingApi =
-    CapturingApi { NetworkStorytellerBooksResult.Success(books) }
+    CapturingApi { NetworkResult.Success(books) }
 
 private fun capturingApiError(): CapturingApi =
-    CapturingApi { NetworkStorytellerBooksResult.NetworkError(IOException("down")) }
+    CapturingApi { NetworkResult.Offline(IOException("down")) }
 
 // ── mapping test (pre-existing) ───────────────────────────────────────────────
 

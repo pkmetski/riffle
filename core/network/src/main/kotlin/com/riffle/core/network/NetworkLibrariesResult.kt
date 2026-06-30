@@ -6,8 +6,3 @@ data class NetworkLibrary(
     val mediaType: String,
     val audiobooksOnly: Boolean,
 )
-
-sealed class NetworkLibrariesResult {
-    data class Success(val libraries: List<NetworkLibrary>) : NetworkLibrariesResult()
-    data class NetworkError(val cause: Throwable) : NetworkLibrariesResult()
-}

@@ -14,8 +14,8 @@ import com.riffle.core.domain.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
-import com.riffle.core.network.NetworkSyncSessionResult
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.errorAsThrowable
 import javax.inject.Inject
 
 class ReadingSessionRepositoryImpl @Inject constructor(
@@ -33,20 +33,17 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             IllegalStateException("No active server or token")
         )
         val (server, token) = resolved
-        return when (val r = api.syncEbookProgress(server.url.value, itemId, payload.toNetwork(), token, server.insecureConnectionAllowed)) {
-            is NetworkSyncSessionResult.Success -> SyncSessionResult.Success
-            is NetworkSyncSessionResult.NetworkError -> SyncSessionResult.NetworkError(r.cause)
-        }
+        val r = api.syncEbookProgress(server.url.value, itemId, payload.toNetwork(), token, server.insecureConnectionAllowed)
+        return if (r is NetworkResult.Success) SyncSessionResult.Success else SyncSessionResult.NetworkError(r.errorAsThrowable())
     }
 
     override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult {
         val resolved = resolveServerAndToken() ?: return ProgressSyncCycleResult.Offline
         val (server, token) = resolved
 
-        val serverProgress = when (val r = api.getProgress(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
-            is NetworkGetProgressResult.NetworkError -> return ProgressSyncCycleResult.Offline
-            is NetworkGetProgressResult.Success -> r.progress
-        }
+        val getRes = api.getProgress(server.url.value, itemId, token, server.insecureConnectionAllowed)
+        if (getRes !is NetworkResult.Success) return ProgressSyncCycleResult.Offline
+        val serverProgress = getRes.value
 
         val localUpdatedAt = positionStore.loadLocalUpdatedAt(server.id, itemId)
 
@@ -63,8 +60,8 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             }
             localUpdatedAt > serverProgress.lastUpdate -> {
                 val patchResult = api.syncEbookProgress(server.url.value, itemId, payload.toNetwork(), token, server.insecureConnectionAllowed)
-                if (patchResult is NetworkSyncSessionResult.Success) {
-                    val ts = patchResult.lastUpdate.takeIf { it > 0L } ?: System.currentTimeMillis()
+                if (patchResult is NetworkResult.Success) {
+                    val ts = patchResult.value.takeIf { it > 0L } ?: System.currentTimeMillis()
                     positionStore.updateLocalTimestamp(server.id, itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
@@ -76,10 +73,9 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     override suspend fun touchOpenTimestamp(itemId: String) {
         val resolved = resolveServerAndToken() ?: return
         val (server, token) = resolved
-        val serverProgress = when (val r = api.getProgress(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
-            is NetworkGetProgressResult.Success -> r.progress
-            is NetworkGetProgressResult.NetworkError -> return
-        }
+        val getRes = api.getProgress(server.url.value, itemId, token, server.insecureConnectionAllowed)
+        if (getRes !is NetworkResult.Success) return
+        val serverProgress = getRes.value
         // Deliberately do NOT bump positionStore.localUpdatedAt here. Matching the server's
         // post-PATCH lastUpdate without also writing the server's cfi locally would create a
         // "local in sync but cfi empty" state: the next runSyncCycle would see equal stamps

@@ -1,5 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.StorytellerPosition
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.PendingServer
@@ -9,8 +12,6 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.NetworkStorytellerPositionResult
-import com.riffle.core.network.NetworkStorytellerPutResult
 import com.riffle.core.network.StorytellerPositionApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -32,12 +33,12 @@ class StorytellerPositionSyncControllerTest {
     }
 
     private class FakePositionApi(
-        private val get: NetworkStorytellerPositionResult,
+        private val get: NetworkResult<StorytellerPosition?>,
     ) : StorytellerPositionApi {
         var putCount = 0
         override suspend fun getPosition(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean) = get
-        override suspend fun putPosition(baseUrl: String, bookId: String, locatorJson: String, timestampMillis: Long, token: String, insecureAllowed: Boolean): NetworkStorytellerPutResult {
-            putCount++; return NetworkStorytellerPutResult.Success
+        override suspend fun putPosition(baseUrl: String, bookId: String, locatorJson: String, timestampMillis: Long, token: String, insecureAllowed: Boolean): NetworkResult<Unit> {
+            putCount++; return NetworkResult.Success(Unit)
         }
     }
 
@@ -64,7 +65,7 @@ class StorytellerPositionSyncControllerTest {
 
     @Test fun `remote newer pulls and saves locally`() = runTest {
         val store = FakePositionStore(ts = 1_000)
-        val api = FakePositionApi(NetworkStorytellerPositionResult.Success("""{"href":"x"}""", 2_000))
+        val api = FakePositionApi(NetworkResult.Success(StorytellerPosition("""{"href":"x"}""", 2_000)))
 
         val outcome = controller(api, store).runCycle("item-1", localLocatorJson = """{"href":"old"}""")
 
@@ -76,7 +77,7 @@ class StorytellerPositionSyncControllerTest {
 
     @Test fun `local newer pushes to server`() = runTest {
         val store = FakePositionStore(ts = 5_000)
-        val api = FakePositionApi(NetworkStorytellerPositionResult.Success("""{"href":"x"}""", 1_000))
+        val api = FakePositionApi(NetworkResult.Success(StorytellerPosition("""{"href":"x"}""", 1_000)))
 
         val outcome = controller(api, store).runCycle("item-1", localLocatorJson = """{"href":"local"}""")
 
@@ -86,7 +87,7 @@ class StorytellerPositionSyncControllerTest {
 
     @Test fun `GET failure is Offline with no push`() = runTest {
         val store = FakePositionStore(ts = 5_000)
-        val api = FakePositionApi(NetworkStorytellerPositionResult.NetworkError(IOException("down")))
+        val api = FakePositionApi(NetworkResult.Offline(IOException("down")))
 
         val outcome = controller(api, store).runCycle("item-1", localLocatorJson = """{"href":"local"}""")
 

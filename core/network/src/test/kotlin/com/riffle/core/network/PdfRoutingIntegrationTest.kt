@@ -51,9 +51,9 @@ class PdfRoutingIntegrationTest {
         )
         val result = client.getLibraryItems(
             server.url("/").toString().trimEnd('/'), "lib-1", "token", false
-        ) as NetworkLibraryItemsResult.Success
+        ) as NetworkResult.Success
 
-        val byId = result.items.associateBy { it.id }
+        val byId = result.value.associateBy { it.id }
 
         assertEquals(EbookFormat.Epub, byId["epub-1"]!!.ebookFormat)
         assertEquals(EbookFormat.Pdf, byId["pdf-1"]!!.ebookFormat)

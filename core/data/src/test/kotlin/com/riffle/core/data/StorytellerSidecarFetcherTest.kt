@@ -1,7 +1,9 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkStorytellerBundleResult
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.network.StorytellerBundleApi
+import com.riffle.core.network.StorytellerBundleStream
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.asResponseBody
 import okio.buffer
@@ -63,7 +65,7 @@ class StorytellerSidecarFetcherTest {
         val counting = CountingInputStream(ByteArrayInputStream(standardBundle))
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkStorytellerBundleResult.Success(counting.source().buffer().asResponseBody(null, -1L))
+                NetworkResult.Success(StorytellerBundleStream(counting.source().buffer().asResponseBody(null, -1L)))
             },
             // Full download must NOT be called — standard ordering should succeed on the fast path.
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
@@ -85,14 +87,14 @@ class StorytellerSidecarFetcherTest {
     fun `non-standard ordering — SMIL after audio is captured via full-download fallback`() = runTest {
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkStorytellerBundleResult.Success(
+                NetworkResult.Success(StorytellerBundleStream(
                     ByteArrayInputStream(nonStandardBundle).source().buffer().asResponseBody(null, -1L),
-                )
+                ))
             },
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkStorytellerBundleResult.Success(
+                NetworkResult.Success(StorytellerBundleStream(
                     ByteArrayInputStream(nonStandardBundle).source().buffer().asResponseBody(null, -1L),
-                )
+                ))
             },
         ).fetch("http://st", "42", "tok", false)
 
@@ -110,14 +112,14 @@ class StorytellerSidecarFetcherTest {
         // ZipFile confirms no SMIL exists anywhere → definitively unaligned.
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkStorytellerBundleResult.Success(
+                NetworkResult.Success(StorytellerBundleStream(
                     ByteArrayInputStream(smilLessBundle).source().buffer().asResponseBody(null, -1L),
-                )
+                ))
             },
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkStorytellerBundleResult.Success(
+                NetworkResult.Success(StorytellerBundleStream(
                     ByteArrayInputStream(smilLessBundle).source().buffer().asResponseBody(null, -1L),
-                )
+                ))
             },
         ).fetch("http://st", "42", "tok", false)
 
@@ -128,7 +130,7 @@ class StorytellerSidecarFetcherTest {
     fun `returns NetworkError when the bundle transport fails`() = runTest {
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkStorytellerBundleResult.NetworkError(RuntimeException("offline"))
+                NetworkResult.Offline(RuntimeException("offline"))
             },
         ).fetch("http://st", "42", "tok", false)
 

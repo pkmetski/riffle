@@ -1,7 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.network.AudiobookBundleApi
-import com.riffle.core.network.NetworkAudiobookBundleResult
+import com.riffle.core.network.AudiobookBundleStream
+import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -37,23 +38,23 @@ class AudiobookBundleDownloaderTest {
             token: String,
             insecureAllowed: Boolean,
             fromByte: Long,
-        ): NetworkAudiobookBundleResult {
+        ): NetworkResult<AudiobookBundleStream> {
             requestedFromByte = fromByte
-            failWith?.let { return NetworkAudiobookBundleResult.NetworkError(it) }
+            failWith?.let { return NetworkResult.Offline(it) }
             return if (fromByte > 0 && honorRange) {
                 val tail = full.copyOfRange(fromByte.toInt(), full.size)
-                NetworkAudiobookBundleResult.Success(
+                NetworkResult.Success(AudiobookBundleStream(
                     body = tail.toResponseBody("application/epub+zip".toMediaType()),
                     totalBytes = full.size.toLong(),
                     isPartial = true,
-                )
+                ))
             } else {
                 // Advertise the FULL length but serve only [serveBytes] — a silent truncation.
-                NetworkAudiobookBundleResult.Success(
+                NetworkResult.Success(AudiobookBundleStream(
                     body = full.copyOfRange(0, serveBytes).toResponseBody("application/epub+zip".toMediaType()),
                     totalBytes = full.size.toLong(),
                     isPartial = false,
-                )
+                ))
             }
         }
     }

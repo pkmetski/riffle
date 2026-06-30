@@ -30,11 +30,6 @@ data class NetworkPlaybackSession(
     val durationSec: Double,
 )
 
-sealed class NetworkPlaybackSessionResult {
-    data class Success(val session: NetworkPlaybackSession) : NetworkPlaybackSessionResult()
-    data class NetworkError(val cause: Throwable) : NetworkPlaybackSessionResult()
-}
-
 /** ABS audiobook playback: open a direct-play session for an item's audio (ADR 0029). */
 interface AbsPlaybackApi {
     suspend fun openPlaybackSession(
@@ -43,5 +38,5 @@ interface AbsPlaybackApi {
         deviceId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkPlaybackSessionResult
+    ): NetworkResult<NetworkPlaybackSession>
 }

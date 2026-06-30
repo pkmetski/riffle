@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.CanonicalReaderPosition
 import com.riffle.core.domain.ChapterCharMap
@@ -10,9 +12,7 @@ import com.riffle.core.domain.WriteResult
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -48,31 +48,31 @@ class AbsProgressPeerTest {
     /** PATCH succeeds and the GET stamp read-back is what gets adopted by the cycle. */
     private class OkAbs(private val stamp: Long) : AbsSessionApi {
         override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.Success(stamp)
+            NetworkResult.Success(stamp)
         override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.Success(stamp)
+            NetworkResult.Success(stamp)
         override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
-            NetworkGetProgressResult.Success(NetworkServerProgress(ebookLocation = "", lastUpdate = stamp))
+            NetworkResult.Success(NetworkServerProgress(ebookLocation = "", lastUpdate = stamp))
     }
 
     /** PATCH fails at the network. */
     private class PatchFailAbs : AbsSessionApi {
         override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.NetworkError(IOException("boom"))
+            NetworkResult.Offline(IOException("boom"))
         override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.NetworkError(IOException("boom"))
+            NetworkResult.Offline(IOException("boom"))
         override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
-            NetworkGetProgressResult.NetworkError(IOException("boom"))
+            NetworkResult.Offline(IOException("boom"))
     }
 
     /** PATCH OK but the follow-up GET (the stamp read-back) fails. */
     private class StampReadbackFailAbs : AbsSessionApi {
         override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.Success(0L)
+            NetworkResult.Success(0L)
         override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.Success(0L)
+            NetworkResult.Success(0L)
         override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
-            NetworkGetProgressResult.NetworkError(IOException("stamp read-back failed"))
+            NetworkResult.Offline(IOException("stamp read-back failed"))
     }
 
     @Test

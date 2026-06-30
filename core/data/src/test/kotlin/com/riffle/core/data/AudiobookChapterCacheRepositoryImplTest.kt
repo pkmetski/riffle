@@ -1,14 +1,11 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.network.AbsItemDetailResult
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkCollectionResult
-import com.riffle.core.network.NetworkLibrariesResult
-import com.riffle.core.network.NetworkLibraryItemsResult
-import com.riffle.core.network.NetworkSeriesResult
 import com.riffle.core.network.model.AbsItemChapterDto
 import com.riffle.core.network.model.AbsItemDetailMediaDto
 import com.riffle.core.network.model.AbsItemDetailResponse
@@ -31,23 +28,23 @@ class AudiobookChapterCacheRepositoryImplTest {
         }
     }
 
-    private fun fakeApiReturning(result: AbsItemDetailResult) = object : AbsLibraryApi {
-        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkLibrariesResult =
+    private fun fakeApiReturning(result: NetworkResult<com.riffle.core.network.model.AbsItemDetailResponse>) = object : AbsLibraryApi {
+        override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkLibrary>> =
             throw NotImplementedError()
-        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkLibraryItemsResult =
+        override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkLibraryItem>> =
             throw NotImplementedError()
-        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkSeriesResult =
+        override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkSeries>> =
             throw NotImplementedError()
-        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkCollectionResult =
+        override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkCollection>> =
             throw NotImplementedError()
-        override suspend fun getItemDetail(baseUrl: String, itemId: String, token: String, insecureAllowed: Boolean): AbsItemDetailResult =
+        override suspend fun getItemDetail(baseUrl: String, itemId: String, token: String, insecureAllowed: Boolean): NetworkResult<com.riffle.core.network.model.AbsItemDetailResponse> =
             result
     }
 
     @Test
     fun `getCachedChapters returns null when no cache`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
-        val api = fakeApiReturning(AbsItemDetailResult.NetworkError(RuntimeException("not called")))
+        val api = fakeApiReturning(NetworkResult.Offline(RuntimeException("not called")))
         val repo = AudiobookChapterCacheRepositoryImpl(dao, api)
 
         assertNull(repo.getCachedChapters("srv", "item"))
@@ -58,7 +55,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Intro"}]"""
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json)
-        val api = fakeApiReturning(AbsItemDetailResult.NetworkError(RuntimeException("not called")))
+        val api = fakeApiReturning(NetworkResult.Offline(RuntimeException("not called")))
         val repo = AudiobookChapterCacheRepositoryImpl(dao, api)
 
         val result = repo.getCachedChapters("srv", "item")
@@ -72,7 +69,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `fetchAndCacheChapters calls api, maps chapters, and upserts`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val api = fakeApiReturning(
-            AbsItemDetailResult.Success(
+            NetworkResult.Success(
                 AbsItemDetailResponse(
                     id = "item",
                     media = AbsItemDetailMediaDto(
@@ -102,7 +99,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     @Test
     fun `fetchAndCacheChapters returns empty list on network error`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
-        val api = fakeApiReturning(AbsItemDetailResult.NetworkError(RuntimeException("network fail")))
+        val api = fakeApiReturning(NetworkResult.Offline(RuntimeException("network fail")))
         val repo = AudiobookChapterCacheRepositoryImpl(dao, api)
 
         val result = repo.fetchAndCacheChapters("srv", "item", "http://base", "tok", false)
@@ -115,7 +112,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `fetchAndCacheChapters round-trips through getCachedChapters`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val api = fakeApiReturning(
-            AbsItemDetailResult.Success(
+            NetworkResult.Success(
                 AbsItemDetailResponse(
                     id = "item",
                     media = AbsItemDetailMediaDto(

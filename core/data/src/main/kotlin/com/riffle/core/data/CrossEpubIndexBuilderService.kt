@@ -15,8 +15,7 @@ import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkEpubDownloadResult
-import com.riffle.core.network.NetworkItemEbookInoResult
+import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Collections
@@ -121,13 +120,9 @@ class CrossEpubIndexBuilderService(
 
     private suspend fun absEpubFile(server: Server, token: String, itemId: String): File? {
         cachedFile(server.id, itemId)?.let { return it }
-        val ino = when (val r = absApi.getItemEbookFileIno(server.url.value, itemId, token, server.insecureConnectionAllowed)) {
-            is NetworkItemEbookInoResult.Success -> r.ino
-            is NetworkItemEbookInoResult.NetworkError -> return null
-        }
-        return when (val r = absApi.downloadEpub(server.url.value, itemId, ino, token, server.insecureConnectionAllowed)) {
-            is NetworkEpubDownloadResult.Success -> r.body.use { cacheStore.save(server.id, itemId, it.byteStream()) }
-            is NetworkEpubDownloadResult.NetworkError -> null
-        }
+        val ino = (absApi.getItemEbookFileIno(server.url.value, itemId, token, server.insecureConnectionAllowed)
+            as? NetworkResult.Success)?.value ?: return null
+        val download = absApi.downloadEpub(server.url.value, itemId, ino, token, server.insecureConnectionAllowed)
+        return (download as? NetworkResult.Success)?.value?.use { cacheStore.save(server.id, itemId, it.byteStream()) }
     }
 }

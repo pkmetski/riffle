@@ -8,8 +8,3 @@ data class NetworkCollection(
 ) {
     val bookCount: Int get() = items.size
 }
-
-sealed class NetworkCollectionResult {
-    data class Success(val collections: List<NetworkCollection>) : NetworkCollectionResult()
-    data class NetworkError(val cause: Throwable) : NetworkCollectionResult()
-}

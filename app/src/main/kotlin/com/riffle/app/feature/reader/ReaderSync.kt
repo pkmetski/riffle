@@ -12,8 +12,7 @@ import com.riffle.core.domain.WriteResult
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
-import com.riffle.core.network.NetworkSyncSessionResult
+import com.riffle.core.network.NetworkResult
 
 /**
  * Resolved ABS endpoint for a matched ABS Library Item (its media-progress record). [durationSec]
@@ -30,14 +29,14 @@ internal val EMPTY_PEER_READ = RemoteRead(CanonicalReaderPosition(""), 0L)
 // learn the server time it was stored under. Callers record it as the local timestamp; without it a
 // write reads back next cycle as a "newer remote" and overwrites local progress (the feedback loop).
 internal suspend fun AbsSessionApi.serverStamp(ep: AbsSyncEndpoint): Long? =
-    (getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)?.progress?.lastUpdate
+    (getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkResult.Success)?.value?.lastUpdate
 
 // Write the matched audiobook's currentTime and read back the server timestamp it was stored under.
 // One definition for both the cycle peer's outbound patch and the responsive follow-loop push, so the
 // payload shape and the stamp read-back can never drift apart. `null` on failure.
 internal suspend fun AbsSessionApi.writeAudiobookSeconds(ep: AbsSyncEndpoint, seconds: Double): Long? {
     val payload = NetworkAudiobookProgressPayload(seconds.coerceAtLeast(0.0), ep.durationSec)
-    if (syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success) return null
+    if (syncAudiobookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkResult.Success) return null
     return serverStamp(ep)
 }
 
@@ -51,8 +50,8 @@ internal class AbsEbookProgressPeer(
 
     override suspend fun tryGet(): RemoteRead? {
         // NetworkError → null (unreachable, excluded); 404/no-CFI → reachable-empty placeholder.
-        val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
-            ?.progress ?: return null
+        val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkResult.Success)
+            ?.value ?: return null
         val cfi = p.ebookLocation.takeIf { it.startsWith("epubcfi(") }
         if (p.lastUpdate <= 0L || cfi == null) return EMPTY_PEER_READ
         val canonical = translator.absCfiToCanonical(cfi) ?: return EMPTY_PEER_READ
@@ -63,7 +62,7 @@ internal class AbsEbookProgressPeer(
         val cfi = translator.canonicalToAbsCfi(canonical.value)
             ?: return WriteResult.Skipped // canonical can't be placed in the ABS EPUB this cycle
         val payload = NetworkEbookProgressPayload(cfi, translator.canonicalBookProgress(canonical.value))
-        if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkSyncSessionResult.Success)
+        if (api.syncEbookProgress(ep.baseUrl, ep.itemId, payload, ep.token, ep.insecure) !is NetworkResult.Success)
             return WriteResult.Failed("ABS ebook PATCH network error")
         val stamp = api.serverStamp(ep) ?: return WriteResult.Failed("ABS ebook stamp read-back failed")
         return WriteResult.Ok(stamp)
@@ -90,8 +89,8 @@ internal class AbsAudiobookProgressPeer(
     override val id = RemoteKind.ABS_AUDIO.name
 
     override suspend fun tryGet(): RemoteRead? {
-        val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkGetProgressResult.Success)
-            ?.progress ?: return null
+        val p = (api.getProgress(ep.baseUrl, ep.itemId, ep.token, ep.insecure) as? NetworkResult.Success)
+            ?.value ?: return null
         if (p.lastUpdate <= 0L || p.currentTime <= 0.0) return EMPTY_PEER_READ // no audiobook position yet
         val canonical = translator.audioSecondsToCanonical(p.currentTime) ?: return EMPTY_PEER_READ
         return RemoteRead(CanonicalReaderPosition(canonical), p.lastUpdate)

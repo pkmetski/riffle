@@ -37,10 +37,10 @@ class AbsApiClientTest {
                 .addHeader("Content-Type", "application/json")
         )
         val result = client.login(server.url("/").toString().trimEnd('/'), "admin", "secret", false)
-        assertTrue(result is NetworkLoginResult.Success)
-        val success = result as NetworkLoginResult.Success
-        assertEquals("user-123", success.userId)
-        assertEquals("tok-abc", success.token)
+        assertTrue(result is NetworkResult.Success)
+        val success = result as NetworkResult.Success
+        assertEquals("user-123", success.value.userId)
+        assertEquals("tok-abc", success.value.token)
     }
 
     @Test
@@ -63,14 +63,14 @@ class AbsApiClientTest {
     fun `login 401 returns WrongCredentials`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401))
         val result = client.login(server.url("/").toString().trimEnd('/'), "admin", "wrong", false)
-        assertTrue(result is NetworkLoginResult.WrongCredentials)
+        assertTrue(result is NetworkResult.Auth)
     }
 
     @Test
     fun `login unreachable host returns NetworkError`() = runTest {
         server.shutdown()
         val result = client.login("http://127.0.0.1:1", "admin", "pass", false)
-        assertTrue(result is NetworkLoginResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 
     // ABS exposes its version on the unauthenticated /status endpoint as `serverVersion`.

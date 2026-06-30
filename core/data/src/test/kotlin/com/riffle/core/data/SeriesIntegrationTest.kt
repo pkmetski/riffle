@@ -153,12 +153,12 @@ class SeriesIntegrationTest {
             storytellerReadaloudSyncer = StorytellerReadaloudSyncer(
                 fakeServerRepository, fakeTokenStorage,
                 object : com.riffle.core.network.StorytellerLibraryApi {
-                    override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                        com.riffle.core.network.NetworkStorytellerValidateResult.Valid
-                    override suspend fun listReadalouds(baseUrl: String, token: String, insecureAllowed: Boolean) =
-                        com.riffle.core.network.NetworkStorytellerBooksResult.Success(emptyList())
-                    override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean) =
-                        com.riffle.core.network.NetworkStorytellerBookResult.NotFound(bookId)
+                    override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean): com.riffle.core.network.NetworkResult<Boolean> =
+                        com.riffle.core.network.NetworkResult.Success(true)
+                    override suspend fun listReadalouds(baseUrl: String, token: String, insecureAllowed: Boolean): com.riffle.core.network.NetworkResult<List<com.riffle.core.network.NetworkStorytellerBook>> =
+                        com.riffle.core.network.NetworkResult.Success(emptyList())
+                    override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean): com.riffle.core.network.NetworkResult<com.riffle.core.network.NetworkStorytellerBook> =
+                        com.riffle.core.network.NetworkResult.ServerError(404)
                     override fun coverUrl(baseUrl: String, bookId: Long) = "$baseUrl/api/books/$bookId/cover"
                 },
                 itemDao, { 0L },

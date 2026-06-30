@@ -10,7 +10,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
-import com.riffle.core.network.NetworkPlaybackSessionResult
+import com.riffle.core.network.NetworkResult
 import javax.inject.Inject
 
 /**
@@ -36,7 +36,7 @@ class AudiobookRepositoryImpl @Inject constructor(
             token = token,
             insecureAllowed = server.insecureConnectionAllowed,
         )
-        val session = (result as? NetworkPlaybackSessionResult.Success)?.session ?: return null
+        val session = (result as? NetworkResult.Success)?.value ?: return null
         if (session.tracks.isEmpty()) return null
 
         val base = server.url.value.trimEnd('/')
@@ -62,8 +62,8 @@ class AudiobookRepositoryImpl @Inject constructor(
                 libraryItemId = itemId,
                 token = token,
                 insecureAllowed = server.insecureConnectionAllowed,
-            ) as? com.riffle.core.network.NetworkGetProgressResult.Success
-        )?.progress?.lastUpdate ?: 0L
+            ) as? NetworkResult.Success
+        )?.value?.lastUpdate ?: 0L
 
         return AudiobookSession(
             trackUrls = trackUrls,

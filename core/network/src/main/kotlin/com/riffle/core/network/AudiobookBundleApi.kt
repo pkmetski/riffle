@@ -13,15 +13,14 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
-sealed interface NetworkAudiobookBundleResult {
-    /**
-     * @param body the (possibly partial) stream of bundle bytes; caller must close it.
-     * @param totalBytes the full bundle size, recovered from Content-Range (206) or Content-Length (200).
-     * @param isPartial true when the server honoured a Range request (206); false on a full 200 body.
-     */
-    data class Success(val body: ResponseBody, val totalBytes: Long, val isPartial: Boolean) : NetworkAudiobookBundleResult
-    data class NetworkError(val cause: Throwable) : NetworkAudiobookBundleResult
-}
+/**
+ * A (possibly partial) byte stream of the Storyteller synced bundle.
+ *
+ * @param body the bundle bytes; caller must close it.
+ * @param totalBytes the full bundle size, recovered from Content-Range (206) or Content-Length (200).
+ * @param isPartial true when the server honoured a Range request (206); false on a full 200 body.
+ */
+data class AudiobookBundleStream(val body: ResponseBody, val totalBytes: Long, val isPartial: Boolean)
 
 /**
  * Opens a (resumable) byte stream of the Storyteller synced bundle — the EPUB-3-with-audio that
@@ -35,15 +34,13 @@ fun interface AudiobookBundleApi {
         token: String,
         insecureAllowed: Boolean,
         fromByte: Long,
-    ): NetworkAudiobookBundleResult
+    ): NetworkResult<AudiobookBundleStream>
 }
 
 class AudiobookBundleApiImpl(
     private val client: OkHttpClient,
 ) : AudiobookBundleApi {
 
-    // Bundles run to hundreds of MB; disable the idle-read timeout (the connect/call paths still
-    // apply) so a slow multi-minute stream isn't killed mid-flight.
     private val bundleClient: OkHttpClient = client.newBuilder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -56,7 +53,7 @@ class AudiobookBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
         fromByte: Long,
-    ): NetworkAudiobookBundleResult = withContext(Dispatchers.IO) {
+    ): NetworkResult<AudiobookBundleStream> = withContext(Dispatchers.IO) {
         val effectiveClient = if (insecureAllowed) bundleClient.trustAllCerts() else bundleClient
         val builder = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
@@ -71,7 +68,7 @@ class AudiobookBundleApiImpl(
             val body = response.body
             if (!response.isSuccessful || body == null) {
                 body?.close()
-                return@withContext NetworkAudiobookBundleResult.NetworkError(IOException("HTTP ${response.code}"))
+                return@withContext NetworkResult.Offline(IOException("HTTP ${response.code}"))
             }
             val isPartial = response.code == 206
             val total = if (isPartial) {
@@ -79,18 +76,15 @@ class AudiobookBundleApiImpl(
             } else {
                 response.header("Content-Length")?.toLongOrNull()
             } ?: -1L
-            // execute() blocks through the slow /synced header wait; if the coroutine was cancelled
-            // during it, withContext discards this Success and leaks the open body. Close it ourselves
-            // before handing ownership to the (live) caller.
             try {
                 ensureActive()
             } catch (e: Throwable) {
                 body.close()
                 throw e
             }
-            NetworkAudiobookBundleResult.Success(body = body, totalBytes = total, isPartial = isPartial)
+            NetworkResult.Success(AudiobookBundleStream(body = body, totalBytes = total, isPartial = isPartial))
         } catch (e: IOException) {
-            NetworkAudiobookBundleResult.NetworkError(e)
+            NetworkResult.Offline(e)
         }
     }
 

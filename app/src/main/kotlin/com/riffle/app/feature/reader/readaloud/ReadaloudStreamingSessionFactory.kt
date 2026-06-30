@@ -12,7 +12,7 @@ import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkAudiobookTracksResult
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerLibraryApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -81,10 +81,8 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         }
 
         // 3. ABS audiobook tracks (ino + duration).
-        val tracks = when (val r = absApi.getAudiobookTracks(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)) {
-            is NetworkAudiobookTracksResult.Success -> r.tracks
-            else -> return@withContext null
-        }
+        val tracksResult = absApi.getAudiobookTracks(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)
+        val tracks = (tracksResult as? NetworkResult.Success)?.value?.takeIf { it.isNotEmpty() } ?: return@withContext null
 
         // 4. The sidecar (SMIL + text). Use ONLY the already-cached copy — the slow /synced fetch is done
         //    ahead of time by ReadaloudSidecarStore.prepare() when the book is opened (ADR 0028), so the

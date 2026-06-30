@@ -7,16 +7,6 @@ data class NetworkAbsBookmark(
     val createdAt: Long,
 )
 
-sealed interface AbsBookmarkResult {
-    data class Success(val bookmark: NetworkAbsBookmark) : AbsBookmarkResult
-    data class NetworkError(val cause: Throwable) : AbsBookmarkResult
-}
-
-sealed interface AbsBookmarkListResult {
-    data class Success(val bookmarks: List<NetworkAbsBookmark>) : AbsBookmarkListResult
-    data class NetworkError(val cause: Throwable) : AbsBookmarkListResult
-}
-
 interface AbsBookmarkApi {
     suspend fun createBookmark(
         baseUrl: String,
@@ -25,7 +15,7 @@ interface AbsBookmarkApi {
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkResult
+    ): NetworkResult<NetworkAbsBookmark>
 
     suspend fun updateBookmark(
         baseUrl: String,
@@ -34,7 +24,7 @@ interface AbsBookmarkApi {
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkResult
+    ): NetworkResult<NetworkAbsBookmark>
 
     suspend fun deleteBookmark(
         baseUrl: String,
@@ -42,11 +32,11 @@ interface AbsBookmarkApi {
         timeSec: Int,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkResult
+    ): NetworkResult<NetworkAbsBookmark>
 
     suspend fun listBookmarks(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkListResult
+    ): NetworkResult<List<NetworkAbsBookmark>>
 }

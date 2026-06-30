@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.PendingServer
@@ -13,9 +15,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -53,15 +53,15 @@ class ProgressSyncCycleTest {
     }
 
     private class FakeSessionApi(
-        private val getResult: NetworkGetProgressResult,
-        private val patchResult: NetworkSyncSessionResult = NetworkSyncSessionResult.Success(0L),
+        private val getResult: NetworkResult<NetworkServerProgress>,
+        private val patchResult: NetworkResult<Long> = NetworkResult.Success(0L),
     ) : AbsSessionApi {
         var patchCallCount = 0
         var lastEbookPayload: NetworkEbookProgressPayload? = null
         override suspend fun syncEbookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload,
             token: String, insecureAllowed: Boolean,
-        ): NetworkSyncSessionResult {
+        ): NetworkResult<Long> {
             patchCallCount++
             lastEbookPayload = payload
             return patchResult
@@ -69,10 +69,10 @@ class ProgressSyncCycleTest {
         override suspend fun syncAudiobookProgress(
             baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload,
             token: String, insecureAllowed: Boolean,
-        ): NetworkSyncSessionResult = patchResult
+        ): NetworkResult<Long> = patchResult
         override suspend fun getProgress(
             baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-        ): NetworkGetProgressResult = getResult
+        ): NetworkResult<NetworkServerProgress> = getResult
     }
 
     private class FakeAudiobookPositionStore : com.riffle.core.domain.AudiobookPositionStore {
@@ -136,7 +136,7 @@ class ProgressSyncCycleTest {
         val serverTs = 2_000L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(
+            getResult = NetworkResult.Success(
                 NetworkServerProgress("epubcfi(/6/8!/4/1:0)", lastUpdate = serverTs)
             )
         )
@@ -157,8 +157,8 @@ class ProgressSyncCycleTest {
         val patchResponseTs = 3_100L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = serverTs)),
-            patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
+            getResult = NetworkResult.Success(NetworkServerProgress("old-cfi", lastUpdate = serverTs)),
+            patchResult = NetworkResult.Success(patchResponseTs),
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -173,7 +173,7 @@ class ProgressSyncCycleTest {
         val ts = 2_000L
         val positionStore = FakePositionStore(localUpdatedAt = ts)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("cfi", lastUpdate = ts))
+            getResult = NetworkResult.Success(NetworkServerProgress("cfi", lastUpdate = ts))
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -186,7 +186,7 @@ class ProgressSyncCycleTest {
     fun `GET failure returns Offline without PATCH and leaves localUpdatedAt unchanged`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 5_000L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.NetworkError(IOException("unreachable"))
+            getResult = NetworkResult.Offline(IOException("unreachable"))
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -201,8 +201,8 @@ class ProgressSyncCycleTest {
         val localTs = 3_000L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
-            patchResult = NetworkSyncSessionResult.Success(0L),
+            getResult = NetworkResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
+            patchResult = NetworkResult.Success(0L),
         )
 
         buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -217,8 +217,8 @@ class ProgressSyncCycleTest {
         val patchResponseTs = 3_100L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
-            patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
+            getResult = NetworkResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
+            patchResult = NetworkResult.Success(patchResponseTs),
         )
 
         buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -230,8 +230,8 @@ class ProgressSyncCycleTest {
     fun `local-newer with zero PATCH lastUpdate still returns LocalWins`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 3_000L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
-            patchResult = NetworkSyncSessionResult.Success(0L),
+            getResult = NetworkResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 1_000L)),
+            patchResult = NetworkResult.Success(0L),
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -245,8 +245,8 @@ class ProgressSyncCycleTest {
         // `progress` to 100% (bug 1: "marking read doesn't mark the related audiobook").
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
-            patchResult = NetworkSyncSessionResult.Success(2_000L),
+            getResult = NetworkResult.Offline(IOException("unused")),
+            patchResult = NetworkResult.Success(2_000L),
         )
         val repo = buildRepo(api, positionStore)
 
@@ -271,8 +271,8 @@ class ProgressSyncCycleTest {
         val audiobookStore = FakeAudiobookPositionStore()
         val resumeStore = FakeReadaloudResumeStore()
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
-            patchResult = NetworkSyncSessionResult.Success(2_000L),
+            getResult = NetworkResult.Offline(IOException("unused")),
+            patchResult = NetworkResult.Success(2_000L),
         )
         val repo = buildRepo(api, positionStore, audiobookStore, resumeStore)
 
@@ -300,8 +300,8 @@ class ProgressSyncCycleTest {
         val audiobookStore = FakeAudiobookPositionStore()
         val resumeStore = FakeReadaloudResumeStore()
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
-            patchResult = NetworkSyncSessionResult.Success(2_000L),
+            getResult = NetworkResult.Offline(IOException("unused")),
+            patchResult = NetworkResult.Success(2_000L),
         )
         val repo = buildRepo(api, positionStore, audiobookStore, resumeStore)
 
@@ -318,7 +318,7 @@ class ProgressSyncCycleTest {
         // Both local and server have lastUpdate=0 — nothing to push or pull.
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("", lastUpdate = 0L))
+            getResult = NetworkResult.Success(NetworkServerProgress("", lastUpdate = 0L))
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -333,8 +333,8 @@ class ProgressSyncCycleTest {
         val positionStore = FakePositionStore(localUpdatedAt = 5_000L)
         val patchResponseTs = 5_100L
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(NetworkServerProgress("", lastUpdate = 0L)),
-            patchResult = NetworkSyncSessionResult.Success(patchResponseTs),
+            getResult = NetworkResult.Success(NetworkServerProgress("", lastUpdate = 0L)),
+            patchResult = NetworkResult.Success(patchResponseTs),
         )
 
         val result = buildRepo(api, positionStore).runSyncCycle("item-1", payload)
@@ -348,7 +348,7 @@ class ProgressSyncCycleTest {
     fun `server returns no-progress and ServerWins result carries ebookProgress field`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(
+            getResult = NetworkResult.Success(
                 NetworkServerProgress("epubcfi(/6/4!/4/2/1:5)", ebookProgress = 0.42f, lastUpdate = 9_000L)
             )
         )
@@ -366,8 +366,8 @@ class ProgressSyncCycleTest {
     fun `markFinished bumps localUpdatedAt even when PATCH fails`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.NetworkError(IOException("unused")),
-            patchResult = NetworkSyncSessionResult.NetworkError(IOException("network down")),
+            getResult = NetworkResult.Offline(IOException("unused")),
+            patchResult = NetworkResult.Offline(IOException("network down")),
         )
         val repo = buildRepo(api, positionStore)
 
@@ -388,16 +388,16 @@ class ProgressSyncCycleTest {
             override suspend fun syncEbookProgress(
                 baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload,
                 token: String, insecureAllowed: Boolean,
-            ): NetworkSyncSessionResult {
+            ): NetworkResult<Long> {
                 patchPayload = payload
-                return NetworkSyncSessionResult.Success(7_777L)
+                return NetworkResult.Success(7_777L)
             }
             override suspend fun syncAudiobookProgress(
                 baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload,
                 token: String, insecureAllowed: Boolean,
-            ) = NetworkSyncSessionResult.Success(0L)
-            override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
-                NetworkGetProgressResult.Success(NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
+            ): NetworkResult<Long> = NetworkResult.Success(0L)
+            override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkServerProgress> =
+                NetworkResult.Success(NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
         }
 
         buildRepo(recording, positionStore).touchOpenTimestamp("item-1")
@@ -421,10 +421,10 @@ class ProgressSyncCycleTest {
         // saved position.
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.Success(
+            getResult = NetworkResult.Success(
                 NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L)
             ),
-            patchResult = NetworkSyncSessionResult.Success(7_777L),
+            patchResult = NetworkResult.Success(7_777L),
         )
         val repo = buildRepo(api, positionStore)
 
@@ -439,7 +439,7 @@ class ProgressSyncCycleTest {
     fun `touchOpenTimestamp is a no-op when getProgress fails`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L)
         val api = FakeSessionApi(
-            getResult = NetworkGetProgressResult.NetworkError(IOException("offline")),
+            getResult = NetworkResult.Offline(IOException("offline")),
         )
 
         buildRepo(api, positionStore).touchOpenTimestamp("item-1")

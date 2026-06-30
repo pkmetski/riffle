@@ -51,11 +51,11 @@ class AudiobookBundleApiTest {
         assertEquals("Bearer tkn", recorded.getHeader("Authorization"))
         assertEquals("application/audiobook+zip", recorded.getHeader("Accept"))
         assertNull("No Range header on a fresh download", recorded.getHeader("Range"))
-        assertTrue(result is NetworkAudiobookBundleResult.Success)
-        result as NetworkAudiobookBundleResult.Success
-        assertEquals(64L, result.totalBytes)
-        assertFalse(result.isPartial)
-        assertEquals(bytes.toList(), result.body.use { it.bytes() }.toList())
+        assertTrue(result is NetworkResult.Success)
+        result as NetworkResult.Success
+        assertEquals(64L, result.value.totalBytes)
+        assertFalse(result.value.isPartial)
+        assertEquals(bytes.toList(), result.value.body.use { it.bytes() }.toList())
     }
 
     @Test fun resume_sendsRangeHeader_parsesTotalFromContentRange() = runTest {
@@ -71,10 +71,10 @@ class AudiobookBundleApiTest {
 
         val recorded = server.takeRequest()
         assertEquals("bytes=100-", recorded.getHeader("Range"))
-        assertTrue(result is NetworkAudiobookBundleResult.Success)
-        result as NetworkAudiobookBundleResult.Success
-        assertEquals(128L, result.totalBytes)
-        assertTrue(result.isPartial)
+        assertTrue(result is NetworkResult.Success)
+        result as NetworkResult.Success
+        assertEquals(128L, result.value.totalBytes)
+        assertTrue(result.value.isPartial)
     }
 
     @Test fun cancelledDuringSlowHeaderWait_doesNotLeakConnection() = runBlocking {
@@ -117,6 +117,6 @@ class AudiobookBundleApiTest {
 
         val result = api.openBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L)
 
-        assertTrue(result is NetworkAudiobookBundleResult.NetworkError)
+        assertTrue(result is NetworkResult.Offline)
     }
 }

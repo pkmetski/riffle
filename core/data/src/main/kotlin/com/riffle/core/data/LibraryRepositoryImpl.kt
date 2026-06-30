@@ -23,11 +23,8 @@ import com.riffle.core.domain.Series
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkCollectionResult
-import com.riffle.core.network.NetworkLibrariesResult
-import com.riffle.core.network.NetworkLibraryItemsResult
-import com.riffle.core.network.NetworkSeriesResult
-import com.riffle.core.network.NetworkUserProgressResult
+import com.riffle.core.network.NetworkResult
+import com.riffle.core.network.errorAsThrowable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -169,16 +166,13 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshLibraries(): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        return when (val result = api.getLibraries(server.url.value, token, server.insecureConnectionAllowed)) {
-            is NetworkLibrariesResult.Success -> {
-                val entities = result.libraries
-                    .filter { it.mediaType == "book" }
-                    .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
-                libraryDao.replaceAllForServer(server.id, entities)
-                LibraryRefreshResult.Success
-            }
-            is NetworkLibrariesResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
-        }
+        val result = api.getLibraries(server.url.value, token, server.insecureConnectionAllowed)
+        if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
+        val entities = result.value
+            .filter { it.mediaType == "book" }
+            .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
+        libraryDao.replaceAllForServer(server.id, entities)
+        return LibraryRefreshResult.Success
     }
 
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
@@ -190,14 +184,13 @@ class LibraryRepositoryImpl @Inject constructor(
             val progressDeferred = async { api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed) }
             val itemsDeferred = async { api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed) }
 
-            val serverProgressMap = when (val r = progressDeferred.await()) {
-                is NetworkUserProgressResult.Success -> r.byItemId
-                is NetworkUserProgressResult.NetworkError -> emptyMap()
-            }
-            when (val result = itemsDeferred.await()) {
-                is NetworkLibraryItemsResult.Success -> {
+            val serverProgressMap = (progressDeferred.await() as? NetworkResult.Success)?.value ?: emptyMap()
+            val result = itemsDeferred.await()
+            if (result !is NetworkResult.Success) return@coroutineScope LibraryRefreshResult.NetworkError(result.errorAsThrowable())
+            run {
+                run {
                     val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
-                    val entities = result.items
+                    val entities = result.value
                         .sortedByDescending { it.isSupported }
                         .distinctBy { it.title.trim().lowercase() }
                         .map { item ->
@@ -251,7 +244,6 @@ class LibraryRepositoryImpl @Inject constructor(
                     }
                     LibraryRefreshResult.Success
                 }
-                is NetworkLibraryItemsResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
             }
         }
     }
@@ -259,9 +251,11 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        return when (val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
-            is NetworkSeriesResult.Success -> {
-                val seriesEntities = result.series.map { s ->
+        val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)
+        if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
+        return run {
+            run {
+                val seriesEntities = result.value.map { s ->
                     SeriesEntity(
                         id = s.id,
                         libraryId = s.libraryId,
@@ -272,7 +266,7 @@ class LibraryRepositoryImpl @Inject constructor(
                         bookCount = s.bookCount,
                     )
                 }
-                val seriesItemEntities = result.series.flatMap { s ->
+                val seriesItemEntities = result.value.flatMap { s ->
                     s.items.mapIndexed { index, item ->
                         SeriesItemEntity(
                             seriesId = s.id,
@@ -285,16 +279,17 @@ class LibraryRepositoryImpl @Inject constructor(
                 seriesDao.replaceAllForLibrary(libraryId, seriesEntities, seriesItemEntities)
                 LibraryRefreshResult.Success
             }
-            is NetworkSeriesResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
         }
     }
 
     override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
         val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        return when (val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)) {
-            is NetworkCollectionResult.Success -> {
-                val collectionEntities = result.collections.map { c ->
+        val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)
+        if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
+        return run {
+            run {
+                val collectionEntities = result.value.map { c ->
                     CollectionEntity(
                         id = c.id,
                         libraryId = c.libraryId,
@@ -302,7 +297,7 @@ class LibraryRepositoryImpl @Inject constructor(
                         bookCount = c.bookCount,
                     )
                 }
-                val collectionItemEntities = result.collections.flatMap { c ->
+                val collectionItemEntities = result.value.flatMap { c ->
                     c.items.map { item ->
                         CollectionItemEntity(collectionId = c.id, serverId = server.id, itemId = item.id)
                     }
@@ -310,7 +305,6 @@ class LibraryRepositoryImpl @Inject constructor(
                 collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
                 LibraryRefreshResult.Success
             }
-            is NetworkCollectionResult.NetworkError -> LibraryRefreshResult.NetworkError(result.cause)
         }
     }
 

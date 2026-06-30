@@ -7,8 +7,8 @@ import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkStorytellerBook
-import com.riffle.core.network.NetworkStorytellerBooksResult
 import com.riffle.core.network.StorytellerLibraryApi
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.first
@@ -87,22 +87,19 @@ open class StorytellerReadaloudSyncer(
 
     private suspend fun fetchAndStore(server: Server, token: String): Boolean {
         val libraryId = ServerRepositoryImpl.readaloudLibraryId(server.id)
-        return when (val r = storytellerApi.listReadalouds(server.url.value, token, server.insecureConnectionAllowed)) {
-            is NetworkStorytellerBooksResult.Success -> {
-                val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
-                val progressMap = libraryItemDao.getReadingProgressMap(server.id, libraryId).associate { it.id to it.readingProgress }
-                val entities = storytellerBooksToEntities(
-                    books = r.books,
-                    serverId = server.id,
-                    libraryId = libraryId,
-                    coverUrlOf = { bookId -> storytellerApi.coverUrl(server.url.value, bookId) },
-                    lastOpenedAtMap = lastOpenedAtMap,
-                    progressMap = progressMap,
-                )
-                libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
-                true
-            }
-            is NetworkStorytellerBooksResult.NetworkError -> false
-        }
+        val r = storytellerApi.listReadalouds(server.url.value, token, server.insecureConnectionAllowed)
+        if (r !is NetworkResult.Success) return false
+        val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
+        val progressMap = libraryItemDao.getReadingProgressMap(server.id, libraryId).associate { it.id to it.readingProgress }
+        val entities = storytellerBooksToEntities(
+            books = r.value,
+            serverId = server.id,
+            libraryId = libraryId,
+            coverUrlOf = { bookId -> storytellerApi.coverUrl(server.url.value, bookId) },
+            lastOpenedAtMap = lastOpenedAtMap,
+            progressMap = progressMap,
+        )
+        libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
+        return true
     }
 }

@@ -1,14 +1,14 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.network.NetworkResult
+
 import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.ChapterProgression
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkGetProgressResult
 import com.riffle.core.network.NetworkServerProgress
-import com.riffle.core.network.NetworkSyncSessionResult
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -37,12 +37,12 @@ class AudiobookFollowTest {
     private class FakeApi(val stamp: Long = 4242L) : AbsSessionApi {
         var sentSeconds: Double? = null
         override suspend fun syncEbookProgress(baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean) =
-            NetworkSyncSessionResult.Success(0L)
-        override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean): NetworkSyncSessionResult {
-            sentSeconds = payload.currentTime; return NetworkSyncSessionResult.Success(stamp)
+            NetworkResult.Success(0L)
+        override suspend fun syncAudiobookProgress(baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean): NetworkResult<Long> {
+            sentSeconds = payload.currentTime; return NetworkResult.Success(stamp)
         }
         override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean) =
-            NetworkGetProgressResult.Success(NetworkServerProgress(ebookLocation = "", currentTime = 0.0, lastUpdate = stamp))
+            NetworkResult.Success(NetworkServerProgress(ebookLocation = "", currentTime = 0.0, lastUpdate = stamp))
     }
 
     private val quotes = mapOf(

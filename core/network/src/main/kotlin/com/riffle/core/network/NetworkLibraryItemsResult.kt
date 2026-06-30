@@ -25,18 +25,3 @@ data class NetworkLibraryItem(
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }
-
-sealed class NetworkItemEbookInoResult {
-    data class Success(val ino: String) : NetworkItemEbookInoResult()
-    data class NetworkError(val cause: Throwable) : NetworkItemEbookInoResult()
-}
-
-sealed class NetworkEpubDownloadResult {
-    data class Success(val body: okhttp3.ResponseBody) : NetworkEpubDownloadResult()
-    data class NetworkError(val cause: Throwable) : NetworkEpubDownloadResult()
-}
-
-sealed class NetworkLibraryItemsResult {
-    data class Success(val items: List<NetworkLibraryItem>) : NetworkLibraryItemsResult()
-    data class NetworkError(val cause: Throwable) : NetworkLibraryItemsResult()
-}

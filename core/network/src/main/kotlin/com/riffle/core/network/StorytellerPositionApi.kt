@@ -18,25 +18,18 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
-sealed interface NetworkStorytellerPositionResult {
-    /** [locatorJson] is the raw Readium `locator` object; [timestampMillis] its server `lastUpdate`. */
-    data class Success(val locatorJson: String, val timestampMillis: Long) : NetworkStorytellerPositionResult
-    data object NoPosition : NetworkStorytellerPositionResult
-    data class NetworkError(val cause: Throwable) : NetworkStorytellerPositionResult
-}
-
-sealed interface NetworkStorytellerPutResult {
-    data object Success : NetworkStorytellerPutResult
-    data class NetworkError(val cause: Throwable) : NetworkStorytellerPutResult
-}
+/** [locatorJson] is the raw Readium `locator` object; [timestampMillis] its server `lastUpdate`. */
+data class StorytellerPosition(val locatorJson: String, val timestampMillis: Long)
 
 /**
  * Storyteller's single-peer reading-position endpoint (`/api/v2/books/{id}/positions`). The
  * position is a native Readium `Locator` plus a millisecond timestamp — no CFI translation needed
  * (contrast the ABS path, ADR 0013). Drives the Storyteller-only last-update-wins sync (ADR 0023).
+ *
+ * `Success(null)` ⇒ no position is recorded yet (the old `NoPosition` variant).
  */
 interface StorytellerPositionApi {
-    suspend fun getPosition(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): NetworkStorytellerPositionResult
+    suspend fun getPosition(baseUrl: String, bookId: String, token: String, insecureAllowed: Boolean): NetworkResult<StorytellerPosition?>
     suspend fun putPosition(
         baseUrl: String,
         bookId: String,
@@ -44,7 +37,7 @@ interface StorytellerPositionApi {
         timestampMillis: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerPutResult
+    ): NetworkResult<Unit>
 }
 
 class StorytellerPositionApiImpl(
@@ -58,7 +51,7 @@ class StorytellerPositionApiImpl(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerPositionResult = withContext(Dispatchers.IO) {
+    ): NetworkResult<StorytellerPosition?> = withContext(Dispatchers.IO) {
         val http = if (insecureAllowed) client.trustAllCerts() else client
         val request = Request.Builder()
             .url("$baseUrl/api/v2/books/$bookId/positions")
@@ -68,21 +61,21 @@ class StorytellerPositionApiImpl(
         try {
             http.newCall(request).execute().use { response ->
                 when {
-                    response.code == 404 -> NetworkStorytellerPositionResult.NoPosition
-                    !response.isSuccessful -> NetworkStorytellerPositionResult.NetworkError(IOException("HTTP ${response.code}"))
+                    response.code == 404 -> NetworkResult.Success(null)
+                    !response.isSuccessful -> NetworkResult.Offline(IOException("HTTP ${response.code}"))
                     else -> {
                         val raw = response.body?.string()
-                            ?: return@use NetworkStorytellerPositionResult.NetworkError(IOException("Empty body"))
+                            ?: return@use NetworkResult.Offline(IOException("Empty body"))
                         val root = json.parseToJsonElement(raw).jsonObject
                         val locator = root["locator"]?.jsonObject
-                            ?: return@use NetworkStorytellerPositionResult.NoPosition
+                            ?: return@use NetworkResult.Success(null)
                         val ts = root["timestamp"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
-                        NetworkStorytellerPositionResult.Success(locatorJson = locator.toString(), timestampMillis = ts)
+                        NetworkResult.Success(StorytellerPosition(locator.toString(), ts))
                     }
                 }
             }
         } catch (e: IOException) {
-            NetworkStorytellerPositionResult.NetworkError(e)
+            NetworkResult.Offline(e)
         }
     }
 
@@ -93,7 +86,7 @@ class StorytellerPositionApiImpl(
         timestampMillis: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkStorytellerPutResult = withContext(Dispatchers.IO) {
+    ): NetworkResult<Unit> = withContext(Dispatchers.IO) {
         val http = if (insecureAllowed) client.trustAllCerts() else client
         val payload = buildJsonObject {
             put("locator", json.parseToJsonElement(locatorJson))
@@ -106,11 +99,11 @@ class StorytellerPositionApiImpl(
             .build()
         try {
             http.newCall(request).execute().use { response ->
-                if (response.isSuccessful) NetworkStorytellerPutResult.Success
-                else NetworkStorytellerPutResult.NetworkError(IOException("HTTP ${response.code}"))
+                if (response.isSuccessful) NetworkResult.Success(Unit)
+                else NetworkResult.Offline(IOException("HTTP ${response.code}"))
             }
         } catch (e: IOException) {
-            NetworkStorytellerPutResult.NetworkError(e)
+            NetworkResult.Offline(e)
         }
     }
 

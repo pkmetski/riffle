@@ -51,8 +51,8 @@ class AbsApiClientCollectionsWriteTest {
         assertTrue(body.contains("\"name\":\"To Read\""))
         assertTrue(body.contains("\"books\":[\"item-1\"]"))
 
-        assertTrue(result is NetworkCollectionWriteResult.Success)
-        val collection = (result as NetworkCollectionWriteResult.Success).collection
+        assertTrue(result is NetworkResult.Success)
+        val collection = (result as NetworkResult.Success).value
         assertNotNull(collection)
         assertEquals("col-1", collection!!.id)
         assertEquals("To Read", collection.name)
@@ -69,8 +69,8 @@ class AbsApiClientCollectionsWriteTest {
         val result = client.createCollection(baseUrl(), "lib-1", "To Read", null, "tok", false)
         val recorded = server.takeRequest()
         assertTrue(recorded.body.readUtf8().contains("\"books\":[]"))
-        assertTrue(result is NetworkCollectionWriteResult.Success)
-        val collection = (result as NetworkCollectionWriteResult.Success).collection
+        assertTrue(result is NetworkResult.Success)
+        val collection = (result as NetworkResult.Success).value
         assertNotNull(collection)
         assertTrue(collection!!.items.isEmpty())
     }
@@ -79,7 +79,7 @@ class AbsApiClientCollectionsWriteTest {
     fun `createCollection returns NetworkError on non-2xx`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
         val result = client.createCollection(baseUrl(), "lib-1", "To Read", null, "tok", false)
-        assertTrue(result is NetworkCollectionWriteResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -95,8 +95,8 @@ class AbsApiClientCollectionsWriteTest {
         assertEquals("/api/collections/col-1/book", recorded.path)
         assertEquals("Bearer tok", recorded.getHeader("Authorization"))
         assertTrue(recorded.body.readUtf8().contains("\"id\":\"item-1\""))
-        assertTrue(result is NetworkCollectionWriteResult.Success)
-        val collection = (result as NetworkCollectionWriteResult.Success).collection
+        assertTrue(result is NetworkResult.Success)
+        val collection = (result as NetworkResult.Success).value
         assertNotNull(collection)
         assertEquals("col-1", collection!!.id)
     }
@@ -105,7 +105,7 @@ class AbsApiClientCollectionsWriteTest {
     fun `addBookToCollection returns NetworkError on 404`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
         val result = client.addBookToCollection(baseUrl(), "col-1", "item-1", "tok", false)
-        assertTrue(result is NetworkCollectionWriteResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 
     @Test
@@ -120,21 +120,21 @@ class AbsApiClientCollectionsWriteTest {
         assertEquals("DELETE", recorded.method)
         assertEquals("/api/collections/col-1/book/item-1", recorded.path)
         assertEquals("Bearer tok", recorded.getHeader("Authorization"))
-        assertTrue(result is NetworkCollectionWriteResult.Success)
+        assertTrue(result is NetworkResult.Success)
     }
 
     @Test
     fun `removeBookFromCollection tolerates empty body on success`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(""))
         val result = client.removeBookFromCollection(baseUrl(), "col-1", "item-1", "tok", false)
-        assertTrue(result is NetworkCollectionWriteResult.Success)
-        assertEquals(null, (result as NetworkCollectionWriteResult.Success).collection)
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(null, (result as NetworkResult.Success).value)
     }
 
     @Test
     fun `removeBookFromCollection returns NetworkError on 404`() = runTest {
         server.enqueue(MockResponse().setResponseCode(404))
         val result = client.removeBookFromCollection(baseUrl(), "col-1", "item-1", "tok", false)
-        assertTrue(result is NetworkCollectionWriteResult.NetworkError)
+        assertTrue(result !is NetworkResult.Success)
     }
 }

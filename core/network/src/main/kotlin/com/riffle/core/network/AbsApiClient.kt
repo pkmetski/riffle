@@ -1,7 +1,7 @@
 package com.riffle.core.network
 
+import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsItemDetailResponse
@@ -25,8 +25,6 @@ import com.riffle.core.network.model.AbsSeriesResponse
 import com.riffle.core.network.model.AbsServerInfoResponse
 import com.riffle.core.network.model.toNetworkCollection
 import com.riffle.core.network.model.toNetworkPlaylist
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -34,20 +32,14 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
-
-sealed class NetworkLoginResult {
-    data class Success(val userId: String, val token: String, val username: String) : NetworkLoginResult()
-    data class WrongCredentials(val message: String) : NetworkLoginResult()
-    data class NetworkError(val cause: Throwable) : NetworkLoginResult()
-    data class InsecureConnection(val type: InsecureConnectionType) : NetworkLoginResult()
-}
 
 class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi, AbsBookmarkApi {
 
@@ -59,30 +51,22 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): NetworkLoginResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkLoginUser> = OkHttpClassifier.classify {
+        val client = client(insecureAllowed)
         val body = json.encodeToString(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/login")
-            .post(body)
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            when (response.code) {
-                200 -> {
-                    val raw = response.body?.string() ?: return@withContext NetworkLoginResult.NetworkError(
-                        IOException("Empty response body")
-                    )
-                    val parsed = json.decodeFromString<AbsLoginResponse>(raw)
-                    NetworkLoginResult.Success(userId = parsed.user.id, token = parsed.user.token, username = parsed.user.username)
-                }
-                401 -> NetworkLoginResult.WrongCredentials("Invalid username or password")
-                else -> NetworkLoginResult.NetworkError(IOException("Unexpected HTTP ${response.code}"))
+        val request = Request.Builder().url("$baseUrl/login").post(body).build()
+        val response = client.newCall(request).execute()
+        when (response.code) {
+            200 -> {
+                val raw = response.requireBody()
+                val parsed = json.decodeFromString<AbsLoginResponse>(raw)
+                NetworkLoginUser(userId = parsed.user.id, token = parsed.user.token, username = parsed.user.username)
             }
-        } catch (e: SSLHandshakeException) {
-            NetworkLoginResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
-        } catch (e: IOException) {
-            NetworkLoginResult.NetworkError(e)
+            // 401 historically surfaced as WrongCredentials; the classifier maps Auth ⇒ wrong creds.
+            else -> {
+                response.body?.close()
+                throw HttpException(response.code, response.message)
+            }
         }
     }
 
@@ -90,29 +74,16 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkLibrariesResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/libraries")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string() ?: return@withContext NetworkLibrariesResult.NetworkError(
-                IOException("Empty response body")
+    ): NetworkResult<List<NetworkLibrary>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/libraries", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        json.decodeFromString<AbsLibrariesResponse>(raw).libraries.map { dto ->
+            NetworkLibrary(
+                id = dto.id,
+                name = dto.name,
+                mediaType = dto.mediaType,
+                audiobooksOnly = dto.settings.audiobooksOnly,
             )
-            val parsed = json.decodeFromString<AbsLibrariesResponse>(raw)
-            NetworkLibrariesResult.Success(parsed.libraries.map { dto ->
-                NetworkLibrary(
-                    id = dto.id,
-                    name = dto.name,
-                    mediaType = dto.mediaType,
-                    audiobooksOnly = dto.settings.audiobooksOnly,
-                )
-            })
-        } catch (e: IOException) {
-            NetworkLibrariesResult.NetworkError(e)
         }
     }
 
@@ -120,37 +91,24 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkUserProgressResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/me")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string() ?: return@withContext NetworkUserProgressResult.NetworkError(
-                IOException("Empty response body")
-            )
-            val parsed = json.decodeFromString<AbsMeResponse>(raw)
-            val byItemId = parsed.mediaProgress
-                .filter { it.libraryItemId.isNotEmpty() }
-                .associate {
-                    it.libraryItemId to NetworkUserMediaProgress(
-                        // ABS reports completion in two fields: an ebook carries a precise
-                        // `ebookProgress` (CFI-based, can exceed `progress`); an audiobook carries
-                        // `progress` (currentTime/duration) with `ebookProgress` 0/absent. Prefer a
-                        // real (>0) `ebookProgress`, else fall back to `progress` — so a 0
-                        // `ebookProgress` no longer shadows a real audiobook position (ADR 0029).
-                        ebookProgress = it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress,
-                        lastUpdate = it.lastUpdate,
-                        finishedAt = it.finishedAt,
-                    )
-                }
-            NetworkUserProgressResult.Success(byItemId)
-        } catch (e: Exception) {
-            NetworkUserProgressResult.NetworkError(e)
-        }
+    ): NetworkResult<Map<String, NetworkUserMediaProgress>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/me", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        val parsed = json.decodeFromString<AbsMeResponse>(raw)
+        parsed.mediaProgress
+            .filter { it.libraryItemId.isNotEmpty() }
+            .associate {
+                it.libraryItemId to NetworkUserMediaProgress(
+                    // ABS reports completion in two fields: an ebook carries a precise
+                    // `ebookProgress` (CFI-based, can exceed `progress`); an audiobook carries
+                    // `progress` (currentTime/duration) with `ebookProgress` 0/absent. Prefer a
+                    // real (>0) `ebookProgress`, else fall back to `progress` — so a 0
+                    // `ebookProgress` no longer shadows a real audiobook position (ADR 0029).
+                    ebookProgress = it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress,
+                    lastUpdate = it.lastUpdate,
+                    finishedAt = it.finishedAt,
+                )
+            }
     }
 
     override suspend fun getLibraryItems(
@@ -158,51 +116,35 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkLibraryItemsResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/items")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                response.body?.close()
-                return@withContext NetworkLibraryItemsResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string() ?: return@withContext NetworkLibraryItemsResult.NetworkError(
-                IOException("Empty response body")
+    ): NetworkResult<List<NetworkLibraryItem>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/libraries/$libraryId/items", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
+        parsed.results.map { dto ->
+            // Prefer a real (>0) ebook position, else the audiobook `progress`; a 0 `ebookProgress`
+            // must not shadow a real audiobook position (ADR 0029). Null when no progress record.
+            val progress = dto.userMediaProgress?.let { it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress }
+            NetworkLibraryItem(
+                id = dto.id,
+                libraryId = dto.libraryId,
+                title = dto.media.metadata.title,
+                author = dto.media.metadata.authorName,
+                readingProgress = progress,
+                ebookFormat = EbookFormat.from(dto.media.ebookFormat),
+                ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                hasAudio = dto.media.hasAudio,
+                audioDurationSec = dto.media.audioDurationSec,
+                description = dto.media.metadata.description,
+                seriesName = dto.media.metadata.seriesName,
+                publishedYear = dto.media.metadata.publishedYear,
+                genres = dto.media.metadata.genres,
+                publisher = dto.media.metadata.publisher,
+                language = dto.media.metadata.language,
+                addedAt = dto.addedAt,
+                updatedAt = dto.updatedAt,
+                isbn = dto.media.metadata.isbn,
+                asin = dto.media.metadata.asin,
             )
-            val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
-            NetworkLibraryItemsResult.Success(parsed.results.map { dto ->
-                // Prefer a real (>0) ebook position, else the audiobook `progress`; a 0 `ebookProgress`
-                // must not shadow a real audiobook position (ADR 0029). Null when no progress record.
-                val progress = dto.userMediaProgress?.let { it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress }
-                NetworkLibraryItem(
-                    id = dto.id,
-                    libraryId = dto.libraryId,
-                    title = dto.media.metadata.title,
-                    author = dto.media.metadata.authorName,
-                    readingProgress = progress,
-                    ebookFormat = EbookFormat.from(dto.media.ebookFormat),
-                    ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
-                    hasAudio = dto.media.hasAudio,
-                    audioDurationSec = dto.media.audioDurationSec,
-                    description = dto.media.metadata.description,
-                    seriesName = dto.media.metadata.seriesName,
-                    publishedYear = dto.media.metadata.publishedYear,
-                    genres = dto.media.metadata.genres,
-                    publisher = dto.media.metadata.publisher,
-                    language = dto.media.metadata.language,
-                    addedAt = dto.addedAt,
-                    updatedAt = dto.updatedAt,
-                    isbn = dto.media.metadata.isbn,
-                    asin = dto.media.metadata.asin,
-                )
-            })
-        } catch (e: Exception) {
-            NetworkLibraryItemsResult.NetworkError(e)
         }
     }
 
@@ -211,48 +153,36 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkSeriesResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/series?limit=500")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string() ?: return@withContext NetworkSeriesResult.NetworkError(
-                IOException("Empty response body")
+    ): NetworkResult<List<NetworkSeries>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/libraries/$libraryId/series?limit=500", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        val parsed = json.decodeFromString<AbsSeriesResponse>(raw)
+        parsed.results.map { dto ->
+            NetworkSeries(
+                id = dto.id,
+                libraryId = dto.libraryId.ifEmpty { libraryId },
+                name = dto.name,
+                items = dto.books.map { book ->
+                    val progress = book.userMediaProgress?.ebookProgress
+                        ?: book.userMediaProgress?.progress
+                    NetworkSeriesItem(
+                        id = book.id,
+                        libraryId = book.libraryId,
+                        title = book.media.metadata.title,
+                        author = book.media.metadata.authorName,
+                        sequence = book.seriesSequence,
+                        readingProgress = progress,
+                        ebookFormat = EbookFormat.from(book.media.ebookFormat),
+                        ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+                        description = book.media.metadata.description,
+                        seriesName = book.media.metadata.seriesName,
+                        publishedYear = book.media.metadata.publishedYear,
+                        genres = book.media.metadata.genres,
+                        publisher = book.media.metadata.publisher,
+                        updatedAt = book.updatedAt,
+                    )
+                },
             )
-            val parsed = json.decodeFromString<AbsSeriesResponse>(raw)
-            NetworkSeriesResult.Success(parsed.results.map { dto ->
-                NetworkSeries(
-                    id = dto.id,
-                    libraryId = dto.libraryId.ifEmpty { libraryId },
-                    name = dto.name,
-                    items = dto.books.map { book ->
-                        val progress = book.userMediaProgress?.ebookProgress
-                            ?: book.userMediaProgress?.progress
-                        NetworkSeriesItem(
-                            id = book.id,
-                            libraryId = book.libraryId,
-                            title = book.media.metadata.title,
-                            author = book.media.metadata.authorName,
-                            sequence = book.seriesSequence,
-                            readingProgress = progress,
-                            ebookFormat = EbookFormat.from(book.media.ebookFormat),
-                            ebookFileIno = book.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
-                            description = book.media.metadata.description,
-                            seriesName = book.media.metadata.seriesName,
-                            publishedYear = book.media.metadata.publishedYear,
-                            genres = book.media.metadata.genres,
-                            publisher = book.media.metadata.publisher,
-                            updatedAt = book.updatedAt,
-                        )
-                    },
-                )
-            })
-        } catch (e: Exception) {
-            NetworkSeriesResult.NetworkError(e)
         }
     }
 
@@ -261,23 +191,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/collections?limit=500")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string() ?: return@withContext NetworkCollectionResult.NetworkError(
-                IOException("Empty response body")
-            )
-            val parsed = json.decodeFromString<AbsCollectionsResponse>(raw)
-            NetworkCollectionResult.Success(parsed.results.map { it.toNetworkCollection() })
-        } catch (e: Exception) {
-            NetworkCollectionResult.NetworkError(e)
-        }
+    ): NetworkResult<List<NetworkCollection>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/libraries/$libraryId/collections?limit=500", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        json.decodeFromString<AbsCollectionsResponse>(raw).results.map { it.toNetworkCollection() }
     }
 
     override suspend fun createCollection(
@@ -287,7 +204,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult {
+    ): NetworkResult<NetworkCollection?> {
         val payload = AbsCreateCollectionRequest(
             libraryId = libraryId,
             name = name,
@@ -295,11 +212,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         )
         val body = json.encodeToString(AbsCreateCollectionRequest.serializer(), payload)
             .toRequestBody(jsonMediaType)
-        return executeCollectionWrite(
-            url = "$baseUrl/api/collections",
-            token = token,
-            insecureAllowed = insecureAllowed,
-        ) { post(body) }
+        return executeCollectionWrite("$baseUrl/api/collections", token, insecureAllowed) { post(body) }
     }
 
     override suspend fun addBookToCollection(
@@ -308,14 +221,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult {
+    ): NetworkResult<NetworkCollection?> {
         val body = json.encodeToString(AbsCollectionBookRequest.serializer(), AbsCollectionBookRequest(libraryItemId))
             .toRequestBody(jsonMediaType)
-        return executeCollectionWrite(
-            url = "$baseUrl/api/collections/$collectionId/book",
-            token = token,
-            insecureAllowed = insecureAllowed,
-        ) { post(body) }
+        return executeCollectionWrite("$baseUrl/api/collections/$collectionId/book", token, insecureAllowed) { post(body) }
     }
 
     override suspend fun removeBookFromCollection(
@@ -324,10 +233,8 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkCollectionWriteResult = executeCollectionWrite(
-        url = "$baseUrl/api/collections/$collectionId/book/$libraryItemId",
-        token = token,
-        insecureAllowed = insecureAllowed,
+    ): NetworkResult<NetworkCollection?> = executeCollectionWrite(
+        "$baseUrl/api/collections/$collectionId/book/$libraryItemId", token, insecureAllowed,
     ) { delete() }
 
     private suspend fun executeCollectionWrite(
@@ -335,28 +242,16 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         token: String,
         insecureAllowed: Boolean,
         buildRequest: Request.Builder.() -> Unit,
-    ): NetworkCollectionWriteResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkCollection?> = OkHttpClassifier.classify {
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
             .apply { buildRequest() }
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                return@withContext NetworkCollectionWriteResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val collection = if (raw.isBlank()) {
-                null
-            } else {
-                json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
-            }
-            NetworkCollectionWriteResult.Success(collection)
-        } catch (e: IOException) {
-            NetworkCollectionWriteResult.NetworkError(e)
-        }
+        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
+        val raw = response.body?.string().orEmpty()
+        if (raw.isBlank()) null
+        else json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
     }
 
     override suspend fun getPlaylists(
@@ -364,23 +259,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkPlaylistResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/libraries/$libraryId/playlists?limit=500")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string() ?: return@withContext NetworkPlaylistResult.NetworkError(
-                IOException("Empty response body")
-            )
-            val parsed = json.decodeFromString<AbsPlaylistsResponse>(raw)
-            NetworkPlaylistResult.Success(parsed.results.map { it.toNetworkPlaylist() })
-        } catch (e: Exception) {
-            NetworkPlaylistResult.NetworkError(e)
-        }
+    ): NetworkResult<List<NetworkPlaylist>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/libraries/$libraryId/playlists?limit=500", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        json.decodeFromString<AbsPlaylistsResponse>(raw).results.map { it.toNetworkPlaylist() }
     }
 
     override suspend fun createPlaylist(
@@ -390,7 +272,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         initialBookId: String?,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkPlaylistWriteResult {
+    ): NetworkResult<NetworkPlaylist?> {
         val payload = AbsCreatePlaylistRequest(
             libraryId = libraryId,
             name = name,
@@ -398,11 +280,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         )
         val body = json.encodeToString(AbsCreatePlaylistRequest.serializer(), payload)
             .toRequestBody(jsonMediaType)
-        return executePlaylistWrite(
-            url = "$baseUrl/api/playlists",
-            token = token,
-            insecureAllowed = insecureAllowed,
-        ) { post(body) }
+        return executePlaylistWrite("$baseUrl/api/playlists", token, insecureAllowed) { post(body) }
     }
 
     override suspend fun addBookToPlaylist(
@@ -411,16 +289,12 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkPlaylistWriteResult {
+    ): NetworkResult<NetworkPlaylist?> {
         val body = json.encodeToString(
             AbsPlaylistItemRequest.serializer(),
             AbsPlaylistItemRequest(libraryItemId),
         ).toRequestBody(jsonMediaType)
-        return executePlaylistWrite(
-            url = "$baseUrl/api/playlists/$playlistId/item",
-            token = token,
-            insecureAllowed = insecureAllowed,
-        ) { post(body) }
+        return executePlaylistWrite("$baseUrl/api/playlists/$playlistId/item", token, insecureAllowed) { post(body) }
     }
 
     override suspend fun removeBookFromPlaylist(
@@ -429,10 +303,8 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkPlaylistWriteResult = executePlaylistWrite(
-        url = "$baseUrl/api/playlists/$playlistId/item/$libraryItemId",
-        token = token,
-        insecureAllowed = insecureAllowed,
+    ): NetworkResult<NetworkPlaylist?> = executePlaylistWrite(
+        "$baseUrl/api/playlists/$playlistId/item/$libraryItemId", token, insecureAllowed,
     ) { delete() }
 
     private suspend fun executePlaylistWrite(
@@ -440,25 +312,16 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         token: String,
         insecureAllowed: Boolean,
         buildRequest: Request.Builder.() -> Unit,
-    ): NetworkPlaylistWriteResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkPlaylist?> = OkHttpClassifier.classify {
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $token")
             .apply { buildRequest() }
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                return@withContext NetworkPlaylistWriteResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val playlist = if (raw.isBlank()) null else
-                json.decodeFromString(AbsPlaylistsResponse.AbsPlaylistDto.serializer(), raw).toNetworkPlaylist()
-            NetworkPlaylistWriteResult.Success(playlist)
-        } catch (e: IOException) {
-            NetworkPlaylistWriteResult.NetworkError(e)
-        }
+        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
+        val raw = response.body?.string().orEmpty()
+        if (raw.isBlank()) null
+        else json.decodeFromString(AbsPlaylistsResponse.AbsPlaylistDto.serializer(), raw).toNetworkPlaylist()
     }
 
     override suspend fun getItemEbookFileIno(
@@ -466,28 +329,11 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkItemEbookInoResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/items/$itemId")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val raw = response.body?.string() ?: return@withContext NetworkItemEbookInoResult.NetworkError(
-                IOException("Empty response body")
-            )
-            if (!response.isSuccessful) {
-                return@withContext NetworkItemEbookInoResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val parsed = json.decodeFromString<AbsItemResponse>(raw)
-            val ino = parsed.media.ebookFile?.ino?.takeIf { it.isNotEmpty() }
-                ?: return@withContext NetworkItemEbookInoResult.NetworkError(IOException("No ebookFile.ino in item $itemId"))
-            NetworkItemEbookInoResult.Success(ino)
-        } catch (e: IOException) {
-            NetworkItemEbookInoResult.NetworkError(e)
-        }
+    ): NetworkResult<String> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/items/$itemId", token, insecureAllowed).requireSuccessful()
+        val raw = response.requireBody()
+        json.decodeFromString<AbsItemResponse>(raw).media.ebookFile?.ino?.takeIf { it.isNotEmpty() }
+            ?: throw IOException("No ebookFile.ino in item $itemId")
     }
 
     override suspend fun getAudiobookFingerprint(
@@ -495,26 +341,12 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkAudiobookFingerprintResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/items/$itemId?expanded=1")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext NetworkAudiobookFingerprintResult.NetworkError(IOException("HTTP ${response.code}"))
-                }
-                val raw = response.body?.string()
-                    ?: return@withContext NetworkAudiobookFingerprintResult.NetworkError(IOException("Empty response body"))
-                val fingerprint = json.decodeFromString<AbsItemResponse>(raw).audiobookFingerprint()
-                if (fingerprint == null) NetworkAudiobookFingerprintResult.NoAudiobook
-                else NetworkAudiobookFingerprintResult.Success(fingerprint)
-            }
-        } catch (e: IOException) {
-            NetworkAudiobookFingerprintResult.NetworkError(e)
+    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify {
+        get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed).use { response ->
+            response.requireSuccessful()
+            val raw = response.requireBody()
+            // Success(null) replaces the old NoAudiobook variant.
+            json.decodeFromString<AbsItemResponse>(raw).audiobookFingerprint()
         }
     }
 
@@ -523,26 +355,12 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkAudiobookTracksResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/items/$itemId?expanded=1")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext NetworkAudiobookTracksResult.NetworkError(IOException("HTTP ${response.code}"))
-                }
-                val raw = response.body?.string()
-                    ?: return@withContext NetworkAudiobookTracksResult.NetworkError(IOException("Empty response body"))
-                val tracks = json.decodeFromString<AbsItemResponse>(raw).audiobookTracks()
-                if (tracks.isEmpty()) NetworkAudiobookTracksResult.NoAudiobook
-                else NetworkAudiobookTracksResult.Success(tracks)
-            }
-        } catch (e: IOException) {
-            NetworkAudiobookTracksResult.NetworkError(e)
+    ): NetworkResult<List<NetworkAbsAudioTrack>> = OkHttpClassifier.classify {
+        get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed).use { response ->
+            response.requireSuccessful()
+            val raw = response.requireBody()
+            // Empty list replaces the old NoAudiobook variant.
+            json.decodeFromString<AbsItemResponse>(raw).audiobookTracks()
         }
     }
 
@@ -552,26 +370,14 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         fileIno: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkEpubDownloadResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/items/$itemId/ebook/$fileIno")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            val body = response.body ?: return@withContext NetworkEpubDownloadResult.NetworkError(
-                IOException("Empty response body")
-            )
-            if (response.isSuccessful) NetworkEpubDownloadResult.Success(body)
-            else {
-                body.close()
-                NetworkEpubDownloadResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-        } catch (e: IOException) {
-            NetworkEpubDownloadResult.NetworkError(e)
+    ): NetworkResult<ResponseBody> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/items/$itemId/ebook/$fileIno", token, insecureAllowed)
+        val body = response.body ?: throw IOException("Empty response body")
+        if (!response.isSuccessful) {
+            body.close()
+            throw HttpException(response.code, response.message)
         }
+        body
     }
 
     override suspend fun getItemDetail(
@@ -579,27 +385,9 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsItemDetailResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/items/$itemId")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                response.body?.close()
-                return@withContext AbsItemDetailResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string() ?: return@withContext AbsItemDetailResult.NetworkError(
-                IOException("Empty response body")
-            )
-            val parsed = json.decodeFromString<AbsItemDetailResponse>(raw)
-            AbsItemDetailResult.Success(parsed)
-        } catch (e: Exception) {
-            AbsItemDetailResult.NetworkError(e as? IOException ?: IOException(e))
-        }
+    ): NetworkResult<AbsItemDetailResponse> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/items/$itemId", token, insecureAllowed).requireSuccessful()
+        json.decodeFromString<AbsItemDetailResponse>(response.requireBody())
     }
 
     override suspend fun syncEbookProgress(
@@ -608,8 +396,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         payload: NetworkEbookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkSyncSessionResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<Long> = OkHttpClassifier.classify {
         val body = json.encodeToString(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress, payload.isFinished))
             .toRequestBody(jsonMediaType)
         val request = Request.Builder()
@@ -617,17 +404,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .addHeader("Authorization", "Bearer $token")
             .patch(body)
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val lastUpdate = response.body?.string()
-                    ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
-                    ?.lastUpdate ?: 0L
-                NetworkSyncSessionResult.Success(lastUpdate)
-            } else NetworkSyncSessionResult.NetworkError(IOException("HTTP ${response.code}"))
-        } catch (e: IOException) {
-            NetworkSyncSessionResult.NetworkError(e)
-        }
+        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
+        response.body?.string()
+            ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
+            ?.lastUpdate ?: 0L
     }
 
     override suspend fun syncAudiobookProgress(
@@ -636,8 +416,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         payload: NetworkAudiobookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkSyncSessionResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<Long> = OkHttpClassifier.classify {
         val progress = if (payload.duration > 0.0) (payload.currentTime / payload.duration).coerceIn(0.0, 1.0) else 0.0
         val body = json.encodeToString(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress))
             .toRequestBody(jsonMediaType)
@@ -646,17 +425,10 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .addHeader("Authorization", "Bearer $token")
             .patch(body)
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val lastUpdate = response.body?.string()
-                    ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
-                    ?.lastUpdate ?: 0L
-                NetworkSyncSessionResult.Success(lastUpdate)
-            } else NetworkSyncSessionResult.NetworkError(IOException("HTTP ${response.code}"))
-        } catch (e: IOException) {
-            NetworkSyncSessionResult.NetworkError(e)
-        }
+        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
+        response.body?.string()
+            ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
+            ?.lastUpdate ?: 0L
     }
 
     override suspend fun getProgress(
@@ -664,37 +436,23 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkGetProgressResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/me/progress/$libraryItemId")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val raw = response.body?.string()
-                if (raw.isNullOrEmpty()) return@withContext NetworkGetProgressResult.NetworkError(
-                    IOException("Empty response body")
-                )
-                val parsed = json.decodeFromString<AbsProgressResponse>(raw)
-                NetworkGetProgressResult.Success(
-                    NetworkServerProgress(
-                        ebookLocation = parsed.ebookLocation,
-                        ebookProgress = parsed.ebookProgress,
-                        currentTime = parsed.currentTime,
-                        duration = parsed.duration,
-                        lastUpdate = parsed.lastUpdate,
-                    )
-                )
-            } else if (response.code == 404) {
-                NetworkGetProgressResult.Success(NetworkServerProgress(ebookLocation = "", lastUpdate = 0L))
-            } else {
-                NetworkGetProgressResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-        } catch (e: IOException) {
-            NetworkGetProgressResult.NetworkError(e)
+    ): NetworkResult<NetworkServerProgress> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/me/progress/$libraryItemId", token, insecureAllowed)
+        // A 404 means "no progress record yet" — synthesize an empty record so callers don't
+        // have to special-case `ServerError(404)`.
+        if (response.code == 404) {
+            response.body?.close()
+            NetworkServerProgress(ebookLocation = "", lastUpdate = 0L)
+        } else {
+            val raw = response.requireSuccessful().requireBody()
+            val parsed = json.decodeFromString<AbsProgressResponse>(raw)
+            NetworkServerProgress(
+                ebookLocation = parsed.ebookLocation,
+                ebookProgress = parsed.ebookProgress,
+                currentTime = parsed.currentTime,
+                duration = parsed.duration,
+                lastUpdate = parsed.lastUpdate,
+            )
         }
     }
 
@@ -704,8 +462,7 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         deviceId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkPlaybackSessionResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkPlaybackSession> = OkHttpClassifier.classify {
         val payload = AbsPlayRequest(
             deviceInfo = AbsPlayDeviceInfo(deviceId = deviceId),
             // The MIME types Media3/ExoPlayer plays directly; ABS transcodes only if none match.
@@ -719,87 +476,58 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
             .addHeader("Authorization", "Bearer $token")
             .post(body)
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext NetworkPlaybackSessionResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string()
-            if (raw.isNullOrEmpty()) {
-                return@withContext NetworkPlaybackSessionResult.NetworkError(IOException("Empty play session response"))
-            }
-            val parsed = json.decodeFromString<AbsPlaySessionResponse>(raw)
-            val tracks = parsed.audioTracks.map { t ->
-                NetworkAudioTrack(
-                    index = t.index,
-                    startOffsetSec = t.startOffset,
-                    durationSec = t.duration,
-                    contentUrl = t.contentUrl,
-                    mimeType = t.mimeType,
-                )
-            }
-            // ABS sometimes omits a top-level duration; fall back to the summed track durations.
-            val duration = if (parsed.duration > 0.0) parsed.duration else tracks.sumOf { it.durationSec }
-            NetworkPlaybackSessionResult.Success(
-                NetworkPlaybackSession(
-                    sessionId = parsed.id,
-                    tracks = tracks,
-                    chapters = parsed.chapters.map { c ->
-                        NetworkAudioChapter(id = c.id, startSec = c.start, endSec = c.end, title = c.title)
-                    },
-                    currentTimeSec = parsed.currentTime,
-                    durationSec = duration,
-                )
+        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
+        val raw = response.body?.string()
+        if (raw.isNullOrEmpty()) throw IOException("Empty play session response")
+        val parsed = json.decodeFromString<AbsPlaySessionResponse>(raw)
+        val tracks = parsed.audioTracks.map { t ->
+            NetworkAudioTrack(
+                index = t.index,
+                startOffsetSec = t.startOffset,
+                durationSec = t.duration,
+                contentUrl = t.contentUrl,
+                mimeType = t.mimeType,
             )
-        } catch (e: IOException) {
-            NetworkPlaybackSessionResult.NetworkError(e)
         }
+        // ABS sometimes omits a top-level duration; fall back to the summed track durations.
+        val duration = if (parsed.duration > 0.0) parsed.duration else tracks.sumOf { it.durationSec }
+        NetworkPlaybackSession(
+            sessionId = parsed.id,
+            tracks = tracks,
+            chapters = parsed.chapters.map { c ->
+                NetworkAudioChapter(id = c.id, startSec = c.start, endSec = c.end, title = c.title)
+            },
+            currentTimeSec = parsed.currentTime,
+            durationSec = duration,
+        )
     }
 
     override suspend fun getServerInfo(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): String? = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): String? {
         // `/status` is unauthenticated and returns `{ serverVersion, app, isInit, ... }`.
         // The previously-targeted `/api/server-info` does not exist on ABS (404 even with auth).
-        val request = Request.Builder()
-            .url("$baseUrl/status")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext null
-            val raw = response.body?.string() ?: return@withContext null
-            json.decodeFromString<AbsServerInfoResponse>(raw).serverVersion
-        } catch (_: Exception) {
-            null
+        val result = OkHttpClassifier.classify {
+            val response = client(insecureAllowed).newCall(
+                Request.Builder().url("$baseUrl/status").get().build()
+            ).execute().requireSuccessful()
+            json.decodeFromString<AbsServerInfoResponse>(response.requireBody()).serverVersion
         }
+        return result.getOrNull()
     }
 
     override suspend fun getCurrentUserId(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): String? = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/me")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                response.body?.close()
-                return@withContext null
-            }
-            val raw = response.body?.string() ?: return@withContext null
-            json.decodeFromString<AbsMeResponse>(raw).id.takeIf { it.isNotBlank() }
-        } catch (_: Exception) {
-            null
+    ): String? {
+        val result = OkHttpClassifier.classify {
+            val response = get(baseUrl, "/api/me", token, insecureAllowed).requireSuccessful()
+            json.decodeFromString<AbsMeResponse>(response.requireBody()).id.takeIf { it.isNotBlank() }
         }
+        return result.getOrNull()
     }
 
     override suspend fun createBookmark(
@@ -809,15 +537,14 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify {
         val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/me/item/$itemId/bookmark")
             .addHeader("Authorization", "Bearer $token")
             .post(body)
             .build()
-        executeBookmarkWrite(client, request)
+        executeBookmarkWrite(request, insecureAllowed)
     }
 
     override suspend fun updateBookmark(
@@ -827,32 +554,20 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify {
         val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
         val request = Request.Builder()
             .url("$baseUrl/api/me/item/$itemId/bookmark")
             .addHeader("Authorization", "Bearer $token")
             .patch(body)
             .build()
-        executeBookmarkWrite(client, request)
+        executeBookmarkWrite(request, insecureAllowed)
     }
 
-    private fun executeBookmarkWrite(client: OkHttpClient, request: Request): AbsBookmarkResult {
-        return try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                response.body?.close()
-                return AbsBookmarkResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string()
-            if (raw.isNullOrEmpty()) {
-                return AbsBookmarkResult.NetworkError(IOException("Empty response body"))
-            }
-            AbsBookmarkResult.Success(json.decodeFromString<AbsBookmarkJson>(raw).toNetworkAbsBookmark())
-        } catch (e: IOException) {
-            AbsBookmarkResult.NetworkError(e)
-        }
+    private fun executeBookmarkWrite(request: Request, insecureAllowed: Boolean): NetworkAbsBookmark {
+        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
+        val raw = response.requireBody()
+        return json.decodeFromString<AbsBookmarkJson>(raw).toNetworkAbsBookmark()
     }
 
     override suspend fun deleteBookmark(
@@ -861,33 +576,22 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         timeSec: Int,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify {
         val request = Request.Builder()
             .url("$baseUrl/api/me/item/$itemId/bookmark/$timeSec")
             .addHeader("Authorization", "Bearer $token")
             .delete()
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            response.body?.close()
-            if (response.code == 404) {
-                // Deleting an already-absent bookmark is success (idempotent) — otherwise a
-                // delete-tombstone for a bookmark already gone on the server stays dirty forever.
-                return@withContext AbsBookmarkResult.Success(
-                    NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
-                )
-            }
-            if (!response.isSuccessful) {
-                return@withContext AbsBookmarkResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
+        val response = client(insecureAllowed).newCall(request).execute()
+        response.body?.close()
+        // Deleting an already-absent bookmark is success (idempotent) — otherwise a
+        // delete-tombstone for a bookmark already gone on the server stays dirty forever.
+        if (response.code == 404 || response.isSuccessful) {
             // DELETE returns plain-text "OK" with no JSON body, so synthesize the bookmark
             // from the request inputs (identity is libraryItemId + time).
-            AbsBookmarkResult.Success(
-                NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
-            )
-        } catch (e: IOException) {
-            AbsBookmarkResult.NetworkError(e)
+            NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
+        } else {
+            throw HttpException(response.code, response.message)
         }
     }
 
@@ -895,29 +599,24 @@ class AbsApiClient(private val httpClient: OkHttpClient) : AbsApi, AbsLibraryApi
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): AbsBookmarkListResult = withContext(Dispatchers.IO) {
-        val client = if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+    ): NetworkResult<List<NetworkAbsBookmark>> = OkHttpClassifier.classify {
+        val response = get(baseUrl, "/api/me", token, insecureAllowed).requireSuccessful()
+        val raw = response.requireBody()
+        // `/api/me` carries many fields; `json` is configured with ignoreUnknownKeys so the
+        // wrapper need only declare `bookmarks` (absent → empty via the default).
+        json.decodeFromString<AbsMeBookmarksResponse>(raw).bookmarks.map { it.toNetworkAbsBookmark() }
+    }
+
+    private fun client(insecureAllowed: Boolean): OkHttpClient =
+        if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+
+    private fun get(baseUrl: String, path: String, token: String, insecureAllowed: Boolean): Response {
         val request = Request.Builder()
-            .url("$baseUrl/api/me")
+            .url("$baseUrl$path")
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                response.body?.close()
-                return@withContext AbsBookmarkListResult.NetworkError(IOException("HTTP ${response.code}"))
-            }
-            val raw = response.body?.string() ?: return@withContext AbsBookmarkListResult.NetworkError(
-                IOException("Empty response body")
-            )
-            // `/api/me` carries many fields; `json` is configured with ignoreUnknownKeys so the
-            // wrapper need only declare `bookmarks` (absent → empty via the default).
-            val parsed = json.decodeFromString<AbsMeBookmarksResponse>(raw)
-            AbsBookmarkListResult.Success(parsed.bookmarks.map { it.toNetworkAbsBookmark() })
-        } catch (e: IOException) {
-            AbsBookmarkListResult.NetworkError(e)
-        }
+        return client(insecureAllowed).newCall(request).execute()
     }
 
     private fun OkHttpClient.trustAllCerts(): OkHttpClient {
