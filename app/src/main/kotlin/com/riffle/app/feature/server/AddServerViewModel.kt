@@ -17,6 +17,7 @@ import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.CommitServerResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingServer
@@ -52,6 +53,7 @@ class AddServerViewModel @Inject constructor(
     private val storytellerSyncer: StorytellerReadaloudSyncer,
     private val readaloudMatcher: ReadaloudMatchingService,
     private val tokenStorage: TokenStorage,
+    private val clock: Clock,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -309,7 +311,7 @@ class AddServerViewModel @Inject constructor(
      */
     private fun relativeSuccessTime(lastSuccessAtMs: Long?): String {
         if (lastSuccessAtMs == null) return "Never"
-        val elapsedSec = (System.currentTimeMillis() - lastSuccessAtMs) / 1_000L
+        val elapsedSec = (clock.nowMs() - lastSuccessAtMs) / 1_000L
         return when {
             elapsedSec < 60 -> "just now"
             elapsedSec < 3_600 -> "${elapsedSec / 60} min ago"

@@ -77,9 +77,6 @@ tasks.register("checkRiffleInfraSeams") {
             "core/data/src/main/kotlin/com/riffle/core/data/ReadaloudResumeStoreImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/TimestampedPositionStore.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/library/LibraryItemsViewModel.kt",
-            "app/src/main/kotlin/com/riffle/app/feature/server/AddServerViewModel.kt",
             // ---- Grandfathered — DispatcherProvider sweep follow-up (core/data).
             "core/data/src/main/kotlin/com/riffle/core/data/AppUpdateRepositoryImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/AudiobookBundleDownloader.kt",
@@ -92,6 +89,7 @@ tasks.register("checkRiffleInfraSeams") {
             "core/data/src/main/kotlin/com/riffle/core/data/StorytellerSidecarFetcher.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/di/DataModule.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/di/modules/SyncModule.kt",
             // ---- Grandfathered — DispatcherProvider sweep follow-up (app/feature).
             "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookController.kt",
             "app/src/main/kotlin/com/riffle/app/feature/navigation/HomeScreen.kt",

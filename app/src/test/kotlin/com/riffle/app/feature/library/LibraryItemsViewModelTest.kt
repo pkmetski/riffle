@@ -231,6 +231,10 @@ class LibraryItemsViewModelTest {
         coverGridDensityStore,
         annotationStore,
         audiobookBookmarkStore,
+        object : com.riffle.core.domain.Clock {
+            override fun nowMs(): Long = 0L
+            override fun nowNs(): Long = 0L
+        },
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
