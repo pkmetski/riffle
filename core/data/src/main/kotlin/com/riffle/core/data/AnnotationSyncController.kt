@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -11,69 +10,62 @@ import com.riffle.core.domain.AnnotationFileHeader
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
- * Orchestrator for annotation sync lifecycle.
+ * Facade for annotation sync lifecycle. Composes three collaborators behind the
+ * [AnnotationSyncTarget] seam:
  *
- * Manages the three sync events:
- * - [syncOnOpen]: Full sync when a book is opened (read all device files, merge, upsert).
- * - [scheduleDebounce]: Per-book debounce timer on any annotation mutation.
- * - [syncOnClose]: Cancel debounce and push pending changes when a book is closed.
+ * - [AnnotationMergeOrchestrator] — open-book read → merge → upsert
+ * - [AnnotationLiveSync] — per-book pull loop (delegates to the orchestrator when a peer file is present)
+ * - [AnnotationPushCoordinator] — debounced push + close-flush behind the [AnnotationLockPort]
  *
- * **Two identities at play.** Every call takes both:
- * - `serverId` — the per-device local Riffle id, used to scope the Room DAO query. The local
- *   DB is always per-device, so this is correct here.
- * - `namespace` — the cross-device-stable ABS account id ([com.riffle.core.domain.Server.absUserId]),
- *   used for the sync target's path/key so two devices configured against the same ABS server
- *   discover each other's files. See [AnnotationSyncTarget] kdoc for the rationale.
+ * The two identity axes are unchanged:
+ * - `serverId` — per-device local Riffle id, used to scope the Room DAO query.
+ * - `namespace` — cross-device-stable ABS account id, used for the sync target's path/key so two
+ *   devices configured against the same ABS server discover each other's files. See
+ *   [AnnotationSyncTarget] kdoc for the rationale.
  *
- * Callers that don't yet know `namespace` (legacy rows pre-`servers.absUserId`) should resolve
- * it via [com.riffle.core.domain.ServerRepository.ensureAbsUserId]; if that returns null,
- * skip sync entirely — the local DB remains the source of truth.
- *
- * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled).
- *
- * Companion sweep ([AnnotationSweep], ADR 0036) handles durable retries after process death;
- * this controller reports its own cycle outcomes through [statusStore] and asks [sweepEnqueuer]
- * to schedule a WorkManager retry on failure so the catch-up isn't tied to staying foregrounded.
+ * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled). Companion sweep
+ * ([AnnotationSweep], ADR 0036) handles durable retries after process death; this controller
+ * reports its own cycle outcomes through [statusStore] and asks [sweepEnqueuer] to schedule a
+ * WorkManager retry on failure.
  */
 class AnnotationSyncController(
     private val targetProvider: () -> AnnotationSyncTarget?,
-    private val mergeService: AnnotationMergeService,
-    private val annotationDao: AnnotationDao,
-    private val deviceIdStore: DeviceIdStore,
-    private val deviceLabelResolver: DeviceLabelResolver,
-    private val scope: CoroutineScope,
-    private val statusStore: AnnotationSyncStatusStore,
-    private val sweepEnqueuer: AnnotationSweepEnqueuer,
+    mergeService: AnnotationMergeService,
+    annotationDao: AnnotationDao,
+    deviceIdStore: DeviceIdStore,
+    deviceLabelResolver: DeviceLabelResolver,
+    scope: CoroutineScope,
+    statusStore: AnnotationSyncStatusStore,
+    sweepEnqueuer: AnnotationSweepEnqueuer,
     /**
      * Resolves the login username for a local Riffle server id. Used to embed the human-
      * readable account name in each file's [AnnotationFileHeader] so the Maintenance screen
      * can label foreign-user groups by name instead of by opaque user id. Returns null when the
      * server is unknown or doesn't carry credentials (Storyteller peer, etc.).
      */
-    private val usernameProvider: suspend (serverId: String) -> String? = { null },
+    usernameProvider: suspend (serverId: String) -> String? = { null },
     /**
      * Resolves the local catalog's book title for a (serverId, itemId). Embedded in the header
      * so Maintenance can surface "Project Hail Mary" instead of an opaque itemId. Returns null
      * when the catalog hasn't cached the title yet — header renderer falls back to the id.
      */
-    private val bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
-    private val nowIso: () -> String = { Instant.now().toString() },
-    private val clock: () -> Long = System::currentTimeMillis,
+    bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
+    nowIso: () -> String = { Instant.now().toString() },
+    clock: () -> Long = System::currentTimeMillis,
     /**
      * Per-book mutex shared with [AnnotationSweep] (#321). Held across read-then-write so the
      * sweep and a live push cannot interleave on the same device file. Defaults to a fresh
-     * instance for tests; production wiring (DI) supplies the process-wide singleton.
+     * instance for tests; production wiring (DI) supplies the process-wide singleton via
+     * [ReconcileLocks].
      */
-    private val locks: ReconcileLocks = ReconcileLocks(),
+    locks: AnnotationLockPort = ReconcileLocks(),
     /**
      * Shared sentinel-writer (#321). Defaults to one built from this controller's own deps so
      * existing tests don't have to construct one; production wiring injects the singleton.
      */
-    private val sentinelWriter: DeviceMetaSentinelWriter = DeviceMetaSentinelWriter(
+    sentinelWriter: DeviceMetaSentinelWriter = DeviceMetaSentinelWriter(
         deviceIdStore,
         deviceLabelResolver,
         usernameProvider,
@@ -92,311 +84,73 @@ class AnnotationSyncController(
         internal const val TOMBSTONE_TTL_MS = 90L * 24L * 60L * 60L * 1000L
     }
 
-    private val debouncingJobs = mutableMapOf<Pair<String, String>, Job>()
+    private val mergeOrchestrator = AnnotationMergeOrchestrator(
+        mergeService = mergeService,
+        annotationDao = annotationDao,
+        deviceIdStore = deviceIdStore,
+        statusStore = statusStore,
+        sentinelWriter = sentinelWriter,
+        clock = clock,
+        tombstoneTtlMs = TOMBSTONE_TTL_MS,
+    )
+
+    private val liveSync = AnnotationLiveSync(
+        targetProvider = targetProvider,
+        orchestrator = mergeOrchestrator,
+        deviceIdStore = deviceIdStore,
+        statusStore = statusStore,
+        sentinelWriter = sentinelWriter,
+        scope = scope,
+        clock = clock,
+        liveSyncIntervalMs = LIVE_SYNC_INTERVAL_MS,
+    )
+
+    private val pushCoordinator = AnnotationPushCoordinator(
+        targetProvider = targetProvider,
+        annotationDao = annotationDao,
+        deviceIdStore = deviceIdStore,
+        statusStore = statusStore,
+        sweepEnqueuer = sweepEnqueuer,
+        sentinelWriter = sentinelWriter,
+        locks = locks,
+        bookTitleProvider = bookTitleProvider,
+        scope = scope,
+        clock = clock,
+        tombstoneTtlMs = TOMBSTONE_TTL_MS,
+        debounceDurationMs = DEBOUNCE_DURATION_MS,
+    )
 
     /**
      * Full sync on book open.
      *
-     * Reads all device annotation files for a book, parses them, merges with last-write-wins,
-     * and upserts the merged result to Room. Called once when EpubReaderScreen composes.
-     *
      * @param serverId Local per-device Riffle server id (DAO scope).
-     * @param namespace Cross-device-stable account id (sync-target scope). See class kdoc.
+     * @param namespace Cross-device-stable account id (sync-target scope).
      * @param itemId The ABS library item ID.
      */
     suspend fun syncOnOpen(serverId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
-
-        val filenames = try {
-            target.list(namespace, itemId)
-        } catch (e: Exception) {
-            statusStore.report(e.toFailedCycleOutcome(clock()))
-            // Don't enqueue a sweep here — sync-on-open failures are recovered by the next book
-            // open, which retries the read pass. There is nothing for the push sweep to do.
-            return
-        }
-        runMergeFromListing(target, serverId, namespace, itemId, filenames)
+        mergeOrchestrator.syncOnOpen(target, serverId, namespace, itemId)
     }
 
     /**
-     * Merge the device files already listed in [filenames] into Room using the same [target]
-     * instance that produced the listing. Reports a [CycleOutcome] to the status store on
-     * success or failure. Shared by [syncOnOpen] (which lists first) and [startLiveSync] (which
-     * lists itself so it can short-circuit when no peer files exist).
-     */
-    private suspend fun runMergeFromListing(
-        target: AnnotationSyncTarget,
-        serverId: String,
-        namespace: String,
-        itemId: String,
-        filenames: List<String>,
-    ) {
-        try {
-            // Each device file is a JSON array of W3C annotations (one per annotation the device
-            // created), so flat-map the parsed lists.
-            val parsedAnnotations = mutableListOf<com.riffle.core.domain.W3CAnnotation>()
-            for (filename in filenames) {
-                try {
-                    val jsonString = target.read(namespace, itemId, filename) ?: continue
-                    parsedAnnotations += AnnotationW3CCodec.w3cFileToAnnotations(jsonString)
-                } catch (_: Exception) {
-                    // Skip corrupt files silently
-                }
-            }
-
-            // ADR 0038 rule 1+2 — sweep aged tombstones and DELETE the resulting empty file.
-            // Ordering matters: compute the hypothetical post-sweep state in memory FIRST, so we
-            // can attempt the DELETE before mutating Room. If the DELETE throws, Room is untouched
-            // and the next sync sees the same transition and retries. Sweeping first would leave
-            // Room empty with a stale file on WebDAV and no signal to retry the DELETE.
-            val now = clock()
-            val cutoff = now - TOMBSTONE_TTL_MS
-            val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-            val nonPurgeable = beforeSweep.filter { !isAgedSyncedTomb(it, cutoff) }
-            val localById = nonPurgeable.associateBy { it.id }
-            val localExisting = nonPurgeable.map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
-
-            // ADR 0038 rule 3 — ignore stale orphans. Incoming rows we've never seen locally and
-            // whose updatedAt is past TTL are the delayed push from a peer that missed a
-            // household-wide sweep; applying them would silently resurrect long-deleted content.
-            val merged = mergeService.merge(
-                parsed = parsedAnnotations,
-                existing = localExisting,
-                nowMs = now,
-                staleOrphanCutoffMs = TOMBSTONE_TTL_MS,
-            )
-
-            // Rule 2 DELETE branch — the sweep would empty us and this device's own file is on
-            // WebDAV. DELETE first, then commit the sweep and any merge results. A failed DELETE
-            // aborts before Room changes so the retry sees the same beforeSweep transition.
-            if (merged.isEmpty() && beforeSweep.isNotEmpty()) {
-                val ownFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
-                if (ownFilename in filenames) {
-                    target.delete(namespace, itemId, ownFilename)
-                }
-            }
-
-            // Safe to commit Room mutations now — either no DELETE was needed, or it succeeded.
-            annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
-
-            val entities = merged.map { w3cAnnotation ->
-                val existing = localById[w3cAnnotation.id]
-                // Preserve the existing lastSyncedAt stamp when this device's row was the LWW winner.
-                // If there's no local row (purely remote content) or the remote row won (our row is
-                // being overwritten by content this device hasn't pushed), mark as dirty (0) so the
-                // next sweep pushes it.
-                val preservedLastSyncedAt = when {
-                    existing == null -> 0L
-                    existing.updatedAt >= w3cAnnotation.updatedAt -> existing.lastSyncedAt
-                    else -> 0L
-                }
-                AnnotationEntity(
-                    id = w3cAnnotation.id,
-                    serverId = serverId,
-                    itemId = itemId,
-                    type = w3cAnnotation.type,
-                    cfi = w3cAnnotation.cfi,
-                    color = w3cAnnotation.color ?: AnnotationEntity.COLOR_YELLOW,
-                    note = w3cAnnotation.note,
-                    textSnippet = w3cAnnotation.textSnippet,
-                    textBefore = w3cAnnotation.textBefore,
-                    textAfter = w3cAnnotation.textAfter,
-                    chapterHref = w3cAnnotation.chapterHref,
-                    spineIndex = 0,
-                    progression = 0.0,
-                    bookmarkTitle = w3cAnnotation.bookmarkTitle ?: "",
-                    createdAt = w3cAnnotation.createdAt,
-                    updatedAt = w3cAnnotation.updatedAt,
-                    originDeviceId = w3cAnnotation.originDeviceId,
-                    lastModifiedByDeviceId = w3cAnnotation.lastModifiedByDeviceId,
-                    deleted = w3cAnnotation.deleted,
-                    lastSyncedAt = preservedLastSyncedAt,
-                )
-            }
-
-            for (entity in entities) {
-                annotationDao.upsert(entity)
-            }
-            statusStore.report(CycleOutcome.Success(clock()))
-            sentinelWriter.writeQuietly(target, namespace, serverId)
-        } catch (e: Exception) {
-            statusStore.report(e.toFailedCycleOutcome(clock()))
-        }
-    }
-
-    /**
-     * Would [purgeAgedTombstones] delete this row? Kept in Kotlin so we can preview the sweep
-     * result before touching Room (ADR 0038 rule 2 needs to attempt the DELETE first and only
-     * commit the Room mutation if the DELETE succeeds).
-     */
-    private fun isAgedSyncedTomb(row: AnnotationEntity, cutoff: Long): Boolean =
-        row.deleted && row.updatedAt < cutoff && row.updatedAt <= row.lastSyncedAt
-
-    /**
-     * Start a per-book pull loop that polls for peer-device annotation files every
-     * [LIVE_SYNC_INTERVAL_MS] so peer changes show up while the reader stays open.
-     *
-     * Each tick does a cheap PROPFIND ([AnnotationSyncTarget.list]) and only runs the
-     * expensive per-file GET + LWW merge if at least one file belongs to a peer (i.e. not
-     * this device's own `annotations-<deviceId>.jsonld`). A new peer that joins mid-session
-     * is discovered on the next tick because the PROPFIND still runs unconditionally —
-     * only the GET+merge is skipped.
-     *
-     * The first cycle fires **after** the interval — the caller is expected to have already
-     * invoked [syncOnOpen] once at book-open, so an immediate tick here would race that call.
-     * Per-tick failures are caught and reported through the status store; the loop itself does
-     * not die so a transient WebDAV failure does not silence subsequent ticks.
-     *
-     * Returns the [Job] backing the loop; callers must cancel it when the reader stops or the
-     * book closes. Backgrounding/foregrounding is handled by the caller via cancel + restart.
+     * Start a per-book pull loop. Returns the [Job] backing the loop; callers must cancel it when
+     * the reader stops or the book closes. Backgrounding/foregrounding is handled by the caller
+     * via cancel + restart.
      */
     fun startLiveSync(serverId: String, namespace: String, itemId: String): Job =
-        scope.launch {
-            // Resolve our own filename once; deviceId is stable for the install lifetime, so this
-            // doesn't need to be inside the tick. Wrap in try/catch so a DataStore failure surfaces
-            // as a Failed outcome — otherwise the launch dies silently before the first delay()
-            // and the loop is invisibly absent for the whole session.
-            val myFilename = try {
-                "annotations-${deviceIdStore.getOrCreate()}.jsonld"
-            } catch (e: Exception) {
-                statusStore.report(e.toFailedCycleOutcome(clock()))
-                return@launch
-            }
-            while (true) {
-                delay(LIVE_SYNC_INTERVAL_MS)
-                val target = targetProvider() ?: continue
-                val filenames = try {
-                    target.list(namespace, itemId)
-                } catch (e: Exception) {
-                    statusStore.report(e.toFailedCycleOutcome(clock()))
-                    continue
-                }
-                val hasPeer = filenames.any { it != myFilename }
-                if (hasPeer) {
-                    // Pass the captured target so the merge sees the same instance we just listed
-                    // — avoids a holder-swap race where the second resolve returns null and the
-                    // tick silently no-ops with the listed filenames discarded.
-                    runMergeFromListing(target, serverId, namespace, itemId, filenames)
-                } else {
-                    // Solo namespace this tick — the PROPFIND was the only work needed. Report
-                    // Success so the status badge can recover from a prior Failed.* state without
-                    // forcing a no-op merge that would only re-read our own file.
-                    statusStore.report(CycleOutcome.Success(clock()))
-                    sentinelWriter.writeQuietly(target, namespace, serverId)
-                }
-            }
-        }
+        liveSync.start(serverId, namespace, itemId)
 
     /**
-     * Schedule a debounced push of pending annotations.
-     *
-     * Called after any annotation mutation. Per-book debounce timer; restarts on each call.
-     * Cancels any existing pending push for the same book and schedules a new one.
+     * Schedule a debounced push of pending annotations. Per-book timer; restarts on each call.
      */
     fun scheduleDebounce(serverId: String, namespace: String, itemId: String) {
-        if (targetProvider() == null) return
-
-        val key = serverId to itemId
-        debouncingJobs[key]?.cancel()
-        debouncingJobs[key] = scope.launch {
-            delay(DEBOUNCE_DURATION_MS)
-            pushPending(serverId, namespace, itemId)
-        }
+        pushCoordinator.scheduleDebounce(serverId, namespace, itemId)
     }
 
     /**
-     * Sync on book close.
-     *
-     * Cancels any pending debounce timer and pushes pending annotations to the sync target.
+     * Sync on book close. Cancels any pending debounce timer and pushes pending annotations.
      */
     suspend fun syncOnClose(serverId: String, namespace: String, itemId: String) {
-        if (targetProvider() == null) return
-
-        val key = serverId to itemId
-        debouncingJobs[key]?.cancel()
-        debouncingJobs.remove(key)
-        pushPending(serverId, namespace, itemId)
-    }
-
-    /**
-     * Write this device's annotations to the sync target.
-     *
-     * Reads all local non-deleted annotations for a book, serializes them to W3C format,
-     * and writes them to a device-specific file. On success, stamps lastSyncedAt and reports
-     * Success; on failure, reports a typed failure outcome and enqueues a WorkManager retry.
-     */
-    private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
-        val target = targetProvider() ?: return
-
-        val pushed = try {
-            // Hold the per-book annotation lock across the read-then-write so the durable
-            // [AnnotationSweep] cannot interleave on the same device file (#321, ADR 0036).
-            locks.withAnnotationLock(serverId, itemId) {
-                pushPendingLocked(target, serverId, namespace, itemId)
-            }
-        } catch (e: Exception) {
-            statusStore.report(e.toFailedCycleOutcome(clock()))
-            sweepEnqueuer.enqueue()
-            return
-        }
-        // Sentinel writes a different file than the annotations payload, so it doesn't need the
-        // per-book lock — keep it out to avoid serializing an extra remote round-trip against the
-        // sweep's reconcile path.
-        if (pushed) sentinelWriter.writeQuietly(target, namespace, serverId)
-    }
-
-    private suspend fun pushPendingLocked(
-        target: AnnotationSyncTarget,
-        serverId: String,
-        namespace: String,
-        itemId: String,
-    ): Boolean {
-        // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
-        // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
-        // the newer tombstone over any older live copy of the same id.
-        val now = clock()
-        val cutoff = now - TOMBSTONE_TTL_MS
-        val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-        // ADR 0038 rule 1+2 — preview the sweep in memory. If it would leave us empty, DELETE the
-        // WebDAV file BEFORE mutating Room. A failed DELETE aborts before Room changes so the
-        // next attempt still sees `beforeSweep.isNotEmpty()` and retries.
-        val remainingAfterSweep = beforeSweep.filter { !isAgedSyncedTomb(it, cutoff) }
-
-        if (remainingAfterSweep.isEmpty()) {
-            if (beforeSweep.isNotEmpty()) {
-                // Rule 2 empty-file DELETE. Do it first, then commit the sweep to Room.
-                val deviceId = deviceIdStore.getOrCreate()
-                target.delete(namespace, itemId, "annotations-$deviceId.jsonld")
-                annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
-                statusStore.report(CycleOutcome.Success(now))
-                return true
-            }
-            // Preserve pre-ADR-0038 behaviour: don't touch WebDAV on a transient/cleared-data
-            // Room-already-empty state.
-            return false
-        }
-
-        // Non-empty case: commit the sweep, then push the survivors.
-        annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
-        val localEntities = remainingAfterSweep
-
-        val deviceId = deviceIdStore.getOrCreate()
-        val jsonStrings = localEntities.map { entity ->
-            AnnotationW3CCodec.annotationEntityToW3C(entity)
-        }
-        // Embed the file header at position 0 of the array. Old readers already drop entries
-        // with no `id`, so the header is invisible to merge. Device-scoped metadata
-        // (label, lastSyncedAt, username) lives in the per-device sentinel — see
-        // [AnnotationDeviceMeta] — so this header carries only the book-scoped bookTitle.
-        val header = AnnotationFileHeader(
-            deviceId = deviceId,
-            bookTitle = bookTitleProvider(serverId, itemId),
-        )
-        val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
-        val filename = "annotations-$deviceId.jsonld"
-        target.write(namespace, itemId, filename, jsonArray)
-        annotationDao.markSynced(localEntities.map { it.id }, now)
-        statusStore.report(CycleOutcome.Success(now))
-        return true
+        pushCoordinator.syncOnClose(serverId, namespace, itemId)
     }
 }

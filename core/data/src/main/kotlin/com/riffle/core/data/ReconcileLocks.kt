@@ -21,7 +21,7 @@ import kotlinx.coroutines.sync.withLock
  * `(server, item)` do not contend with each other.
  */
 @Singleton
-class ReconcileLocks @Inject constructor() {
+class ReconcileLocks @Inject constructor() : AnnotationLockPort {
     private val progressMutexes = ConcurrentHashMap<String, Mutex>()
     private val annotationMutexes = ConcurrentHashMap<String, Mutex>()
 
@@ -33,7 +33,7 @@ class ReconcileLocks @Inject constructor() {
 
     /** Annotation reconcile lock — per `(serverId, itemId)`. Closes the torn-write window between
      *  the live [AnnotationSyncController] push and the durable [AnnotationSweep] push. */
-    suspend fun <T> withAnnotationLock(serverId: String, itemId: String, block: suspend () -> T): T {
+    override suspend fun <T> withAnnotationLock(serverId: String, itemId: String, block: suspend () -> T): T {
         val mutex = annotationMutexes.getOrPut("$serverId $itemId") { Mutex() }
         return mutex.withLock { block() }
     }
