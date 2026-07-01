@@ -45,15 +45,10 @@ class ConnectivityObserverImpl @Inject constructor(
         //     `getAllNetworks()` during teardown cannot revert a correct offline emit.
         val tracker = ValidatedNetworkTracker<Network>()
 
-        // Cross-checks the callback-driven tracker against `activeNetwork`. The Android 13
-        // stock emulator (and, per PR #392, real devices coming out of doze) can silently drop or
-        // coalesce NetworkCallback events — e.g. airplane mode ON with two validated networks
-        // sometimes only fires onLost for one of them, leaving the other stuck in the tracker so
-        // the banner never appears. `activeNetwork == null` is the OS's authoritative "no
-        // routable network right now" signal, so we honour it regardless of what the callback
-        // log has accumulated. Both signals must agree we're online.
+        // See `reconcileOnline` — every callback emit is cross-checked against `activeNetwork`
+        // so a dropped `onLost` cannot keep the banner hidden.
         fun emitReconciled(callbackOnline: Boolean) {
-            trySend(callbackOnline && connectivityManager.activeNetwork != null)
+            trySend(reconcileOnline(callbackOnline, connectivityManager.activeNetwork != null))
         }
 
         emitReconciled(currentOnline())
@@ -126,3 +121,25 @@ class ConnectivityObserverImpl @Inject constructor(
 
     override fun isMetered(): Boolean = connectivityManager.isActiveNetworkMetered
 }
+
+/**
+ * The reconciliation predicate that gates every `isOnline` emit. Both the
+ * `NetworkCallback`-driven `ValidatedNetworkTracker` AND
+ * `ConnectivityManager.activeNetwork` must agree that we're online — either signal saying "no"
+ * wins.
+ *
+ * This is deliberately a pure function so the four truth-table cases can be exhaustively
+ * unit-tested. Each corner encodes a real, previously-shipped regression:
+ *
+ *   * `(true, false)` — the fourth-time-around regression: on Android 13 the OS silently drops
+ *     one of the `onLost` callbacks when airplane mode turns multiple validated networks off at
+ *     once, so the tracker retains a stale network and thinks we're online. `activeNetwork ==
+ *     null` vetoes it → offline.
+ *   * `(false, true)` — the airplane-mode/#294 regression: during teardown `activeNetwork` can
+ *     still briefly report the just-lost network. The tracker (driven by `onLost`) is correct
+ *     → offline.
+ *   * `(true, true)` — healthy online state.
+ *   * `(false, false)` — clean disconnect, both signals agree → offline.
+ */
+internal fun reconcileOnline(trackerOnline: Boolean, hasActiveNetwork: Boolean): Boolean =
+    trackerOnline && hasActiveNetwork
