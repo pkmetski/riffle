@@ -90,4 +90,5 @@ private class NoOpAnnotationDao : AnnotationDao {
     override fun observePendingCountAcrossAll(): Flow<Int> = flowOf(0)
     override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = emptyList()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) = Unit
+    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
 }

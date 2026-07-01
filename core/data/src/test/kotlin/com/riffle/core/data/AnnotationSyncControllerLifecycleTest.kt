@@ -302,11 +302,174 @@ class AnnotationSyncControllerLifecycleTest {
     fun `pushPending skips the write entirely when the local set is empty`() = runTest {
         // No local rows at all. Pre-condition: don't overwrite this device's existing remote file
         // with `[]` — a transient local empty (clear-data, mid-migration) would otherwise erase
-        // the cloud copy of this device's annotations.
+        // the cloud copy of this device's annotations. And crucially, don't DELETE either — that
+        // would erase a live remote file the same way. Pre-ADR-0038 behaviour preserved.
         newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
         assertTrue("expected no write when local is empty, got ${target.writes}", target.writes.isEmpty())
+        assertTrue("must not DELETE either — Room-already-empty is not a sweep transition, " +
+            "got ${target.deletes}", target.deletes.isEmpty())
+    }
+
+    // ===== ADR 0038 — tomb sweep + empty-file DELETE =====
+
+    @Test
+    fun `pushPending sweeps aged synced tombstones before deciding what to write`() = runTest {
+        // now = 1_000_000. TTL = 90 days ≈ 7.776e9 ms — so any updatedAt < now-TTL is aged.
+        // We set clock to a value >> TTL so a tomb with updatedAt=1 is aged.
+        val nowMs = 100L * 24L * 60L * 60L * 1000L  // 100 days
+        val agedTombSyncedAt = 1L
+        // Aged + synced tomb → should be purged by sweep.
+        dao.localAnnotations += highlightEntity("tomb-aged", updatedAt = 1L, deleted = true)
+            .copy(lastSyncedAt = agedTombSyncedAt)
+        // Live row that must survive the sweep and appear in the pushed file.
+        dao.localAnnotations += highlightEntity("live-1", updatedAt = 500L)
+
+        newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        val payload = target.writes.single().content
+        val ids = AnnotationW3CCodec.w3cFileToAnnotations(payload).map { it.id }.toSet()
+        assertEquals("aged tomb must be purged; live row must be pushed", setOf("live-1"), ids)
+    }
+
+    @Test
+    fun `pushPending keeps aged but unsynced tombstones so peers still receive the delete`() = runTest {
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        // Aged tomb that has NEVER synced (lastSyncedAt = 0). Sweep must NOT purge — peers depend
+        // on this device pushing the delete signal at least once.
+        dao.localAnnotations += highlightEntity("tomb-unsynced", updatedAt = 1L, deleted = true)
+
+        newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        val payload = target.writes.single().content
+        val ids = AnnotationW3CCodec.w3cFileToAnnotations(payload).map { it.id }.toSet()
+        assertEquals("unsynced tomb must survive sweep and reach the file",
+            setOf("tomb-unsynced"), ids)
+    }
+
+    @Test
+    fun `pushPending DELETEs own WebDAV file when sweep empties the row set`() = runTest {
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        // The device previously held one live annotation that has since been deleted (tomb) and
+        // successfully synced. The tomb is now aged past TTL, so this push should sweep it away
+        // and the file should be DELETEd from WebDAV rather than left as an aged-empty file.
+        dao.localAnnotations += highlightEntity("tomb-aged", updatedAt = 1L, deleted = true)
+            .copy(lastSyncedAt = 1L)
+
+        newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        assertTrue("must not write an empty file: ${target.writes}", target.writes.isEmpty())
+        val delete = target.deletes.single()
+        assertEquals(NS, delete.namespace)
+        assertEquals(ITEM, delete.itemId)
+        assertEquals("annotations-$DEVICE_ID.jsonld", delete.filename)
+    }
+
+    @Test
+    fun `pushPending does NOT DELETE when Room was already empty (no sweep transition)`() = runTest {
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        // No local rows at all — Room-already-empty is the transient/clear-data state, not a
+        // sweep transition. Same protection the pre-ADR-0038 code carried: don't DELETE, don't
+        // write.
+        newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
+        advanceUntilIdle()
+
+        assertTrue("must not write empty", target.writes.isEmpty())
+        assertTrue("must not DELETE either", target.deletes.isEmpty())
+    }
+
+    @Test
+    fun `syncOnOpen DELETEs own WebDAV file when sweep empties Room and own file is on WebDAV`() = runTest {
+        // The archetypal "empty file lingers forever" flow: WebDAV holds a file that contains
+        // only aged, previously-synced tombstones. User opens the book, doesn't touch anything,
+        // and closes. syncOnOpen must detect that the sweep just cleared the last row this device
+        // was responsible for and DELETE the file directly — pushPending on close would otherwise
+        // observe an already-empty Room and skip.
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        val ownFile = "annotations-$DEVICE_ID.jsonld"
+        target.files[ownFile] = jsonArrayOf(
+            w3cTombstone("tomb-aged", updatedAt = 1L, deviceId = DEVICE_ID),
+        )
+        // Mirror the WebDAV state locally: we've pushed this tomb before and lastSyncedAt tracks
+        // that. The sweep guard (`updatedAt <= lastSyncedAt`) fires only for already-synced rows.
+        dao.localAnnotations += highlightEntity("tomb-aged", updatedAt = 1L, deleted = true)
+            .copy(lastSyncedAt = 1L)
+
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        val delete = target.deletes.singleOrNull { it.filename == ownFile }
+        assertTrue("expected own-file DELETE fired from syncOnOpen sweep, got ${target.deletes}",
+            delete != null)
+        assertEquals(NS, delete!!.namespace)
+        assertEquals(ITEM, delete.itemId)
+    }
+
+    @Test
+    fun `syncOnOpen does NOT DELETE when own file is absent from WebDAV listing`() = runTest {
+        // Cleared-data / never-pushed protection: Room is empty, no own file on WebDAV. DELETE
+        // must not fire — nothing to delete, and the 404-safe transport would still emit a
+        // pointless request if we didn't guard.
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        // Peer file, but no own file.
+        target.files["annotations-device-peer.jsonld"] = jsonArrayOf(
+            w3c("uuid-peer", updatedAt = nowMs - 1_000L, deviceId = "device-peer"),
+        )
+
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        assertTrue("must not DELETE when own file isn't present, got ${target.deletes}",
+            target.deletes.none { it.filename == "annotations-$DEVICE_ID.jsonld" })
+    }
+
+    @Test
+    fun `syncOnOpen DELETE failure keeps aged tomb in Room so the next sync retries`() = runTest {
+        // Regression: previously the sweep purged Room BEFORE attempting DELETE. If DELETE threw
+        // (network hiccup), the row was gone from Room, `beforeSweep.isNotEmpty()` misfired on
+        // the retry, and the WebDAV file lingered forever. ADR 0038's whole point is that empty
+        // files disappear — this scenario broke that promise.
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        val ownFile = "annotations-$DEVICE_ID.jsonld"
+        target.files[ownFile] = jsonArrayOf(
+            w3cTombstone("tomb-aged", updatedAt = 1L, deviceId = DEVICE_ID),
+        )
+        dao.localAnnotations += highlightEntity("tomb-aged", updatedAt = 1L, deleted = true)
+            .copy(lastSyncedAt = 1L)
+        target.deleteException = RuntimeException("transient WebDAV DELETE failure")
+
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        // Room must still hold the aged tomb — the sweep was NOT committed because DELETE threw.
+        val stillHasTomb = dao.localAnnotations.any { it.id == "tomb-aged" && it.deleted }
+        assertTrue("aged tomb must remain in Room when DELETE fails so retry sees the transition",
+            stillHasTomb)
+
+        // Clear the fault; the next syncOnOpen must retry the DELETE and succeed.
+        target.deleteException = null
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        assertTrue("second attempt must actually DELETE the file",
+            target.deletes.any { it.filename == ownFile })
+        assertTrue("second attempt must finally purge the tomb from Room",
+            dao.localAnnotations.none { it.id == "tomb-aged" })
+    }
+
+    @Test
+    fun `syncOnOpen ignores a stale orphan live record pushed by a long-offline peer`() = runTest {
+        // The resurrection guard end-to-end: a peer with `updatedAt` past TTL pushes a live copy
+        // of a UUID we no longer have (we swept it long ago). The controller must NOT upsert.
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        target.files["annotations-device-offline.jsonld"] = jsonArrayOf(
+            w3c("uuid-ghost", updatedAt = 1L, deviceId = "device-offline"),
+        )
+
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        assertTrue("stale orphan must not be upserted — resurrection blocked, got ${dao.upserts}",
+            dao.upserts.none { it.id == "uuid-ghost" })
     }
 
     @Test
@@ -650,13 +813,16 @@ class AnnotationSyncControllerLifecycleTest {
 private class LifecycleRecordingTarget : AnnotationSyncTarget {
     val files: MutableMap<String, String> = mutableMapOf()
     val writes: MutableList<Write> = mutableListOf()
+    val deletes: MutableList<Delete> = mutableListOf()
     val deviceMetaWrites: MutableList<DeviceMetaWrite> = mutableListOf()
     val listNamespaceArgs: MutableList<String> = mutableListOf()
     var listCalls = 0
     var failNextList: Boolean = false
     var writeException: Throwable? = null
+    var deleteException: Throwable? = null
 
     data class Write(val namespace: String, val itemId: String, val filename: String, val content: String)
+    data class Delete(val namespace: String, val itemId: String, val filename: String)
     data class DeviceMetaWrite(val namespace: String, val deviceId: String, val content: String)
 
     override suspend fun list(namespace: String, itemId: String): List<String> {
@@ -678,7 +844,9 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     }
 
     override suspend fun delete(namespace: String, itemId: String, filename: String) {
+        deleteException?.let { throw it }
         files.remove(filename)
+        deletes += Delete(namespace, itemId, filename)
     }
     override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? = null
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
@@ -731,5 +899,23 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
         markSyncedCalls++
         lastMarkSyncedIds = ids
         lastMarkSyncedAt = syncedAt
+        // Mirror the production DAO's UPDATE ... WHERE id IN (:ids) semantics so a subsequent
+        // purgeAgedTombstones can observe the newly-bumped lastSyncedAt.
+        for (i in localAnnotations.indices) {
+            val row = localAnnotations[i]
+            if (row.id in ids) localAnnotations[i] = row.copy(lastSyncedAt = syncedAt)
+        }
+    }
+
+    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int {
+        val before = localAnnotations.size
+        localAnnotations.removeAll { row ->
+            row.serverId == serverId &&
+                row.itemId == itemId &&
+                row.deleted &&
+                row.updatedAt < cutoff &&
+                row.updatedAt <= row.lastSyncedAt
+        }
+        return before - localAnnotations.size
     }
 }

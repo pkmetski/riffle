@@ -96,6 +96,19 @@ interface AnnotationDao {
     @Query("UPDATE annotations SET lastSyncedAt = :syncedAt WHERE id IN (:ids)")
     suspend fun markSynced(ids: List<String>, syncedAt: Long)
 
+    /**
+     * ADR 0038 — hard-delete tombstones whose `updatedAt` is older than [cutoff]. The
+     * `updatedAt <= lastSyncedAt` guard restricts purge to tombs whose current state has been
+     * pushed successfully from this device at least once; a tomb that never made it to WebDAV
+     * (offline at delete time) is preserved until it does, so peers still receive the delete.
+     * Returns the row count purged.
+     */
+    @Query(
+        "DELETE FROM annotations WHERE serverId = :serverId AND itemId = :itemId " +
+            "AND deleted = 1 AND updatedAt < :cutoff AND updatedAt <= lastSyncedAt"
+    )
+    suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int
+
     /** Result row for [dirtyServerItems]. */
     data class DirtyServerItem(val serverId: String, val itemId: String)
 }

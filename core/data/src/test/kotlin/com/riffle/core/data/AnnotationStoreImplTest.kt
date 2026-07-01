@@ -88,6 +88,8 @@ class AnnotationStoreImplTest {
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
             rows.value = rows.value.map { if (it.id in ids) it.copy(lastSyncedAt = syncedAt) else it }
         }
+
+        override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
     }
 
     private val deviceIdStore = object : DeviceIdStore {
