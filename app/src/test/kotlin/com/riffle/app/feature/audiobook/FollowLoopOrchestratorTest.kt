@@ -50,7 +50,7 @@ class FollowLoopOrchestratorTest {
         }
         override fun hasServer(): Boolean = hasServer
         override fun progressFraction(positionSec: Double): Float = progressFractionOf
-        override fun onHotPathAdvance(positionSec: Double) { hotAdvances += positionSec }
+        override suspend fun onHotPathAdvance(positionSec: Double) { hotAdvances += positionSec }
         override suspend fun writeSinglePeerFallback(positionSec: Double) {
             singlePeerWrites += positionSec
         }

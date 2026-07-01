@@ -62,6 +62,16 @@ class FollowLoopOrchestrator @Inject constructor(
     }
 
     /**
+     * Push the just-reached position without cancelling the tick — the pause branch of
+     * `togglePlayPause` uses this: the loop stays alive so a subsequent resume already ticks,
+     * but the pause moment gets a fresh ABS write. Below-floor guard identical to the tick.
+     */
+    fun flushNow() {
+        val ctx = lastContext ?: return
+        runFlush(ctx)
+    }
+
+    /**
      * Run the terminal write on the survivable scope and stop the tick. Safe to call from
      * `onCleared()` after `viewModelScope` is already cancelled — the write is enqueued on
      * [ProgressFlushScope].
@@ -71,8 +81,12 @@ class FollowLoopOrchestrator @Inject constructor(
      * Identical to the original `pushProgressOnStop()` guard.
      */
     fun stopWithFinalFlush() {
+        val ctx = lastContext
         cancel()
-        val ctx = lastContext ?: return
+        if (ctx != null) runFlush(ctx)
+    }
+
+    private fun runFlush(ctx: FollowContext) {
         if (!ctx.hasServer()) return
         val pos = ctx.currentAudioSec()
         if (pos < ctx.reconciledResumeSec - SETTLE_EPS_SEC) return
@@ -149,7 +163,7 @@ interface FollowContext {
     // Persistence hooks.
     fun hasServer(): Boolean
     fun progressFraction(positionSec: Double): Float
-    fun onHotPathAdvance(positionSec: Double)
+    suspend fun onHotPathAdvance(positionSec: Double)
     suspend fun writeSinglePeerFallback(positionSec: Double)
     suspend fun writeCloseFlush(positionSec: Double, fraction: Float)
 

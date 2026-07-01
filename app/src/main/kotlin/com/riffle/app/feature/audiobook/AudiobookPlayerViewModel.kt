@@ -184,6 +184,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val bookmarkStore: AudiobookBookmarkStore,
     private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
     private val audiobookHandoffState: AudiobookHandoffState,
+    private val followLoopOrchestrator: FollowLoopOrchestrator,
     private val clock: Clock,
     private val logger: Logger,
 ) : ViewModel() {
@@ -234,7 +235,35 @@ class AudiobookPlayerViewModel @Inject constructor(
     // The timestamp the local listen position was last genuinely set at; adopted from server stamps
     // after a write/jump so our own writes never read back as "newer" and re-seek (feedback loop).
     private var localUpdatedAt: Long = 0L
-    private var followJob: kotlinx.coroutines.Job? = null
+
+    /** Adapter that lets [followLoopOrchestrator] read/write this VM's per-book follow state. */
+    private val followContext = object : FollowContext {
+        override fun currentAudioSec(): Double = controller.currentAbsoluteSec()
+        override fun isPlaying(): Boolean = controller.state.value.isPlaying
+        override fun seekTo(positionSec: Double) { controller.seekTo(positionSec) }
+        override val readerSync: com.riffle.app.feature.reader.ReaderSyncCoordinator?
+            get() = this@AudiobookPlayerViewModel.readerSync
+        override suspend fun tryAttachReaderSync(currentAudioSec: Double): Boolean =
+            attachReaderSync(currentAudioSec, 0L)
+        override fun hasServer(): Boolean = serverId.isNotEmpty()
+        override fun progressFraction(positionSec: Double): Float =
+            audiobookProgressFraction(positionSec, timeline.durationSec)
+        override suspend fun onHotPathAdvance(positionSec: Double) {
+            positionSaveCoordinator.onChanged(positionSec)
+        }
+        override suspend fun writeSinglePeerFallback(positionSec: Double) {
+            audiobookRepository.saveProgress(serverId, itemId, positionSec, timeline.durationSec)
+        }
+        override suspend fun writeCloseFlush(positionSec: Double, fraction: Float) {
+            positionSaveCoordinator.onClose(positionSec, fraction)
+        }
+        override var reconciledResumeSec: Double
+            get() = this@AudiobookPlayerViewModel.reconciledResumeSec
+            set(value) { this@AudiobookPlayerViewModel.reconciledResumeSec = value }
+        override var localUpdatedAt: Long
+            get() = this@AudiobookPlayerViewModel.localUpdatedAt
+            set(value) { this@AudiobookPlayerViewModel.localUpdatedAt = value }
+    }
     // The position the player is *meant* to be at — the resume, last inbound jump, or last user
     // navigation. The audio position may only DRIVE the ebook outbound once it has genuinely reached/
     // advanced past this point; a transient book-start/pre-seek position below it must never win the
@@ -574,7 +603,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 // Always run the follow loop so the listen position reaches ABS while playing — in the
                 // matched case it drives both ABS peers (audio-led), otherwise it pushes the single ABS
                 // audiobook record (ADR 0029). Without this a plain audiobook only synced on pause/close.
-                startFollowLoop()
+                followLoopOrchestrator.start(viewModelScope, followContext)
             }
             // PREWARM_SENTINEL: controller.prepare() is intentionally deferred. The binder is
             // pre-connected above; the handoff watcher below receives the actual start position
@@ -606,8 +635,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 .filter { it == itemId }
                 .collect {
                     audiobookHandoffState.consumeDismiss()
-                    followJob?.cancel()
-                    followJob = null
+                    followLoopOrchestrator.cancel()
                     controller.pause()
                 }
         }
@@ -679,57 +707,10 @@ class AudiobookPlayerViewModel @Inject constructor(
         return true
     }
 
-    /**
-     * While the player is open and playing, push the listen position to ABS every [FOLLOW_INTERVAL_MS].
-     * Matched book: run the audio-led reconciliation (stamp `now` so the live listen leads and advances
-     * both the ebook CFI and the audiobook record; when paused, let a genuinely-newer remote win and
-     * seek). Plain audiobook: push the single ABS audiobook record.
-     */
-    private fun startFollowLoop() {
-        if (followJob?.isActive == true) return
-        followJob = viewModelScope.launch {
-            while (true) {
-                kotlinx.coroutines.delay(FOLLOW_INTERVAL_MS)
-                // Self-heal: a matched book's index may finish building after open — attach then and
-                // skip this tick so the reconcile's resume seek settles before anything drives.
-                if (readerSync == null && attachReaderSync(controller.currentAbsoluteSec(), 0L)) continue
-
-                val rs = readerSync
-                val pos = controller.currentAbsoluteSec()
-                val playing = controller.state.value.isPlaying
-                if (rs != null) {
-                    // Only a GENUINE, settled, forward listen may drive the ebook (stamp `now` → local
-                    // leads). A transient position below the reconciled resume — buffering, a track
-                    // transition, a not-yet-settled seek, the book-start 0 — must NEVER lead; that was
-                    // the erase (a fresh-stamped 0 overwriting the read CFI). Below the resume we run
-                    // inbound-only (local time 0 → local can't win), so a genuinely-newer remote still
-                    // pulls in and seeks, but nothing local can erase progress.
-                    if (playing && pos >= reconciledResumeSec - SETTLE_EPS_SEC) {
-                        localUpdatedAt = clock.nowMs()
-                        reconciledResumeSec = maxOf(reconciledResumeSec, pos)
-                        val r = rs.runAudioLedCycle(pos, localUpdatedAt)
-                        localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
-                        positionSaveCoordinator.onChanged(pos)
-                    } else {
-                        val r = rs.runAudioLedCycle(pos, localUpdatedAt = 0L)
-                        r.jumpToAudioSec?.let { controller.seekTo(it); reconciledResumeSec = it }
-                        localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
-                    }
-                } else if (playing && pos >= reconciledResumeSec - SETTLE_EPS_SEC) {
-                    // single-peer: push the ABS audiobook currentTime, but never a transient position
-                    // below the resume (which would regress the record).
-                    reconciledResumeSec = maxOf(reconciledResumeSec, pos)
-                    saveProgress()
-                    positionSaveCoordinator.onChanged(pos)
-                }
-            }
-        }
-    }
-
     fun togglePlayPause() {
         if (controller.state.value.isPlaying) {
             controller.pause()
-            pushProgressOnStop()
+            followLoopOrchestrator.flushNow()
         } else {
             val rewindSec = rewindOnResumeSec.value
             if (rewindSec > 0) {
@@ -829,42 +810,8 @@ class AudiobookPlayerViewModel @Inject constructor(
         pendingSpeed = null
         if (serverId.isEmpty()) return
         // progressFlushScope, not viewModelScope: onCleared cancels viewModelScope before calling
-        // this, so a launch there never executes (same reasoning as pushProgressOnStop).
+        // this, so a launch there never executes (same reasoning as FollowLoopOrchestrator.stopWithFinalFlush).
         progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
-    }
-
-    /**
-     * Push the just-stopped listen position. Matched (bundle present) → one audio-led cycle stamped
-     * `now`, so the listen wins last-update-wins and propagates to the ebook + audiobook (ADR 0029).
-     * Audiobook-only / no bundle → the simple single-peer ABS audiobook write.
-     */
-    private fun pushProgressOnStop() {
-        if (serverId.isEmpty()) return
-        val pos = controller.currentAbsoluteSec()
-        // Only persist/push a genuine, settled position. A pause/teardown before the resume seek has
-        // settled leaves currentAbsoluteSec() at a transient book-start value; now that the position is
-        // durably stored locally AND pushed to ABS, writing that transient would regress the resume to
-        // 0 on the next open — the same fresh-stamped-0 erase the follow loop already guards against.
-        if (pos < reconciledResumeSec - SETTLE_EPS_SEC) return
-        val fraction = audiobookProgressFraction(pos, timeline.durationSec)
-        // Flush scope, not viewModelScope: pushProgressOnStop runs from onCleared, by which point the
-        // viewModelScope is already cancelled — a launch there never executes, so the final close
-        // position was silently dropped. The survivable scope guarantees the PATCH completes.
-        progressFlushScope.flush {
-            // Backend (ABS) sync — outside the coordinator, like the reader's progress-sync cycle.
-            val rs = readerSync
-            if (rs != null) {
-                localUpdatedAt = clock.nowMs()
-                val r = rs.runAudioLedCycle(pos, localUpdatedAt)
-                localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
-            } else {
-                audiobookRepository.saveProgress(serverId, itemId, pos, timeline.durationSec)
-            }
-            // Shared cold-path local persistence (same policy as the ebook reader): persists the
-            // audiobook position, mirrors the reading position, and writes the readaloud resume
-            // (writeListeningToReadaloud) for both the full-coordinator and index-free paths (ADR 0031).
-            positionSaveCoordinator.onClose(pos, fraction)
-        }
     }
 
     // Set when the user swipes down to switch into readaloud. The audiobook and readaloud share ONE
@@ -897,9 +844,7 @@ class AudiobookPlayerViewModel @Inject constructor(
         handingOffToReadaloud = true
         // Cancel the follow loop now (VM stays alive in the always-mounted overlay, so onCleared
         // won't do this until the user exits the reader entirely).
-        followJob?.cancel()
-        followJob = null
-        pushProgressOnStop()
+        followLoopOrchestrator.stopWithFinalFlush()
         controller.releaseForHandoff()
     }
 
@@ -941,14 +886,7 @@ class AudiobookPlayerViewModel @Inject constructor(
         controller.play()
         logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: play() called +${clock.nowMs() - t0}ms" }
         attachReaderSync(finalSec, localUpdatedAt)
-        startFollowLoop()
-    }
-
-    private fun saveProgress() {
-        if (serverId.isEmpty()) return
-        val pos = controller.currentAbsoluteSec()
-        val dur = timeline.durationSec
-        viewModelScope.launch { audiobookRepository.saveProgress(serverId, itemId, pos, dur) }
+        followLoopOrchestrator.start(viewModelScope, followContext)
     }
 
     /**
@@ -957,7 +895,7 @@ class AudiobookPlayerViewModel @Inject constructor(
      * notification). Idempotent: the controller's own stop() guards against a re-stop after release.
      */
     private fun pushProgressAndStopPlayer() {
-        pushProgressOnStop()
+        followLoopOrchestrator.stopWithFinalFlush()
         controller.stop()
     }
 
@@ -967,7 +905,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        followJob?.cancel()
+        followLoopOrchestrator.cancel()
         // Release this book to the durable sweep again (ADR 0030).
         if (serverId.isNotEmpty()) {
             openReconcileTargets.markClosed(serverId, itemId)
@@ -987,14 +925,9 @@ class AudiobookPlayerViewModel @Inject constructor(
     }
 
     private companion object {
-        const val FOLLOW_INTERVAL_MS = 10_000L
         // Debounce window for persisting a speed change, so a granular scrub settles to a single write
         // rather than one per intermediate 0.05× value (matches EpubReaderViewModel).
         const val SPEED_SAVE_DEBOUNCE_MS = 400L
-        // How far below the reconciled resume a position may sit and still be treated as "settled"
-        // (covers a seek/buffer landing within a tick); anything further behind is a transient that
-        // must not lead. Small, so a genuine book-start 0 can never drive the ebook.
-        const val SETTLE_EPS_SEC = 3.0
         // Sentinel for startAtSec: the overlay is always mounted for pre-warming; the actual start
         // position arrives via AudiobookHandoffState when the user swipes up.
         const val PREWARM_SENTINEL = -2.0
