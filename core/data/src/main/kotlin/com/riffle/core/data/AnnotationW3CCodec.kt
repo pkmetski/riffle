@@ -10,6 +10,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -164,6 +165,11 @@ object AnnotationW3CCodec {
             put("riffle:lastModifiedByDeviceId", entity.lastModifiedByDeviceId)
             put("riffle:updatedAt", entity.updatedAt)
             put("riffle:deleted", entity.deleted)
+            // Sort-key extension (see W3CAnnotation kdoc): keep the annotations panel in reading
+            // order after a WebDAV round-trip. Derivable from the CFI but the merge orchestrator
+            // is spine-agnostic, so we carry them explicitly.
+            put("riffle:spineIndex", JsonPrimitive(entity.spineIndex))
+            put("riffle:progression", JsonPrimitive(entity.progression))
             if (entity.type == AnnotationEntity.TYPE_BOOKMARK && entity.bookmarkTitle.isNotEmpty()) {
                 put("riffle:bookmarkTitle", entity.bookmarkTitle)
             }
@@ -201,6 +207,8 @@ object AnnotationW3CCodec {
         updatedAt = entity.updatedAt,
         createdAt = entity.createdAt,
         deleted = entity.deleted,
+        spineIndex = entity.spineIndex,
+        progression = entity.progression,
     )
 
     /**
@@ -319,6 +327,11 @@ object AnnotationW3CCodec {
             val originDeviceId = root["riffle:originDeviceId"]?.jsonPrimitive?.content ?: ""
             val lastModifiedByDeviceId = root["riffle:lastModifiedByDeviceId"]?.jsonPrimitive?.content ?: ""
             val deleted = root["riffle:deleted"]?.jsonPrimitive?.content?.toBoolean() ?: false
+            // Sort-key extension. Absent on files written before the extension existed — the
+            // merge orchestrator falls back to any locally-known values (else 0/0.0) in that
+            // case, so old files sort at the top on first receive.
+            val spineIndex = root["riffle:spineIndex"]?.jsonPrimitive?.intOrNull ?: 0
+            val progression = root["riffle:progression"]?.jsonPrimitive?.doubleOrNull ?: 0.0
 
             // Use riffle:bookmarkTitle if available, otherwise from body
             val finalBookmarkTitle = root["riffle:bookmarkTitle"]?.jsonPrimitive?.content ?: (bookmarkTitle ?: "")
@@ -339,6 +352,8 @@ object AnnotationW3CCodec {
                 updatedAt = updatedAt,
                 createdAt = createdAt,
                 deleted = deleted,
+                spineIndex = spineIndex,
+                progression = progression,
             )
         } catch (_: Exception) {
             return emptyAnnotation()

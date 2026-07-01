@@ -114,8 +114,15 @@ internal class AnnotationMergeOrchestrator(
                     textBefore = w3cAnnotation.textBefore,
                     textAfter = w3cAnnotation.textAfter,
                     chapterHref = w3cAnnotation.chapterHref,
-                    spineIndex = 0,
-                    progression = 0.0,
+                    // Sort-key round-trip: prefer the locally-stored values when we already have a
+                    // row (the CFI hasn't moved, so the sort key computed at creation time is still
+                    // correct). Otherwise trust the peer's riffle:spineIndex / riffle:progression
+                    // extension so cross-device bookmarks land in reading order on first receive.
+                    // Files predating the extension deserialize as 0/0.0 — those brand-new peer
+                    // rows will cluster at the top until re-opened locally, which is the same
+                    // pre-extension behavior.
+                    spineIndex = existing?.spineIndex ?: w3cAnnotation.spineIndex,
+                    progression = existing?.progression ?: w3cAnnotation.progression,
                     bookmarkTitle = w3cAnnotation.bookmarkTitle ?: "",
                     createdAt = w3cAnnotation.createdAt,
                     updatedAt = w3cAnnotation.updatedAt,
