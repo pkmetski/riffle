@@ -2288,8 +2288,9 @@ private fun EpubNavigatorView(
                 // the persisted-highlights LaunchedEffect above this block doesn't re-fire on the
                 // ref-null→view transition (its keys don't include continuousViewRef.value), so on
                 // a paged↔continuous orientation flip the new ContinuousHighlightRenderer would
-                // otherwise never be invoked and ContinuousReaderView.currentAnnotationsByHref
-                // would stay empty — onPageFinished would skip every chapter as it loaded.
+                // otherwise never be invoked and ContinuousDecorationController's persisted
+                // annotation state would stay empty — onPageFinished would skip every chapter as
+                // it loaded.
                 highlightRenderer.applyAnnotations(highlightRenders)
                 view.initialize(
                     chapters = chapters,

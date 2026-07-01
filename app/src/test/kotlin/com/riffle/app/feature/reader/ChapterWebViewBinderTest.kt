@@ -19,6 +19,9 @@ class ChapterWebViewBinderTest {
 
     /** Hand-written fake driving [ChapterWebViewLike] without a live Android WebView. */
     private class FakeChapterWebView(override val chapterHref: String) : ChapterWebViewLike {
+        override fun evaluateJavascript(script: String, resultCallback: ((String?) -> Unit)?) {
+            resultCallback?.invoke(null)
+        }
         override var onTap: (() -> Unit)? = null
         override var onRenderGone: (() -> Unit)? = null
         override var onInternalLink: ((String) -> Unit)? = null

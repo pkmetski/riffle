@@ -174,6 +174,23 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /** Parallel list to the loaded WebViews; index i matches container.getChildAt(i). */
     private val webViews = mutableListOf<ChapterWebView>()
 
+    /** Owns annotation + search decoration state and the apply-to-window loops; see
+     *  [ContinuousDecorationController]. The View retains only the landing/focus machinery that
+     *  needs the sliding-window state ([onAnnotationHighlightsApplied]). */
+    private val decorations = ContinuousDecorationController(
+        port = object : ContinuousDecorationController.Port {
+            override fun forEachLoadedWebView(block: (ChapterWebViewLike) -> Unit) = webViews.forEach(block)
+            override fun findLoadedWebView(href: String): ChapterWebViewLike? =
+                webViews.firstOrNull { it.chapterHref == href }
+            override fun scrollTo(y: Int) = this@ContinuousReaderView.scrollTo(0, y)
+            override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)
+            override fun clearLandingHold() = this@ContinuousReaderView.clearLandingHold()
+            override fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> = this@ContinuousReaderView.buildWindow()
+            override val viewportHeightPx: Int get() = height
+            override val currentScrollY: Int get() = scrollY
+        },
+    )
+
     /**
      * True while a window-shift operation (removeTop/removeBottom/prependChapter) is in
      * progress. Prevents re-entrant handleScrollChange calls — programmatic scrollBy() calls
@@ -857,91 +874,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href] and scroll it into view. */
     override fun highlightInChapter(href: String, text: String, cssColor: String) {
-        val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
-            // Re-lookup by href rather than using the captured index: the window may have shifted
-            // between the evaluateJavascript call and this callback, making i stale.
-            scrollToHighlight(href)
-        }
-    }
-
-    private fun scrollToHighlight(href: String) {
-        val i = webViewIndexFor(href) ?: return
-        val wv = webViews[i]
-        // getBoundingClientRect().top is in CSS pixels; multiply by devicePixelRatio to get device
-        // pixels so the result is in the same coordinate space as slot.top and scrollY.
-        wv.evaluateJavascript(
-            """(function(){
-                var el=document.getElementById('_riffle_hl');
-                if(!el) return -1;
-                var r=el.getBoundingClientRect();
-                var y=r.top+(window.pageYOffset||document.documentElement.scrollTop||0);
-                return Math.max(0,Math.round(y*(window.devicePixelRatio||1)));
-            })()"""
-        ) { result ->
-            val elementTop = result?.toFloatOrNull()?.toInt() ?: return@evaluateJavascript
-            if (elementTop < 0) return@evaluateJavascript
-            // Re-lookup window state fresh — a shift between the two evaluateJavascript calls
-            // would have changed slot positions.
-            val freshI = webViewIndexFor(href) ?: return@evaluateJavascript
-            val slot = buildWindow().getOrNull(freshI) ?: return@evaluateJavascript
-            val absoluteY = slot.top + elementTop
-            val targetScrollY = (absoluteY - height / 3).coerceAtLeast(0)
-            // Scroll whenever the current position is more than height/8 away from the target.
-            // Using abs() avoids the previous bug where absoluteY just inside the top of the
-            // viewport triggered a backward scroll (absoluteY < scrollY+margin → target < scrollY).
-            if (abs(targetScrollY - scrollY) > height / 8) {
-                clearLandingHold()
-                smoothScrollTo(0, targetScrollY)
-            }
-        }
+        decorations.highlightInChapter(href, text, cssColor)
     }
 
     /** Clear any active readaloud highlight in the chapter at [href]. */
     override fun clearHighlightInChapter(href: String) {
-        val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
+        decorations.clearHighlightInChapter(href)
     }
-
-    // Search highlight state — persisted across the window so onPageFinished can re-apply marks
-    // when a chapter enters the sliding window or when a chapter reloads after a far-jump.
-    private var currentSearchHighlights: SearchHighlightsState? = null
 
     override fun applySearchHighlights(state: SearchHighlightsState?) {
-        currentSearchHighlights = state
-        if (state == null) {
-            for (wv in webViews) {
-                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS, null)
-            }
-            return
-        }
-        for (wv in webViews) {
-            applySearchHighlightsToWebView(wv, state)
-        }
+        decorations.applySearchHighlights(state)
     }
-
-    private fun applySearchHighlightsToWebView(wv: ChapterWebView, state: SearchHighlightsState) {
-        val href = wv.chapterHref
-        if (href.isEmpty()) return
-        val texts = state.resultsByHref[href] ?: return
-        val isActive = href == state.activeHref
-        val js = ContinuousStyleInjector.applySearchHighlightsJs(
-            inactiveTexts = texts,
-            inactiveCssColor = state.inactiveCssColor,
-            activeText = if (isActive) state.activeText else null,
-            activeProgression = if (isActive) state.activeProgression else -1f,
-            activeCssColor = state.activeCssColor,
-        )
-        // Clear first, then re-apply in callback: Chrome won't reliably find text in a DOM
-        // that was just mutated synchronously (see ContinuousStyleInjector.applyAnnotationHighlightsJs).
-        wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS) { _ ->
-            wv.evaluateJavascript(js, null)
-        }
-    }
-
-    // Annotation state persisted so onPageFinished can re-apply marks when a chapter loads or
-    // the sliding window cycles in a new chapter without the LaunchedEffect re-running.
-    private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
 
     /**
      * Apply persisted annotation highlights to all currently loaded chapters and remember the
@@ -949,24 +892,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * [prependChapter]) automatically receive their marks in [onPageFinished].
      */
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
-        currentAnnotationsByHref = annotationsByHref
-        for (wv in webViews) {
-            val href = wv.chapterHref
-            if (href.isEmpty()) continue
-            val annotations = annotationsByHref[href]
-            if (annotations.isNullOrEmpty()) {
-                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
-            } else {
-                // Same re-land-on-completion hook as in appendChapter.onPageFinished: when the
-                // bulk-apply runs against the pending-target chapter, the mark only exists AFTER
-                // this JS finishes; re-fire the armed landing closure AND/OR a direct mark scroll
-                // (the latter even when the reapply chain has been disarmed) so the focus lands
-                // precisely on the freshly-decorated mark.
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    onAnnotationHighlightsApplied(wv)
-                }
-            }
-        }
+        decorations.applyAnnotationHighlights(annotationsByHref, onEachApplied = ::onAnnotationHighlightsApplied)
     }
 
     /**
@@ -979,18 +905,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * could have shifted while the JS was in flight) so they're together in one guarded helper —
      * call sites just invoke this and don't need to repeat the index check.
      */
-    private fun onAnnotationHighlightsApplied(wv: ChapterWebView) {
+    private fun onAnnotationHighlightsApplied(wv: ChapterWebViewLike) {
         if (wv.chapterHref != pendingTargetHref) return
         reapplyLandingAfterFallback?.invoke()
-        scrollToPendingFocusAnnotation(wv)
+        scrollToPendingFocusAnnotation(wv.chapterHref)
     }
 
     /** Once the target chapter's `<mark data-riffle-ann="<id>">` exists in the DOM, scroll to it.
      *  Independent of [reapplyLandingAfterFallback] so it still fires when the reapply chain has
      *  been disarmed (touch event, height stabilised before the mark was created). Clears
-     *  [pendingFocusAnnotationId] once landed so it doesn't replay on later annotation refreshes. */
-    private fun scrollToPendingFocusAnnotation(wv: ChapterWebView) {
+     *  [pendingFocusAnnotationId] once landed so it doesn't replay on later annotation refreshes.
+     *  Re-looked-up by [href] (rather than taking the [ChapterWebView] directly) because
+     *  [annotationOffsetTopDevicePx] is a [ChapterWebView]-only capability not on the narrower
+     *  [ChapterWebViewLike] surface the decoration controller's callbacks pass through. */
+    private fun scrollToPendingFocusAnnotation(href: String) {
         val id = pendingFocusAnnotationId ?: return
+        val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
         wv.annotationOffsetTopDevicePx(id) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
             // Resolve by href, not by index — a window shift between the JS in-flight and this
@@ -1095,26 +1025,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
-            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
-            val annotations = currentAnnotationsByHref[wv.chapterHref]
-            if (!annotations.isNullOrEmpty()) {
-                // Re-fire the armed landing closure on completion: applyAnnotationHighlightsJs
-                // inserts the `<mark data-riffle-ann="<id>">` whose rect is what
-                // [annotationOffsetTopDevicePx] looks for. The first pendingInitialScroll fire
-                // usually happens BEFORE this JS completes (height-measurement reflow triggers it
-                // earlier), so the annotation-mark query in that first fire returns null and falls
-                // back to anchor/progression. Re-firing the closure here — once the mark is in the
-                // DOM — lets the mark query succeed and re-land precisely; and the explicit
-                // [scrollToPendingFocusAnnotation] covers the case where reapply has been disarmed
-                // (touch event during boot, height stabilised before the mark was created, etc).
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    onAnnotationHighlightsApplied(wv)
-                }
-            }
-            val searchState = currentSearchHighlights
-            if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
-                applySearchHighlightsToWebView(wv, searchState)
-            }
+            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
+            // Re-fire the armed landing closure on completion: applyAnnotationHighlightsJs inserts
+            // the `<mark data-riffle-ann="<id>">` whose rect is what [annotationOffsetTopDevicePx]
+            // looks for. The first pendingInitialScroll fire usually happens BEFORE this JS
+            // completes (height-measurement reflow triggers it earlier), so the annotation-mark
+            // query in that first fire returns null and falls back to anchor/progression.
+            // Re-firing the closure here — once the mark is in the DOM — lets the mark query
+            // succeed and re-land precisely; and the explicit [scrollToPendingFocusAnnotation]
+            // covers the case where reapply has been disarmed (touch event during boot, height
+            // stabilised before the mark was created, etc).
+            decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
         webViews.add(wv)
         measuredHeights.add(placeholder)
@@ -1144,18 +1065,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
-            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
-            val annotations = currentAnnotationsByHref[wv.chapterHref]
-            if (!annotations.isNullOrEmpty()) {
-                // Same re-land-on-completion hook as in appendChapter.onPageFinished.
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    onAnnotationHighlightsApplied(wv)
-                }
-            }
-            val searchState = currentSearchHighlights
-            if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
-                applySearchHighlightsToWebView(wv, searchState)
-            }
+            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
+            // Same re-land-on-completion hook as in appendChapter.onPageFinished.
+            decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
         webViews.add(0, wv)
         measuredHeights.add(0, placeholder)

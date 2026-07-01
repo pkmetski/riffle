@@ -131,6 +131,15 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     override var chapterHref: String = ""
         private set
 
+    /**
+     * Explicit override to disambiguate [ChapterWebViewLike.evaluateJavascript]'s Kotlin-lambda
+     * signature from [WebView]'s own `evaluateJavascript(String, ValueCallback<String>?)` — without
+     * this, every in-class call site becomes an overload-resolution-ambiguity compile error.
+     */
+    override fun evaluateJavascript(script: String, resultCallback: ((String?) -> Unit)?) {
+        super.evaluateJavascript(script, resultCallback)
+    }
+
     private var publication: Publication? = null
 
     /**
@@ -304,14 +313,14 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * @param styleJs output of [ContinuousStyleInjector.buildStyleInjectionJs]
      */
     fun injectStylesAndMeasure(styleJs: String) {
-        evaluateJavascript(styleJs, null)
+        evaluateJavascript(styleJs, null as ((String?) -> Unit)?)
         // Stamp this page with the current load token BEFORE wiring measurement, so every height
         // report (including late ResizeObserver / timeout fires) carries it and the bridge can
         // reject reports from a recycled WebView's previous page.
-        evaluateJavascript("window.__riffleToken=$loadToken;", null)
-        evaluateJavascript(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS, null)
-        evaluateJavascript(ContinuousScriptInjector.TAP_LISTENER_JS, null)
-        evaluateJavascript(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS, null)
+        evaluateJavascript("window.__riffleToken=$loadToken;", null as ((String?) -> Unit)?)
+        evaluateJavascript(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS, null as ((String?) -> Unit)?)
+        evaluateJavascript(ContinuousScriptInjector.TAP_LISTENER_JS, null as ((String?) -> Unit)?)
+        evaluateJavascript(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS, null as ((String?) -> Unit)?)
     }
 
     /** Re-inject user styles and re-measure after a preference change. */
@@ -469,7 +478,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
             val text = decodeJsString(raw)
             if (text.isNotBlank()) block(text)
-            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null as ((String?) -> Unit)?)
         }
     }
 
@@ -547,7 +556,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 return@evaluateJavascript
             }
             if (text.isNotBlank()) block(text, prog, rect, before, after)
-            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null as ((String?) -> Unit)?)
         }
     }
 

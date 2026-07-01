@@ -12,6 +12,7 @@ import org.readium.r2.shared.publication.Locator
  */
 internal interface ChapterWebViewLike {
     val chapterHref: String
+    fun evaluateJavascript(script: String, resultCallback: ((String?) -> Unit)?)
     var onTap: (() -> Unit)?
     var onRenderGone: (() -> Unit)?
     var onInternalLink: ((String) -> Unit)?
