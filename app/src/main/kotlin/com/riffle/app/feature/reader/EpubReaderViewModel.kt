@@ -91,7 +91,6 @@ import org.readium.r2.streamer.PublicationOpener
 import java.io.File
 import javax.inject.Inject
 
-private const val BOOKMARK_PAGE_EPS = 0.05   // ±5% within-chapter progression window
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
 // Debounce window for persisting a playback-speed change, so a granular scrub/slide settles to a
@@ -608,6 +607,7 @@ class EpubReaderViewModel @Inject constructor(
                 serverId = activeServer.id,
                 itemId = itemId,
                 currentLocator = position.currentLocator,
+                spinePositionCounts = spinePositionCounts,
             )
             // Push orientation changes into the controller via a setter so the page-bookmark
             // indicator's match window re-sizes on a mid-session flip.
@@ -990,8 +990,9 @@ class EpubReaderViewModel @Inject constructor(
 
     /**
      * Toggle the bookmark for the reader's current page. If the page is already bookmarked (within
-     * [BOOKMARK_PAGE_EPS] progression), removes it; otherwise creates a new bookmark anchored to the
-     * top-of-viewport CFI with the surrounding text as snippet.
+     * the page-aware eps [BookmarksController.bookmarkEpsFor] returns for the current chapter),
+     * removes it; otherwise creates a new bookmark anchored to the top-of-viewport CFI with the
+     * surrounding text as snippet.
      */
     fun toggleBookmark() {
         val serverId = annotationServerId ?: return
@@ -1000,8 +1001,12 @@ class EpubReaderViewModel @Inject constructor(
             val href = locator.href.toString()
             val hrefNorm = normalizeEpubHref(href)
             val prog = locator.locations.progression ?: 0.0
+            // Reuse the indicator's eps so "am I already bookmarked?" matches "is the indicator
+            // lit?". A wider eps here would delete a nearby bookmark instead of creating a new
+            // one on this specific page.
+            val eps = bookmarks.bookmarkEpsFor(href)
             val existing = bookmarks.bookmarkPositions.value.firstOrNull { bm ->
-                bm.chapterHref == hrefNorm && kotlin.math.abs(bm.progression - prog) < BOOKMARK_PAGE_EPS
+                bm.chapterHref == hrefNorm && kotlin.math.abs(bm.progression - prog) <= eps
             }
             if (existing != null) {
                 annotationStore.delete(existing.id)

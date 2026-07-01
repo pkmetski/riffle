@@ -130,7 +130,7 @@ class BookmarksControllerTest {
     fun `bookmarkPositions reactively follows annotationStore observeBookmarks`() = runTest {
         val (controller, store) = makeController()
         val bm = makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.1)
-        controller.bind("srv", "item1", MutableStateFlow(null))
+        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
 
         store.bookmarks.value = listOf(bm)
 
@@ -144,7 +144,7 @@ class BookmarksControllerTest {
     fun `isCurrentPageBookmarked reflects bookmark presence at current href and progression`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator)
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
 
         assertFalse(controller.isCurrentPageBookmarked.value)
 
@@ -164,7 +164,7 @@ class BookmarksControllerTest {
     fun `isCurrentPageBookmarked uses progression window tolerance`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator)
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
         // Within 5% tolerance → bookmarked
@@ -184,7 +184,7 @@ class BookmarksControllerTest {
         // viewportFraction can hit ~0.6 (so vf/2 ≈ 0.30) — the exact case the user reproduced.
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator)
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.0))
@@ -205,7 +205,7 @@ class BookmarksControllerTest {
     fun `onOrientationChanged toggles eps without rebinding`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator)
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
         // Start in paginated.
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
 
@@ -223,7 +223,7 @@ class BookmarksControllerTest {
     fun `renameBookmark updates store and calls sync`() = runTest {
         var syncCalled = false
         val (controller, store) = makeController(onScheduleSync = { syncCalled = true })
-        controller.bind("srv", "item1", MutableStateFlow(null))
+        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
 
         controller.renameBookmark("bm-1", "New Title")
 
@@ -235,15 +235,101 @@ class BookmarksControllerTest {
     fun `bind clears state from previous book`() = runTest {
         val (controller, store) = makeController()
         store.bookmarks.value = listOf(makeAnnotation())
-        controller.bind("srv", "item1", MutableStateFlow(null))
+        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
 
         assertEquals(1, controller.bookmarkPositions.value.size)
 
         // Rebind to a new book with a fresh empty store
         store.bookmarks.value = emptyList()
-        controller.bind("srv", "item2", MutableStateFlow(null))
+        controller.bind("srv", "item2", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
 
         assertEquals(0, controller.bookmarkPositions.value.size)
+    }
+
+    // Regression for the "bookmark stays lit for 3-4 pages" bug: the old fixed 5% eps was ~3 pages
+    // wide on a typical (~60-position) chapter. The page-aware eps computes `0.5 / positions`
+    // — half a page — so the indicator lights ONLY for the bookmarked page (not its neighbours).
+    // This test pins the tight window for a 60-page chapter: a 5% delta must NOT light.
+    @Test
+    fun `paginated eps narrows to half-a-page when spine position counts are known`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        val positions = MutableStateFlow(
+            listOf("ch1.xhtml") to listOf(60),
+        )
+        controller.bind("srv", "item1", currentLocator, positions)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
+
+        // Same page (delta 0.003 < 1/(2*60) = 0.0083) → lit.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.503)
+        assertTrue("indicator ON for the same page (0.003 delta, half-page = 0.0083)", controller.isCurrentPageBookmarked.value)
+
+        // 3 pages away (delta 0.05, the OLD fixed eps) → NOT lit any more. Fail-red asserts the
+        // regression is fixed; if BOOKMARK_PAGE_EPS were still 0.05 this would flip green.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.55)
+        assertFalse("indicator OFF for 3 pages away (0.05 delta on a 60-page chapter)", controller.isCurrentPageBookmarked.value)
+    }
+
+    // Publication positions can arrive AFTER bind (positionsByReadingOrder is computed
+    // asynchronously by Readium after publication load). Until they land, the controller MUST
+    // fall back to the fixed 5% window rather than a divide-by-zero or an over-tight zero eps.
+    @Test
+    fun `paginated eps falls back to 5% when spine position counts are not yet available`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        controller.bind(
+            "srv", "item1", currentLocator,
+            MutableStateFlow(emptyList<String>() to emptyList()),
+        )
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
+        currentLocator.value = buildLocator("ch1.xhtml", 0.52)
+        assertTrue("indicator ON within the 5% fallback (0.02 delta)", controller.isCurrentPageBookmarked.value)
+    }
+
+    // Regression for the "bookmark stays lit for several screens" symptom in continuous mode.
+    // The old flat 33% eps meant a bookmark saved at midpoint 0.5 stayed lit for progression
+    // 0.17-0.83 — a huge chunk of the chapter. The new `0.5 / positions` formula matches the
+    // paginated logic (viewportFraction/2 ≈ 1/(2·positions) is the geometrically-correct bound
+    // for viewport-midpoint locators), so on a 40-position chapter the indicator only lights
+    // within ±0.0125 progression.
+    @Test
+    fun `continuous eps narrows to half-a-viewport when spine position counts are known`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(40))
+        controller.bind("srv", "item1", currentLocator, positions)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
+
+        // Same viewport (delta 0.010 < 1/(2*40) = 0.0125) → lit.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.510)
+        assertTrue("indicator ON at ~0.01 midpoint delta on a 40-position chapter", controller.isCurrentPageBookmarked.value)
+
+        // Several screens away (delta 0.10 — the OLD 33% flat eps would have kept this lit) → NOT lit.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.60)
+        assertFalse("indicator OFF at 0.10 midpoint delta on a 40-position chapter", controller.isCurrentPageBookmarked.value)
+    }
+
+    // The bookmarkEpsFor(chapterHref) helper is what toggleBookmark reads. It MUST return the
+    // same value the indicator's combine consumes, so a "delete if already bookmarked" check
+    // can't match a bookmark 3 pages away. This test pins the wire.
+    @Test
+    fun `bookmarkEpsFor returns half-a-page for paginated chapters with known position counts`() = runTest {
+        val (controller, _) = makeController()
+        val positions = MutableStateFlow(
+            listOf("ch1.xhtml", "ch2.xhtml") to listOf(60, 20),
+        )
+        controller.bind("srv", "item1", MutableStateFlow(null), positions)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
+
+        assertEquals("60-page chapter: half-a-page = 1/120", 1.0 / 120.0, controller.bookmarkEpsFor("ch1.xhtml"), 1e-9)
+        assertEquals("20-page chapter: half-a-page = 1/40", 1.0 / 40.0, controller.bookmarkEpsFor("ch2.xhtml"), 1e-9)
+        assertEquals("unknown chapter falls back to 5%", 0.05, controller.bookmarkEpsFor("ch99.xhtml"), 1e-9)
     }
 
     @Test

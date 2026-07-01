@@ -51,6 +51,8 @@ class BookmarksController @AssistedInject constructor(
 
     private val _currentLocator = MutableStateFlow<Locator?>(null)
 
+    private val _spinePositionCounts = MutableStateFlow<Pair<List<String>, List<Int>>>(emptyList<String>() to emptyList())
+
     /**
      * Current reader orientation, read non-reactively inside [isCurrentPageBookmarked]'s combine
      * so the combine stays 2-arg (matches master's shape and avoids the Eagerly-shared
@@ -79,20 +81,30 @@ class BookmarksController @AssistedInject constructor(
     val isCurrentPageBookmarked: StateFlow<Boolean> = combine(
         _bookmarkPositions,
         _currentLocator,
-    ) { positions, locator ->
+        _spinePositionCounts,
+    ) { bookmarksForChapter, locator, spineCounts ->
         val href = locator?.href?.toString() ?: return@combine false
         val prog = locator.locations.progression
         val hrefNorm = normalizeEpubHref(href)
-        val eps = if (currentOrientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
-        else BOOKMARK_PAGE_EPS
-        positions.any { bm ->
+        val eps = bookmarkEpsFor(currentOrientation, spineCounts, hrefNorm)
+        bookmarksForChapter.any { bm ->
             bm.chapterHref == hrefNorm &&
                 (prog == null || kotlin.math.abs(bm.progression - prog) <= eps)
         }
     }.stateIn(scope, SharingStarted.Eagerly, false)
 
+    /**
+     * The progression window used to decide whether a stored bookmark falls on the current
+     * viewport. Public so the toggle-bookmark call site in `EpubReaderViewModel` uses the SAME
+     * band the indicator does — a mismatch there would toggle the wrong (nearby) bookmark
+     * instead of creating a new one on the current page.
+     */
+    fun bookmarkEpsFor(chapterHref: String): Double =
+        bookmarkEpsFor(currentOrientation, _spinePositionCounts.value, normalizeEpubHref(chapterHref))
+
     private var observeJob: Job? = null
     private var locatorJob: Job? = null
+    private var positionsJob: Job? = null
 
     /**
      * Bind to a specific book. Cancels any previous observation and starts fresh.
@@ -103,11 +115,14 @@ class BookmarksController @AssistedInject constructor(
         serverId: String,
         itemId: String,
         currentLocator: StateFlow<Locator?>,
+        spinePositionCounts: StateFlow<Pair<List<String>, List<Int>>>,
     ) {
         observeJob?.cancel()
         locatorJob?.cancel()
+        positionsJob?.cancel()
         _bookmarkPositions.value = emptyList()
         _currentLocator.value = null
+        _spinePositionCounts.value = emptyList<String>() to emptyList()
 
         observeJob = scope.launch {
             annotationStore.observeBookmarks(serverId, itemId).collect { annotations ->
@@ -123,6 +138,11 @@ class BookmarksController @AssistedInject constructor(
         locatorJob = scope.launch {
             currentLocator.collect { locator ->
                 _currentLocator.value = locator
+            }
+        }
+        positionsJob = scope.launch {
+            spinePositionCounts.collect { counts ->
+                _spinePositionCounts.value = counts
             }
         }
     }
@@ -152,23 +172,48 @@ class BookmarksController @AssistedInject constructor(
     }
 
     companion object {
-        // ±5% within-chapter progression window for paginated / vertical mode — both emit
-        // content-top progression and the bookmark stores the same, so a tight match is correct.
+        // Fallback ±5% within-chapter progression window for paginated / vertical modes when the
+        // spine position count for the current chapter isn't yet available (open-race). Once the
+        // count arrives, [bookmarkEpsFor] switches to `0.5 / positionsInChapter` — a strict
+        // ±half-a-page window, so the indicator only lights for the actual bookmarked page and
+        // never for its 3–4 neighbours (the "bookmark stays lit for way longer than expected"
+        // regression). A fixed 5% covered ~3 pages on typical (~60-position) chapters.
         internal const val BOOKMARK_PAGE_EPS = 0.05
 
-        // ±33% within-chapter window for continuous mode. The locator emits the viewport-midpoint
-        // progression while the bookmark anchor can sit anywhere from the viewport top to bottom,
-        // so the geometric minimum is `viewportFraction / 2`. We use a static 33% as a
-        // conservative cover: typical viewports (~20–40% of chapter height) put `vf/2` at
-        // 0.10–0.20, while short chapters (≤ 2× viewport tall) push `vf/2` up to ~0.30; 33%
-        // catches both with a small slack for anchor offsets and float noise.
-        //
-        // The trade-off: two bookmarks within ~33% of each other in the same chapter both light.
-        // Acceptable for a boolean indicator. We previously tried plumbing the live viewport
-        // fraction through to size this exactly, but the on-scroll emission churn flaked the
-        // continuous→paginated annotation-repaint harness test (Compose recomposition pressure
-        // prevented the chrome-reveal LaunchedEffect from idling within the test's waitUntil).
-        // The static value here picks 33% as the band that covers all observed cases.
+        // Fallback ±33% for continuous mode when the spine position count for the current chapter
+        // isn't yet available (open-race). This is a conservative geometric cover: for a short
+        // chapter ~2 viewports tall, viewportFraction/2 approaches 0.3. Once the position count
+        // arrives, [bookmarkEpsFor] switches to the same `0.5 / positions` formula paginated uses
+        // — the locator emits viewport-midpoint progression in continuous mode, so the geometric
+        // minimum is viewportFraction/2, and viewportFraction ≈ 1/positionsInChapter (Readium
+        // sizes positions to viewport-page-equivalents). The old flat 33% caused the "bookmark
+        // stays lit for several screens" symptom in continuous just as the flat 5% did in
+        // paginated.
         internal const val BOOKMARK_VIEWPORT_EPS = 0.33
+
+        /**
+         * Pure decision (JVM-testable) for the ±progression window used to decide whether a
+         * bookmark falls on the current viewport in [chapterHref].
+         *
+         * All three modes now use `0.5 / positionsInChapter` when the position count is known:
+         * - **Paginated / vertical:** half a page (locator = content-top progression).
+         * - **Continuous:** half a viewport-fraction (locator = viewport-midpoint progression;
+         *   viewportFraction ≈ 1/positions, so this is the tightest geometrically-correct
+         *   bound). Falls back to [BOOKMARK_VIEWPORT_EPS] / [BOOKMARK_PAGE_EPS] when positions
+         *   are unknown yet.
+         */
+        internal fun bookmarkEpsFor(
+            orientation: ReaderOrientation,
+            spineCounts: Pair<List<String>, List<Int>>,
+            chapterHref: String,
+        ): Double {
+            val (hrefs, counts) = spineCounts
+            val idx = hrefs.indexOfFirst { normalizeEpubHref(it) == chapterHref }
+            val positions = counts.getOrNull(idx) ?: 0
+            if (positions > 0) return 0.5 / positions
+            // Position count not yet available — fall back to the mode-appropriate flat eps.
+            return if (orientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
+            else BOOKMARK_PAGE_EPS
+        }
     }
 }
