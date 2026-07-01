@@ -165,18 +165,10 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
     private val listeningPreferencesStore: ListeningPreferencesStore,
     private val audioIdentityResolver: AudioIdentityResolver,
-    private val readerSyncFactory: com.riffle.app.feature.reader.ReaderSyncFactory,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
-    // Sync-store views for the matched dual-write (ADR 0030): read this audiobook's row stamps and
-    // mirror the translated reading position onto the sibling (ebook) row.
-    private val readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
-    private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
-    // Listening is also reading-aloud: write the readaloud resume from the listen position so reopening
-    // the reader and starting readaloud lands where the audiobook got to (ADR 0031).
-    private val readaloudResumeStore: com.riffle.core.domain.ReadaloudResumeStore,
     // While the player is open it drives the book's reconciliation; the durable sweep skips it so it
     // can't absorb a cross-device server-win the player hasn't seeked to (ADR 0030).
     private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
