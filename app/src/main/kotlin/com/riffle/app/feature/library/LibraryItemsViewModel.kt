@@ -264,7 +264,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     /** Called from ON_RESUME. Refreshes so `_refreshFailed` clears the moment the library screen
      * returns to the foreground if the server is back. ConnectivityObserver self-heals its own
-     * doze/wake drift on ProcessLifecycleOwner ON_START and on ACTION_AIRPLANE_MODE_CHANGED — no
+     * doze/wake drift on ProcessLifecycleOwner ON_START (see ConnectivityObserverImpl) — no
      * explicit poke needed here. */
     fun onScreenResumed() {
         refresh()
