@@ -761,6 +761,28 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals("local wins — lastSyncedAt must be preserved", 500L, upserted.lastSyncedAt)
     }
 
+    // ===== Fix 2: syncOnOpen preserves spineIndex/progression on existing rows =====
+
+    @Test
+    fun `syncOnOpen preserves spineIndex and progression on existing rows`() = runTest {
+        // Seed Room with a bookmark whose sort key is (spineIndex=5, progression=0.3).
+        val local = highlightEntity("uuid-bookmark", updatedAt = 1000L)
+            .copy(spineIndex = 5, progression = 0.3)
+        dao.localAnnotations += local
+
+        // Own-device file is on WebDAV (round-tripped): the W3C JSON does NOT carry
+        // spineIndex/progression, so the parsed peer row will lack them.
+        target.files["annotations-own.jsonld"] = jsonArrayOf(
+            w3c("uuid-bookmark", updatedAt = 1000L, deviceId = DEVICE_ID),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-bookmark" }
+        assertEquals("spineIndex must survive the sync round-trip", 5, upserted.spineIndex)
+        assertEquals("progression must survive the sync round-trip", 0.3, upserted.progression, 0.0)
+    }
+
     // ===== stamp + report + enqueue-on-failure =====
 
     @Test
