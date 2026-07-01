@@ -73,12 +73,26 @@ fun hasElementWithId(html: String, id: String): Boolean =
 /**
  * Returns the innermost element ID from the doc-path portion of [fullCfi] that actually
  * exists in [html], or null when the CFI has no ID assertions or none match the DOM.
- * Used by continuous-mode navigation to anchor on the exact element rather than a
- * character-count progression approximation.
+ * Used by navigation to anchor on the exact element rather than a character-count progression
+ * approximation.
+ *
+ * For a RANGE CFI (`epubcfi(!parent,startRemainder,endRemainder)`) the anchor is derived from the
+ * range's START only (`parent + startRemainder`). Walking the full range would pick the END
+ * paragraph's id when start and end live under different siblings — e.g. a highlight that spans
+ * the last chars of paragraph N and the first char of paragraph N+1 would anchor on N+1, and
+ * scrolling N+1 to the top of the viewport would push the actual highlighted text off-screen
+ * above. (The "annotation navigation lands on the wrong paragraph in vertical mode" regression.)
  */
 fun extractAnchorFromCfi(fullCfi: String, html: String): String? {
     val docPath = extractCfiDocPath(fullCfi) ?: return null
-    return extractCfiElementIds(docPath).firstOrNull { hasElementWithId(html, it) }
+    val startDocPath = if (docPath.contains(',')) {
+        // Range CFI: docPath = "parent,startRemainder,endRemainder". Anchor on the start half.
+        val parts = docPath.split(',')
+        if (parts.size == 3) parts[0].trimEnd('/') + parts[1] else docPath
+    } else {
+        docPath
+    }
+    return extractCfiElementIds(startDocPath).firstOrNull { hasElementWithId(html, it) }
 }
 
 // ── CFI string parsing ────────────────────────────────────────────────────────

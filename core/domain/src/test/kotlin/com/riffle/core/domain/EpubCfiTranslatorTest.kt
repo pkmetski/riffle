@@ -660,6 +660,31 @@ class EpubCfiTranslatorTest {
         assertEquals("p1", extractAnchorFromCfi(cfi, html))
     }
 
+    // Range CFIs that span TWO sibling paragraphs (e.g. a highlight whose stored endChar spilled
+    // one character into the next paragraph) must anchor on the START paragraph. Previously the
+    // code walked the whole doc-path and picked the innermost id — which for a two-paragraph range
+    // was the END paragraph. Readium then scrolled the end paragraph to the top of the viewport
+    // and the actual highlighted characters (living in the tail of the start paragraph, just
+    // above) were pushed off-screen. Regression test for the "annotation navigation lands on the
+    // wrong paragraph in vertical mode" bug.
+    @Test
+    fun `extractAnchorFromCfi anchors on range start paragraph when range spans two siblings`() {
+        val html = "<html><body><div id=\"chap\"><p id=\"p-14\">Some text.</p><p id=\"p-15\">More text.</p></div></body></html>"
+        val cfi = "epubcfi(/6/4!/4/2[chap],/2[p-14]/1:418,/4[p-15]/1:1)"
+        assertEquals("p-14", extractAnchorFromCfi(cfi, html))
+    }
+
+    // If the range's start paragraph id is not in the DOM (rare — a mid-flight edition change
+    // that dropped the ids), fall back to the next id present in the start remainder or its
+    // parent — NOT to the end paragraph's id (that would silently regress to the pre-fix
+    // behaviour without a visible failure).
+    @Test
+    fun `extractAnchorFromCfi falls back within range start half when start paragraph id is missing`() {
+        val html = "<html><body><div id=\"chap\"><p>Some text.</p><p id=\"p-15\">More text.</p></div></body></html>"
+        val cfi = "epubcfi(/6/4!/4/2[chap],/2[p-14]/1:418,/4[p-15]/1:1)"
+        assertEquals("chap", extractAnchorFromCfi(cfi, html))
+    }
+
     // ── ID-anchored cfiDocPathToProgression ───────────────────────────────────
 
     @Test
