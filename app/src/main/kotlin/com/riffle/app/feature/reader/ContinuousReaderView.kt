@@ -268,6 +268,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) =
         controller.navigateTo(href, progression, alignToTop)
 
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) =
+        controller.navigateTo(href, progression, alignToTop, focusAnnotationId)
+
     override fun scrollByPage(forward: Boolean) = controller.scrollByPage(forward)
 
     override fun highlightInChapter(href: String, text: String, cssColor: String) =

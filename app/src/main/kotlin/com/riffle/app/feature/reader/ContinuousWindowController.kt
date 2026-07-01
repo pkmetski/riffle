@@ -365,6 +365,22 @@ internal class ContinuousWindowController(
     }
 
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
+        navigateTo(href, progression, alignToTop, focusAnnotationId = null)
+    }
+
+    /**
+     * Continuous-mode annotation navigation with mark-precise landing. When [focusAnnotationId] is
+     * non-null and the chapter is in the sliding window, the landing anchors on the actual
+     * `<mark data-riffle-ann="…">` element's device-Y (via [ChapterWebView.annotationOffsetTopDevicePx])
+     * rather than the enclosing paragraph's top. That fixes the "mostly miss" behaviour reported for
+     * highlights that live mid- or end-paragraph, where landing the paragraph's TOP at the viewport
+     * midpoint pushed the actual highlighted text well below the visible band.
+     *
+     * When [focusAnnotationId] is set but the mark can't be resolved yet (chapter not measured,
+     * decorations not applied), we fall back to the paragraph-based landing — same shape as the
+     * open-time `focusAnnotationId` path in [openWindowAt].
+     */
+    override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
         val target = href.substringBefore('#')
         val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
@@ -373,7 +389,13 @@ internal class ContinuousWindowController(
         if (targetIndex < 0) return
         val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
-            port.post { scrollToLoadedChapter(target, progression, fragment, smooth = true, alignToTop = alignToTop) }
+            port.post {
+                scrollToLoadedChapter(
+                    target, progression, fragment,
+                    smooth = true, alignToTop = alignToTop,
+                    focusAnnotationId = focusAnnotationId,
+                )
+            }
         } else {
             webViews.forEach { it.destroy() }
             webViews.clear()
@@ -381,11 +403,24 @@ internal class ContinuousWindowController(
             container.removeAllViews()
             recycledViews.forEach { it.destroy() }
             recycledViews.clear()
-            openWindowAt(target, progression, fragment, alignToTop = alignToTop)
+            openWindowAt(
+                initialHref = target,
+                initialProgression = progression,
+                anchorFragment = fragment,
+                alignToTop = alignToTop,
+                focusAnnotationId = focusAnnotationId,
+            )
         }
     }
 
-    private fun scrollToLoadedChapter(target: String, progression: Float, fragment: String, smooth: Boolean, alignToTop: Boolean = false) {
+    private fun scrollToLoadedChapter(
+        target: String,
+        progression: Float,
+        fragment: String,
+        smooth: Boolean,
+        alignToTop: Boolean = false,
+        focusAnnotationId: String? = null,
+    ) {
         val window = buildWindow()
         val slot = window.firstOrNull { it.href.substringBefore('#') == target } ?: return
         clearLandingHold()
@@ -394,16 +429,41 @@ internal class ContinuousWindowController(
             if (smooth) port.smoothScrollTo(clamped) else port.scrollTo(clamped)
         }
         val wvIndex = webViews.indexOfFirst { it.chapterHref.substringBefore('#') == target }
-        if (fragment.isNotEmpty() && wvIndex >= 0) {
-            webViews[wvIndex].anchorOffsetTopDevicePx(fragment) { anchorOffset ->
-                val offset = anchorOffset ?: (progression * slot.height).toInt()
-                go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, offset, port.viewportHeightPx, alignToTop))
+        if (wvIndex < 0) return
+        val wv = webViews[wvIndex]
+
+        fun landOnAnchorOrProgression() {
+            if (fragment.isNotEmpty()) {
+                wv.anchorOffsetTopDevicePx(fragment) { anchorOffset ->
+                    val offset = anchorOffset ?: (progression * slot.height).toInt()
+                    go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, offset, port.viewportHeightPx, alignToTop))
+                }
+            } else {
+                go(
+                    if (alignToTop) slot.top + (progression * slot.height).toInt()
+                    else ContinuousPositionTracker.scrollYForProgression(slot.top, slot.height, progression, port.viewportHeightPx)
+                )
+            }
+        }
+
+        // Prefer the actual annotation mark's device-Y over the enclosing paragraph's top: for a
+        // highlight in the middle of a long paragraph, landing the paragraph at midpoint puts the
+        // highlighted text well below the viewport centre and often off-screen. Reading the mark's
+        // rect directly makes the landing pixel-accurate to what the user tapped in the panel.
+        if (focusAnnotationId != null) {
+            wv.annotationOffsetTopDevicePx(focusAnnotationId) { annOffset ->
+                if (annOffset != null) {
+                    go(ContinuousPositionTracker.anchorLandingScrollY(slot.top, annOffset, port.viewportHeightPx, alignToTop))
+                } else {
+                    // Mark not in DOM yet (chapter measured but decorations still applying) — fall
+                    // back to the paragraph anchor for now. openWindowAt's re-land loop handles
+                    // this precisely on cold-open; mid-session the fallback is close enough that
+                    // the user still lands in the right paragraph.
+                    landOnAnchorOrProgression()
+                }
             }
         } else {
-            go(
-                if (alignToTop) slot.top + (progression * slot.height).toInt()
-                else ContinuousPositionTracker.scrollYForProgression(slot.top, slot.height, progression, port.viewportHeightPx)
-            )
+            landOnAnchorOrProgression()
         }
     }
 
