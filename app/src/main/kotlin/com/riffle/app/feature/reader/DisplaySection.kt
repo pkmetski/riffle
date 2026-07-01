@@ -80,9 +80,11 @@ fun DisplaySection(
             Spacer(Modifier.height(20.dp))
         }
 
-        // View
-        Text("View", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(8.dp))
+        // View — only render the header if any of its sub-controls are visible.
+        if (capabilities.supportsReadingModeSwitch || capabilities.supportsDoublePage) {
+            Text("View", style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(8.dp))
+        }
         if (capabilities.supportsReadingModeSwitch) {
             Text("Reading mode", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

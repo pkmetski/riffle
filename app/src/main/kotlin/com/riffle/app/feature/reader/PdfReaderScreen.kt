@@ -353,7 +353,9 @@ private fun PdfNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     latestLocator: () -> Locator?,
     modifier: Modifier = Modifier,
-) = key(prefs.orientation, prefs.margins) {
+) = key(prefs.margins) {
+    // Only margins actually reaches PdfiumPreferences (via pageSpacing); the mapper hardcodes
+    // vertical/width so orientation is intentionally excluded from the recreation key.
     PdfNavigatorViewContent(
         state = state,
         pdfiumPreferences = prefs.toPdfiumPreferences(),
@@ -462,10 +464,6 @@ private fun PdfNavigatorViewContent(
             }
 
             if (fm.findFragmentById(containerId) == null) {
-                android.util.Log.d(
-                    com.riffle.core.logging.LogChannel.PdfFormatting.tag,
-                    "constructing pdfium fragment with pageSpacing=${pdfiumPreferences.pageSpacing} fit=${pdfiumPreferences.fit} axis=${pdfiumPreferences.scrollAxis}",
-                )
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
                     pdfEngineProvider = PdfiumEngineProvider(),
@@ -495,6 +493,7 @@ private fun PdfNavigatorViewContent(
         // container narrows the pages visibly — this is the observable side of the "margins"
         // slider (pageSpacing alone controls the between-page gap, which pdfium may or may
         // not honor at runtime and is only visible when scrolling past a page boundary).
-        modifier = modifier.padding(horizontal = ((pdfiumPreferences.pageSpacing ?: 0.0) / 2.0).toFloat().dp),
+        // pageSpacing == null means "at default; no override" — apply no padding either.
+        modifier = modifier.padding(horizontal = ((pdfiumPreferences.pageSpacing ?: 0.0).coerceAtLeast(0.0) / 2.0).toFloat().dp),
     )
 }
