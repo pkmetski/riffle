@@ -23,7 +23,6 @@ import com.riffle.core.logging.Logger
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -47,7 +46,6 @@ import java.util.zip.ZipFile
  * MUST NOT import android.webkit.*, ContinuousReaderView, or any Compose types.
  */
 class ReaderSessionLifecycle @AssistedInject constructor(
-    @Suppress("UNUSED_PARAMETER") @Assisted scope: CoroutineScope,
     @Assisted private val openPublication: suspend (File) -> Publication?,
     @Assisted private val cfiStringToLocator: suspend (String) -> Locator?,
     private val libraryObserver: LibraryObserver,
@@ -66,7 +64,6 @@ class ReaderSessionLifecycle @AssistedInject constructor(
     @AssistedFactory
     interface Factory {
         fun create(
-            scope: CoroutineScope,
             openPublication: suspend (File) -> Publication?,
             cfiStringToLocator: suspend (String) -> Locator?,
         ): ReaderSessionLifecycle
@@ -148,10 +145,13 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         val resolvedInitialSpeed = audioPlaybackPreferencesStore.load(resolvedAudioSettingsIdentity)
             ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
 
-        // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
-        activeServer?.id?.let { openReconcileTargets.markOpen(it, params.itemId) }
+        // Record teardown state BEFORE the markOpen so any suspend between here and the return
+        // still gets its claim released via onCleared() — else a slow / failing DataStore read on
+        // the initial-speed load below would leak an openReconcile claim forever.
         readerServerId = resolvedReaderServerId
         readerItemId = params.itemId
+        // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
+        activeServer?.id?.let { openReconcileTargets.markOpen(it, params.itemId) }
 
         val openAtCfiNonBlank = params.openAtCfi?.takeIf { it.isNotBlank() }
         // A search-result / annotation-tap open overrides the saved position. Requires `publication`

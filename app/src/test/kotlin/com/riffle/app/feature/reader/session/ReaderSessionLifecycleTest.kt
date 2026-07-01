@@ -217,7 +217,6 @@ class ReaderSessionLifecycleTest {
             io.mockk.coEvery { it.createAudiobookFollowIfApplicable(any()) } returns null
         }
         val lifecycle = ReaderSessionLifecycle(
-            scope = scope,
             openPublication = { pub },
             cfiStringToLocator = cfiResolver,
             libraryObserver = libraryObserver,
