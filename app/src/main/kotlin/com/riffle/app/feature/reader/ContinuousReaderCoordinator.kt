@@ -22,25 +22,20 @@ import org.readium.r2.shared.publication.Publication
  * factory as soon as the view is created. Navigation methods are suspending and are called from
  * the screen's LaunchedEffects.
  *
- * All callback lambdas are passed at construction time. They close over the screen's
+ * The [ContinuousNavigationSink], [ContinuousLinkSink], and [ContinuousAnnotationSink]
+ * implementations are passed at construction time. They close over the screen's
  * [rememberUpdatedState] delegates, so each invocation reads the latest value rather than the
  * value captured at [remember] time.
  */
 internal class ContinuousReaderCoordinator(
     private val publication: Publication,
     private val spinePositionsProvider: () -> Pair<List<String>, List<Int>>,
-    private val onLocator: (Locator) -> Unit,
-    private val onTap: () -> Unit,
     private val latestLocator: () -> Locator?,
-    private val onFollowInternalLink: (Link, Locator) -> Unit,
-    private val onExternalLink: (url: String) -> Unit,
-    private val onFootnote: (FootnoteContent) -> Unit,
-    private val onAnnotationTap: (id: String, rect: IntRect) -> Unit,
-    private val onAnnotationNoteTap: (id: String, rect: IntRect) -> Unit,
-    private val onHighlight: (Locator, IntRect) -> Unit,
     private val sentenceQuotesProvider: () -> Map<String, SentenceQuote>,
     private val sentenceChaptersProvider: () -> Map<String, String>,
-    private val onPlayFromHere: (String) -> Unit,
+    private val navigation: ContinuousNavigationSink,
+    private val links: ContinuousLinkSink,
+    private val annotations: ContinuousAnnotationSink,
 ) {
     private var view: ContinuousReaderView? = null
 
@@ -75,7 +70,7 @@ internal class ContinuousReaderCoordinator(
             val (spineHrefs, counts) = spinePositionsProvider()
             val locator = buildContinuousLocator(href, progression, spineHrefs, counts)
             if (locator != null) {
-                onLocator(locator)
+                navigation.onLocator(locator)
                 presenter?.feedPosition(
                     href = locator.href.toString(),
                     progression = locator.locations.progression?.toFloat() ?: progression,
@@ -85,29 +80,29 @@ internal class ContinuousReaderCoordinator(
             }
         }
 
-        view.onTap = { onTap() }
+        view.onTap = { navigation.onTap() }
 
         view.onInternalLinkTapped = { href ->
             val origin = latestLocator()
             val path = href.substringBefore('#')
             val link = publication.readingOrder.firstOrNull { it.href.toString() == path }
             if (link != null && origin != null) {
-                onFollowInternalLink(link, origin)
+                links.onFollowInternalLink(link, origin)
             } else {
                 this.view?.navigateTo(href, 0f)
             }
         }
 
-        view.onExternalLinkTapped = { url -> onExternalLink(url) }
+        view.onExternalLinkTapped = { url -> links.onExternalLink(url) }
 
-        view.onFootnoteContent = { content -> onFootnote(content) }
+        view.onFootnoteContent = { content -> links.onFootnote(content) }
 
         view.onAnnotationTap = { _, id, androidRect ->
-            onAnnotationTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
+            annotations.onAnnotationTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
         }
 
         view.onAnnotationNoteTap = { _, id, androidRect ->
-            onAnnotationNoteTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
+            annotations.onAnnotationNoteTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
         }
 
         view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect, before, after ->
@@ -122,7 +117,7 @@ internal class ContinuousReaderCoordinator(
                         .put("after", after)),
             )
             if (locator != null) {
-                onHighlight(
+                annotations.onHighlight(
                     locator,
                     IntRect(selectionScreenRect.left, selectionScreenRect.top, selectionScreenRect.right, selectionScreenRect.bottom),
                 )
@@ -137,7 +132,7 @@ internal class ContinuousReaderCoordinator(
                 val geomId = raw?.trim('"')?.takeIf { it.isNotEmpty() }
                 val sid = geomId
                     ?: ContinuousPositionTracker.sentenceIdForSelection(selectedText, scoped.toMap())
-                if (sid != null) onPlayFromHere("$chapterHref#$sid")
+                if (sid != null) annotations.onPlayFromHere("$chapterHref#$sid")
             }
         }
     }

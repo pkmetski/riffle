@@ -79,6 +79,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -1249,25 +1250,38 @@ private fun EpubNavigatorView(
         ContinuousReaderCoordinator(
             publication = state.publication,
             spinePositionsProvider = { currentSpinePositions },
-            onLocator = onPositionChanged,
-            onTap = { currentOnTap() },
             latestLocator = { currentLatestLocator() },
-            onFollowInternalLink = { link, origin -> currentOnFollowInternalLink(link, origin) },
-            onExternalLink = { url ->
-                runCatching {
-                    fragmentActivity.startActivity(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            },
-            onFootnote = { content -> currentOnFootnoteTapped(content) },
-            onAnnotationTap = { id, rect -> currentOnOpenHighlightActions(id, rect) },
-            onAnnotationNoteTap = { id, rect -> currentOnOpenNoteReader(id, rect) },
-            onHighlight = { locator, rect -> currentOnHighlight(locator, rect) },
             sentenceQuotesProvider = { currentSentenceQuotes },
             sentenceChaptersProvider = { currentSentenceChapters },
-            onPlayFromHere = { ref -> currentOnPlayFromHere(ref) },
+            navigation = object : ContinuousNavigationSink {
+                override fun onTap() = currentOnTap()
+                override fun onLocator(locator: Locator) = onPositionChanged(locator)
+            },
+            links = object : ContinuousLinkSink {
+                override fun onFollowInternalLink(link: Link, origin: Locator) =
+                    currentOnFollowInternalLink(link, origin)
+                override fun onExternalLink(url: String) {
+                    runCatching {
+                        fragmentActivity.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(url),
+                            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }
+                override fun onFootnote(content: FootnoteContent) = currentOnFootnoteTapped(content)
+            },
+            annotations = object : ContinuousAnnotationSink {
+                override fun onAnnotationTap(id: String, rect: IntRect) =
+                    currentOnOpenHighlightActions(id, rect)
+                override fun onAnnotationNoteTap(id: String, rect: IntRect) =
+                    currentOnOpenNoteReader(id, rect)
+                override fun onHighlight(locator: Locator, rect: IntRect) =
+                    currentOnHighlight(locator, rect)
+                override fun onPlayFromHere(fragmentRef: String) =
+                    currentOnPlayFromHere(fragmentRef)
+            },
         )
     }
 
