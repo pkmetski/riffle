@@ -107,11 +107,13 @@ class AnnotationSession @AssistedInject constructor(
 
     /**
      * Carries both the resolved locator and a flag for whether the annotation was a page-level
-     * bookmark vs a text-anchored highlight/note. The screen uses [isBookmark] to choose the
-     * continuous-mode landing: bookmarks land at the viewport top (heading visible at top); a
-     * highlight/note lands at the viewport midpoint (with reading context above it, matching
-     * Readium's vertical-mode placement). In Readium modes Readium owns placement, so the flag
-     * is ignored.
+     * bookmark vs a text-anchored highlight/note. Continuous-mode landing now goes to the viewport
+     * midpoint for BOTH types so the page-bookmark ribbon's stored midpoint progression matches
+     * the reader's scrollY on arrival — landing bookmarks at the viewport top produced a full-
+     * viewport offset between the lit ribbon position and the actual scroll landing on any book
+     * with images or non-uniform text density. The flag is preserved on the event because
+     * downstream (analytics, tests) may still branch on annotation type; the screen no longer
+     * uses it to pick alignment.
      */
     data class AnnotationNavigationEvent(val locator: Locator, val isBookmark: Boolean)
 
@@ -241,7 +243,8 @@ class AnnotationSession @AssistedInject constructor(
      * openBook() path to snap to the initial annotation-nav target (openAtCfi) using the same
      * channel that [navigateToAnnotation] uses — so the screen only needs one subscriber.
      * The openAtCfi path is highlight/note-shaped (text anchor), so we send `isBookmark = false`
-     * to get the midpoint-landing treatment in continuous mode.
+     * to reflect the annotation type on the event. Continuous-mode landing is uniform midpoint
+     * for both types; the flag no longer affects alignment.
      */
     fun emitAnnotationNavigation(locator: Locator) {
         _annotationNavigationChannel.trySend(AnnotationNavigationEvent(locator, isBookmark = false))

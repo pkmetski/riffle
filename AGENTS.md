@@ -44,6 +44,17 @@ When the work originated from a GitHub Issue (e.g. the user asked you to "do #12
 
 Do not open a PR without tests that cover the fix or new functionality. Every bug fix needs a regression test that fails before the change and passes after; every new feature needs unit and/or integration coverage for its behaviour. "Manually verified" is not a substitute for an automated test.
 
+**Do not skip this step.** The following rationalisations are all wrong and produce PRs that will be sent back:
+
+- "The change is a one-line param flip." → The one-liner is exactly what regresses. Pin it with a test that would flip if someone reverted it.
+- "The behaviour lives inside a Composable, so it's not JVM-testable." → Extract the decision into an `internal` top-level function or a helper and unit-test that. A tiny refactor is cheaper than a re-review.
+- "The existing tests already cover the surrounding logic." → They cover the surrounding logic, not the specific decision the fix changes. If the fix flipped `X` to `Y`, there must be a test that asserts the value is now `Y`.
+- "Instrumentation would be the right level but it's heavy." → Then extract and unit-test the pure decision at the JVM level. Do not open the PR without any test.
+- "I'll rely on the user's manual verification." → No. Automated coverage is required in addition to manual verification.
+- "Updating docstrings / renaming a stale test counts as test coverage." → It doesn't. Docstring changes cannot fail. A regression test is an assertion that would flip red if the fix were reverted.
+
+Before opening the PR, name the specific assertion(s) that would fail if the fix were reverted line-for-line. If you can't name one, you haven't written the regression test yet.
+
 ## Validate before claiming done
 
 Every fix or new feature must be validated as actually working before it is marked complete or sent for review. Acceptable validation is one of:

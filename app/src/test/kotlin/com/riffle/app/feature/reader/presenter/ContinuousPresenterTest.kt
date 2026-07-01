@@ -175,8 +175,10 @@ class ContinuousPresenterTest {
 
     @Test
     fun `navigateTo ToProgression honours alignToTop from options`() = runTest {
-        // Bookmark progression carries a content-top reference; the screen passes alignToTop=true
-        // in continuous mode to invert the locatorAt midpoint inverse the resume path uses.
+        // Pins that ContinuousPresenter forwards the NavigationOptions.alignToTop flag to the
+        // view unchanged. The screen currently passes alignToTop=false for annotation nav
+        // (uniform midpoint landing), but the presenter must remain option-driven so callers
+        // that want a top-aligned landing (TOC taps, chapter-start jumps) still get it.
         val presenter = ContinuousPresenter()
         val view = FakeView()
         presenter.attach(view)

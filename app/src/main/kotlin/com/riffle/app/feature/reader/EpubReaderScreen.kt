@@ -1064,6 +1064,20 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
     return json
 }
 
+/**
+ * NavigationOptions for an annotation-panel tap. Continuous-mode landing is uniform
+ * viewport-midpoint (`alignToTop = false`) for every annotation type — bookmarks included —
+ * so the page-bookmark ribbon (which stores + matches on `locatorAt`'s midpoint progression)
+ * lights at the same scrollY the reader lands on. Placing bookmarks at the viewport top
+ * produced up to a full-viewport offset between the lit ribbon and the landing on chapters
+ * with images, big headings, or otherwise non-uniform text density — the CFI anchor's pixel
+ * position drifted from its char-count progression. The [isBookmark] parameter is taken so
+ * tests can pin the invariant that both types return the same options.
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun annotationNavigationOptions(isBookmark: Boolean): NavigationOptions =
+    NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = false)
+
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
@@ -1690,17 +1704,9 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(annotationNavigationEvents) {
         annotationNavigationEvents.collect { event ->
-            // Continuous-mode landing splits by annotation type. A page-level bookmark lands
-            // with `alignToTop=true` so the chapter heading sits at the viewport top — matching
-            // the page-bookmark ribbon's "this page contains the bookmark" semantics. A
-            // highlight / note lands with `alignToTop=false`, putting the highlighted text at
-            // the viewport midpoint with reading context above it, mirroring how Readium places
-            // annotation navigation in paginated and vertical modes. Readium adapters ignore
-            // `alignToTop` — Readium owns column / page alignment internally — so this only
-            // affects continuous mode.
             navigateWithCover(
                 NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
-                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = event.isBookmark),
+                annotationNavigationOptions(isBookmark = event.isBookmark),
                 event.locator.href.toString(),
             )
         }
