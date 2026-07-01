@@ -185,6 +185,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,
     private val audiobookHandoffState: AudiobookHandoffState,
     private val followLoopOrchestrator: FollowLoopOrchestrator,
+    private val resumeResolver: AudiobookResumeResolver,
     private val clock: Clock,
     private val logger: Logger,
 ) : ViewModel() {
@@ -416,67 +417,18 @@ class AudiobookPlayerViewModel @Inject constructor(
                 return@launch
             }
             timeline = session.timeline
-            // Last-update-wins resume against the durable local store (mirrors the ebook reader): if
-            // our last listen position is newer than ABS's record — e.g. a final flush was dropped at
-            // teardown — resume from it; otherwise adopt the server position and stamp the local row so
-            // it does not re-push (ADR 0029).
-            val localSec = audiobookPositionStore.load(serverId, itemId)
-            val localTs = audiobookPositionStore.loadLocalUpdatedAt(serverId, itemId)
-            var resumeSec: Double
-            val resumeUpdatedAt: Long
-            val decision = com.riffle.core.domain.AudiobookPositionReconciler.reconcile(
-                localSec = localSec,
-                localUpdatedAt = localTs,
-                remoteSec = session.serverCurrentTimeSec,
-                remoteUpdatedAt = session.serverLastUpdate,
-            )
-            when (decision) {
-                is com.riffle.core.domain.AudiobookPositionReconciler.Decision.PullRemote -> {
-                    audiobookPositionStore.save(serverId, itemId, decision.positionSec)
-                    audiobookPositionStore.updateLocalTimestamp(serverId, itemId, decision.timestampMillis)
-                    resumeSec = decision.positionSec
-                    resumeUpdatedAt = decision.timestampMillis
-                }
-                is com.riffle.core.domain.AudiobookPositionReconciler.Decision.PushLocal -> {
-                    resumeSec = decision.positionSec
-                    resumeUpdatedAt = decision.timestampMillis
-                }
-                com.riffle.core.domain.AudiobookPositionReconciler.Decision.InSync -> {
-                    resumeSec = session.serverCurrentTimeSec
-                    resumeUpdatedAt = session.serverLastUpdate
-                }
-            }
-            // No tracked position at all (offline with only a bundle: no local listen row, no server
-            // record, and the canonical bridge is unavailable) → fall back to the item's library
-            // progress so we resume near where the app shows it AND seed reconciledResumeSec as a
-            // floor, so the close/follow persist guard can't write a ~0 over that progress. A tracked
-            // position (resumeUpdatedAt > 0), even one of exactly 0, is honoured as-is. resumeUpdatedAt
-            // stays as reconciled (0 here), keeping this approximate position inbound-only.
-            resumeSec = audiobookResumeSec(
-                reconciledSec = resumeSec,
-                hadTrackedPosition = resumeUpdatedAt > 0L,
+            // Resolve the resume position: last-update-wins reconcile (ADR 0029), progress-fraction
+            // fallback for offline-with-bundle-only, finished-book replay guard, and the readaloud→
+            // audiobook handoff override — all consolidated in AudiobookResumeResolver.
+            val resume = resumeResolver.resolve(
+                serverId = serverId,
+                itemId = itemId,
+                session = session,
                 readingProgressFraction = item.readingProgress,
-                durationSec = session.timeline.durationSec,
+                startAtSec = startAtSec,
             )
-            // A finished book (resume at the end) is unplayable if seeded there — ExoPlayer lands in
-            // STATE_ENDED and play() is a no-op, leaving the player silent with the bar pinned at the
-            // end. Reopening it is a replay, so restart from 0. Only on a normal open: the handoff below
-            // sets an explicit position that must not be reset.
-            if (startAtSec < 0.0) {
-                resumeSec = audiobookStartSec(resumeSec, session.timeline.durationSec)
-            }
-            // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
-            // overriding the store/server resume (which can lag the just-left listen position). Persist
-            // it with a fresh stamp so it wins last-update-wins and isn't pulled back by a stale server.
-            var resumeStamp = resumeUpdatedAt
-            if (startAtSec >= 0.0) {
-                resumeSec = startAtSec.coerceIn(0.0, session.timeline.durationSec)
-                resumeStamp = clock.nowMs()
-                if (serverId.isNotEmpty()) {
-                    audiobookPositionStore.save(serverId, itemId, resumeSec)
-                    audiobookPositionStore.updateLocalTimestamp(serverId, itemId, resumeStamp)
-                }
-            }
+            val resumeSec = resume.resumeSec
+            val resumeStamp = resume.resumeStamp
             // Per-book speed (ADR 0028), shared with the linked Readaloud. Resolve the audio-settings
             // key the *same* way the reader does — via the resolver on this audiobook's link — so both
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,

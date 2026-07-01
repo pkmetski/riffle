@@ -188,6 +188,7 @@ class SleepTimerTest {
             serverCurrentTimeSec = 0.0,
             serverLastUpdate = 0L,
         )
+        val sharedPositionStore = FakePositionStore()
         return AudiobookPlayerViewModel(
             savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
             audiobookRepository = FakeAudiobookRepository(session),
@@ -206,7 +207,7 @@ class SleepTimerTest {
             readaloudLinkRepository = FakeLinkRepository,
             readaloudAudioRepository = FakeAudioRepo,
             nowPlayingStore = NowPlayingStore(),
-            audiobookPositionStore = FakePositionStore(),
+            audiobookPositionStore = sharedPositionStore,
             readingSyncStore = FakeSyncStore(),
             audioSyncStore = FakeSyncStoreDouble(),
             readaloudResumeStore = FakeResumeStore,
@@ -222,6 +223,13 @@ class SleepTimerTest {
                     override fun nowNs(): Long = 0L
                 },
                 progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            ),
+            resumeResolver = AudiobookResumeResolver(
+                positionStore = sharedPositionStore,
+                clock = object : Clock {
+                    override fun nowMs(): Long = 0L
+                    override fun nowNs(): Long = 0L
+                },
             ),
             clock = object : Clock {
                 override fun nowMs(): Long = 0L
