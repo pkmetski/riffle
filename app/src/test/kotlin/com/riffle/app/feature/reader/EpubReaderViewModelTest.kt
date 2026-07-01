@@ -1300,3 +1300,41 @@ class BookmarkIndicatorTest {
         assertFalse(isCurrentPageBookmarked(listOf(bm), "ch1.xhtml", 0.50f, continuous = true))
     }
 }
+
+/**
+ * Pins the invariant that annotation-panel navigation in continuous mode lands at the viewport
+ * MIDPOINT regardless of annotation type. Previously the screen passed `alignToTop = isBookmark`,
+ * which placed the bookmark's CFI DOM anchor at the viewport top — on books with images, big
+ * headings, or otherwise non-uniform text density the pixel anchor sat almost a full viewport
+ * past the char-based progression the corner ribbon stored, so the ribbon lit ~1 screen before
+ * the actual landing scrollY. A regression to that shape (`alignToTop = isBookmark`) would flip
+ * the `alignToTop=false` assertion on the `isBookmark=true` case.
+ */
+class AnnotationNavigationOptionsTest {
+
+    @Test
+    fun `bookmarks land at viewport midpoint (alignToTop=false)`() {
+        val opts = annotationNavigationOptions(isBookmark = true)
+        assertFalse(
+            "bookmark nav must align to midpoint, not top — see the fix for the lit-ribbon vs " +
+                "landing-scrollY mismatch on non-uniform-density chapters",
+            opts.alignToTop,
+        )
+    }
+
+    @Test
+    fun `highlights land at viewport midpoint (alignToTop=false)`() {
+        // The highlight path already landed at the midpoint before the fix; this pins that the
+        // extraction didn't change highlight behaviour.
+        val opts = annotationNavigationOptions(isBookmark = false)
+        assertFalse(opts.alignToTop)
+    }
+
+    @Test
+    fun `annotation nav never lands at chapter start when target has no fragment`() {
+        // landAtStartWhenNoTarget only matters for Readium modes when the locator carries no DOM
+        // anchor; annotation nav always carries one, but pin the flag so a change is intentional.
+        assertFalse(annotationNavigationOptions(isBookmark = true).landAtStartWhenNoTarget)
+        assertFalse(annotationNavigationOptions(isBookmark = false).landAtStartWhenNoTarget)
+    }
+}

@@ -1064,6 +1064,20 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
     return json
 }
 
+/**
+ * NavigationOptions for an annotation-panel tap. Continuous-mode landing is uniform
+ * viewport-midpoint (`alignToTop = false`) for every annotation type — bookmarks included —
+ * so the page-bookmark ribbon (which stores + matches on `locatorAt`'s midpoint progression)
+ * lights at the same scrollY the reader lands on. Placing bookmarks at the viewport top
+ * produced up to a full-viewport offset between the lit ribbon and the landing on chapters
+ * with images, big headings, or otherwise non-uniform text density — the CFI anchor's pixel
+ * position drifted from its char-count progression. The [isBookmark] parameter is taken so
+ * tests can pin the invariant that both types return the same options.
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun annotationNavigationOptions(isBookmark: Boolean): NavigationOptions =
+    NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = false)
+
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
 private fun EpubNavigatorView(
@@ -1690,22 +1704,9 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(annotationNavigationEvents) {
         annotationNavigationEvents.collect { event ->
-            // Continuous-mode landing goes to the viewport MIDPOINT for every annotation type
-            // (`alignToTop=false`). The page-bookmark ribbon
-            // (BookmarksController.isCurrentPageBookmarked) matches on
-            // ContinuousPositionTracker.locatorAt's midpoint progression, and toggleBookmark
-            // stores that same midpoint value. Placing the anchor at the viewport top
-            // (`alignToTop=true`) worked geometrically only when the CFI's char-based content
-            // position happened to line up with its pixel position — for any chapter with
-            // images, big headings, or vertical whitespace, the pixel anchor sat almost a full
-            // viewport past the char-based progression, so the ribbon lit up ~1 screen before
-            // the actual landing. Landing at the midpoint puts the ribbon and the reader at
-            // the same scrollY across every layout. Readium adapters (paginated / vertical)
-            // ignore `alignToTop` and own page/column alignment internally, so this only
-            // affects continuous mode.
             navigateWithCover(
                 NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
-                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = false),
+                annotationNavigationOptions(isBookmark = event.isBookmark),
                 event.locator.href.toString(),
             )
         }
