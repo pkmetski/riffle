@@ -119,10 +119,16 @@ class OrientationFlipAnnotationHarnessTest {
         // alive before we flip — a bug in the seed would otherwise masquerade as a flip bug.
         // Poll for the first mark instead of sleeping a hardcoded 6s: on a fast device this
         // shaves ~5s, and on a slow one it still gets the same margin the sleep gave us.
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            totalMatches("[data-riffle-ann]") > 0
-        }
-        val continuousMarkCount = totalMatches("[data-riffle-ann]")
+        // runCatching around waitUntil so a timeout falls through to the descriptive
+        // assertTrue below (matching the .riffle-highlight-tint pattern later in this test) —
+        // otherwise the maintainer sees a bare ComposeTimeoutException instead of the "seed
+        // is broken, would masquerade as a flip bug" message the preflight is here to give.
+        val continuousMarkCount = runCatching {
+            composeTestRule.waitUntil(timeoutMillis = 10_000) {
+                totalMatches("[data-riffle-ann]") > 0
+            }
+            totalMatches("[data-riffle-ann]")
+        }.getOrDefault(0)
         assertTrue(
             "preflight: continuous mode failed to render the seeded highlight (got 0 marks); " +
                 "the flip test would be meaningless without a baseline. See " +
