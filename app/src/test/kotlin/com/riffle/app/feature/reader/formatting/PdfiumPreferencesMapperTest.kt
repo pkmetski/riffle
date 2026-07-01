@@ -38,8 +38,8 @@ class PdfiumPreferencesMapperTest {
     }
 
     @Test
-    fun `below-default margins produce negative spacing so users can tighten`() {
+    fun `below-default margins defer to Readium baseline (pdfium rejects negative pageSpacing)`() {
         val out = FormattingPreferences(margins = 0.5f).toPdfiumPreferences()
-        assertEquals(-8.0, out.pageSpacing!!, 0.001)
+        assertNull(out.pageSpacing)
     }
 }

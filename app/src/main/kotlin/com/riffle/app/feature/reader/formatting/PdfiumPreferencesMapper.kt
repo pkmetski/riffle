@@ -6,10 +6,10 @@ import org.readium.r2.navigator.preferences.Axis
 import org.readium.r2.navigator.preferences.Fit
 
 // Extra-page-gap scale (dp) applied per unit above the default margins multiplier (1.0f).
-// At margins == 1.0f the mapper emits pageSpacing = null so Readium's own default is preserved
-// (avoiding a silent regression on existing PDF readers who never open the Aa sheet).
-// At margins != 1.0f, pageSpacing = (margins - 1.0) * MARGIN_STEP_DP, so the min (0.2f) yields
-// a modest -12.8dp adjustment and the max (3.0f) yields +32dp.
+// pdfium's PdfiumPreferences rejects negative pageSpacing (IllegalArgumentException), so
+// margins < 1.0 defer to Readium's baseline default (null) — the user can't render tighter
+// than what pdfium already provides. margins > 1.0 add MARGIN_STEP_DP per unit above default,
+// so the max (3.0f) yields +32dp between-page gap.
 private const val MARGIN_STEP_DP = 16.0
 private const val DEFAULT_MARGINS = 1.0f
 
@@ -29,10 +29,10 @@ private const val DEFAULT_MARGINS = 1.0f
  * scroll with no way for the user to change it.
  */
 fun FormattingPreferences.toPdfiumPreferences(): PdfiumPreferences {
-    val pageSpacing: Double? = if (margins == DEFAULT_MARGINS) {
-        null
-    } else {
+    val pageSpacing: Double? = if (margins > DEFAULT_MARGINS) {
         (margins - DEFAULT_MARGINS).toDouble() * MARGIN_STEP_DP
+    } else {
+        null
     }
     return PdfiumPreferences(
         fit = Fit.WIDTH,
