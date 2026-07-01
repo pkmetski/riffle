@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.NavigationOptions
 import com.riffle.app.feature.reader.presenter.NavigationTarget
@@ -674,6 +675,7 @@ fun EpubReaderScreen(
         if (showFormattingPanel) {
             ReaderSettingsSheet(
                 prefs = pickedPrefs,
+                capabilities = RenderCapabilities.EPUB,
                 hasBookOverrides = hasBookOverrides,
                 onPrefsChange = { viewModel.updateFormatting(it) },
                 onReset = { viewModel.resetToGlobalDefaults() },

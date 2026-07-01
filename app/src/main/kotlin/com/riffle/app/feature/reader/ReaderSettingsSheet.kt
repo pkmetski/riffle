@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 
 /**
@@ -33,10 +34,14 @@ import com.riffle.core.domain.FormattingPreferences
  * leaves the page visible behind it to preview changes) with Formatting / Display / Behavior tabs,
  * each rendering the shared section composable. Hosts the reader-only "Reset to global defaults"
  * footer. Opened from the reader's "Aa" toolbar button.
+ *
+ * @param capabilities gates rows in [FormattingSection] and [DisplaySection] that don't apply to
+ *   the current renderer (e.g. font-family and reading-mode switching for PDF).
  */
 @Composable
 fun ReaderSettingsSheet(
     prefs: FormattingPreferences,
+    capabilities: RenderCapabilities,
     hasBookOverrides: Boolean,
     onPrefsChange: (FormattingPreferences) -> Unit,
     onReset: () -> Unit,
@@ -91,8 +96,8 @@ fun ReaderSettingsSheet(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                 ) {
                     when (selectedTab) {
-                        0 -> FormattingSection(prefs, onPrefsChange)
-                        1 -> DisplaySection(prefs, onPrefsChange, scheduleEditable = false)
+                        0 -> FormattingSection(prefs, onPrefsChange, capabilities)
+                        1 -> DisplaySection(prefs, onPrefsChange, scheduleEditable = false, capabilities = capabilities)
                         else -> BehaviorSection(
                             keepScreenOn, onKeepScreenOnChange,
                             volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange,

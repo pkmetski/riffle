@@ -4,9 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
+import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.Clock
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.PdfOpenResult
@@ -58,6 +61,8 @@ class PdfReaderViewModel @Inject constructor(
     private val readerStateHolder: ReaderStateHolder,
     private val annotationStore: AnnotationStore,
     private val serverRepository: ServerRepository,
+    private val formattingSessionFactory: FormattingSession.Factory,
+    private val volumeKeyDispatcher: VolumeKeyDispatcher,
     clock: Clock,
     readingSpeedStore: ReadingSpeedStore,
 ) : AndroidViewModel(application) {
@@ -67,10 +72,56 @@ class PdfReaderViewModel @Inject constructor(
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
 
+    // Formatting orchestrator — constructed with viewModelScope so teardown is deterministic
+    // (mirrors EpubReaderViewModel; auto-scroll delegations are skipped, pdfium has no
+    // equivalent surface for them).
+    private val formatting: FormattingSession = formattingSessionFactory.create(viewModelScope).also {
+        it.setDeviceDensity(application.resources.displayMetrics.density)
+    }
+
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     val volumeNavEvents: SharedFlow<VolumeNavEvent> = volumeNavigationController.events
+
+    // ---- FormattingSession delegations ---------------------------------------------------------
+
+    // Raw user-picked prefs (theme = Auto stays as Auto) — feeds the FormattingPanel chip selection.
+    val formattingPreferences: StateFlow<FormattingPreferences> = formatting.formattingPreferences
+
+    // Resolved prefs (Auto theme replaced by concrete colour) — feeds the theme scrim + pdfium mapper.
+    val effectiveFormattingPreferences: StateFlow<FormattingPreferences> =
+        formatting.effectiveFormattingPreferences
+
+    val hasBookOverrides: StateFlow<Boolean> = formatting.hasBookOverrides
+
+    val formattingPreferencesReady: StateFlow<Boolean> = formatting.formattingPreferencesReady
+
+    fun updateFormatting(prefs: FormattingPreferences) = formatting.updateFormatting(itemId, prefs)
+
+    fun resetToGlobalDefaults() = formatting.resetToGlobalDefaults(itemId)
+
+    fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
+
+    fun setKeepScreenOn(value: Boolean) {
+        viewModelScope.launch { wakeLockPreferencesStore.setKeepScreenOn(value) }
+    }
+
+    // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
+
+    val volumeKeyNavigationEnabled = volumeKeyDispatcher.volumeKeyNavigationEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val invertVolumeKeys = volumeKeyDispatcher.invertVolumeKeys
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setVolumeKeyNavigationEnabled(value: Boolean) {
+        viewModelScope.launch { volumeKeyDispatcher.setVolumeKeyNavigationEnabled(value) }
+    }
+
+    fun setInvertVolumeKeys(value: Boolean) {
+        viewModelScope.launch { volumeKeyDispatcher.setInvertVolumeKeys(value) }
+    }
 
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
@@ -181,7 +232,13 @@ class PdfReaderViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
-        viewModelScope.launch { openBook() }
+        viewModelScope.launch {
+            // Sequential: formatting prefs must be available before openBook() so the
+            // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
+            // waits for effectiveFormattingPreferences to reflect the loaded value).
+            formatting.bindToBook(itemId)
+            openBook()
+        }
         viewModelScope.launch {
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 serverLocationToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
@@ -468,4 +525,9 @@ class PdfReaderViewModel @Inject constructor(
 
     private fun serverLocationToLocator(location: String): Locator? =
         try { Locator.fromJSON(JSONObject(location)) } catch (_: Exception) { null }
+
+    override fun onCleared() {
+        super.onCleared()
+        formatting.onBookClosed()
+    }
 }
