@@ -73,9 +73,18 @@ internal class DefaultRendererBridge(
 
     override suspend fun snapAfterGoTo(locator: Locator, landAtStartWhenNoTarget: Boolean) {
         val frag = fragment ?: return
+        // Prefer the fragment id carried in locations.fragments over any '#anchor' in the href.
+        // Annotation navigation resolves the CFI's DOM anchor into locations.fragments (never
+        // into the href string), so a naïve navTargetFragmentId(href) read would return null and
+        // the snap JS would fall back to a scroll-position round — which in paginated mode can
+        // leave the page one column short of the annotated paragraph even though Readium's own
+        // go(locator) already scrolled to it. Using the locator's fragment id makes the snap JS
+        // anchor on the DOM element directly.
+        val fragmentId = locator.locations.fragments.firstOrNull()
+            ?: navTargetFragmentId(locator.href.toString())
         frag.go(locator)
         frag.evaluateJavascript(
-            ColumnSnap.snapToTargetColumnJs(navTargetFragmentId(locator.href.toString()), landAtStartWhenNoTarget),
+            ColumnSnap.snapToTargetColumnJs(fragmentId, landAtStartWhenNoTarget),
         )
     }
 
