@@ -7,7 +7,7 @@ data class RenderCapabilities(
     val supportsTheme: Boolean,
     val supportsReadingModeSwitch: Boolean,
     val supportsDoublePage: Boolean,
-    val supportsReadingProgressLabels: Boolean,
+    val supportsPositionOverlays: Boolean,
 ) {
     companion object {
         val EPUB = RenderCapabilities(
@@ -17,7 +17,7 @@ data class RenderCapabilities(
             supportsTheme = true,
             supportsReadingModeSwitch = true,
             supportsDoublePage = true,
-            supportsReadingProgressLabels = true,
+            supportsPositionOverlays = true,
         )
         val PDF = RenderCapabilities(
             supportsFontFamily = false,
@@ -26,7 +26,7 @@ data class RenderCapabilities(
             supportsTheme = false,
             supportsReadingModeSwitch = false,
             supportsDoublePage = false,
-            supportsReadingProgressLabels = false,
+            supportsPositionOverlays = false,
         )
     }
 }

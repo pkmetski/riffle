@@ -462,6 +462,10 @@ private fun PdfNavigatorViewContent(
             }
 
             if (fm.findFragmentById(containerId) == null) {
+                android.util.Log.d(
+                    com.riffle.core.logging.LogChannel.PdfFormatting.tag,
+                    "constructing pdfium fragment with pageSpacing=${pdfiumPreferences.pageSpacing} fit=${pdfiumPreferences.fit} axis=${pdfiumPreferences.scrollAxis}",
+                )
                 val fragmentFactory = PdfiumNavigatorFactory(
                     publication = state.publication,
                     pdfEngineProvider = PdfiumEngineProvider(),

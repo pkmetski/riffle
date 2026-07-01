@@ -14,7 +14,7 @@ class RenderCapabilitiesTest {
         assertTrue(caps.supportsTheme)
         assertTrue(caps.supportsReadingModeSwitch)
         assertTrue(caps.supportsDoublePage)
-        assertTrue(caps.supportsReadingProgressLabels)
+        assertTrue(caps.supportsPositionOverlays)
     }
 
     @Test
@@ -26,6 +26,6 @@ class RenderCapabilitiesTest {
         assertFalse(caps.supportsTheme)
         assertFalse(caps.supportsReadingModeSwitch)
         assertFalse(caps.supportsDoublePage)
-        assertFalse(caps.supportsReadingProgressLabels)
+        assertFalse(caps.supportsPositionOverlays)
     }
 }

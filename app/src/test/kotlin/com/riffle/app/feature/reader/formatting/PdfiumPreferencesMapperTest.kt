@@ -22,6 +22,6 @@ class PdfiumPreferencesMapperTest {
     fun `margins multiplier maps to pageSpacing in dp scale`() {
         val prefs = FormattingPreferences(margins = 1.5f)
         val out = prefs.toPdfiumPreferences()
-        assertEquals(12.0, out.pageSpacing!!, 0.001)
+        assertEquals(72.0, out.pageSpacing!!, 0.001)
     }
 }

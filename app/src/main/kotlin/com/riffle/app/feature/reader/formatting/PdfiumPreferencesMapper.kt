@@ -7,8 +7,9 @@ import org.readium.r2.navigator.preferences.Fit
 import org.readium.r2.navigator.preferences.ReadingProgression
 
 // Base page-gap scale (dp) that the user's margins multiplier (0.2f..3.0f) is applied to when
-// deriving PdfiumPreferences.pageSpacing. 8dp is a reasonable middle for the default 1.0x margin.
-private const val MARGIN_BASE_DP = 8.0
+// deriving PdfiumPreferences.pageSpacing. 48dp keeps the range (9.6dp..144dp) large enough for
+// changes to be visibly obvious when scrolling past a page boundary.
+private const val MARGIN_BASE_DP = 48.0
 
 /**
  * Maps Riffle's cross-format [FormattingPreferences] onto pdfium's native preference type.
