@@ -1,3 +1,5 @@
+@file:OptIn(org.readium.r2.shared.ExperimentalReadiumApi::class)
+
 package com.riffle.app.feature.reader
 
 import org.json.JSONArray
@@ -9,13 +11,20 @@ import org.json.JSONArray
  * repeated firing during reflow is harmless.
  */
 
-// Readium 3.0.0's reflowable tap handler (`ut` in readium-reflowable.js) hit-tests decorations by
-// calling `element.getBoundingClientRect().toJSON()`. On Android's pre-Chromium-61 WebView (API ≤ 27,
-// e.g. Android 7.1.1) getBoundingClientRect() returns a ClientRect with no toJSON(), so that call
-// throws *before* Readium forwards the gesture to Android.onTap — silently swallowing every tap
-// whenever an activable decoration is present. In practice that's the readaloud sentence highlight:
-// while (or after) readaloud runs, the user can no longer tap to enter/exit immersive mode. Adding
-// the missing toJSON() restores tap delivery. Guarded so it's a no-op where the engine already has it.
+// Two polyfills that Readium's reflowable engine needs but the older Android WebView (API ≤ 27,
+// Chrome ≤ 55) is missing:
+//
+//   * `ClientRect.toJSON()` — Readium 3.0.0's tap hit-test calls `getBoundingClientRect().toJSON()`;
+//     without it every tap on an activable decoration (e.g. the readaloud "now speaking" highlight)
+//     throws before Android.onTap fires and the immersive-mode toggle silently stops working.
+//
+//   * `document.body.append(...)` — Readium 3.2.0+'s decoration renderer creates the group container
+//     via `document.body.append(el)` (ChildNode.append, only in Chrome 54+). Without it EVERY
+//     `applyDecorations` call throws before injecting any `<div id="r2-decoration-…">`, so persisted
+//     annotation highlights AND the readaloud sentence marker are entirely invisible on those
+//     WebViews. Polyfill delegates to `appendChild` so Readium's DOM-append path succeeds.
+//
+// Both are guarded so they're no-ops on engines that already ship them.
 internal val RECT_TO_JSON_POLYFILL_JS = """
     (function () {
       try {
@@ -34,8 +43,143 @@ internal val RECT_TO_JSON_POLYFILL_JS = """
           }
         });
       } catch (e) {}
+      // ChildNode.append / ParentNode.append polyfill. Readium 3.2.0+ calls document.body.append(el)
+      // from its decoration renderer; older WebViews (Chrome < 54) only have appendChild.
+      try {
+        function installAppend(proto) {
+          if (proto && typeof proto.append !== 'function') {
+            Object.defineProperty(proto, 'append', {
+              configurable: true, writable: true, enumerable: false,
+              value: function () {
+                var doc = this.ownerDocument || document;
+                for (var i = 0; i < arguments.length; i++) {
+                  var node = arguments[i];
+                  this.appendChild(typeof node === 'string' ? doc.createTextNode(node) : node);
+                }
+              }
+            });
+          }
+        }
+        [
+          typeof Element !== 'undefined' ? Element.prototype : null,
+          typeof Document !== 'undefined' ? Document.prototype : null,
+          typeof DocumentFragment !== 'undefined' ? DocumentFragment.prototype : null,
+        ].forEach(installAppend);
+      } catch (e) {}
+      // Object.entries / Object.values polyfill. Readium 3.2.0+'s decoration positioner iterates
+      // per-decoration state via Object.entries(state); Chrome < 54 lacks these and every
+      // decoration positioning pass throws BEFORE the child boxes are appended into the group
+      // container. That's why the group div appears with data-group="annotations" but no children.
+      try {
+        if (typeof Object.entries !== 'function') {
+          Object.entries = function (obj) {
+            var keys = Object.keys(Object(obj));
+            var out = new Array(keys.length);
+            for (var i = 0; i < keys.length; i++) out[i] = [keys[i], obj[keys[i]]];
+            return out;
+          };
+        }
+        if (typeof Object.values !== 'function') {
+          Object.values = function (obj) {
+            var keys = Object.keys(Object(obj));
+            var out = new Array(keys.length);
+            for (var i = 0; i < keys.length; i++) out[i] = obj[keys[i]];
+            return out;
+          };
+        }
+      } catch (e) {}
+      // ResizeObserver stub. Chrome < 64 lacks it; Readium 3.3.0's reflowable engine constructs
+      // one at init to re-position decorations on viewport size changes. A no-op stub is enough
+      // to keep init from throwing — on this WebView the viewport is stable per page, so nothing
+      // else depends on the observer firing. Decorations get re-placed by our reflow/pageLoad
+      // reapply loop.
+      try {
+        if (typeof window.ResizeObserver !== 'function') {
+          window.ResizeObserver = function ResizeObserverPolyfill(_cb) {
+            this.observe = function () {};
+            this.unobserve = function () {};
+            this.disconnect = function () {};
+          };
+        }
+      } catch (e) {}
+      // Array.prototype.flat / flatMap polyfill. Readium 3.2.0+'s text-anchoring pipeline uses
+      // `.flatMap` when resolving a TextQuoteSelector to a DOM Range; without it the resolver
+      // throws inside Readium's decoration positioner and every decoration lands with an empty
+      // `range: {}`, which reads as "found nothing" downstream — the div is registered but never
+      // sized/placed, so no highlight box appears on the page.
+      try {
+        if (typeof Array.prototype.flat !== 'function') {
+          Object.defineProperty(Array.prototype, 'flat', {
+            configurable: true, writable: true, enumerable: false,
+            value: function (depth) {
+              depth = depth === undefined ? 1 : Math.floor(Number(depth)) || 0;
+              var out = [];
+              (function step(arr, d) {
+                for (var i = 0; i < arr.length; i++) {
+                  var v = arr[i];
+                  if (d > 0 && Array.isArray(v)) step(v, d - 1);
+                  else out.push(v);
+                }
+              })(this, depth);
+              return out;
+            }
+          });
+        }
+        if (typeof Array.prototype.flatMap !== 'function') {
+          Object.defineProperty(Array.prototype, 'flatMap', {
+            configurable: true, writable: true, enumerable: false,
+            value: function (cb, thisArg) {
+              return this.map(cb, thisArg).flat(1);
+            }
+          });
+        }
+      } catch (e) {}
+      // Object.fromEntries + String.prototype.padStart — smaller cousins of the above; Readium
+      // may reach for them elsewhere and a missing built-in throws before subsequent code runs.
+      try {
+        if (typeof Object.fromEntries !== 'function') {
+          Object.fromEntries = function (iter) {
+            var out = {};
+            var arr = Array.isArray(iter) ? iter : Array.from(iter);
+            for (var i = 0; i < arr.length; i++) {
+              var pair = arr[i];
+              out[pair[0]] = pair[1];
+            }
+            return out;
+          };
+        }
+        if (typeof String.prototype.padStart !== 'function') {
+          Object.defineProperty(String.prototype, 'padStart', {
+            configurable: true, writable: true, enumerable: false,
+            value: function (targetLength, padString) {
+              targetLength = targetLength >> 0;
+              padString = String(padString !== undefined ? padString : ' ');
+              if (this.length >= targetLength || padString.length === 0) return String(this);
+              var pad = '';
+              var need = targetLength - this.length;
+              while (pad.length < need) pad += padString;
+              return pad.slice(0, need) + String(this);
+            }
+          });
+        }
+      } catch (e) {}
     })();
 """.trimIndent()
+
+/**
+ * Re-registers the decoration templates AFTER polyfills are installed. Readium calls
+ * `readium.registerDecorationTemplates(...)` once at resource-load time — which is BEFORE our
+ * polyfill install runs, so on old-WebView Chromium (missing Object.entries) the first registration
+ * throws inside the CSS-injection loop and neither the internal template map nor the `<style>` tag
+ * lands. Subsequent applyDecorations calls don't re-register — they only send the diff — so once
+ * that first registration is lost, no decoration ever renders. This script pushes a fresh
+ * registration through the (now-polyfilled) engine so `.riffle-highlight-tint` CSS makes it into
+ * the page and the internal template map is populated in time for the next applyDecorations diff.
+ */
+internal fun readiumDecorationTemplatesRegisterJs(): String {
+    val templatesJson = riffleDecorationTemplates().toJSON().toString().replace("\\n", " ")
+    return "try { readium.registerDecorationTemplates($templatesJson); } catch (e) {}"
+}
 
 // Tracks the narrated-sentence span under the user's text selection so "Play from here" can resolve
 // the right SMIL clip. Storyteller wraps each sentence in <span id="cNNN-sM">; on every non-collapsed

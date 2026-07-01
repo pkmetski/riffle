@@ -6,8 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -34,13 +33,12 @@ class HighlightRendererSwapReapplyTest {
         val second = CountingRenderer()
         var active by mutableStateOf<HighlightRenderer>(first)
         val renders = emptyList<EpubReaderViewModel.HighlightRender>()
-        val theme = ReaderTheme.Light
 
         rule.setContent {
             // Mirrors the production LaunchedEffect at EpubReaderScreen.kt:1676 — keying on the
             // renderer is what re-fires the effect when the renderer is recreated mid-session.
-            LaunchedEffect(active, renders, theme) {
-                active.applyAnnotations(renders, theme)
+            LaunchedEffect(active, renders) {
+                active.applyAnnotations(renders)
             }
         }
         rule.waitUntil(timeoutMillis = 2_000) { first.annotationApplies == 1 }
@@ -66,12 +64,11 @@ class HighlightRendererSwapReapplyTest {
         override suspend fun applyReadaloud(
             fragmentRef: String?,
             quotes: Map<String, SentenceQuote>,
-            color: ReadaloudHighlightColor,
+            color: HighlightColor,
         ) = Unit
 
         override suspend fun applyAnnotations(
             renders: List<EpubReaderViewModel.HighlightRender>,
-            theme: ReaderTheme,
         ) {
             annotationApplies += 1
         }

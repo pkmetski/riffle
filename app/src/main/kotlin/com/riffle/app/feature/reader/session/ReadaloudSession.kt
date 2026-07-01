@@ -25,7 +25,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePlanner
 import com.riffle.core.domain.ReadaloudResumePosition
@@ -188,10 +188,10 @@ class ReadaloudSession @AssistedInject constructor(
     private val _sentenceChapters = MutableStateFlow<Map<String, String>>(emptyMap())
     val sentenceChapters: StateFlow<Map<String, String>> = _sentenceChapters
 
-    val readaloudHighlightColor: StateFlow<ReadaloudHighlightColor> =
+    val readaloudHighlightColor: StateFlow<HighlightColor> =
         readaloudPreferencesStore.preferences
             .map { it.highlightColor }
-            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), ReadaloudHighlightColor.BLUE)
+            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), HighlightColor.BLUE)
 
     /** Non-null size means "show the download dialog". */
     private val _downloadPromptBytes = MutableStateFlow<Long?>(null)

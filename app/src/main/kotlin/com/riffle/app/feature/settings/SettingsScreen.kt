@@ -79,7 +79,7 @@ import com.riffle.app.feature.reader.formattingSummary
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.server.AddServerBackend
 import com.riffle.core.domain.AppTheme
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.launch
@@ -355,10 +355,17 @@ fun SettingsScreen(
                     },
                     trailingContent = {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ReadaloudHighlightColor.entries.forEach { color ->
+                            HighlightColor.entries.forEach { color ->
                                 val isSelected = readaloudPreferences.highlightColor == color
-                                val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
-                                    .copy(alpha = if (highlightEnabled) 1f else 0.38f)
+                                // The swatch renders the exact `argb` from [HighlightColor] — same
+                                // pixel value that lands in the reader. Do NOT compose additional
+                                // alpha in the enabled case; the picker must be a faithful preview.
+                                // Disabled: drop to the Material standard 0.38 (absolute, not
+                                // multiplicative against the palette's baked-in 0x80 — that would
+                                // land at ~0.19 and read as near-invisible next to the sibling
+                                // disabled `headlineColor` above, which uses `alpha = 0.38f` too).
+                                val base = Color(color.argb.toLong() and 0xFFFFFFFFL)
+                                val swatchColor = if (highlightEnabled) base else base.copy(alpha = 0.38f)
                                 // Selected swatch reads clearly in both themes: an offset ring
                                 // (onSurface ring at the outer edge, separated from the swatch by a
                                 // transparent gap) plus a centred checkmark. The swatch keeps a
@@ -371,7 +378,7 @@ fun SettingsScreen(
                                         .clip(CircleShape)
                                         .then(
                                             if (highlightEnabled) {
-                                                Modifier.clickable { viewModel.updateReadaloudHighlightColor(color) }
+                                                Modifier.clickable { viewModel.updateHighlightColor(color) }
                                             } else Modifier
                                         )
                                         .then(

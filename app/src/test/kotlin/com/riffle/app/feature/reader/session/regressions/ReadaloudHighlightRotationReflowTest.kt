@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.session.regressions
 
 import com.riffle.app.feature.reader.ReadiumHighlightRenderer
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -94,14 +94,14 @@ class ReadaloudHighlightRotationReflowTest {
     @Test
     fun `applyReadaloud re-applies decorations on every call when sentence is active`() = runTest {
         // First call — simulates the initial highlight apply (pre-rotation)
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
         val afterFirst = applied.count { it.second == "readaloud" }
 
         applied.clear()
 
         // Second call with IDENTICAL args — simulates the post-rotation re-key firing.
         // The screen relies on this NOT being a no-op.
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
         val afterSecond = applied.count { it.second == "readaloud" }
 
         assertTrue(
@@ -123,11 +123,11 @@ class ReadaloudHighlightRotationReflowTest {
     @Test
     fun `applyReadaloud decoration id is readaloud_active after rotation re-apply`() = runTest {
         // First call (pre-rotation)
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
         applied.clear()
 
         // Second call (post-rotation, triggered by pageLoadGeneration bump)
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
 
         val applyCall = applied.lastOrNull { it.second == "readaloud" && it.first.isNotEmpty() }
         assertTrue(
@@ -154,7 +154,7 @@ class ReadaloudHighlightRotationReflowTest {
      */
     @Test
     fun `without second applyReadaloud call no decorations reach the new fragment`() = runTest {
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
         // Simulate rotation: new fragment replaces old one. WITHOUT the pageLoadGeneration fix,
         // applyReadaloud is not called again, so the new fragment sees no decoration.
         applied.clear() // new fragment has no decorations yet
@@ -176,11 +176,11 @@ class ReadaloudHighlightRotationReflowTest {
      */
     @Test
     fun `applyReadaloud re-applies with updated color on rotation`() = runTest {
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
         applied.clear()
 
         // Rotation + color change
-        renderer.applyReadaloud(activeRef, quotes, ReadaloudHighlightColor.GREEN)
+        renderer.applyReadaloud(activeRef, quotes, HighlightColor.GREEN)
 
         val applyCall = applied.lastOrNull { it.second == "readaloud" && it.first.isNotEmpty() }
         assertTrue("Decoration must be present after rotation with updated color", applyCall != null)

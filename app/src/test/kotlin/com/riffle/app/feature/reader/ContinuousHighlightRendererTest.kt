@@ -1,8 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.net.FakeUri
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -110,7 +109,7 @@ class ContinuousHighlightRendererTest {
         renderer.applyReadaloud(
             fragmentRef = "chapter1.xhtml#s42",
             quotes = mapOf("s42" to SentenceQuote(before = "", highlight = "To be or not to be", after = "")),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
         assertEquals(1, fakeTarget.highlighted.size)
         assertEquals("chapter1.xhtml", fakeTarget.highlighted[0].first)
@@ -122,12 +121,12 @@ class ContinuousHighlightRendererTest {
         renderer.applyReadaloud(
             fragmentRef = "ch1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "First sentence", after = "")),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
         renderer.applyReadaloud(
             fragmentRef = "ch2.xhtml#s2",
             quotes = mapOf("s2" to SentenceQuote(before = "", highlight = "Second chapter", after = "")),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
         // ch1 should have been cleared when ch2 was highlighted
         assertTrue("ch1 should be cleared", fakeTarget.cleared.contains("ch1.xhtml"))
@@ -140,9 +139,9 @@ class ContinuousHighlightRendererTest {
         renderer.applyReadaloud(
             fragmentRef = "ch1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "A sentence", after = "")),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
-        renderer.applyReadaloud(null, emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
         assertTrue(fakeTarget.cleared.contains("ch1.xhtml"))
     }
 
@@ -151,7 +150,7 @@ class ContinuousHighlightRendererTest {
         renderer.applyReadaloud(
             fragmentRef = "ch1.xhtml#unknown",
             quotes = emptyMap(),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
         assertEquals(0, fakeTarget.highlighted.size)
     }
@@ -165,7 +164,7 @@ class ContinuousHighlightRendererTest {
             makeRender("h2", "ch1.xhtml", "text two", color = "green"),
             makeRender("h3", "ch2.xhtml", "text three", color = "blue"),
         )
-        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        renderer.applyAnnotations(renders)
 
         assertEquals(1, fakeTarget.appliedAnnotations.size)
         val byHref = fakeTarget.appliedAnnotations[0]
@@ -178,14 +177,14 @@ class ContinuousHighlightRendererTest {
         // A render whose locator.text.highlight is null should be filtered out.
         // (In production, the Screen always stores text in the locator, but guard anyway.)
         val renders = listOf(makeRender("h1", "ch1.xhtml", "some text"))
-        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        renderer.applyAnnotations(renders)
         // applyAnnotationHighlights should still be called (with filtered content)
         assertEquals(1, fakeTarget.appliedAnnotations.size)
     }
 
     @Test
     fun `applyAnnotations with empty renders calls applyAnnotationHighlights with empty map`() = runTest {
-        renderer.applyAnnotations(emptyList(), ReaderTheme.Light)
+        renderer.applyAnnotations(emptyList())
         assertEquals(1, fakeTarget.appliedAnnotations.size)
         assertTrue(fakeTarget.appliedAnnotations[0].isEmpty())
     }
@@ -201,7 +200,7 @@ class ContinuousHighlightRendererTest {
                 before = "Али ", after = " решил да замине",
             ),
         )
-        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        renderer.applyAnnotations(renders)
         val ann = fakeTarget.appliedAnnotations.single().values.single().single()
         assertEquals("Али ", ann.before)
         assertEquals(" решил да замине", ann.after)
@@ -213,7 +212,7 @@ class ContinuousHighlightRendererTest {
         // The renderer must turn null into "" so the JS receives a stable string type and the
         // first-match short-circuit (when both are empty) preserves the old behaviour.
         val renders = listOf(makeRender("legacy", "ch1.xhtml", "Куджиа"))
-        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        renderer.applyAnnotations(renders)
         val ann = fakeTarget.appliedAnnotations.single().values.single().single()
         assertEquals("", ann.before)
         assertEquals("", ann.after)

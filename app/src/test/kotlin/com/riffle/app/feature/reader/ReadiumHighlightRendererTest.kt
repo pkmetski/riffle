@@ -3,8 +3,6 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -69,7 +67,7 @@ class ReadiumHighlightRendererTest {
         renderer.applyReadaloud(
             fragmentRef = "chapter1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello world", after = "")),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
         val readaloudCalls = applied.filter { it.second == "readaloud" }
         assertEquals(2, readaloudCalls.size) // applyDecorationsWithClear: clear then apply
@@ -81,13 +79,13 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyReadaloud with null ref clears group and does not re-clear if already clear`() = runTest {
         // First call: nothing to clear → no dispatch
-        renderer.applyReadaloud(null, emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
         assertEquals(0, applied.size)
 
         // Apply one, then clear
-        renderer.applyReadaloud("c.xhtml#s1", emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud("c.xhtml#s1", emptyMap(), HighlightColor.BLUE)
         applied.clear()
-        renderer.applyReadaloud(null, emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
         assertEquals("readaloud", applied[0].second)
@@ -101,22 +99,44 @@ class ReadiumHighlightRendererTest {
             makeRender("h1", "c1.xhtml", color = "yellow"),
             makeRender("h2", "c1.xhtml", color = "green"),
         )
-        renderer.applyAnnotations(renders, ReaderTheme.Light)
-        // applyDecorationsWithClear = clear + apply → 2 calls to the block
-        val decorationCall = applied.last()
-        assertEquals("annotations", decorationCall.second)
-        assertEquals(2, decorationCall.first.size)
-        assertEquals("h1", decorationCall.first[0].id)
-        assertEquals("h2", decorationCall.first[1].id)
+        renderer.applyAnnotations(renders)
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        // Initial apply is clear+apply (2 dispatches); settle window is 4 ticks × (clear + apply) = 8.
+        // We assert on the shape: at least one dispatch carries both decorations, and the very
+        // first dispatch is the pre-apply clear (empty list).
+        assertTrue("expected initial clear+apply plus settle re-applies", annotationCalls.size >= 3)
+        assertEquals(emptyList<Decoration>(), annotationCalls.first().first)
+        val firstNonEmpty = annotationCalls.first { it.first.isNotEmpty() }
+        assertEquals(2, firstNonEmpty.first.size)
+        assertEquals("h1", firstNonEmpty.first[0].id)
+        assertEquals("h2", firstNonEmpty.first[1].id)
+    }
+
+    @Test
+    fun `applyAnnotations settle loop aborts when navigator stamp changes`() = runTest {
+        // Same guard as applySearch: on a fresh navigator stamp between settle ticks, don't keep
+        // shoving decorations into a WebView that isn't ours anymore. Regression pin — without this
+        // abort, an orientation flip mid-settle would spam the old fragment for another second.
+        val recorder = mutableListOf<Pair<List<Decoration>, String>>()
+        val abortingRenderer = ReadiumHighlightRenderer(
+            applyDecorationsBlock = { decorations, group -> recorder.add(decorations to group) },
+            fragmentLocator = { ref, _ -> if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null },
+            currentNavigatorStamp = { Any() }, // new object every call → stamp always changes
+        )
+        abortingRenderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
+        val annotationCalls = recorder.filter { it.second == "annotations" }
+        // Initial apply is clear + apply (2 dispatches); the settle loop aborts on the first tick
+        // because the stamp changes, so no settle re-applies fire.
+        assertEquals("only the initial clear+apply fires when the stamp changes", 2, annotationCalls.size)
     }
 
     @Test
     fun `applyAnnotations with empty list clears group`() = runTest {
         // Apply something first so hasAnnotationDecorations = true
-        renderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")), ReaderTheme.Light)
+        renderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
         applied.clear()
 
-        renderer.applyAnnotations(emptyList(), ReaderTheme.Light)
+        renderer.applyAnnotations(emptyList())
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
         assertEquals("annotations", applied[0].second)
@@ -124,7 +144,7 @@ class ReadiumHighlightRendererTest {
 
     @Test
     fun `applyAnnotations empty list is no-op when no decorations active`() = runTest {
-        renderer.applyAnnotations(emptyList(), ReaderTheme.Light)
+        renderer.applyAnnotations(emptyList())
         assertEquals(0, applied.size)
     }
 

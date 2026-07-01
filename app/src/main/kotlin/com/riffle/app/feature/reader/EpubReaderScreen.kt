@@ -96,7 +96,6 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
@@ -1093,7 +1092,7 @@ private fun EpubNavigatorView(
     onPlayFromHere: (fragmentRef: String) -> Unit,
     readaloudAvailable: Boolean,
     readaloudReservePx: Int = 0,
-    readaloudHighlightColor: ReadaloudHighlightColor,
+    readaloudHighlightColor: HighlightColor,
     annotationsAvailable: Boolean,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
@@ -1458,7 +1457,6 @@ private fun EpubNavigatorView(
     val paginationListener = remember {
         object : EpubNavigatorFragment.PaginationListener {
             override fun onPageLoaded() {
-                pageLoadGeneration.value += 1
                 val fragment = fragmentRef.value ?: return
                 coroutineScope.launch {
                     // A backward cross-resource page turn (swipe-back at a chapter start) is handled by
@@ -1480,7 +1478,16 @@ private fun EpubNavigatorView(
                     // settle backstop — through the renderer bridge (#331). The capability list is
                     // declared once in DefaultRendererBridge; adding a new one is a registration,
                     // not another evaluateJavascript() at this call site.
+                    //
+                    // MUST run before bumping [pageLoadGeneration]: the polyfills that ship with the
+                    // rect capability (ChildNode.append, Object.entries, ResizeObserver) are the only
+                    // reason Readium's `registerDecorationTemplates` doesn't throw on the old-Chromium
+                    // WebViews. The annotation re-apply LaunchedEffect keys on pageLoadGeneration; if
+                    // we bump before installing polyfills, the re-apply's evaluateJavascript queues
+                    // BEFORE ours and Readium's template registration runs against a still-broken
+                    // engine — decorations register into an internal map but never emit CSS or DOM.
                     rendererBridge.installPageCapabilities()
+                    pageLoadGeneration.value += 1
                     // NOTE: do NOT snap to the column grid here for the general case. The typography
                     // injection above reflows the page asynchronously, so a snap at this point rounds a
                     // pre-reflow position and lands close-but-not-exact. The post-go() snap in the
@@ -1724,8 +1731,8 @@ private fun EpubNavigatorView(
     // because the ContinuousReaderView ref binds during AndroidView's layout phase and is
     // worth applying to as soon as the ref is non-null — a slot the highlightRenderer key
     // alone doesn't cover.)
-    LaunchedEffect(highlightRenderer, highlightRenders, formattingPrefs.theme, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
-        highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
+    LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
+        highlightRenderer.applyAnnotations(highlightRenders)
     }
 
     LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
@@ -2267,7 +2274,7 @@ private fun EpubNavigatorView(
                 // a paged↔continuous orientation flip the new ContinuousHighlightRenderer would
                 // otherwise never be invoked and ContinuousReaderView.currentAnnotationsByHref
                 // would stay empty — onPageFinished would skip every chapter as it loaded.
-                highlightRenderer.applyAnnotations(highlightRenders, formattingPrefs.theme)
+                highlightRenderer.applyAnnotations(highlightRenders)
                 view.initialize(
                     chapters = chapters,
                     prefs = formattingPrefs,

@@ -1,8 +1,6 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.delay
 import org.readium.r2.navigator.Decoration
@@ -36,7 +34,7 @@ internal class ReadiumHighlightRenderer(
     override suspend fun applyReadaloud(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
-        color: ReadaloudHighlightColor,
+        color: HighlightColor,
     ) {
         if (fragmentRef == null) {
             if (!hasReadaloudDecoration) return
@@ -58,7 +56,6 @@ internal class ReadiumHighlightRenderer(
 
     override suspend fun applyAnnotations(
         renders: List<EpubReaderViewModel.HighlightRender>,
-        theme: ReaderTheme,
     ) {
         if (renders.isEmpty()) {
             if (!hasAnnotationDecorations) return
@@ -70,11 +67,26 @@ internal class ReadiumHighlightRenderer(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).readerTint(theme)),
+                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
             )
         }
+        // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
+        // (id, locator, style) list as a no-op, so a re-fire of the same list (theme change bumps
+        // pageLoadGeneration, LaunchedEffect keys the same renders) would keep the stale pre-reflow
+        // rects until the 400ms settle tick fires. Matches [applyReadaloud]'s pre-clear semantics.
         applyDecorationsWithClear(decorations, "annotations")
         hasAnnotationDecorations = true
+        // Readium fixes decoration rects at applyDecorations time. When the first apply runs before
+        // reflow has fully settled (fresh navigator, chapter change, orientation flip), the rects
+        // land against a still-shifting layout and the highlight is either invisible or in the wrong
+        // place. Same settle window as [applySearch] — clear+re-apply on each tick so the diff
+        // forces Readium to re-measure and re-position the boxes.
+        val stamp = currentNavigatorStamp()
+        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
+            delay(settleDelayMs)
+            if (currentNavigatorStamp() !== stamp) break
+            applyDecorationsWithClear(decorations, "annotations")
+        }
     }
 
     override suspend fun applyNoteGlyphs(

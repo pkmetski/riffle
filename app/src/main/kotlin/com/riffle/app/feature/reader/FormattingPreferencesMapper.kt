@@ -21,6 +21,19 @@ import org.readium.r2.navigator.preferences.Theme
 // Single source: ReaderThemePalette.DARK_DIM_TEXT (Compose Color) → Readium Color (ARGB int).
 private val DARK_DIM_TEXT_COLOR: Int = DARK_DIM_TEXT.toArgb()
 
+/**
+ * The decoration template set Riffle registers with the Readium engine: Readium's defaults (used
+ * by persisted highlight + search) plus our own [HighlightTintStyle] and [NoteGlyphStyle]. Extracted
+ * so both the fragment configuration and the post-polyfill re-registration script (see
+ * [readiumDecorationTemplatesRegisterJs]) build the same set — otherwise the CSS injected by our
+ * capability wouldn't match the styles the fragment thinks it registered.
+ */
+internal fun riffleDecorationTemplates(): HtmlDecorationTemplates =
+    HtmlDecorationTemplates.defaultTemplates().apply {
+        set(HighlightTintStyle::class, highlightTintTemplate())
+        set(NoteGlyphStyle::class, noteGlyphTemplate())
+    }
+
 fun FormattingPreferences.toEpubPreferences(
     isLandscape: Boolean = false,
     isFixedLayout: Boolean = false,
@@ -87,13 +100,12 @@ fun FormattingPreferences.toFragmentConfiguration(
         // falls back to the default serif — Literata/Merriweather/OpenDyslexic would all
         // render identically.
         servedAssets = listOf("fonts/.*"),
-        // Keep Readium's built-in templates (used by persisted + search highlights) and add a
-        // dedicated readaloud highlight template whose opacity tracks the tint's alpha channel,
-        // so the synced highlight can be strengthened on dark reading themes (see readerTint()).
-        decorationTemplates = HtmlDecorationTemplates.defaultTemplates().apply {
-            set(HighlightTintStyle::class, highlightTintTemplate())
-            set(NoteGlyphStyle::class, noteGlyphTemplate())
-        },
+        // Readium's built-in templates (used by search highlights) plus our shared
+        // [HighlightTintStyle] template for annotation + readaloud highlights and the
+        // [NoteGlyphStyle] template for the margin note glyph. Opacity comes from the tint's
+        // alpha channel, which is baked into [HighlightColor.argb] — one flat value across
+        // themes and features; see [riffleDecorationTemplates] for the single source.
+        decorationTemplates = riffleDecorationTemplates(),
         readiumCssRsProperties = when {
             isDoublePage -> RsProperties(
                 colCount = ColCount.TWO,
