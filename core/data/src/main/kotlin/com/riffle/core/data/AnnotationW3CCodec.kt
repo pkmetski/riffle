@@ -170,6 +170,11 @@ object AnnotationW3CCodec {
             // is spine-agnostic, so we carry them explicitly.
             put("riffle:spineIndex", JsonPrimitive(entity.spineIndex))
             put("riffle:progression", JsonPrimitive(entity.progression))
+            // Real chapter resource path (e.g. "OPS/chapter-139.xhtml"). `target.source` only
+            // encodes the itemId, so without this extension a peer receiving the file cannot
+            // recover the chapter path — and the reader's page-bookmarked indicator, which
+            // matches on normalized chapterHref, stays dark for cross-device bookmarks.
+            put("riffle:chapterHref", entity.chapterHref)
             if (entity.type == AnnotationEntity.TYPE_BOOKMARK && entity.bookmarkTitle.isNotEmpty()) {
                 put("riffle:bookmarkTitle", entity.bookmarkTitle)
             }
@@ -256,6 +261,16 @@ object AnnotationW3CCodec {
                 else -> AnnotationEntity.TYPE_HIGHLIGHT
             }
 
+            // Real chapter path extension. When present, prefer it over the itemId derived from
+            // `target.source` — otherwise a WebDAV round-trip loses the real chapter path (only
+            // the itemId is on the wire in `target.source = "epub://item-<itemId>"`), which
+            // makes the reader's page-bookmarked indicator go dark. Files predating the
+            // extension fall through to the source-derived path; the merge orchestrator
+            // preserves any locally-known chapterHref in that case. Read here — before the
+            // target selectors run — so `reassemblePdfLocator` also sees the real path.
+            val chapterHrefExtension = root["riffle:chapterHref"]?.jsonPrimitive?.content
+                ?.takeIf { it.isNotEmpty() }
+
             // Extract target and selectors
             val target = root["target"]?.jsonObject
             var cfi = ""
@@ -266,7 +281,8 @@ object AnnotationW3CCodec {
 
             target?.let {
                 val src = it["source"]?.jsonPrimitive?.content ?: ""
-                chapterHref = src.removePrefix("epub://item-").removePrefix("pdf://item-")
+                chapterHref = chapterHrefExtension
+                    ?: src.removePrefix("epub://item-").removePrefix("pdf://item-")
                 val selectors = it["selector"]?.jsonArray ?: emptyList()
                 for (selector in selectors) {
                     val selectorObj = selector.jsonObject
