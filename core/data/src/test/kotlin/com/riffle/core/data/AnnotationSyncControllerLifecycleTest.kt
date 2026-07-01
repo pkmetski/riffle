@@ -692,6 +692,8 @@ class AnnotationSyncControllerLifecycleTest {
         updatedAt: Long,
         deviceId: String,
         color: String = "yellow",
+        spineIndex: Int = 0,
+        progression: Double = 0.0,
     ): String = AnnotationW3CCodec.annotationEntityToW3C(
         AnnotationEntity(
             id = id,
@@ -709,6 +711,8 @@ class AnnotationSyncControllerLifecycleTest {
             updatedAt = updatedAt,
             originDeviceId = deviceId,
             lastModifiedByDeviceId = deviceId,
+            spineIndex = spineIndex,
+            progression = progression,
         ),
     )
 
@@ -770,8 +774,10 @@ class AnnotationSyncControllerLifecycleTest {
             .copy(spineIndex = 5, progression = 0.3)
         dao.localAnnotations += local
 
-        // Own-device file is on WebDAV (round-tripped): the W3C JSON does NOT carry
-        // spineIndex/progression, so the parsed peer row will lack them.
+        // Simulate a peer file that omits the sort-key extension (e.g. written before the extension
+        // existed, or by a device that didn't know the values): the parsed W3CAnnotation surfaces
+        // (0, 0.0). Local values must still win because the CFI — and therefore the sort key —
+        // hasn't moved.
         target.files["annotations-own.jsonld"] = jsonArrayOf(
             w3c("uuid-bookmark", updatedAt = 1000L, deviceId = DEVICE_ID),
         )
@@ -781,6 +787,28 @@ class AnnotationSyncControllerLifecycleTest {
         val upserted = dao.upserts.single { it.id == "uuid-bookmark" }
         assertEquals("spineIndex must survive the sync round-trip", 5, upserted.spineIndex)
         assertEquals("progression must survive the sync round-trip", 0.3, upserted.progression, 0.0)
+    }
+
+    @Test
+    fun `syncOnOpen adopts peer spineIndex and progression for new cross-device annotations`() = runTest {
+        // No local row for this id — the annotation was created on another device. The peer file
+        // carries the sort-key extension (riffle:spineIndex / riffle:progression) so the row lands
+        // in the correct reading-order slot on first receive.
+        target.files["annotations-peer.jsonld"] = jsonArrayOf(
+            w3c(
+                id = "uuid-peer-bookmark",
+                updatedAt = 2000L,
+                deviceId = "peer-device",
+                spineIndex = 7,
+                progression = 0.42,
+            ),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-peer-bookmark" }
+        assertEquals("cross-device: adopt peer spineIndex", 7, upserted.spineIndex)
+        assertEquals("cross-device: adopt peer progression", 0.42, upserted.progression, 0.0)
     }
 
     // ===== stamp + report + enqueue-on-failure =====

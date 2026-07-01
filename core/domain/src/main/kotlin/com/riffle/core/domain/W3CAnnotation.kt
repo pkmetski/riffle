@@ -39,4 +39,13 @@ data class W3CAnnotation(
     val createdAt: Long,
     /** Tombstone flag; true if this annotation has been deleted. */
     val deleted: Boolean = false,
+    /** Zero-based spine position of the containing chapter — cross-chapter sort key for the panel.
+     *  Derivable from [cfi] but not part of the W3C spec, so it rides along as a Riffle extension
+     *  to keep the sort order stable across a WebDAV round-trip (see ADR 0038 / AnnotationDao
+     *  observeAnnotationsByPosition). Defaults to 0 for backward-compat with files written before
+     *  the extension existed. */
+    val spineIndex: Int = 0,
+    /** Within-chapter fractional offset (0.0–1.0) — secondary sort key. Same round-trip rationale
+     *  as [spineIndex]. Defaults to 0.0 for backward-compat. */
+    val progression: Double = 0.0,
 )
