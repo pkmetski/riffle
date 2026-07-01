@@ -113,7 +113,7 @@ class ReadaloudSession @AssistedInject constructor(
     init {
         // Build the sentence-quote map when audio starts playing (isPlaying false→true transition).
         // Backstops the matched-ABS case where the bundle may be downloaded later in the session;
-        // the VM's init coroutine also calls buildSentenceQuotes eagerly at book-open.
+        // bind() also seeds a build eagerly when the bundle is already on disk at book-open.
         scope.launch {
             playbackState
                 .map { it.isPlaying }
@@ -248,8 +248,6 @@ class ReadaloudSession @AssistedInject constructor(
     var readerSyncProvider: () -> ReaderSyncCoordinator? = { null }
     var audiobookFollowProvider: () -> AudiobookFollow? = { null }
 
-    // --- Park state (owned by parkPolicy; exposed for the VM's reconcile cycle) ---
-    val parkedFragmentRef: String? get() = parkPolicy.fragmentRef
 
     // --- Resume / close state (set on closeReadaloud; cleared on next startReadaloud) ---
     internal var closeLocator: Locator? = null
@@ -281,14 +279,17 @@ class ReadaloudSession @AssistedInject constructor(
         if (playbackState.value.isPlaying) {
             val pausedFragment = playerCoordinator.activeFragmentRef.value
             playerCoordinator.pause()
-            parkPolicy.onPause(
-                pausedFragment = pausedFragment,
-                snapshotHref = snapshotLocator()?.href?.toString(),
-                snapshotProgression = snapshotLocator()?.locations?.progression,
-            )
-            if (pausedFragment != null) progressFlushScope.flush {
-                flushReadaloudPositionToStores(pausedFragment)
-                pushAudiobookFromReadingPosition(pausedFragment)
+            if (pausedFragment != null) {
+                val snap = snapshotLocator()
+                parkPolicy.onPause(
+                    pausedFragment = pausedFragment,
+                    snapshotHref = snap?.href?.toString(),
+                    snapshotProgression = snap?.locations?.progression,
+                )
+                progressFlushScope.flush {
+                    flushReadaloudPositionToStores(pausedFragment)
+                    pushAudiobookFromReadingPosition(pausedFragment)
+                }
             }
         } else {
             onPlayTapped()
@@ -983,9 +984,6 @@ class ReadaloudSession @AssistedInject constructor(
         return streamingSession
     }
 
-    /** Delegates to [quoteBuilder]. Kept for the VM's init-coroutine seed at book-open. */
-    internal fun buildSentenceQuotes(bundle: File) = quoteBuilder.build(bundle)
-
     /**
      * Starts observing the sidecar store for [audioServerId]/[audioBookId] and reacts to
      * [ReadaloudSidecarStore.State.Ready] / [ReadaloudSidecarStore.State.Failed].
@@ -1001,7 +999,7 @@ class ReadaloudSession @AssistedInject constructor(
                     ReadaloudSidecarStore.State.Ready -> {
                         // The sidecar stands in for the bundle for the synced-highlight text quotes
                         // (ADR 0028): build them the moment it's cached, through the SAME
-                        // buildSentenceQuotes path the on-disk bundle uses below.
+                        // quoteBuilder path the on-disk bundle uses in bind().
                         sidecarStore.cachedFile(audioServerId, audioBookId)?.let { sidecar ->
                             quoteBuilder.quoteBundle = sidecar
                             quoteBuilder.build(sidecar)

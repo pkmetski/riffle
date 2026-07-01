@@ -21,11 +21,12 @@ class ReadaloudParkPolicyTest {
     }
 
     @Test
-    fun `onClose records park even with null fragment`() {
+    fun `onClose with null fragment leaves fragmentRef null`() {
         val policy = ReadaloudParkPolicy()
         policy.onClose(resumeFragment = null, snapshotHref = "chap1", snapshotProgression = 0.25)
-        // fragmentRef is null but the park's page anchor is still recorded — the next onPosition
-        // on the same page must NOT clear it (fragmentRef being null keeps the guard from firing).
+        // onClose accepts a null fragment (unlike onPause which early-returns): the caller
+        // wanted to stamp the close, but with no active narration there is no park to reason
+        // about. fragmentRef stays null and future onPosition calls are guarded no-ops.
         assertNull(policy.fragmentRef)
     }
 

@@ -786,7 +786,7 @@ class EpubReaderViewModel @Inject constructor(
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
             // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
             // regress it to the page top (ADR 0031). Outbound resumes once the user navigates off the page.
-            val pushAudio = readaloud.parkedFragmentRef == null
+            val pushAudio = readaloud.parkPolicy.fragmentRef == null
             val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt, pushAudio) }.getOrNull()
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->

@@ -261,7 +261,7 @@ class ReadaloudSessionTest {
             session.togglePlayPause()
 
             assertEquals("pause() should be called once", 1, fakePlayer.pauseCalled)
-            assertEquals("parked fragment should match active fragment", "c01.html#s7", session.parkedFragmentRef)
+            assertEquals("parked fragment should match active fragment", "c01.html#s7", session.parkPolicy.fragmentRef)
             assertEquals("flush should be called once for position write", 1, fakeFlushes.size)
         } finally {
             sessionScope.cancel()
@@ -946,7 +946,7 @@ class ReadaloudSessionTest {
             val differentHrefLocator = makeLocator("chapter02.html", progression = 0.0)
             session.onPositionBeforeForward(differentHrefLocator)
 
-            assertNull("parkedFragmentRef must be null after navigating away", session.parkedFragmentRef)
+            assertNull("parkedFragmentRef must be null after navigating away", session.parkPolicy.fragmentRef)
         } finally {
             sessionScope.cancel()
         }
@@ -1114,7 +1114,7 @@ class ReadaloudSessionTest {
             // Transient state must be cleared
             assertEquals("readaloudPrepared must be false after close", false, session.readaloudPrepared)
             assertEquals("readaloudStarted must be false after close", false, session.readaloudStarted)
-            assertNull("parkedFragmentRef must be null after close", session.parkedFragmentRef)
+            assertNull("parkedFragmentRef must be null after close", session.parkPolicy.fragmentRef)
             assertNull("closeLocator must be null after close", session.closeLocator)
             assertNull("resumeFragmentRef must be null after close", session.resumeFragmentRef)
             assertNull("pendingStartFragmentRef must be null after close", session.pendingStartFragmentRef)
