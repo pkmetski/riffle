@@ -310,7 +310,9 @@ class AnnotationSessionTest {
         assertEquals(1, received.size)
         assertEquals(targetLocator, received[0].locator)
         // The seeded annotation in this test has type="highlight", so the event must carry
-        // isBookmark=false so the screen lands it at the viewport midpoint in continuous mode.
+        // isBookmark=false. Continuous-mode landing now uses viewport-midpoint for both types;
+        // the flag is preserved on the event because downstream (analytics, tests) still
+        // branches on annotation type.
         assertFalse(received[0].isBookmark)
         assertFalse(session.annotationsPanelVisible.value)
 
@@ -319,7 +321,7 @@ class AnnotationSessionTest {
     }
 
     @Test
-    fun `navigateToAnnotation tags bookmarks as isBookmark=true so continuous-mode landing differs`() = runTest {
+    fun `navigateToAnnotation tags bookmarks as isBookmark=true so downstream can branch on type`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
         val store = FakeAnnotationStore()
