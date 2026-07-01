@@ -12,4 +12,5 @@ enum class LogChannel(val tag: String) {
     Readaloud("RIFFLE_RA"),
     Audiobook("RIFFLE_AB"),
     Handoff("RIFFLE_HANDOFF"),
+    PdfFormatting("RIFFLE_PDF_FMT"),
 }
