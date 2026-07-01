@@ -107,11 +107,13 @@ class AnnotationSession @AssistedInject constructor(
 
     /**
      * Carries both the resolved locator and a flag for whether the annotation was a page-level
-     * bookmark vs a text-anchored highlight/note. The screen uses [isBookmark] to choose the
-     * continuous-mode landing: bookmarks land at the viewport top (heading visible at top); a
-     * highlight/note lands at the viewport midpoint (with reading context above it, matching
-     * Readium's vertical-mode placement). In Readium modes Readium owns placement, so the flag
-     * is ignored.
+     * bookmark vs a text-anchored highlight/note. Continuous-mode landing now goes to the viewport
+     * midpoint for BOTH types so the page-bookmark ribbon's stored midpoint progression matches
+     * the reader's scrollY on arrival — landing bookmarks at the viewport top produced a full-
+     * viewport offset between the lit ribbon position and the actual scroll landing on any book
+     * with images or non-uniform text density. The flag is preserved on the event because
+     * downstream (analytics, tests) may still branch on annotation type; the screen no longer
+     * uses it to pick alignment.
      */
     data class AnnotationNavigationEvent(val locator: Locator, val isBookmark: Boolean)
 

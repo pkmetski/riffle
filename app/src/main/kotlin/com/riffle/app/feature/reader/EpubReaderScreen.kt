@@ -1690,17 +1690,22 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(annotationNavigationEvents) {
         annotationNavigationEvents.collect { event ->
-            // Continuous-mode landing splits by annotation type. A page-level bookmark lands
-            // with `alignToTop=true` so the chapter heading sits at the viewport top — matching
-            // the page-bookmark ribbon's "this page contains the bookmark" semantics. A
-            // highlight / note lands with `alignToTop=false`, putting the highlighted text at
-            // the viewport midpoint with reading context above it, mirroring how Readium places
-            // annotation navigation in paginated and vertical modes. Readium adapters ignore
-            // `alignToTop` — Readium owns column / page alignment internally — so this only
+            // Continuous-mode landing goes to the viewport MIDPOINT for every annotation type
+            // (`alignToTop=false`). The page-bookmark ribbon
+            // (BookmarksController.isCurrentPageBookmarked) matches on
+            // ContinuousPositionTracker.locatorAt's midpoint progression, and toggleBookmark
+            // stores that same midpoint value. Placing the anchor at the viewport top
+            // (`alignToTop=true`) worked geometrically only when the CFI's char-based content
+            // position happened to line up with its pixel position — for any chapter with
+            // images, big headings, or vertical whitespace, the pixel anchor sat almost a full
+            // viewport past the char-based progression, so the ribbon lit up ~1 screen before
+            // the actual landing. Landing at the midpoint puts the ribbon and the reader at
+            // the same scrollY across every layout. Readium adapters (paginated / vertical)
+            // ignore `alignToTop` and own page/column alignment internally, so this only
             // affects continuous mode.
             navigateWithCover(
                 NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
-                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = event.isBookmark),
+                NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = false),
                 event.locator.href.toString(),
             )
         }
