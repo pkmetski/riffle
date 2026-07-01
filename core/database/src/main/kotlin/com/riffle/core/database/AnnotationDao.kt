@@ -1,8 +1,6 @@
 package com.riffle.core.database
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -51,7 +49,11 @@ interface AnnotationDao {
     )
     suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // Real UPSERT (not INSERT-OR-REPLACE): REPLACE reallocates the rowid on every update, which
+    // shuffles the SQLite fallback order for rows that tie on the sort key (e.g. a bookmark and a
+    // highlight both at spineIndex=N, progression=0.0 at the top of a chapter). Every sync
+    // round-trip re-upserts and swaps their order in observeAnnotationsByPosition.
+    @Upsert
     suspend fun upsert(entity: AnnotationEntity)
 
     @Upsert
@@ -69,10 +71,13 @@ interface AnnotationDao {
     @Query("UPDATE annotations SET note = :note, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
     suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String)
 
-    /** Live, non-deleted annotations for an item sorted by reading position (spine order, then within-chapter). */
+    /** Live, non-deleted annotations for an item sorted by reading position (spine order, then
+     *  within-chapter). Ties on (spineIndex, progression) — common when a bookmark at chapter top
+     *  and a highlight on the first word both resolve to progression=0.0 — fall back to createdAt
+     *  and then id, so the order stays stable across sync-driven upserts. */
     @Query(
         "SELECT * FROM annotations WHERE serverId = :serverId AND itemId = :itemId AND deleted = 0 " +
-            "ORDER BY spineIndex ASC, progression ASC"
+            "ORDER BY spineIndex ASC, progression ASC, createdAt ASC, id ASC"
     )
     fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>>
 

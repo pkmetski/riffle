@@ -112,6 +112,45 @@ class AnnotationDaoTest {
         assertEquals("device-B", tomb?.lastModifiedByDeviceId)
     }
 
+    // Regression: two annotations tied on (spineIndex, progression) — e.g. a bookmark at chapter
+    // top and a highlight on the chapter's first word — must keep a deterministic order across
+    // repeated upserts. Before the fix, upsert used INSERT OR REPLACE (which reallocates rowid)
+    // and observeAnnotationsByPosition had no tie-breaker, so every sync-driven merge flipped the
+    // pair in the annotations panel.
+    @Test
+    fun observeAnnotationsByPosition_isStableAcrossRepeatedUpsertsOnTiedSortKey() = runTest {
+        // Bookmark created first (older createdAt), highlight second. Ids are chosen so lex
+        // order (highlight first) is the OPPOSITE of creation order — mirroring
+        // AnnotationMergeService's `sortedBy { id }` iteration in the sync merge path. Under the
+        // old INSERT-OR-REPLACE upsert this made the re-upsert reallocate rowids in reverse of
+        // the intended order and, with no createdAt tie-breaker in the sort, flipped the pair.
+        val bookmark = highlight("z-bookmark-chapter-top", createdAt = 1000L).copy(
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            spineIndex = 141,
+            progression = 0.0,
+        )
+        val hl = highlight("a-highlight-first-word", createdAt = 2000L).copy(
+            spineIndex = 141,
+            progression = 0.0,
+        )
+        dao.upsert(bookmark)
+        dao.upsert(hl)
+
+        val initial = dao.observeAnnotationsByPosition("abs1", "item1").first().map { it.id }
+        assertEquals(listOf("z-bookmark-chapter-top", "a-highlight-first-word"), initial)
+
+        // Simulate the sync merge path — iterate the id-sorted winners and upsert each.
+        val idSortedWinners = listOf(hl, bookmark)
+        repeat(3) { i ->
+            for (row in idSortedWinners) {
+                dao.upsert(row.copy(updatedAt = row.updatedAt + i + 1))
+            }
+        }
+
+        val afterMerges = dao.observeAnnotationsByPosition("abs1", "item1").first().map { it.id }
+        assertEquals(listOf("z-bookmark-chapter-top", "a-highlight-first-word"), afterMerges)
+    }
+
     @Test
     fun observeForItem_ordersByCreatedAtAscending() = runTest {
         dao.upsert(highlight("late", createdAt = 3000L))
