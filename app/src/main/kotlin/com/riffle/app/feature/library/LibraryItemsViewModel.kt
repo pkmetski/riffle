@@ -262,12 +262,11 @@ class LibraryItemsViewModel @Inject constructor(
         savedStateHandle[KEY_SEARCH_QUERY] = query
     }
 
-    /** Called from ON_RESUME. Reconciles the ConnectivityObserver against the live system state —
-     * doze/wake on Android 13 can drop `NetworkCallback` events, leaving the event-derived tracker
-     * holding stale offline state after the device wakes — then refreshes so the banner clears the
-     * moment the library screen returns to the foreground. */
+    /** Called from ON_RESUME. Refreshes so `_refreshFailed` clears the moment the library screen
+     * returns to the foreground if the server is back. ConnectivityObserver self-heals its own
+     * doze/wake drift on ProcessLifecycleOwner ON_START and on ACTION_AIRPLANE_MODE_CHANGED — no
+     * explicit poke needed here. */
     fun onScreenResumed() {
-        connectivityObserver.syncNow()
         refresh()
     }
 

@@ -165,9 +165,7 @@ class LibraryItemsViewModelTest {
 
     private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
         val state = MutableStateFlow(online)
-        var syncNowCount = 0
         override val isOnline: StateFlow<Boolean> = state
-        override fun syncNow() { syncNowCount++ }
     }
 
     private class FakeToReadRepository(initial: Set<String> = emptySet()) : ToReadRepository {
@@ -1111,28 +1109,23 @@ class LibraryItemsViewModelTest {
         assertEquals(emptyList<AnnotationSearchResult>(), vm.projection.value.annotations)
     }
 
-    // Regression: Android 13 doze/wake can coalesce NetworkCallback events, leaving the
-    // ConnectivityObserver's event-derived tracker stale — the banner then sticks after the device
-    // wakes. On ON_RESUME we now (1) poke syncNow() so the observer reconciles against reality and
-    // (2) always refresh so refreshFailed clears if the server is back.
+    // Regression: on ON_RESUME we always refresh so `_refreshFailed` clears if the server is back.
+    // Connectivity self-heals inside the ConnectivityObserver via ProcessLifecycleOwner + the
+    // ACTION_AIRPLANE_MODE_CHANGED broadcast, so it does not need to be poked from the view model.
     @Test
-    fun `onScreenResumed reconciles connectivity and refreshes`() = runTest {
-        val connectivity = FakeConnectivityObserver()
+    fun `onScreenResumed refreshes`() = runTest {
         val toRead = FakeToReadRepository()
         val refreshItems = com.riffle.app.testing.NoopRefreshLibraryItems()
         val vm = makeViewModel(
-            connectivityObserver = connectivity,
             toReadRepository = toRead,
             refreshLibraryItemsUseCase = refreshItems,
         )
         testDispatcher.scheduler.advanceUntilIdle()
-        val syncNowBefore = connectivity.syncNowCount
         val refreshBefore = refreshItems.calls
 
         vm.onScreenResumed()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(syncNowBefore + 1, connectivity.syncNowCount)
         assertTrue(refreshItems.calls > refreshBefore)
     }
 }
