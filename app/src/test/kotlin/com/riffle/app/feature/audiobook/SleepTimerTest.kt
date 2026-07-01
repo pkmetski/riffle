@@ -213,7 +213,6 @@ class SleepTimerTest {
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
             followLoopOrchestrator = FollowLoopOrchestrator(
-                applicationScope = TestApplicationScope(CoroutineScope(testDispatcher)),
                 clock = object : Clock {
                     override fun nowMs(): Long = 0L
                     override fun nowNs(): Long = 0L

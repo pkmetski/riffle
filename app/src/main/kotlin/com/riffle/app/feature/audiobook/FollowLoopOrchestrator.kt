@@ -2,7 +2,6 @@ package com.riffle.app.feature.audiobook
 
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
-import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -36,7 +35,6 @@ import javax.inject.Inject
  * those values today).
  */
 class FollowLoopOrchestrator @Inject constructor(
-    private val applicationScope: ApplicationScope,
     private val clock: Clock,
     private val progressFlushScope: ProgressFlushScope,
 ) {

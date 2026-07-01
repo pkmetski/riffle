@@ -172,7 +172,6 @@ class AudiobookPlayerViewModelBookmarkTest {
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
             followLoopOrchestrator = FollowLoopOrchestrator(
-                applicationScope = TestApplicationScope(CoroutineScope(testDispatcher)),
                 clock = object : Clock {
                     override fun nowMs(): Long = fixedNow
                     override fun nowNs(): Long = fixedNow * 1_000_000L

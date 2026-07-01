@@ -28,16 +28,13 @@ class AudiobookResumeResolver @Inject constructor(
      * @property resumeSec book-absolute seconds the player should start at.
      * @property resumeStamp the timestamp associated with [resumeSec] — used to seed the follow
      *   loop's `localUpdatedAt` (so a genuinely-newer local listen leads, and a stale remote can't
-     *   pull us back).
-     * @property hadTrackedPosition true when either side had a stamped position; false only on the
-     *   offline-with-bundle-only fallback path where [resumeSec] came from `readingProgress`. The
-     *   VM uses this to decide whether to seed the follow-loop resume floor (never leading) or the
-     *   normal floor (may lead once playback advances past it).
+     *   pull us back). Zero on the offline-with-bundle-only fallback path (where [resumeSec] came
+     *   from `readingProgress`); non-zero when the resume came from a genuinely tracked position
+     *   (reconciler decision or handoff override).
      */
     data class ResumePoint(
         val resumeSec: Double,
         val resumeStamp: Long,
-        val hadTrackedPosition: Boolean,
     )
 
     /**
@@ -86,14 +83,12 @@ class AudiobookResumeResolver @Inject constructor(
             }
         }
 
-        val hadTrackedPosition = reconciledStamp > 0L
-
         // No tracked position at all (offline with only a bundle: no local listen row, no server
         // record) → fall back to the item's library progress so we resume near where the app shows
         // it. Not a "tracked" position, so callers only use it as an inbound-only resume floor.
         resumeSec = audiobookResumeSec(
             reconciledSec = resumeSec,
-            hadTrackedPosition = hadTrackedPosition,
+            hadTrackedPosition = reconciledStamp > 0L,
             readingProgressFraction = readingProgressFraction,
             durationSec = session.timeline.durationSec,
         )
@@ -121,7 +116,6 @@ class AudiobookResumeResolver @Inject constructor(
         return ResumePoint(
             resumeSec = resumeSec,
             resumeStamp = resumeStamp,
-            hadTrackedPosition = hadTrackedPosition || startAtSec >= 0.0,
         )
     }
 }

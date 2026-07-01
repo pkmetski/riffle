@@ -63,7 +63,6 @@ class FollowLoopOrchestratorTest {
         val clock = FakeClock(ms = 1_000L)
         val appScope = TestApplicationScope(this)
         val orchestrator = FollowLoopOrchestrator(
-            applicationScope = appScope,
             clock = clock,
             progressFlushScope = ProgressFlushScope(appScope),
         )

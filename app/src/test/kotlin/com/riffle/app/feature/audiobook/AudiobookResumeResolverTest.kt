@@ -7,7 +7,6 @@ import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.Clock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,7 +60,6 @@ class AudiobookResumeResolverTest {
 
         assertEquals(500.0, result.resumeSec, 0.0001)
         assertEquals(5_000L, result.resumeStamp)
-        assertTrue(result.hadTrackedPosition)
         assertEquals(1, store.saves.size)
         assertEquals(500.0, store.saves[0].third, 0.0001)
     }
@@ -81,7 +79,6 @@ class AudiobookResumeResolverTest {
 
         assertEquals(900.0, result.resumeSec, 0.0001)
         assertEquals(10_000L, result.resumeStamp)
-        assertTrue(result.hadTrackedPosition)
         assertTrue("push-local does not write back", store.saves.isEmpty())
     }
 
@@ -99,8 +96,7 @@ class AudiobookResumeResolverTest {
         )
 
         assertEquals(200.0, result.resumeSec, 0.01)
-        assertEquals(0L, result.resumeStamp, )
-        assertFalse("progress-fallback is inbound-only", result.hadTrackedPosition)
+        assertEquals("progress-fallback returns zero stamp (inbound-only)", 0L, result.resumeStamp)
     }
 
     @Test
@@ -134,7 +130,6 @@ class AudiobookResumeResolverTest {
 
         assertEquals(250.0, result.resumeSec, 0.0001)
         assertEquals(9_999L, result.resumeStamp)
-        assertTrue(result.hadTrackedPosition)
         assertEquals("handoff persists position", 250.0, store.saves.last().third, 0.0001)
         assertEquals("handoff persists fresh timestamp", 9_999L, store.timestampUpdates.last().third)
     }
