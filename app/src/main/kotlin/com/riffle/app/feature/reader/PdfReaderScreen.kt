@@ -10,6 +10,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,10 +31,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -42,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -53,6 +57,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.app.feature.reader.formatting.toPdfiumPreferences
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -71,6 +78,19 @@ fun PdfReaderScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    // Raw user-picked prefs — feeds the FormattingPanel chip selection (so Auto stays
+    // highlighted even though the page renders in the resolved palette).
+    val pickedPrefs by viewModel.formattingPreferences.collectAsState()
+    // Resolved prefs — `theme` is always concrete. Feeds pdfium's mapper + the theme scrim.
+    val formattingPrefs by viewModel.effectiveFormattingPreferences.collectAsState()
+    // False until the loaded prefs have propagated to effectiveFormattingPreferences. Gates
+    // fragment construction so first paint never bakes in the StateFlow's default preferences
+    // (mirrors EpubReaderScreen's formattingPreferencesReady gate).
+    val formattingPreferencesReady by viewModel.formattingPreferencesReady.collectAsState()
+    val hasBookOverrides by viewModel.hasBookOverrides.collectAsState()
+    val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
+    val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
+    var showFormattingPanel by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
@@ -143,28 +163,42 @@ fun PdfReaderScreen(
                             .testTag("reader_loading"),
                     )
                 }
-                is ReaderState.Ready -> {
-                    PdfNavigatorView(
-                        state = s,
-                        onPageChanged = { locator ->
-                            immersiveState.dismissOverlay()
-                            viewModel.onPageChanged(locator)
-                        },
-                        onTap = immersiveState::toggle,
-                        serverLocatorEvents = viewModel.serverLocatorEvents,
-                        volumeNavEvents = viewModel.volumeNavEvents,
-                        latestLocator = { viewModel.latestLocator },
+                // Prefs haven't propagated to effectiveFormattingPreferences yet — keep the
+                // spinner up rather than constructing the pdfium fragment with the StateFlow's
+                // FormattingPreferences() default (mirrors EpubReaderScreen's equivalent gate).
+                is ReaderState.Ready -> if (!formattingPreferencesReady) {
+                    CircularProgressIndicator(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("reader_ready")
-                            .semantics {
-                                contentDescription = buildString {
-                                    append(currentPage?.let { "page:$it" } ?: "")
-                                    append(" wake-lock:")
-                                    append(if (keepScreenOn) "on" else "off")
-                                }
-                            },
+                            .align(Alignment.Center)
+                            .testTag("reader_loading"),
                     )
+                } else {
+                    // Theme scrim sits behind the pdfium fragment — reuses the same palette
+                    // EpubReaderScreen derives its background from (ReaderTheme.palette).
+                    Box(modifier = Modifier.fillMaxSize().background(formattingPrefs.theme.palette.background)) {
+                        PdfNavigatorView(
+                            state = s,
+                            prefs = formattingPrefs,
+                            onPageChanged = { locator ->
+                                immersiveState.dismissOverlay()
+                                viewModel.onPageChanged(locator)
+                            },
+                            onTap = immersiveState::toggle,
+                            serverLocatorEvents = viewModel.serverLocatorEvents,
+                            volumeNavEvents = viewModel.volumeNavEvents,
+                            latestLocator = { viewModel.latestLocator },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("reader_ready")
+                                .semantics {
+                                    contentDescription = buildString {
+                                        append(currentPage?.let { "page:$it" } ?: "")
+                                        append(" wake-lock:")
+                                        append(if (keepScreenOn) "on" else "off")
+                                    }
+                                },
+                        )
+                    }
 
                     if (tocVisible) {
                         TocPanel(
@@ -239,9 +273,37 @@ fun PdfReaderScreen(
                         ) {
                             Icon(Icons.Filled.Bookmarks, contentDescription = "Annotations")
                         }
+                        IconButton(
+                            onClick = { showFormattingPanel = true },
+                            modifier = Modifier.testTag("pdf_open_formatting"),
+                        ) {
+                            Text(
+                                "Aa",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.semantics { contentDescription = "Format" },
+                            )
+                        }
                     }
                 },
                 colors = readerTopAppBarColors(),
+            )
+        }
+
+        if (showFormattingPanel) {
+            ReaderSettingsSheet(
+                prefs = pickedPrefs,
+                capabilities = RenderCapabilities.PDF,
+                hasBookOverrides = hasBookOverrides,
+                onPrefsChange = { viewModel.updateFormatting(it) },
+                onReset = { viewModel.resetToGlobalDefaults() },
+                onDismiss = { showFormattingPanel = false },
+                keepScreenOn = keepScreenOn,
+                onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
+                volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+                onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
+                invertVolumeKeys = invertVolumeKeys,
+                onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             )
         }
 
@@ -289,6 +351,34 @@ private fun PdfChapterRailOverlay(
 @Composable
 private fun PdfNavigatorView(
     state: ReaderState.Ready,
+    prefs: FormattingPreferences,
+    onPageChanged: (Locator) -> Unit,
+    onTap: () -> Unit,
+    serverLocatorEvents: Flow<Locator>,
+    volumeNavEvents: Flow<VolumeNavEvent>,
+    latestLocator: () -> Locator?,
+    modifier: Modifier = Modifier,
+) = key(prefs.orientation, prefs.margins) {
+    PdfNavigatorViewContent(
+        state = state,
+        pdfiumPreferences = prefs.toPdfiumPreferences(),
+        onPageChanged = onPageChanged,
+        onTap = onTap,
+        serverLocatorEvents = serverLocatorEvents,
+        volumeNavEvents = volumeNavEvents,
+        latestLocator = latestLocator,
+        modifier = modifier,
+    )
+}
+
+// Keyed on orientation + margins by the caller ([PdfNavigatorView]) so a change to either
+// remounts this composable from scratch — the only way to feed pdfium a new PdfiumPreferences,
+// since the fragment factory bakes them in at construction (same limitation EPUB has for
+// double-page toggles). Other prefs (theme, keepScreenOn, volume keys) do NOT need this.
+@Composable
+private fun PdfNavigatorViewContent(
+    state: ReaderState.Ready,
+    pdfiumPreferences: org.readium.adapter.pdfium.navigator.PdfiumPreferences,
     onPageChanged: (Locator) -> Unit,
     onTap: () -> Unit,
     serverLocatorEvents: Flow<Locator>,
@@ -382,6 +472,7 @@ private fun PdfNavigatorView(
                     pdfEngineProvider = PdfiumEngineProvider(),
                 ).createFragmentFactory(
                     initialLocator = latestLocator() ?: state.initialLocator,
+                    initialPreferences = pdfiumPreferences,
                 )
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
