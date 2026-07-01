@@ -25,6 +25,15 @@ internal enum class CapabilityId {
 
     /** At-rest column-snap backstop — rounds an off-grid resting page to the nearest column. */
     ScrollSettleBackstop,
+
+    /**
+     * Re-registers Readium's decoration templates after polyfills are in place. Readium's own
+     * registration fires at resource-load — before our polyfills — and on old WebViews the
+     * missing Object.entries / Array.prototype.flatMap silently short-circuits it, leaving the
+     * template CSS un-injected and every annotation highlight invisible. Must depend on the
+     * polyfill capability so the retry actually runs against a working engine.
+     */
+    DecorationTemplateReregister,
 }
 
 /** Where in the renderer's lifetime a capability is meant to be (re)installed. */

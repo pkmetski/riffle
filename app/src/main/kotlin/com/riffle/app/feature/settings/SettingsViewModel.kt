@@ -18,7 +18,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.orderLibraries
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
@@ -335,7 +335,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { formattingPreferencesStore.update(prefs) }
     }
 
-    fun updateReadaloudHighlightColor(color: ReadaloudHighlightColor) {
+    fun updateHighlightColor(color: HighlightColor) {
         viewModelScope.launch {
             readaloudPreferencesStore.update(ReadaloudPreferences(highlightColor = color))
         }

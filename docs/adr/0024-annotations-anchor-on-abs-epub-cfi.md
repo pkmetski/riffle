@@ -31,14 +31,33 @@ CFI is the same coordinate family ABS already stores in `mediaProgress.ebookLoca
 
 ## Amendment (2026-06-17): colour palette + rendering (#70)
 
-The highlight colour is one of four tokens — `yellow` (default), `green`, `blue`, `pink` —
+The highlight colour is one of four tokens — `yellow` (default), `green`, `blue`, `red` —
 modelled by `HighlightColor` (`core/domain`). Tokens are stored verbatim in
-`AnnotationEntity.color`; an unknown/missing token resolves to yellow (sync forward-compat).
+`AnnotationEntity.color`; an unknown/missing token resolves to yellow (sync forward-compat),
+and the legacy `pink` token (the fourth swatch before its palette rework) resolves to `red`.
 The four hues match the readaloud palette for visual consistency but are a separate, smaller
-vocabulary (no PURPLE, yellow default) decoupled from `ReadaloudHighlightColor`.
+vocabulary (yellow default) decoupled from `ReadaloudHighlightColor`.
 
-Rendering reuses the shared `HighlightTintStyle` decoration + `tintForTheme()`: the reader theme
-bakes per-theme alpha into the base hue (~45% on Dark/DarkDim, ~30% on Light/Sepia) so a highlight
-stays legible in any theme. Recolour updates the row in place (bumping `updatedAt`); delete sets the
+## Amendment (2026-07-01): unified palette + pink → red rework
+
+`HighlightColor` is the single source of truth for BOTH hue and opacity across every reader
+highlight — user annotations, the readaloud "now speaking" marker, the swatches in Settings,
+and the annotation actions popup. `argb` is the FINAL rendered ARGB (colour + baked-in alpha,
+`0x80` at time of writing); every consumer uses it verbatim, no per-theme override, no
+runtime alpha multiplication. Changing hue or opacity is a single-file edit on `HighlightColor`
+and it propagates to picker preview + rendered page in the same tick. The separate
+`ReadaloudHighlightColor` enum is gone; `ReadaloudPreferences.highlightColor` holds a
+`HighlightColor` directly.
+
+The fourth swatch also changed from `pink` (rose-400, `#FB7185`) to `red` (red-500, `#EF4444`).
+Any locally-stored `AnnotationEntity.color = 'pink'` row falls through
+`HighlightColor.fromToken`'s unknown-name path to the YELLOW default — same treatment as any
+stale token, no bespoke migration or alias. The readaloud palette also dropped `PURPLE`; a
+persisted `PINK` or `PURPLE` enum name falls through `PrefCodecs.enum`'s unknown-name path to
+the BLUE default. Consistent policy across both surfaces: fallback-to-default on read.
+
+Rendering uses the shared `HighlightTintStyle` decoration with `HighlightColor.argb` piped through
+verbatim — the tint's alpha channel is the palette's baked-in opacity (see the 2026-07-01
+amendment above). Recolour updates the row in place (bumping `updatedAt`); delete sets the
 `deleted` tombstone (bumping `updatedAt`) and tombstoned rows are excluded from the live query, so
 they never render.

@@ -8,7 +8,7 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.AuthenticateResult
@@ -615,15 +615,15 @@ class SettingsViewModelTest {
     // --- readaloud highlight color ---
 
     @Test
-    fun `updateReadaloudHighlightColor persists new color to store and updates StateFlow`() = runTest {
+    fun `updateHighlightColor persists new color to store and updates StateFlow`() = runTest {
         val vm = makeViewModel()
-        val emitted = mutableListOf<ReadaloudHighlightColor>()
+        val emitted = mutableListOf<HighlightColor>()
         val job = launch { vm.readaloudPreferences.collect { emitted.add(it.highlightColor) } }
         testDispatcher.scheduler.advanceUntilIdle()
-        vm.updateReadaloudHighlightColor(ReadaloudHighlightColor.YELLOW)
+        vm.updateHighlightColor(HighlightColor.YELLOW)
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(ReadaloudHighlightColor.YELLOW, readaloudPrefsFlow.value.highlightColor)
-        assertEquals(ReadaloudHighlightColor.YELLOW, emitted.last())
+        assertEquals(HighlightColor.YELLOW, readaloudPrefsFlow.value.highlightColor)
+        assertEquals(HighlightColor.YELLOW, emitted.last())
         job.cancel()
     }
 

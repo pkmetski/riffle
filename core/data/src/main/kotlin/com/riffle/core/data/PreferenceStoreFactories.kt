@@ -5,7 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadingSpeedStore
@@ -65,12 +65,14 @@ fun WakeLockPreferencesStore(dataStore: DataStore<Preferences>): WakeLockPrefere
 }
 
 fun ReadaloudPreferencesStore(dataStore: DataStore<Preferences>): ReadaloudPreferencesStore {
+    // Legacy "PINK" / "PURPLE" values written by older builds fall through to BLUE via the
+    // codec's unknown-name fallback — acceptable since the user can re-pick from the new palette.
     val store = preferenceStore(
         dataStore,
         PrefCodecs.enum(
             "highlight_color",
-            ReadaloudHighlightColor.BLUE,
-            ReadaloudHighlightColor.entries.toTypedArray(),
+            HighlightColor.BLUE,
+            HighlightColor.entries.toTypedArray(),
         ),
     )
     return object : ReadaloudPreferencesStore {

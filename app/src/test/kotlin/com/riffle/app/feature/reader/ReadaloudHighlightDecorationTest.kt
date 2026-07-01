@@ -3,7 +3,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -45,12 +45,14 @@ class ReadaloudHighlightDecorationTest {
     }
 
     @Test
-    fun allColorsHaveAlphaBakedIn() {
-        // argb is the final rendered color used by both the swatch and the reader — no runtime
-        // transformation applied. Verify every entry is translucent (not fully opaque).
-        for (color in ReadaloudHighlightColor.entries) {
+    fun paletteBakesInBothColourAndAlpha() {
+        // `argb` is the single source of truth for both hue AND opacity. Every consumer — reader
+        // decorations (readaloud + annotations) and the Settings picker — uses this int verbatim,
+        // so the swatch preview matches what the reader actually paints. If this alpha ever drifts
+        // back to 0xFF, the reader will paint fully-opaque bars over body text.
+        for (color in HighlightColor.entries) {
             val a = alpha(color.argb)
-            assertTrue("${color.name} alpha $a should be translucent", a in 1..254)
+            assertTrue("${color.name} alpha $a must be translucent (single-source baked-in)", a in 1..254)
         }
     }
 

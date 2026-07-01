@@ -1,8 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.annotation.ColorInt
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import org.readium.r2.shared.publication.Locator
 
@@ -32,21 +31,21 @@ internal interface HighlightRenderer {
 
     /**
      * Applies or clears the readaloud sentence highlight.
-     * [fragmentRef] is "href#spanId" when active, null to clear.
+     * [fragmentRef] is "href#spanId" when active, null to clear. The fill uses [color]'s [argb]
+     * verbatim — colour AND alpha are pre-baked; renderers must not compose additional alpha.
      */
     suspend fun applyReadaloud(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
-        color: ReadaloudHighlightColor,
+        color: HighlightColor,
     )
 
     /**
      * Applies or clears persisted annotation highlight decorations.
-     * Empty [renders] clears the group.
+     * Empty [renders] clears the group. Same colour+alpha invariant as [applyReadaloud].
      */
     suspend fun applyAnnotations(
         renders: List<EpubReaderViewModel.HighlightRender>,
-        theme: ReaderTheme,
     )
 
     /**

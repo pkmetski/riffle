@@ -20,7 +20,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.ReadaloudHighlightColor
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
@@ -223,7 +223,7 @@ class ReadaloudSessionTest {
             audioIdentityResolver = mockk(relaxed = true),
             readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
                 io.mockk.every { it.preferences } returns flowOf(
-                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = HighlightColor.BLUE)
                 )
             },
             readaloudResumeStore = mockk(relaxed = true),
@@ -439,7 +439,7 @@ class ReadaloudSessionTest {
             audioIdentityResolver = mockk(relaxed = true),
             readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
                 every { it.preferences } returns flowOf(
-                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = HighlightColor.BLUE)
                 )
             },
             readaloudResumeStore = mockk(relaxed = true),
@@ -592,7 +592,7 @@ class ReadaloudSessionTest {
             audioIdentityResolver = mockk(relaxed = true),
             readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
                 every { it.preferences } returns flowOf(
-                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                    com.riffle.core.domain.ReadaloudPreferences(highlightColor = HighlightColor.BLUE)
                 )
             },
             readaloudResumeStore = readaloudResumeStore,
@@ -827,7 +827,7 @@ class ReadaloudSessionTest {
                 audioIdentityResolver = mockk(relaxed = true),
                 readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
                     every { it.preferences } returns flowOf(
-                        com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                        com.riffle.core.domain.ReadaloudPreferences(highlightColor = HighlightColor.BLUE)
                     )
                 },
                 readaloudResumeStore = mockk(relaxed = true),
@@ -975,7 +975,7 @@ class ReadaloudSessionTest {
         audioIdentityResolver = mockk(relaxed = true),
         readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
             every { it.preferences } returns flowOf(
-                com.riffle.core.domain.ReadaloudPreferences(highlightColor = ReadaloudHighlightColor.BLUE)
+                com.riffle.core.domain.ReadaloudPreferences(highlightColor = HighlightColor.BLUE)
             )
         },
         readaloudResumeStore = readaloudResumeStore,

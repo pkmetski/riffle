@@ -1,8 +1,6 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SentenceQuote
 import org.readium.r2.shared.publication.Locator
 
@@ -26,7 +24,7 @@ internal class ContinuousHighlightRenderer(
     override suspend fun applyReadaloud(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
-        color: ReadaloudHighlightColor,
+        color: HighlightColor,
     ) {
         val target = targetProvider() ?: return
         if (fragmentRef == null) {
@@ -48,7 +46,6 @@ internal class ContinuousHighlightRenderer(
 
     override suspend fun applyAnnotations(
         renders: List<EpubReaderViewModel.HighlightRender>,
-        theme: ReaderTheme,
     ) {
         val target = targetProvider() ?: return
         val annotationsByHref = renders
@@ -59,7 +56,7 @@ internal class ContinuousHighlightRenderer(
                     AnnotationHighlight(
                         id = h.id,
                         text = h.locator.text.highlight!!,
-                        cssColor = HighlightColor.fromToken(h.color).readerTint(theme).toCssRgba(),
+                        cssColor = HighlightColor.fromToken(h.color).argb.toCssRgba(),
                         hasNote = h.note != null,
                         before = h.locator.text.before.orEmpty(),
                         after = h.locator.text.after.orEmpty(),

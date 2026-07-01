@@ -4,25 +4,15 @@ import android.graphics.Color
 import android.os.Parcel
 import android.os.Parcelable
 import androidx.annotation.ColorInt
-import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.ReadaloudHighlightColor
 import org.readium.r2.navigator.Decoration
 import java.util.Locale
 import org.readium.r2.navigator.html.HtmlDecorationTemplate
 import org.readium.r2.navigator.html.toCss
 
 // Readium's default highlight template (Style.Highlight) bakes a FIXED alpha (0.3) into the CSS and
-// ignores the tint's own alpha channel — too faint on the Dark reading theme (0.3 of a colour over a
-// black page is barely visible behind the white body text). Both the readaloud "now speaking"
-// highlight and the persisted annotation highlights use this OWN style + template instead, so the
-// fill opacity can vary per theme (the template honours the tint's alpha; the caller bakes in the
-// strength via tintForTheme()).
-
-// Fill opacity baked into the tint's alpha channel per reading theme. Dark pages need a stronger
-// alpha so the highlight reads as a clear selection box behind the white body text.
-internal const val HIGHLIGHT_ALPHA_DARK = 0x73 // ~45%
-internal const val HIGHLIGHT_ALPHA_LIGHT = 0x4D // ~30%
+// ignores the tint's own alpha channel. Both readaloud "now speaking" and persisted annotations
+// route through this OWN style + template so the tint's own alpha channel (already baked into
+// [HighlightColor.argb], the single source of colour AND opacity) is honoured verbatim.
 
 /** Shared decoration style for tinted highlights (readaloud "now speaking" + persisted annotations). */
 class HighlightTintStyle(
@@ -74,24 +64,6 @@ fun highlightTintTemplate(): HtmlDecorationTemplate =
             }
         """.trimIndent(),
     )
-
-/**
- * Bake the per-[theme] fill opacity into [argb]'s alpha channel. Dark/DarkDim pages use a stronger
- * alpha so the highlight reads as a clear box behind white body text; light/sepia use Readium's
- * usual ~30% so dark body text stays legible.
- */
-@ColorInt
-fun tintForTheme(@ColorInt argb: Int, theme: ReaderTheme): Int {
-    val alpha = when (theme) {
-        ReaderTheme.Dark, ReaderTheme.DarkDim -> HIGHLIGHT_ALPHA_DARK
-        else -> HIGHLIGHT_ALPHA_LIGHT
-    }
-    return (argb and 0x00FFFFFF) or (alpha shl 24)
-}
-
-/** The tint to paint a persisted-annotation highlight with on the given reading [theme]. */
-@ColorInt
-fun HighlightColor.readerTint(theme: ReaderTheme): Int = tintForTheme(argb, theme)
 
 /** Convert an ARGB color int to a CSS rgba() string for injection into WebView JS. */
 fun @receiver:ColorInt Int.toCssRgba(): String {

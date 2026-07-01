@@ -49,7 +49,6 @@ import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReadaloudHighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTrack
@@ -468,7 +467,7 @@ class EpubReaderViewModel @Inject constructor(
 
     val sentenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> get() = readaloud.sentenceQuotes
 
-    val readaloudHighlightColor: StateFlow<ReadaloudHighlightColor>
+    val readaloudHighlightColor: StateFlow<HighlightColor>
         get() = readaloud.readaloudHighlightColor
 
     val sentenceChapters: StateFlow<Map<String, String>> get() = readaloud.sentenceChapters

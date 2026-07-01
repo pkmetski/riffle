@@ -3,8 +3,6 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ReadaloudHighlightColor
-import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -69,7 +67,7 @@ class ReadiumHighlightRendererTest {
         renderer.applyReadaloud(
             fragmentRef = "chapter1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello world", after = "")),
-            color = ReadaloudHighlightColor.BLUE,
+            color = HighlightColor.BLUE,
         )
         val readaloudCalls = applied.filter { it.second == "readaloud" }
         assertEquals(2, readaloudCalls.size) // applyDecorationsWithClear: clear then apply
@@ -81,13 +79,13 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyReadaloud with null ref clears group and does not re-clear if already clear`() = runTest {
         // First call: nothing to clear → no dispatch
-        renderer.applyReadaloud(null, emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
         assertEquals(0, applied.size)
 
         // Apply one, then clear
-        renderer.applyReadaloud("c.xhtml#s1", emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud("c.xhtml#s1", emptyMap(), HighlightColor.BLUE)
         applied.clear()
-        renderer.applyReadaloud(null, emptyMap(), ReadaloudHighlightColor.BLUE)
+        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
         assertEquals("readaloud", applied[0].second)
@@ -101,7 +99,7 @@ class ReadiumHighlightRendererTest {
             makeRender("h1", "c1.xhtml", color = "yellow"),
             makeRender("h2", "c1.xhtml", color = "green"),
         )
-        renderer.applyAnnotations(renders, ReaderTheme.Light)
+        renderer.applyAnnotations(renders)
         // applyDecorationsWithClear = clear + apply → 2 calls to the block
         val decorationCall = applied.last()
         assertEquals("annotations", decorationCall.second)
@@ -113,10 +111,10 @@ class ReadiumHighlightRendererTest {
     @Test
     fun `applyAnnotations with empty list clears group`() = runTest {
         // Apply something first so hasAnnotationDecorations = true
-        renderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")), ReaderTheme.Light)
+        renderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
         applied.clear()
 
-        renderer.applyAnnotations(emptyList(), ReaderTheme.Light)
+        renderer.applyAnnotations(emptyList())
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
         assertEquals("annotations", applied[0].second)
@@ -124,7 +122,7 @@ class ReadiumHighlightRendererTest {
 
     @Test
     fun `applyAnnotations empty list is no-op when no decorations active`() = runTest {
-        renderer.applyAnnotations(emptyList(), ReaderTheme.Light)
+        renderer.applyAnnotations(emptyList())
         assertEquals(0, applied.size)
     }
 

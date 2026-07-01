@@ -7,6 +7,7 @@ import com.riffle.app.feature.reader.SELECTION_SPAN_TRACKER_JS
 import com.riffle.app.feature.reader.firstVisibleSentenceJs
 import com.riffle.app.feature.reader.readaloudReserveApplyJs
 import com.riffle.app.feature.reader.readaloudReserveInjectionJs
+import com.riffle.app.feature.reader.readiumDecorationTemplatesRegisterJs
 import com.riffle.app.feature.reader.resolveSelectionSentenceJs
 import com.riffle.app.feature.reader.typographyOverrideInjectionJs
 import java.net.URLDecoder
@@ -188,6 +189,11 @@ internal class DefaultRendererBridge(
             RendererCapability(
                 id = CapabilityId.ScrollSettleBackstop,
                 installScript = { ColumnSnap.SETTLE_SNAP_INSTALL_JS },
+            ),
+            RendererCapability(
+                id = CapabilityId.DecorationTemplateReregister,
+                dependsOn = setOf(CapabilityId.RectToJsonPolyfill),
+                installScript = { readiumDecorationTemplatesRegisterJs() },
             ),
         )
 
