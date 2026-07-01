@@ -29,8 +29,10 @@ fun FormattingSection(
     capabilities: RenderCapabilities = RenderCapabilities.EPUB,
 ) {
     Column {
-        Text("Text", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(8.dp))
+        if (capabilities.supportsTextTypography || capabilities.supportsFontFamily) {
+            Text("Text", style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(8.dp))
+        }
 
         if (capabilities.supportsTextTypography) {
             Text("Font size", style = MaterialTheme.typography.labelMedium)

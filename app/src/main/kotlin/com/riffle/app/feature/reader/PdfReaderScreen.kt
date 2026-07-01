@@ -490,6 +490,11 @@ private fun PdfNavigatorViewContent(
                 }
             }
         },
-        modifier = modifier,
+        // Apply the user's margin as horizontal padding around the fragment. Pdfium honors
+        // Fit.WIDTH by rescaling pages to the container's inner width, so shrinking the
+        // container narrows the pages visibly — this is the observable side of the "margins"
+        // slider (pageSpacing alone controls the between-page gap, which pdfium may or may
+        // not honor at runtime and is only visible when scrolling past a page boundary).
+        modifier = modifier.padding(horizontal = ((pdfiumPreferences.pageSpacing ?: 0.0) / 2.0).toFloat().dp),
     )
 }
