@@ -261,7 +261,7 @@ class ReadaloudSessionTest {
             session.togglePlayPause()
 
             assertEquals("pause() should be called once", 1, fakePlayer.pauseCalled)
-            assertEquals("parked fragment should match active fragment", "c01.html#s7", session.parkedFragmentRef)
+            assertEquals("parked fragment should match active fragment", "c01.html#s7", session.parkPolicy.fragmentRef)
             assertEquals("flush should be called once for position write", 1, fakeFlushes.size)
         } finally {
             sessionScope.cancel()
@@ -483,7 +483,7 @@ class ReadaloudSessionTest {
             session.audiobookFollowProvider = { fakeFollow }
             // Park a fragment so ReadaloudAudioAnchor routes to fragmentSeconds (parkedFragment != null
             // branch) rather than the pageSeconds fallback (which would return null with no coordinator).
-            session.parkedFragmentRef = "chapter01.html#s10"
+            session.parkPolicy.onPause("chapter01.html#s10", "chapter01.html", 0.0)
 
             session.mirrorReadingToAudiobook("{}")
 
@@ -879,9 +879,9 @@ class ReadaloudSessionTest {
             // Provide a fake (empty) bundle file so buildSentenceQuotes can be triggered
             val bundle = java.io.File.createTempFile("bundle", ".zip")
             bundle.deleteOnExit()
-            session.quoteBundle = bundle
-            // quotesBuildStarted starts false
-            assertEquals("quotesBuildStarted must start false", false, session.quotesBuildStarted)
+            session.quoteBuilder.quoteBundle = bundle
+            // started starts false
+            assertEquals("quoteBuilder.started must start false", false, session.quoteBuilder.started)
 
             // Trigger isPlaying → true
             (fakePlayer.state as MutableStateFlow).value =
@@ -889,8 +889,8 @@ class ReadaloudSessionTest {
 
             // Give the launched coroutine a chance to run (UnconfinedTestDispatcher runs eagerly)
             assertEquals(
-                "quotesBuildStarted must be true after isPlaying transitions to true",
-                true, session.quotesBuildStarted,
+                "quoteBuilder.started must be true after isPlaying transitions to true",
+                true, session.quoteBuilder.started,
             )
         } finally {
             sessionScope.cancel()
@@ -936,17 +936,17 @@ class ReadaloudSessionTest {
             )
             // Seed park state — parked on chapter01 with href stored as the full toString value
             val parkedLocator = makeLocator("chapter01.html", progression = 0.5)
-            session.parkedFragmentRef = "chapter01.html#s42"
-            session.parkedLocatorHref = parkedLocator.href.toString()
-            session.parkedProgression = 0.5
+            session.parkPolicy.onPause(
+                pausedFragment = "chapter01.html#s42",
+                snapshotHref = parkedLocator.href.toString(),
+                snapshotProgression = 0.5,
+            )
 
-            // Build a locator on a DIFFERENT chapter — href.toString() != parkedLocatorHref
+            // Build a locator on a DIFFERENT chapter — href.toString() != the parked href
             val differentHrefLocator = makeLocator("chapter02.html", progression = 0.0)
             session.onPositionBeforeForward(differentHrefLocator)
 
-            assertNull("parkedFragmentRef must be null after navigating away", session.parkedFragmentRef)
-            assertNull("parkedLocatorHref must be null after navigating away", session.parkedLocatorHref)
-            assertNull("parkedProgression must be null after navigating away", session.parkedProgression)
+            assertNull("parkedFragmentRef must be null after navigating away", session.parkPolicy.fragmentRef)
         } finally {
             sessionScope.cancel()
         }
@@ -1095,7 +1095,7 @@ class ReadaloudSessionTest {
             // Seed transient playback state to verify it's cleared on close
             session.readaloudPrepared = true
             session.readaloudStarted = true
-            session.parkedFragmentRef = "c01.html#s5"
+            session.parkPolicy.onPause("c01.html#s5", "c01.html", 0.5)
             session.closeLocator = makeLocator("c01.html", progression = 0.5)
             session.resumeFragmentRef = "c01.html#s5"
             session.pendingStartFragmentRef = "c01.html#s10"
@@ -1114,7 +1114,7 @@ class ReadaloudSessionTest {
             // Transient state must be cleared
             assertEquals("readaloudPrepared must be false after close", false, session.readaloudPrepared)
             assertEquals("readaloudStarted must be false after close", false, session.readaloudStarted)
-            assertNull("parkedFragmentRef must be null after close", session.parkedFragmentRef)
+            assertNull("parkedFragmentRef must be null after close", session.parkPolicy.fragmentRef)
             assertNull("closeLocator must be null after close", session.closeLocator)
             assertNull("resumeFragmentRef must be null after close", session.resumeFragmentRef)
             assertNull("pendingStartFragmentRef must be null after close", session.pendingStartFragmentRef)

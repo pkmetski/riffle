@@ -93,9 +93,6 @@ import java.io.File
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
-// A reading-position progression change beyond this (or any href change) counts as navigating off the
-// page readaloud was parked on; smaller deltas are settle jitter on the same page (ADR 0031).
-private const val PARK_PAGE_EPS = 0.001
 private const val BOOKMARK_PAGE_EPS = 0.05   // ±5% within-chapter progression window
 // The audiobook follows the live audio on a tighter cadence than the 30s ebook reconcile, so a
 // listen reaches the server within seconds rather than only on the next ebook tick.
@@ -789,7 +786,7 @@ class EpubReaderViewModel @Inject constructor(
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
             // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
             // regress it to the page top (ADR 0031). Outbound resumes once the user navigates off the page.
-            val pushAudio = readaloud.parkedFragmentRef == null
+            val pushAudio = readaloud.parkPolicy.fragmentRef == null
             val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt, pushAudio) }.getOrNull()
             if (result != null) {
                 result.jumpLocatorJson?.let { json ->

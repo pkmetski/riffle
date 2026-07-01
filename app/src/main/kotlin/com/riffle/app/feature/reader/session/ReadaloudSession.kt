@@ -37,7 +37,6 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.resolveEpubHref
-import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -108,17 +107,19 @@ class ReadaloudSession @AssistedInject constructor(
 
     // ---- Observers launched at construction time -----------------------------------------------
 
+    internal val parkPolicy = ReadaloudParkPolicy()
+    internal val quoteBuilder = ReadaloudQuoteBuilder(scope, dispatchers, logger)
+
     init {
         // Build the sentence-quote map when audio starts playing (isPlaying false→true transition).
-        // One-shot: quotesBuildStarted prevents double-launch on rapid pause→resume.
-        // This is the backstop for the matched-ABS case where the bundle may be downloaded later
-        // in the session; the VM's init coroutine also calls buildSentenceQuotes eagerly at book-open.
+        // Backstops the matched-ABS case where the bundle may be downloaded later in the session;
+        // bind() also seeds a build eagerly when the bundle is already on disk at book-open.
         scope.launch {
             playbackState
                 .map { it.isPlaying }
                 .distinctUntilChanged()
                 .collect { isPlaying ->
-                    if (isPlaying) quoteBundle?.let { buildSentenceQuotes(it) }
+                    if (isPlaying) quoteBuilder.quoteBundle?.let { quoteBuilder.build(it) }
                     // Notify the VM of the playing state so it can update ReaderStateHolder.
                     onAudioPlayingChanged?.invoke(isPlaying)
                 }
@@ -181,12 +182,10 @@ class ReadaloudSession @AssistedInject constructor(
         get() = playerCoordinator.narrationProgress
 
     /** fragmentRef → sentence text quote for highlight anchoring. */
-    private val _sentenceQuotes = MutableStateFlow<Map<String, SentenceQuote>>(emptyMap())
-    val sentenceQuotes: StateFlow<Map<String, SentenceQuote>> = _sentenceQuotes
+    val sentenceQuotes: StateFlow<Map<String, SentenceQuote>> get() = quoteBuilder.sentenceQuotes
 
     /** span id → bundle chapter href for "Play from here" scoping. */
-    private val _sentenceChapters = MutableStateFlow<Map<String, String>>(emptyMap())
-    val sentenceChapters: StateFlow<Map<String, String>> = _sentenceChapters
+    val sentenceChapters: StateFlow<Map<String, String>> get() = quoteBuilder.sentenceChapters
 
     val readaloudHighlightColor: StateFlow<HighlightColor> =
         readaloudPreferencesStore.preferences
@@ -249,10 +248,6 @@ class ReadaloudSession @AssistedInject constructor(
     var readerSyncProvider: () -> ReaderSyncCoordinator? = { null }
     var audiobookFollowProvider: () -> AudiobookFollow? = { null }
 
-    // --- Park state (set on pause/close; cleared on navigation) ---
-    internal var parkedFragmentRef: String? = null
-    internal var parkedLocatorHref: String? = null
-    internal var parkedProgression: Double? = null
 
     // --- Resume / close state (set on closeReadaloud; cleared on next startReadaloud) ---
     internal var closeLocator: Locator? = null
@@ -268,10 +263,6 @@ class ReadaloudSession @AssistedInject constructor(
     internal var autoPlayWhenPrepared = false
     internal var preparingTimeoutJob: Job? = null
     internal var readaloudStarted = false
-
-    // --- Bundle / quotes state ---
-    @Volatile internal var quoteBundle: File? = null
-    @Volatile internal var quotesBuildStarted = false
 
     // --- Background jobs ---
     private var storytellerSyncJob: Job? = null
@@ -289,13 +280,16 @@ class ReadaloudSession @AssistedInject constructor(
             val pausedFragment = playerCoordinator.activeFragmentRef.value
             playerCoordinator.pause()
             if (pausedFragment != null) {
-                parkedFragmentRef = pausedFragment
-                parkedLocatorHref = snapshotLocator()?.href?.toString()
-                parkedProgression = snapshotLocator()?.locations?.progression
-            }
-            if (pausedFragment != null) progressFlushScope.flush {
-                flushReadaloudPositionToStores(pausedFragment)
-                pushAudiobookFromReadingPosition(pausedFragment)
+                val snap = snapshotLocator()
+                parkPolicy.onPause(
+                    pausedFragment = pausedFragment,
+                    snapshotHref = snap?.href?.toString(),
+                    snapshotProgression = snap?.locations?.progression,
+                )
+                progressFlushScope.flush {
+                    flushReadaloudPositionToStores(pausedFragment)
+                    pushAudiobookFromReadingPosition(pausedFragment)
+                }
             }
         } else {
             onPlayTapped()
@@ -352,17 +346,7 @@ class ReadaloudSession @AssistedInject constructor(
      * Clears park state when the reader navigates off the parked page (ADR 0031).
      */
     fun onPositionBeforeForward(locator: Locator) {
-        if (parkedFragmentRef != null) {
-            val movedOffPage = locator.href.toString() != parkedLocatorHref ||
-                kotlin.math.abs(
-                    (locator.locations.progression ?: 0.0) - (parkedProgression ?: 0.0)
-                ) > PARK_PAGE_EPS
-            if (movedOffPage) {
-                parkedFragmentRef = null
-                parkedLocatorHref = null
-                parkedProgression = null
-            }
-        }
+        parkPolicy.onPosition(locator.href.toString(), locator.locations.progression)
     }
 
     /**
@@ -385,7 +369,7 @@ class ReadaloudSession @AssistedInject constructor(
         val seconds = ReadaloudAudioAnchor.audiobookSeconds(
             activeFragment = playerCoordinator.activeFragmentRef.value,
             readaloudOpen = _readaloudOpen.value,
-            parkedFragment = parkedFragmentRef,
+            parkedFragment = parkPolicy.fragmentRef,
             fragmentSeconds = { f ->
                 readerSync?.audioSecondsForFragment(f, fallbackCanonicalJson = null)
                     ?: audiobookFollow?.secondsForFragment(f)
@@ -448,7 +432,7 @@ class ReadaloudSession @AssistedInject constructor(
         if (fragmentRef == null) return
         val sid = fragmentRef.substringAfter('#', "")
         val sentenceJson = com.riffle.app.feature.reader.readaloudLocatorJson(
-            fragmentRef, _sentenceQuotes.value[sid]
+            fragmentRef, quoteBuilder.sentenceQuotes.value[sid]
         ).toString()
         epubRepository.saveReadingPosition(itemId, sentenceJson)
         val readerSync = readerSyncProvider()
@@ -506,9 +490,11 @@ class ReadaloudSession @AssistedInject constructor(
         closeLocator = snapshotLocator()
         // Park on the stopped sentence so the audiobook isn't re-derived from the page top until the
         // user navigates off this page (ADR 0031). Keyed by the reader page we're parked on.
-        parkedFragmentRef = resumeFragmentRef
-        parkedLocatorHref = snapshotLocator()?.href?.toString()
-        parkedProgression = snapshotLocator()?.locations?.progression
+        parkPolicy.onClose(
+            resumeFragment = resumeFragmentRef,
+            snapshotHref = snapshotLocator()?.href?.toString(),
+            snapshotProgression = snapshotLocator()?.locations?.progression,
+        )
         // Persist the same stopped position so it survives leaving the book / process death.
         val capturedCloseLocator = closeLocator
         val capturedResumeRef = resumeFragmentRef
@@ -703,9 +689,6 @@ class ReadaloudSession @AssistedInject constructor(
 
     // ---- Accessors for runReaderSyncCycle (stays in VM until sub-task 8.5) ---------------------
 
-    /** Returns the currently parked fragment ref. */
-    fun getParkedFragmentRef(): String? = parkedFragmentRef
-
     /** Clears the close/resume state after a server sync jump. */
     fun clearCloseAndResumeForServerJump() {
         closeLocator = null
@@ -797,8 +780,8 @@ class ReadaloudSession @AssistedInject constructor(
         // --- Eagerly build sentence quotes if the bundle is already on disk -----------------
         if (control.enabled) {
             readaloudAudioRepository.bundleFile(audioServerId, audioBookId)?.let { bundle ->
-                quoteBundle = bundle
-                buildSentenceQuotes(bundle)
+                quoteBuilder.quoteBundle = bundle
+                quoteBuilder.build(bundle)
             }
         }
     }
@@ -850,12 +833,9 @@ class ReadaloudSession @AssistedInject constructor(
         autoPlayWhenPrepared = false
         streamingSession = null
         streamingBuilding = false
-        quoteBundle = null
-        quotesBuildStarted = false
+        quoteBuilder.reset()
         readaloudTrack = null
-        parkedFragmentRef = null
-        parkedLocatorHref = null
-        parkedProgression = null
+        parkPolicy.reset()
         closeLocator = null
         resumeFragmentRef = null
         pendingStartFragmentRef = null
@@ -944,7 +924,7 @@ class ReadaloudSession @AssistedInject constructor(
                 // current page via the page-top probe. For the streaming path where quotes are still
                 // building, skip the probe and call playFromReaderPosition directly.
                 if (loc != null) {
-                    if (_sentenceQuotes.value.isNotEmpty()) {
+                    if (quoteBuilder.sentenceQuotes.value.isNotEmpty()) {
                         _pageTopProbeChannel.trySend(loc.href.toString())
                     } else {
                         playerCoordinator.playFromReaderPosition(loc.href.toString(), null)
@@ -978,11 +958,11 @@ class ReadaloudSession @AssistedInject constructor(
         val track: ReadaloudTrack
         if (session != null) {
             track = session.track
-            quoteBundle = session.sidecarFile
+            quoteBuilder.quoteBundle = session.sidecarFile
         } else {
             val b = bundle ?: return null
             track = readaloudAudioRepository.readTrack(audioServerId, audioBookId) ?: return null
-            quoteBundle = b
+            quoteBuilder.quoteBundle = b
         }
         readaloudTrack = track
         return track
@@ -1005,25 +985,6 @@ class ReadaloudSession @AssistedInject constructor(
     }
 
     /**
-     * Extracts per-sentence text quotes from the Storyteller bundle for text-anchored highlights.
-     * One-shot: [quotesBuildStarted] prevents double-launch on rapid pause→resume.
-     */
-    internal fun buildSentenceQuotes(bundle: File) {
-        if (quotesBuildStarted) return
-        quotesBuildStarted = true
-        scope.launch(dispatchers.io) {
-            try {
-                val chapters = com.riffle.core.domain.EpubContentExtractor.extract(bundle)?.chapters
-                    ?: return@launch
-                _sentenceQuotes.value = com.riffle.core.domain.ReadaloudTextQuotes.build(chapters)
-                _sentenceChapters.value = com.riffle.core.domain.ReadaloudTextQuotes.sentenceChapterHrefs(chapters)
-            } catch (e: Throwable) {
-                logger.e(LogChannel.Readaloud, e) { "buildSentenceQuotes failed" }
-            }
-        }
-    }
-
-    /**
      * Starts observing the sidecar store for [audioServerId]/[audioBookId] and reacts to
      * [ReadaloudSidecarStore.State.Ready] / [ReadaloudSidecarStore.State.Failed].
      *
@@ -1038,10 +999,10 @@ class ReadaloudSession @AssistedInject constructor(
                     ReadaloudSidecarStore.State.Ready -> {
                         // The sidecar stands in for the bundle for the synced-highlight text quotes
                         // (ADR 0028): build them the moment it's cached, through the SAME
-                        // buildSentenceQuotes path the on-disk bundle uses below.
+                        // quoteBuilder path the on-disk bundle uses in bind().
                         sidecarStore.cachedFile(audioServerId, audioBookId)?.let { sidecar ->
-                            quoteBundle = sidecar
-                            buildSentenceQuotes(sidecar)
+                            quoteBuilder.quoteBundle = sidecar
+                            quoteBuilder.build(sidecar)
                         }
                         if (autoPlayWhenPrepared) {
                             preparingTimeoutJob?.cancel()
@@ -1129,12 +1090,6 @@ class ReadaloudSession @AssistedInject constructor(
         /** Cadence for pushing the audiobook position derived from the narrated reading position (ADR 0031). */
         internal const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 
-        /**
-         * A reading-position progression change beyond this (or any href change) counts as
-         * navigating off the page readaloud was parked on; smaller deltas are settle jitter on
-         * the same page (ADR 0031).
-         */
-        internal const val PARK_PAGE_EPS = 0.001
     }
 }
 
