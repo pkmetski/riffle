@@ -231,6 +231,13 @@ class SleepTimerTest {
                     override fun nowNs(): Long = 0L
                 },
             ),
+            reconciliationCoordinator = AudiobookReconciliationCoordinator(
+                readerSyncFactory = TestReaderSyncFactory(),
+                openReconcileTargets = OpenReconcileTargets(),
+                audioSyncStore = FakeSyncStoreDouble(),
+                readingSyncStore = FakeSyncStore(),
+                readaloudResumeStore = FakeResumeStore,
+            ),
             clock = object : Clock {
                 override fun nowMs(): Long = 0L
                 override fun nowNs(): Long = 0L

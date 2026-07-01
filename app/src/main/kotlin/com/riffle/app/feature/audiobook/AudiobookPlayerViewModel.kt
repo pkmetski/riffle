@@ -186,6 +186,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val audiobookHandoffState: AudiobookHandoffState,
     private val followLoopOrchestrator: FollowLoopOrchestrator,
     private val resumeResolver: AudiobookResumeResolver,
+    private val reconciliationCoordinator: AudiobookReconciliationCoordinator,
     private val clock: Clock,
     private val logger: Logger,
 ) : ViewModel() {
@@ -225,14 +226,6 @@ class AudiobookPlayerViewModel @Inject constructor(
     private var pendingSpeed: Float? = null
     private var speedSaveJob: kotlinx.coroutines.Job? = null
 
-    // Non-null for a matched book whose readaloud prerequisites (ABS EPUB + bundle + cross-EPUB
-    // index) are cached: playback then drives the canonical reconciliation cycle **audio-led**, so a
-    // listen propagates to the ebook CFI + audiobook record and a cross-device change pulls in
-    // (ADR 0029). Null (audiobook-only, or prerequisites not cached) → single-peer saveProgress.
-    private var readerSync: com.riffle.app.feature.reader.ReaderSyncCoordinator? = null
-    // Bundle-SMIL-only fallback when the full coordinator can't be built (no cross-EPUB index): still
-    // syncs audiobook→ebook (text-anchored) and audiobook→readaloud via the bundle alone (ADR 0031).
-    private var audiobookFollow: com.riffle.app.feature.reader.AudiobookFollow? = null
     // The timestamp the local listen position was last genuinely set at; adopted from server stamps
     // after a write/jump so our own writes never read back as "newer" and re-seek (feedback loop).
     private var localUpdatedAt: Long = 0L
@@ -243,7 +236,7 @@ class AudiobookPlayerViewModel @Inject constructor(
         override fun isPlaying(): Boolean = controller.state.value.isPlaying
         override fun seekTo(positionSec: Double) { controller.seekTo(positionSec) }
         override val readerSync: com.riffle.app.feature.reader.ReaderSyncCoordinator?
-            get() = this@AudiobookPlayerViewModel.readerSync
+            get() = reconciliationCoordinator.readerSync
         override suspend fun tryAttachReaderSync(currentAudioSec: Double): Boolean =
             attachReaderSync(currentAudioSec, 0L)
         override fun hasServer(): Boolean = serverId.isNotEmpty()
@@ -284,51 +277,14 @@ class AudiobookPlayerViewModel @Inject constructor(
                 audiobookPositionStore.save(serverId, itemId, pos)
                 // Matched book: listening is also reading — persist the translated reading position
                 // locally so the durable sweep pushes the ebook record too, without reopening (ADR 0030).
-                mirrorListeningToReading(pos)
+                reconciliationCoordinator.mirrorListeningToReading(serverId, itemId, pos)
                 // …and the readaloud resume, so reopening the reader and pressing Play lands on the
                 // listened sentence rather than a stale one (ADR 0031). Runs on every save (hot path
                 // and close) so a process-death mid-listen still leaves a fresh resume.
-                writeListeningToReadaloud(pos)
+                reconciliationCoordinator.writeListeningToReadaloud(serverId, itemId, pos)
             }
         },
     )
-
-    /**
-     * Dual-write the counterpart reading position locally (ADR 0030), the symmetric twin of the
-     * reader's [com.riffle.app.feature.reader.EpubReaderViewModel] mirror. For a matched book the
-     * just-saved listen position is translated through the bundle's SMIL into the ebook locator and
-     * persisted into the reading store under the ebook's own ABS item id, stamped with the audiobook
-     * row's current (localUpdatedAt, lastSyncedAt) so both rows share dirty state. Pure additive write
-     * to the sibling row. No-op unless matched and translatable.
-     */
-    private suspend fun mirrorListeningToReading(seconds: Double) {
-        if (serverId.isEmpty()) return
-        val ebookItemId = readerSync?.ebookItemId ?: audiobookFollow?.ebookItemId ?: return
-        // Index-free first (text-anchored, via the bundle), then the index-based canonical if present
-        // (ADR 0031: audiobook→ebook goes via the bundle, never requiring the cross-EPUB index).
-        val ebookLocator = audiobookFollow?.ebookLocatorForAudioSeconds(seconds)
-            ?: readerSync?.canonicalForAudioSeconds(seconds)
-            ?: return
-        val snap = audioSyncStore.snapshot(serverId, itemId)
-        readingSyncStore.mirror(serverId, ebookItemId, ebookLocator, snap.localUpdatedAt, snap.lastSyncedAt)
-    }
-
-    /**
-     * Dual-write the readaloud resume from the listen position (ADR 0031): map the listen seconds to the
-     * narrated sentence and persist it under the ebook item id, so reopening the reader and pressing Play
-     * resumes on that sentence instead of the stale saved one. Works index-free via the bundle SMIL
-     * ([AudiobookFollow.readaloudAnchorForAudioSeconds]) when the full coordinator isn't built — the
-     * common case the previous wiring missed (it only wrote the resume on the full-coordinator close path).
-     * No-op unless matched and the seconds narrate a sentence.
-     */
-    private suspend fun writeListeningToReadaloud(seconds: Double) {
-        if (serverId.isEmpty()) return
-        val ebookItemId = readerSync?.ebookItemId ?: audiobookFollow?.ebookItemId ?: return
-        val anchor = readerSync?.readaloudAnchorForAudioSeconds(seconds)
-            ?: audiobookFollow?.readaloudAnchorForAudioSeconds(seconds)
-            ?: return
-        readaloudResumeStore.save(serverId, ebookItemId, anchor)
-    }
 
     private val skipIntervalSec: StateFlow<Double> = listeningPreferencesStore.skipIntervalSeconds
         .map { it.toDouble() }
@@ -627,36 +583,15 @@ class AudiobookPlayerViewModel @Inject constructor(
     }
 
     /**
-     * Attach the matched two-peer cycle once its prerequisites (bundle + ABS EPUB + cross-EPUB index)
-     * are cached, running the open-reconcile once. No-op when already attached or not yet buildable —
-     * called on open and re-tried each follow-loop tick so the ebook starts syncing as soon as the
-     * background index build finishes (ADR 0029).
+     * Delegate to [reconciliationCoordinator], applying the returned jump (if any) to the
+     * controller + resume floor and adopting the canonical timestamp — wiring the coordinator's
+     * side-effect-free result into the VM's audio + floor state (ADR 0029).
      */
     private suspend fun attachReaderSync(atSec: Double, atUpdatedAt: Long): Boolean {
-        if (readerSync != null || serverId.isEmpty()) return readerSync != null
-        val rs = readerSyncFactory.createIfApplicable(itemId)
-        if (rs == null) {
-            // No cross-EPUB index yet — fall back to the bundle-only follow so audiobook→ebook and
-            // audiobook→readaloud still sync via the bundle, index-free (ADR 0031).
-            if (audiobookFollow == null) {
-                audiobookFollow = runCatching { readerSyncFactory.createAudiobookFollowIfApplicable(itemId) }.getOrNull()
-                audiobookFollow?.ebookItemId?.let { openReconcileTargets.markOpen(serverId, it) }
-            }
-            return false
-        }
-        readerSync = rs
-        // Matched: this player also drives the ebook ABS record, so the sweep must skip that
-        // (possibly split-library) item too while the player is open (ADR 0030).
-        if (serverId.isNotEmpty()) rs.ebookItemId?.let { openReconcileTargets.markOpen(serverId, it) }
-        // Seed the first cycle with the reconciled resume (not the live clock, which may not have
-        // settled) and its timestamp: a genuinely-newer local listen leads and propagates to the ebook
-        // CFI + audiobook record, while a newer remote (e.g. an ABS-web read) still wins and seeks.
-        // The self-heal mid-session attach passes 0 here, keeping it inbound-only so a not-yet-advanced
-        // position can never lead (the resume-at-reconciled guard).
-        val r = rs.runAudioLedCycle(atSec, atUpdatedAt)
-        r.jumpToAudioSec?.let { controller.seekTo(it); reconciledResumeSec = it }
-        localUpdatedAt = maxOf(localUpdatedAt, r.canonicalLastUpdate)
-        return true
+        val result = reconciliationCoordinator.attach(serverId, itemId, atSec, atUpdatedAt)
+        result.jumpToAudioSec?.let { controller.seekTo(it); reconciledResumeSec = it }
+        localUpdatedAt = maxOf(localUpdatedAt, result.canonicalLastUpdate)
+        return result.readerSyncAttached
     }
 
     fun togglePlayPause() {
@@ -861,10 +796,10 @@ class AudiobookPlayerViewModel @Inject constructor(
         // Release this book to the durable sweep again (ADR 0030).
         if (serverId.isNotEmpty()) {
             openReconcileTargets.markClosed(serverId, itemId)
-            // Mirror attachReaderSync's markOpen: on the index-free fallback path readerSync stays null
+            // Mirror the coordinator's markOpen: on the index-free fallback path readerSync stays null
             // but audiobookFollow marked the ebook item open, so close via the same fallback chain —
             // otherwise the ebook item leaks in the open set and the sweep skips it until process death.
-            (readerSync?.ebookItemId ?: audiobookFollow?.ebookItemId)
+            reconciliationCoordinator.ebookItemIdForMarkClosed
                 ?.let { openReconcileTargets.markClosed(serverId, it) }
         }
         flushPendingSpeed()
