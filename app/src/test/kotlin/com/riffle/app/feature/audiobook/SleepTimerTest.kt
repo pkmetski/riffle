@@ -188,6 +188,7 @@ class SleepTimerTest {
             serverCurrentTimeSec = 0.0,
             serverLastUpdate = 0L,
         )
+        val sharedPositionStore = FakePositionStore()
         return AudiobookPlayerViewModel(
             savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
             audiobookRepository = FakeAudiobookRepository(session),
@@ -202,19 +203,36 @@ class SleepTimerTest {
             audioPlaybackPreferencesStore = FakePrefsStore,
             listeningPreferencesStore = FakeListeningPreferencesStore,
             audioIdentityResolver = FakeIdentityResolver,
-            readerSyncFactory = TestReaderSyncFactory(),
             readaloudLinkRepository = FakeLinkRepository,
             readaloudAudioRepository = FakeAudioRepo,
             nowPlayingStore = NowPlayingStore(),
-            audiobookPositionStore = FakePositionStore(),
-            readingSyncStore = FakeSyncStore(),
-            audioSyncStore = FakeSyncStoreDouble(),
-            readaloudResumeStore = FakeResumeStore,
+            audiobookPositionStore = sharedPositionStore,
             openReconcileTargets = OpenReconcileTargets(),
             progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
+            followLoopOrchestrator = FollowLoopOrchestrator(
+                clock = object : Clock {
+                    override fun nowMs(): Long = 0L
+                    override fun nowNs(): Long = 0L
+                },
+                progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            ),
+            resumeResolver = AudiobookResumeResolver(
+                positionStore = sharedPositionStore,
+                clock = object : Clock {
+                    override fun nowMs(): Long = 0L
+                    override fun nowNs(): Long = 0L
+                },
+            ),
+            reconciliationCoordinator = AudiobookReconciliationCoordinator(
+                readerSyncFactory = TestReaderSyncFactory(),
+                openReconcileTargets = OpenReconcileTargets(),
+                audioSyncStore = FakeSyncStoreDouble(),
+                readingSyncStore = FakeSyncStore(),
+                readaloudResumeStore = FakeResumeStore,
+            ),
             clock = object : Clock {
                 override fun nowMs(): Long = 0L
                 override fun nowNs(): Long = 0L

@@ -162,19 +162,36 @@ class AudiobookPlayerViewModelBookmarkTest {
             audioPlaybackPreferencesStore = prefsStore,
             listeningPreferencesStore = listeningStore,
             audioIdentityResolver = FakeIdentityResolver,
-            readerSyncFactory = TestReaderSyncFactory(),
             readaloudLinkRepository = FakeLinkRepository,
             readaloudAudioRepository = FakeAudioRepo,
             nowPlayingStore = NowPlayingStore(),
             audiobookPositionStore = positionStore,
-            readingSyncStore = FakeSyncStore(),
-            audioSyncStore = FakeSyncStoreDouble(),
-            readaloudResumeStore = FakeResumeStore,
             openReconcileTargets = OpenReconcileTargets(),
             progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
             audiobookHandoffState = AudiobookHandoffState(),
+            followLoopOrchestrator = FollowLoopOrchestrator(
+                clock = object : Clock {
+                    override fun nowMs(): Long = fixedNow
+                    override fun nowNs(): Long = fixedNow * 1_000_000L
+                },
+                progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
+            ),
+            resumeResolver = AudiobookResumeResolver(
+                positionStore = positionStore,
+                clock = object : Clock {
+                    override fun nowMs(): Long = fixedNow
+                    override fun nowNs(): Long = fixedNow * 1_000_000L
+                },
+            ),
+            reconciliationCoordinator = AudiobookReconciliationCoordinator(
+                readerSyncFactory = TestReaderSyncFactory(),
+                openReconcileTargets = OpenReconcileTargets(),
+                audioSyncStore = FakeSyncStoreDouble(),
+                readingSyncStore = FakeSyncStore(),
+                readaloudResumeStore = FakeResumeStore,
+            ),
             clock = object : Clock {
                 override fun nowMs(): Long = fixedNow
                 override fun nowNs(): Long = fixedNow * 1_000_000L
