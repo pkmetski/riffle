@@ -42,8 +42,8 @@ internal class ContinuousReaderCoordinator(
      * continuous-mode raw-position events also feed [ContinuousPresenter.feedPosition] so
      * [ContinuousPresenter.positionEvents] becomes the canonical event source for any orchestrator
      * built on top of [com.riffle.app.feature.reader.presenter.ReaderPresenter]. The existing
-     * [onLocator] callback path is unchanged in this step — full bypass deletion is the step 7
-     * cleanup pass.
+     * [ContinuousNavigationSink.onLocator] path is unchanged in this step — full bypass
+     * deletion is the step 7 cleanup pass.
      */
     var presenter: ContinuousPresenter? = null
 

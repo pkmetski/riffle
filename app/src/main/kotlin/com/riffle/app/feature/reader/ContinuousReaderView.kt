@@ -108,8 +108,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** Constructed by [install] once the coordinator supplies the three sinks. Binds every
      *  per-chapter [ChapterWebView] callback except `onInternalLink` and `onPlayFromHere` (see
-     *  [ChapterWebViewBinder] doc). */
-    private var binder: ChapterWebViewBinder? = null
+     *  [ChapterWebViewBinder] doc). `lateinit` so a mis-ordered `initialize()` before `attach()`
+     *  fails fast with `UninitializedPropertyAccessException` at the real bug site instead of
+     *  silently binding every chapter without callbacks (no tap, no highlight, no link handling). */
+    private lateinit var binder: ChapterWebViewBinder
 
     /** Set by [install]; invoked from [handleScrollChange] with the raw `(href, progression)` on
      *  every scroll-position update. */
@@ -943,7 +945,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
-        binder?.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
+        binder.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
@@ -1047,7 +1049,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
-        binder?.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
+        binder.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->

@@ -140,6 +140,12 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         super.evaluateJavascript(script, resultCallback)
     }
 
+    /** Fire-and-forget JS eval. Centralises the Kotlin-lambda-overload disambiguation cast so
+     *  in-class callers read as a plain call instead of repeating `null as ((String?) -> Unit)?`. */
+    private fun evalJs(script: String) {
+        evaluateJavascript(script, null as ((String?) -> Unit)?)
+    }
+
     private var publication: Publication? = null
 
     /**
@@ -313,14 +319,14 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * @param styleJs output of [ContinuousStyleInjector.buildStyleInjectionJs]
      */
     fun injectStylesAndMeasure(styleJs: String) {
-        evaluateJavascript(styleJs, null as ((String?) -> Unit)?)
+        evalJs(styleJs)
         // Stamp this page with the current load token BEFORE wiring measurement, so every height
         // report (including late ResizeObserver / timeout fires) carries it and the bridge can
         // reject reports from a recycled WebView's previous page.
-        evaluateJavascript("window.__riffleToken=$loadToken;", null as ((String?) -> Unit)?)
-        evaluateJavascript(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS, null as ((String?) -> Unit)?)
-        evaluateJavascript(ContinuousScriptInjector.TAP_LISTENER_JS, null as ((String?) -> Unit)?)
-        evaluateJavascript(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS, null as ((String?) -> Unit)?)
+        evalJs("window.__riffleToken=$loadToken;")
+        evalJs(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS)
+        evalJs(ContinuousScriptInjector.TAP_LISTENER_JS)
+        evalJs(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS)
     }
 
     /** Re-inject user styles and re-measure after a preference change. */
@@ -478,7 +484,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
             val text = decodeJsString(raw)
             if (text.isNotBlank()) block(text)
-            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null as ((String?) -> Unit)?)
+            evalJs("window.getSelection && window.getSelection().removeAllRanges()")
         }
     }
 
@@ -556,7 +562,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 return@evaluateJavascript
             }
             if (text.isNotBlank()) block(text, prog, rect, before, after)
-            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null as ((String?) -> Unit)?)
+            evalJs("window.getSelection && window.getSelection().removeAllRanges()")
         }
     }
 
