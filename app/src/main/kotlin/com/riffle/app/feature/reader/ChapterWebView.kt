@@ -479,12 +479,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
             }
         }
 
-    /** Read the current selection's plain text (async, on the JS thread) then run [block] with it. */
+    /**
+     * Read the current selection's plain text (async, on the JS thread) then run [block] with it.
+     *
+     * Prefers the pre-stashed selection text written by [SELECTION_SPAN_TRACKER_JS] on
+     * 'selectionchange' — see the parallel comment on [withSelectionTextAndProgression]. Falls
+     * back to a live [window.getSelection] read when the stash is empty (rotation / test seams).
+     */
     private fun withSelectionText(block: (String) -> Unit) {
-        evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
+        evaluateJavascript("(function(){var s=window.__riffleSelData;if(s&&s.text)return s.text;return window.getSelection?window.getSelection().toString():'';})()") { raw ->
             val text = decodeJsString(raw)
             if (text.isNotBlank()) block(text)
-            evalJs("window.getSelection && window.getSelection().removeAllRanges()")
+            evalJs("window.__riffleSelData=null;window.getSelection && window.getSelection().removeAllRanges()")
         }
     }
 
@@ -504,41 +510,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     private fun withSelectionTextAndProgression(
         block: (text: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit,
     ) {
-        val js = """(function() {
-            var sel = window.getSelection ? window.getSelection() : null;
-            var text = sel ? sel.toString() : '';
-            var prog = 0.0;
-            var l = 0, t = 0, r = 0, b = 0;
-            var bef = '', aft = '';
-            if (sel && sel.rangeCount > 0) {
-                var range = sel.getRangeAt(0);
-                var rect = range.getBoundingClientRect();
-                var docH = Math.max(
-                    document.documentElement ? document.documentElement.offsetHeight : 0,
-                    document.body ? document.body.offsetHeight : 0,
-                    1
-                );
-                prog = Math.max(0, Math.min(1, rect.top / docH));
-                l = rect.left; t = rect.top; r = rect.right; b = rect.bottom;
-                var body = document.body;
-                if (body) {
-                    try {
-                        var beforeR = document.createRange();
-                        beforeR.selectNodeContents(body);
-                        beforeR.setEnd(range.startContainer, range.startOffset);
-                        bef = beforeR.toString().slice(-60);
-                    } catch (e) { bef = ''; }
-                    try {
-                        var afterR = document.createRange();
-                        afterR.selectNodeContents(body);
-                        afterR.setStart(range.endContainer, range.endOffset);
-                        aft = afterR.toString().slice(0, 60);
-                    } catch (e) { aft = ''; }
-                }
-            }
-            return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b, bef: bef, aft: aft});
-        })()"""
-        evaluateJavascript(js) { raw ->
+        evaluateJavascript(CONTINUOUS_SELECTION_READ_JS) { raw ->
             val jsonStr = decodeJsString(raw)
             val text: String
             val prog: Double
@@ -562,7 +534,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 return@evaluateJavascript
             }
             if (text.isNotBlank()) block(text, prog, rect, before, after)
-            evalJs("window.getSelection && window.getSelection().removeAllRanges()")
+            evalJs("window.__riffleSelData=null;window.getSelection && window.getSelection().removeAllRanges()")
         }
     }
 
