@@ -201,12 +201,75 @@ internal fun readiumDecorationTemplatesRegisterJs(): String {
 // [resolveSelectionSentenceJs] reads to resolve the narrated sentence by POSITION. We capture it here,
 // on selectionchange, because the live DOM selection is gone by the time the action-mode menu handler
 // runs. getClientRects()[0] is the rect of the selection's first glyph (its start).
+/**
+ * Reads the current text selection for the continuous-mode action-mode menu handlers ("Highlight",
+ * "Copy", "Share", "Play from here"). Returns a JSON payload with `text`, within-chapter
+ * progression `p`, the range's viewport rect (`l`/`t`/`r`/`b`, CSS px), and 60-char before/after
+ * context (`bef`/`aft`).
+ *
+ * Prefers the pre-stashed payload written by [SELECTION_SPAN_TRACKER_JS] on 'selectionchange' —
+ * the framework collapses the live DOM selection between the user's menu tap and this async
+ * `evaluateJavascript` in Chromium WebView on Android 13+, so a live `window.getSelection()` read
+ * here often returns empty. That was the "highlight not saved in continuous mode" regression:
+ * the stash captures the same fields at last-live selection and survives the collapse.
+ *
+ * Falls back to a live read for pre-tracker paths (tests / rotation edge cases). Kept in one
+ * place so the read/stash pair can't drift out of sync — the tracker writes the same field names
+ * this reader consumes.
+ */
+internal val CONTINUOUS_SELECTION_READ_JS = """
+    (function() {
+        var stash = window.__riffleSelData;
+        if (stash && stash.text) {
+            return JSON.stringify({
+                text: stash.text, p: stash.p,
+                l: stash.l, t: stash.t, r: stash.r, b: stash.b,
+                bef: stash.bef || '', aft: stash.aft || ''
+            });
+        }
+        var sel = window.getSelection ? window.getSelection() : null;
+        var text = sel ? sel.toString() : '';
+        var prog = 0.0;
+        var l = 0, t = 0, r = 0, b = 0;
+        var bef = '', aft = '';
+        if (sel && sel.rangeCount > 0) {
+            var range = sel.getRangeAt(0);
+            var rect = range.getBoundingClientRect();
+            var docH = Math.max(
+                document.documentElement ? document.documentElement.offsetHeight : 0,
+                document.body ? document.body.offsetHeight : 0, 1
+            );
+            prog = Math.max(0, Math.min(1, rect.top / docH));
+            l = rect.left; t = rect.top; r = rect.right; b = rect.bottom;
+            var body = document.body;
+            if (body) {
+                try {
+                    var beforeR = document.createRange();
+                    beforeR.selectNodeContents(body);
+                    beforeR.setEnd(range.startContainer, range.startOffset);
+                    bef = beforeR.toString().slice(-60);
+                } catch (e) { bef = ''; }
+                try {
+                    var afterR = document.createRange();
+                    afterR.selectNodeContents(body);
+                    afterR.setStart(range.endContainer, range.endOffset);
+                    aft = afterR.toString().slice(0, 60);
+                } catch (e) { aft = ''; }
+            }
+        }
+        return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b, bef: bef, aft: aft});
+    })()
+""".trimIndent()
+
 internal val SELECTION_SPAN_TRACKER_JS = """
     (function () {
       if (window.__riffleSelTrackerInstalled) return;
       window.__riffleSelTrackerInstalled = true;
       document.addEventListener('selectionchange', function () {
         var s = window.getSelection();
+        // Ignore transient collapse/clear events dispatched right before the framework fires the
+        // action-mode menu handler — they would otherwise wipe __riffleSelData between the user's
+        // menu tap and our async evaluateJavascript reading it. Keep the LAST non-empty stash.
         if (!s || s.rangeCount === 0 || s.isCollapsed) return;
         var rng = s.getRangeAt(0);
         var n = rng.startContainer;
@@ -226,6 +289,42 @@ internal val SELECTION_SPAN_TRACKER_JS = """
           var br = rng.getBoundingClientRect();
           if (window.RiffleSelBridge) {
             window.RiffleSelBridge.onRect(br.left, br.top, br.right, br.bottom);
+          }
+        } catch (e) {}
+        // Stash the full selection payload (text + progression + range rect + before/after context)
+        // needed by the continuous-mode Highlight / Copy / Share menu handlers. The live DOM
+        // selection is gone by the time the action-mode menu handler runs (framework collapses it
+        // in-between), so those handlers read from this stash instead of window.getSelection().
+        try {
+          var text = s.toString();
+          if (text) {
+            var br2 = rng.getBoundingClientRect();
+            var docH = Math.max(
+              document.documentElement ? document.documentElement.offsetHeight : 0,
+              document.body ? document.body.offsetHeight : 0, 1
+            );
+            var bef = '', aft = '';
+            var body = document.body;
+            if (body) {
+              try {
+                var beforeR = document.createRange();
+                beforeR.selectNodeContents(body);
+                beforeR.setEnd(rng.startContainer, rng.startOffset);
+                bef = beforeR.toString().slice(-60);
+              } catch (e) { bef = ''; }
+              try {
+                var afterR = document.createRange();
+                afterR.selectNodeContents(body);
+                afterR.setStart(rng.endContainer, rng.endOffset);
+                aft = afterR.toString().slice(0, 60);
+              } catch (e) { aft = ''; }
+            }
+            window.__riffleSelData = {
+              text: text,
+              p: Math.max(0, Math.min(1, br2.top / docH)),
+              l: br2.left, t: br2.top, r: br2.right, b: br2.bottom,
+              bef: bef, aft: aft
+            };
           }
         } catch (e) {}
       });

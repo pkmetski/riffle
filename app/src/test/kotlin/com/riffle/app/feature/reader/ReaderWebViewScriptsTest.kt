@@ -88,4 +88,43 @@ class ReaderWebViewScriptsTest {
         assertTrue("rounds the current scroll to the grid", js.contains("se.scrollLeft=Math.round(se.scrollLeft/iw)*iw"))
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
     }
+
+    // Regression for the "highlight not saved in continuous mode" bug: Chromium WebView collapses
+    // the live DOM selection between the user's action-mode menu tap and our async
+    // evaluateJavascript, so a live window.getSelection() read in the menu handler returns empty
+    // and the highlight is dropped before it can reach the ViewModel. The fix stashes the full
+    // selection payload (text + progression + range rect + before/after context) on every
+    // 'selectionchange' event into window.__riffleSelData; the menu handler's read
+    // (CONTINUOUS_SELECTION_READ_JS) prefers the stash over the live selection. Both halves must
+    // agree on the field names and both must be present, otherwise the fix collapses back to the
+    // live-read-only race that shipped the bug.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS stashes the full selection payload on selectionchange`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        assertTrue("hooks the selectionchange event", js.contains("addEventListener('selectionchange'"))
+        assertTrue("writes __riffleSelData", js.contains("window.__riffleSelData ="))
+        // Every field CONTINUOUS_SELECTION_READ_JS reads from the stash must be written here.
+        assertTrue("stashes selected text", js.contains("text: text"))
+        assertTrue("stashes within-chapter progression as `p`", js.contains("p: Math.max(0, Math.min(1, br2.top / docH))"))
+        assertTrue("stashes range rect (l/t/r/b)", js.contains("l: br2.left, t: br2.top, r: br2.right, b: br2.bottom"))
+        assertTrue("stashes before/after context (bef/aft)", js.contains("bef: bef, aft: aft"))
+    }
+
+    @Test
+    fun `CONTINUOUS_SELECTION_READ_JS prefers the pre-stashed selection over the live DOM selection`() {
+        val js = CONTINUOUS_SELECTION_READ_JS
+        // The stash check must run BEFORE the live window.getSelection() fallback, and must gate
+        // on stash.text so an empty stash (e.g. after removeAllRanges) doesn't shadow a live read.
+        val stashIdx = js.indexOf("window.__riffleSelData")
+        val liveIdx = js.indexOf("window.getSelection")
+        assertTrue("stash is read", stashIdx >= 0)
+        assertTrue("live getSelection is present as a fallback", liveIdx >= 0)
+        assertTrue("stash is preferred over live selection", stashIdx < liveIdx)
+        assertTrue("stash is gated on non-empty text", js.contains("if (stash && stash.text)"))
+        // The returned JSON shape must match what withSelectionTextAndProgression parses.
+        assertTrue("returns text field", js.contains("text: stash.text"))
+        assertTrue("returns progression as p", js.contains("p: stash.p"))
+        assertTrue("returns range rect (l/t/r/b)", js.contains("l: stash.l, t: stash.t, r: stash.r, b: stash.b"))
+        assertTrue("returns before/after context (bef/aft)", js.contains("bef: stash.bef") && js.contains("aft: stash.aft"))
+    }
 }

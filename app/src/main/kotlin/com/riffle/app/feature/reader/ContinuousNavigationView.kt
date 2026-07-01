@@ -11,6 +11,16 @@ import com.riffle.core.domain.FormattingPreferences
 internal interface ContinuousNavigationView {
     fun navigateTo(href: String, progression: Float, alignToTop: Boolean = false)
 
+    /**
+     * Annotation-precise navigate: when [focusAnnotationId] is non-null the landing anchors on
+     * the actual `<mark data-riffle-ann="…">` device-Y instead of the enclosing paragraph's top,
+     * so a mid- or end-paragraph highlight lands visibly on-screen rather than pushed below.
+     * Default forwards to the plain three-arg overload for callers that don't have an id.
+     */
+    fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
+        navigateTo(href, progression, alignToTop)
+    }
+
     /** Page forward / backward; same semantics as [ContinuousReaderView.scrollByPage]. */
     fun scrollByPage(forward: Boolean)
 

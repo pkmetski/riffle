@@ -1702,13 +1702,32 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(annotationNavigationEvents) {
+    // MODE-FORK: annotation-nav landing precision differs by renderer. Readium (paginated + vertical)
+    // has DecorableNavigator + fragment-anchored go(), so the paragraph-level Locator lands correctly.
+    // Continuous has no equivalent seam — the paragraph anchor is only ~correct, so we look up the
+    // actual `<mark data-riffle-ann>` device-Y and centre on it. Cannot live behind ReaderPresenter
+    // without leaking Readium/Continuous internals up the stack.
+    LaunchedEffect(annotationNavigationEvents, isContinuous) {
         annotationNavigationEvents.collect { event ->
-            navigateWithCover(
-                NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
-                annotationNavigationOptions(isBookmark = event.isBookmark),
-                event.locator.href.toString(),
-            )
+            val view = continuousViewRef.value
+            if (isContinuous && !event.isBookmark && event.annotationId != null && view != null) {
+                val locations = event.locator.locations
+                val href = event.locator.href.toString()
+                val anchor = locations.fragments.firstOrNull()
+                val fullHref = if (anchor != null) "$href#$anchor" else href
+                view.navigateTo(
+                    href = fullHref,
+                    progression = locations.progression?.toFloat() ?: 0f,
+                    alignToTop = false,
+                    focusAnnotationId = event.annotationId,
+                )
+            } else {
+                navigateWithCover(
+                    NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
+                    annotationNavigationOptions(isBookmark = event.isBookmark),
+                    event.locator.href.toString(),
+                )
+            }
         }
     }
 

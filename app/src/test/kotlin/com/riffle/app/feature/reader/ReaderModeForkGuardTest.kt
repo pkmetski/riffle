@@ -73,6 +73,10 @@ class ReaderModeForkGuardTest {
          * behind the seam; raise it only when a new fork is genuinely UI-lifecycle-shaped and
          * carries a `// MODE-FORK:` justification.
          */
-        private const val MAX_MODE_BRANCHES = 26
+        // Raised from 26 to 28 for the continuous-only annotation-nav mark-lookup path (see the
+        // `// MODE-FORK:` comment above the annotationNavigationEvents LaunchedEffect). Two refs:
+        // the LaunchedEffect key on isContinuous and the branch guard inside the collector — both
+        // load-bearing and both untypeable behind ReaderPresenter without leaking mode internals.
+        private const val MAX_MODE_BRANCHES = 28
     }
 }

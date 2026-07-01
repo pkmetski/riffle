@@ -115,7 +115,24 @@ class AnnotationSession @AssistedInject constructor(
      * downstream (analytics, tests) may still branch on annotation type; the screen no longer
      * uses it to pick alignment.
      */
-    data class AnnotationNavigationEvent(val locator: Locator, val isBookmark: Boolean)
+    /**
+     * A "navigate to this annotation" event. [locator] resolves to (chapter, progression,
+     * fragment) — the fragment is the range's START paragraph id (see [extractAnchorFromCfi]),
+     * which is enough for Readium's own navigators (paginated + vertical scroll) to land on
+     * the paragraph containing the highlight.
+     *
+     * Continuous mode uses [annotationId] to look up the actual `<mark data-riffle-ann="…">`
+     * element in the DOM and centre the viewport on IT, not just on the enclosing paragraph.
+     * Landing on the paragraph is close but visibly wrong when the highlight is mid- or
+     * end-paragraph — the previous behaviour showed the paragraph's TOP at midpoint, so
+     * highlights below the first line ended up unclear or fully off-screen. [annotationId] is
+     * null only when the caller doesn't have one (e.g. server-progress or programmatic nav).
+     */
+    data class AnnotationNavigationEvent(
+        val locator: Locator,
+        val isBookmark: Boolean,
+        val annotationId: String? = null,
+    )
 
     /**
      * CONFLATED: [navigateToAnnotation] closes the panel before sending, so a second navigation
@@ -294,7 +311,14 @@ class AnnotationSession @AssistedInject constructor(
             // matching a lowercased literal here silently flipped every annotation to
             // isBookmark=false, which inverted the continuous-mode landing.
             _annotationNavigationChannel.trySend(
-                AnnotationNavigationEvent(locator, isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK),
+                AnnotationNavigationEvent(
+                    locator = locator,
+                    isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK,
+                    // Carry the id so continuous mode can look up the actual mark and centre on
+                    // it (see AnnotationNavigationEvent doc). Paginated / vertical don't need it —
+                    // they rely on Readium's own fragment-based landing.
+                    annotationId = id,
+                ),
             )
             _annotationsPanelVisible.value = false
         }

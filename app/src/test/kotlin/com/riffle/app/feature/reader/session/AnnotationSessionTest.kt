@@ -314,6 +314,13 @@ class AnnotationSessionTest {
         // the flag is preserved on the event because downstream (analytics, tests) still
         // branches on annotation type.
         assertFalse(received[0].isBookmark)
+        // The annotation id must ride along on the event: continuous-mode navigation uses it to
+        // look up the actual `<mark data-riffle-ann="…">` device-Y (via
+        // `ChapterWebView.annotationOffsetTopDevicePx`) and centre the viewport on the mark
+        // rather than on the enclosing paragraph's top. Dropping the id here would silently
+        // regress the fix to paragraph-anchor landing — pixel-close but visibly off for any
+        // mid- or end-paragraph highlight.
+        assertEquals("a1", received[0].annotationId)
         assertFalse(session.annotationsPanelVisible.value)
 
         collectJob.cancel()
