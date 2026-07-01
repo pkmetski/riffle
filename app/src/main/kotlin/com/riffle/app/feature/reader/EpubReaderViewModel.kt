@@ -47,7 +47,6 @@ import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
 import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
@@ -90,7 +89,6 @@ import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
-import java.util.zip.ZipFile
 import javax.inject.Inject
 
 private const val BOOKMARK_PAGE_EPS = 0.05   // ±5% within-chapter progression window
@@ -168,6 +166,7 @@ class EpubReaderViewModel @Inject constructor(
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
+    private val readerSessionLifecycleFactory: com.riffle.app.feature.reader.session.ReaderSessionLifecycle.Factory,
     private val logger: Logger,
     private val clock: Clock,
     val dispatchers: DispatcherProvider,
@@ -196,6 +195,16 @@ class EpubReaderViewModel @Inject constructor(
     // (lastLocator, serverLocatorChannel, pendingServerJumpStamp, suppressNextServerLocator, etc.).
     private val position: PositionOrchestrator = positionOrchestratorFactory.create(viewModelScope)
 
+    // Session lifecycle — owns Publication/epubFile/epubZip, matched-book cross-sync state
+    // (readerSync + audiobookFollow + serverId), and the close-sync guard. The VM keeps the
+    // Compose-facing composer role: after lifecycle.open() returns Ready, the VM binds the
+    // per-book collaborators (readaloud, position, bookmarks, annotationSession).
+    private val lifecycle: com.riffle.app.feature.reader.session.ReaderSessionLifecycle =
+        readerSessionLifecycleFactory.create(
+            openPublication = { file -> openPublication(file) },
+            cfiStringToLocator = { cfi -> cfiStringToLocator(cfi) },
+        )
+
     // Readaloud session — owns readaloud state and leaf controls. Full extraction happens across
     // sub-tasks 8.1–8.5; each sub-task lifts more logic here from the VM.
     private val readaloud: com.riffle.app.feature.reader.session.ReadaloudSession =
@@ -205,8 +214,8 @@ class EpubReaderViewModel @Inject constructor(
         ).also { session ->
             // Option-B provider seam (sub-task 8.2): session reads VM's live vars without setters.
             // itemId is wired in init {} because it is declared after readaloud in the class body.
-            session.readerSyncProvider = { readerSync }
-            session.audiobookFollowProvider = { audiobookFollow }
+            session.readerSyncProvider = { lifecycle.matchedSync.value?.readerSync }
+            session.audiobookFollowProvider = { lifecycle.matchedSync.value?.audiobookFollow }
         }
 
     // Annotation session — owns highlight/annotation state, panel visibility, navigation channel,
@@ -292,20 +301,10 @@ class EpubReaderViewModel @Inject constructor(
 
     // -----------------------------------------------------------------------------------------
 
-    private var publication: Publication? = null
-    private var epubFile: File? = null
-    @Volatile private var epubZip: ZipFile? = null
+    // publication, epubFile, epubZip, closeSyncDone, readerSync, audiobookFollow, readerSyncServerId
+    // now live on [lifecycle] (issue #376). Reads route through lifecycle.publication.value and
+    // lifecycle.matchedSync.value; teardown via lifecycle.onCleared().
     private val chapterHtmlCache = mutableMapOf<Int, String>()
-    private var closeSyncDone = false
-    // Non-null once a matched book's reconciliation prerequisites are cached: the unified cycle then
-    // replaces the single-peer ABS/Storyteller paths. [readerSyncServerId] is the active server
-    // (the displayed side) that keys the canonical localUpdatedAt.
-    private var readerSync: ReaderSyncCoordinator? = null
-    // Bundle-SMIL-only audiobook sync used when the full coordinator can't be built (cross-EPUB index
-    // not ready). Lets readaloud still sync to the audiobook (ADR 0031). Null when there's no audio
-    // target / bundle, or when the full coordinator is present (which supersedes it).
-    private var audiobookFollow: AudiobookFollow? = null
-    private var readerSyncServerId: String? = null
     // True after the navigator emits its first locator (the restored position on open).
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
@@ -393,13 +392,9 @@ class EpubReaderViewModel @Inject constructor(
 
     // ---- Readaloud (ADR 0023) ----------------------------------------------------------------
 
-    // True once we know the active server type. Every Storyteller book qualifies (its bundle can
-    // be downloaded on demand); ABS books qualify only when a synced bundle is already present.
-    private var isStorytellerServer = false
-
-    // The reader's active Server id, resolved inside openBook(). Keys the reconcile-targets cleanup
-    // in onCleared(). The session also holds this; kept here so onCleared() doesn't need a session accessor.
-    private var readerServerId: String? = null
+    // isStorytellerServer and readerServerId now live on [lifecycle] (issue #376). The single
+    // remaining read site (annotation binding) captures activeServer + isStorytellerServer from
+    // the Ready payload directly.
 
     // ---- Annotations (ADR 0024 / 0025) -------------------------------------------------------
 
@@ -518,235 +513,136 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
-        val item = libraryObserver.getItem(itemId)
-        if (item == null) {
-            _state.value = ReaderState.Error("Book not found")
-            return
+        val outcome = lifecycle.open(
+            com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenParams(
+                itemId = itemId,
+                openAtCfi = openAtCfi,
+                startTocHref = startTocHref,
+            ),
+        )
+        when (outcome) {
+            is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Error ->
+                _state.value = ReaderState.Error(outcome.message)
+            is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Ready ->
+                onOpenReady(outcome)
         }
-        when (val result = epubRepository.openEpub(item)) {
-            is EpubOpenResult.Success -> {
-                epubFile = result.epubFile
-                val pub = openPublication(result.epubFile)
-                if (pub == null) {
-                    _state.value = ReaderState.Error("Failed to open EPUB")
-                    return
-                }
-                publication = pub
-                // Bind the search controller to the new publication so it can execute queries.
-                search.bind(pub)
+    }
 
-                // ── Option α: resolve active-server + readaloud link sequentially in openBook ──
-                // Active-server type decides Readaloud availability: every Storyteller book qualifies,
-                // while ABS books qualify only when a synced bundle has already been downloaded.
-                val activeServer = serverRepository.getActive()
-                isStorytellerServer = activeServer?.serverType == ServerType.STORYTELLER
+    private suspend fun onOpenReady(
+        o: com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Ready,
+    ) {
+        val pub = o.publication
+        // Bind the search controller to the new publication so it can execute queries.
+        search.bind(pub)
 
-                // Matched ABS book → key the bundle by the linked Storyteller book id (the bundle
-                // is stored under that id, not the ABS item id). Storyteller side keeps itemId.
-                val link = if (!isStorytellerServer && activeServer != null) {
-                    readaloudLinkRepository.findByAbsItem(activeServer.id, itemId)
-                } else {
-                    null
-                }
-                val resolvedAudioBookId = link?.storytellerBookId ?: itemId
-                val resolvedAudioServerId = link?.storytellerServerId ?: activeServer?.id ?: ""
-                val resolvedReaderServerId = activeServer?.id
+        // Mirror the resolved speed into the readaloud session before bind() so its startup state
+        // uses the right value.
+        readaloud.initialSpeed = o.resolvedInitialSpeed
 
-                // The audiobook to switch to on swipe-up: among this readaloud's ABS targets, the listenable
-                // one (the audiobook in a split library), or this same item if it's a combined ebook+audio.
-                val resolvedAudiobookItemId = link?.let { l ->
-                    readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
-                        .firstOrNull { t ->
-                            t.absLibraryItemId != itemId &&
-                                libraryObserver.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
-                        }
-                        ?.absLibraryItemId
-                }
-                logger.d(LogChannel.Handoff) { "RA.audiobookItemId resolved=$resolvedAudiobookItemId (overlay can now mount)" }
+        // ── Bind the readaloud session — must happen before position.bindBook() ────────
+        // All per-book readaloud wiring is consolidated here (Option α). After this call,
+        // availability flags are set and background work (pre-warm, sidecar, quotes) is launched.
+        readaloud.bind(
+            serverId = o.resolvedReaderServerId ?: "",
+            itemId = itemId,
+            isStorytellerServer = o.isStorytellerServer,
+            audioBookId = o.resolvedAudioBookId,
+            audioServerId = o.resolvedAudioServerId,
+            audioSettingsIdentity = o.resolvedAudioSettingsIdentity,
+            audiobookItemId = o.resolvedAudiobookItemId,
+            effectiveFormattingPreferencesFlow = formatting.effectiveFormattingPreferences,
+            currentLocatorFlow = position.currentLocator,
+            readerSyncProvider = { lifecycle.matchedSync.value?.readerSync },
+            audiobookFollowProvider = { lifecycle.matchedSync.value?.audiobookFollow },
+            readerSyncServerIdProvider = { lifecycle.matchedSync.value?.serverId },
+        )
 
-                // Resolve the audio-settings key and load the saved speed (ADR 0028). With a link,
-                // the resolver prefers the linked audiobook's id; without one, settings key on this ABS item.
-                val resolvedAudioSettingsIdentity = if (link != null) {
-                    audioIdentityResolver.resolveForStorytellerBook(link.storytellerServerId, link.storytellerBookId)
-                } else {
-                    AudioIdentity(activeServer?.id ?: "", itemId)
-                }
-                val resolvedInitialSpeed = audioPlaybackPreferencesStore.load(resolvedAudioSettingsIdentity)
-                    ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
+        // Bind the position orchestrator so it can save positions for this book.
+        position.bindBook(
+            itemId = itemId,
+            serverId = o.resolvedReaderServerId ?: "",
+            positionSaveCoordinator = positionSaveCoordinator,
+            readingPositionStore = readingPositionStore,
+            spinePositionCounts = spinePositionCounts,
+        )
+        // When openAtCfi resolved, an ABS server-progress event arriving right after open must not
+        // stomp the explicit nav intent (annotation tap / search hit). Drop the first
+        // server-locator that follows; subsequent syncs (peer / live progress) still apply normally.
+        if (o.openAtLocator != null) position.markSuppressNextServerLocator()
 
-                // Mirror the resolved speed into the session.
-                readaloud.initialSpeed = resolvedInitialSpeed
-                // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
-                activeServer?.id?.let { openReconcileTargets.markOpen(it, itemId) }
+        _state.value = ReaderState.Ready(
+            publication = pub,
+            title = o.title,
+            initialLocator = o.initialLocator,
+            initialFocusAnnotationId = o.initialFocusAnnotationId,
+        )
 
-                // ── Bind the readaloud session — must happen before position.bindBook() ────────
-                // All per-book readaloud wiring is consolidated here (Option α). After this call,
-                // availability flags are set and background work (pre-warm, sidecar, quotes) is launched.
-                readaloud.bind(
-                    serverId = resolvedReaderServerId ?: "",
-                    itemId = itemId,
-                    isStorytellerServer = isStorytellerServer,
-                    audioBookId = resolvedAudioBookId,
-                    audioServerId = resolvedAudioServerId,
-                    audioSettingsIdentity = resolvedAudioSettingsIdentity,
-                    audiobookItemId = resolvedAudiobookItemId,
-                    effectiveFormattingPreferencesFlow = formatting.effectiveFormattingPreferences,
-                    currentLocatorFlow = position.currentLocator,
-                    readerSyncProvider = { readerSync },
-                    audiobookFollowProvider = { audiobookFollow },
-                    readerSyncServerIdProvider = { readerSyncServerId },
-                )
+        // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
+        // formattingPrefsProvider in the nav event handler ensures the correct continuous vs paged
+        // path is taken even when Compose state hasn't caught up yet.
+        startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
 
-                // Bind the position orchestrator so it can save positions for this book.
-                // readerSyncServerId is now resolved above (Option α); use it directly.
-                position.bindBook(
-                    itemId = itemId,
-                    serverId = resolvedReaderServerId ?: "",
-                    positionSaveCoordinator = positionSaveCoordinator,
-                    readingPositionStore = readingPositionStore,
-                    spinePositionCounts = spinePositionCounts,
-                )
-                // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's
-                // translation fix (< 2.6.x) may still hold a raw ABS `epubcfi(...)` — convert
-                // those on open so legacy progress isn't lost (one-time healing; new rows are
-                // always canonical Locator JSON). A genuinely unusable value falls back to null.
-                // A search-result open overrides the saved position; cfiStringToLocator needs `publication`,
-                // which is set by this point (same call used just below for legacy CFI healing).
-                val openAtLocator = openAtCfi?.takeIf { it.isNotBlank() }?.let { cfiStringToLocator(it) }
-                // When openAtCfi resolved, an ABS server-progress event arriving right after open
-                // must not stomp the explicit nav intent (annotation tap / search hit). Drop the
-                // first server-locator that follows; subsequent syncs (peer / live progress) still
-                // apply normally.
-                if (openAtLocator != null) position.markSuppressNextServerLocator()
-                // Bind openAtCfi to its source annotation (if any) so continuous mode can scroll to
-                // the DOM mark for that annotation — a precise post-reflow Y — instead of guessing
-                // from char-fraction × measured-WebView-height (which lands short of the highlight
-                // when the chapter's text-density differs from char-density).
-                val openAtCfiNonBlank = openAtCfi?.takeIf { it.isNotBlank() }
-                val initialFocusAnnotationId = if (openAtLocator != null && resolvedReaderServerId != null && openAtCfiNonBlank != null) {
-                    runCatching { annotationStore.findByItemAndCfi(resolvedReaderServerId, itemId, openAtCfiNonBlank) }
-                        .getOrNull()?.id
-                } else null
-                val locator = openAtLocator
-                    ?: result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
-                        runCatching { Locator.fromJSON(JSONObject(stored)) }.getOrNull()
-                            ?: cfiStringToLocator(stored)
-                    }
-                // When a TOC chapter is requested, pass null as initialLocator so Readium's
-                // async restore doesn't race with the navigateToEntry nav event. Navigation
-                // ownership is handed entirely to navigateToEntry, which waits for
-                // ContinuousReaderView.isInitialized before calling navigateTo. The paged
-                // navigator similarly receives null and lets fragment.go() handle it.
-                _state.value = ReaderState.Ready(
-                    publication = pub,
-                    title = item.title,
-                    initialLocator = if (startTocHref == null) locator else null,
-                    initialFocusAnnotationId = if (startTocHref == null) initialFocusAnnotationId else null,
-                )
-                // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
-                // formattingPrefsProvider in the nav event handler ensures the correct continuous vs
-                // paged path is taken even when Compose state hasn't caught up yet.
-                startTocHref?.let { navigateToEntry(TocEntry(title = "", href = it)) }
-                // Paged-mode only: after initialLocator opens the right chapter, fire the locator
-                // through the annotation-nav channel so the post-go() column-snap runs (the
-                // architectural invariant: the paged reader never rests off-grid). Without this,
-                // Readium's progression-based landing isn't snapped — onPageLoaded deliberately
-                // defers snapping to the post-go path. Before suppressNextServerLocator existed,
-                // a fast-arriving server-locator event accidentally provided that snap; suppressing
-                // it correctly broke the side effect. This restores it explicitly.
-                //
-                // Continuous mode is INTENTIONALLY excluded: its initialize()/openWindowAt path has
-                // its own reflow-tracking re-land logic that lands at the exact target as the
-                // chapter measures. A redundant nav event here would race scrollToLoadedChapter
-                // (which doesn't reflow-track) against that careful machinery and break the landing.
-                // Vertical mode is also excluded — initialLocator already lands correctly without a
-                // snap, and a redundant fragment.go() would only add a same-place re-positioning.
-                if (openAtLocator != null && formatting.effectiveFormattingPreferences.value.orientation == ReaderOrientation.Horizontal) {
-                    annotationSession.emitAnnotationNavigation(openAtLocator)
-                }
-                // A matched book with cached prerequisites runs the reconciliation cycle instead of
-                // the single-peer ABS/Storyteller paths; otherwise this is null and nothing changes.
-                readerSync = runCatching { readerSyncFactory.createIfApplicable(itemId) }.getOrNull()
-                // readerSyncServerId and readerServerId are the active server resolved earlier via Option α.
-                readerSyncServerId = resolvedReaderServerId
-                readerServerId = resolvedReaderServerId
-                // Update the session's readerSyncServerId now that readerSync is resolved.
-                // (bind() set it to resolvedReaderServerId already; this keeps them in sync.)
-                readaloud.readerSyncServerId = readerSyncServerId
-                // When the full coordinator can't be built (no cross-EPUB index yet), fall back to the
-                // bundle-SMIL-only audiobook follow so readaloud still syncs to the audiobook (ADR 0031).
-                audiobookFollow = if (readerSync == null) {
-                    runCatching { readerSyncFactory.createAudiobookFollowIfApplicable(itemId) }.getOrNull()
-                } else null
-                // A matched book also drives the audiobook ABS record from this reader, so the sweep
-                // must skip that (possibly split-library) item too while the reader is open (ADR 0030).
-                readerSyncServerId?.let { sid ->
-                    (readerSync?.audioItemId ?: audiobookFollow?.audioItemId)?.let { openReconcileTargets.markOpen(sid, it) }
-                }
+        // Paged-mode only: after initialLocator opens the right chapter, fire the locator through
+        // the annotation-nav channel so the post-go() column-snap runs (the architectural invariant:
+        // the paged reader never rests off-grid). Continuous / Vertical are intentionally excluded —
+        // they land correctly without this snap.
+        if (o.openAtLocator != null &&
+            formatting.effectiveFormattingPreferences.value.orientation == ReaderOrientation.Horizontal
+        ) {
+            annotationSession.emitAnnotationNavigation(o.openAtLocator)
+        }
 
-                // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
-                // readaloud from the audiobook's position so narration continues where listening stopped.
-                // The auto-follow drives the reader page to the narrated sentence once the navigator is up.
-                if (startReadaloudAtSec >= 0.0 && readaloud.readaloudAvailable.value) {
-                    startReadaloudAtSecond(startReadaloudAtSec)
-                }
+        // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
+        // readaloud from the audiobook's position so narration continues where listening stopped.
+        if (startReadaloudAtSec >= 0.0 && readaloud.readaloudAvailable.value) {
+            startReadaloudAtSecond(startReadaloudAtSec)
+        }
 
-                // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
-                if (!isStorytellerServer && activeServer != null) {
-                    annotationServerId = activeServer.id
-                    // Bind the bookmarks controller so it can observe bookmarks and track the current
-                    // locator for page-bookmark detection.
-                    bookmarks.bind(
-                        serverId = activeServer.id,
-                        itemId = itemId,
-                        currentLocator = position.currentLocator,
-                    )
-                    // Push orientation changes into the controller via a setter (instead of
-                    // collecting via combine) so the page-bookmark indicator's match window
-                    // re-sizes on a mid-session flip without dragging a third StateFlow into
-                    // every locator-update recompute.
-                    bookmarks.onOrientationChanged(formatting.formattingPreferences.value.orientation)
-                    viewModelScope.launch {
-                        formatting.formattingPreferences
-                            .map { it.orientation }
-                            .distinctUntilChanged()
-                            .collect { bookmarks.onOrientationChanged(it) }
-                    }
-                    // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
-                    // namespace. ensureAbsUserId backfills it for legacy server rows. A null result
-                    // means we can't sync this session (offline or non-ABS or backfill failed) — the
-                    // local DB stays as the source of truth and sync resumes on the next open.
-                    val namespace = serverRepository.ensureAbsUserId(activeServer.id)
-                    annotationNamespace = namespace
-                    // Bind the annotation session: starts observation, syncOnOpen, and live-pull loop.
-                    // Observation always starts (shows local highlights). A blank namespace means the
-                    // ABS user id wasn't resolved this session — syncOnOpen/scheduleSync/startLiveSync
-                    // lambdas delegate to AnnotationSyncController which self-guards via targetProvider.
-                    annotationSession.bind(
-                        serverId = activeServer.id,
-                        namespace = namespace ?: "",
-                        itemId = itemId,
-                        highlightRenderResolver = { a -> annotationToRender(a) },
-                        cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
-                    )
-                }
-
-                // Sync immediately while localUpdatedAt is still the genuine stored value —
-                // before the navigator restore emits and would stamp localUpdatedAt = now.
-                if (readerSync != null) {
-                    runReaderSyncCycle(locator)
-                } else {
-                    progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
-                }
-
-                // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the
-                // first onReaderResumed; the lifecycle handler below resets the baseline once the
-                // reader is actually visible).
-                startReadingSession(initialTotalProgression = null)
+        // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
+        val activeServer = o.activeServer
+        if (!o.isStorytellerServer && activeServer != null) {
+            annotationServerId = activeServer.id
+            // Bind the bookmarks controller so it can observe bookmarks and track the current
+            // locator for page-bookmark detection.
+            bookmarks.bind(
+                serverId = activeServer.id,
+                itemId = itemId,
+                currentLocator = position.currentLocator,
+            )
+            // Push orientation changes into the controller via a setter so the page-bookmark
+            // indicator's match window re-sizes on a mid-session flip.
+            bookmarks.onOrientationChanged(formatting.formattingPreferences.value.orientation)
+            viewModelScope.launch {
+                formatting.formattingPreferences
+                    .map { it.orientation }
+                    .distinctUntilChanged()
+                    .collect { bookmarks.onOrientationChanged(it) }
             }
-            is EpubOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
-            EpubOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
+            // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
+            // namespace. A null result means sync is skipped this session; DB stays canonical.
+            val namespace = serverRepository.ensureAbsUserId(activeServer.id)
+            annotationNamespace = namespace
+            annotationSession.bind(
+                serverId = activeServer.id,
+                namespace = namespace ?: "",
+                itemId = itemId,
+                highlightRenderResolver = { a -> annotationToRender(a) },
+                cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
+            )
         }
+
+        // Sync immediately while localUpdatedAt is still the genuine stored value — before the
+        // navigator restore emits and would stamp localUpdatedAt = now.
+        val syncLocator = o.effectiveInitialLocator
+        if (lifecycle.matchedSync.value?.readerSync != null) {
+            runReaderSyncCycle(syncLocator)
+        } else {
+            progressSyncController.sync(itemId, syncLocator?.toPayload() ?: SessionPayload("", 0f))
+        }
+
+        // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the first
+        // onReaderResumed; the lifecycle handler resets the baseline once the reader is visible).
+        startReadingSession(initialTotalProgression = null)
     }
 
     private fun startReadingSession(initialTotalProgression: Float?) {
@@ -759,7 +655,7 @@ class EpubReaderViewModel @Inject constructor(
     private fun syncCurrentPosition() {
         val locator = position.snapshotLastLocator() ?: return
         viewModelScope.launch {
-            if (readerSync != null) runReaderSyncCycle(locator)
+            if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
             else progressSyncController.sync(itemId, locator.toPayload())
         }
     }
@@ -778,8 +674,9 @@ class EpubReaderViewModel @Inject constructor(
      * write never reads back as a newer remote and drives the ebook (the loop that erased progress).
      */
     private suspend fun runReaderSyncCycle(locator: Locator?) {
-        val coordinator = readerSync ?: return
-        val serverId = readerSyncServerId ?: return
+        val ms = lifecycle.matchedSync.value ?: return
+        val coordinator = ms.readerSync ?: return
+        val serverId = ms.serverId ?: return
         val locJson = (locator ?: position.snapshotLastLocator())?.toJSON()?.toString()
         if (locJson != null) {
             val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
@@ -904,7 +801,7 @@ class EpubReaderViewModel @Inject constructor(
 
     fun onReaderResumed() {
         readerStateHolder.isReaderActive = true
-        closeSyncDone = false
+        lifecycle.resetCloseSync()
         position.resetInitialLocatorSeen()
         // Arm the speed-tracker baseline unconditionally — pre-refactor set sessionStart{Progression,Ms}
         // on every resume regardless of state, so a session that resumes while still loading and closes
@@ -946,8 +843,7 @@ class EpubReaderViewModel @Inject constructor(
         // pre-armed this with the pre-popup origin (see captureFootnotePopupLinkOrigin); don't
         // overwrite that with the popup-nudged lastLocator. setReturnAnchor honours this contract.
         position.setReturnAnchor(position.snapshotLastLocator())
-        if (closeSyncDone) return
-        closeSyncDone = true
+        if (!lifecycle.tryClaimCloseSync()) return
         // Leaving the book without first pressing X: persist the sentence narrating now so re-entry
         // resumes there. (Pressing X already persisted via closeReadaloud, which closes the player.)
         // Below the closeSyncDone guard so the ON_STOP + onDispose pair doesn't double-write.
@@ -962,7 +858,7 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
-            if (readerSync != null) runReaderSyncCycle(locator)
+            if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
             else progressSyncController.sync(itemId, payload)
         }
     }
@@ -973,7 +869,7 @@ class EpubReaderViewModel @Inject constructor(
 
     // Translates via character-count CFIs; see EpubCfiTranslator and ADR 0013.
     private suspend fun Locator.toPayload(): SessionPayload = withContext(dispatchers.default) {
-        val readingOrder = publication?.readingOrder ?: emptyList()
+        val readingOrder = lifecycle.publication.value?.readingOrder ?: emptyList()
         val spineIndex = readingOrder.indexOfFirst { link ->
             normalizeEpubHref(link.href.toString()) == normalizeEpubHref(href.toString())
         }
@@ -999,7 +895,7 @@ class EpubReaderViewModel @Inject constructor(
      * when the string isn't an epubcfi or can't be resolved, letting callers fall back.
      */
     private suspend fun cfiStringToLocator(rawCfi: String): Locator? {
-        val pub = publication ?: return null
+        val pub = lifecycle.publication.value ?: return null
         val cfi = rawCfi.takeIf { it.startsWith("epubcfi(") } ?: return null
         val spineIndex = epubCfiToSpineIndex(cfi)
         val link = spineIndex?.let { pub.readingOrder.getOrNull(it) }
@@ -1034,7 +930,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun serverProgressToLocator(serverProgress: ServerProgress): Locator? {
-        val pub = publication ?: return null
+        val pub = lifecycle.publication.value ?: return null
         cfiStringToLocator(serverProgress.ebookLocation)?.let { return it }
         // Fallback: no usable CFI — navigate via book-wide progress float
         val progress = serverProgress.ebookProgress.toDouble().coerceIn(0.0, 1.0)
@@ -1050,7 +946,7 @@ class EpubReaderViewModel @Inject constructor(
     fun createHighlight(selectionLocator: Locator, anchorRect: IntRect) {
         val serverId = annotationServerId ?: return
         viewModelScope.launch {
-            val pub = publication ?: return@launch
+            val pub = lifecycle.publication.value ?: return@launch
             val snippet = selectionLocator.text.highlight?.takeIf { it.isNotBlank() } ?: return@launch
             val href = selectionLocator.href.toString()
             val spineIndex = pub.readingOrder.indexOfFirst {
@@ -1111,7 +1007,7 @@ class EpubReaderViewModel @Inject constructor(
                 annotationStore.delete(existing.id)
                 scheduleAnnotationSync()
             } else {
-                val pub = publication ?: return@launch
+                val pub = lifecycle.publication.value ?: return@launch
                 val spineIdx = pub.readingOrder.indexOfFirst { normalizeEpubHref(it.url().toString()) == normalizeEpubHref(href) }.coerceAtLeast(0)
                 val totalProg = locator.locations.totalProgression
                 val spineHrefs = pub.readingOrder.map { it.url().toString() }
@@ -1184,7 +1080,7 @@ class EpubReaderViewModel @Inject constructor(
     // the within-chapter position; the text snippet lets Readium's decorator locate the range.
     // Called as the highlightRenderResolver injected into annotationSession.bind().
     private suspend fun annotationToRender(a: Annotation): HighlightRender? {
-        val pub = publication ?: return null
+        val pub = lifecycle.publication.value ?: return null
         val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return null
         val link = pub.readingOrder.getOrNull(spineIndex) ?: return null
         val html = readChapterHtml(spineIndex) ?: return null
@@ -1209,15 +1105,10 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun readChapterHtml(spineIndex: Int): String? {
         chapterHtmlCache[spineIndex]?.let { return it }
         return withContext(dispatchers.io) {
-            val file = epubFile ?: return@withContext null
-            val pub = publication ?: return@withContext null
+            val pub = lifecycle.publication.value ?: return@withContext null
             val link = pub.readingOrder.getOrNull(spineIndex) ?: return@withContext null
             val entryPath = normalizeEpubHref(link.href.toString())
-            val zip = try {
-                epubZip ?: synchronized(this@EpubReaderViewModel) {
-                    epubZip ?: ZipFile(file).also { epubZip = it }
-                }
-            } catch (_: Exception) { return@withContext null }
+            val zip = lifecycle.zip() ?: return@withContext null
             try {
                 zip.getEntry(entryPath)?.let { entry ->
                     zip.getInputStream(entry).bufferedReader().readText()
@@ -1237,15 +1128,8 @@ class EpubReaderViewModel @Inject constructor(
         annotationSession.onBookClosed()
         // Tear down all readaloud session background jobs (pre-warm, sidecar obs, sync, speed debounce).
         readaloud.onBookClosed()
-        // Release this book to the durable sweep again (ADR 0030).
-        readerServerId?.let { sid ->
-            openReconcileTargets.markClosed(sid, itemId)
-            (readerSync?.audioItemId ?: audiobookFollow?.audioItemId)?.let { openReconcileTargets.markClosed(sid, it) }
-        }
-        epubZip?.close()
-        epubZip = null
-        publication?.close()
-        publication = null
+        // Release openReconcile claims, close the zip and publication.
+        lifecycle.onCleared()
         // Tear down the audio session so it doesn't outlive the reader (clears the highlight too).
         playerCoordinator.close()
         // Readaloud can't outlive the reader, so this session is no longer playing.
