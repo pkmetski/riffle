@@ -13,10 +13,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 /** [locatorJson] is the raw Readium `locator` object; [timestampMillis] its server `lastUpdate`. */
 data class StorytellerPosition(val locatorJson: String, val timestampMillis: Long)
@@ -53,7 +49,7 @@ class StorytellerPositionApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<StorytellerPosition?> = withContext(dispatchers.io) {
-        val http = if (insecureAllowed) client.trustAllCerts() else client
+        val http = if (insecureAllowed) client.withInsecureTls() else client
         val request = Request.Builder()
             .url("$baseUrl/api/v2/books/$bookId/positions")
             .addHeader("Authorization", "Bearer $token")
@@ -88,7 +84,7 @@ class StorytellerPositionApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<Unit> = withContext(dispatchers.io) {
-        val http = if (insecureAllowed) client.trustAllCerts() else client
+        val http = if (insecureAllowed) client.withInsecureTls() else client
         val payload = buildJsonObject {
             put("locator", json.parseToJsonElement(locatorJson))
             put("timestamp", JsonPrimitive(timestampMillis))
@@ -108,13 +104,4 @@ class StorytellerPositionApiImpl(
         }
     }
 
-    private fun OkHttpClient.trustAllCerts(): OkHttpClient {
-        val trustAll = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
-        val sslContext = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustAll), SecureRandom()) }
-        return newBuilder().sslSocketFactory(sslContext.socketFactory, trustAll).build()
-    }
 }

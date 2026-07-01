@@ -7,11 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
 import java.io.IOException
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 /** A streaming Storyteller bundle response — caller must close [body]. */
 data class StorytellerBundleStream(val body: ResponseBody)
@@ -84,7 +80,7 @@ class StorytellerBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<StorytellerBundleStream> = withContext(dispatchers.io) {
-        val effectiveClient = if (insecureAllowed) chosenClient.trustAllCerts() else chosenClient
+        val effectiveClient = if (insecureAllowed) chosenClient.withInsecureTls() else chosenClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
             .addHeader("Authorization", "Bearer $token")
@@ -118,7 +114,7 @@ class StorytellerBundleApiImpl(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<Long> = withContext(dispatchers.io) {
-        val effectiveClient = if (insecureAllowed) sidecarClient.trustAllCerts() else sidecarClient
+        val effectiveClient = if (insecureAllowed) sidecarClient.withInsecureTls() else sidecarClient
         val request = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
             .head()
@@ -136,20 +132,6 @@ class StorytellerBundleApiImpl(
         } catch (e: IOException) {
             NetworkResult.Offline(e)
         }
-    }
-
-    private fun OkHttpClient.trustAllCerts(): OkHttpClient {
-        val trustAll = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf(trustAll), SecureRandom())
-        }
-        return newBuilder()
-            .sslSocketFactory(sslContext.socketFactory, trustAll)
-            .build()
     }
 
     private companion object {

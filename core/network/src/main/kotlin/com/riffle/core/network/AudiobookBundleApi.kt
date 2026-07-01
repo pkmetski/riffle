@@ -7,11 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
 import java.io.IOException
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 /**
  * A (possibly partial) byte stream of the Storyteller synced bundle.
@@ -55,7 +51,7 @@ class AudiobookBundleApiImpl(
         insecureAllowed: Boolean,
         fromByte: Long,
     ): NetworkResult<AudiobookBundleStream> = withContext(dispatchers.io) {
-        val effectiveClient = if (insecureAllowed) bundleClient.trustAllCerts() else bundleClient
+        val effectiveClient = if (insecureAllowed) bundleClient.withInsecureTls() else bundleClient
         val builder = Request.Builder()
             .url("$baseUrl/api/books/$bookId/synced")
             .addHeader("Authorization", "Bearer $token")
@@ -89,15 +85,4 @@ class AudiobookBundleApiImpl(
         }
     }
 
-    private fun OkHttpClient.trustAllCerts(): OkHttpClient {
-        val trustAll = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf(trustAll), SecureRandom())
-        }
-        return newBuilder().sslSocketFactory(sslContext.socketFactory, trustAll).build()
-    }
 }
