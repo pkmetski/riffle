@@ -426,6 +426,38 @@ class AnnotationSyncControllerLifecycleTest {
     }
 
     @Test
+    fun `syncOnOpen DELETE failure keeps aged tomb in Room so the next sync retries`() = runTest {
+        // Regression: previously the sweep purged Room BEFORE attempting DELETE. If DELETE threw
+        // (network hiccup), the row was gone from Room, `beforeSweep.isNotEmpty()` misfired on
+        // the retry, and the WebDAV file lingered forever. ADR 0038's whole point is that empty
+        // files disappear — this scenario broke that promise.
+        val nowMs = 100L * 24L * 60L * 60L * 1000L
+        val ownFile = "annotations-$DEVICE_ID.jsonld"
+        target.files[ownFile] = jsonArrayOf(
+            w3cTombstone("tomb-aged", updatedAt = 1L, deviceId = DEVICE_ID),
+        )
+        dao.localAnnotations += highlightEntity("tomb-aged", updatedAt = 1L, deleted = true)
+            .copy(lastSyncedAt = 1L)
+        target.deleteException = RuntimeException("transient WebDAV DELETE failure")
+
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        // Room must still hold the aged tomb — the sweep was NOT committed because DELETE threw.
+        val stillHasTomb = dao.localAnnotations.any { it.id == "tomb-aged" && it.deleted }
+        assertTrue("aged tomb must remain in Room when DELETE fails so retry sees the transition",
+            stillHasTomb)
+
+        // Clear the fault; the next syncOnOpen must retry the DELETE and succeed.
+        target.deleteException = null
+        newController(clock = { nowMs }).syncOnOpen(SRV, NS, ITEM)
+
+        assertTrue("second attempt must actually DELETE the file",
+            target.deletes.any { it.filename == ownFile })
+        assertTrue("second attempt must finally purge the tomb from Room",
+            dao.localAnnotations.none { it.id == "tomb-aged" })
+    }
+
+    @Test
     fun `syncOnOpen ignores a stale orphan live record pushed by a long-offline peer`() = runTest {
         // The resurrection guard end-to-end: a peer with `updatedAt` past TTL pushes a live copy
         // of a UUID we no longer have (we swept it long ago). The controller must NOT upsert.
@@ -787,6 +819,7 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     var listCalls = 0
     var failNextList: Boolean = false
     var writeException: Throwable? = null
+    var deleteException: Throwable? = null
 
     data class Write(val namespace: String, val itemId: String, val filename: String, val content: String)
     data class Delete(val namespace: String, val itemId: String, val filename: String)
@@ -811,6 +844,7 @@ private class LifecycleRecordingTarget : AnnotationSyncTarget {
     }
 
     override suspend fun delete(namespace: String, itemId: String, filename: String) {
+        deleteException?.let { throw it }
         files.remove(filename)
         deletes += Delete(namespace, itemId, filename)
     }

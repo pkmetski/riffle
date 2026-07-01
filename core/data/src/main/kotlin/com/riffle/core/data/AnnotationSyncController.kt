@@ -144,23 +144,17 @@ class AnnotationSyncController(
                 }
             }
 
-            // ADR 0038 rule 1 — sweep our own aged tombstones before reading local state for the
-            // merge. Rows are hard-deleted from Room only if they've been pushed at least once
-            // (guarded by `updatedAt <= lastSyncedAt` in the DAO query), so an offline delete stays
-            // put until it propagates. The pre-sweep snapshot is retained so we can detect the
-            // "sweep just emptied this device's row set" transition below (rule 2).
+            // ADR 0038 rule 1+2 — sweep aged tombstones and DELETE the resulting empty file.
+            // Ordering matters: compute the hypothetical post-sweep state in memory FIRST, so we
+            // can attempt the DELETE before mutating Room. If the DELETE throws, Room is untouched
+            // and the next sync sees the same transition and retries. Sweeping first would leave
+            // Room empty with a stale file on WebDAV and no signal to retry the DELETE.
             val now = clock()
+            val cutoff = now - TOMBSTONE_TTL_MS
             val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-            annotationDao.purgeAgedTombstones(serverId, itemId, now - TOMBSTONE_TTL_MS)
-
-            // Seed merge with the local set (including tombstones) so LWW spans both sides — a
-            // newer local edit isn't clobbered by an older remote copy, and a local tombstone wins
-            // over a remote pre-delete entry.
-            val localExistingEntities = annotationDao
-                .getAllForItemIncludingDeleted(serverId, itemId)
-            val localById = localExistingEntities.associateBy { it.id }
-            val localExisting = localExistingEntities
-                .map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
+            val nonPurgeable = beforeSweep.filter { !isAgedSyncedTomb(it, cutoff) }
+            val localById = nonPurgeable.associateBy { it.id }
+            val localExisting = nonPurgeable.map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
             // ADR 0038 rule 3 — ignore stale orphans. Incoming rows we've never seen locally and
             // whose updatedAt is past TTL are the delayed push from a peer that missed a
@@ -171,6 +165,19 @@ class AnnotationSyncController(
                 nowMs = now,
                 staleOrphanCutoffMs = TOMBSTONE_TTL_MS,
             )
+
+            // Rule 2 DELETE branch — the sweep would empty us and this device's own file is on
+            // WebDAV. DELETE first, then commit the sweep and any merge results. A failed DELETE
+            // aborts before Room changes so the retry sees the same beforeSweep transition.
+            if (merged.isEmpty() && beforeSweep.isNotEmpty()) {
+                val ownFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+                if (ownFilename in filenames) {
+                    target.delete(namespace, itemId, ownFilename)
+                }
+            }
+
+            // Safe to commit Room mutations now — either no DELETE was needed, or it succeeded.
+            annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
 
             val entities = merged.map { w3cAnnotation ->
                 val existing = localById[w3cAnnotation.id]
@@ -210,25 +217,20 @@ class AnnotationSyncController(
             for (entity in entities) {
                 annotationDao.upsert(entity)
             }
-
-            // ADR 0038 rule 2 — if the sweep just emptied this device's row set for the item AND
-            // this device's own file is present in the peer listing, DELETE it. This catches the
-            // "user opens book with only aged tombs left, closes without editing" flow: the sweep
-            // runs here in the open path, so if we defer the DELETE to pushPending its transition
-            // guard misfires (Room was already emptied here, so beforeSweep in pushPending is
-            // trivially empty).
-            if (merged.isEmpty() && beforeSweep.isNotEmpty()) {
-                val ownFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
-                if (ownFilename in filenames) {
-                    target.delete(namespace, itemId, ownFilename)
-                }
-            }
             statusStore.report(CycleOutcome.Success(clock()))
             sentinelWriter.writeQuietly(target, namespace, serverId)
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
         }
     }
+
+    /**
+     * Would [purgeAgedTombstones] delete this row? Kept in Kotlin so we can preview the sweep
+     * result before touching Room (ADR 0038 rule 2 needs to attempt the DELETE first and only
+     * commit the Room mutation if the DELETE succeeds).
+     */
+    private fun isAgedSyncedTomb(row: AnnotationEntity, cutoff: Long): Boolean =
+        row.deleted && row.updatedAt < cutoff && row.updatedAt <= row.lastSyncedAt
 
     /**
      * Start a per-book pull loop that polls for peer-device annotation files every
@@ -352,28 +354,31 @@ class AnnotationSyncController(
         // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
         // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
         // the newer tombstone over any older live copy of the same id.
-        val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-        // ADR 0038 rule 1 — sweep our own aged, already-synced tombstones before we decide what to
-        // push. This is what makes files that hold nothing but old tombs shrink to zero rows.
         val now = clock()
-        annotationDao.purgeAgedTombstones(serverId, itemId, now - TOMBSTONE_TTL_MS)
-        val localEntities = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+        val cutoff = now - TOMBSTONE_TTL_MS
+        val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+        // ADR 0038 rule 1+2 — preview the sweep in memory. If it would leave us empty, DELETE the
+        // WebDAV file BEFORE mutating Room. A failed DELETE aborts before Room changes so the
+        // next attempt still sees `beforeSweep.isNotEmpty()` and retries.
+        val remainingAfterSweep = beforeSweep.filter { !isAgedSyncedTomb(it, cutoff) }
 
-        if (localEntities.isEmpty()) {
-            // ADR 0038 rule 2 — if the sweep just emptied this device's row set for the item,
-            // DELETE the WebDAV file entirely instead of leaving a stale copy. The transition
-            // guard (beforeSweep non-empty → empty) is what tells "sweep emptied it" apart from
-            // "Room was already empty for a transient reason (cleared data, mid-migration)" —
-            // the latter case is still a no-op, preserving the pre-ADR-0038 behaviour that
-            // protected against overwriting a live remote file with `[]`.
+        if (remainingAfterSweep.isEmpty()) {
             if (beforeSweep.isNotEmpty()) {
+                // Rule 2 empty-file DELETE. Do it first, then commit the sweep to Room.
                 val deviceId = deviceIdStore.getOrCreate()
                 target.delete(namespace, itemId, "annotations-$deviceId.jsonld")
+                annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
                 statusStore.report(CycleOutcome.Success(now))
                 return true
             }
+            // Preserve pre-ADR-0038 behaviour: don't touch WebDAV on a transient/cleared-data
+            // Room-already-empty state.
             return false
         }
+
+        // Non-empty case: commit the sweep, then push the survivors.
+        annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
+        val localEntities = remainingAfterSweep
 
         val deviceId = deviceIdStore.getOrCreate()
         val jsonStrings = localEntities.map { entity ->
