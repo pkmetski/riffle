@@ -9,7 +9,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import com.riffle.core.data.StreamingMediaItem
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
@@ -27,8 +27,9 @@ object StreamingAudioDownloader {
         context: Context,
         items: List<StreamingMediaItem>,
         bearerToken: String,
+        ioDispatcher: CoroutineDispatcher,
         onProgress: (Float) -> Unit = {},
-    ) = withContext(Dispatchers.IO) {
+    ) = withContext(ioDispatcher) {
         val cache = StreamingAudioCache.get(context)
         val upstream = DefaultHttpDataSource.Factory()
             .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $bearerToken"))

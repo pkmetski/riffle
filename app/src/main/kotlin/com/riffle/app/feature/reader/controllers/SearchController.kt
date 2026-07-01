@@ -1,11 +1,11 @@
 package com.riffle.app.feature.reader.controllers
 
 import com.riffle.app.feature.reader.session.OrchestratorScope
+import com.riffle.core.domain.DispatcherProvider
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -32,6 +32,7 @@ import org.readium.r2.shared.publication.services.search.SearchService
  */
 class SearchController @AssistedInject constructor(
     @Assisted private val scope: OrchestratorScope,
+    private val dispatchers: DispatcherProvider,
 ) {
 
     @AssistedFactory
@@ -145,7 +146,7 @@ class SearchController @AssistedInject constructor(
             return
         }
         val results = try {
-            withContext(Dispatchers.IO) {
+            withContext(dispatchers.io) {
                 val iterator = service.search(query)
                 val acc = mutableListOf<Locator>()
                 try {

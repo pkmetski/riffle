@@ -7,6 +7,7 @@ import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StreamingSetupBuilder
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudiobookIdentityResult
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ServerRepository
@@ -15,7 +16,6 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerLibraryApi
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -34,6 +34,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val linkRepository: ReadaloudLinkRepository,
+    private val dispatchers: DispatcherProvider,
 ) {
     // Guard against an evict-and-refetch loop when the Storyteller bundle is still partially aligned:
     // we attempt one fresh fetch per session, but if the re-fetched sidecar is also partial we stop.
@@ -50,7 +51,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         val absToken: String,
     )
 
-    suspend fun tryBuild(storytellerServerId: String, storytellerBookId: String): Session? = withContext(Dispatchers.IO) {
+    suspend fun tryBuild(storytellerServerId: String, storytellerBookId: String): Session? = withContext(dispatchers.io) {
         // 1. Resolve the ABS audiobook linked to this readaloud. No audiobook → not streamable.
         val audiobook = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
         if (audiobook.serverId == storytellerServerId && audiobook.bookId == storytellerBookId) {

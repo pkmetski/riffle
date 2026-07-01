@@ -3,8 +3,8 @@ package com.riffle.app.feature.reader.presenter
 import com.riffle.app.feature.reader.renderer.RendererBridge
 import com.riffle.app.feature.reader.toEpubPreferences
 import com.riffle.core.domain.FormattingPreferences
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -37,6 +37,7 @@ internal class ReadiumPresenter(
     private val scope: CoroutineScope,
     private val publication: Publication,
     private val bridge: RendererBridge,
+    private val mainDispatcher: CoroutineDispatcher,
 ) : ReaderPresenter {
 
     private val _positionEvents = MutableSharedFlow<PositionUpdate>(replay = 0, extraBufferCapacity = 64)
@@ -175,7 +176,7 @@ internal class ReadiumPresenter(
      */
     suspend fun applyDecorations(decorations: List<Decoration>, group: String) {
         val nav = fragment as? DecorableNavigator ?: return
-        withContext(Dispatchers.Main) { nav.applyDecorations(decorations, group) }
+        withContext(mainDispatcher) { nav.applyDecorations(decorations, group) }
     }
 
     /** Stable token that changes whenever the attached fragment changes. */

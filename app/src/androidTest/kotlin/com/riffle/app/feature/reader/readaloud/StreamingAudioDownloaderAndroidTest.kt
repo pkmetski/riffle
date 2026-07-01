@@ -65,7 +65,7 @@ class StreamingAudioDownloaderAndroidTest {
         val items = listOf(StreamingMediaItem("seg", url, 0, 5000))
         var lastProgress = 0f
 
-        StreamingAudioDownloader.download(appCtx, items, "tok") { lastProgress = it }
+        StreamingAudioDownloader.download(appCtx, items, "tok", kotlinx.coroutines.Dispatchers.IO) { lastProgress = it }
 
         assertTrue("progress should reach 1.0, was $lastProgress", lastProgress >= 1f)
         val cached = StreamingAudioCache.get(appCtx).getCachedBytes(url, 0, Long.MAX_VALUE)

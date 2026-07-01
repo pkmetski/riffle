@@ -1,9 +1,9 @@
 package com.riffle.app.feature.reader.readaloud
 
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,11 +25,12 @@ import javax.inject.Inject
 class PlayerCoordinator @Inject constructor(
     private val controller: ReadaloudController,
     private val audioRepository: ReadaloudAudioRepository,
+    dispatchers: DispatcherProvider,
 ) : PlayerController {
     /** Mirrors the controller's playback state so the screen has a single thing to observe. */
     override val state: StateFlow<ReadaloudController.PlaybackState> = controller.state
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + dispatchers.mainImmediate)
 
     @Volatile private var track: ReadaloudTrack? = null
 

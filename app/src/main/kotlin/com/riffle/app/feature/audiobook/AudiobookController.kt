@@ -10,12 +10,12 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookTrackSpan
 import com.riffle.core.domain.AudiobookTracks
 import com.riffle.core.domain.Clock
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -44,13 +44,15 @@ import javax.inject.Singleton
 open class AudiobookController @Inject constructor(
     private val connector: MediaSessionConnector?,
     applicationScope: ApplicationScope?,
+    dispatchers: DispatcherProvider,
     private val logger: Logger,
     private val clock: Clock,
 ) {
     // Test seam: a subclass that overrides every member the player touches needs no real connector
     // (it's only consulted in [ensureConnected], which fakes never reach). Keeps the controller
-    // unit-fakeable without Robolectric.
-    protected constructor() : this(null, null, RecordingLogger(), SystemClock)
+    // unit-fakeable without Robolectric. Unconfined dispatchers — subclasses override every method
+    // that launches on the scope; the scope is constructed but never dispatched against.
+    protected constructor() : this(null, null, UnconfinedDispatcherProvider, RecordingLogger(), SystemClock)
 
     data class PlaybackState(
         val connected: Boolean = false,
@@ -65,8 +67,8 @@ open class AudiobookController @Inject constructor(
     // method that launches on this scope, so [applicationScope] is permitted to be null — the fallback
     // mirrors the production SupervisorJob semantics so a future partial-override test fake doesn't get
     // surprised by sibling-cancel behaviour.
-    private val scope: CoroutineScope = applicationScope?.scopeOn(Dispatchers.Main.immediate)
-        ?: CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope: CoroutineScope = applicationScope?.scopeOn(dispatchers.mainImmediate)
+        ?: CoroutineScope(SupervisorJob() + dispatchers.mainImmediate)
     private val _state = MutableStateFlow(PlaybackState())
     open val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
@@ -343,5 +345,12 @@ open class AudiobookController @Inject constructor(
         private const val POLL_INTERVAL_MS = 250L
         private const val FADE_STEPS = 50
         private const val FADE_STEP_MS = 100L
+
+        private val UnconfinedDispatcherProvider = object : DispatcherProvider {
+            override val main = kotlinx.coroutines.Dispatchers.Unconfined
+            override val mainImmediate = kotlinx.coroutines.Dispatchers.Unconfined
+            override val io = kotlinx.coroutines.Dispatchers.Unconfined
+            override val default = kotlinx.coroutines.Dispatchers.Unconfined
+        }
     }
 }

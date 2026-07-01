@@ -102,7 +102,6 @@ import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.TimeRemaining
 import kotlin.math.roundToInt
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -442,6 +441,7 @@ fun EpubReaderScreen(
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
+                        dispatchers = viewModel.dispatchers,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -1108,6 +1108,7 @@ private fun EpubNavigatorView(
     onReachedEndOfBook: () -> Unit,
     onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
     onAutoScrollResume: () -> Unit,
+    dispatchers: com.riffle.core.domain.DispatcherProvider,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1143,7 +1144,7 @@ private fun EpubNavigatorView(
             )
         }
     val readiumPresenter: ReadiumPresenter? = remember(state.publication, isContinuous, coroutineScope) {
-        if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication, rendererBridge)
+        if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication, rendererBridge, dispatchers.main)
     }
     val continuousPresenter: ContinuousPresenter? = remember(isContinuous) {
         if (isContinuous) ContinuousPresenter() else null
@@ -1503,7 +1504,7 @@ private fun EpubNavigatorView(
     // reserve isn't tied to the player opening, so this transition isn't one the user is staring at.
     LaunchedEffect(readaloudReservePx) {
         if (fragmentRef.value == null) return@LaunchedEffect
-        withContext(Dispatchers.Main) {
+        withContext(dispatchers.main) {
             rendererBridge.applyReadaloudReserve(readaloudReservePx)
         }
     }
@@ -1530,7 +1531,7 @@ private fun EpubNavigatorView(
             ) {
                 is FootnoteResolver.AnchorTarget.Footnote -> {
                     // Called from the JS binder thread; hop to main for Compose state.
-                    coroutineScope.launch(Dispatchers.Main) {
+                    coroutineScope.launch(dispatchers.main) {
                         currentOnFootnoteTapped(target.content)
                     }
                     true
@@ -1539,7 +1540,7 @@ private fun EpubNavigatorView(
                     // Capture where we are BEFORE the snap; offer a way back only if the target was
                     // actually off-page (the snap reports whether it changed columns).
                     val origin = currentLatestLocator()
-                    coroutineScope.launch(Dispatchers.Main) {
+                    coroutineScope.launch(dispatchers.main) {
                         val moved = if (fragmentRef.value != null) {
                             rendererBridge.snapToElement(fragmentId)
                         } else {
@@ -1943,7 +1944,7 @@ private fun EpubNavigatorView(
         while (true) {
             val container = containerRef.value
             if (container != null) {
-                withContext(Dispatchers.Main) {
+                withContext(dispatchers.main) {
                     val boundary = readerPresenter.scrollBoundary()
                     container.atForwardBoundary = boundary.atForwardBoundary
                     container.atBackwardBoundary = boundary.atBackwardBoundary
@@ -2168,7 +2169,7 @@ private fun EpubNavigatorView(
                             }
                             val key = locator.href.removeFragment().toString()
                             if (key.isNotEmpty() && !footnoteDocCache.containsKey(key)) {
-                                launch(Dispatchers.IO) {
+                                launch(dispatchers.io) {
                                     val bytes = currentPublication.get(locator.href.removeFragment())
                                         ?.read()?.getOrNull() ?: return@launch
                                     footnoteDocCache[key] = FootnoteResolver.parse(

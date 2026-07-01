@@ -70,6 +70,14 @@ import org.readium.r2.shared.util.mediatype.MediaType
  *   4. forward
  *   5. previousChapter / nextChapter
  */
+private val UnconfinedDispatchers = object : com.riffle.core.domain.DispatcherProvider {
+    private val d = kotlinx.coroutines.Dispatchers.Unconfined
+    override val main = d
+    override val mainImmediate = d
+    override val io = d
+    override val default = d
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadaloudSessionTest {
 
@@ -230,6 +238,7 @@ class ReadaloudSessionTest {
                 io.mockk.every { it.isOnline } returns MutableStateFlow(true)
             },
             nowPlayingStore = NowPlayingStore(),
+            dispatchers = UnconfinedDispatchers,
             logger = RecordingLogger(),
         )
     }
@@ -445,6 +454,7 @@ class ReadaloudSessionTest {
                 every { it.isOnline } returns MutableStateFlow(true)
             },
             nowPlayingStore = NowPlayingStore(),
+            dispatchers = UnconfinedDispatchers,
             logger = RecordingLogger(),
         )
     }
@@ -598,6 +608,7 @@ class ReadaloudSessionTest {
                 every { it.isMetered() } returns false
             },
             nowPlayingStore = NowPlayingStore(),
+            dispatchers = UnconfinedDispatchers,
             logger = RecordingLogger(),
         )
     }
@@ -831,6 +842,7 @@ class ReadaloudSessionTest {
                     every { it.isOnline } returns MutableStateFlow(true)
                 },
                 nowPlayingStore = NowPlayingStore(),
+                dispatchers = UnconfinedDispatchers,
                 logger = RecordingLogger(),
             )
             // Wire up the audiobook item id that will be signalled
@@ -981,6 +993,7 @@ class ReadaloudSessionTest {
             every { it.isOnline } returns MutableStateFlow(true)
         },
         nowPlayingStore = NowPlayingStore(),
+        dispatchers = UnconfinedDispatchers,
         logger = RecordingLogger(),
     )
 
