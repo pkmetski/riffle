@@ -59,4 +59,25 @@ class ValidatedNetworkTrackerTest {
 
         assertTrue(tracker.onLost("cellular"))
     }
+
+    @Test
+    fun `reset replaces the tracked set with the fresh snapshot`() {
+        // Regression for the resume-from-sleep bug: NetworkCallback events can be coalesced during
+        // Android 13 doze so onLost fires without a matching onAvailable on wake. syncNow() must
+        // discard the accumulated event history and re-seed from a live ConnectivityManager sweep.
+        val tracker = ValidatedNetworkTracker<String>()
+        tracker.onAvailable("stale-wifi")
+
+        assertTrue(tracker.reset(setOf("live-wifi")))
+        assertTrue(tracker.onLost("stale-wifi"))
+        assertFalse(tracker.onLost("live-wifi"))
+    }
+
+    @Test
+    fun `reset to an empty snapshot flips online to false`() {
+        val tracker = ValidatedNetworkTracker<String>()
+        tracker.onAvailable("wifi")
+
+        assertFalse(tracker.reset(emptySet()))
+    }
 }

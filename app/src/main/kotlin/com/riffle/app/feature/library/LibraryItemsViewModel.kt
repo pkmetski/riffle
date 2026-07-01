@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
-import com.riffle.core.domain.Clock
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
@@ -64,7 +63,6 @@ class LibraryItemsViewModel @Inject constructor(
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
-    private val clock: Clock,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -264,15 +262,13 @@ class LibraryItemsViewModel @Inject constructor(
         savedStateHandle[KEY_SEARCH_QUERY] = query
     }
 
-    private var lastRefreshCompletedAt = 0L
-
-    /** Called from ON_RESUME. Skips if a refresh completed within the last 30s to avoid a
-     * redundant network round-trip when the library screen first enters RESUMED state immediately
-     * after init (which already launched its own refresh). */
+    /** Called from ON_RESUME. Reconciles the ConnectivityObserver against the live system state —
+     * doze/wake on Android 13 can drop `NetworkCallback` events, leaving the event-derived tracker
+     * holding stale offline state after the device wakes — then refreshes so the banner clears the
+     * moment the library screen returns to the foreground. */
     fun onScreenResumed() {
-        if (clock.nowMs() - lastRefreshCompletedAt > RESUME_REFRESH_DEBOUNCE_MS) {
-            refresh()
-        }
+        connectivityObserver.syncNow()
+        refresh()
     }
 
     fun refresh() {
@@ -288,12 +284,10 @@ class LibraryItemsViewModel @Inject constructor(
         val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
         toReadDeferred.await()
         _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
-        lastRefreshCompletedAt = clock.nowMs()
     }
 
     private companion object {
         const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
         const val KEY_SEARCH_QUERY = "searchQuery"
-        const val RESUME_REFRESH_DEBOUNCE_MS = 30_000L
     }
 }

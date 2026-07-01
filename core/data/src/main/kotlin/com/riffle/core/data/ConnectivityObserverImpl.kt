@@ -8,12 +8,15 @@ import android.net.NetworkRequest
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ConnectivityObserver
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,6 +30,14 @@ class ConnectivityObserverImpl @Inject constructor(
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
     private val scope = applicationScope.coroutineScope
+
+    // syncNow() pokes this; the callbackFlow collector reconciles the tracker against the live
+    // ConnectivityManager snapshot. Buffered + DROP_OLDEST so a caller storm doesn't wedge the
+    // emitter but the next reconciliation still happens.
+    private val syncSignal = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     override val isOnline: StateFlow<Boolean> = callbackFlow {
         // Online-state is derived from callback events rather than re-queried on each transition.
@@ -62,10 +73,35 @@ class ConnectivityObserverImpl @Inject constructor(
             .build()
         connectivityManager.registerNetworkCallback(request, callback)
 
-        awaitClose { connectivityManager.unregisterNetworkCallback(callback) }
+        // Doze/wake on Android 13 can coalesce or drop NetworkCallback events, leaving the tracker
+        // holding stale state (banner sticks after resume). syncNow() sweeps allNetworks() and
+        // reseeds the tracker so state matches reality on the next lifecycle-resume hop.
+        val syncJob = launch {
+            syncSignal.collect {
+                val fresh = mutableSetOf<Network>()
+                for (network in connectivityManager.allNetworks) {
+                    val caps = connectivityManager.getNetworkCapabilities(network) ?: continue
+                    if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    ) {
+                        fresh += network
+                    }
+                }
+                trySend(tracker.reset(fresh))
+            }
+        }
+
+        awaitClose {
+            syncJob.cancel()
+            connectivityManager.unregisterNetworkCallback(callback)
+        }
     }
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, currentOnline())
+
+    override fun syncNow() {
+        syncSignal.tryEmit(Unit)
+    }
 
     private fun currentOnline(): Boolean {
         val network = connectivityManager.activeNetwork ?: return false
