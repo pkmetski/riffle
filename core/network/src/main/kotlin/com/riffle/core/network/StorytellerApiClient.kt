@@ -10,10 +10,6 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 class StorytellerApiClient(
     private val httpClient: OkHttpClient,
@@ -131,7 +127,7 @@ class StorytellerApiClient(
     }
 
     private fun client(insecureAllowed: Boolean): OkHttpClient =
-        if (insecureAllowed) httpClient.trustAllCerts() else httpClient
+        if (insecureAllowed) httpClient.withInsecureTls() else httpClient
 
     private fun StorytellerBookResponse.toNetwork(): NetworkStorytellerBook =
         NetworkStorytellerBook(
@@ -141,18 +137,4 @@ class StorytellerApiClient(
             isbn = isbn,
             asin = asin,
         )
-
-    private fun OkHttpClient.trustAllCerts(): OkHttpClient {
-        val trustAll = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf(trustAll), SecureRandom())
-        }
-        return newBuilder()
-            .sslSocketFactory(sslContext.socketFactory, trustAll)
-            .build()
-    }
 }
