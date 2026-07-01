@@ -811,6 +811,54 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals("cross-device: adopt peer progression", 0.42, upserted.progression, 0.0)
     }
 
+    // ===== Fix 3: syncOnOpen preserves chapterHref on existing rows =====
+
+    @Test
+    fun `syncOnOpen preserves chapterHref on existing rows`() = runTest {
+        // Seed Room with a bookmark whose real chapterHref is a normalized EPUB resource path —
+        // what the reader stores at toggle-time. The W3C wire format writes `target.source` as
+        // `epub://item-<itemId>` and re-parses it back as `itemId`, so a naive upsert of the
+        // parsed W3CAnnotation's chapterHref clobbers the real value with the itemId on every
+        // sync round-trip. The reader's page-bookmarked indicator matches on normalized
+        // chapterHref, so the clobber makes the top-right indicator go dark after exit/re-enter
+        // even though the bookmark still exists in the annotations panel.
+        val realChapterHref = "OEBPS/chapter1.xhtml"
+        val local = highlightEntity("uuid-bookmark", updatedAt = 1000L)
+            .copy(chapterHref = realChapterHref)
+        dao.localAnnotations += local
+
+        // Own device's file on WebDAV (right after a push): same id, same updatedAt, same
+        // deviceId. LWW ties with `parsed + existing` grouping resolve to parsed on ties, so
+        // without the fix the upsert would take the wire's chapterHref (== ITEM).
+        target.files["annotations-own.jsonld"] = jsonArrayOf(
+            w3c("uuid-bookmark", updatedAt = 1000L, deviceId = DEVICE_ID),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-bookmark" }
+        assertEquals("chapterHref must survive the sync round-trip", realChapterHref, upserted.chapterHref)
+    }
+
+    @Test
+    fun `syncOnOpen adopts peer chapterHref for new cross-device annotations`() = runTest {
+        // No local row — the annotation was created on another device. The peer's file carries
+        // the real chapter path via the `riffle:chapterHref` extension, so on first receive the
+        // row lands with the actual chapter href (not the itemId derived from `target.source`).
+        // Under that assumption the reader's page-bookmarked indicator lights up on the correct
+        // chapter for cross-device bookmarks, mirroring the sort-key extension's behavior.
+        target.files["annotations-peer.jsonld"] = jsonArrayOf(
+            w3c(id = "uuid-peer-bookmark", updatedAt = 2000L, deviceId = "peer-device"),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-peer-bookmark" }
+        // The w3c() helper builds the entity with chapterHref = "c1"; the extension carries that
+        // through the round-trip. Before the extension existed this would have been ITEM.
+        assertEquals("cross-device: adopt peer chapterHref via extension", "c1", upserted.chapterHref)
+    }
+
     // ===== stamp + report + enqueue-on-failure =====
 
     @Test

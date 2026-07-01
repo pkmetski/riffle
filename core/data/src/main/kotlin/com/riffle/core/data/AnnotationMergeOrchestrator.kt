@@ -113,7 +113,16 @@ internal class AnnotationMergeOrchestrator(
                     textSnippet = w3cAnnotation.textSnippet,
                     textBefore = w3cAnnotation.textBefore,
                     textAfter = w3cAnnotation.textAfter,
-                    chapterHref = w3cAnnotation.chapterHref,
+                    // chapterHref round-trip: the W3C wire format encodes `target.source` as
+                    // `epub://item-<itemId>` (see AnnotationW3CCodec), so a parsed W3CAnnotation
+                    // carries the itemId in `chapterHref`, not the real chapter path. LWW ties
+                    // (same device, same updatedAt right after our own push) resolve to the
+                    // parsed row, so upserting `w3cAnnotation.chapterHref` unconditionally
+                    // silently overwrites the local row's real href with the itemId — and the
+                    // reader's page-bookmarked indicator, which matches on normalized chapterHref,
+                    // goes dark on re-open. The CFI is immutable per annotation, so the local
+                    // href is authoritative when we have a row.
+                    chapterHref = existing?.chapterHref ?: w3cAnnotation.chapterHref,
                     // Sort-key round-trip: prefer the locally-stored values when we already have a
                     // row (the CFI hasn't moved, so the sort key computed at creation time is still
                     // correct). Otherwise trust the peer's riffle:spineIndex / riffle:progression
