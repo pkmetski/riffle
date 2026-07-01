@@ -74,8 +74,12 @@ fun FormattingSection(
             Spacer(Modifier.height(20.dp))
         }
 
-        Text("Page", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(8.dp))
+        if (capabilities.supportsTextTypography || capabilities.supportsFontFamily) {
+            // Only render the "Page" section header when there's a preceding "Text" section
+            // to separate from — otherwise it reads as a redundant header for a single control.
+            Text("Page", style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(8.dp))
+        }
         Text("Margins", style = MaterialTheme.typography.labelMedium)
         StepperRow(
             label = "${marginsWord(prefs.margins)} · %.1f×".format(prefs.margins),
