@@ -243,7 +243,8 @@ class AnnotationSession @AssistedInject constructor(
      * openBook() path to snap to the initial annotation-nav target (openAtCfi) using the same
      * channel that [navigateToAnnotation] uses — so the screen only needs one subscriber.
      * The openAtCfi path is highlight/note-shaped (text anchor), so we send `isBookmark = false`
-     * to get the midpoint-landing treatment in continuous mode.
+     * to reflect the annotation type on the event. Continuous-mode landing is uniform midpoint
+     * for both types; the flag no longer affects alignment.
      */
     fun emitAnnotationNavigation(locator: Locator) {
         _annotationNavigationChannel.trySend(AnnotationNavigationEvent(locator, isBookmark = false))
