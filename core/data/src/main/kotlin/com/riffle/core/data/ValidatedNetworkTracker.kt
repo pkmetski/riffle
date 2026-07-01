@@ -25,14 +25,20 @@ internal class ValidatedNetworkTracker<K : Any> {
     }
 
     /**
-     * Discard the event-derived set and replace it with [fresh]. Used by
-     * `ConnectivityObserverImpl.syncNow()` to heal drift when NetworkCallback events were dropped
-     * or coalesced during doze — the ground truth comes from a fresh sweep of
-     * `ConnectivityManager.getAllNetworks()` rather than the accumulated event history.
+     * Union [fresh] into the tracked set. Callback events are authoritative for removal — a
+     * reconciliation sweep only heals the "we missed an onAvailable during doze" direction and
+     * must never re-add a network the callbacks have already reported as lost, or an airplane-mode
+     * offline emit could be silently reverted by a stale `getAllNetworks()` snapshot.
      */
-    fun reset(fresh: Set<K>): Boolean {
-        validated.clear()
+    fun mergeIn(fresh: Set<K>): Boolean {
         validated += fresh
         return validated.isNotEmpty()
+    }
+
+    /** Drop every tracked network — used when the reconciliation sweep sees a null
+     * `activeNetwork`, i.e. no radio is currently routable. */
+    fun clear(): Boolean {
+        validated.clear()
+        return false
     }
 }

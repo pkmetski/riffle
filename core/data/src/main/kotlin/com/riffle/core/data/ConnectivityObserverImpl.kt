@@ -5,18 +5,20 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ConnectivityObserver
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,30 +33,33 @@ class ConnectivityObserverImpl @Inject constructor(
 
     private val scope = applicationScope.coroutineScope
 
-    // syncNow() pokes this; the callbackFlow collector reconciles the tracker against the live
-    // ConnectivityManager snapshot. Buffered + DROP_OLDEST so a caller storm doesn't wedge the
-    // emitter but the next reconciliation still happens.
-    private val syncSignal = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
-
     override val isOnline: StateFlow<Boolean> = callbackFlow {
-        // Online-state is derived from callback events rather than re-queried on each transition.
-        // Re-querying ConnectivityManager.activeNetwork inside onLost is racy: at the instant the
-        // callback fires, the just-lost network can still appear active and validated, which would
-        // emit `true` and — because our NetworkRequest filters on VALIDATED — never produce another
-        // event for that network. Result: airplane mode never flipped the offline banner.
+        // Online-state is derived from two signals, treating every radio identically — airplane
+        // mode is just "all radios off" and isn't special-cased:
+        //   * NetworkCallback — primary, event-driven. onAvailable/onLost/onCapabilitiesChanged
+        //     fire for every transport (wifi, cellular, ethernet, VPN) on every toggle.
+        //   * ProcessLifecycleOwner ON_START — heals doze/wake drift on Android 13+ where
+        //     NetworkCallback events can be dropped or coalesced. `activeNetwork` is the coarse
+        //     ground-truth: null → offline, non-null → union any newly-validated networks in.
+        //     The sweep never removes networks the callbacks have already reported, so a stale
+        //     `getAllNetworks()` during teardown cannot revert a correct offline emit.
         val tracker = ValidatedNetworkTracker<Network>()
-        trySend(currentOnline())
+
+        // See `reconcileOnline` — every callback emit is cross-checked against `activeNetwork`
+        // so a dropped `onLost` cannot keep the banner hidden.
+        fun emitReconciled(callbackOnline: Boolean) {
+            trySend(reconcileOnline(callbackOnline, connectivityManager.activeNetwork != null))
+        }
+
+        emitReconciled(currentOnline())
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                trySend(tracker.onAvailable(network))
+                emitReconciled(tracker.onAvailable(network))
             }
 
             override fun onLost(network: Network) {
-                trySend(tracker.onLost(network))
+                emitReconciled(tracker.onLost(network))
             }
 
             override fun onCapabilitiesChanged(
@@ -63,7 +68,7 @@ class ConnectivityObserverImpl @Inject constructor(
             ) {
                 val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                     capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                trySend(tracker.onCapabilitiesChanged(network, hasInternet))
+                emitReconciled(tracker.onCapabilitiesChanged(network, hasInternet))
             }
         }
 
@@ -73,35 +78,39 @@ class ConnectivityObserverImpl @Inject constructor(
             .build()
         connectivityManager.registerNetworkCallback(request, callback)
 
-        // Doze/wake on Android 13 can coalesce or drop NetworkCallback events, leaving the tracker
-        // holding stale state (banner sticks after resume). syncNow() sweeps allNetworks() and
-        // reseeds the tracker so state matches reality on the next lifecycle-resume hop.
-        val syncJob = launch {
-            syncSignal.collect {
-                val fresh = mutableSetOf<Network>()
-                for (network in connectivityManager.allNetworks) {
-                    val caps = connectivityManager.getNetworkCapabilities(network) ?: continue
-                    if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                    ) {
-                        fresh += network
-                    }
-                }
-                trySend(tracker.reset(fresh))
+        fun reconcile() {
+            if (connectivityManager.activeNetwork == null) {
+                emitReconciled(tracker.clear())
+                return
             }
+            val fresh = mutableSetOf<Network>()
+            for (network in connectivityManager.allNetworks) {
+                val caps = connectivityManager.getNetworkCapabilities(network) ?: continue
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                ) {
+                    fresh += network
+                }
+            }
+            emitReconciled(tracker.mergeIn(fresh))
+        }
+
+        val lifecycleOwner = ProcessLifecycleOwner.get()
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) reconcile()
+        }
+        // LifecycleRegistry requires main-thread registration.
+        withContext(Dispatchers.Main.immediate) {
+            lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
         }
 
         awaitClose {
-            syncJob.cancel()
             connectivityManager.unregisterNetworkCallback(callback)
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
         }
     }
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, currentOnline())
-
-    override fun syncNow() {
-        syncSignal.tryEmit(Unit)
-    }
 
     private fun currentOnline(): Boolean {
         val network = connectivityManager.activeNetwork ?: return false
@@ -112,3 +121,25 @@ class ConnectivityObserverImpl @Inject constructor(
 
     override fun isMetered(): Boolean = connectivityManager.isActiveNetworkMetered
 }
+
+/**
+ * The reconciliation predicate that gates every `isOnline` emit. Both the
+ * `NetworkCallback`-driven `ValidatedNetworkTracker` AND
+ * `ConnectivityManager.activeNetwork` must agree that we're online — either signal saying "no"
+ * wins.
+ *
+ * This is deliberately a pure function so the four truth-table cases can be exhaustively
+ * unit-tested. Each corner encodes a real, previously-shipped regression:
+ *
+ *   * `(true, false)` — the fourth-time-around regression: on Android 13 the OS silently drops
+ *     one of the `onLost` callbacks when airplane mode turns multiple validated networks off at
+ *     once, so the tracker retains a stale network and thinks we're online. `activeNetwork ==
+ *     null` vetoes it → offline.
+ *   * `(false, true)` — the airplane-mode/#294 regression: during teardown `activeNetwork` can
+ *     still briefly report the just-lost network. The tracker (driven by `onLost`) is correct
+ *     → offline.
+ *   * `(true, true)` — healthy online state.
+ *   * `(false, false)` — clean disconnect, both signals agree → offline.
+ */
+internal fun reconcileOnline(trackerOnline: Boolean, hasActiveNetwork: Boolean): Boolean =
+    trackerOnline && hasActiveNetwork

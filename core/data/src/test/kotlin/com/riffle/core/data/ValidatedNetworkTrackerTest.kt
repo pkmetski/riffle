@@ -61,23 +61,39 @@ class ValidatedNetworkTrackerTest {
     }
 
     @Test
-    fun `reset replaces the tracked set with the fresh snapshot`() {
+    fun `mergeIn adds fresh networks without removing existing ones`() {
         // Regression for the resume-from-sleep bug: NetworkCallback events can be coalesced during
-        // Android 13 doze so onLost fires without a matching onAvailable on wake. syncNow() must
-        // discard the accumulated event history and re-seed from a live ConnectivityManager sweep.
+        // Android 13 doze so onAvailable is missed after wake. The reconciliation sweep adds any
+        // still-validated networks discovered from ConnectivityManager without dropping networks
+        // callbacks have already reported.
         val tracker = ValidatedNetworkTracker<String>()
-        tracker.onAvailable("stale-wifi")
+        tracker.onAvailable("cellular")
 
-        assertTrue(tracker.reset(setOf("live-wifi")))
-        assertTrue(tracker.onLost("stale-wifi"))
-        assertFalse(tracker.onLost("live-wifi"))
+        assertTrue(tracker.mergeIn(setOf("wifi")))
+        // Both networks now tracked — either being lost keeps us online.
+        assertTrue(tracker.onLost("cellular"))
+        assertFalse(tracker.onLost("wifi"))
     }
 
     @Test
-    fun `reset to an empty snapshot flips online to false`() {
+    fun `mergeIn with an empty snapshot preserves the existing set`() {
+        // A stale getAllNetworks() during airplane-mode teardown must NOT clobber a correct
+        // onLost-derived offline state — mergeIn only unions in fresh networks, never removes.
         val tracker = ValidatedNetworkTracker<String>()
         tracker.onAvailable("wifi")
 
-        assertFalse(tracker.reset(emptySet()))
+        assertTrue(tracker.mergeIn(emptySet()))
+    }
+
+    @Test
+    fun `clear drops every tracked network`() {
+        // Called from the ProcessLifecycleOwner ON_START sweep when
+        // `ConnectivityManager.activeNetwork` is null — the coarse ground-truth signal that no
+        // radio is currently routable (airplane mode, all radios off, etc.).
+        val tracker = ValidatedNetworkTracker<String>()
+        tracker.onAvailable("wifi")
+        tracker.onAvailable("cellular")
+
+        assertFalse(tracker.clear())
     }
 }
