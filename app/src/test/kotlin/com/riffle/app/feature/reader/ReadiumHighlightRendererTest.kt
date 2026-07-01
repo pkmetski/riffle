@@ -100,12 +100,30 @@ class ReadiumHighlightRendererTest {
             makeRender("h2", "c1.xhtml", color = "green"),
         )
         renderer.applyAnnotations(renders)
-        // applyDecorationsWithClear = clear + apply → 2 calls to the block
-        val decorationCall = applied.last()
-        assertEquals("annotations", decorationCall.second)
-        assertEquals(2, decorationCall.first.size)
-        assertEquals("h1", decorationCall.first[0].id)
-        assertEquals("h2", decorationCall.first[1].id)
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        // Initial apply + 4-tick settle window (each = clear + apply) = 1 + 4*2 = 9 calls
+        assertTrue("expected initial apply plus settle re-applies", annotationCalls.size >= 3)
+        // The initial apply is the first "annotations" call
+        val firstApply = annotationCalls.first()
+        assertEquals(2, firstApply.first.size)
+        assertEquals("h1", firstApply.first[0].id)
+        assertEquals("h2", firstApply.first[1].id)
+    }
+
+    @Test
+    fun `applyAnnotations settle loop aborts when navigator stamp changes`() = runTest {
+        // Same guard as applySearch: on a fresh navigator stamp between settle ticks, don't keep
+        // shoving decorations into a WebView that isn't ours anymore. Regression pin — without this
+        // abort, an orientation flip mid-settle would spam the old fragment for another second.
+        val recorder = mutableListOf<Pair<List<Decoration>, String>>()
+        val abortingRenderer = ReadiumHighlightRenderer(
+            applyDecorationsBlock = { decorations, group -> recorder.add(decorations to group) },
+            fragmentLocator = { ref, _ -> if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null },
+            currentNavigatorStamp = { Any() }, // new object every call → stamp always changes
+        )
+        abortingRenderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
+        val annotationCalls = recorder.filter { it.second == "annotations" }
+        assertEquals("only the initial apply fires when the stamp changes", 1, annotationCalls.size)
     }
 
     @Test
