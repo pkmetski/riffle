@@ -3,6 +3,7 @@
 **Status:** Accepted
 **Withdraws:** ADR 0033 (Google Drive appDataFolder as first cloud target) — never implemented; the underlying assumption no longer holds.
 **Reaffirms:** [ADR 0025](0025-annotation-sync-pluggable-target-w3c-format.md) (pluggable target, W3C format, per-device-file merge) — its **original** first-target plan: WebDAV.
+**Superseded-in-part by:** [ADR 0038](0038-annotation-tombstone-ttl-and-file-gc.md) — replaces the "No automatic GC" clause with a wall-clock TTL sweep of tombstones plus WebDAV file deletion when a device's file becomes empty.
 
 ## Context
 

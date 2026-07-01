@@ -340,4 +340,5 @@ abstract class StubAnnotationDao : AnnotationDao {
     override fun observePendingCountAcrossAll() = kotlinx.coroutines.flow.flowOf(0)
     override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
+    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
 }

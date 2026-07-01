@@ -261,6 +261,7 @@ class SettingsViewModelTest {
         override fun observePendingCountAcrossAll() = flowOf(pendingCount)
         override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
+        override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
     }
 
     private fun stubConfigStore(flow: MutableStateFlow<AnnotationSyncConfig?>) = object : AnnotationSyncConfigStore {

@@ -600,6 +600,149 @@ class AnnotationMergeServiceTest {
         assertEquals("zzzz", result[2].id)
     }
 
+    // ===== ADR 0038 rule 3 — stale-orphan filter on merge =====
+    //
+    // When a peer that has been offline > TTL comes online and pushes rows whose updatedAt is
+    // older than (now - TTL), we ignore any such row whose UUID we have no local copy of. This is
+    // the resurrection guard: without it, LWW would upsert the stale live copy back into every
+    // peer's Room. Rows we DO have locally, and fresh rows, are unaffected — normal LWW applies.
+
+    @Test
+    fun `stale orphan live record is ignored when no existing row matches its UUID`() {
+        // Peer pushes uuid-ghost as live with updatedAt=100. Local Room has no uuid-ghost row (it
+        // was deleted household-wide and swept). now=10_000_000 with cutoffMs=90 → cutoff=9_999_910;
+        // 100 < 9_999_910, so the row is stale and orphaned → ignore.
+        val staleOrphan = W3CAnnotation(
+            id = "uuid-ghost",
+            cfi = "/2/4!/4/2/2,/1:0,/1:10",
+            textSnippet = "should not resurrect",
+            chapterHref = "chapter1.html",
+            type = "HIGHLIGHT",
+            color = "yellow",
+            originDeviceId = "device-offline",
+            lastModifiedByDeviceId = "device-offline",
+            updatedAt = 100L,
+            createdAt = 100L,
+        )
+
+        val result = service.merge(
+            parsed = listOf(staleOrphan),
+            existing = emptyList(),
+            nowMs = 10_000_000L,
+            staleOrphanCutoffMs = 90L,
+        )
+
+        assertEquals("stale orphan must not be applied", 0, result.size)
+    }
+
+    @Test
+    fun `stale orphan tombstone is ignored when no existing row matches its UUID`() {
+        val staleTombOrphan = W3CAnnotation(
+            id = "uuid-old-tomb",
+            cfi = "/2/4!/4/2/2,/1:0,/1:10",
+            textSnippet = "",
+            chapterHref = "chapter1.html",
+            type = "HIGHLIGHT",
+            color = "yellow",
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            updatedAt = 100L,
+            createdAt = 100L,
+            deleted = true,
+        )
+
+        val result = service.merge(
+            parsed = listOf(staleTombOrphan),
+            existing = emptyList(),
+            nowMs = 10_000_000L,
+            staleOrphanCutoffMs = 90L,
+        )
+
+        assertEquals("stale orphan tombstone is noise — do not propagate", 0, result.size)
+    }
+
+    @Test
+    fun `stale incoming record is applied when we already have a local row for its UUID`() {
+        // We have a live copy locally. Peer pushes a stale tombstone for the same UUID (they
+        // deleted it a long time ago but we've been the offline one this time). LWW must fire.
+        val localLive = W3CAnnotation(
+            id = "uuid-shared",
+            cfi = "/2/4!/4/2/2,/1:0,/1:10",
+            textSnippet = "local live",
+            chapterHref = "chapter1.html",
+            type = "HIGHLIGHT",
+            color = "yellow",
+            originDeviceId = "device-self",
+            lastModifiedByDeviceId = "device-self",
+            updatedAt = 50L,
+            createdAt = 50L,
+        )
+        val staleIncomingTomb = localLive.copy(
+            lastModifiedByDeviceId = "device-peer",
+            updatedAt = 100L,
+            deleted = true,
+        )
+
+        val result = service.merge(
+            parsed = listOf(staleIncomingTomb),
+            existing = listOf(localLive),
+            nowMs = 10_000_000L,
+            staleOrphanCutoffMs = 90L,
+        )
+
+        assertEquals(1, result.size)
+        assertTrue("we have the row locally — stale-orphan filter must not fire", result[0].deleted)
+    }
+
+    @Test
+    fun `fresh orphan record is applied normally`() {
+        // Peer creates a brand-new annotation while we happen to have nothing yet. Fresh timestamp
+        // → filter does not fire → upsert.
+        val freshOrphan = W3CAnnotation(
+            id = "uuid-brand-new",
+            cfi = "/2/4!/4/2/2,/1:0,/1:10",
+            textSnippet = "new from peer",
+            chapterHref = "chapter1.html",
+            type = "HIGHLIGHT",
+            color = "green",
+            originDeviceId = "device-peer",
+            lastModifiedByDeviceId = "device-peer",
+            updatedAt = 9_999_950L,
+            createdAt = 9_999_950L,
+        )
+
+        val result = service.merge(
+            parsed = listOf(freshOrphan),
+            existing = emptyList(),
+            nowMs = 10_000_000L,
+            staleOrphanCutoffMs = 90L,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("uuid-brand-new", result[0].id)
+    }
+
+    @Test
+    fun `filter is disabled by default so legacy callers see no behavior change`() {
+        // Without nowMs/staleOrphanCutoffMs, the merge must behave like the pre-ADR-0038 version.
+        val ancientOrphan = W3CAnnotation(
+            id = "uuid-ancient",
+            cfi = "/2/4!/4/2/2,/1:0,/1:10",
+            textSnippet = "ancient",
+            chapterHref = "chapter1.html",
+            type = "HIGHLIGHT",
+            color = "yellow",
+            originDeviceId = "device-old",
+            lastModifiedByDeviceId = "device-old",
+            updatedAt = 0L,
+            createdAt = 0L,
+        )
+
+        val result = service.merge(parsed = listOf(ancientOrphan))
+
+        assertEquals("no TTL args → filter must not fire", 1, result.size)
+    }
+
     // Test 14: Tie-breaker with multiple candidates at same timestamp
     @Test
     fun `multiple tie-breaks applied in order`() {

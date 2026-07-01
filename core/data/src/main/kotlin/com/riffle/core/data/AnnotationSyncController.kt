@@ -83,6 +83,13 @@ class AnnotationSyncController(
     companion object {
         private const val DEBOUNCE_DURATION_MS = 1000L
         private const val LIVE_SYNC_INTERVAL_MS = 30_000L
+
+        /**
+         * ADR 0038 — tombstones and the ignore-stale-orphan merge guard both use this cutoff.
+         * 90 days: cheap lever to reduce the "device offline > TTL, then edits a ghost" resurrection
+         * risk without meaningfully changing tidiness benefit. Not a user setting.
+         */
+        internal const val TOMBSTONE_TTL_MS = 90L * 24L * 60L * 60L * 1000L
     }
 
     private val debouncingJobs = mutableMapOf<Pair<String, String>, Job>()
@@ -137,6 +144,15 @@ class AnnotationSyncController(
                 }
             }
 
+            // ADR 0038 rule 1 — sweep our own aged tombstones before reading local state for the
+            // merge. Rows are hard-deleted from Room only if they've been pushed at least once
+            // (guarded by `updatedAt <= lastSyncedAt` in the DAO query), so an offline delete stays
+            // put until it propagates. The pre-sweep snapshot is retained so we can detect the
+            // "sweep just emptied this device's row set" transition below (rule 2).
+            val now = clock()
+            val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+            annotationDao.purgeAgedTombstones(serverId, itemId, now - TOMBSTONE_TTL_MS)
+
             // Seed merge with the local set (including tombstones) so LWW spans both sides — a
             // newer local edit isn't clobbered by an older remote copy, and a local tombstone wins
             // over a remote pre-delete entry.
@@ -146,7 +162,15 @@ class AnnotationSyncController(
             val localExisting = localExistingEntities
                 .map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
-            val merged = mergeService.merge(parsed = parsedAnnotations, existing = localExisting)
+            // ADR 0038 rule 3 — ignore stale orphans. Incoming rows we've never seen locally and
+            // whose updatedAt is past TTL are the delayed push from a peer that missed a
+            // household-wide sweep; applying them would silently resurrect long-deleted content.
+            val merged = mergeService.merge(
+                parsed = parsedAnnotations,
+                existing = localExisting,
+                nowMs = now,
+                staleOrphanCutoffMs = TOMBSTONE_TTL_MS,
+            )
 
             val entities = merged.map { w3cAnnotation ->
                 val existing = localById[w3cAnnotation.id]
@@ -185,6 +209,19 @@ class AnnotationSyncController(
 
             for (entity in entities) {
                 annotationDao.upsert(entity)
+            }
+
+            // ADR 0038 rule 2 — if the sweep just emptied this device's row set for the item AND
+            // this device's own file is present in the peer listing, DELETE it. This catches the
+            // "user opens book with only aged tombs left, closes without editing" flow: the sweep
+            // runs here in the open path, so if we defer the DELETE to pushPending its transition
+            // guard misfires (Room was already emptied here, so beforeSweep in pushPending is
+            // trivially empty).
+            if (merged.isEmpty() && beforeSweep.isNotEmpty()) {
+                val ownFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+                if (ownFilename in filenames) {
+                    target.delete(namespace, itemId, ownFilename)
+                }
             }
             statusStore.report(CycleOutcome.Success(clock()))
             sentinelWriter.writeQuietly(target, namespace, serverId)
@@ -315,13 +352,28 @@ class AnnotationSyncController(
         // Include tombstones so deletes propagate; an annotation with deleted=1 still carries
         // its updatedAt/lastModifiedByDeviceId, and the LWW merge on the receiver will trust
         // the newer tombstone over any older live copy of the same id.
+        val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+        // ADR 0038 rule 1 — sweep our own aged, already-synced tombstones before we decide what to
+        // push. This is what makes files that hold nothing but old tombs shrink to zero rows.
+        val now = clock()
+        annotationDao.purgeAgedTombstones(serverId, itemId, now - TOMBSTONE_TTL_MS)
         val localEntities = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-        // Don't overwrite this device's existing remote file with an empty list when local has
-        // nothing — that erases the cloud copy of annotations on transient local-empty states
-        // (cleared data, mid-migration). We only push when there's at least one row (live or
-        // tombstoned) to record. Genuine "user deleted everything" still propagates because
-        // each delete leaves a tombstone in this list.
-        if (localEntities.isEmpty()) return false
+
+        if (localEntities.isEmpty()) {
+            // ADR 0038 rule 2 — if the sweep just emptied this device's row set for the item,
+            // DELETE the WebDAV file entirely instead of leaving a stale copy. The transition
+            // guard (beforeSweep non-empty → empty) is what tells "sweep emptied it" apart from
+            // "Room was already empty for a transient reason (cleared data, mid-migration)" —
+            // the latter case is still a no-op, preserving the pre-ADR-0038 behaviour that
+            // protected against overwriting a live remote file with `[]`.
+            if (beforeSweep.isNotEmpty()) {
+                val deviceId = deviceIdStore.getOrCreate()
+                target.delete(namespace, itemId, "annotations-$deviceId.jsonld")
+                statusStore.report(CycleOutcome.Success(now))
+                return true
+            }
+            return false
+        }
 
         val deviceId = deviceIdStore.getOrCreate()
         val jsonStrings = localEntities.map { entity ->
@@ -338,7 +390,6 @@ class AnnotationSyncController(
         val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
         val filename = "annotations-$deviceId.jsonld"
         target.write(namespace, itemId, filename, jsonArray)
-        val now = clock()
         annotationDao.markSynced(localEntities.map { it.id }, now)
         statusStore.report(CycleOutcome.Success(now))
         return true

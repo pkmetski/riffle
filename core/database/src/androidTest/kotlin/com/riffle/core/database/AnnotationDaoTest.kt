@@ -148,4 +148,51 @@ class AnnotationDaoTest {
 
         assertEquals(listOf("a1", "a2"), result.map { it.id })
     }
+
+    // ===== ADR 0038 — purgeAgedTombstones =====
+
+    @Test
+    fun purgeAgedTombstones_removesOnlyAgedAlreadySyncedTombstones() = runTest {
+        // Live rows must survive regardless of age (only tombstones age).
+        dao.upsert(highlight("live-old", createdAt = 0L))
+        dao.upsert(highlight("live-fresh", createdAt = 5000L))
+        // Aged tomb that has been synced → purge.
+        dao.upsert(highlight("tomb-aged-synced", createdAt = 100L, deleted = true).copy(lastSyncedAt = 200L))
+        // Aged tomb that never synced → keep (peers haven't received the delete yet).
+        dao.upsert(highlight("tomb-aged-unsynced", createdAt = 100L, deleted = true))
+        // Fresh tomb (past cutoff by wall-clock) → keep.
+        dao.upsert(highlight("tomb-fresh", createdAt = 9_000L, deleted = true).copy(lastSyncedAt = 9_000L))
+
+        val purged = dao.purgeAgedTombstones(serverId = "abs1", itemId = "item1", cutoff = 5_000L)
+
+        assertEquals(1, purged)
+        val remaining = dao.observeForItem("abs1", "item1").first().map { it.id }.toSet()
+        val allIncludingDeleted = dao.getAllForItemIncludingDeleted("abs1", "item1").map { it.id }.toSet()
+        assertTrue("live-old must survive age-based purge", "live-old" in remaining)
+        assertTrue("live-fresh must survive", "live-fresh" in remaining)
+        assertTrue("unsynced tomb must survive so peers still receive the delete",
+            "tomb-aged-unsynced" in allIncludingDeleted)
+        assertTrue("fresh tomb must survive", "tomb-fresh" in allIncludingDeleted)
+        assertEquals("aged+synced tomb must be gone", false, "tomb-aged-synced" in allIncludingDeleted)
+    }
+
+    @Test
+    fun purgeAgedTombstones_isScopedToServerAndItem() = runTest {
+        // Same "aged + synced tombstone" pattern under a different itemId and a different serverId.
+        // A per-item purge call must not touch either.
+        dao.upsert(highlight("tomb-target", serverId = "abs1", itemId = "item1", createdAt = 100L, deleted = true)
+            .copy(lastSyncedAt = 200L))
+        dao.upsert(highlight("tomb-other-item", serverId = "abs1", itemId = "item2", createdAt = 100L, deleted = true)
+            .copy(lastSyncedAt = 200L))
+        dao.upsert(highlight("tomb-other-server", serverId = "abs2", itemId = "item1", createdAt = 100L, deleted = true)
+            .copy(lastSyncedAt = 200L))
+
+        val purged = dao.purgeAgedTombstones(serverId = "abs1", itemId = "item1", cutoff = 5_000L)
+
+        assertEquals(1, purged)
+        assertTrue("other-item tomb must survive a scoped purge",
+            "tomb-other-item" in dao.getAllForItemIncludingDeleted("abs1", "item2").map { it.id })
+        assertTrue("other-server tomb must survive",
+            "tomb-other-server" in dao.getAllForItemIncludingDeleted("abs2", "item1").map { it.id })
+    }
 }

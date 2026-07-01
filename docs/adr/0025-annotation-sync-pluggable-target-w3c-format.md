@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Extends:** [ADR 0003](0003-local-first-annotations.md) (local-first annotations) — keeps its local-first core, supersedes its "defer sync until ABS adds native support / push bookmarks to the ABS bookmark API" stance.
+**Superseded-in-part by:** [ADR 0038](0038-annotation-tombstone-ttl-and-file-gc.md) — replaces the "No automatic GC" policy and the "Manual tombstone compaction was prototyped and removed" discussion with a wall-clock TTL sweep of tombstones plus WebDAV file deletion when a device's file becomes empty.
 
 ## Context
 
