@@ -110,11 +110,10 @@ class AnnotationFocusHarnessTest {
         addServerAndBrowseLibrary()
         seedDeepHighlight()
 
-        // Trigger the library→tap-annotation flow MULTIPLE times to expose races.
-        // After each landing the test signals a marker + holds, so the host can screencap that
-        // landing's pixels (uiAutomation.takeScreenshot returns null on a -no-window AVD).
+        // Repeat the library→tap-annotation flow multiple times to expose reflow / navigation
+        // races. Each attempt asserts the annotated phrase actually lands inside the viewport
+        // (which is what "focus" means for the reader) via a bounded JS poll — no idle sleeps.
         val attempts = 3
-        val tag = orientation.name.lowercase()
         repeat(attempts) { i ->
             val attempt = i + 1
             searchAndTapAnnotation()
@@ -122,21 +121,13 @@ class AnnotationFocusHarnessTest {
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                     .fetchSemanticsNodes().isNotEmpty()
             }
-            // The annotation-mark anchored landing finishes within a couple of remeasures (one
-            // reflow tick). 8s is comfortably beyond that and gives the AVD WebView time to paint.
-            Thread.sleep(8_000)
-            writeMarker("READY_${tag}_$attempt")
-            Thread.sleep(8_000)
+            val result = waitForPhraseOnScreen(orientation, timeoutMs = 15_000)
+            assertTrue(
+                "$orientation attempt $attempt: annotated phrase not focused on screen. $result",
+                result.onScreen,
+            )
             if (attempt < attempts) returnToLibrary()
         }
-    }
-
-    private fun writeMarker(name: String) {
-        try {
-            android.util.Log.d("AnnoFocusHarness", "MARKER $name")
-            val dir = InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null) ?: return
-            java.io.File(dir, name).writeText(name)
-        } catch (_: Throwable) { /* diagnostic only */ }
     }
 
     /** Pop the back stack from reader (and the library detail screen, if interposed) back to the

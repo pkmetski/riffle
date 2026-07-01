@@ -117,7 +117,11 @@ class OrientationFlipAnnotationHarnessTest {
         }
         // Let continuous render its `<mark data-riffle-ann>` so we know the seeded highlight is
         // alive before we flip — a bug in the seed would otherwise masquerade as a flip bug.
-        Thread.sleep(6_000)
+        // Poll for the first mark instead of sleeping a hardcoded 6s: on a fast device this
+        // shaves ~5s, and on a slow one it still gets the same margin the sleep gave us.
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            totalMatches("[data-riffle-ann]") > 0
+        }
         val continuousMarkCount = totalMatches("[data-riffle-ann]")
         assertTrue(
             "preflight: continuous mode failed to render the seeded highlight (got 0 marks); " +
