@@ -9,27 +9,13 @@ import org.readium.r2.navigator.preferences.Fit
 
 class PdfiumPreferencesMapperTest {
     @Test
-    fun `horizontal orientation maps to horizontal axis and contain fit`() {
-        val prefs = FormattingPreferences(orientation = ReaderOrientation.Horizontal)
-        val out = prefs.toPdfiumPreferences()
-        assertEquals(Axis.HORIZONTAL, out.scrollAxis)
-        assertEquals(Fit.CONTAIN, out.fit)
-    }
-
-    @Test
-    fun `vertical orientation maps to vertical axis and width fit`() {
-        val prefs = FormattingPreferences(orientation = ReaderOrientation.Vertical)
-        val out = prefs.toPdfiumPreferences()
-        assertEquals(Axis.VERTICAL, out.scrollAxis)
-        assertEquals(Fit.WIDTH, out.fit)
-    }
-
-    @Test
-    fun `continuous orientation maps like vertical`() {
-        val prefs = FormattingPreferences(orientation = ReaderOrientation.Continuous)
-        val out = prefs.toPdfiumPreferences()
-        assertEquals(Axis.VERTICAL, out.scrollAxis)
-        assertEquals(Fit.WIDTH, out.fit)
+    fun `axis and fit are always vertical width regardless of orientation`() {
+        ReaderOrientation.entries.forEach { orientation ->
+            val prefs = FormattingPreferences(orientation = orientation)
+            val out = prefs.toPdfiumPreferences()
+            assertEquals(Axis.VERTICAL, out.scrollAxis)
+            assertEquals(Fit.WIDTH, out.fit)
+        }
     }
 
     @Test

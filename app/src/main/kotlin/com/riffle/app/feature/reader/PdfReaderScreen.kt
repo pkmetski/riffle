@@ -10,7 +10,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -173,32 +172,28 @@ fun PdfReaderScreen(
                             .testTag("reader_loading"),
                     )
                 } else {
-                    // Theme scrim sits behind the pdfium fragment — reuses the same palette
-                    // EpubReaderScreen derives its background from (ReaderTheme.palette).
-                    Box(modifier = Modifier.fillMaxSize().background(formattingPrefs.theme.palette.background)) {
-                        PdfNavigatorView(
-                            state = s,
-                            prefs = formattingPrefs,
-                            onPageChanged = { locator ->
-                                immersiveState.dismissOverlay()
-                                viewModel.onPageChanged(locator)
+                    PdfNavigatorView(
+                        state = s,
+                        prefs = formattingPrefs,
+                        onPageChanged = { locator ->
+                            immersiveState.dismissOverlay()
+                            viewModel.onPageChanged(locator)
+                        },
+                        onTap = immersiveState::toggle,
+                        serverLocatorEvents = viewModel.serverLocatorEvents,
+                        volumeNavEvents = viewModel.volumeNavEvents,
+                        latestLocator = { viewModel.latestLocator },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("reader_ready")
+                            .semantics {
+                                contentDescription = buildString {
+                                    append(currentPage?.let { "page:$it" } ?: "")
+                                    append(" wake-lock:")
+                                    append(if (keepScreenOn) "on" else "off")
+                                }
                             },
-                            onTap = immersiveState::toggle,
-                            serverLocatorEvents = viewModel.serverLocatorEvents,
-                            volumeNavEvents = viewModel.volumeNavEvents,
-                            latestLocator = { viewModel.latestLocator },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .testTag("reader_ready")
-                                .semantics {
-                                    contentDescription = buildString {
-                                        append(currentPage?.let { "page:$it" } ?: "")
-                                        append(" wake-lock:")
-                                        append(if (keepScreenOn) "on" else "off")
-                                    }
-                                },
-                        )
-                    }
+                    )
 
                     if (tocVisible) {
                         TocPanel(
@@ -311,7 +306,7 @@ fun PdfReaderScreen(
         // visual — same Composable, fed by the PDF-side rail-segment generator. Anchored
         // to the absolute screen bottom so the system nav bar overlays it without shifting
         // it up; this keeps the rail stationary as immersive mode toggles (matches EPUB).
-        if (state is ReaderState.Ready) {
+        if (state is ReaderState.Ready && formattingPrefs.showChapterMap) {
             PdfChapterRailOverlay(
                 viewModel = viewModel,
                 modifier = Modifier

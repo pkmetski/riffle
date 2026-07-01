@@ -32,15 +32,17 @@ fun FormattingSection(
         Text("Text", style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(8.dp))
 
-        Text("Font size", style = MaterialTheme.typography.labelMedium)
-        StepperRow(
-            label = "%.0f%%".format(prefs.fontSize * 100),
-            onDecrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize - 0.1f).coerceAtLeast(0.5f).round1())) },
-            onIncrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize + 0.1f).coerceAtMost(2.5f).round1())) },
-            decrementDescription = "Decrease font size",
-            incrementDescription = "Increase font size",
-        )
-        Spacer(Modifier.height(16.dp))
+        if (capabilities.supportsTextTypography) {
+            Text("Font size", style = MaterialTheme.typography.labelMedium)
+            StepperRow(
+                label = "%.0f%%".format(prefs.fontSize * 100),
+                onDecrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize - 0.1f).coerceAtLeast(0.5f).round1())) },
+                onIncrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize + 0.1f).coerceAtMost(2.5f).round1())) },
+                decrementDescription = "Decrease font size",
+                incrementDescription = "Increase font size",
+            )
+            Spacer(Modifier.height(16.dp))
+        }
 
         if (capabilities.supportsFontFamily) {
             Text("Font", style = MaterialTheme.typography.labelMedium)
@@ -52,21 +54,23 @@ fun FormattingSection(
             Spacer(Modifier.height(12.dp))
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Justify text", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Switch(checked = prefs.justifyText, onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) })
-        }
-        Spacer(Modifier.height(16.dp))
+        if (capabilities.supportsTextTypography) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Justify text", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Switch(checked = prefs.justifyText, onCheckedChange = { onPrefsChange(prefs.copy(justifyText = it)) })
+            }
+            Spacer(Modifier.height(16.dp))
 
-        Text("Line spacing", style = MaterialTheme.typography.labelMedium)
-        StepperRow(
-            label = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(prefs.lineSpacing),
-            onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f).round1())) },
-            onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(2.0f).round1())) },
-            decrementDescription = "Decrease line spacing",
-            incrementDescription = "Increase line spacing",
-        )
-        Spacer(Modifier.height(20.dp))
+            Text("Line spacing", style = MaterialTheme.typography.labelMedium)
+            StepperRow(
+                label = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(prefs.lineSpacing),
+                onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f).round1())) },
+                onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(2.0f).round1())) },
+                decrementDescription = "Decrease line spacing",
+                incrementDescription = "Increase line spacing",
+            )
+            Spacer(Modifier.height(20.dp))
+        }
 
         Text("Page", style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(8.dp))

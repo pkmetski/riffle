@@ -42,41 +42,43 @@ fun DisplaySection(
 ) {
     Column {
         // Theme
-        Text("Theme", style = MaterialTheme.typography.labelMedium)
-        val concreteThemes = listOf(ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            concreteThemes.forEach { theme ->
+        if (capabilities.supportsTheme) {
+            Text("Theme", style = MaterialTheme.typography.labelMedium)
+            val concreteThemes = listOf(ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                concreteThemes.forEach { theme ->
+                    FilterChip(
+                        selected = prefs.theme == theme,
+                        onClick = { onPrefsChange(prefs.copy(theme = theme)) },
+                        label = { Text(theme.label()) },
+                        leadingIcon = { ThemeSwatch(theme, prefs.themeSchedule) },
+                        modifier = Modifier.semantics { contentDescription = "${theme.label()} theme" },
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
-                    selected = prefs.theme == theme,
-                    onClick = { onPrefsChange(prefs.copy(theme = theme)) },
-                    label = { Text(theme.label()) },
-                    leadingIcon = { ThemeSwatch(theme, prefs.themeSchedule) },
-                    modifier = Modifier.semantics { contentDescription = "${theme.label()} theme" },
+                    selected = prefs.theme == ReaderTheme.Auto,
+                    onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
+                    label = { Text(ReaderTheme.Auto.label()) },
+                    leadingIcon = { ThemeSwatch(ReaderTheme.Auto, prefs.themeSchedule) },
+                    modifier = Modifier.semantics { contentDescription = "${ReaderTheme.Auto.label()} theme" },
                 )
             }
-        }
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = prefs.theme == ReaderTheme.Auto,
-                onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
-                label = { Text(ReaderTheme.Auto.label()) },
-                leadingIcon = { ThemeSwatch(ReaderTheme.Auto, prefs.themeSchedule) },
-                modifier = Modifier.semantics { contentDescription = "${ReaderTheme.Auto.label()} theme" },
-            )
-        }
-        if (prefs.theme == ReaderTheme.Auto) {
-            Spacer(Modifier.height(12.dp))
-            if (scheduleEditable) {
-                AutoScheduleControls(
-                    schedule = prefs.themeSchedule,
-                    onScheduleChange = { onPrefsChange(prefs.copy(themeSchedule = it)) },
-                )
-            } else {
-                AutoScheduleSummaryCard(prefs.themeSchedule)
+            if (prefs.theme == ReaderTheme.Auto) {
+                Spacer(Modifier.height(12.dp))
+                if (scheduleEditable) {
+                    AutoScheduleControls(
+                        schedule = prefs.themeSchedule,
+                        onScheduleChange = { onPrefsChange(prefs.copy(themeSchedule = it)) },
+                    )
+                } else {
+                    AutoScheduleSummaryCard(prefs.themeSchedule)
+                }
             }
+            Spacer(Modifier.height(20.dp))
         }
-        Spacer(Modifier.height(20.dp))
 
         // View
         Text("View", style = MaterialTheme.typography.labelMedium)
@@ -122,7 +124,9 @@ fun DisplaySection(
         Spacer(Modifier.height(4.dp))
         ToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
         ToggleRow("Current chapter label", prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
-        ToggleRow("Reading progress labels", prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
+        if (capabilities.supportsReadingProgressLabels) {
+            ToggleRow("Reading progress labels", prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
+        }
         ToggleRow("Time remaining", prefs.showReadingTimeEstimate) { onPrefsChange(prefs.copy(showReadingTimeEstimate = it)) }
     }
 }
