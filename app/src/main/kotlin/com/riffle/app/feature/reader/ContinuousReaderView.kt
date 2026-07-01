@@ -83,43 +83,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     data class ChapterEntry(val link: Link, val url: String)
 
-    /** Called on main thread when scroll position changes; emits raw `(href, progression)` — NOT a full Locator. */
-    var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
-
-
-    /**
-     * Called on main thread when the user taps a chapter without scrolling.
-     * Wire to the reader's chrome toggle so top/bottom bars show/hide on tap.
-     */
-    var onTap: (() -> Unit)? = null
-
-    /**
-     * Called on the main thread when the user taps an in-book link inside a chapter (footnote,
-     * cross-reference). [href] is the target resource path (with any `#fragment`). The host wires
-     * this to the return-aware navigation path so a "Back" card can restore the pre-jump position.
-     */
-    var onInternalLinkTapped: ((href: String) -> Unit)? = null
-
-    /**
-     * Called on the main thread when the user taps an external (http/https) link. [url] is the
-     * absolute URL; the host opens it in a browser.
-     */
-    var onExternalLinkTapped: ((url: String) -> Unit)? = null
-
     /** Whether the text-selection menu should offer "Highlight" (books with annotations UI). */
     var annotationsAvailable: Boolean = false
         set(value) {
             field = value
             webViews.forEach { it.annotationsAvailable = value }
         }
-
-    /**
-     * Called on the main thread with (chapter href, selected text, within-chapter progression,
-     * screen rect of the selection in device pixels) when the user taps "Highlight".
-     * The progression lets the host build a correctly-anchored CFI range; the rect positions
-     * the highlight-actions popup next to the selected text.
-     */
-    var onHighlightSelection: ((href: String, selectedText: String, progression: Double, screenRect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
 
     /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -131,15 +100,54 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /**
      * Called on the main thread with (chapter href, selected text, evalJs) when the user taps
      * "Play". [evalJs] is the WebView's evaluateJavascript so the host can run geometry-based
-     * sentence resolution before falling back to text matching.
+     * sentence resolution before falling back to text matching. Retained as a View-owned callback
+     * (unlike the other per-chapter callbacks, which route through [ChapterWebViewBinder]) because
+     * sentence-scoped resolution needs publication state that only the coordinator holds.
      */
     var onPlayFromHereSelection: ((href: String, selectedText: String, evalJs: (String, (String?) -> Unit) -> Unit) -> Unit)? = null
 
+    /** Constructed by [install] once the coordinator supplies the three sinks. Binds every
+     *  per-chapter [ChapterWebView] callback except `onInternalLink` and `onPlayFromHere` (see
+     *  [ChapterWebViewBinder] doc). `lateinit` so a mis-ordered `initialize()` before `attach()`
+     *  fails fast with `UninitializedPropertyAccessException` at the real bug site instead of
+     *  silently binding every chapter without callbacks (no tap, no highlight, no link handling). */
+    private lateinit var binder: ChapterWebViewBinder
+
+    /** Set by [install]; invoked from [handleScrollChange] with the raw `(href, progression)` on
+     *  every scroll-position update. */
+    private var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
+
     /**
-     * Called on the main thread with the resolved footnote body when the user taps a footnote
-     * anchor in a chapter. The host shows the footnote popup.
+     * Wire this view to the coordinator's sinks. Must be called once, from
+     * [ContinuousReaderCoordinator.attach], before any chapter is appended/prepended — the binder
+     * it constructs is what [appendChapter] / [prependChapter] use to wire each [ChapterWebView].
      */
-    var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+    internal fun install(
+        navigation: ContinuousNavigationSink,
+        links: ContinuousLinkSink,
+        annotations: ContinuousAnnotationSink,
+        onInternalLink: (href: String) -> Unit,
+        onRawPosition: (href: String, progression: Float) -> Unit,
+    ) {
+        this.onRawPosition = onRawPosition
+        binder = ChapterWebViewBinder(
+            navigation = navigation,
+            links = links,
+            annotations = annotations,
+            screenRectOf = ::screenRectFor,
+            onRenderGone = ::recoverFromRendererGone,
+            onInternalLink = onInternalLink,
+            onSelectionActiveChanged = ::onChildSelectionActiveChanged,
+        )
+    }
+
+    /** Screen-space rect of [r] (in [wv]-local device pixels), used by [ChapterWebViewBinder] to
+     *  position annotation/highlight popups and mark taps against the actual on-screen location. */
+    private fun screenRectFor(wv: ChapterWebViewLike, r: android.graphics.Rect): android.graphics.Rect {
+        val loc = IntArray(2)
+        (wv as android.view.View).getLocationOnScreen(loc)
+        return android.graphics.Rect(loc[0] + r.left, loc[1] + r.top, loc[0] + r.right, loc[1] + r.bottom)
+    }
 
     private val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -167,6 +175,23 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** Parallel list to the loaded WebViews; index i matches container.getChildAt(i). */
     private val webViews = mutableListOf<ChapterWebView>()
+
+    /** Owns annotation + search decoration state and the apply-to-window loops; see
+     *  [ContinuousDecorationController]. The View retains only the landing/focus machinery that
+     *  needs the sliding-window state ([onAnnotationHighlightsApplied]). */
+    private val decorations = ContinuousDecorationController(
+        port = object : ContinuousDecorationController.Port {
+            override fun forEachLoadedWebView(block: (ChapterWebViewLike) -> Unit) = webViews.forEach(block)
+            override fun findLoadedWebView(href: String): ChapterWebViewLike? =
+                webViews.firstOrNull { it.chapterHref == href }
+            override fun scrollTo(y: Int) = this@ContinuousReaderView.scrollTo(0, y)
+            override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)
+            override fun clearLandingHold() = this@ContinuousReaderView.clearLandingHold()
+            override fun buildWindow(): List<ContinuousPositionTracker.ChapterSlot> = this@ContinuousReaderView.buildWindow()
+            override val viewportHeightPx: Int get() = height
+            override val currentScrollY: Int get() = scrollY
+        },
+    )
 
     /**
      * True while a window-shift operation (removeTop/removeBottom/prependChapter) is in
@@ -851,97 +876,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     /** Inject a readaloud highlight for the sentence with [text] in the chapter matching [href] and scroll it into view. */
     override fun highlightInChapter(href: String, text: String, cssColor: String) {
-        val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
-            // Re-lookup by href rather than using the captured index: the window may have shifted
-            // between the evaluateJavascript call and this callback, making i stale.
-            scrollToHighlight(href)
-        }
-    }
-
-    private fun scrollToHighlight(href: String) {
-        val i = webViewIndexFor(href) ?: return
-        val wv = webViews[i]
-        // getBoundingClientRect().top is in CSS pixels; multiply by devicePixelRatio to get device
-        // pixels so the result is in the same coordinate space as slot.top and scrollY.
-        wv.evaluateJavascript(
-            """(function(){
-                var el=document.getElementById('_riffle_hl');
-                if(!el) return -1;
-                var r=el.getBoundingClientRect();
-                var y=r.top+(window.pageYOffset||document.documentElement.scrollTop||0);
-                return Math.max(0,Math.round(y*(window.devicePixelRatio||1)));
-            })()"""
-        ) { result ->
-            val elementTop = result?.toFloatOrNull()?.toInt() ?: return@evaluateJavascript
-            if (elementTop < 0) return@evaluateJavascript
-            // Re-lookup window state fresh — a shift between the two evaluateJavascript calls
-            // would have changed slot positions.
-            val freshI = webViewIndexFor(href) ?: return@evaluateJavascript
-            val slot = buildWindow().getOrNull(freshI) ?: return@evaluateJavascript
-            val absoluteY = slot.top + elementTop
-            val targetScrollY = (absoluteY - height / 3).coerceAtLeast(0)
-            // Scroll whenever the current position is more than height/8 away from the target.
-            // Using abs() avoids the previous bug where absoluteY just inside the top of the
-            // viewport triggered a backward scroll (absoluteY < scrollY+margin → target < scrollY).
-            if (abs(targetScrollY - scrollY) > height / 8) {
-                clearLandingHold()
-                smoothScrollTo(0, targetScrollY)
-            }
-        }
+        decorations.highlightInChapter(href, text, cssColor)
     }
 
     /** Clear any active readaloud highlight in the chapter at [href]. */
     override fun clearHighlightInChapter(href: String) {
-        val i = webViewIndexFor(href) ?: return
-        webViews[i].evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
+        decorations.clearHighlightInChapter(href)
     }
-
-    // Search highlight state — persisted across the window so onPageFinished can re-apply marks
-    // when a chapter enters the sliding window or when a chapter reloads after a far-jump.
-    private var currentSearchHighlights: SearchHighlightsState? = null
 
     override fun applySearchHighlights(state: SearchHighlightsState?) {
-        currentSearchHighlights = state
-        if (state == null) {
-            for (wv in webViews) {
-                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS, null)
-            }
-            return
-        }
-        for (wv in webViews) {
-            applySearchHighlightsToWebView(wv, state)
-        }
+        decorations.applySearchHighlights(state)
     }
-
-    private fun applySearchHighlightsToWebView(wv: ChapterWebView, state: SearchHighlightsState) {
-        val href = wv.chapterHref
-        if (href.isEmpty()) return
-        val texts = state.resultsByHref[href] ?: return
-        val isActive = href == state.activeHref
-        val js = ContinuousStyleInjector.applySearchHighlightsJs(
-            inactiveTexts = texts,
-            inactiveCssColor = state.inactiveCssColor,
-            activeText = if (isActive) state.activeText else null,
-            activeProgression = if (isActive) state.activeProgression else -1f,
-            activeCssColor = state.activeCssColor,
-        )
-        // Clear first, then re-apply in callback: Chrome won't reliably find text in a DOM
-        // that was just mutated synchronously (see ContinuousStyleInjector.applyAnnotationHighlightsJs).
-        wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS) { _ ->
-            wv.evaluateJavascript(js, null)
-        }
-    }
-
-    /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
-    var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
-
-    /** Called on the main thread when the user taps a note glyph next to an annotation mark. */
-    var onAnnotationNoteTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
-
-    // Annotation state persisted so onPageFinished can re-apply marks when a chapter loads or
-    // the sliding window cycles in a new chapter without the LaunchedEffect re-running.
-    private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
 
     /**
      * Apply persisted annotation highlights to all currently loaded chapters and remember the
@@ -949,24 +894,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * [prependChapter]) automatically receive their marks in [onPageFinished].
      */
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
-        currentAnnotationsByHref = annotationsByHref
-        for (wv in webViews) {
-            val href = wv.chapterHref
-            if (href.isEmpty()) continue
-            val annotations = annotationsByHref[href]
-            if (annotations.isNullOrEmpty()) {
-                wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
-            } else {
-                // Same re-land-on-completion hook as in appendChapter.onPageFinished: when the
-                // bulk-apply runs against the pending-target chapter, the mark only exists AFTER
-                // this JS finishes; re-fire the armed landing closure AND/OR a direct mark scroll
-                // (the latter even when the reapply chain has been disarmed) so the focus lands
-                // precisely on the freshly-decorated mark.
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    onAnnotationHighlightsApplied(wv)
-                }
-            }
-        }
+        decorations.applyAnnotationHighlights(annotationsByHref, onEachApplied = ::onAnnotationHighlightsApplied)
     }
 
     /**
@@ -979,18 +907,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      * could have shifted while the JS was in flight) so they're together in one guarded helper —
      * call sites just invoke this and don't need to repeat the index check.
      */
-    private fun onAnnotationHighlightsApplied(wv: ChapterWebView) {
+    private fun onAnnotationHighlightsApplied(wv: ChapterWebViewLike) {
         if (wv.chapterHref != pendingTargetHref) return
         reapplyLandingAfterFallback?.invoke()
-        scrollToPendingFocusAnnotation(wv)
+        scrollToPendingFocusAnnotation(wv.chapterHref)
     }
 
     /** Once the target chapter's `<mark data-riffle-ann="<id>">` exists in the DOM, scroll to it.
      *  Independent of [reapplyLandingAfterFallback] so it still fires when the reapply chain has
      *  been disarmed (touch event, height stabilised before the mark was created). Clears
-     *  [pendingFocusAnnotationId] once landed so it doesn't replay on later annotation refreshes. */
-    private fun scrollToPendingFocusAnnotation(wv: ChapterWebView) {
+     *  [pendingFocusAnnotationId] once landed so it doesn't replay on later annotation refreshes.
+     *  Re-looked-up by [href] (rather than taking the [ChapterWebView] directly) because
+     *  [annotationOffsetTopDevicePx] is a [ChapterWebView]-only capability not on the narrower
+     *  [ChapterWebViewLike] surface the decoration controller's callbacks pass through. */
+    private fun scrollToPendingFocusAnnotation(href: String) {
         val id = pendingFocusAnnotationId ?: return
+        val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
         wv.annotationOffsetTopDevicePx(id) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
             // Resolve by href, not by index — a window shift between the JS in-flight and this
@@ -1009,46 +941,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     // ── private ────────────────────────────────────────────────────────────────
 
-    /**
-     * Wire all annotation-related callbacks on [wv]. The coordinate transform is done at event
-     * time (not at wiring time) so it always reflects the WebView's current screen position.
-     * Extracted to avoid duplication between [appendChapter] and [prependChapter].
-     */
-    private fun wireAnnotationCallbacks(wv: ChapterWebView) {
-        wv.onHighlight = { text, prog, rect, before, after ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect, before, after)
-        }
-        wv.onAnnotationTap = { id, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
-        }
-        wv.onAnnotationNoteTap = { id, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
-        }
-    }
-
     private fun appendChapter(index: Int) {
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
-        wv.onTap = { onTap?.invoke() }
-        wv.onRenderGone = { recoverFromRendererGone() }
-        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
-        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
-        wv.annotationsAvailable = annotationsAvailable
-        wv.onSelectionActiveChanged = ::onChildSelectionActiveChanged
-        wireAnnotationCallbacks(wv)
-        wv.readaloudAvailable = readaloudAvailable
+        binder.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
-        wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -1129,26 +1027,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
-            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
-            val annotations = currentAnnotationsByHref[wv.chapterHref]
-            if (!annotations.isNullOrEmpty()) {
-                // Re-fire the armed landing closure on completion: applyAnnotationHighlightsJs
-                // inserts the `<mark data-riffle-ann="<id>">` whose rect is what
-                // [annotationOffsetTopDevicePx] looks for. The first pendingInitialScroll fire
-                // usually happens BEFORE this JS completes (height-measurement reflow triggers it
-                // earlier), so the annotation-mark query in that first fire returns null and falls
-                // back to anchor/progression. Re-firing the closure here — once the mark is in the
-                // DOM — lets the mark query succeed and re-land precisely; and the explicit
-                // [scrollToPendingFocusAnnotation] covers the case where reapply has been disarmed
-                // (touch event during boot, height stabilised before the mark was created, etc).
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    onAnnotationHighlightsApplied(wv)
-                }
-            }
-            val searchState = currentSearchHighlights
-            if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
-                applySearchHighlightsToWebView(wv, searchState)
-            }
+            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
+            // Re-fire the armed landing closure on completion: applyAnnotationHighlightsJs inserts
+            // the `<mark data-riffle-ann="<id>">` whose rect is what [annotationOffsetTopDevicePx]
+            // looks for. The first pendingInitialScroll fire usually happens BEFORE this JS
+            // completes (height-measurement reflow triggers it earlier), so the annotation-mark
+            // query in that first fire returns null and falls back to anchor/progression.
+            // Re-firing the closure here — once the mark is in the DOM — lets the mark query
+            // succeed and re-land precisely; and the explicit [scrollToPendingFocusAnnotation]
+            // covers the case where reapply has been disarmed (touch event during boot, height
+            // stabilised before the mark was created, etc).
+            decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
         webViews.add(wv)
         measuredHeights.add(placeholder)
@@ -1160,16 +1049,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
-        wv.onTap = { onTap?.invoke() }
-        wv.onRenderGone = { recoverFromRendererGone() }
-        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
-        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
-        wv.annotationsAvailable = annotationsAvailable
-        wv.onSelectionActiveChanged = ::onChildSelectionActiveChanged
-        wireAnnotationCallbacks(wv)
-        wv.readaloudAvailable = readaloudAvailable
+        binder.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
-        wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -1186,18 +1067,9 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
-            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null)
-            val annotations = currentAnnotationsByHref[wv.chapterHref]
-            if (!annotations.isNullOrEmpty()) {
-                // Same re-land-on-completion hook as in appendChapter.onPageFinished.
-                wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
-                    onAnnotationHighlightsApplied(wv)
-                }
-            }
-            val searchState = currentSearchHighlights
-            if (searchState != null && searchState.resultsByHref.containsKey(wv.chapterHref)) {
-                applySearchHighlightsToWebView(wv, searchState)
-            }
+            wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
+            // Same re-land-on-completion hook as in appendChapter.onPageFinished.
+            decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
         }
         webViews.add(0, wv)
         measuredHeights.add(0, placeholder)

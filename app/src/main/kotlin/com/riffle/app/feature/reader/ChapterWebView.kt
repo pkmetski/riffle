@@ -23,7 +23,7 @@ import org.readium.r2.shared.util.Url
  * the main thread after [ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS] fires.
  */
 @SuppressLint("SetJavaScriptEnabled")
-internal class ChapterWebView(context: Context) : WebView(context) {
+internal class ChapterWebView(context: Context) : WebView(context), ChapterWebViewLike {
 
     private companion object {
         // Text-selection menu item ids (see wrapSelectionCallback).
@@ -45,7 +45,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      * Wire this to the reader's chrome toggle so taps in Continuous mode show/hide the
      * top/bottom bars, matching the behaviour of the standard Readium navigator.
      */
-    var onTap: (() -> Unit)? = null
+    override var onTap: (() -> Unit)? = null
 
     /**
      * Called on the main thread when this WebView's renderer process is gone (reclaimed by the
@@ -53,24 +53,24 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      * the parent must rebuild it. If this event is not consumed the platform's default behaviour is
      * to crash the whole app.
      */
-    var onRenderGone: (() -> Unit)? = null
+    override var onRenderGone: (() -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps an in-book link (footnote / cross-reference).
      * [href] is the target EPUB resource path with any `#fragment`. The WebView does NOT follow the
      * link itself (that would replace this chapter's content); the parent navigates instead.
      */
-    var onInternalLink: ((href: String) -> Unit)? = null
+    override var onInternalLink: ((href: String) -> Unit)? = null
 
     /** Called on the main thread when the user taps an external (http/https) link. */
-    var onExternalLink: ((url: String) -> Unit)? = null
+    override var onExternalLink: ((url: String) -> Unit)? = null
 
     /**
      * Called on the main thread with the resolved footnote body when the user taps a same-document
      * footnote anchor. The host shows the footnote popup. Continuous mode resolves the note from the
      * chapter's own HTML (see [rawChapterHtml]) using [FootnoteResolver].
      */
-    var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+    override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
 
     /**
      * The raw HTML of the chapter document currently loaded, retained so a footnote tap can resolve
@@ -93,10 +93,10 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      * `onInterceptTouchEvent`) steals the gesture the moment the user drags vertically, scrolling
      * the page mid-selection and breaking the highlight.
      */
-    var onSelectionActiveChanged: ((active: Boolean) -> Unit)? = null
+    override var onSelectionActiveChanged: ((active: Boolean) -> Unit)? = null
 
     /** When true, the text-selection menu offers "Highlight" (books with annotations UI). */
-    var annotationsAvailable: Boolean = false
+    override var annotationsAvailable: Boolean = false
 
     /**
      * Called on the main thread with the selected text, its within-chapter progression (0..1),
@@ -104,22 +104,22 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      * `before` / `after` document-text context windows used to disambiguate which occurrence
      * the user picked when the selected text repeats in the chapter.
      */
-    var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
+    override var onHighlight: ((selectedText: String, progression: Double, rect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps an injected annotation mark (`<mark
      * data-riffle-ann>`). [rect] is in device pixels relative to this WebView's top-left corner.
      */
-    var onAnnotationTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
+    override var onAnnotationTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
 
     /**
      * Called on the main thread when the user taps the note glyph (`<span data-riffle-note-glyph>`)
      * next to an annotation that has a note. [rect] is in device pixels relative to this WebView.
      */
-    var onAnnotationNoteTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
+    override var onAnnotationNoteTap: ((id: String, rect: android.graphics.Rect) -> Unit)? = null
 
     /** When true, the text-selection menu offers "Play" (readaloud books only). */
-    var readaloudAvailable: Boolean = false
+    override var readaloudAvailable: Boolean = false
 
     /**
      * Called on the main thread when the user taps "Play". Receives the selected text and this
@@ -128,8 +128,23 @@ internal class ChapterWebView(context: Context) : WebView(context) {
     var onPlayFromHere: ((selectedText: String, evalJs: (String, (String?) -> Unit) -> Unit) -> Unit)? = null
 
     /** The chapter href this view is currently loading (e.g. `"EPUB/chapter01.xhtml"`). */
-    var chapterHref: String = ""
+    override var chapterHref: String = ""
         private set
+
+    /**
+     * Explicit override to disambiguate [ChapterWebViewLike.evaluateJavascript]'s Kotlin-lambda
+     * signature from [WebView]'s own `evaluateJavascript(String, ValueCallback<String>?)` — without
+     * this, every in-class call site becomes an overload-resolution-ambiguity compile error.
+     */
+    override fun evaluateJavascript(script: String, resultCallback: ((String?) -> Unit)?) {
+        super.evaluateJavascript(script, resultCallback)
+    }
+
+    /** Fire-and-forget JS eval. Centralises the Kotlin-lambda-overload disambiguation cast so
+     *  in-class callers read as a plain call instead of repeating `null as ((String?) -> Unit)?`. */
+    private fun evalJs(script: String) {
+        evaluateJavascript(script, null as ((String?) -> Unit)?)
+    }
 
     private var publication: Publication? = null
 
@@ -304,14 +319,14 @@ internal class ChapterWebView(context: Context) : WebView(context) {
      * @param styleJs output of [ContinuousStyleInjector.buildStyleInjectionJs]
      */
     fun injectStylesAndMeasure(styleJs: String) {
-        evaluateJavascript(styleJs, null)
+        evalJs(styleJs)
         // Stamp this page with the current load token BEFORE wiring measurement, so every height
         // report (including late ResizeObserver / timeout fires) carries it and the bridge can
         // reject reports from a recycled WebView's previous page.
-        evaluateJavascript("window.__riffleToken=$loadToken;", null)
-        evaluateJavascript(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS, null)
-        evaluateJavascript(ContinuousScriptInjector.TAP_LISTENER_JS, null)
-        evaluateJavascript(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS, null)
+        evalJs("window.__riffleToken=$loadToken;")
+        evalJs(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS)
+        evalJs(ContinuousScriptInjector.TAP_LISTENER_JS)
+        evalJs(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS)
     }
 
     /** Re-inject user styles and re-measure after a preference change. */
@@ -469,7 +484,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
         evaluateJavascript("(window.getSelection ? window.getSelection().toString() : '')") { raw ->
             val text = decodeJsString(raw)
             if (text.isNotBlank()) block(text)
-            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+            evalJs("window.getSelection && window.getSelection().removeAllRanges()")
         }
     }
 
@@ -547,7 +562,7 @@ internal class ChapterWebView(context: Context) : WebView(context) {
                 return@evaluateJavascript
             }
             if (text.isNotBlank()) block(text, prog, rect, before, after)
-            evaluateJavascript("window.getSelection && window.getSelection().removeAllRanges()", null)
+            evalJs("window.getSelection && window.getSelection().removeAllRanges()")
         }
     }
 
