@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import org.junit.Rule
@@ -28,6 +29,7 @@ class ReaderSettingsSectionsTest {
         composeTestRule.setContent {
             ReaderSettingsSheet(
                 prefs = FormattingPreferences(),
+                capabilities = RenderCapabilities.EPUB,
                 hasBookOverrides = false,
                 onPrefsChange = {},
                 onReset = {},

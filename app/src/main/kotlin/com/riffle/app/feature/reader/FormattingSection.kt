@@ -12,18 +12,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 
 /**
  * Text + page typography controls. Reused by the in-reader settings sheet (Formatting tab)
  * and the global Settings → Formatting screen. Stateless: the host supplies [prefs] and
- * persists via [onPrefsChange].
+ * persists via [onPrefsChange]. [capabilities] hides rows the current renderer can't apply
+ * (e.g. font-family picking on PDF, see [RenderCapabilities.PDF]).
  */
 @Composable
 fun FormattingSection(
     prefs: FormattingPreferences,
     onPrefsChange: (FormattingPreferences) -> Unit,
+    capabilities: RenderCapabilities = RenderCapabilities.EPUB,
 ) {
     Column {
         Text("Text", style = MaterialTheme.typography.labelMedium)
@@ -39,13 +42,15 @@ fun FormattingSection(
         )
         Spacer(Modifier.height(16.dp))
 
-        Text("Font", style = MaterialTheme.typography.labelMedium)
-        val genericFonts = listOf(ReaderFontFamily.Serif, ReaderFontFamily.SansSerif, ReaderFontFamily.Monospace)
-        val bundledFonts = listOf(ReaderFontFamily.Literata, ReaderFontFamily.Merriweather, ReaderFontFamily.OpenDyslexic)
-        FontChipRow(genericFonts, prefs.fontFamily) { onPrefsChange(prefs.copy(fontFamily = it)) }
-        Spacer(Modifier.height(4.dp))
-        FontChipRow(bundledFonts, prefs.fontFamily) { onPrefsChange(prefs.copy(fontFamily = it)) }
-        Spacer(Modifier.height(12.dp))
+        if (capabilities.supportsFontFamily) {
+            Text("Font", style = MaterialTheme.typography.labelMedium)
+            val genericFonts = listOf(ReaderFontFamily.Serif, ReaderFontFamily.SansSerif, ReaderFontFamily.Monospace)
+            val bundledFonts = listOf(ReaderFontFamily.Literata, ReaderFontFamily.Merriweather, ReaderFontFamily.OpenDyslexic)
+            FontChipRow(genericFonts, prefs.fontFamily) { onPrefsChange(prefs.copy(fontFamily = it)) }
+            Spacer(Modifier.height(4.dp))
+            FontChipRow(bundledFonts, prefs.fontFamily) { onPrefsChange(prefs.copy(fontFamily = it)) }
+            Spacer(Modifier.height(12.dp))
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text("Justify text", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
