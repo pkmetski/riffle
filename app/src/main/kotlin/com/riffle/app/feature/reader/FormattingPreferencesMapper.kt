@@ -100,9 +100,11 @@ fun FormattingPreferences.toFragmentConfiguration(
         // falls back to the default serif — Literata/Merriweather/OpenDyslexic would all
         // render identically.
         servedAssets = listOf("fonts/.*"),
-        // Keep Readium's built-in templates (used by persisted + search highlights) and add a
-        // dedicated readaloud highlight template whose opacity tracks the tint's alpha channel,
-        // so the synced highlight can be strengthened on dark reading themes (see readerTint()).
+        // Readium's built-in templates (used by search highlights) plus our shared
+        // [HighlightTintStyle] template for annotation + readaloud highlights and the
+        // [NoteGlyphStyle] template for the margin note glyph. Opacity comes from the tint's
+        // alpha channel, which is baked into [HighlightColor.argb] — one flat value across
+        // themes and features; see [riffleDecorationTemplates] for the single source.
         decorationTemplates = riffleDecorationTemplates(),
         readiumCssRsProperties = when {
             isDoublePage -> RsProperties(

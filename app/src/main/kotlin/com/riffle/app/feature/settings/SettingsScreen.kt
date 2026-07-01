@@ -360,12 +360,12 @@ fun SettingsScreen(
                                 // The swatch renders the exact `argb` from [HighlightColor] — same
                                 // pixel value that lands in the reader. Do NOT compose additional
                                 // alpha in the enabled case; the picker must be a faithful preview.
+                                // Disabled: drop to the Material standard 0.38 (absolute, not
+                                // multiplicative against the palette's baked-in 0x80 — that would
+                                // land at ~0.19 and read as near-invisible next to the sibling
+                                // disabled `headlineColor` above, which uses `alpha = 0.38f` too).
                                 val base = Color(color.argb.toLong() and 0xFFFFFFFFL)
-                                val swatchColor = if (highlightEnabled) {
-                                    base
-                                } else {
-                                    base.copy(alpha = base.alpha * 0.38f)
-                                }
+                                val swatchColor = if (highlightEnabled) base else base.copy(alpha = 0.38f)
                                 // Selected swatch reads clearly in both themes: an offset ring
                                 // (onSurface ring at the outer edge, separated from the swatch by a
                                 // transparent gap) plus a centred checkmark. The swatch keeps a

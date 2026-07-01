@@ -101,13 +101,15 @@ class ReadiumHighlightRendererTest {
         )
         renderer.applyAnnotations(renders)
         val annotationCalls = applied.filter { it.second == "annotations" }
-        // Initial apply + 4-tick settle window (each = clear + apply) = 1 + 4*2 = 9 calls
-        assertTrue("expected initial apply plus settle re-applies", annotationCalls.size >= 3)
-        // The initial apply is the first "annotations" call
-        val firstApply = annotationCalls.first()
-        assertEquals(2, firstApply.first.size)
-        assertEquals("h1", firstApply.first[0].id)
-        assertEquals("h2", firstApply.first[1].id)
+        // Initial apply is clear+apply (2 dispatches); settle window is 4 ticks × (clear + apply) = 8.
+        // We assert on the shape: at least one dispatch carries both decorations, and the very
+        // first dispatch is the pre-apply clear (empty list).
+        assertTrue("expected initial clear+apply plus settle re-applies", annotationCalls.size >= 3)
+        assertEquals(emptyList<Decoration>(), annotationCalls.first().first)
+        val firstNonEmpty = annotationCalls.first { it.first.isNotEmpty() }
+        assertEquals(2, firstNonEmpty.first.size)
+        assertEquals("h1", firstNonEmpty.first[0].id)
+        assertEquals("h2", firstNonEmpty.first[1].id)
     }
 
     @Test
@@ -123,7 +125,9 @@ class ReadiumHighlightRendererTest {
         )
         abortingRenderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
         val annotationCalls = recorder.filter { it.second == "annotations" }
-        assertEquals("only the initial apply fires when the stamp changes", 1, annotationCalls.size)
+        // Initial apply is clear + apply (2 dispatches); the settle loop aborts on the first tick
+        // because the stamp changes, so no settle re-applies fire.
+        assertEquals("only the initial clear+apply fires when the stamp changes", 2, annotationCalls.size)
     }
 
     @Test

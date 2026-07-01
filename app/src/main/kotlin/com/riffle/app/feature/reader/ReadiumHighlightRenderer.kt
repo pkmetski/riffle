@@ -70,7 +70,11 @@ internal class ReadiumHighlightRenderer(
                 style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
             )
         }
-        applyDecorationsBlock(decorations, "annotations")
+        // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
+        // (id, locator, style) list as a no-op, so a re-fire of the same list (theme change bumps
+        // pageLoadGeneration, LaunchedEffect keys the same renders) would keep the stale pre-reflow
+        // rects until the 400ms settle tick fires. Matches [applyReadaloud]'s pre-clear semantics.
+        applyDecorationsWithClear(decorations, "annotations")
         hasAnnotationDecorations = true
         // Readium fixes decoration rects at applyDecorations time. When the first apply runs before
         // reflow has fully settled (fresh navigator, chapter change, orientation flip), the rects
