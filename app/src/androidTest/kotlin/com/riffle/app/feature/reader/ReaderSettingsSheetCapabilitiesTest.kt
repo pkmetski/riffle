@@ -36,9 +36,25 @@ class ReaderSettingsSheetCapabilitiesTest {
         }
         // "Font" is the section label that heads the font-family picker chip row (FormattingSection.kt).
         composeTestRule.onNodeWithText("Font").assertDoesNotExist()
+        // "Text" and "Page" section headers should be hidden when their content is fully gated away.
+        composeTestRule.onNodeWithText("Text").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Page").assertDoesNotExist()
+        // "Font size", "Justify text", "Line spacing" are gated on supportsTextTypography.
+        composeTestRule.onNodeWithText("Font size").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Justify text").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Line spacing").assertDoesNotExist()
+        // "Margins" (the sole surviving Formatting-tab control) should still show.
+        composeTestRule.onNodeWithText("Margins").assertIsDisplayed()
         composeTestRule.onNodeWithText("Display").performClick()
         composeTestRule.onNodeWithText("Reading mode").assertDoesNotExist()
         composeTestRule.onNodeWithText("Double page in landscape").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Theme").assertDoesNotExist()
+        // supportsPositionOverlays gates all three EPUB-only overlay toggles as a group.
+        composeTestRule.onNodeWithText("Current chapter label").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Reading progress labels").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Time remaining").assertDoesNotExist()
+        // Chapter map toggle stays visible: its underlying feature is wired for PDF.
+        composeTestRule.onNodeWithText("Chapter map").assertIsDisplayed()
     }
 
     @Test
@@ -55,8 +71,13 @@ class ReaderSettingsSheetCapabilitiesTest {
             )
         }
         composeTestRule.onNodeWithText("Font").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Text").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Page").assertIsDisplayed()
         composeTestRule.onNodeWithText("Display").performClick()
         composeTestRule.onNodeWithText("Reading mode").assertIsDisplayed()
         composeTestRule.onNodeWithText("Double page in landscape").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Theme").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Current chapter label").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Time remaining").assertIsDisplayed()
     }
 }
