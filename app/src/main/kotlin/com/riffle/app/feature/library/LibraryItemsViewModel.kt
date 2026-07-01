@@ -14,7 +14,10 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.usecase.RefreshCollections
+import com.riffle.core.domain.usecase.RefreshLibraryItems
+import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.Series
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
@@ -48,7 +51,10 @@ import javax.inject.Inject
 @HiltViewModel
 class LibraryItemsViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val refreshLibraryItemsUseCase: RefreshLibraryItems,
+    private val refreshSeriesUseCase: RefreshSeries,
+    private val refreshCollectionsUseCase: RefreshCollections,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val offlineAvailability: LibraryItemOfflineAvailability,
@@ -81,10 +87,10 @@ class LibraryItemsViewModel @Inject constructor(
         }
     }
 
-    val series: StateFlow<List<Series>> = libraryRepository.observeSeries(libraryId)
+    val series: StateFlow<List<Series>> = libraryObserver.observeSeries(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val collections: StateFlow<List<Collection>> = libraryRepository.observeCollections(libraryId)
+    val collections: StateFlow<List<Collection>> = libraryObserver.observeCollections(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -101,7 +107,7 @@ class LibraryItemsViewModel @Inject constructor(
             } else {
                 combine(
                     ids.map { id ->
-                        libraryRepository.observeCollectionItems(id).map { items ->
+                        libraryObserver.observeCollectionItems(id).map { items ->
                             id to items.take(4).mapNotNull { it.coverUrl?.takeIf { url -> url.isNotBlank() } }
                         }
                     },
@@ -110,22 +116,22 @@ class LibraryItemsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    val ungroupedItems: StateFlow<List<LibraryItem>> = libraryRepository.observeUngroupedLibraryItems(libraryId)
+    val ungroupedItems: StateFlow<List<LibraryItem>> = libraryObserver.observeUngroupedLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val inProgress: StateFlow<List<LibraryItem>> = libraryRepository.observeInProgressItems(libraryId)
+    private val inProgress: StateFlow<List<LibraryItem>> = libraryObserver.observeInProgressItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val finished: StateFlow<List<LibraryItem>> = libraryRepository.observeFinishedItems(libraryId)
+    private val finished: StateFlow<List<LibraryItem>> = libraryObserver.observeFinishedItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val recentlyAdded: StateFlow<List<LibraryItem>> = libraryRepository.observeRecentlyAddedItems(libraryId)
+    private val recentlyAdded: StateFlow<List<LibraryItem>> = libraryObserver.observeRecentlyAddedItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val continueSeriesBase: StateFlow<List<LibraryItem>> = libraryRepository.observeContinueSeriesItems(libraryId)
+    private val continueSeriesBase: StateFlow<List<LibraryItem>> = libraryObserver.observeContinueSeriesItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val allBooks: StateFlow<List<LibraryItem>> = libraryRepository.observeAllBooks(libraryId)
+    private val allBooks: StateFlow<List<LibraryItem>> = libraryObserver.observeAllBooks(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val toReadItemIds: StateFlow<Set<String>> = toReadRepository.observeToReadItemIds(libraryId)
@@ -139,7 +145,7 @@ class LibraryItemsViewModel @Inject constructor(
     val linkedItemIds: StateFlow<Set<String>> = readaloudLinkRepository.observeLinkedAbsItemIds()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    private val allItems: StateFlow<List<LibraryItem>> = libraryRepository.observeLibraryItems(libraryId)
+    private val allItems: StateFlow<List<LibraryItem>> = libraryObserver.observeLibraryItems(libraryId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // An audiobooks-only library: every item is a listen-only Audiobook. Drives square covers across
@@ -174,10 +180,10 @@ class LibraryItemsViewModel @Inject constructor(
     }
 
     // Share the VM's already-stateIn'd source flows with the engine so we don't open a second
-    // set of Room cursors for the same observe* calls. libraryRepository is still passed through
+    // set of Room cursors for the same observe* calls. libraryObserver is still passed through
     // for the per-group offline filter, which needs to observe each series'/collection's items.
     private val filterEngine = LibraryFilterEngine(
-        libraryRepository = libraryRepository,
+        libraryObserver = libraryObserver,
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
         offlineAvailability = offlineAvailability,
@@ -274,9 +280,9 @@ class LibraryItemsViewModel @Inject constructor(
     }
 
     private suspend fun runRefresh() = coroutineScope {
-        val itemsDeferred = async { libraryRepository.refreshLibraryItems(libraryId) }
-        val seriesDeferred = async { libraryRepository.refreshSeries(libraryId) }
-        val collectionsDeferred = async { libraryRepository.refreshCollections(libraryId) }
+        val itemsDeferred = async { refreshLibraryItemsUseCase(libraryId) }
+        val seriesDeferred = async { refreshSeriesUseCase(libraryId) }
+        val collectionsDeferred = async { refreshCollectionsUseCase(libraryId) }
         // ToRead refresh runs alongside but its failure must NOT flip the offline banner.
         val toReadDeferred = async { toReadRepository.refresh(libraryId) }
         val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())

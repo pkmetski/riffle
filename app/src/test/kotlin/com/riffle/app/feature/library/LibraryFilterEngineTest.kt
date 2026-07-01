@@ -15,7 +15,7 @@ import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
@@ -51,7 +51,7 @@ class LibraryFilterEngineTest {
     private val notStartedFilterFlow = MutableStateFlow(false)
     private val toReadIdsFlow = MutableStateFlow<Set<String>>(emptySet())
 
-    private fun fakeRepo(): LibraryRepository = object : LibraryRepository {
+    private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
@@ -72,12 +72,6 @@ class LibraryFilterEngineTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = null
         override suspend fun getLibrary(libraryId: String): Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
     }
 
     private fun fakeAnnotationStore(): AnnotationStore = object : AnnotationStore {
@@ -137,7 +131,7 @@ class LibraryFilterEngineTest {
     ): LibraryFilterEngine {
         toReadIdsFlow.value = toReadIds
         return LibraryFilterEngine(
-            libraryRepository = fakeRepo(),
+            libraryObserver = fakeRepo(),
             annotationStore = annotationStore,
             audiobookBookmarkStore = audiobookBookmarkStore,
             offlineAvailability = LibraryItemOfflineAvailability(

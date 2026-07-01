@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryOrderPreferencesStore
-import com.riffle.core.domain.LibraryRepository
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.orderLibraries
 import com.riffle.core.domain.Server
@@ -36,7 +36,7 @@ import javax.inject.Inject
 @HiltViewModel
 class NavigationDrawerViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val orderStore: LibraryOrderPreferencesStore,
     private val lastOpenedLibraryStore: LastOpenedLibraryStore,
@@ -68,7 +68,7 @@ class NavigationDrawerViewModel @Inject constructor(
         .filterNotNull()
         .flatMapLatest { server ->
             combine(
-                libraryRepository.observeLibraries(),
+                libraryObserver.observeLibraries(),
                 visibilityStore.hiddenLibraryIds(server.id),
                 orderStore.libraryOrder(server.id),
             ) { libraries, hiddenIds, order ->

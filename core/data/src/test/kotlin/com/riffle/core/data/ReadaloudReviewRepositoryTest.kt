@@ -415,16 +415,50 @@ class ReadaloudReviewRepositoryTest {
         dismissals: RecordingDismissalDao = RecordingDismissalDao(),
         libraryItemDao: LibraryItemDao = ThrowingLibraryItemDao,
         audioPrefs: FakeAudioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(),
-    ) = ReadaloudReviewRepositoryImpl(
-        libraryItemDao = libraryItemDao,
-        libraryDao = ThrowingLibraryDao,
-        linkDao = links,
-        candidateDao = candidates,
-        dismissalDao = dismissals,
-        audioIdentityResolver = AudioIdentityResolverImpl(links, libraryItemDao),
-        audioPlaybackPreferencesStore = audioPrefs,
-        clock = { 1000L },
-    )
+    ): TestSubject {
+        val impl = ReadaloudReviewRepositoryImpl(
+            libraryItemDao = libraryItemDao,
+            libraryDao = ThrowingLibraryDao,
+            linkDao = links,
+            candidateDao = candidates,
+            dismissalDao = dismissals,
+            clock = { 1000L },
+        )
+        val actions = com.riffle.core.domain.usecase.ReadaloudReviewActions(
+            mutator = impl,
+            linkRepository = ReadaloudLinkRepositoryImpl(links),
+            audioIdentityResolver = AudioIdentityResolverImpl(links, libraryItemDao),
+            audioPlaybackPreferencesStore = audioPrefs,
+        )
+        return TestSubject(impl, actions)
+    }
+
+    /**
+     * The system under test for these tests is the (repo, actions) pair: queries on the repo,
+     * mutations through the use-case. The wrapper keeps the test call sites unchanged while
+     * dispatching each call to the right collaborator.
+     */
+    private class TestSubject(
+        private val impl: ReadaloudReviewRepositoryImpl,
+        private val actions: com.riffle.core.domain.usecase.ReadaloudReviewActions,
+    ) {
+        fun observeReview(storytellerServerId: String, absServerId: String? = null) =
+            impl.observeReview(storytellerServerId, absServerId)
+        suspend fun searchAbsItems(absServerId: String, query: String, filter: AbsFormatFilter = AbsFormatFilter.ANY) =
+            impl.searchAbsItems(absServerId, query, filter)
+        suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) =
+            actions.confirmCandidate(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+        suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) =
+            actions.dismissCandidate(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+        suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) =
+            actions.dismissBook(storytellerServerId, storytellerBookId)
+        suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) =
+            actions.unlinkBook(storytellerServerId, storytellerBookId)
+        suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) =
+            actions.unlinkAbsItem(absServerId, absLibraryItemId)
+        suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) =
+            actions.pairManually(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+    }
 
     private fun audiobook(serverId: String, id: String) =
         LibraryItemEntity(serverId, id, "lib", "Title", "Author", null, 0f, hasAudio = true)

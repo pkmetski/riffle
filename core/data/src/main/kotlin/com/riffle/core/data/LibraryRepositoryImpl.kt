@@ -11,15 +11,15 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
-import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryMutator
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
-import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TokenStorage
@@ -28,7 +28,6 @@ import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.errorAsThrowable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -36,6 +35,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
+/**
+ * Slim Room/API wrapper that satisfies the three segregated library role interfaces. Cross-cutting
+ * choreography (readaloud matcher / Storyteller catalogue sync / reading-session push) lives in
+ * use-cases under `com.riffle.core.domain.usecase`, NOT here.
+ */
 class LibraryRepositoryImpl @Inject constructor(
     private val api: AbsLibraryApi,
     private val libraryDao: LibraryDao,
@@ -44,16 +48,8 @@ class LibraryRepositoryImpl @Inject constructor(
     private val collectionDao: CollectionDao,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
-    private val readingSessionRepository: ReadingSessionRepository,
-    private val readaloudMatchingService: ReadaloudMatchingService,
-    private val storytellerReadaloudSyncer: StorytellerReadaloudSyncer,
     private val clock: Clock,
-    applicationScope: ApplicationScope,
-) : LibraryRepository {
-
-    // Used to fire syncStale/reconcileLinks without blocking refreshLibraryItems.
-    // coroutineScope { launch {} } waits for all children, so background work needs its own scope.
-    private val backgroundScope = applicationScope.coroutineScope
+) : LibraryObserver, LibraryMutator, LibraryRefresher {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeLibraries(): Flow<List<Library>> =
@@ -154,14 +150,14 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun markItemOpened(itemId: String) {
         val serverId = serverRepository.getActive()?.id ?: return
         libraryItemDao.updateLastOpenedAt(serverId, itemId, clock.nowMs())
-        // Best-effort push so other devices see this open via mediaProgress.lastUpdate. Offline
-        // failures are intentionally swallowed — the local stamp lifts the server timestamp via
-        // max() on the next successful library refresh.
-        readingSessionRepository.touchOpenTimestamp(itemId)
     }
 
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {
         val serverId = serverRepository.getActive()?.id ?: return
+        libraryItemDao.updateReadingProgress(serverId, itemId, progress)
+    }
+
+    override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {
         libraryItemDao.updateReadingProgress(serverId, itemId, progress)
     }
 
@@ -189,64 +185,52 @@ class LibraryRepositoryImpl @Inject constructor(
             val serverProgressMap = (progressDeferred.await() as? NetworkResult.Success)?.value ?: emptyMap()
             val result = itemsDeferred.await()
             if (result !is NetworkResult.Success) return@coroutineScope LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-            run {
-                run {
-                    val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
-                    val entities = result.value
-                        .sortedByDescending { it.isSupported }
-                        .distinctBy { it.title.trim().lowercase() }
-                        .map { item ->
-                            val serverProgress = serverProgressMap[item.id]
-                            LibraryItemEntity(
-                                serverId = server.id,
-                                id = item.id,
-                                libraryId = item.libraryId,
-                                title = item.title,
-                                author = item.author,
-                                coverUrl = absCoverUrl(server.url.value, item.id, item.updatedAt),
-                                // For an audiobook-only item the ABS user-progress fallback already maps
-                                // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
-                                // progress), so this single field is the unified "how far through this
-                                // item" value that surfaces audiobooks in In Progress too (ADR 0029).
-                                // Note: for existing items the DAO's updateMetadata ignores this field and
-                                // preserves the locally-tracked value. It is only used when inserting a
-                                // new item for the first time.
-                                readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
-                                ebookFileIno = item.ebookFileIno,
-                                ebookFormat = item.ebookFormat.toStorageString(),
-                                hasAudio = item.hasAudio,
-                                audioDurationSec = item.audioDurationSec,
-                                description = item.description,
-                                seriesName = item.seriesName,
-                                publishedYear = item.publishedYear,
-                                genres = item.genres.joinToString(","),
-                                publisher = item.publisher,
-                                language = item.language,
-                                // Surface the most recent read activity across devices: pick whichever
-                                // of (local stamp, server's mediaProgress.lastUpdate) is later. Either
-                                // can lead — the local stamp wins between syncs on this device, the
-                                // server stamp wins once another device has read more recently.
-                                lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
-                                addedAt = item.addedAt,
-                                isbn = item.isbn,
-                                asin = item.asin,
-                                finishedAt = serverProgress?.finishedAt,
-                            )
-                        }
-                    libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
-                    val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
-                    libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
-                    // syncStale and reconcileLinks are not on the critical path — fire them on a
-                    // detached background scope so refreshLibraryItems returns immediately after
-                    // the Room write. (launch {} inside coroutineScope {} would be a child and
-                    // would block the scope from returning.)
-                    backgroundScope.launch {
-                        storytellerReadaloudSyncer.syncStale()
-                        readaloudMatchingService.reconcileLinks()
-                    }
-                    LibraryRefreshResult.Success
+            val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
+            val entities = result.value
+                .sortedByDescending { it.isSupported }
+                .distinctBy { it.title.trim().lowercase() }
+                .map { item ->
+                    val serverProgress = serverProgressMap[item.id]
+                    LibraryItemEntity(
+                        serverId = server.id,
+                        id = item.id,
+                        libraryId = item.libraryId,
+                        title = item.title,
+                        author = item.author,
+                        coverUrl = absCoverUrl(server.url.value, item.id, item.updatedAt),
+                        // For an audiobook-only item the ABS user-progress fallback already maps
+                        // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
+                        // progress), so this single field is the unified "how far through this
+                        // item" value that surfaces audiobooks in In Progress too (ADR 0029).
+                        // Note: for existing items the DAO's updateMetadata ignores this field and
+                        // preserves the locally-tracked value. It is only used when inserting a
+                        // new item for the first time.
+                        readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
+                        ebookFileIno = item.ebookFileIno,
+                        ebookFormat = item.ebookFormat.toStorageString(),
+                        hasAudio = item.hasAudio,
+                        audioDurationSec = item.audioDurationSec,
+                        description = item.description,
+                        seriesName = item.seriesName,
+                        publishedYear = item.publishedYear,
+                        genres = item.genres.joinToString(","),
+                        publisher = item.publisher,
+                        language = item.language,
+                        // Surface the most recent read activity across devices: pick whichever
+                        // of (local stamp, server's mediaProgress.lastUpdate) is later. Either
+                        // can lead — the local stamp wins between syncs on this device, the
+                        // server stamp wins once another device has read more recently.
+                        lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
+                        addedAt = item.addedAt,
+                        isbn = item.isbn,
+                        asin = item.asin,
+                        finishedAt = serverProgress?.finishedAt,
+                    )
                 }
-            }
+            libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
+            val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
+            libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
+            LibraryRefreshResult.Success
         }
     }
 
@@ -255,33 +239,29 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)
         if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-        return run {
-            run {
-                val seriesEntities = result.value.map { s ->
-                    SeriesEntity(
-                        id = s.id,
-                        libraryId = s.libraryId,
-                        name = s.name,
-                        coverUrl = s.items.firstOrNull()?.let { first ->
-                            absCoverUrl(server.url.value, first.id, first.updatedAt)
-                        },
-                        bookCount = s.bookCount,
-                    )
-                }
-                val seriesItemEntities = result.value.flatMap { s ->
-                    s.items.mapIndexed { index, item ->
-                        SeriesItemEntity(
-                            seriesId = s.id,
-                            serverId = server.id,
-                            itemId = item.id,
-                            sequenceOrder = item.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
-                        )
-                    }
-                }
-                seriesDao.replaceAllForLibrary(libraryId, seriesEntities, seriesItemEntities)
-                LibraryRefreshResult.Success
+        val seriesEntities = result.value.map { s ->
+            SeriesEntity(
+                id = s.id,
+                libraryId = s.libraryId,
+                name = s.name,
+                coverUrl = s.items.firstOrNull()?.let { first ->
+                    absCoverUrl(server.url.value, first.id, first.updatedAt)
+                },
+                bookCount = s.bookCount,
+            )
+        }
+        val seriesItemEntities = result.value.flatMap { s ->
+            s.items.mapIndexed { index, item ->
+                SeriesItemEntity(
+                    seriesId = s.id,
+                    serverId = server.id,
+                    itemId = item.id,
+                    sequenceOrder = item.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
+                )
             }
         }
+        seriesDao.replaceAllForLibrary(libraryId, seriesEntities, seriesItemEntities)
+        return LibraryRefreshResult.Success
     }
 
     override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
@@ -289,25 +269,21 @@ class LibraryRepositoryImpl @Inject constructor(
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)
         if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-        return run {
-            run {
-                val collectionEntities = result.value.map { c ->
-                    CollectionEntity(
-                        id = c.id,
-                        libraryId = c.libraryId,
-                        name = c.name,
-                        bookCount = c.bookCount,
-                    )
-                }
-                val collectionItemEntities = result.value.flatMap { c ->
-                    c.items.map { item ->
-                        CollectionItemEntity(collectionId = c.id, serverId = server.id, itemId = item.id)
-                    }
-                }
-                collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
-                LibraryRefreshResult.Success
+        val collectionEntities = result.value.map { c ->
+            CollectionEntity(
+                id = c.id,
+                libraryId = c.libraryId,
+                name = c.name,
+                bookCount = c.bookCount,
+            )
+        }
+        val collectionItemEntities = result.value.flatMap { c ->
+            c.items.map { item ->
+                CollectionItemEntity(collectionId = c.id, serverId = server.id, itemId = item.id)
             }
         }
+        collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
+        return LibraryRefreshResult.Success
     }
 
     private fun mergeLastOpenedAt(local: Long?, server: Long?): Long? {

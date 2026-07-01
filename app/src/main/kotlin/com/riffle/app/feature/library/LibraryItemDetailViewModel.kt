@@ -12,10 +12,12 @@ import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
-import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
+import com.riffle.core.domain.usecase.RecordItemOpened
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.TocEntry
@@ -83,12 +85,14 @@ internal fun downloadPercent(downloaded: Long, total: Long): Int? =
 @HiltViewModel
 class LibraryItemDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val recordItemOpened: RecordItemOpened,
+    private val updateReadingProgressUseCase: UpdateReadingProgress,
+    private val markReadAcrossDimensions: MarkReadAcrossDimensions,
     private val serverRepository: ServerRepository,
     private val tokenStorage: TokenStorage,
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
-    private val sessionRepository: ReadingSessionRepository,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
@@ -152,7 +156,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
             _uiState.value = try {
-                val item = repository.getItem(itemId)
+                val item = libraryObserver.getItem(itemId)
                 if (item != null) {
                     loadedItem = item
                     _downloadState.value = deriveDownloadState(item)
@@ -181,7 +185,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // below runs off the critical path so a slow/unreachable ABS server can't keep
                     // the detail screen stuck in Loading for the network timeout (~10s).
                     val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
-                    val seriesId = item.seriesName?.let { repository.getSeriesIdForItem(item.serverId, item.id) }
+                    val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.serverId, item.id) }
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         seriesId = seriesId,
@@ -260,7 +264,7 @@ class LibraryItemDetailViewModel @Inject constructor(
         // keep showing the one-shot snapshot taken in init. Observing the item patches the live row
         // (e.g. readingProgress) into the existing Ready state so book details matches where the
         // reader left off. Only patches once Ready, so it never pre-empts the Error/enrichment path.
-        repository.observeItem(itemId)
+        libraryObserver.observeItem(itemId)
             .onEach { latest ->
                 if (latest == null) return@onEach
                 val current = _uiState.value
@@ -282,12 +286,12 @@ class LibraryItemDetailViewModel @Inject constructor(
     }
 
     fun markOpened() {
-        viewModelScope.launch { repository.markItemOpened(itemId) }
+        viewModelScope.launch { recordItemOpened(itemId) }
     }
 
     fun markAsRead() {
         viewModelScope.launch {
-            setFinishedAcrossCoupledItems(finished = true)
+            markReadAcrossDimensions(itemId, finished = true)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 // invariant: ADR 0018 — Read books are never in To Read
@@ -302,42 +306,12 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     fun markAsUnread() {
         viewModelScope.launch {
-            setFinishedAcrossCoupledItems(finished = false)
+            markReadAcrossDimensions(itemId, finished = false)
             val current = _uiState.value
             if (current is LibraryItemDetailUiState.Ready) {
                 _uiState.value = current.copy(item = current.item.copy(readingProgress = 0.0f))
             }
         }
-    }
-
-    /**
-     * Mark read/unread across every ABS item coupled by the same readaloud bundle — the ebook AND
-     * its audiobook counterpart — so the two never disagree (a readaloud's ebook and audiobook are
-     * separate ABS items that should track one finished state). Falls back to just this item when
-     * there's no link or no active server.
-     */
-    private suspend fun setFinishedAcrossCoupledItems(finished: Boolean) {
-        val progress = if (finished) 1.0f else 0.0f
-        val serverId = serverRepository.getActive()?.id
-        val ids = if (serverId != null) coupledAbsItemIds(serverId) else listOf(itemId)
-        ids.forEach { id ->
-            repository.updateReadingProgress(id, progress)
-            sessionRepository.markFinished(id, finished)
-        }
-    }
-
-    /**
-     * The set of ABS item ids on the active server that share this item's readaloud bundle
-     * (always includes [itemId]). Cross-server matches are excluded — `markFinished` operates on
-     * the active server only.
-     */
-    private suspend fun coupledAbsItemIds(serverId: String): List<String> {
-        val link = readaloudLinkRepository.findByAbsItem(serverId, itemId) ?: return listOf(itemId)
-        val siblings = readaloudLinkRepository
-            .findByStorytellerBook(link.storytellerServerId, link.storytellerBookId)
-            .filter { it.absServerId == serverId }
-            .map { it.absLibraryItemId }
-        return (siblings + itemId).distinct()
     }
 
     fun toggleToRead() {

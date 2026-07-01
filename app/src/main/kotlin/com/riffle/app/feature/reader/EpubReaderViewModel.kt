@@ -36,7 +36,8 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.app.feature.reader.session.AnnotationSession
 import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
@@ -127,7 +128,8 @@ private const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
 class EpubReaderViewModel @Inject constructor(
     application: Application,
     savedStateHandle: SavedStateHandle,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val updateReadingProgressUseCase: UpdateReadingProgress,
     private val epubRepository: EpubRepository,
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
@@ -280,7 +282,7 @@ class EpubReaderViewModel @Inject constructor(
             // locally so the durable sweep pushes the audio record too, without reopening (ADR 0030).
             readaloud.mirrorReadingToAudiobook(cfi)
         },
-        updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
+        updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
     )
 
     // ---- PositionOrchestrator delegations ---------------------------------------------------
@@ -519,7 +521,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
-        val item = libraryRepository.getItem(itemId)
+        val item = libraryObserver.getItem(itemId)
         if (item == null) {
             _state.value = ReaderState.Error("Book not found")
             return
@@ -559,7 +561,7 @@ class EpubReaderViewModel @Inject constructor(
                     readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
                         .firstOrNull { t ->
                             t.absLibraryItemId != itemId &&
-                                libraryRepository.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
+                                libraryObserver.getItem(t.absServerId, t.absLibraryItemId)?.isListenable == true
                         }
                         ?.absLibraryItemId
                 }

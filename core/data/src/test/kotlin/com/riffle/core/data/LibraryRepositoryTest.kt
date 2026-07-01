@@ -31,7 +31,6 @@ import com.riffle.core.network.NetworkLibraryItem
 import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkSeriesItem
 import com.riffle.core.network.NetworkUserMediaProgress
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -197,51 +196,10 @@ class LibraryRepositoryTest {
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         },
-        readingSessionRepository: com.riffle.core.domain.ReadingSessionRepository = NoopReadingSessionRepository,
-        readaloudMatchingService: ReadaloudMatchingService = noopMatchingService(libraryItemDao),
-        storytellerReadaloudSyncer: StorytellerReadaloudSyncer = StorytellerReadaloudSyncer(
-            fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), libraryItemDao, { 0L },
-        ),
     ) = LibraryRepositoryImpl(
         api, libraryDao, libraryItemDao, seriesDao, collectionDao,
-        fakeServerRepository, fakeTokenStorage, readingSessionRepository, readaloudMatchingService,
-        storytellerReadaloudSyncer,
-        com.riffle.core.domain.TestClock(),
-        com.riffle.core.data.testing.TestApplicationScope(),
+        fakeServerRepository, fakeTokenStorage, com.riffle.core.domain.TestClock(),
     )
-
-    private fun noopMatchingService(itemDao: FakeLibraryItemDao): ReadaloudMatchingService =
-        ReadaloudMatchingService(itemDao, NoopReadaloudLinkDao, NoopReadaloudCandidateDao, NoopReadaloudDismissalDao)
-
-    private val storytellerApiNotCalled = object : com.riffle.core.network.StorytellerLibraryApi {
-        override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean) =
-            error("Storyteller library API should not be called from ABS tests")
-        override suspend fun listReadalouds(baseUrl: String, token: String, insecureAllowed: Boolean) =
-            error("Storyteller library API should not be called from ABS tests")
-        override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean) =
-            error("Storyteller library API should not be called from ABS tests")
-        override fun coverUrl(baseUrl: String, bookId: Long) =
-            error("Storyteller library API should not be called from ABS tests")
-    }
-
-    private object NoopReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
-        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
-            com.riffle.core.domain.SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
-            com.riffle.core.domain.ProgressSyncCycleResult.InSync
-        override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
-        override suspend fun touchOpenTimestamp(itemId: String) = Unit
-    }
-
-    private class RecordingReadingSessionRepository : com.riffle.core.domain.ReadingSessionRepository {
-        val touchedItemIds = mutableListOf<String>()
-        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
-            com.riffle.core.domain.SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload) =
-            com.riffle.core.domain.ProgressSyncCycleResult.InSync
-        override suspend fun markFinished(itemId: String, finished: Boolean) = Unit
-        override suspend fun touchOpenTimestamp(itemId: String) { touchedItemIds += itemId }
-    }
 
     private fun activeServer(id: String = "s1") = Server(
         id = id,
@@ -500,14 +458,7 @@ class LibraryRepositoryTest {
         assertEquals(0.80f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
-    @Test
-    fun `markItemOpened pushes touchOpenTimestamp to the session repository`() = runTest {
-        fakeServerRepository.activeServer = activeServer()
-        fakeTokenStorage.tokens["s1"] = "tok"
-        val session = RecordingReadingSessionRepository()
-        makeRepo(readingSessionRepository = session).markItemOpened("item-42")
-        assertEquals(listOf("item-42"), session.touchedItemIds)
-    }
+    // markItemOpened's session-push now lives in RecordItemOpened (see RecordItemOpenedTest).
 
     @Test
     fun `refreshLibraryItems preserves lastOpenedAt across refresh`() = runTest {
@@ -1105,53 +1056,7 @@ class LibraryRepositoryTest {
         serverType = com.riffle.core.domain.ServerType.STORYTELLER,
     )
 
-    private fun storytellerApiReturning(
-        books: List<com.riffle.core.network.NetworkStorytellerBook>,
-    ) = object : com.riffle.core.network.StorytellerLibraryApi {
-        override suspend fun validateToken(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Boolean> =
-            NetworkResult.Success(true)
-        override suspend fun listReadalouds(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkStorytellerBook>> =
-            NetworkResult.Success(books)
-        override suspend fun getBook(baseUrl: String, bookId: Long, token: String, insecureAllowed: Boolean): NetworkResult<com.riffle.core.network.NetworkStorytellerBook> =
-            NetworkResult.ServerError(404)
-        override fun coverUrl(baseUrl: String, bookId: Long) = "$baseUrl/api/books/$bookId/cover"
-    }
-
     // Storyteller is never the active/browsable server (ADR 0026), so refreshLibraryItems/
-    // refreshSeries/refreshCollections no longer have a Storyteller branch. Its readaloud rows are
-    // synced as matcher input via the StorytellerReadaloudSyncer (covered below).
-
-    // ── ABS refresh triggers storyteller syncer ───────────────────────────────
-
-    @Test
-    fun `ABS library refresh invokes storyteller syncer before reconcile`() = runTest {
-        fakeServerRepository.activeServer = activeServer()
-        fakeTokenStorage.tokens["s1"] = "tok"
-        val itemDao = FakeLibraryItemDao()
-        // syncStale() is called on a detached backgroundScope (Dispatchers.Default), so it races
-        // with the test assertion. Use CompletableDeferred to suspend until the call arrives
-        // rather than reading a boolean that may not yet be set.
-        val syncedDeferred = CompletableDeferred<Unit>()
-        val spySyncer = object : StorytellerReadaloudSyncer(
-            fakeServerRepository, fakeTokenStorage, storytellerApiReturning(emptyList()), itemDao, { 0L },
-        ) {
-            override suspend fun syncStale() { syncedDeferred.complete(Unit) }
-        }
-        val api = object : AbsLibraryApi {
-            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
-                NetworkResult.Success(emptyList())
-            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
-                NetworkResult.Success(listOf(
-                    NetworkLibraryItem("item-1", "lib-1", "Dune", "Herbert", 0f, ebookFormat = com.riffle.core.domain.EbookFormat.Epub)
-                ))
-            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
-                NetworkResult.Success(emptyList())
-            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
-                NetworkResult.Success(emptyList())
-        }
-        val result = makeRepo(libraryItemDao = itemDao, api = api, storytellerReadaloudSyncer = spySyncer)
-            .refreshLibraryItems("lib-1")
-        assertTrue(result is LibraryRefreshResult.Success)
-        syncedDeferred.await() // suspends until the background scope calls syncStale()
-    }
+    // refreshSeries/refreshCollections no longer have a Storyteller branch. The readaloud-matcher /
+    // syncer dispatch lives in the RefreshLibraryItems use-case — see core/domain tests.
 }

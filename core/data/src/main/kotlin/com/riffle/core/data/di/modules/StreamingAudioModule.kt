@@ -58,6 +58,10 @@ abstract class StreamingAudioModule {
 
     @Binds
     @Singleton
+    abstract fun bindReadaloudReviewMutator(impl: ReadaloudReviewRepositoryImpl): com.riffle.core.domain.ReadaloudReviewMutator
+
+    @Binds
+    @Singleton
     abstract fun bindAudioIdentityResolver(impl: AudioIdentityResolverImpl): AudioIdentityResolver
 
     @Binds

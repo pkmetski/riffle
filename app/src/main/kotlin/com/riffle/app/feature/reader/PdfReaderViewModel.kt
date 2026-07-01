@@ -7,7 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.Clock
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ProgressSyncController
@@ -46,7 +47,8 @@ import javax.inject.Inject
 class PdfReaderViewModel @Inject constructor(
     application: Application,
     savedStateHandle: SavedStateHandle,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
+    private val updateReadingProgressUseCase: UpdateReadingProgress,
     private val pdfRepository: PdfRepository,
     private val assetRetriever: AssetRetriever,
     private val publicationOpener: PublicationOpener,
@@ -81,7 +83,7 @@ class PdfReaderViewModel @Inject constructor(
 
     private val positionSaveCoordinator = PositionSaveCoordinator<String>(
         savePosition = { cfi -> pdfRepository.saveReadingPosition(itemId, cfi) },
-        updateProgress = { progress -> libraryRepository.updateReadingProgress(itemId, progress) },
+        updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
     )
 
     private val _serverLocatorChannel = Channel<Locator>(Channel.CONFLATED)
@@ -188,7 +190,7 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
-        val item = libraryRepository.getItem(itemId)
+        val item = libraryObserver.getItem(itemId)
         if (item == null) {
             _state.value = ReaderState.Error("Book not found")
             return

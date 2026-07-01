@@ -8,7 +8,7 @@ import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.Server
@@ -58,10 +58,17 @@ class HomeViewModelTest {
         override suspend fun getServerVersion(serverId: String): String? = null
     }
 
+    private class FakeRefreshLibraries(
+        val onRefresh: () -> Unit = {},
+        val refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
+    ) : com.riffle.core.domain.usecase.RefreshLibraries(com.riffle.app.testing.NoopLibraryRefresher) {
+        override suspend fun invoke(): LibraryRefreshResult { onRefresh(); return refreshResult }
+    }
+
     private fun fakeLibraryRepo(
         onRefresh: () -> Unit = {},
         refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
-    ): LibraryRepository = object : LibraryRepository {
+    ): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -80,12 +87,6 @@ class HomeViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult { onRefresh(); return refreshResult }
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
     private fun fakeVisibilityStore(): LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
@@ -102,9 +103,13 @@ class HomeViewModelTest {
         }
     }
 
-    private fun makeVm(libraryRepo: LibraryRepository = fakeLibraryRepo()) = HomeViewModel(
+    private fun makeVm(
+        libraryRepo: LibraryObserver = fakeLibraryRepo(),
+        refreshLibraries: com.riffle.core.domain.usecase.RefreshLibraries = FakeRefreshLibraries(),
+    ) = HomeViewModel(
         serverRepository = fakeServerRepo(),
-        libraryRepository = libraryRepo,
+        libraryObserver = libraryRepo,
+        refreshLibraries = refreshLibraries,
         visibilityStore = fakeVisibilityStore(),
         lastOpenedLibraryStore = fakeLastOpenedStore(),
     )
@@ -130,8 +135,8 @@ class HomeViewModelTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         // librariesFlow starts empty — simulates first login before any cache
 
-        val repo = fakeLibraryRepo(onRefresh = { librariesFlow.value = listOf(library("lib-1")) })
-        val result = makeVm(repo).getStartDestination()
+        val refresh = FakeRefreshLibraries(onRefresh = { librariesFlow.value = listOf(library("lib-1")) })
+        val result = makeVm(refreshLibraries = refresh).getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
     }
@@ -149,9 +154,9 @@ class HomeViewModelTest {
     @Test
     fun `getStartDestination returns NoLibraries when refresh fails with network error`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
-        val repo = fakeLibraryRepo(refreshResult = LibraryRefreshResult.NetworkError(IOException("Connection refused")))
+        val refresh = FakeRefreshLibraries(refreshResult = LibraryRefreshResult.NetworkError(IOException("Connection refused")))
 
-        val result = makeVm(repo).getStartDestination()
+        val result = makeVm(refreshLibraries = refresh).getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.NoLibraries, result)
     }
@@ -159,9 +164,9 @@ class HomeViewModelTest {
     @Test
     fun `getStartDestination returns NoLibraries when refresh fails with no active server`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
-        val repo = fakeLibraryRepo(refreshResult = LibraryRefreshResult.NoActiveServer)
+        val refresh = FakeRefreshLibraries(refreshResult = LibraryRefreshResult.NoActiveServer)
 
-        val result = makeVm(repo).getStartDestination()
+        val result = makeVm(refreshLibraries = refresh).getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.NoLibraries, result)
     }

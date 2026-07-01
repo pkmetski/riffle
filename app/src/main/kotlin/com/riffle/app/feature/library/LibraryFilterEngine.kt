@@ -5,7 +5,7 @@ import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.Series
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -49,12 +49,12 @@ data class LibraryProjection(
  *
  * Source flows are passed in (not observed from the repository here) so that the ViewModel's
  * existing `stateIn(WhileSubscribed)` caches are reused instead of duplicating Room cursors.
- * [libraryRepository] is only kept for the per-group offline filter, which needs to observe each
+ * [libraryObserver] is only kept for the per-group offline filter, which needs to observe each
  * series'/collection's items to decide whether to drop empty groups when offline.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryFilterEngine(
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
     private val offlineAvailability: LibraryItemOfflineAvailability,
@@ -194,7 +194,7 @@ class LibraryFilterEngine(
 
     private fun filterCollectionsOffline(collections: List<Collection>, offline: Boolean): Flow<List<Collection>> {
         if (!offline || collections.isEmpty()) return flowOf(collections)
-        return combine(collections.map { col -> libraryRepository.observeCollectionItems(col.id) }) { itemArrays ->
+        return combine(collections.map { col -> libraryObserver.observeCollectionItems(col.id) }) { itemArrays ->
             collections.zip(itemArrays.toList())
                 .filter { (_, items) -> items.any { offlineAvailability.isAvailableOffline(it) } }
                 .map { (col, _) -> col }
@@ -203,7 +203,7 @@ class LibraryFilterEngine(
 
     private fun filterSeriesOffline(series: List<Series>, offline: Boolean): Flow<List<Series>> {
         if (!offline || series.isEmpty()) return flowOf(series)
-        return combine(series.map { s -> libraryRepository.observeSeriesItems(s.id) }) { itemArrays ->
+        return combine(series.map { s -> libraryObserver.observeSeriesItems(s.id) }) { itemArrays ->
             series.zip(itemArrays.toList())
                 .filter { (_, items) -> items.any { offlineAvailability.isAvailableOffline(it) } }
                 .map { (s, _) -> s }

@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +31,7 @@ data class DownloadsUiState(
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
     private val downloadsRepository: DownloadsRepository,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
 ) : ViewModel() {
 
@@ -48,19 +48,19 @@ class DownloadsViewModel @Inject constructor(
             val cached = downloadsRepository.getCachedItems()
 
             val downloadedItems = downloaded.mapNotNull { ref ->
-                libraryRepository.getItem(ref.serverId, ref.itemId)?.let {
+                libraryObserver.getItem(ref.serverId, ref.itemId)?.let {
                     LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
                 }
             }
             val cachedItems = cached.mapNotNull { ref ->
-                libraryRepository.getItem(ref.serverId, ref.itemId)?.let {
+                libraryObserver.getItem(ref.serverId, ref.itemId)?.let {
                     LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
                 }
             }
             // Prepared readaloud sidecars (ADR 0028): the small audio-free streaming caches. Keyed by the
             // Storyteller (serverId, bookId); resolve the title from the Storyteller readaloud library item.
             val readaloudSidecars = sidecarStore.listCached().mapNotNull { sc ->
-                libraryRepository.getItem(sc.storytellerServerId, sc.storytellerBookId)?.let {
+                libraryObserver.getItem(sc.storytellerServerId, sc.storytellerBookId)?.let {
                     LocalItemUi(sc.storytellerServerId, it, sc.sizeBytes)
                 }
             }

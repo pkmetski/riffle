@@ -14,11 +14,11 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.first
 
 /**
- * Builds local [LibraryItemEntity] rows from Storyteller readaloud books. Shared by the
- * active-server refresh ([LibraryRepositoryImpl.refreshStorytellerReadalouds]) and the proactive
- * StorytellerReadaloudSyncer so both produce identical rows (the matcher keys off
- * title/author/isbn/asin). Existing local reading progress and last-opened timestamps are merged
- * back in so a refresh never resets them.
+ * Builds local [LibraryItemEntity] rows from Storyteller readaloud books. Called by
+ * [StorytellerReadaloudSyncer.fetchAndStore] as part of the background catalogue refresh that the
+ * [com.riffle.core.domain.usecase.RefreshLibraryItems] use-case dispatches after an ABS refresh.
+ * The matcher keys off title/author/isbn/asin. Existing local reading progress and last-opened
+ * timestamps are merged back in so a refresh never resets them.
  */
 internal fun storytellerBooksToEntities(
     books: List<NetworkStorytellerBook>,
@@ -68,11 +68,11 @@ open class StorytellerReadaloudSyncer(
     private val libraryItemDao: LibraryItemDao,
     private val clock: () -> Long,
     private val ttlMillis: Long = STORYTELLER_SYNC_TTL_MILLIS,
-) {
+) : com.riffle.core.domain.StorytellerReadaloudCacheSyncer {
     private val lastSyncedAt = ConcurrentHashMap<String, Long>()
 
     /** Best-effort: fetch+store readalouds for each stale Storyteller server. Never throws. */
-    open suspend fun syncStale() {
+    override suspend fun syncStale() {
         val servers = runCatching { serverRepository.observeAll().first() }.getOrNull().orEmpty()
             .filter { it.serverType == ServerType.STORYTELLER }
         val now = clock()

@@ -14,7 +14,7 @@ import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.orderLibraries
@@ -62,7 +62,7 @@ class SettingsViewModel @Inject constructor(
     private val crashReportRepository: CrashReportRepository,
     private val formattingPreferencesStore: FormattingPreferencesStore,
     private val serverRepository: ServerRepository,
-    private val libraryRepository: LibraryRepository,
+    private val libraryObserver: LibraryObserver,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val orderStore: LibraryOrderPreferencesStore,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
@@ -307,7 +307,7 @@ class SettingsViewModel @Inject constructor(
                 combine(
                     list.map { server ->
                         combine(
-                            libraryRepository.observeLibraries(server.id),
+                            libraryObserver.observeLibraries(server.id),
                             visibilityStore.hiddenLibraryIds(server.id),
                             orderStore.libraryOrder(server.id),
                         ) { libraries, hiddenIds, order ->

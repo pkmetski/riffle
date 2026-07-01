@@ -25,7 +25,7 @@ import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryOrderPreferencesStore
-import com.riffle.core.domain.LibraryRepository
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
@@ -150,7 +150,7 @@ class SettingsViewModelTest {
         override suspend fun getServerVersion(serverId: String): String? = null
     }
 
-    private fun fakeLibraryRepo(): LibraryRepository = object : LibraryRepository {
+    private fun fakeLibraryRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
         override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -169,12 +169,6 @@ class SettingsViewModelTest {
         override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
         override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override suspend fun markItemOpened(itemId: String) {}
-        override suspend fun updateReadingProgress(itemId: String, progress: Float) {}
-        override suspend fun refreshLibraries(): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
-        override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult = LibraryRefreshResult.Success
     }
 
     private fun fakeVisibilityStore(): LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
@@ -213,12 +207,6 @@ class SettingsViewModelTest {
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
         override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
             reviewsFlow.map { it[storytellerServerId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
-        override suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) = Unit
-        override suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) = Unit
-        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) = Unit
         override suspend fun searchAbsItems(absServerId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
 
@@ -235,7 +223,7 @@ class SettingsViewModelTest {
         },
         formattingPreferencesStore = noOpFormattingStore,
         serverRepository = fakeServerRepo(),
-        libraryRepository = fakeLibraryRepo(),
+        libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
@@ -293,7 +281,7 @@ class SettingsViewModelTest {
         },
         formattingPreferencesStore = noOpFormattingStore,
         serverRepository = fakeServerRepo(),
-        libraryRepository = fakeLibraryRepo(),
+        libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
         wakeLockPreferencesStore = noOpWakeLockStore,
