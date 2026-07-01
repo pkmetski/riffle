@@ -32,7 +32,7 @@ internal class AnnotationLiveSync(
         // Resolve our own filename once; deviceId is stable for the install lifetime. A DataStore
         // failure here would otherwise kill the launch silently before the first delay().
         val myFilename = try {
-            "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+            AnnotationFilenames.forDevice(deviceIdStore.getOrCreate())
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
             return@launch

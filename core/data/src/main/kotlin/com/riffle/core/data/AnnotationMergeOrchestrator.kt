@@ -69,7 +69,7 @@ internal class AnnotationMergeOrchestrator(
             val now = clock()
             val cutoff = now - tombstoneTtlMs
             val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
-            val nonPurgeable = beforeSweep.filter { !isAgedSyncedTomb(it, cutoff) }
+            val nonPurgeable = beforeSweep.filter { !it.isAgedSyncedTomb(cutoff) }
             val localById = nonPurgeable.associateBy { it.id }
             val localExisting = nonPurgeable.map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
@@ -86,7 +86,7 @@ internal class AnnotationMergeOrchestrator(
             // Rule 2 DELETE branch — the sweep would empty us and this device's own file is on
             // WebDAV. DELETE first, then commit the sweep and any merge results.
             if (merged.isEmpty() && beforeSweep.isNotEmpty()) {
-                val ownFilename = "annotations-${deviceIdStore.getOrCreate()}.jsonld"
+                val ownFilename = AnnotationFilenames.forDevice(deviceIdStore.getOrCreate())
                 if (ownFilename in filenames) {
                     target.delete(namespace, itemId, ownFilename)
                 }
@@ -136,6 +136,4 @@ internal class AnnotationMergeOrchestrator(
         }
     }
 
-    private fun isAgedSyncedTomb(row: AnnotationEntity, cutoff: Long): Boolean =
-        row.deleted && row.updatedAt < cutoff && row.updatedAt <= row.lastSyncedAt
 }

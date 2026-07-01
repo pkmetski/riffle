@@ -113,7 +113,7 @@ class AnnotationSweep(
         // lives in the per-device sentinel — see [AnnotationDeviceMeta].
         val header = AnnotationFileHeader(deviceId = deviceId, bookTitle = bookTitle)
         val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
-        target.write(namespace, itemId, "annotations-$deviceId.jsonld", jsonArray)
+        target.write(namespace, itemId, AnnotationFilenames.forDevice(deviceId), jsonArray)
         annotationDao.markSynced(rows.map { it.id }, clock())
     }
 }

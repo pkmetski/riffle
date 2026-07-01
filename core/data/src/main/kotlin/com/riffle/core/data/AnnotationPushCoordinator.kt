@@ -1,7 +1,6 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
-import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationFileHeader
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -92,13 +91,13 @@ internal class AnnotationPushCoordinator(
         // ADR 0038 rule 1+2 — preview the sweep in memory. If it would leave us empty, DELETE the
         // WebDAV file BEFORE mutating Room. A failed DELETE aborts before Room changes so the
         // next attempt still sees `beforeSweep.isNotEmpty()` and retries.
-        val remainingAfterSweep = beforeSweep.filter { !isAgedSyncedTomb(it, cutoff) }
+        val remainingAfterSweep = beforeSweep.filter { !it.isAgedSyncedTomb(cutoff) }
 
         if (remainingAfterSweep.isEmpty()) {
             if (beforeSweep.isNotEmpty()) {
                 // Rule 2 empty-file DELETE. Do it first, then commit the sweep to Room.
                 val deviceId = deviceIdStore.getOrCreate()
-                target.delete(namespace, itemId, "annotations-$deviceId.jsonld")
+                target.delete(namespace, itemId, AnnotationFilenames.forDevice(deviceId))
                 annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
                 statusStore.report(CycleOutcome.Success(now))
                 return true
@@ -125,13 +124,11 @@ internal class AnnotationPushCoordinator(
             bookTitle = bookTitleProvider(serverId, itemId),
         )
         val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
-        val filename = "annotations-$deviceId.jsonld"
+        val filename = AnnotationFilenames.forDevice(deviceId)
         target.write(namespace, itemId, filename, jsonArray)
         annotationDao.markSynced(localEntities.map { it.id }, now)
         statusStore.report(CycleOutcome.Success(now))
         return true
     }
 
-    private fun isAgedSyncedTomb(row: AnnotationEntity, cutoff: Long): Boolean =
-        row.deleted && row.updatedAt < cutoff && row.updatedAt <= row.lastSyncedAt
 }
