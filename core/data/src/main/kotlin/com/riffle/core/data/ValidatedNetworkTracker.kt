@@ -23,4 +23,16 @@ internal class ValidatedNetworkTracker<K : Any> {
         if (hasValidatedInternet) validated += network else validated -= network
         return validated.isNotEmpty()
     }
+
+    /**
+     * Discard the event-derived set and replace it with [fresh]. Used by
+     * `ConnectivityObserverImpl.syncNow()` to heal drift when NetworkCallback events were dropped
+     * or coalesced during doze — the ground truth comes from a fresh sweep of
+     * `ConnectivityManager.getAllNetworks()` rather than the accumulated event history.
+     */
+    fun reset(fresh: Set<K>): Boolean {
+        validated.clear()
+        validated += fresh
+        return validated.isNotEmpty()
+    }
 }
