@@ -1,7 +1,6 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.unit.IntRect
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.SentenceQuote
@@ -9,7 +8,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import org.json.JSONObject
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -66,63 +64,34 @@ internal class ContinuousReaderCoordinator(
         this.view = view
         viewFlow.value = view
 
-        view.onRawPosition = { href, progression ->
-            val (spineHrefs, counts) = spinePositionsProvider()
-            val locator = buildContinuousLocator(href, progression, spineHrefs, counts)
-            if (locator != null) {
-                navigation.onLocator(locator)
-                presenter?.feedPosition(
-                    href = locator.href.toString(),
-                    progression = locator.locations.progression?.toFloat() ?: progression,
-                    totalProgression = locator.locations.totalProgression?.toFloat(),
-                    locatorJson = locator.toJSON().toString(),
-                )
-            }
-        }
-
-        view.onTap = { navigation.onTap() }
-
-        view.onInternalLinkTapped = { href ->
-            val origin = latestLocator()
-            val path = href.substringBefore('#')
-            val link = publication.readingOrder.firstOrNull { it.href.toString() == path }
-            if (link != null && origin != null) {
-                links.onFollowInternalLink(link, origin)
-            } else {
-                this.view?.navigateTo(href, 0f)
-            }
-        }
-
-        view.onExternalLinkTapped = { url -> links.onExternalLink(url) }
-
-        view.onFootnoteContent = { content -> links.onFootnote(content) }
-
-        view.onAnnotationTap = { _, id, androidRect ->
-            annotations.onAnnotationTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
-        }
-
-        view.onAnnotationNoteTap = { _, id, androidRect ->
-            annotations.onAnnotationNoteTap(id, IntRect(androidRect.left, androidRect.top, androidRect.right, androidRect.bottom))
-        }
-
-        view.onHighlightSelection = { chapterHref, selectedText, progression, selectionScreenRect, before, after ->
-            val locator = Locator.fromJSON(
-                JSONObject()
-                    .put("href", chapterHref)
-                    .put("type", "application/xhtml+xml")
-                    .put("locations", JSONObject().put("progression", progression))
-                    .put("text", JSONObject()
-                        .put("before", before)
-                        .put("highlight", selectedText)
-                        .put("after", after)),
-            )
-            if (locator != null) {
-                annotations.onHighlight(
-                    locator,
-                    IntRect(selectionScreenRect.left, selectionScreenRect.top, selectionScreenRect.right, selectionScreenRect.bottom),
-                )
-            }
-        }
+        view.install(
+            navigation = navigation,
+            links = links,
+            annotations = annotations,
+            onInternalLink = { href ->
+                val origin = latestLocator()
+                val path = href.substringBefore('#')
+                val link = publication.readingOrder.firstOrNull { it.href.toString() == path }
+                if (link != null && origin != null) {
+                    links.onFollowInternalLink(link, origin)
+                } else {
+                    this.view?.navigateTo(href, 0f)
+                }
+            },
+            onRawPosition = { href, progression ->
+                val (spineHrefs, counts) = spinePositionsProvider()
+                val locator = buildContinuousLocator(href, progression, spineHrefs, counts)
+                if (locator != null) {
+                    navigation.onLocator(locator)
+                    presenter?.feedPosition(
+                        href = locator.href.toString(),
+                        progression = locator.locations.progression?.toFloat() ?: progression,
+                        totalProgression = locator.locations.totalProgression?.toFloat(),
+                        locatorJson = locator.toJSON().toString(),
+                    )
+                }
+            },
+        )
 
         view.onPlayFromHereSelection = { chapterHref, selectedText, evalJs ->
             val scoped = scopeSentencesToChapter(

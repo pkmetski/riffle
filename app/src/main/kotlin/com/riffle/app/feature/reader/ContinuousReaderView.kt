@@ -83,43 +83,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     data class ChapterEntry(val link: Link, val url: String)
 
-    /** Called on main thread when scroll position changes; emits raw `(href, progression)` — NOT a full Locator. */
-    var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
-
-
-    /**
-     * Called on main thread when the user taps a chapter without scrolling.
-     * Wire to the reader's chrome toggle so top/bottom bars show/hide on tap.
-     */
-    var onTap: (() -> Unit)? = null
-
-    /**
-     * Called on the main thread when the user taps an in-book link inside a chapter (footnote,
-     * cross-reference). [href] is the target resource path (with any `#fragment`). The host wires
-     * this to the return-aware navigation path so a "Back" card can restore the pre-jump position.
-     */
-    var onInternalLinkTapped: ((href: String) -> Unit)? = null
-
-    /**
-     * Called on the main thread when the user taps an external (http/https) link. [url] is the
-     * absolute URL; the host opens it in a browser.
-     */
-    var onExternalLinkTapped: ((url: String) -> Unit)? = null
-
     /** Whether the text-selection menu should offer "Highlight" (books with annotations UI). */
     var annotationsAvailable: Boolean = false
         set(value) {
             field = value
             webViews.forEach { it.annotationsAvailable = value }
         }
-
-    /**
-     * Called on the main thread with (chapter href, selected text, within-chapter progression,
-     * screen rect of the selection in device pixels) when the user taps "Highlight".
-     * The progression lets the host build a correctly-anchored CFI range; the rect positions
-     * the highlight-actions popup next to the selected text.
-     */
-    var onHighlightSelection: ((href: String, selectedText: String, progression: Double, screenRect: android.graphics.Rect, before: String, after: String) -> Unit)? = null
 
     /** Whether the text-selection menu should offer "Play" (readaloud books only). */
     var readaloudAvailable: Boolean = false
@@ -131,15 +100,52 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     /**
      * Called on the main thread with (chapter href, selected text, evalJs) when the user taps
      * "Play". [evalJs] is the WebView's evaluateJavascript so the host can run geometry-based
-     * sentence resolution before falling back to text matching.
+     * sentence resolution before falling back to text matching. Retained as a View-owned callback
+     * (unlike the other per-chapter callbacks, which route through [ChapterWebViewBinder]) because
+     * sentence-scoped resolution needs publication state that only the coordinator holds.
      */
     var onPlayFromHereSelection: ((href: String, selectedText: String, evalJs: (String, (String?) -> Unit) -> Unit) -> Unit)? = null
 
+    /** Constructed by [install] once the coordinator supplies the three sinks. Binds every
+     *  per-chapter [ChapterWebView] callback except `onInternalLink` and `onPlayFromHere` (see
+     *  [ChapterWebViewBinder] doc). */
+    private var binder: ChapterWebViewBinder? = null
+
+    /** Set by [install]; invoked from [handleScrollChange] with the raw `(href, progression)` on
+     *  every scroll-position update. */
+    private var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
+
     /**
-     * Called on the main thread with the resolved footnote body when the user taps a footnote
-     * anchor in a chapter. The host shows the footnote popup.
+     * Wire this view to the coordinator's sinks. Must be called once, from
+     * [ContinuousReaderCoordinator.attach], before any chapter is appended/prepended — the binder
+     * it constructs is what [appendChapter] / [prependChapter] use to wire each [ChapterWebView].
      */
-    var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+    internal fun install(
+        navigation: ContinuousNavigationSink,
+        links: ContinuousLinkSink,
+        annotations: ContinuousAnnotationSink,
+        onInternalLink: (href: String) -> Unit,
+        onRawPosition: (href: String, progression: Float) -> Unit,
+    ) {
+        this.onRawPosition = onRawPosition
+        binder = ChapterWebViewBinder(
+            navigation = navigation,
+            links = links,
+            annotations = annotations,
+            screenRectOf = ::screenRectFor,
+            onRenderGone = ::recoverFromRendererGone,
+            onInternalLink = onInternalLink,
+            onSelectionActiveChanged = ::onChildSelectionActiveChanged,
+        )
+    }
+
+    /** Screen-space rect of [r] (in [wv]-local device pixels), used by [ChapterWebViewBinder] to
+     *  position annotation/highlight popups and mark taps against the actual on-screen location. */
+    private fun screenRectFor(wv: ChapterWebViewLike, r: android.graphics.Rect): android.graphics.Rect {
+        val loc = IntArray(2)
+        (wv as android.view.View).getLocationOnScreen(loc)
+        return android.graphics.Rect(loc[0] + r.left, loc[1] + r.top, loc[0] + r.right, loc[1] + r.bottom)
+    }
 
     private val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -933,12 +939,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
     }
 
-    /** Called on the main thread when the user taps an annotation highlight mark in any chapter. */
-    var onAnnotationTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
-
-    /** Called on the main thread when the user taps a note glyph next to an annotation mark. */
-    var onAnnotationNoteTap: ((href: String, id: String, screenRect: android.graphics.Rect) -> Unit)? = null
-
     // Annotation state persisted so onPageFinished can re-apply marks when a chapter loads or
     // the sliding window cycles in a new chapter without the LaunchedEffect re-running.
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
@@ -1009,46 +1009,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     // ── private ────────────────────────────────────────────────────────────────
 
-    /**
-     * Wire all annotation-related callbacks on [wv]. The coordinate transform is done at event
-     * time (not at wiring time) so it always reflects the WebView's current screen position.
-     * Extracted to avoid duplication between [appendChapter] and [prependChapter].
-     */
-    private fun wireAnnotationCallbacks(wv: ChapterWebView) {
-        wv.onHighlight = { text, prog, rect, before, after ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onHighlightSelection?.invoke(wv.chapterHref, text, prog, screenRect, before, after)
-        }
-        wv.onAnnotationTap = { id, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onAnnotationTap?.invoke(wv.chapterHref, id, screenRect)
-        }
-        wv.onAnnotationNoteTap = { id, rect ->
-            val loc = IntArray(2)
-            wv.getLocationOnScreen(loc)
-            val screenRect = android.graphics.Rect(loc[0] + rect.left, loc[1] + rect.top, loc[0] + rect.right, loc[1] + rect.bottom)
-            onAnnotationNoteTap?.invoke(wv.chapterHref, id, screenRect)
-        }
-    }
-
     private fun appendChapter(index: Int) {
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
-        wv.onTap = { onTap?.invoke() }
-        wv.onRenderGone = { recoverFromRendererGone() }
-        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
-        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
-        wv.annotationsAvailable = annotationsAvailable
-        wv.onSelectionActiveChanged = ::onChildSelectionActiveChanged
-        wireAnnotationCallbacks(wv)
-        wv.readaloudAvailable = readaloudAvailable
+        binder?.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
-        wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
@@ -1160,16 +1126,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         val entry = allChapters[index]
         val wv = obtainWebView()
         publication?.let { wv.setPublication(it) }
-        wv.onTap = { onTap?.invoke() }
-        wv.onRenderGone = { recoverFromRendererGone() }
-        wv.onInternalLink = { onInternalLinkTapped?.invoke(it) }
-        wv.onExternalLink = { onExternalLinkTapped?.invoke(it) }
-        wv.annotationsAvailable = annotationsAvailable
-        wv.onSelectionActiveChanged = ::onChildSelectionActiveChanged
-        wireAnnotationCallbacks(wv)
-        wv.readaloudAvailable = readaloudAvailable
+        binder?.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
-        wv.onFootnoteContent = { onFootnoteContent?.invoke(it) }
         val placeholder = placeholderHeight
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
