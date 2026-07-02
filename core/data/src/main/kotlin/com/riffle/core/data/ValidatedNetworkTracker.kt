@@ -25,6 +25,12 @@ internal class ValidatedNetworkTracker<K : Any> {
     }
 
     /**
+     * Current online view derived purely from previously-received callback events. Read-only —
+     * safe to call from the periodic self-heal tick without mutating tracker state.
+     */
+    fun isOnline(): Boolean = validated.isNotEmpty()
+
+    /**
      * Union [fresh] into the tracked set. Callback events are authoritative for removal — a
      * reconciliation sweep only heals the "we missed an onAvailable during doze" direction and
      * must never re-add a network the callbacks have already reported as lost, or an airplane-mode

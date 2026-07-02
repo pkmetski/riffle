@@ -86,6 +86,26 @@ class ValidatedNetworkTrackerTest {
     }
 
     @Test
+    fun `isOnline mirrors the tracker set without mutating it`() {
+        // The 15s foreground poll in ConnectivityObserverImpl re-emits `emitReconciled(
+        // tracker.isOnline())` on a schedule so the `activeNetwork == null` veto can fire even
+        // when Android 13 drops the `onLost` callback entirely. The tick must be READ-ONLY — if
+        // isOnline() ever grew a side effect, the poll would silently mutate tracker state and
+        // resurrect the class of bug PR #396 removed the old syncNow() to fix.
+        val tracker = ValidatedNetworkTracker<String>()
+        assertFalse(tracker.isOnline())
+
+        tracker.onAvailable("wifi")
+        assertTrue(tracker.isOnline())
+        // Repeated reads must be idempotent — same answer, no state change.
+        assertTrue(tracker.isOnline())
+        assertTrue(tracker.isOnline())
+        // Losing the network still flows through the callback path normally.
+        assertFalse(tracker.onLost("wifi"))
+        assertFalse(tracker.isOnline())
+    }
+
+    @Test
     fun `clear drops every tracked network`() {
         // Called from the ProcessLifecycleOwner ON_START sweep when
         // `ConnectivityManager.activeNetwork` is null — the coarse ground-truth signal that no

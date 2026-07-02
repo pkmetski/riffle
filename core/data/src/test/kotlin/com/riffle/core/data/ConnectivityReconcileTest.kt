@@ -70,6 +70,35 @@ class ConnectivityReconcileTest {
     }
 
     @Test
+    fun `foreground poll rescues stuck-online tracker on Android 13 dropped onLost`() {
+        // The regression the user reported on an Android 13 device: airplane mode ON while the
+        // library screen is in the foreground. The OS drops the `onLost` for the single
+        // qualifying network entirely — not just one-of-two, the only one — so the tracker
+        // remains non-empty and the banner never appears until the user navigates to a
+        // different library and forces a fresh refresh in a new ViewModel.
+        //
+        // Neither the callback-driven path nor the ON_START sweep can rescue this: no callback
+        // fires (dropped), and ON_START only fires on background→foreground transitions
+        // (irrelevant while the user is sitting on the screen).
+        //
+        // The foreground poll inside `ConnectivityObserverImpl` closes this gap: every
+        // POLL_INTERVAL_MS it calls `emitReconciled(tracker.isOnline())`, which threads through
+        // this predicate with a FRESH `activeNetwork` read. Airplane on → `activeNetwork == null`
+        // → veto fires → offline. This test captures the exact tracker+activeNetwork state that
+        // the poll observes at that moment. Do not delete it if the poll is refactored — rewire
+        // the assertion to the new mechanism.
+        val tracker = ValidatedNetworkTracker<String>()
+        tracker.onAvailable("wifi")
+        val trackerStillOnline = tracker.isOnline()
+
+        assertTrue("Tracker never received the dropped onLost", trackerStillOnline)
+        assertFalse(
+            "The poll's fresh activeNetwork read (null after airplane on) must veto to offline",
+            reconcileOnline(trackerStillOnline, hasActiveNetwork = false),
+        )
+    }
+
+    @Test
     fun `dropped onAvailable scenario end-to-end via tracker`() {
         // Symmetric case — post-doze/wake on Android 13, the OS can drop an `onAvailable` after
         // the process resumes, so the tracker remains empty (offline) even though a validated
