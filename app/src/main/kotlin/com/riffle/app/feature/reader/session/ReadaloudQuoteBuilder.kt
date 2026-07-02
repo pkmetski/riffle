@@ -7,6 +7,7 @@ import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,11 +39,13 @@ internal class ReadaloudQuoteBuilder(
     internal var started = false
         private set
 
+    private var buildJob: Job? = null
+
     /** Extracts sentence quotes from [bundle]. One-shot: safe to call repeatedly. */
     fun build(bundle: File) {
         if (started) return
         started = true
-        scope.launch(dispatchers.io) {
+        buildJob = scope.launch(dispatchers.io) {
             try {
                 val chapters = EpubContentExtractor.extract(bundle)?.chapters ?: return@launch
                 _sentenceQuotes.value = ReadaloudTextQuotes.build(chapters)
@@ -51,6 +54,19 @@ internal class ReadaloudQuoteBuilder(
                 logger.e(LogChannel.Readaloud, e) { "buildSentenceQuotes failed" }
             }
         }
+    }
+
+    /**
+     * Idempotent: triggers [build] if it hasn't run yet for the currently-bound [quoteBundle], and
+     * suspends until that in-flight build finishes. No-op (and returns immediately) if no bundle has
+     * been bound yet, or if a build already completed — matching the pre-existing behaviour where
+     * [sentenceQuotes] is empty until the first bind/play triggers a build.
+     */
+    suspend fun ensureBuilt() {
+        val bundle = quoteBundle ?: return
+        if (sentenceQuotes.value.isNotEmpty()) return
+        build(bundle)
+        buildJob?.join()
     }
 
     /** Restore the initial state so the next book open can re-seed the builder. */
