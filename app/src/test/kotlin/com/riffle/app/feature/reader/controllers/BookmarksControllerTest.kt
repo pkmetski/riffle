@@ -130,7 +130,7 @@ class BookmarksControllerTest {
     fun `bookmarkPositions reactively follows annotationStore observeBookmarks`() = runTest {
         val (controller, store) = makeController()
         val bm = makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.1)
-        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap<String, Double>()))
 
         store.bookmarks.value = listOf(bm)
 
@@ -144,7 +144,7 @@ class BookmarksControllerTest {
     fun `isCurrentPageBookmarked reflects bookmark presence at current href and progression`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap()))
 
         assertFalse(controller.isCurrentPageBookmarked.value)
 
@@ -164,7 +164,7 @@ class BookmarksControllerTest {
     fun `isCurrentPageBookmarked uses progression window tolerance`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap()))
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
         // Within 5% tolerance → bookmarked
@@ -184,7 +184,7 @@ class BookmarksControllerTest {
         // viewportFraction can hit ~0.6 (so vf/2 ≈ 0.30) — the exact case the user reproduced.
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap()))
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.0))
@@ -205,7 +205,7 @@ class BookmarksControllerTest {
     fun `onOrientationChanged toggles eps without rebinding`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
-        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", currentLocator, MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap()))
         // Start in paginated.
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
 
@@ -223,7 +223,7 @@ class BookmarksControllerTest {
     fun `renameBookmark updates store and calls sync`() = runTest {
         var syncCalled = false
         val (controller, store) = makeController(onScheduleSync = { syncCalled = true })
-        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap<String, Double>()))
 
         controller.renameBookmark("bm-1", "New Title")
 
@@ -235,13 +235,13 @@ class BookmarksControllerTest {
     fun `bind clears state from previous book`() = runTest {
         val (controller, store) = makeController()
         store.bookmarks.value = listOf(makeAnnotation())
-        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item1", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap<String, Double>()))
 
         assertEquals(1, controller.bookmarkPositions.value.size)
 
         // Rebind to a new book with a fresh empty store
         store.bookmarks.value = emptyList()
-        controller.bind("srv", "item2", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()))
+        controller.bind("srv", "item2", MutableStateFlow(null), MutableStateFlow(emptyList<String>() to emptyList()), MutableStateFlow(emptyMap()))
 
         assertEquals(0, controller.bookmarkPositions.value.size)
     }
@@ -257,7 +257,7 @@ class BookmarksControllerTest {
         val positions = MutableStateFlow(
             listOf("ch1.xhtml") to listOf(60),
         )
-        controller.bind("srv", "item1", currentLocator, positions)
+        controller.bind("srv", "item1", currentLocator, positions, MutableStateFlow(emptyMap()))
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
@@ -282,6 +282,7 @@ class BookmarksControllerTest {
         controller.bind(
             "srv", "item1", currentLocator,
             MutableStateFlow(emptyList<String>() to emptyList()),
+            MutableStateFlow(emptyMap()),
         )
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
 
@@ -301,7 +302,7 @@ class BookmarksControllerTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
         val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(40))
-        controller.bind("srv", "item1", currentLocator, positions)
+        controller.bind("srv", "item1", currentLocator, positions, MutableStateFlow(emptyMap()))
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
@@ -324,12 +325,96 @@ class BookmarksControllerTest {
         val positions = MutableStateFlow(
             listOf("ch1.xhtml", "ch2.xhtml") to listOf(60, 20),
         )
-        controller.bind("srv", "item1", MutableStateFlow(null), positions)
+        controller.bind("srv", "item1", MutableStateFlow(null), positions, MutableStateFlow(emptyMap()))
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
 
         assertEquals("60-page chapter: half-a-page = 1/120", 1.0 / 120.0, controller.bookmarkEpsFor("ch1.xhtml"), 1e-9)
         assertEquals("20-page chapter: half-a-page = 1/40", 1.0 / 40.0, controller.bookmarkEpsFor("ch2.xhtml"), 1e-9)
         assertEquals("unknown chapter falls back to 5%", 0.05, controller.bookmarkEpsFor("ch99.xhtml"), 1e-9)
+    }
+
+    // Issue #399: the live viewport-fraction path is the geometrically-correct half-viewport
+    // bound (`fraction / 2`). When both the fraction and Readium's position count are known,
+    // fraction wins — position count is only ~1024-char slices, a rough proxy.
+    @Test
+    fun `live viewport fraction takes precedence over spine position counts`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(30))
+        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.20)) // eps = 0.10
+        controller.bind("srv", "item1", currentLocator, positions, fractions)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
+
+        // 0.09 delta — inside the fraction/2=0.10 window, but well outside 0.5/30=0.0167.
+        // Assertion pins fraction wins over positions.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.59)
+        assertTrue(
+            "indicator ON at 0.09 delta when fraction=0.20 (eps=0.10)",
+            controller.isCurrentPageBookmarked.value,
+        )
+
+        // 0.11 delta — outside the fraction/2=0.10 window.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.61)
+        assertFalse(
+            "indicator OFF at 0.11 delta when fraction=0.20 (eps=0.10)",
+            controller.isCurrentPageBookmarked.value,
+        )
+    }
+
+    // When no fraction has arrived yet for the current chapter, positions is the fallback.
+    // Guards against the priority order accidentally short-circuiting on an empty map.
+    @Test
+    fun `bookmarkEpsFor falls back to positions when fraction is not yet measured`() = runTest {
+        val (controller, _) = makeController()
+        val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(60))
+        controller.bind(
+            "srv", "item1", MutableStateFlow(null), positions,
+            MutableStateFlow(emptyMap()), // no fraction reported yet
+        )
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Horizontal)
+
+        assertEquals(
+            "empty fraction map → 0.5/positions still applies",
+            1.0 / 120.0,
+            controller.bookmarkEpsFor("ch1.xhtml"),
+            1e-9,
+        )
+    }
+
+    // Fractions are chapter-scoped: a fraction for chapter A must not leak into chapter B.
+    // (An early draft keyed the map on the wrong href would silently pass every other test.)
+    @Test
+    fun `live viewport fraction is chapter-scoped`() = runTest {
+        val (controller, _) = makeController()
+        val positions = MutableStateFlow(
+            listOf("ch1.xhtml", "ch2.xhtml") to listOf(50, 50),
+        )
+        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.10)) // eps = 0.05
+        controller.bind("srv", "item1", MutableStateFlow(null), positions, fractions)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+
+        assertEquals("ch1 uses fraction (0.10/2 = 0.05)", 0.05, controller.bookmarkEpsFor("ch1.xhtml"), 1e-9)
+        assertEquals("ch2 falls back to positions (0.5/50)", 0.01, controller.bookmarkEpsFor("ch2.xhtml"), 1e-9)
+    }
+
+    // A zero or negative fraction (measurement race, degenerate chapter) MUST fall through to
+    // positions rather than short-circuiting to eps=0 (which would silently kill the indicator).
+    @Test
+    fun `zero or negative fraction is ignored`() = runTest {
+        val (controller, _) = makeController()
+        val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(40))
+        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.0))
+        controller.bind("srv", "item1", MutableStateFlow(null), positions, fractions)
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+
+        assertEquals(
+            "zero fraction is dropped, positions used instead",
+            0.5 / 40.0,
+            controller.bookmarkEpsFor("ch1.xhtml"),
+            1e-9,
+        )
     }
 
     @Test

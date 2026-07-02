@@ -129,6 +129,18 @@ internal interface RendererBridge {
     suspend fun scrollBoundary(): Pair<Boolean, Boolean>
 
     /**
+     * Measure `viewportSize / scrollSize` for the currently loaded resource. Paginated mode
+     * overflows horizontally (`innerWidth / scrollWidth`); vertical mode overflows vertically
+     * (`innerHeight / scrollHeight`). The JS picks the axis by whichever dimension actually
+     * overflows the viewport. Returns null when the WebView is gone or the measurement can't
+     * be parsed; caller (presenter) skips publishing in that case.
+     *
+     * Feeds `BookmarksController` via `EpubReaderViewModel.viewportFractionByHref` (issue #399).
+     * The JS reads no scroll state — safe to call from a page-load or typography-change hook.
+     */
+    suspend fun readViewportFraction(): Double?
+
+    /**
      * Evaluate a script supplied by `ScrollBoundaryNavigationContainer` for the volume-key
      * boundary crossing. The container builds the smooth-scroll JS itself (deciding by orientation
      * + boundary state) and just needs a way to send it to the fragment. The script is fully owned

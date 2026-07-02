@@ -608,6 +608,7 @@ class EpubReaderViewModel @Inject constructor(
                 itemId = itemId,
                 currentLocator = position.currentLocator,
                 spinePositionCounts = spinePositionCounts,
+                viewportFractionByHref = viewportFractionByHref,
             )
             // Push orientation changes into the controller via a setter so the page-bookmark
             // indicator's match window re-sizes on a mid-session flip.
@@ -1183,6 +1184,30 @@ class EpubReaderViewModel @Inject constructor(
      * feeds [railSegments] weighting. Exposed so the continuous reader can build correctly
      * scaled locators when a rail segment spans multiple spine resources.
      */
+    private val _viewportFractionByHref = MutableStateFlow<Map<String, Double>>(emptyMap())
+
+    /**
+     * Live per-chapter `viewportSize / chapterSize` fractions. Populated by [putViewportFraction]
+     * from `ReaderPresenter.viewportFractionEvents` in `EpubReaderScreen`, and read by
+     * `BookmarksController.bookmarkEpsFor` as the geometrically-correct half-viewport bound
+     * for the bookmark indicator (issue #399). Only changes when a chapter's measurement
+     * changes — never on scroll.
+     */
+    val viewportFractionByHref: StateFlow<Map<String, Double>> = _viewportFractionByHref
+
+    /**
+     * Record a fresh viewport-fraction measurement for [href]. No-ops when the incoming value
+     * equals the currently stored one — this per-entry distinct-until-changed guard is what
+     * lets the bookmark combine avoid the scroll-driven recomposition churn that flaked
+     * `HighlightRepaintOrientationHarnessTest` in the prior attempt (see issue #399).
+     */
+    fun putViewportFraction(href: String, fraction: Double) {
+        if (href.isEmpty() || fraction <= 0.0 || !fraction.isFinite()) return
+        val current = _viewportFractionByHref.value
+        if (current[href] == fraction) return
+        _viewportFractionByHref.value = current + (href to fraction)
+    }
+
     val spinePositionCounts: StateFlow<Pair<List<String>, List<Int>>> = state
         .map { s ->
             val ready = s as? ReaderState.Ready ?: return@map emptyList<String>() to emptyList<Int>()

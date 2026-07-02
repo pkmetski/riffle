@@ -57,6 +57,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         port = port,
         context = context,
         onRawPosition = { href, progression -> onRawPosition?.invoke(href, progression) },
+        onViewportFractionMeasured = { href, fraction -> onViewportFractionMeasured?.invoke(href, fraction) },
     )
 
     /** Whether the text-selection menu should offer "Highlight" (books with annotations UI). */
@@ -82,6 +83,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      *  every scroll-position update. */
     private var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
 
+    /**
+     * Set by [install]; invoked by the controller with `(href, viewportFraction)` whenever a
+     * chapter's measured height first lands or changes. Feeds `ContinuousPresenter.feedViewportFraction`
+     * for the bookmark eps window (issue #399). Emitted from measurement callbacks only —
+     * never from scroll.
+     */
+    private var onViewportFractionMeasured: ((href: String, fraction: Double) -> Unit)? = null
+
     /** True once [initialize] has been called. Observed by the navigation LaunchedEffect in
      *  EpubReaderScreen to avoid calling [navigateTo] before the window is populated. */
     val isInitialized = mutableStateOf(false)
@@ -96,8 +105,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         annotations: ContinuousAnnotationSink,
         onInternalLink: (href: String) -> Unit,
         onRawPosition: (href: String, progression: Float) -> Unit,
+        onViewportFractionMeasured: (href: String, fraction: Double) -> Unit = { _, _ -> },
     ) {
         this.onRawPosition = onRawPosition
+        this.onViewportFractionMeasured = onViewportFractionMeasured
         val binder = ChapterWebViewBinder(
             navigation = navigation,
             links = links,

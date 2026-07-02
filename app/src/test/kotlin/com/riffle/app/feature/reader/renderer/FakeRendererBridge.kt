@@ -19,6 +19,7 @@ internal class FakeRendererBridge(
     private val snapToElementMoved: Boolean = false,
     private val scrollByPxResult: Boolean? = true,
     private val scrollBoundaryResult: Pair<Boolean, Boolean> = Pair(false, false),
+    private val viewportFractionResult: Double? = null,
 ) : RendererBridge {
 
     val calls: MutableList<String> = mutableListOf()
@@ -103,5 +104,10 @@ internal class FakeRendererBridge(
 
     override suspend fun evaluateBoundaryScroll(js: String) {
         calls += "evaluateBoundaryScroll(len=${js.length})"
+    }
+
+    override suspend fun readViewportFraction(): Double? {
+        calls += "readViewportFraction"
+        return viewportFractionResult
     }
 }

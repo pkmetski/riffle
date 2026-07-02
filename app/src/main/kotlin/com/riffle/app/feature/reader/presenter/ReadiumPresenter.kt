@@ -42,6 +42,7 @@ internal class ReadiumPresenter(
 
     private val _positionEvents = MutableSharedFlow<PositionUpdate>(replay = 0, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<PageLoadGeneration>(replay = 0, extraBufferCapacity = 64)
+    private val _viewportFractionEvents = MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private val _tapEvents = MutableSharedFlow<TapEvent>(replay = 0, extraBufferCapacity = 64)
     private val _linkEvents = MutableSharedFlow<LinkEvent>(replay = 0, extraBufferCapacity = 64)
     private val _selectionEvents = MutableSharedFlow<SelectionEvent>(replay = 0, extraBufferCapacity = 64)
@@ -49,6 +50,7 @@ internal class ReadiumPresenter(
 
     override val positionEvents: SharedFlow<PositionUpdate> = _positionEvents
     override val pageLoadEvents: SharedFlow<PageLoadGeneration> = _pageLoadEvents
+    override val viewportFractionEvents: SharedFlow<Pair<String, Double>> = _viewportFractionEvents
     override val tapEvents: SharedFlow<TapEvent> = _tapEvents
     override val linkEvents: SharedFlow<LinkEvent> = _linkEvents
     override val selectionEvents: SharedFlow<SelectionEvent> = _selectionEvents
@@ -106,6 +108,25 @@ internal class ReadiumPresenter(
     fun feedPageLoaded() {
         pageLoadCount += 1
         _pageLoadEvents.tryEmit(PageLoadGeneration(pageLoadCount))
+        publishViewportFraction()
+    }
+
+    /**
+     * Measure the current document's `viewportSize / scrollSize` and publish it against the
+     * fragment's current-locator href. Called on page load and after typography changes (the
+     * two hooks Readium re-lays-out the document). Scroll callbacks intentionally do NOT
+     * trigger this — see issue #399's flake-avoidance rules.
+     */
+    private fun publishViewportFraction() {
+        val fragment = fragment ?: return
+        val href = fragment.currentLocator.value.href.toString()
+        if (href.isEmpty()) return
+        scope.launch {
+            val fraction = bridge.readViewportFraction() ?: return@launch
+            if (fraction > 0.0) {
+                _viewportFractionEvents.tryEmit(href to fraction)
+            }
+        }
     }
 
     fun feedInternalLink(link: Link, origin: Locator) {
@@ -164,6 +185,9 @@ internal class ReadiumPresenter(
         // onPageLoaded by the bridge's TypographyOverride capability; doing it here too means a
         // live preferences change takes effect immediately without waiting for the next page turn.
         bridge.applyTypographyOverride()
+        // Font size / margins reflow the document. Re-measure the viewport fraction so the
+        // bookmark eps stays accurate under the new layout (issue #399).
+        publishViewportFraction()
     }
 
     override fun snapshotPosition(): ReaderPosition? = lastPosition

@@ -17,6 +17,7 @@ internal class FakeReaderPresenter : ReaderPresenter {
 
     private val _positionEvents = MutableSharedFlow<PositionUpdate>(replay = 0, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<PageLoadGeneration>(replay = 0, extraBufferCapacity = 64)
+    private val _viewportFractionEvents = MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private val _tapEvents = MutableSharedFlow<TapEvent>(replay = 0, extraBufferCapacity = 64)
     private val _linkEvents = MutableSharedFlow<LinkEvent>(replay = 0, extraBufferCapacity = 64)
     private val _selectionEvents = MutableSharedFlow<SelectionEvent>(replay = 0, extraBufferCapacity = 64)
@@ -24,6 +25,7 @@ internal class FakeReaderPresenter : ReaderPresenter {
 
     override val positionEvents: SharedFlow<PositionUpdate> = _positionEvents
     override val pageLoadEvents: SharedFlow<PageLoadGeneration> = _pageLoadEvents
+    override val viewportFractionEvents: SharedFlow<Pair<String, Double>> = _viewportFractionEvents
     override val tapEvents: SharedFlow<TapEvent> = _tapEvents
     override val linkEvents: SharedFlow<LinkEvent> = _linkEvents
     override val selectionEvents: SharedFlow<SelectionEvent> = _selectionEvents
@@ -82,6 +84,10 @@ internal class FakeReaderPresenter : ReaderPresenter {
 
     suspend fun emitPageLoad(value: Int) {
         _pageLoadEvents.emit(PageLoadGeneration(value))
+    }
+
+    suspend fun emitViewportFraction(href: String, fraction: Double) {
+        _viewportFractionEvents.emit(href to fraction)
     }
 
     suspend fun emitTap(event: TapEvent = TapEvent.Body) {

@@ -161,6 +161,23 @@ internal class DefaultRendererBridge(
         fragment?.evaluateJavascript(js)
     }
 
+    override suspend fun readViewportFraction(): Double? {
+        val frag = fragment ?: return null
+        val raw = frag.evaluateJavascript(
+            """
+            (function() {
+              var iw = window.innerWidth, sw = document.documentElement.scrollWidth;
+              var ih = window.innerHeight, sh = document.documentElement.scrollHeight;
+              // Pick the overflow axis. Paginated overflows horizontally; vertical/no-overflow
+              // fall through to the height ratio.
+              var v = sw > iw ? (iw / sw) : (ih > 0 ? ih / sh : 0);
+              return isFinite(v) && v > 0 ? v.toString() : "";
+            })()
+            """.trimIndent(),
+        )?.trim('"') ?: return null
+        return raw.toDoubleOrNull()
+    }
+
     companion object {
         /**
          * The capability registry shared by every paged/vertical session. The dependency graph

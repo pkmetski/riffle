@@ -405,6 +405,7 @@ fun EpubReaderScreen(
                             viewModel.onPositionChanged(locator)
                             viewModel.dismissFootnotePopup()
                         },
+                        onViewportFractionMeasured = viewModel::putViewportFraction,
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         searchNavigationEvents = viewModel.searchNavigationEvents,
@@ -1087,6 +1088,7 @@ private fun EpubNavigatorView(
     spinePositions: Pair<List<String>, List<Int>>,
     formattingPrefsProvider: () -> FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
+    onViewportFractionMeasured: (href: String, fraction: Double) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
@@ -1194,6 +1196,16 @@ private fun EpubNavigatorView(
         val presenter = readiumPresenter ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         presenter.attach(fragment)
+    }
+
+    // Forward per-chapter viewport-fraction measurements from the active renderer into the VM's
+    // `viewportFractionByHref` map. The VM applies a per-entry distinct-until-changed guard so
+    // repeat values do not churn the bookmark combine (issue #399). The producers only emit on
+    // measurement/reflow events, never on scroll.
+    LaunchedEffect(readerPresenter) {
+        readerPresenter.viewportFractionEvents.collect { (href, fraction) ->
+            onViewportFractionMeasured(href, fraction)
+        }
     }
 
     // MODE-FORK: Highlight rendering pipeline. ContinuousHighlightRenderer drives custom JS
