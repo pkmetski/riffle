@@ -52,9 +52,9 @@ import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.NavigationOptions
 import com.riffle.app.feature.reader.presenter.NavigationTarget
 import com.riffle.app.feature.reader.presenter.PageDirection
-import com.riffle.app.feature.reader.presenter.ReadaloudFollowResult
 import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
+import com.riffle.app.feature.reader.sentence.SentencePlaybackController
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -1215,6 +1215,19 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Owns the sentence-highlight + auto-follow LaunchedEffects (see [SentencePlaybackController.Attach]
+    // below). Lambdas re-read the `remember`'d locals above so the controller always sees the current
+    // instance across an orientation flip (Readium <-> Continuous re-creates highlightRenderer /
+    // readiumPresenter without re-creating this controller).
+    val sentencePlaybackController = remember {
+        SentencePlaybackController(
+            highlightRenderer = { highlightRenderer },
+            readerPresenter = { readerPresenter },
+            readiumPresenter = { readiumPresenter },
+            fragmentLocator = ::fragmentLocator,
+        )
+    }
+
     val containerRef = remember { mutableStateOf<ScrollBoundaryNavigationContainer?>(null) }
     // Caches the most-recent text-selection bounding rect in CSS viewport px, populated by
     // RiffleSelBridge on every selectionchange — before the floating action-mode toolbar fires.
@@ -1751,15 +1764,16 @@ private fun EpubNavigatorView(
         highlightRenderer.applySearch(searchResults, currentSearchIndex)
     }
 
-    // ---- Readaloud synced highlight --------------------------------------------------------
-    // Superset keys cover both Readium (pageLoadGeneration, reflowGeneration re-apply on
-    // reflow/rotation) and Continuous (sentenceQuotes re-applies when quotes build asynchronously).
-    // The [highlightRenderer] key picks up an orientation flip: the same rationale as the
-    // persisted-highlight effects below — the renderer is recreated Readium↔Continuous and the
-    // fresh instance has to receive the current sentence immediately, not on the next reflow tick.
-    LaunchedEffect(highlightRenderer, activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
-        highlightRenderer.applySentenceHighlight(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
-    }
+    // ---- Readaloud synced highlight + auto-follow ------------------------------------------
+    // See [SentencePlaybackController.Attach] for the key-list rationale (unchanged from the
+    // inline LaunchedEffects this replaces) and the auto-follow behaviour.
+    sentencePlaybackController.Attach(
+        activeFragmentRef = activeFragmentRef,
+        sentenceQuotes = sentenceQuotes,
+        readaloudHighlightColor = readaloudHighlightColor,
+        reflowGeneration = reflowGeneration,
+        pageLoadGeneration = pageLoadGeneration.value,
+    )
 
     // ---- Persisted highlights (annotations + note glyphs) ----------------------------------
     // Superset keys: continuous re-keys on activeFragmentRef's base href when a new chapter
@@ -1819,44 +1833,9 @@ private fun EpubNavigatorView(
     }
 
     // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
-    // Playback drives activeFragmentRef forward (audio-clock, one change per narrated sentence); the
-    // page should follow the narrated sentence. Readium 3.0.0 can't enumerate visible fragments, so
-    // we ask the WebView for the element's on-screen rect and act per layout:
-    //
-    //  - Scroll (Vertical) mode — the document overflows the viewport, so we scroll it to KEEP THE
-    //    SENTENCE CENTERED, the natural karaoke-follow.
-    //  - Paginated (Horizontal) mode — each page is exactly viewport-sized, KEEP-VISIBLE follow: while
-    //    the narrated sentence's start is on the current page the probe leaves the page in place, and
-    //    only flips (snaps scrollLeft onto the column grid) once the sentence's start moves off the
-    //    current page. This is what stops starting playback — and the player-open reflow that re-runs
-    //    this probe — from yanking the line the user pressed onto a fresh column boundary. The snap
-    //    holds because the reader is sized so innerWidth == Readium's page-snap pitch
-    //    ([alignedReaderWidthDp]), so floor(x / innerWidth) * innerWidth is exactly a column boundary.
-    //
-    // A missing element (sentence in another chapter's document) reads as "off" → go(locator) jumps
-    // chapters, so cross-chapter follow falls out for free in both modes.
-    //
-    // Re-keys on reflowGeneration (formatting reflows) and pageLoadGeneration (rotation / chapter load)
-    // so the narrated sentence is re-centred after those relayouts. The player floats over the page and
-    // no longer reflows it, so opening it doesn't move the narrated sentence's column.
-    LaunchedEffect(activeFragmentRef, sentenceQuotes, reflowGeneration, pageLoadGeneration.value) {
-        val ref = activeFragmentRef ?: return@LaunchedEffect
-        if (ref.indexOf('#') < 0) return@LaunchedEffect
-        // No quote yet (the map is built off-thread once playback starts) → we can neither locate the
-        // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
-        // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
-        // this effect re-keys on [sentenceQuotes] and re-runs to follow correctly once it's available.
-        val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@LaunchedEffect
-        // Locate the sentence by its text (spans are stripped). The probe snaps to the sentence's
-        // column itself in paginated mode; OffPage comes back only when the text isn't on this resource
-        // (another chapter), where we fall back to a text-anchored go() to load it. Vertical / continuous
-        // adapters report Unavailable — their per-sentence follow lives elsewhere.
-        when (readerPresenter.followReadaloudSentence(quote.highlight)) {
-            ReadaloudFollowResult.Snapped, ReadaloudFollowResult.Unavailable -> Unit
-            ReadaloudFollowResult.OffPage ->
-                fragmentLocator(ref, quote)?.let { readiumPresenter?.navigateToLocator(it, snap = false, animated = false) }
-        }
-    }
+    // Now hosted by [sentencePlaybackController.Attach] above (see that call and
+    // [SentencePlaybackController] for the full rationale) — extracted per ADR 0039 so a future
+    // non-Readaloud driver (Cadence) can attach the same pipeline.
 
     // INTRA-sentence page follow (paginated): the effect above snaps to the column holding the
     // sentence's START on each sentence change, but a sentence whose text wraps across the column
