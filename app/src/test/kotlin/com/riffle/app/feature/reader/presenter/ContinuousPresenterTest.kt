@@ -2,6 +2,9 @@ package com.riffle.app.feature.reader.presenter
 
 import com.riffle.app.feature.reader.ContinuousNavigationView
 import com.riffle.core.domain.FormattingPreferences
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -17,6 +20,7 @@ import org.junit.Test
  * ([NavigationTarget.ToHref], [NavigationTarget.ToProgression]) are exercised in instrumentation
  * via the existing TOC + chapter-map paths.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ContinuousPresenterTest {
 
     private class FakeView : ContinuousNavigationView {
@@ -221,6 +225,27 @@ class ContinuousPresenterTest {
         presenter.snapReadaloudColumn("any", columnIndex = 2)
         assertTrue("expected no view calls, got navCalls=${view.navCalls} pageCalls=${view.pageCalls}",
             view.navCalls.isEmpty() && view.pageCalls.isEmpty())
+    }
+
+    // Issue #399: continuous producer emits `viewportHeight / measuredHeight` from the
+    // ContinuousWindowController's onHeightMeasured hooks. feedViewportFraction must forward
+    // that measurement verbatim through viewportFractionEvents so the VM's collector can
+    // update the bookmark eps map. A zero/negative fraction is dropped (defensive: measurement
+    // race in the WindowController could otherwise emit before viewport height is known).
+    @Test
+    fun `feedViewportFraction forwards positive measurements verbatim`() = runTest {
+        val presenter = ContinuousPresenter()
+        val collected = mutableListOf<Pair<String, Double>>()
+        val job = launch { presenter.viewportFractionEvents.collect { collected += it } }
+        runCurrent() // let the collector subscribe before we emit — SharedFlow(replay=0) drops otherwise
+
+        presenter.feedViewportFraction("ch1.xhtml", 0.0) // dropped
+        presenter.feedViewportFraction("ch1.xhtml", -1.0) // dropped
+        presenter.feedViewportFraction("ch2.xhtml", 0.25) // emitted
+        runCurrent()
+
+        assertEquals(listOf("ch2.xhtml" to 0.25), collected)
+        job.cancel()
     }
 
     @Test
