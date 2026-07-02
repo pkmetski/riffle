@@ -12,6 +12,7 @@ import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ConnectivityObserver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
@@ -63,9 +64,19 @@ class ConnectivityObserverImpl @Inject constructor(
         // without GMS and on any network that firewalls Google endpoints. Riffle never talks to
         // Google — it talks to the user's Audiobookshelf server, WebDAV, and optional Storyteller
         // peer — so making the banner depend on a Google reachability probe misreports offline for
-        // every affected user. Server-reachability is separately tracked by `_refreshFailed` in
-        // the library view model, which is the correct signal for "we can see the LAN but not
-        // your server." See `isQualifyingNetwork` below.
+        // every affected user. See `isQualifyingNetwork` below.
+        //
+        // Tradeoff: on a network where INTERNET is set but the server is actually unreachable
+        // (captive portal that hasn't been signed into, away-from-LAN with a LAN-only server),
+        // `isOnline` will now report true. On the main library screens the shim is
+        // `LibraryItemsViewModel._refreshFailed` (and the analogous `_refreshFailed` in
+        // `SeriesDetailViewModel` / `CollectionDetailViewModel`), which flips the banner when a
+        // library refresh returns `NetworkError`. Other consumers of `isOnline` —
+        // `LibraryItemDetailViewModel`, `FilteredBooksViewModel`, `ReadaloudSession`'s
+        // download-prompt guard — do NOT have this shim, so on unvalidated-server-unreachable
+        // networks they will show the online state and fail at request time. That is a strictly
+        // narrower failure mode than the Huawei bug (which broke the primary use case entirely)
+        // but is a real UX regression on captive portals; treated as follow-up work.
         val tracker = ValidatedNetworkTracker<Network>()
 
         // See `reconcileOnline` — every callback emit is cross-checked against `activeNetwork`
@@ -121,29 +132,42 @@ class ConnectivityObserverImpl @Inject constructor(
             emitReconciled(tracker.mergeIn(fresh))
         }
 
+        // Foreground-gated poll — see the block comment at the top of this callbackFlow. Started
+        // on ON_START (foreground) and cancelled on ON_STOP (background) so we only pay the poll
+        // cost while the banner is actually observable to the user; the ON_START sweep still
+        // provides a one-shot heal at foregrounding for the "missed onAvailable during doze"
+        // direction. `distinctUntilChanged` downstream suppresses no-op emits.
+        var pollJob: Job? = null
         val lifecycleOwner = ProcessLifecycleOwner.get()
         val lifecycleObserver = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) reconcile()
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    reconcile()
+                    pollJob?.cancel()
+                    pollJob = launch {
+                        while (isActive) {
+                            delay(POLL_INTERVAL_MS)
+                            emitReconciled(tracker.isOnline())
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    pollJob?.cancel()
+                    pollJob = null
+                }
+                else -> Unit
+            }
         }
-        // LifecycleRegistry requires main-thread registration.
+        // LifecycleRegistry requires main-thread registration. Adding an observer while the
+        // lifecycle is already in the STARTED state replays ON_CREATE + ON_START to bring the
+        // observer up to date, so a foreground subscribe immediately runs the sweep and starts
+        // the poll — no separate priming path needed.
         withContext(Dispatchers.Main.immediate) {
             lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
         }
 
-        // See the block comment at the top of this callbackFlow — read-only re-emit on a bounded
-        // schedule so the `activeNetwork == null` veto in `reconcileOnline` fires without needing
-        // a callback event that Android 13 may have silently dropped. `distinctUntilChanged`
-        // downstream suppresses no-op emits, so a healthy foreground app pays only the cost of
-        // one `activeNetwork` read per interval.
-        val pollJob = launch {
-            while (isActive) {
-                delay(POLL_INTERVAL_MS)
-                emitReconciled(tracker.isOnline())
-            }
-        }
-
         awaitClose {
-            pollJob.cancel()
+            pollJob?.cancel()
             connectivityManager.unregisterNetworkCallback(callback)
             lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
         }
