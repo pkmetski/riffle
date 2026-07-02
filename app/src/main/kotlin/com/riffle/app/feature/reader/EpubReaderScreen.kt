@@ -1758,7 +1758,7 @@ private fun EpubNavigatorView(
     // persisted-highlight effects below — the renderer is recreated Readium↔Continuous and the
     // fresh instance has to receive the current sentence immediately, not on the next reflow tick.
     LaunchedEffect(highlightRenderer, activeFragmentRef, reflowGeneration, pageLoadGeneration.value, sentenceQuotes, readaloudHighlightColor) {
-        highlightRenderer.applyReadaloud(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
+        highlightRenderer.applySentenceHighlight(activeFragmentRef, sentenceQuotes, readaloudHighlightColor)
     }
 
     // ---- Persisted highlights (annotations + note glyphs) ----------------------------------

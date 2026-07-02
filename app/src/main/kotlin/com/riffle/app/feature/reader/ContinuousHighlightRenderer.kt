@@ -18,18 +18,18 @@ internal class ContinuousHighlightRenderer(
     private val targetProvider: () -> ContinuousHighlightTarget?,
 ) : HighlightRenderer {
 
-    /** Href of the chapter that holds the current readaloud highlight, for clearing on chapter change. */
-    private var prevReadaloudHref: String? = null
+    /** Href of the chapter that holds the current sentence highlight, for clearing on chapter change. */
+    private var prevSentenceHref: String? = null
 
-    override suspend fun applyReadaloud(
+    override suspend fun applySentenceHighlight(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
         color: HighlightColor,
     ) {
         val target = targetProvider() ?: return
         if (fragmentRef == null) {
-            prevReadaloudHref?.let { target.clearHighlightInChapter(it) }
-            prevReadaloudHref = null
+            prevSentenceHref?.let { target.clearHighlightInChapter(it) }
+            prevSentenceHref = null
             return
         }
         val chapterHref = fragmentRef.substringBefore('#')
@@ -37,9 +37,9 @@ internal class ContinuousHighlightRenderer(
         if (sid.isBlank()) return
         val text = quotes[sid]?.highlight ?: return
 
-        val prev = prevReadaloudHref
+        val prev = prevSentenceHref
         if (prev != null && prev != chapterHref) target.clearHighlightInChapter(prev)
-        prevReadaloudHref = chapterHref
+        prevSentenceHref = chapterHref
 
         target.highlightInChapter(chapterHref, text, color.argb.toCssRgba())
     }

@@ -61,7 +61,7 @@ class HighlightRendererSwapReapplyTest {
         var annotationApplies: Int = 0
             private set
 
-        override suspend fun applyReadaloud(
+        override suspend fun applySentenceHighlight(
             fragmentRef: String?,
             quotes: Map<String, SentenceQuote>,
             color: HighlightColor,

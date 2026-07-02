@@ -26,20 +26,20 @@ internal class ReadiumHighlightRenderer(
     private val currentNavigatorStamp: () -> Any? = { null },
 ) : HighlightRenderer {
 
-    private var hasReadaloudDecoration = false
+    private var hasSentenceDecoration = false
     private var hasAnnotationDecorations = false
     private var hasNoteGlyphDecorations = false
     private var hasSearchDecorations = false
 
-    override suspend fun applyReadaloud(
+    override suspend fun applySentenceHighlight(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
         color: HighlightColor,
     ) {
         if (fragmentRef == null) {
-            if (!hasReadaloudDecoration) return
+            if (!hasSentenceDecoration) return
             applyDecorationsBlock(emptyList(), "readaloud")
-            hasReadaloudDecoration = false
+            hasSentenceDecoration = false
             return
         }
         val sid = fragmentRef.substringAfter('#', "")
@@ -51,7 +51,7 @@ internal class ReadiumHighlightRenderer(
             style = HighlightTintStyle(tint = color.argb),
         )
         applyDecorationsWithClear(listOf(decoration), "readaloud")
-        hasReadaloudDecoration = true
+        hasSentenceDecoration = true
     }
 
     override suspend fun applyAnnotations(
@@ -73,7 +73,7 @@ internal class ReadiumHighlightRenderer(
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
         // (id, locator, style) list as a no-op, so a re-fire of the same list (theme change bumps
         // pageLoadGeneration, LaunchedEffect keys the same renders) would keep the stale pre-reflow
-        // rects until the 400ms settle tick fires. Matches [applyReadaloud]'s pre-clear semantics.
+        // rects until the 400ms settle tick fires. Matches [applySentenceHighlight]'s pre-clear semantics.
         applyDecorationsWithClear(decorations, "annotations")
         hasAnnotationDecorations = true
         // Readium fixes decoration rects at applyDecorations time. When the first apply runs before
