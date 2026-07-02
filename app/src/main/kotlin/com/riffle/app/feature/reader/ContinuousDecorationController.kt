@@ -12,8 +12,9 @@ import kotlin.math.abs
  *  - a chapter entering the window (onPageFinished) has a single re-apply entry point:
  *    [onChapterLoaded].
  *
- * Readaloud highlight orchestration remains in the pre-existing [ContinuousHighlightRenderer]
- * which owns `prevReadaloudHref`; the controller only exposes [highlightInChapter] /
+ * Sentence highlight orchestration (Readaloud today, Cadence in future) remains in the
+ * pre-existing [ContinuousHighlightRenderer] which owns `prevSentenceHref`; the controller
+ * only exposes [highlightInChapter] /
  * [clearHighlightInChapter] because they are part of the [ContinuousHighlightTarget] contract.
  */
 internal class ContinuousDecorationController(
