@@ -117,4 +117,17 @@ class ScrollPaceTest {
         val c = ctxFor(FormattingPreferences(), LayoutInputs(0, 3f))
         assertEquals(0f, c.wordsPerLine, 0.0001f)
     }
+
+    // Calibration guard: pins the derived pace at default prefs on a typical phone. If either the
+    // average-word-length constant or the real-prose line-fill factor regresses, this flips red.
+    // Numbers are chosen so the pace stays visibly faster than the pre-calibration ~29.6 px/s.
+    @Test
+    fun `default prefs on typical phone yield around 35 px per second at 250 wpm`() {
+        val ctx = ctxFor(FormattingPreferences(), phone)
+        val pace = pxPerSecond(AutoScrollSpeed.of(250), ctx)
+        assertTrue(
+            "expected pace in [33, 38] px/s, got $pace (wpl=${ctx.wordsPerLine}, lh=${ctx.lineHeightPx})",
+            pace in 33f..38f,
+        )
+    }
 }

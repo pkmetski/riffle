@@ -16,8 +16,14 @@ fun pxPerSecond(speed: AutoScrollSpeed, layout: LayoutContext): Float {
 // Base body font size in CSS px (Readium's default 1rem).
 private const val BASE_FONT_CSS_PX: Float = 16f
 
-// Approximate average word length including the following space — matches typical English prose.
-private const val AVG_WORD_LEN_CHARS: Float = 6.1f
+// Approximate average word length including the following space — matches typical English prose
+// (~4.7-char word + 1 space).
+private const val AVG_WORD_LEN_CHARS: Float = 5.5f
+
+// Real prose does not fill lines to the margin — paragraph endings, dialog, chapter breaks, and
+// hyphenation avoidance leave the average line noticeably shorter than the maximum. Without this
+// correction the derived wordsPerLine is too high and auto-scroll pace comes out too slow.
+private const val LINE_FILL_FACTOR: Float = 0.75f
 
 // Readium's --RS__pageGutter default. Side padding per side ≈ pageGutter * --USER__pageMargins.
 private const val PAGE_GUTTER_CSS_PX: Float = 8f
@@ -47,6 +53,7 @@ fun layoutContextFor(
     val gutterCssPx = PAGE_GUTTER_CSS_PX * prefs.margins
     val innerCssPx = (viewportCssPx - 2f * gutterCssPx).coerceAtLeast(0f)
     val avgWordWidthCssPx = fontSizeCssPx * avgEmAdvance(prefs.fontFamily) * AVG_WORD_LEN_CHARS
-    val wordsPerLine = if (avgWordWidthCssPx > 0f) innerCssPx / avgWordWidthCssPx else 0f
+    val wordsPerLine = if (avgWordWidthCssPx > 0f)
+        (innerCssPx / avgWordWidthCssPx) * LINE_FILL_FACTOR else 0f
     return LayoutContext(wordsPerLine = wordsPerLine, lineHeightPx = lineHeightDevicePx)
 }
