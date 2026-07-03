@@ -280,6 +280,52 @@ internal object ColumnSnap {
         (function(){
           if(window.__riffleSettleSnapInstalled) return;
           window.__riffleSettleSnapInstalled=true;
+          // Undo Readium's post-selection scrollLeft nudge. On selection end, readium-reflowable.js
+          // calls N(), which writes `body.scrollLeft = R(scrollX + b/2)`, where `b` is
+          // `viewportWidth / devicePixelRatio`. On devices with non-integer dpr (e.g. 2.625 on our
+          // harness emulator), `b` is fractional and the returned floor-modulo lands on a
+          // sub-pixel that the WebView setter rounds up to 1 CSS px — a visible 1-CSS-px drift
+          // that the existing 120ms scroll-idle backstop only corrects a fraction of a second
+          // later, producing the page-jog the user sees when Play-from-here opens the bar.
+          //
+          // Snap synchronously in a selectionchange listener registered AFTER Readium's (both
+          // register on document.addEventListener, and 'load'-time registrations fire in
+          // insertion order — Readium's is inside window.addEventListener('load', …), and this
+          // block runs after Readium's script has already installed its listener). When the
+          // selection has just collapsed, re-snap scrollLeft to the REAL column pitch (integer
+          // window.innerWidth), which is what the CSS multicol layout actually uses.
+          try {
+            var lastCollapsed = true;
+            function registerSelectionSnap() {
+              document.addEventListener('selectionchange', function() {
+                try {
+                  var sel = window.getSelection();
+                  var collapsed = !sel || sel.isCollapsed;
+                  if (collapsed && !lastCollapsed) {
+                    // Selection just ended — undo any sub-px scrollLeft drift Readium's N() writes.
+                    var se = document.scrollingElement || document.documentElement;
+                    if (se && se.scrollHeight <= window.innerHeight + 4) { // paginated only
+                      var iw = window.innerWidth;
+                      if (iw > 0) {
+                        // Defer one frame so Readium's own selectionchange handler runs first and
+                        // does its (fractional) write; then we correct it on the next tick.
+                        requestAnimationFrame(function() {
+                          var nearest = Math.round(se.scrollLeft / iw) * iw;
+                          if (se.scrollLeft !== nearest) se.scrollLeft = nearest;
+                        });
+                      }
+                    }
+                  }
+                  lastCollapsed = collapsed;
+                } catch(e) {}
+              });
+            }
+            // Readium registers its selectionchange handler inside window.load. Register mine after
+            // window.load has fired so both are in place, and selection-collapse fires ours after
+            // theirs — we correct the drift they introduce rather than being pre-empted.
+            if (document.readyState === 'complete') registerSelectionSnap();
+            else window.addEventListener('load', registerSelectionSnap, false);
+          } catch(e) {}
           var t=null;
           function settle(){
             var se=document.scrollingElement||document.documentElement; if(!se) return;
